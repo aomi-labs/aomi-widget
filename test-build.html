@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aomi Widget - Build Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #0a0a0a;
+            color: #00ff00;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .widget-container {
+            margin: 20px 0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .info {
+            padding: 20px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+        }
+        .success {
+            color: #00ff88;
+        }
+        .error {
+            color: #ff5555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Aomi Widget Library - Build Test</h1>
+        
+        <div class="info">
+            <h2>Build Status</h2>
+            <div id="build-status">Testing...</div>
+        </div>
+        
+        <div class="widget-container">
+            <div class="info">
+                <h3>Widget Container</h3>
+                <p>The Aomi chat widget will appear below:</p>
+            </div>
+            <div id="chat-widget"></div>
+        </div>
+        
+        <div class="info">
+            <h2>Available Exports</h2>
+            <div id="exports-list">Loading...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        const statusDiv = document.getElementById('build-status');
+        const exportsDiv = document.getElementById('exports-list');
+        
+        try {
+            // Import the widget library
+            const AomiWidget = await import('./dist/index.mjs');
+            
+            statusDiv.innerHTML = '<span class="success">✅ Build successful! Library loaded.</span>';
+            
+            // Display available exports
+            const exports = Object.keys(AomiWidget).filter(key => key !== 'default').sort();
+            exportsDiv.innerHTML = `
+                <p><strong>Named exports (${exports.length}):</strong></p>
+                <ul style="columns: 3; column-gap: 20px; list-style: none; padding: 0;">
+                    ${exports.map(exp => `<li style="break-inside: avoid; margin: 2px 0;">• ${exp}</li>`).join('')}
+                </ul>
+                <p><strong>Default export:</strong> Available with convenience functions</p>
+            `;
+            
+            // Test widget creation
+            try {
+                const widget = AomiWidget.createChatWidget('chat-widget', {
+                    appCode: 'test-app',
+                    theme: 'terminal',
+                    width: '400px',
+                    height: '500px',
+                    baseUrl: 'http://localhost:8080'
+                });
+                
+                console.log('Widget created successfully:', widget);
+                
+                // Add success message to status
+                statusDiv.innerHTML += '<br><span class="success">✅ Widget creation test passed!</span>';
+                
+            } catch (error) {
+                console.error('Widget creation failed:', error);
+                statusDiv.innerHTML += `<br><span class="error">❌ Widget creation failed: ${error.message}</span>`;
+            }
+            
+        } catch (error) {
+            console.error('Failed to import widget library:', error);
+            statusDiv.innerHTML = `<span class="error">❌ Build failed: ${error.message}</span>`;
+            exportsDiv.innerHTML = '<span class="error">Could not load exports</span>';
+        }
+    </script>
+</body>
+</html>

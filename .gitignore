@@ -1,0 +1,65 @@
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+build/
+lib/
+out/
+
+# Vite / Rollup / bundler caches
+.vite/
+.rollup.cache
+.rpt2_cache/
+.parcel-cache/
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Environment variables
+.env
+.env.*
+.env.local
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Test output
+jest.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Editor temporary files
+*~
+*.swp
+
+# Package artifacts
+*.tgz
+
+# Misc
+.serverless/
+.turbo/
+coverage-report/
+
+# Ignore local build / debug files
+.local/
+
+./node_modules/*

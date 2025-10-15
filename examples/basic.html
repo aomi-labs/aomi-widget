@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aomi Chat Widget - Basic Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .example {
+            border: 2px solid #e1e5e9;
+            border-radius: 15px;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .example h2 {
+            color: #495057;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .widget-container {
+            border: 2px dashed #6c757d;
+            border-radius: 10px;
+            min-height: 600px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            position: relative;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .logs {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            background: #f8f9fa;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        
+        .log-entry.event {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .log-entry.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .note {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Aomi Chat Widget Examples</h1>
+        
+        <div class="note">
+            <strong>📝 Note:</strong> This example demonstrates the basic usage of the Aomi Chat Widget. 
+            The widgets will connect to your backend at the configured URL.
+        </div>
+        
+        <div class="examples">
+            <!-- Basic Widget Example -->
+            <div class="example">
+                <h2><span>🚀</span> Basic Widget</h2>
+                <div class="status info" id="basic-status">Ready to load widget...</div>
+                
+                <div class="controls">
+                    <button onclick="loadBasicWidget()">Load Widget</button>
+                    <button onclick="destroyWidget('basic')" disabled id="basic-destroy">Destroy</button>
+                </div>
+                
+                <div class="widget-container" id="basic-widget">
+                    <p style="color: #6c757d;">Click "Load Widget" to initialize</p>
+                </div>
+                
+                <div class="logs" id="basic-logs"></div>
+            </div>
+            
+            <!-- Terminal Widget Example -->
+            <div class="example">
+                <h2><span>💻</span> Terminal Theme</h2>
+                <div class="status info" id="terminal-status">Terminal theme with green glow...</div>
+                
+                <div class="controls">
+                    <button onclick="loadTerminalWidget()">Load Terminal</button>
+                    <button onclick="sendTestMessage('terminal')" disabled id="terminal-send">Send Test</button>
+                    <button onclick="destroyWidget('terminal')" disabled id="terminal-destroy">Destroy</button>
+                </div>
+                
+                <div class="widget-container" id="terminal-widget">
+                    <p style="color: #6c757d;">Click "Load Terminal" to initialize</p>
+                </div>
+                
+                <div class="logs" id="terminal-logs"></div>
+            </div>
+            
+            <!-- Custom Theme Widget -->
+            <div class="example">
+                <h2><span>🎨</span> Custom Theme</h2>
+                <div class="status info" id="custom-status">Custom brand colors...</div>
+                
+                <div class="controls">
+                    <button onclick="loadCustomWidget()">Load Custom</button>
+                    <button onclick="updateTheme()" disabled id="custom-update">Update Theme</button>
+                    <button onclick="destroyWidget('custom')" disabled id="custom-destroy">Destroy</button>
+                </div>
+                
+                <div class="widget-container" id="custom-widget">
+                    <p style="color: #6c757d;">Click "Load Custom" to initialize</p>
+                </div>
+                
+                <div class="logs" id="custom-logs"></div>
+            </div>
+            
+            <!-- Compact Widget -->
+            <div class="example">
+                <h2><span>📱</span> Compact Mode</h2>
+                <div class="status info" id="compact-status">Smaller size for mobile...</div>
+                
+                <div class="controls">
+                    <button onclick="loadCompactWidget()">Load Compact</button>
+                    <button onclick="resizeWidget('compact')" disabled id="compact-resize">Resize</button>
+                    <button onclick="destroyWidget('compact')" disabled id="compact-destroy">Destroy</button>
+                </div>
+                
+                <div class="widget-container" id="compact-widget" style="min-height: 400px;">
+                    <p style="color: #6c757d;">Click "Load Compact" to initialize</p>
+                </div>
+                
+                <div class="logs" id="compact-logs"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Load the widget library -->
+    <script src="https://unpkg.com/@aomi/widget-lib@latest/dist/aomi-widget.umd.js"></script>
+    <script>
+        // Widget instances
+        let widgets = {
+            basic: null,
+            terminal: null,
+            custom: null,
+            compact: null
+        };
+        
+        // Mock Ethereum provider for demo
+        const mockProvider = {
+            request: async ({ method, params }) => {
+                console.log('Mock provider request:', method, params);
+                await new Promise(resolve => setTimeout(resolve, 100)); // Simulate network delay
+                
+                switch (method) {
+                    case 'eth_accounts':
+                        return ['0x742d35Cc6645C0532C8ae7a8a4eaaE43e3Df9E10'];
+                    case 'eth_chainId':
+                        return '0x1'; // Mainnet
+                    case 'eth_getBalance':
+                        return '0x1bc16d674ec80000'; // 2 ETH
+                    case 'personal_sign':
+                        return '0x' + 'a'.repeat(130); // Mock signature
+                    default:
+                        throw new Error(`Unsupported method: ${method}`);
+                }
+            },
+            on: (event, handler) => {
+                console.log(`Mock provider listening to: ${event}`);
+                // Simulate some events
+                if (event === 'accountsChanged') {
+                    setTimeout(() => handler(['0x742d35Cc6645C0532C8ae7a8a4eaaE43e3Df9E10']), 2000);
+                }
+            }
+        };
+        
+        function logEvent(widgetType, eventName, data) {
+            const logsContainer = document.getElementById(`${widgetType}-logs`);
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry event';
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${eventName}: ${JSON.stringify(data, null, 2)}`;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        function logError(widgetType, message) {
+            const logsContainer = document.getElementById(`${widgetType}-logs`);
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry error';
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ERROR: ${message}`;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        function updateStatus(widgetType, message, type = 'info') {
+            const status = document.getElementById(`${widgetType}-status`);
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        function enableButton(buttonId) {
+            const button = document.getElementById(buttonId);
+            if (button) button.disabled = false;
+        }
+        
+        function disableButton(buttonId) {
+            const button = document.getElementById(buttonId);
+            if (button) button.disabled = true;
+        }
+        
+        // Basic Widget
+        function loadBasicWidget() {
+            try {
+                const container = document.getElementById('basic-widget');
+                container.innerHTML = '';
+                
+                updateStatus('basic', 'Loading basic widget...', 'info');
+                
+                widgets.basic = AomiWidget.createChatWidget(container, {
+                    appCode: 'basic-demo',
+                    theme: 'light',
+                    width: '100%',
+                    height: '500px',
+                    baseUrl: 'http://localhost:8080', // Change to your backend URL
+                    provider: mockProvider,
+                    onReady: () => {
+                        updateStatus('basic', 'Widget ready!', 'success');
+                        enableButton('basic-destroy');
+                        logEvent('basic', 'Ready', {});
+                    },
+                    onMessage: (message) => {
+                        logEvent('basic', 'Message', { type: message.type, content: message.content.substring(0, 50) + '...' });
+                    },
+                    onError: (error) => {
+                        updateStatus('basic', `Error: ${error.message}`, 'error');
+                        logError('basic', error.message);
+                    }
+                });
+                
+            } catch (error) {
+                updateStatus('basic', `Failed to load: ${error.message}`, 'error');
+                logError('basic', error.message);
+            }
+        }
+        
+        // Terminal Widget
+        function loadTerminalWidget() {
+            try {
+                const container = document.getElementById('terminal-widget');
+                container.innerHTML = '';
+                
+                updateStatus('terminal', 'Loading terminal widget...', 'info');
+                
+                widgets.terminal = AomiWidget.createChatWidget(container, {
+                    appCode: 'terminal-demo',
+                    theme: 'terminal',
+                    width: '100%',
+                    height: '500px',
+                    mode: 'terminal',
+                    welcomeMessage: '> System initialized. AI agent ready.',
+                    placeholder: '> Enter command...',
+                    baseUrl: 'http://localhost:8080',
+                    provider: mockProvider,
+                    onReady: () => {
+                        updateStatus('terminal', 'Terminal online!', 'success');
+                        enableButton('terminal-send');
+                        enableButton('terminal-destroy');
+                        logEvent('terminal', 'Online', {});
+                    },
+                    onMessage: (message) => {
+                        logEvent('terminal', 'Output', { type: message.type });
+                    },
+                    onError: (error) => {
+                        updateStatus('terminal', `Error: ${error.message}`, 'error');
+                        logError('terminal', error.message);
+                    }
+                });
+                
+            } catch (error) {
+                updateStatus('terminal', `Failed to load: ${error.message}`, 'error');
+                logError('terminal', error.message);
+            }
+        }
+        
+        // Custom Theme Widget
+        function loadCustomWidget() {
+            try {
+                const container = document.getElementById('custom-widget');
+                container.innerHTML = '';
+                
+                updateStatus('custom', 'Loading custom theme...', 'info');
+                
+                const customTheme = {
+                    baseTheme: 'dark',
+                    primary: '#ff6b35',
+                    background: '#1a1a2e',
+                    surface: '#16213e',
+                    text: '#ffffff',
+                    textSecondary: '#a8a8a8',
+                    border: '#0f3460',
+                    success: '#00d26a',
+                    error: '#ff4757',
+                    warning: '#ffa500',
+                    accent: '#8b5cf6'
+                };
+                
+                widgets.custom = AomiWidget.createChatWidget(container, {
+                    appCode: 'custom-demo',
+                    theme: customTheme,
+                    width: '100%',
+                    height: '500px',
+                    welcomeMessage: 'Welcome to our custom-branded AI assistant!',
+                    baseUrl: 'http://localhost:8080',
+                    provider: mockProvider,
+                    onReady: () => {
+                        updateStatus('custom', 'Custom widget ready!', 'success');
+                        enableButton('custom-update');
+                        enableButton('custom-destroy');
+                        logEvent('custom', 'Ready', { theme: 'custom' });
+                    },
+                    onMessage: (message) => {
+                        logEvent('custom', 'Message', { type: message.type });
+                    },
+                    onError: (error) => {
+                        updateStatus('custom', `Error: ${error.message}`, 'error');
+                        logError('custom', error.message);
+                    }
+                });
+                
+            } catch (error) {
+                updateStatus('custom', `Failed to load: ${error.message}`, 'error');
+                logError('custom', error.message);
+            }
+        }
+        
+        // Compact Widget
+        function loadCompactWidget() {
+            try {
+                const container = document.getElementById('compact-widget');
+                container.innerHTML = '';
+                
+                updateStatus('compact', 'Loading compact widget...', 'info');
+                
+                widgets.compact = AomiWidget.createChatWidget(container, {
+                    appCode: 'compact-demo',
+                    theme: 'minimal',
+                    width: '300px',
+                    height: '400px',
+                    mode: 'compact',
+                    placeholder: 'Ask me anything...',
+                    baseUrl: 'http://localhost:8080',
+                    provider: mockProvider,
+                    onReady: () => {
+                        updateStatus('compact', 'Compact widget ready!', 'success');
+                        enableButton('compact-resize');
+                        enableButton('compact-destroy');
+                        logEvent('compact', 'Ready', { mode: 'compact' });
+                    },
+                    onMessage: (message) => {
+                        logEvent('compact', 'Message', { type: message.type });
+                    },
+                    onError: (error) => {
+                        updateStatus('compact', `Error: ${error.message}`, 'error');
+                        logError('compact', error.message);
+                    }
+                });
+                
+            } catch (error) {
+                updateStatus('compact', `Failed to load: ${error.message}`, 'error');
+                logError('compact', error.message);
+            }
+        }
+        
+        // Utility functions
+        function sendTestMessage(widgetType) {
+            if (widgets[widgetType]) {
+                widgets[widgetType].sendMessage('Hello! This is a test message from the demo.');
+                logEvent(widgetType, 'TestMessage', { sent: true });
+            }
+        }
+        
+        function updateTheme() {
+            if (widgets.custom) {
+                const newTheme = {
+                    baseTheme: 'light',
+                    primary: '#00d26a',
+                    background: '#ffffff',
+                    surface: '#f8f9fa',
+                    text: '#333333',
+                    textSecondary: '#666666',
+                    border: '#e0e0e0',
+                    success: '#28a745',
+                    error: '#dc3545',
+                    warning: '#ffc107',
+                    accent: '#007bff'
+                };
+                
+                widgets.custom.updateParams({ theme: newTheme });
+                logEvent('custom', 'ThemeUpdated', { theme: 'light' });
+                updateStatus('custom', 'Theme updated to light!', 'success');
+            }
+        }
+        
+        function resizeWidget(widgetType) {
+            if (widgets[widgetType]) {
+                widgets[widgetType].resize('350px', '450px');
+                logEvent(widgetType, 'Resized', { width: '350px', height: '450px' });
+                updateStatus(widgetType, 'Widget resized!', 'success');
+            }
+        }
+        
+        function destroyWidget(widgetType) {
+            if (widgets[widgetType]) {
+                widgets[widgetType].destroy();
+                widgets[widgetType] = null;
+                
+                const container = document.getElementById(`${widgetType}-widget`);
+                container.innerHTML = '<p style="color: #6c757d;">Widget destroyed. Reload page to recreate.</p>';
+                
+                updateStatus(widgetType, 'Widget destroyed.', 'info');
+                
+                // Disable buttons
+                disableButton(`${widgetType}-destroy`);
+                disableButton(`${widgetType}-send`);
+                disableButton(`${widgetType}-update`);
+                disableButton(`${widgetType}-resize`);
+                
+                logEvent(widgetType, 'Destroyed', {});
+            }
+        }
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            Object.values(widgets).forEach(widget => {
+                if (widget) widget.destroy();
+            });
+        });
+        
+        // Auto-load first widget for demo
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                loadBasicWidget();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
