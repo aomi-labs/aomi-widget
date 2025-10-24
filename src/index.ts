@@ -1,7 +1,15 @@
 // Main entry point for the Aomi Chat Widget Library
 
+import { createAomiChatWidget } from './core/AomiChatWidget';
+import {
+  SUPPORTED_CHAINS,
+  PREDEFINED_THEMES,
+  ERROR_CODES,
+  WIDGET_EVENTS,
+} from './types/constants';
+
 // Core widget factory
-export { createAomiChatWidget } from './core/AomiChatWidget';
+export { createAomiChatWidget };
 
 // Core managers
 export { ChatManager } from './core/ChatManager';
