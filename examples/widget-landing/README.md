@@ -23,6 +23,9 @@ npm run build
 npm run preview
 ```
 
+When deploying on Vercel, set the build command to `npm run vercel-build`. This installs the root
+library (`@aomi/widget-lib`) before running the Vite build so the bundled package resolves correctly.
+
 ## Deploy to Vercel
 
 1. Set the project root to `examples/widget-landing`.

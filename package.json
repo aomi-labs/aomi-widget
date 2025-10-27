@@ -21,6 +21,7 @@
     "dev": "rollup -c -w",
     "build": "rollup -c && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "prepare": "npm run build",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "typecheck": "tsc --noEmit",
