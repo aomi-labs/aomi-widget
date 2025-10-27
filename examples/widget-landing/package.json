@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "vercel-build": "npm install --prefix ../.. && vite build"
+    "vercel-build": "npm install --prefix ../.. && npm run build --prefix ../.. && vite build"
   },
   "dependencies": {
     "@aomi/widget-lib": "file:../.."
