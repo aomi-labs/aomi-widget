@@ -34,6 +34,7 @@ import {
   formatTimestamp,
   truncateAddress,
 } from '../utils';
+import { renderMarkdown, buildMarkdownColors } from '../utils/markdown';
 import { ChatManager } from './ChatManager';
 import { ThemeManager } from './ThemeManager';
 import { WalletManager } from './WalletManager';
@@ -832,6 +833,22 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     const isUser = role === 'user';
     const isSystem = role === 'system';
+    const backgroundColor = isSystem
+      ? theme.palette.surface
+      : isUser
+      ? theme.palette.primary
+      : theme.palette.surface;
+    const textColor = isUser ? theme.palette.background : theme.palette.text;
+    const borderColor = isUser ? theme.palette.primary : theme.palette.border;
+    const accentColor = theme.palette.accent || theme.palette.primary;
+    const fontFamily = this.themeManager.getFontFamily();
+    const monospaceFont = this.themeManager.getMonospaceFontFamily();
+    const markdownColors = buildMarkdownColors(
+      backgroundColor,
+      textColor,
+      accentColor,
+      borderColor
+    );
 
     const bubble = createElement('div', {
       className: [
@@ -847,32 +864,27 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         maxWidth: '80%',
         padding: '12px 14px',
         borderRadius: isUser ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-        backgroundColor: isSystem
-          ? theme.palette.surface
-          : isUser
-          ? theme.palette.primary
-          : theme.palette.surface,
-        color: isUser ? theme.palette.background : theme.palette.text,
-        border: `1px solid ${
-          isUser ? theme.palette.primary : theme.palette.border
-        }`,
+        backgroundColor,
+        color: textColor,
+        border: `1px solid ${borderColor}`,
         fontSize: '14px',
         lineHeight: '20px',
-        whiteSpace: 'pre-wrap',
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
+        fontFamily,
       },
     });
 
-    const contentElement = createElement('div', {
-      styles: {
-        wordBreak: 'break-word',
-      },
-      children: [content],
+    const markdownElement = renderMarkdown(content || '', {
+      colors: markdownColors,
+      fontFamily,
+      monospaceFontFamily: monospaceFont,
     });
 
-    bubble.appendChild(contentElement);
+    markdownElement.style.wordBreak = 'break-word';
+
+    bubble.appendChild(markdownElement);
 
     if (timestamp) {
       bubble.appendChild(
@@ -881,7 +893,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
             fontSize: '12px',
             opacity: '0.7',
             textAlign: isUser ? 'right' : 'left',
-            fontFamily: this.themeManager.getMonospaceFontFamily(),
+            fontFamily: monospaceFont,
+            color: textColor,
           },
           children: [formatTimestamp(timestamp)],
         })
