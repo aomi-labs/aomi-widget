@@ -237,7 +237,7 @@
     </div>
     
     <!-- Load the widget library -->
-    <script src="https://unpkg.com/@aomi/widget-lib@latest/dist/aomi-widget.umd.js"></script>
+    <script src="../dist/index.umd.js"></script>
     <script>
         // Widget instances
         let widgets = {
@@ -322,7 +322,7 @@
                     theme: 'light',
                     width: '100%',
                     height: '500px',
-                    baseUrl: 'http://localhost:8080', // Change to your backend URL
+                    baseUrl: 'http://localhost:8080',
                     provider: mockProvider,
                     onReady: () => {
                         updateStatus('basic', 'Widget ready!', 'success');

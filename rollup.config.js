@@ -7,6 +7,16 @@ import { dts } from 'rollup-plugin-dts';
 
 const external = ['react', 'react-dom'];
 
+const IGNORE_CIRCULAR_REGEX = /node_modules\//;
+
+function onWarn(warning, warn) {
+  if (warning.code === 'CIRCULAR_DEPENDENCY' && IGNORE_CIRCULAR_REGEX.test(warning.message ?? '')) {
+    return;
+  }
+
+  warn(warning);
+}
+
 export default defineConfig([
   // ES Module build
   {
@@ -15,8 +25,10 @@ export default defineConfig([
       file: 'dist/index.mjs',
       format: 'es',
       sourcemap: true,
+      inlineDynamicImports: true,
     },
     external,
+    onwarn: onWarn,
     plugins: [
       resolve({
         browser: true,
@@ -43,8 +55,10 @@ export default defineConfig([
       format: 'cjs',
       sourcemap: true,
       exports: 'named',
+      inlineDynamicImports: true,
     },
     external,
+    onwarn: onWarn,
     plugins: [
       resolve({
         browser: true,
@@ -71,12 +85,14 @@ export default defineConfig([
       format: 'umd',
       name: 'AomiWidget',
       sourcemap: true,
+      inlineDynamicImports: true,
       globals: {
         react: 'React',
         'react-dom': 'ReactDOM',
       },
     },
     external,
+    onwarn: onWarn,
     plugins: [
       resolve({
         browser: true,
@@ -103,6 +119,7 @@ export default defineConfig([
       format: 'es',
     },
     external,
+    onwarn: onWarn,
     plugins: [
       dts({
         tsconfig: './tsconfig.json',

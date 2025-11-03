@@ -58,7 +58,10 @@
     }
   },
   "dependencies": {
-    "eventemitter3": "^5.0.1"
+    "dompurify": "^3.0.6",
+    "eventemitter3": "^5.0.1",
+    "marked": "^12.0.2",
+    "mermaid": "^11.12.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
@@ -71,6 +74,7 @@
     "@typescript-eslint/parser": "^6.9.1",
     "@vitejs/plugin-react": "^4.1.1",
     "eslint": "^8.52.0",
+    "jsdom": "^27.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "rimraf": "^5.0.5",

@@ -183,9 +183,10 @@ export enum ConnectionStatus {
 
 export enum ReadinessPhase {
   INITIALIZING = 'initializing',
-  CONNECTING_BACKEND = 'connecting_backend',
-  VALIDATING_API = 'validating_api',
+  CONNECTING_MCP = 'connecting_mcp',
+  VALIDATING_ANTHROPIC = 'validating_anthropic',
   READY = 'ready',
+  MISSING_API_KEY = 'missing_api_key',
   ERROR = 'error'
 }
 

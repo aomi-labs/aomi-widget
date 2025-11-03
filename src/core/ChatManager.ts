@@ -173,6 +173,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
   }
 
+
   public async sendMessage(message: string): Promise<void> {
     const content = message.trim();
 
@@ -368,6 +369,28 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       }
     }
 
+    if ('pending_wallet_tx' in payload) {
+      const raw = payload.pending_wallet_tx ?? null;
+
+      if (raw === null) {
+        if (this.state.pendingTransaction) {
+          this.state.pendingTransaction = undefined;
+          this.lastPendingTransactionRaw = null;
+          stateChanged = true;
+        }
+      } else if (raw !== this.lastPendingTransactionRaw) {
+        this.lastPendingTransactionRaw = raw;
+        try {
+          const parsed = JSON.parse(raw) as WalletTransaction;
+          this.state.pendingTransaction = parsed;
+          stateChanged = true;
+          this.emit('transactionRequest', parsed);
+        } catch (error) {
+          console.error('Failed to parse wallet transaction request:', error);
+        }
+      }
+    }
+
     if (stateChanged) {
       this.emitStateChange();
     }
@@ -438,6 +461,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       case 'ready':
         return { phase: ReadinessPhase.READY, detail: detailRaw };
       case 'missing_api_key':
+        return ReadinessPhase.MISSING_API_KEY;
       case 'error':
         return { phase: ReadinessPhase.ERROR, detail: detailRaw };
       default:
@@ -531,6 +555,8 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     if (this.reconnectAttempt < (this.config.reconnectAttempts ?? 0)) {
       this.scheduleReconnect();
     } else {
+      this.setReadiness({ phase: ReadinessPhase.ERROR, detail: 'Connection lost' });
+      this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
       this.emit('error', createConnectionError('Max reconnection attempts reached'));
       this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
     }
@@ -539,6 +565,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
   private scheduleReconnect(): void {
     this.clearReconnectTimer();
     this.setConnectionStatus(ConnectionStatus.RECONNECTING);
+    this.setReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
 
     const delay = (this.config.reconnectDelay ?? 0) * Math.pow(2, this.reconnectAttempt);
     this.reconnectAttempt += 1;

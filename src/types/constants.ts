@@ -346,8 +346,21 @@ export const CSS_CLASSES = {
 
   // Component classes
   CHAT_INTERFACE: 'aomi-chat-interface',
+  CHAT_HEADER: 'aomi-chat-header',
+  CHAT_TITLE: 'aomi-chat-title',
+  CHAT_BODY: 'aomi-chat-body',
+  STATUS_BADGE: 'aomi-status-badge',
   MESSAGE_LIST: 'aomi-message-list',
+  MESSAGE_CONTAINER: 'aomi-message-container',
+  MESSAGE_BUBBLE: 'aomi-message',
+  MESSAGE_USER: 'aomi-message-user',
+  MESSAGE_ASSISTANT: 'aomi-message-assistant',
+  MESSAGE_SYSTEM: 'aomi-message-system',
+  ACTION_BAR: 'aomi-action-bar',
   MESSAGE_INPUT: 'aomi-message-input',
+  INPUT_FORM: 'aomi-chat-input-form',
+  INPUT_FIELD: 'aomi-chat-input-field',
+  SEND_BUTTON: 'aomi-chat-send-button',
   WALLET_STATUS: 'aomi-wallet-status',
   TYPING_INDICATOR: 'aomi-typing-indicator',
 
