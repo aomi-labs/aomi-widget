@@ -122,7 +122,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
 
   public async connectSSE(): Promise<void> {
     this.setConnectionStatus(ConnectionStatus.CONNECTING);
-    this.updateReadiness({ phase: ReadinessPhase.CONNECTING_BACKEND });
+    this.updateReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
 
     this.teardownEventSource();
 
@@ -455,13 +455,13 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
 
     switch (payload.phase) {
       case 'connecting_mcp':
-        return { phase: ReadinessPhase.CONNECTING_BACKEND, detail: detailRaw };
+        return { phase: ReadinessPhase.CONNECTING_MCP, detail: detailRaw };
       case 'validating_anthropic':
-        return { phase: ReadinessPhase.VALIDATING_API, detail: detailRaw };
+        return { phase: ReadinessPhase.VALIDATING_ANTHROPIC, detail: detailRaw };
       case 'ready':
         return { phase: ReadinessPhase.READY, detail: detailRaw };
       case 'missing_api_key':
-        return ReadinessPhase.MISSING_API_KEY;
+        return { phase: ReadinessPhase.MISSING_API_KEY, detail: detailRaw };
       case 'error':
         return { phase: ReadinessPhase.ERROR, detail: detailRaw };
       default:
@@ -555,7 +555,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     if (this.reconnectAttempt < (this.config.reconnectAttempts ?? 0)) {
       this.scheduleReconnect();
     } else {
-      this.setReadiness({ phase: ReadinessPhase.ERROR, detail: 'Connection lost' });
+      this.updateReadiness({ phase: ReadinessPhase.ERROR, detail: 'Connection lost' });
       this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
       this.emit('error', createConnectionError('Max reconnection attempts reached'));
       this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
@@ -565,7 +565,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
   private scheduleReconnect(): void {
     this.clearReconnectTimer();
     this.setConnectionStatus(ConnectionStatus.RECONNECTING);
-    this.setReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
+    this.updateReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
 
     const delay = (this.config.reconnectDelay ?? 0) * Math.pow(2, this.reconnectAttempt);
     this.reconnectAttempt += 1;

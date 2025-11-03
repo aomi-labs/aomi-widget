@@ -83,7 +83,7 @@
     "rollup-plugin-postcss": "^4.0.2",
     "tslib": "^2.6.2",
     "typescript": "^5.2.2",
-    "vite": "^4.5.0",
-    "vitest": "^0.34.6"
+    "vite": "^6.4.1",
+    "vitest": "^3.2.4"
   }
 }
