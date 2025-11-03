@@ -1,28 +1,28 @@
 // AomiChatWidget - Main widget factory and management class
 
 import { EventEmitter } from 'eventemitter3';
-import type {
-  AomiChatWidgetParams,
-  AomiChatWidgetHandler,
-  WidgetConfig,
-  ChatState,
-  AomiChatEventListeners,
-  EthereumProvider,
-  ChatMessage,
-  WalletTransaction,
-} from '../types';
 import {
   ConnectionStatus,
+  type AomiChatWidgetParams,
+  type AomiChatWidgetHandler,
+  type WidgetConfig,
+  type ChatState,
+  type AomiChatEventListeners,
+  type EthereumProvider,
+  type ChatMessage,
+  type WalletTransaction,
+  type SupportedChainId,
 } from '../types';
 import {
   createConfigurationError,
   createConnectionError,
   AomiChatError as AomiError,
 } from '../types/errors';
-import { ERROR_CODES } from '../types/constants';
 import {
+  ERROR_CODES,
   DEFAULT_WIDGET_WIDTH,
   DEFAULT_WIDGET_HEIGHT,
+  DEFAULT_CHAIN_ID,
   CSS_CLASSES,
   WIDGET_EVENTS,
 } from '../types/constants';
@@ -51,6 +51,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   private widgetElement: HTMLElement | null = null;
   private isDestroyed = false;
   private eventEmitter: EventEmitter;
+  private hasPromptedNetworkSwitch = false;
 
   constructor(container: HTMLElement, config: WidgetConfig) {
     this.eventEmitter = new EventEmitter();
@@ -99,7 +100,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     }
 
     // Validate new parameters
-    const mergedParams = { ...this.config.params, ...params };
+    const previousParams = this.config.params;
+    const mergedParams = { ...previousParams, ...params };
     const errors = validateWidgetParams(mergedParams);
 
     if (errors.length > 0) {
@@ -108,6 +110,10 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     // Update configuration
     this.config.params = mergedParams;
+
+    if (params.chainId && params.chainId !== previousParams.chainId) {
+      this.hasPromptedNetworkSwitch = false;
+    }
 
     // Update theme if changed
     if (params.theme) {
@@ -130,6 +136,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     }
 
     this.config.provider = provider;
+    this.hasPromptedNetworkSwitch = false;
 
     if (provider) {
       if (this.walletManager) {
@@ -293,8 +300,23 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     if (!this.walletManager) return;
 
     this.walletManager.on('connect', (address) => {
-      this.chatManager.updateWalletState({ isConnected: true, address });
+      const chainId = this.walletManager?.getCurrentChainId() ?? null;
+      const networkName = this.getNetworkName(chainId);
+
+      this.chatManager.updateWalletState({
+        isConnected: true,
+        address,
+        chainId: chainId ?? undefined,
+        networkName,
+      });
       this.eventEmitter.emit(WIDGET_EVENTS.WALLET_CONNECT, address);
+
+      const chainLabel = chainId ?? 'unknown';
+      const connectMessage =
+        `User connected wallet with address ${address} on ${networkName} network ` +
+        `(Chain ID: ${chainLabel}). Ready to help with transactions.`;
+      void this.safeSendSystemMessage(connectMessage);
+      void this.maybePromptNetworkSwitch();
     });
 
     this.walletManager.on('disconnect', () => {
@@ -302,13 +324,22 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         isConnected: false,
         address: undefined,
         chainId: undefined,
+        networkName: undefined,
       });
+      this.hasPromptedNetworkSwitch = false;
       this.eventEmitter.emit(WIDGET_EVENTS.WALLET_DISCONNECT);
+      void this.safeSendSystemMessage('Wallet disconnected. Confirm to switch to testnet');
     });
 
     this.walletManager.on('chainChange', (chainId) => {
-      this.chatManager.updateWalletState({ chainId });
+      const networkName = this.getNetworkName(chainId);
+      this.chatManager.updateWalletState({ chainId, networkName });
+      this.hasPromptedNetworkSwitch = false;
       this.eventEmitter.emit(WIDGET_EVENTS.NETWORK_CHANGE, chainId);
+      void this.safeSendSystemMessage(
+        `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`,
+      );
+      void this.maybePromptNetworkSwitch();
     });
 
     this.walletManager.on('error', (error) => {
@@ -344,6 +375,63 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Transaction failed';
       await this.chatManager.sendTransactionResult(false, undefined, message);
+    }
+  }
+
+  private async safeSendSystemMessage(message: string): Promise<void> {
+    try {
+      await this.chatManager.sendSystemMessage(message);
+    } catch (error) {
+      this.eventEmitter.emit(WIDGET_EVENTS.ERROR, error);
+    }
+  }
+
+  private async maybePromptNetworkSwitch(): Promise<void> {
+    if (!this.walletManager) return;
+
+    const chainId = this.walletManager.getCurrentChainId();
+    if (!chainId) return;
+
+    if (this.hasPromptedNetworkSwitch) return;
+
+    const walletNetwork = this.getNetworkName(chainId);
+    const backendNetwork = this.getNetworkName(this.config.params.chainId ?? DEFAULT_CHAIN_ID);
+
+    if (walletNetwork === backendNetwork) return;
+
+    this.hasPromptedNetworkSwitch = true;
+
+    const promptMessage =
+      `New wallet connection: ${walletNetwork}, System configuration: ${backendNetwork}. ` +
+      'Prompt user to confirm network switch';
+    await this.safeSendSystemMessage(promptMessage);
+  }
+
+  private getNetworkName(chainId?: SupportedChainId | null): string {
+    switch (chainId) {
+      case 1:
+        return 'mainnet';
+      case 5:
+      case 11155111:
+      case 1337:
+      case 31337:
+        return 'testnet';
+      case 10:
+        return 'optimism';
+      case 100:
+        return 'gnosis';
+      case 137:
+        return 'polygon';
+      case 42161:
+        return 'arbitrum';
+      case 8453:
+        return 'base';
+      case 59140:
+        return 'linea-sepolia';
+      case 59144:
+        return 'linea';
+      default:
+        return 'testnet';
     }
   }
 
