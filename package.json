@@ -1,5 +1,5 @@
 {
-  "name": "@aomi/widget-lib",
+  "name": "@aomi-labs/widget-lib",
   "version": "0.2.0",
   "description": "Embeddable AI chat widget with Web3 capabilities",
   "type": "module",

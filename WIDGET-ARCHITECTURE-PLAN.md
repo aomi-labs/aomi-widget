@@ -43,7 +43,7 @@ Transform the existing Aomi chatbot application into an embeddable widget packag
 
 ### **Package Structure**
 ```
-@aomi/widget-lib/
+@aomi-labs/widget-lib/
 ├── src/
 │   ├── index.ts                    # Main exports
 │   ├── types.ts                    # Type definitions
@@ -71,7 +71,7 @@ Transform the existing Aomi chatbot application into an embeddable widget packag
 ├── README.md
 └── CHANGELOG.md
 
-@aomi/widget-react/
+@aomi-labs/widget-react/
 ├── src/
 │   ├── index.ts
 │   └── AomiChatWidget.tsx          # React wrapper component
@@ -101,7 +101,7 @@ Transform the existing Aomi chatbot application into an embeddable widget packag
 
 #### **2. JavaScript Widget Library**
 ```javascript
-import { createAomiChatWidget } from '@aomi/widget-lib';
+import { createAomiChatWidget } from '@aomi-labs/widget-lib';
 
 const widget = createAomiChatWidget(container, {
   params: {
@@ -115,7 +115,7 @@ const widget = createAomiChatWidget(container, {
 
 #### **3. React Component**
 ```jsx
-import { AomiChatWidget } from '@aomi/widget-react';
+import { AomiChatWidget } from '@aomi-labs/widget-react';
 
 <AomiChatWidget
   appCode="my-react-app"
@@ -335,18 +335,18 @@ export interface AomiChatEventListeners {
 ### **NPM Packages**
 ```json
 {
-  "@aomi/widget-lib": "^1.0.0",        // Core widget library
-  "@aomi/widget-react": "^1.0.0",      // React wrapper
-  "@aomi/widget-vue": "^1.0.0",        // Vue wrapper
-  "@aomi/widget-angular": "^1.0.0",    // Angular wrapper
-  "@aomi/widget-themes": "^1.0.0"      // Additional themes
+  "@aomi-labs/widget-lib": "^1.0.0",        // Core widget library
+  "@aomi-labs/widget-react": "^1.0.0",      // React wrapper
+  "@aomi-labs/widget-vue": "^1.0.0",        // Vue wrapper
+  "@aomi-labs/widget-angular": "^1.0.0",    // Angular wrapper
+  "@aomi-labs/widget-themes": "^1.0.0"      // Additional themes
 }
 ```
 
 ### **CDN Distribution**
 ```html
 <!-- For quick testing/prototyping -->
-<script src="https://unpkg.com/@aomi/widget-lib@latest/dist/widget.umd.js"></script>
+<script src="https://unpkg.com/@aomi-labs/widget-lib@latest/dist/widget.umd.js"></script>
 <script>
   const widget = AomiWidget.create(container, config);
 </script>

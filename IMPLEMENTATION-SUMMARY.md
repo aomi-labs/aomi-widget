@@ -13,14 +13,14 @@ Next.js App → Terminal UI → AI Chat → Wallet Integration → Rust Backend
 
 ### **What We'll Create**
 ```
-@aomi/widget-lib → iframe/React Component → Same Great Experience → Easy Integration
+@aomi-labs/widget-lib → iframe/React Component → Same Great Experience → Easy Integration
 ```
 
 ## 🏗️ **Package Architecture**
 
 ```typescript
 // Main widget creation function (like CoW Swap)
-import { createAomiChatWidget } from '@aomi/widget-lib';
+import { createAomiChatWidget } from '@aomi-labs/widget-lib';
 
 const widget = createAomiChatWidget(container, {
   appCode: 'my-dapp',
@@ -105,7 +105,7 @@ const widget = createAomiChatWidget(container, {
 
 2. **Create React wrapper:**
    ```jsx
-   import { AomiChatWidget } from '@aomi/widget-react';
+   import { AomiChatWidget } from '@aomi-labs/widget-react';
    
    <AomiChatWidget 
      appCode="my-app"
@@ -166,7 +166,7 @@ const customTheme = {
 
 ### **Widget Package Structure**
 ```
-@aomi/widget-lib/
+@aomi-labs/widget-lib/
 ├── src/
 │   ├── index.ts              # Main exports
 │   ├── chatWidget.ts         # Core widget factory
