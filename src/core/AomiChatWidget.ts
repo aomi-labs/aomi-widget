@@ -3,6 +3,7 @@
 import { EventEmitter } from 'eventemitter3';
 import {
   ConnectionStatus,
+  ReadinessPhase,
   type AomiChatWidgetParams,
   type AomiChatWidgetHandler,
   type WidgetConfig,
@@ -12,10 +13,13 @@ import {
   type ChatMessage,
   type WalletTransaction,
   type SupportedChainId,
+  type BackendReadiness,
+  type WalletState,
 } from '../types';
 import {
   createConfigurationError,
   createConnectionError,
+  createChatError,
   AomiChatError as AomiError,
 } from '../types/errors';
 import {
@@ -31,6 +35,8 @@ import {
   generateSessionId,
   createElement,
   isBrowser,
+  formatTimestamp,
+  truncateAddress,
 } from '../utils';
 import { ChatManager } from './ChatManager';
 import { ThemeManager } from './ThemeManager';
@@ -52,12 +58,25 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   private isDestroyed = false;
   private eventEmitter: EventEmitter;
   private hasPromptedNetworkSwitch = false;
+  private messageListElement: HTMLDivElement | null = null;
+  private typingIndicatorElement: HTMLDivElement | null = null;
+  private processingIndicatorElement: HTMLDivElement | null = null;
+  private composerInputElement: HTMLTextAreaElement | null = null;
+  private sendButtonElement: HTMLButtonElement | null = null;
+  private connectionStatusElement: HTMLSpanElement | null = null;
+  private statusTextElement: HTMLDivElement | null = null;
+  private walletInfoElement: HTMLDivElement | null = null;
+  private isComposerBusy = false;
+  private currentConnectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED;
+  private statusTextSource: 'readiness' | 'custom' = 'readiness';
+  private statusResetTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(container: HTMLElement, config: WidgetConfig) {
     this.eventEmitter = new EventEmitter();
 
     this.container = container;
     this.config = config;
+    this.registerConfiguredListeners(config.listeners);
 
     // Initialize managers
     this.chatManager = new ChatManager({
@@ -226,6 +245,11 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       this.walletManager.destroy();
     }
 
+    if (this.statusResetTimer) {
+      clearTimeout(this.statusResetTimer);
+      this.statusResetTimer = null;
+    }
+
     // Remove widget from DOM
     if (this.widgetElement && this.widgetElement.parentNode) {
       this.widgetElement.parentNode.removeChild(this.widgetElement);
@@ -271,6 +295,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     this.chatManager.on('stateChange', (state) => {
       // Forward state changes to widget listeners
       this.forwardStateEvents(state);
+      this.updateChatInterface(state);
     });
 
     this.chatManager.on('message', (message) => {
@@ -279,10 +304,13 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     this.chatManager.on('error', (error) => {
       this.eventEmitter.emit(WIDGET_EVENTS.ERROR, error);
+      this.updateStatusText(`Error: ${error.message}`);
     });
 
     this.chatManager.on('connectionChange', (status) => {
       this.eventEmitter.emit(WIDGET_EVENTS.CONNECTION_CHANGE, status);
+      this.updateConnectionStatus(status);
+      this.refreshComposerState();
     });
 
     this.chatManager.on('transactionRequest', (transaction) => {
@@ -293,6 +321,33 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     // Set up wallet event listeners if wallet manager exists
     if (this.walletManager) {
       this.setupWalletEventListeners();
+    }
+  }
+
+  private registerConfiguredListeners(listeners?: AomiChatEventListeners): void {
+    if (!listeners) return;
+
+    const listenerMap: Array<[keyof AomiChatEventListeners, string]> = [
+      ['onReady', WIDGET_EVENTS.READY],
+      ['onMessage', WIDGET_EVENTS.MESSAGE],
+      ['onTransactionRequest', WIDGET_EVENTS.TRANSACTION_REQUEST],
+      ['onError', WIDGET_EVENTS.ERROR],
+      ['onSessionStart', WIDGET_EVENTS.SESSION_START],
+      ['onSessionEnd', WIDGET_EVENTS.SESSION_END],
+      ['onNetworkChange', WIDGET_EVENTS.NETWORK_CHANGE],
+      ['onWalletConnect', WIDGET_EVENTS.WALLET_CONNECT],
+      ['onWalletDisconnect', WIDGET_EVENTS.WALLET_DISCONNECT],
+      ['onTypingChange', WIDGET_EVENTS.TYPING_CHANGE],
+      ['onProcessingChange', WIDGET_EVENTS.PROCESSING_CHANGE],
+      ['onConnectionChange', WIDGET_EVENTS.CONNECTION_CHANGE],
+      ['onResize', WIDGET_EVENTS.RESIZE],
+    ];
+
+    for (const [listenerKey, eventName] of listenerMap) {
+      const handler = listeners[listenerKey];
+      if (handler) {
+        this.eventEmitter.on(eventName, handler as (...args: unknown[]) => void);
+      }
     }
   }
 
@@ -351,6 +406,319 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     // Forward typing and processing changes
     this.eventEmitter.emit(WIDGET_EVENTS.TYPING_CHANGE, state.isTyping);
     this.eventEmitter.emit(WIDGET_EVENTS.PROCESSING_CHANGE, state.isProcessing);
+  }
+
+  private updateChatInterface(state: ChatState): void {
+    this.renderMessages(state.messages);
+    this.updateTypingIndicator(state.isTyping);
+    this.updateProcessingIndicator(state.isProcessing);
+    this.updateConnectionStatus(state.connectionStatus);
+    this.updateStatusFromReadiness(state.readiness);
+    this.updateWalletInfo(state.walletState);
+    this.refreshComposerState();
+  }
+
+  private renderMessages(messages: ChatMessage[]): void {
+    if (!this.messageListElement) return;
+
+    this.messageListElement.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    if (messages.length === 0) {
+      this.messageListElement.style.justifyContent = 'center';
+      const palette = this.themeManager.getComputedTheme().palette;
+      const placeholder = createElement('div', {
+        styles: {
+          textAlign: 'center',
+          padding: this.themeManager.getSpacing('md'),
+          color: palette.textSecondary,
+          fontSize: '13px',
+        },
+        children: ['Your conversation will appear here.'],
+      });
+      this.messageListElement.appendChild(placeholder);
+      return;
+    }
+
+    this.messageListElement.style.justifyContent = 'flex-start';
+
+    messages.forEach((message) => {
+      fragment.appendChild(this.createMessageElement(message));
+    });
+
+    this.messageListElement.appendChild(fragment);
+    this.scrollMessagesToBottom();
+  }
+
+  private createMessageElement(message: ChatMessage): HTMLElement {
+    const theme = this.themeManager.getComputedTheme();
+    const palette = theme.palette;
+    const spacingSm = this.themeManager.getSpacing('sm');
+    const bubbleRadius = this.themeManager.getBorderRadius('lg');
+    const wrapper = createElement('div', {
+      styles: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: message.type === 'user' ? 'flex-end' : 'flex-start',
+        gap: '4px',
+      },
+    });
+
+    const bubbleStyles: Partial<CSSStyleDeclaration> = {
+      maxWidth: '90%',
+      padding: spacingSm,
+      borderRadius: bubbleRadius,
+      fontSize: '14px',
+      lineHeight: '1.4',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+    };
+
+    let metaColor = palette.textSecondary;
+    let textColor = palette.text;
+
+    switch (message.type) {
+      case 'user':
+        bubbleStyles.backgroundColor = this.themeManager.getColor('primary');
+        textColor = '#ffffff';
+        break;
+      case 'assistant':
+        bubbleStyles.backgroundColor = palette.background;
+        bubbleStyles.border = `1px solid ${palette.border}`;
+        break;
+      case 'system':
+      default:
+        bubbleStyles.backgroundColor = palette.surface;
+        bubbleStyles.border = `1px dashed ${palette.border}`;
+        bubbleStyles.fontStyle = 'italic';
+        break;
+    }
+
+    const bubble = createElement('div', {
+      styles: {
+        ...bubbleStyles,
+        color: textColor,
+      },
+    });
+    bubble.textContent = message.content;
+
+    if (message.toolStream) {
+      const toolDetails = createElement('div', {
+        styles: {
+          marginTop: spacingSm,
+          padding: spacingSm,
+          fontSize: '12px',
+          fontFamily: this.themeManager.getMonospaceFontFamily(),
+          whiteSpace: 'pre-wrap',
+          borderRadius: this.themeManager.getBorderRadius('sm'),
+          backgroundColor: palette.surface,
+          border: `1px solid ${palette.border}`,
+          color: palette.textSecondary,
+        },
+        children: [
+          JSON.stringify(message.toolStream, null, 2),
+        ],
+      });
+      bubble.appendChild(toolDetails);
+    }
+
+    const meta = createElement('div', {
+      styles: {
+        fontSize: '11px',
+        color: metaColor,
+        alignSelf: message.type === 'user' ? 'flex-end' : 'flex-start',
+      },
+    });
+
+    const senderLabel = message.type === 'user'
+      ? 'You'
+      : message.type === 'assistant'
+        ? 'Assistant'
+        : 'System';
+    const timestampLabel = formatTimestamp(message.timestamp);
+    meta.textContent = `${senderLabel} • ${timestampLabel}`;
+
+    wrapper.append(bubble, meta);
+    return wrapper;
+  }
+
+  private scrollMessagesToBottom(): void {
+    if (!this.messageListElement) return;
+    this.messageListElement.scrollTo({
+      top: this.messageListElement.scrollHeight,
+      behavior: 'smooth',
+    });
+  }
+
+  private updateTypingIndicator(isTyping: boolean): void {
+    if (!this.typingIndicatorElement) return;
+    this.typingIndicatorElement.style.display = isTyping ? 'block' : 'none';
+  }
+
+  private updateProcessingIndicator(isProcessing: boolean): void {
+    if (!this.processingIndicatorElement) return;
+    this.processingIndicatorElement.style.display = isProcessing ? 'block' : 'none';
+  }
+
+  private updateConnectionStatus(status: ConnectionStatus): void {
+    this.currentConnectionStatus = status;
+
+    if (!this.connectionStatusElement) return;
+
+    const palette = this.themeManager.getComputedTheme().palette;
+
+    const statusLabels: Record<ConnectionStatus, string> = {
+      [ConnectionStatus.CONNECTED]: 'connected',
+      [ConnectionStatus.CONNECTING]: 'connecting',
+      [ConnectionStatus.DISCONNECTED]: 'disconnected',
+      [ConnectionStatus.ERROR]: 'error',
+      [ConnectionStatus.RECONNECTING]: 'reconnecting',
+    };
+
+    const backgroundMap: Record<ConnectionStatus, string> = {
+      [ConnectionStatus.CONNECTED]: this.themeManager.getColor('success'),
+      [ConnectionStatus.CONNECTING]: palette.accent,
+      [ConnectionStatus.DISCONNECTED]: palette.border,
+      [ConnectionStatus.ERROR]: this.themeManager.getColor('error'),
+      [ConnectionStatus.RECONNECTING]: this.themeManager.getColor('warning'),
+    };
+
+    const textColor = (
+      status === ConnectionStatus.DISCONNECTED
+        ? palette.textSecondary
+        : '#ffffff'
+    );
+
+    this.connectionStatusElement.textContent = statusLabels[status];
+    this.connectionStatusElement.style.backgroundColor = backgroundMap[status];
+    this.connectionStatusElement.style.color = textColor;
+  }
+
+  private updateStatusText(text: string, source: 'custom' | 'readiness' = 'custom'): void {
+    if (!this.statusTextElement) return;
+
+    if (source === 'readiness') {
+      this.statusTextSource = 'readiness';
+      if (this.statusResetTimer) {
+        clearTimeout(this.statusResetTimer);
+        this.statusResetTimer = null;
+      }
+      this.statusTextElement.textContent = text;
+      return;
+    }
+
+    this.statusTextSource = 'custom';
+    this.statusTextElement.textContent = text;
+
+    if (this.statusResetTimer) {
+      clearTimeout(this.statusResetTimer);
+    }
+
+    this.statusResetTimer = setTimeout(() => {
+      this.statusTextSource = 'readiness';
+      this.statusResetTimer = null;
+      this.updateStatusFromReadiness(this.chatManager.getState().readiness);
+    }, 5000);
+  }
+
+  private updateStatusFromReadiness(readiness: BackendReadiness): void {
+    if (!readiness || this.statusTextSource !== 'readiness') return;
+
+    let message: string;
+
+    switch (readiness.phase) {
+      case ReadinessPhase.INITIALIZING:
+        message = 'Booting assistant…';
+        break;
+      case ReadinessPhase.CONNECTING_MCP:
+        message = 'Connecting to Aomi services…';
+        break;
+      case ReadinessPhase.VALIDATING_ANTHROPIC:
+        message = 'Authorising AI backend…';
+        break;
+      case ReadinessPhase.READY:
+        message = 'Assistant ready to help.';
+        break;
+      case ReadinessPhase.MISSING_API_KEY:
+        message = 'Backend missing API credentials.';
+        break;
+      case ReadinessPhase.ERROR:
+      default:
+        message = 'Assistant experienced an error.';
+        break;
+    }
+
+    if (readiness.detail) {
+      message = `${message} (${String(readiness.detail)})`;
+    }
+
+    this.updateStatusText(message, 'readiness');
+  }
+
+  private updateWalletInfo(walletState: WalletState): void {
+    if (!this.walletInfoElement) return;
+
+    if (walletState.isConnected && walletState.address) {
+      const addressLabel = truncateAddress(walletState.address);
+      const networkLabel = walletState.networkName ?? 'unknown network';
+      this.walletInfoElement.textContent = `Wallet ${addressLabel} · ${networkLabel}`;
+    } else {
+      this.walletInfoElement.textContent = 'Wallet disconnected';
+    }
+  }
+
+  private refreshComposerState(): void {
+    if (!this.composerInputElement || !this.sendButtonElement) return;
+
+    const isConnected = this.currentConnectionStatus === ConnectionStatus.CONNECTED;
+    const hasContent = this.composerInputElement.value.trim().length > 0;
+    const disableInput = this.isComposerBusy || !isConnected;
+    const wasDisabled = this.composerInputElement.disabled;
+
+    this.composerInputElement.disabled = disableInput;
+    this.sendButtonElement.disabled = disableInput || !hasContent;
+    this.sendButtonElement.style.opacity = this.sendButtonElement.disabled ? '0.5' : '1';
+
+    if (!disableInput && wasDisabled) {
+      this.composerInputElement.focus();
+    }
+  }
+
+  private setComposerBusy(isBusy: boolean): void {
+    this.isComposerBusy = isBusy;
+    this.refreshComposerState();
+  }
+
+  private async handleComposerSubmit(event: Event): Promise<void> {
+    event.preventDefault();
+
+    if (this.isDestroyed) return;
+    if (!this.composerInputElement) return;
+
+    const rawValue = this.composerInputElement.value;
+    const trimmed = rawValue.trim();
+
+    if (!trimmed) {
+      this.refreshComposerState();
+      return;
+    }
+
+    this.setComposerBusy(true);
+
+    try {
+      await this.chatManager.sendMessage(trimmed);
+      this.composerInputElement.value = '';
+      this.updateStatusText('Message sent.');
+    } catch (error) {
+      const chatError = error instanceof AomiError
+        ? error
+        : createChatError(ERROR_CODES.UNKNOWN_ERROR, error instanceof Error ? error.message : 'Failed to send message');
+
+      this.eventEmitter.emit(WIDGET_EVENTS.ERROR, chatError);
+      this.updateStatusText(`Send failed: ${chatError.message}`);
+    } finally {
+      this.setComposerBusy(false);
+    }
   }
 
   private async handleTransactionRequest(transaction: WalletTransaction): Promise<void> {
@@ -462,6 +830,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     // Render chat interface
     this.renderChatInterface();
 
+    this.updateChatInterface(this.chatManager.getState());
+
     // Add to container
     this.container.appendChild(this.widgetElement);
   }
@@ -469,10 +839,15 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   private renderChatInterface(): void {
     if (!this.widgetElement) return;
 
-    /*
-     * This would render the actual chat UI
-     * For now, create a placeholder
-     */
+    this.widgetElement.innerHTML = '';
+
+    const theme = this.themeManager.getComputedTheme();
+    const palette = theme.palette;
+    const spacingSm = this.themeManager.getSpacing('sm');
+    const spacingLg = this.themeManager.getSpacing('lg');
+    const borderRadius = this.themeManager.getBorderRadius('md');
+    const primaryColor = this.themeManager.getColor('primary');
+
     const chatInterface = createElement('div', {
       className: CSS_CLASSES.CHAT_INTERFACE,
       styles: {
@@ -480,23 +855,200 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: this.themeManager.getColor('background'),
-        color: this.themeManager.getColor('text'),
-        border: `1px solid ${this.themeManager.getColor('border')}`,
-        borderRadius: '8px',
+        backgroundColor: palette.surface,
+        borderRadius,
+        border: `1px solid ${palette.border}`,
+        overflow: 'hidden',
       },
-      children: [
-        createElement('div', {
-          styles: {
-            padding: '16px',
-            textAlign: 'center',
-            fontSize: '14px',
-            color: this.themeManager.getColor('textSecondary'),
-          },
-          children: ['Chat interface will be implemented here'],
-        }),
-      ],
     });
+
+    const header = createElement('header', {
+      styles: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: spacingLg,
+        backgroundColor: palette.background,
+        borderBottom: `1px solid ${palette.border}`,
+      },
+    });
+
+    const title = createElement('div', {
+      styles: {
+        fontSize: '16px',
+        fontWeight: '600',
+        color: palette.text,
+      },
+      children: [this.config.params.content?.welcomeTitle ?? 'Aomi Assistant'],
+    });
+
+    const statusPill = createElement('span', {
+      styles: {
+        padding: '4px 10px',
+        borderRadius: '999px',
+        fontSize: '12px',
+        fontWeight: '600',
+        textTransform: 'capitalize',
+        backgroundColor: palette.border,
+        color: palette.textSecondary,
+        transition: 'background-color 0.2s ease, color 0.2s ease',
+      },
+      children: ['connecting'],
+    }) as HTMLSpanElement;
+    this.connectionStatusElement = statusPill;
+
+    header.append(title, statusPill);
+
+    const metaBar = createElement('div', {
+      styles: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacingSm,
+        padding: `${spacingSm} ${spacingLg}`,
+        backgroundColor: palette.background,
+        borderBottom: `1px solid ${palette.border}`,
+      },
+    });
+
+    const statusText = createElement('div', {
+      styles: {
+        fontSize: '13px',
+        color: palette.textSecondary,
+        minHeight: '18px',
+      },
+      children: ['Preparing assistant…'],
+    }) as HTMLDivElement;
+    this.statusTextElement = statusText;
+
+    const walletInfo = createElement('div', {
+      styles: {
+        fontSize: '12px',
+        color: palette.textSecondary,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+      },
+      children: ['Wallet disconnected'],
+    }) as HTMLDivElement;
+    this.walletInfoElement = walletInfo;
+
+    metaBar.append(statusText, walletInfo);
+
+    const body = createElement('div', {
+      styles: {
+        flex: '1 1 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacingSm,
+        padding: spacingLg,
+        overflow: 'hidden',
+      },
+    });
+
+    const messageList = createElement('div', {
+      styles: {
+        flex: '1 1 auto',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacingSm,
+        paddingRight: '6px',
+      },
+    }) as HTMLDivElement;
+    this.messageListElement = messageList;
+
+    const typingIndicator = createElement('div', {
+      styles: {
+        display: 'none',
+        color: palette.textSecondary,
+        fontSize: '12px',
+      },
+      children: ['Assistant is typing…'],
+    }) as HTMLDivElement;
+    this.typingIndicatorElement = typingIndicator;
+
+    const processingIndicator = createElement('div', {
+      styles: {
+        display: 'none',
+        color: palette.textSecondary,
+        fontSize: '12px',
+      },
+      children: ['Processing request…'],
+    }) as HTMLDivElement;
+    this.processingIndicatorElement = processingIndicator;
+
+    body.append(messageList, typingIndicator, processingIndicator);
+
+    const composerForm = createElement('form', {
+      styles: {
+        marginTop: spacingSm,
+        padding: spacingLg,
+        borderTop: `1px solid ${palette.border}`,
+        backgroundColor: palette.background,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacingSm,
+      },
+    }) as HTMLFormElement;
+
+    const composerInput = createElement('textarea', {
+      styles: {
+        width: '100%',
+        minHeight: '64px',
+        resize: 'vertical',
+        padding: spacingSm,
+        borderRadius,
+        border: `1px solid ${palette.border}`,
+        backgroundColor: palette.surface,
+        color: palette.text,
+        fontFamily: theme.fonts?.primary ?? 'inherit',
+        fontSize: '14px',
+        lineHeight: '1.4',
+      },
+      attributes: {
+        placeholder: this.config.params.placeholder ?? 'Ask anything about your wallet or transactions…',
+      },
+    }) as HTMLTextAreaElement;
+    this.composerInputElement = composerInput;
+
+    const controlsRow = createElement('div', {
+      styles: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: spacingSm,
+      },
+    });
+
+    const sendButton = createElement('button', {
+      styles: {
+        padding: '8px 16px',
+        borderRadius,
+        border: 'none',
+        backgroundColor: primaryColor,
+        color: '#ffffff',
+        fontWeight: '600',
+        cursor: 'pointer',
+        transition: 'opacity 0.2s ease',
+      },
+      attributes: {
+        type: 'submit',
+      },
+      children: ['Send'],
+    }) as HTMLButtonElement;
+    this.sendButtonElement = sendButton;
+
+    composerForm.addEventListener('submit', (event) => {
+      void this.handleComposerSubmit(event);
+    });
+
+    composerInput.addEventListener('input', () => {
+      this.refreshComposerState();
+    });
+
+    controlsRow.append(sendButton);
+    composerForm.append(composerInput, controlsRow);
+
+    chatInterface.append(header, metaBar, body, composerForm);
 
     this.widgetElement.appendChild(chatInterface);
   }

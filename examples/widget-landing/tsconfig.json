@@ -10,7 +10,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "types": ["vite/client", "node"],
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@aomi-labs/widget-lib": ["../../dist/index"]
+    }
   },
   "include": ["src/**/*", "env.d.ts"]
 }
