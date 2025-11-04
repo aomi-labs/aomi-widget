@@ -1,4 +1,4 @@
-# @aomi/widget-lib
+# @aomi-labs/widget-lib
 
 Embeddable AI chat widget with Web3 capabilities for any website.
 
@@ -7,13 +7,13 @@ Embeddable AI chat widget with Web3 capabilities for any website.
 ### Installation
 
 ```bash
-npm install @aomi/widget-lib
+npm install @aomi-labs/widget-lib
 ```
 
 ### Basic Usage
 
 ```typescript
-import { createChatWidget } from '@aomi/widget-lib';
+import { createChatWidget } from '@aomi-labs/widget-lib';
 
 const widget = createChatWidget('chat-container', {
   appCode: 'my-dapp',
@@ -25,7 +25,7 @@ const widget = createChatWidget('chat-container', {
 ### Advanced Usage
 
 ```typescript
-import { createAomiChatWidget } from '@aomi/widget-lib';
+import { createAomiChatWidget } from '@aomi-labs/widget-lib';
 
 const widget = createAomiChatWidget(container, {
   params: {
@@ -253,10 +253,10 @@ npm run dev
 
 ```typescript
 // Main factory functions
-import { createChatWidget, createAomiChatWidget } from '@aomi/widget-lib';
+import { createChatWidget, createAomiChatWidget } from '@aomi-labs/widget-lib';
 
 // Core managers
-import { ChatManager, ThemeManager, WalletManager } from '@aomi/widget-lib';
+import { ChatManager, ThemeManager, WalletManager } from '@aomi-labs/widget-lib';
 
 // Types
 import type { 
@@ -264,28 +264,28 @@ import type {
   AomiChatWidgetHandler,
   ChatMessage,
   WalletTransaction 
-} from '@aomi/widget-lib';
+} from '@aomi-labs/widget-lib';
 
 // Constants
 import { 
   SUPPORTED_CHAINS, 
   PREDEFINED_THEMES, 
   ERROR_CODES 
-} from '@aomi/widget-lib';
+} from '@aomi-labs/widget-lib';
 
 // Utilities
 import { 
   validateWidgetParams,
   generateSessionId,
   formatTimestamp 
-} from '@aomi/widget-lib';
+} from '@aomi-labs/widget-lib';
 ```
 
 ## 🔗 Related Packages
 
-- `@aomi/widget-react` - React wrapper component
-- `@aomi/widget-vue` - Vue.js wrapper component  
-- `@aomi/widget-themes` - Additional theme packs
+- `@aomi-labs/widget-react` - React wrapper component
+- `@aomi-labs/widget-vue` - Vue.js wrapper component  
+- `@aomi-labs/widget-themes` - Additional theme packs
 
 ## 📄 License
 

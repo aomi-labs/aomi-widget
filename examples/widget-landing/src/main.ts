@@ -6,7 +6,7 @@ import {
   type AomiChatWidgetHandler,
   type AomiChatWidgetPalette,
   type EthereumProvider,
-} from '@aomi/widget-lib';
+} from '@aomi-labs/widget-lib';
 
 type ThemePreset = {
   id: string;

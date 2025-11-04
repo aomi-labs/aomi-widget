@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { createChatWidget, AomiChatWidgetHandler, ChatMessage, AomiChatError } from '@aomi/widget-lib';
+import { createChatWidget, AomiChatWidgetHandler, ChatMessage, AomiChatError } from '@aomi-labs/widget-lib';
 
 interface ChatWidgetProps {
   appCode: string;

@@ -1,25 +1,16 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The widget source sits under `src/`: `src/core/` hosts runtime managers (`AomiChatWidget`, `ChatManager`, `ThemeManager`, `WalletManager`), `src/utils/` contains shared helpers, and `src/types/` centralises exported types. `src/index.ts` is the public entry bundled by Rollup into `dist/`. Root-level configs (`rollup.config.js`, `vite.config.ts`, `tsconfig.json`) drive builds and previews. Use the HTML samples in `examples/` and `test-build.html` for manual smoke checks while keeping generated files out of version control.
+Source lives in `src/`, with `core/` housing managers (`ChatManager.ts`, `ThemeManager.ts`, `WalletManager.ts`), `utils/` for shared helpers, and `types/` for all exported TypeScript contracts and constants. The bundle emitted by Rollup lands in `dist/` and should never be edited manually. Example integrations sit in `examples/` (`basic.html`, `react-example.tsx`) and are ideal for quick manual validation. Build configuration is centralized in `rollup.config.js`, `vite.config.ts`, and `tsconfig.json`; adjust these before touching generated artifacts or node_modules.
 
 ## Build, Test, and Development Commands
-- `npm run dev` — watch-mode Rollup build for iterative development.
-- `npm run build` — production bundle plus declaration output.
-- `npm run preview` — serve the last build over Vite.
-- `npm run test` / `npm run test:ui` — run Vitest in CLI or browser.
-- `npm run lint` / `npm run lint:fix` — apply ESLint rules, auto-fix when safe.
-- `npm run typecheck` — TypeScript project validation without emit.
-- `npm run clean` — remove `dist/` before regenerating artifacts.
+Use `npm run dev` for an incremental Rollup build while editing the library. `npm run build` produces the production bundle and type definitions. Run fast feedback tests with `npm test`; open the Vitest UI via `npm run test:ui` if you need focused debugging. `npm run typecheck` and `npm run lint` must pass before opening a PR; `npm run lint:fix` will apply safe formatting fixes. Serve the built package with `npm run preview`, and clean stale outputs via `npm run clean`.
 
 ## Coding Style & Naming Conventions
-TypeScript is the default. ESLint enforces 2-space indentation, single quotes, semicolons, trailing commas on multiline collections, and 120-character lines. Use `camelCase` for variables and functions, `PascalCase` for classes, and `kebab-case` for filenames (`wallet-manager.ts`). Share constants through `src/types/constants.ts` and error classes via `src/types/errors.ts`. Run `npm run lint` and address warnings prior to review.
+This codebase is TypeScript-first with ESM modules. Follow the existing two-space indentation, keep imports sorted logically (external before internal), and prefer named exports. Classes and types use `PascalCase`, functions and variables use `camelCase`, and constants intended for export use `UPPER_SNAKE_CASE`. ESLint (`npm run lint`) and the TypeScript compiler (`npm run typecheck`) enforce style—run them locally before committing.
 
 ## Testing Guidelines
-Vitest drives unit and integration coverage. Co-locate specs with implementation files (`*.test.ts` or `*.spec.ts`) and mock DOM or wallet providers as needed. Prioritise coverage on the exported API in `src/index.ts` and high-risk flows in `src/core/ChatManager.ts` and `src/core/WalletManager.ts`. Require a passing `npm run test` before opening PRs; use the HTML examples to sanity-check UI interactions not covered by Vitest.
+Vitest is the unit-test framework. Co-locate specs beside the code they exercise as `*.test.ts` files (e.g., `src/core/ChatManager.test.ts`) or under a local `__tests__` directory. Target core flows—session lifecycle, theme selection, wallet interactions—and stub network calls via the existing utility helpers. Every PR should add or update tests when behavior changes; at minimum run `npm test` and capture failures in the PR description.
 
 ## Commit & Pull Request Guidelines
-Follow short, imperative commit subjects (e.g., `init`). Reference issue IDs when relevant and keep each commit focused on a single concern. PRs should include a summary, testing evidence (`npm run build`, `npm run test`), and visuals when UI or theming shifts. Call out breaking API changes and update README-style docs when behaviour changes.
-
-## Security & Configuration Tips
-Never commit secrets or private keys. Treat wallet connections from `WalletManager` as untrusted: verify provider capabilities and handle rejections gracefully. Introduce configuration through host applications or build-time flags rather than bundling sensitive defaults.
+Existing history uses short, imperative summaries (e.g., `init`); continue that style and keep subject lines under ~72 characters. Reference affected modules in the body when context is helpful. PRs should include: a concise summary, bullet list of changes, testing evidence (`npm test`, `npm run lint`, etc.), and screenshots or GIFs if the `examples/` demos changed. Link related issues and call out follow-up work so reviewers can prioritize effectively.

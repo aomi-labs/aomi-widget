@@ -1,6 +1,6 @@
 # Aomi Widget Showcase
 
-This mini Vite application lives under `examples/widget-landing/` and demonstrates the `@aomi/widget-lib`
+This mini Vite application lives under `examples/widget-landing/` and demonstrates the `@aomi-labs/widget-lib`
 package with a live, theme-switching hero widget. Use it as a marketing landing page or as a
 sandbox while wiring the library into your own product.
 
@@ -24,7 +24,7 @@ npm run preview
 ```
 
 When deploying on Vercel, set the build command to `npm run vercel-build`. This installs and builds the
-root library (`@aomi/widget-lib`) before running the Vite build, ensuring the bundled package resolves
+root library (`@aomi-labs/widget-lib`) before running the Vite build, ensuring the bundled package resolves
 correctly.
 
 ## Deploy to Vercel
@@ -34,5 +34,5 @@ correctly.
 3. Define the `VITE_AOMI_BACKEND_URL` environment variable (e.g. `https://api.aomi.dev`).
 4. Deploy — the widget will connect to the configured backend at runtime.
 
-The frontend consumes `createChatWidget` straight from `@aomi/widget-lib`, matching how downstream integrators
+The frontend consumes `createChatWidget` straight from `@aomi-labs/widget-lib`, matching how downstream integrators
 install it via npm.

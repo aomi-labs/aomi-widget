@@ -13,8 +13,19 @@ export { createAomiChatWidget };
 
 // Core managers
 export { ChatManager } from './core/ChatManager';
-export { ThemeManager, createThemeManager, getAvailableThemes, validateCustomPalette, createCustomPalette } from './core/ThemeManager';
-export { WalletManager, createWalletManager, isValidProvider, detectWallets } from './core/WalletManager';
+export {
+  ThemeManager,
+  createThemeManager,
+  getAvailableThemes,
+  validateCustomPalette,
+  createCustomPalette,
+} from './core/ThemeManager';
+export {
+  WalletManager,
+  createWalletManager,
+  isValidProvider,
+  detectWallets,
+} from './core/WalletManager';
 
 // Types
 export type {
@@ -179,20 +190,24 @@ import type {
 } from './types';
 import { createConfigurationError } from './types/errors';
 
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
+interface CreateChatWidgetOptions {
+  appCode: string;
+  theme?: AomiChatTheme | AomiChatWidgetPalette;
+  width?: string;
+  height?: string;
+  baseUrl?: string;
+  provider?: EthereumProvider;
+  onReady?: () => void;
+  onMessage?: (message: ChatMessage) => void;
+  onError?: (error: AomiChatError) => void;
+}
+/* eslint-enable no-unused-vars, @typescript-eslint/no-unused-vars */
+
 // Simple convenience function for basic usage
 export function createChatWidget(
   containerId: string | HTMLElement,
-  options: {
-    appCode: string;
-    theme?: AomiChatTheme | AomiChatWidgetPalette;
-    width?: string;
-    height?: string;
-    baseUrl?: string;
-    provider?: EthereumProvider;
-    onReady?: () => void;
-    onMessage?: (message: ChatMessage) => void;
-    onError?: (error: AomiChatError) => void;
-  },
+  options: CreateChatWidgetOptions,
 ): AomiChatWidgetHandler {
   // Get container element
   const container = typeof containerId === 'string'
