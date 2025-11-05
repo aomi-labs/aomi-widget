@@ -29,7 +29,13 @@ export interface ChatMessage {
   type: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  toolStream?: ToolStreamUpdate;
   metadata?: Record<string, unknown>;
+}
+
+export interface ToolStreamUpdate {
+  topic: string;
+  content: string;
 }
 
 export interface WalletTransaction {

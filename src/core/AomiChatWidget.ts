@@ -39,6 +39,13 @@ import { ChatManager } from './ChatManager';
 import { ThemeManager } from './ThemeManager';
 import { WalletManager } from './WalletManager';
 
+type MessageBubblePayload = {
+  type: ChatMessage['type'];
+  content: string;
+  timestamp?: Date;
+  toolStream?: ChatMessage['toolStream'];
+};
+
 /*
  * ============================================================================
  * WIDGET HANDLER IMPLEMENTATION
@@ -589,7 +596,11 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     // Initial placeholder
     this.messageListElement.appendChild(
-      this.createMessageBubble('system', 'Chat interface is initializing…')
+      this.createMessageBubble({
+        type: 'system',
+        content: 'Chat interface is initializing…',
+        timestamp: new Date(),
+      })
     );
 
     this.typingIndicatorElement = createElement('div', {
@@ -824,15 +835,16 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     return Number.isFinite(numeric) ? numeric : null;
   }
 
-  private createMessageBubble(
-    role: 'user' | 'assistant' | 'system',
-    content: string,
-    timestamp?: Date
-  ): HTMLElement {
+  private createMessageBubble({
+    type,
+    content,
+    timestamp,
+    toolStream,
+  }: MessageBubblePayload): HTMLElement {
     const theme = this.themeManager.getComputedTheme();
 
-    const isUser = role === 'user';
-    const isSystem = role === 'system';
+    const isUser = type === 'user';
+    const isSystem = type === 'system';
     const backgroundColor = isSystem
       ? theme.palette.surface
       : isUser
@@ -876,15 +888,64 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       },
     });
 
-    const markdownElement = renderMarkdown(content || '', {
-      colors: markdownColors,
-      fontFamily,
-      monospaceFontFamily: monospaceFont,
-    });
+    const trimmedContent = content?.trim() ?? '';
 
-    markdownElement.style.wordBreak = 'break-word';
+    if (trimmedContent.length > 0) {
+      const markdownElement = renderMarkdown(trimmedContent, {
+        colors: markdownColors,
+        fontFamily,
+        monospaceFontFamily: monospaceFont,
+      });
 
-    bubble.appendChild(markdownElement);
+      markdownElement.style.wordBreak = 'break-word';
+
+      bubble.appendChild(markdownElement);
+    }
+
+    if (toolStream) {
+      const toolWrapper = createElement('div', {
+        styles: {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+          padding: '8px 10px',
+          borderRadius: '10px',
+          border: `1px solid ${accentColor}`,
+          backgroundColor: theme.palette.background,
+        },
+      });
+
+      toolWrapper.appendChild(
+        createElement('div', {
+          styles: {
+            fontSize: '12px',
+            fontWeight: '600',
+            color: accentColor,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+          },
+          children: [`Tool • ${toolStream.topic}`],
+        })
+      );
+
+      const toolContent = createElement('pre', {
+        styles: {
+          margin: '0',
+          padding: '0',
+          fontFamily: monospaceFont,
+          fontSize: '12px',
+          lineHeight: '1.5',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          color: theme.palette.textSecondary,
+          backgroundColor: 'transparent',
+        },
+      }) as HTMLPreElement;
+      toolContent.textContent = toolStream.content;
+
+      toolWrapper.appendChild(toolContent);
+      bubble.appendChild(toolWrapper);
+    }
 
     if (timestamp) {
       bubble.appendChild(
@@ -1081,7 +1142,11 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
   private pushSystemNotification(message: string): void {
     if (!this.messageListElement) return;
-    const bubble = this.createMessageBubble('system', message, new Date());
+    const bubble = this.createMessageBubble({
+      type: 'system',
+      content: message,
+      timestamp: new Date(),
+    });
     this.messageListElement.appendChild(bubble);
     this.scrollMessagesToBottom();
     this.scheduleLayoutMeasurement();
@@ -1184,20 +1249,21 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     if (messages.length === 0) {
       this.messageListElement.appendChild(
-        this.createMessageBubble(
-          'system',
-          'Say hello to begin the conversation.',
-          new Date()
-        )
+        this.createMessageBubble({
+          type: 'system',
+          content: 'Say hello to begin the conversation.',
+          timestamp: new Date(),
+        })
       );
     } else {
       messages.forEach((message) => {
         this.messageListElement!.appendChild(
-          this.createMessageBubble(
-            message.type,
-            message.content,
-            message.timestamp
-          )
+          this.createMessageBubble({
+            type: message.type,
+            content: message.content,
+            timestamp: message.timestamp,
+            toolStream: message.toolStream,
+          })
         );
       });
     }

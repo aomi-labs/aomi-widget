@@ -29,6 +29,7 @@ export type {
   ChatState,
   WalletTransaction,
   WalletState,
+  ToolStreamUpdate,
 
   // Configuration types
   AomiChatMode,

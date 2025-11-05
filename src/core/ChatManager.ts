@@ -12,6 +12,7 @@ import type {
   WalletState,
   ChatManagerConfig,
   AomiChatError,
+  ToolStreamUpdate,
 } from '../types';
 import {
   ConnectionStatus,
@@ -31,11 +32,22 @@ import { generateSessionId, withTimeout } from '../utils';
  * ============================================================================
  */
 
+type ToolStreamPayload =
+  | [unknown, unknown]
+  | {
+    topic?: unknown;
+    content?: unknown;
+  }
+  | null
+  | undefined;
+
 interface BackendMessagePayload {
   sender?: 'user' | 'assistant' | 'system' | 'agent';
   content?: string;
   timestamp?: string;
   is_streaming?: boolean;
+  tool_stream?: ToolStreamPayload;
+  toolStream?: ToolStreamPayload;
 }
 
 interface BackendReadinessPayload {
@@ -350,7 +362,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     if (Array.isArray(payload.messages)) {
       const converted = payload.messages
         .filter((msg): msg is BackendMessagePayload => Boolean(msg))
-        .map((msg, index) => this.convertBackendMessage(msg, index));
+        .map((msg, index) => this.convertBackendMessage(msg, index, previousMessages[index]));
 
       this.state.messages = converted;
       stateChanged = true;
@@ -360,9 +372,13 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
         stateChanged = true;
       }
 
-      const previousIds = new Set(previousMessages.map(message => message.id));
-      converted.forEach((message) => {
-        if (!previousIds.has(message.id)) {
+      converted.forEach((message, index) => {
+        const previous = previousMessages[index];
+        const isNewMessage = !previous || previous.id !== message.id;
+        const contentChanged = previous && previous.content !== message.content;
+        const toolStreamChanged = previous && !areToolStreamsEqual(previous.toolStream, message.toolStream);
+
+        if (isNewMessage || contentChanged || toolStreamChanged) {
           this.emit('message', message);
         }
       });
@@ -424,7 +440,11 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     }
   }
 
-  private convertBackendMessage(message: BackendMessagePayload, index: number): ChatMessage {
+  private convertBackendMessage(
+    message: BackendMessagePayload,
+    index: number,
+    previousMessage?: ChatMessage,
+  ): ChatMessage {
     const sender = message.sender === 'user'
       ? 'user'
       : message.sender === 'system'
@@ -434,15 +454,17 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     const parsedTimestamp = message.timestamp ? new Date(message.timestamp) : new Date();
     const timestamp = Number.isNaN(parsedTimestamp.valueOf()) ? new Date() : parsedTimestamp;
     const idBase = message.timestamp || `${sender}-${index}`;
+    const toolStream = normaliseToolStream(message.tool_stream ?? message.toolStream);
 
     return {
-      id: `${idBase}-${index}`,
+      id: previousMessage?.id ?? `${idBase}-${index}`,
       type: sender,
       content: message.content ?? '',
       timestamp,
       metadata: {
         streaming: Boolean(message.is_streaming),
       },
+      toolStream,
     };
   }
 
@@ -618,4 +640,39 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.heartbeatTimer = null;
     }
   }
+}
+
+function normaliseToolStream(raw: ToolStreamPayload): ToolStreamUpdate | undefined {
+  if (!raw) return undefined;
+
+  if (Array.isArray(raw)) {
+    const [topic, content] = raw;
+    return typeof topic === 'string'
+      ? {
+        topic,
+        content: typeof content === 'string' ? content : '',
+      }
+      : undefined;
+  }
+
+  if (typeof raw === 'object') {
+    const { topic, content } = raw as { topic?: unknown; content?: unknown };
+    return typeof topic === 'string'
+      ? {
+        topic,
+        content: typeof content === 'string' ? content : '',
+      }
+      : undefined;
+  }
+
+  return undefined;
+}
+
+function areToolStreamsEqual(
+  a?: ToolStreamUpdate,
+  b?: ToolStreamUpdate,
+): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.topic === b.topic && a.content === b.content;
 }
