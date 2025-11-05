@@ -43,7 +43,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aomi-labs/widget-lib"
+    "url": "https://github.com/aomi-labs/aomi-widget"
   },
   "peerDependencies": {
     "react": ">=16.8.0",

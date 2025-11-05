@@ -541,7 +541,7 @@ describe('AomiChatWidget', () => {
 
 ### **Documentation Site Structure**
 ```
-docs.aomi.ai/widget/
+docs.aomi.dev/widget/
 ├── getting-started/
 │   ├── quick-start
 │   ├── installation
