@@ -13,7 +13,13 @@ export { createAomiChatWidget };
 
 // Core managers
 export { ChatManager } from './core/ChatManager';
-export { ThemeManager, createThemeManager, getAvailableThemes, validateCustomPalette, createCustomPalette } from './core/ThemeManager';
+export {
+  ThemeManager,
+  createThemeManager,
+  getAvailableThemes,
+  validateCustomPalette,
+  createCustomPalette,
+} from './core/ThemeManager';
 export { WalletManager, createWalletManager, isValidProvider, detectWallets } from './core/WalletManager';
 
 // Types
@@ -191,8 +197,8 @@ export function createChatWidget(
     baseUrl?: string;
     provider?: EthereumProvider;
     onReady?: () => void;
-    onMessage?: (message: ChatMessage) => void;
-    onError?: (error: AomiChatError) => void;
+    onMessage?: (_message: ChatMessage) => void;
+    onError?: (_error: AomiChatError) => void;
   },
 ): AomiChatWidgetHandler {
   // Get container element

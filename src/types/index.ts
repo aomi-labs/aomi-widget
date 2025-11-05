@@ -88,7 +88,7 @@ export interface AnalyticsConfig {
 export interface ChatCommand {
   command: string;
   description: string;
-  handler: (args: string[]) => Promise<void> | void;
+  handler: (_args: string[]) => Promise<void> | void;
 }
 
 /*
@@ -212,18 +212,18 @@ export interface ChatState {
 
 export interface AomiChatEventListeners {
   onReady?: () => void;
-  onMessage?: (message: ChatMessage) => void;
-  onTransactionRequest?: (transaction: WalletTransaction) => void;
-  onError?: (error: AomiChatError) => void;
-  onSessionStart?: (sessionId: string) => void;
-  onSessionEnd?: (sessionId: string) => void;
-  onNetworkChange?: (chainId: SupportedChainId) => void;
-  onWalletConnect?: (address: string) => void;
+  onMessage?: (_message: ChatMessage) => void;
+  onTransactionRequest?: (_transaction: WalletTransaction) => void;
+  onError?: (_error: AomiChatError) => void;
+  onSessionStart?: (_sessionId: string) => void;
+  onSessionEnd?: (_sessionId: string) => void;
+  onNetworkChange?: (_chainId: SupportedChainId) => void;
+  onWalletConnect?: (_address: string) => void;
   onWalletDisconnect?: () => void;
-  onTypingChange?: (isTyping: boolean) => void;
-  onProcessingChange?: (isProcessing: boolean) => void;
-  onConnectionChange?: (status: ConnectionStatus) => void;
-  onResize?: (dimensions: { width: number; height: number }) => void;
+  onTypingChange?: (_isTyping: boolean) => void;
+  onProcessingChange?: (_isProcessing: boolean) => void;
+  onConnectionChange?: (_status: ConnectionStatus) => void;
+  onResize?: (_dimensions: { width: number; height: number }) => void;
 }
 
 export interface AomiChatError {

@@ -27,11 +27,11 @@ interface TransactionRequest {
 }
 
 interface WalletManagerEvents {
-  connect: (address: string) => void;
+  connect: (_address: string) => void;
   disconnect: () => void;
-  chainChange: (chainId: SupportedChainId) => void;
-  accountsChange: (accounts: string[]) => void;
-  error: (error: AomiChatError) => void;
+  chainChange: (_chainId: SupportedChainId) => void;
+  accountsChange: (_accounts: string[]) => void;
+  error: (_error: AomiChatError) => void;
 }
 
 /*

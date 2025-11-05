@@ -118,7 +118,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     if (this.isDestroyed) {
       throw new AomiError(
         ERROR_CODES.INITIALIZATION_FAILED,
-        'Widget has been destroyed'
+        'Widget has been destroyed',
       );
     }
 
@@ -129,7 +129,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     if (this.isDestroyed) {
       throw new AomiError(
         ERROR_CODES.INITIALIZATION_FAILED,
-        'Widget has been destroyed'
+        'Widget has been destroyed',
       );
     }
 
@@ -139,7 +139,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     if (errors.length > 0) {
       throw createConfigurationError(
-        `Invalid parameters: ${errors.join(', ')}`
+        `Invalid parameters: ${errors.join(', ')}`,
       );
     }
 
@@ -165,7 +165,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     if (this.isDestroyed) {
       throw new AomiError(
         ERROR_CODES.INITIALIZATION_FAILED,
-        'Widget has been destroyed'
+        'Widget has been destroyed',
       );
     }
 
@@ -201,7 +201,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
   public on<K extends keyof AomiChatEventListeners>(
     event: K,
-    listener: NonNullable<AomiChatEventListeners[K]>
+    listener: NonNullable<AomiChatEventListeners[K]>,
   ): AomiChatWidgetHandler {
     const eventName = this.getEventNameForListener(event);
     this.eventEmitter.on(eventName, listener as any);
@@ -210,7 +210,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
   public off<K extends keyof AomiChatEventListeners>(
     event: K,
-    listener: NonNullable<AomiChatEventListeners[K]>
+    listener: NonNullable<AomiChatEventListeners[K]>,
   ): AomiChatWidgetHandler {
     const eventName = this.getEventNameForListener(event);
     this.eventEmitter.off(eventName, listener as any);
@@ -243,7 +243,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     if (this.isDestroyed || !this.widgetElement) return;
 
     const input = this.widgetElement.querySelector(
-      'input, textarea'
+      'input, textarea',
     ) as HTMLElement;
     if (input) {
       input.focus();
@@ -295,7 +295,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       // Send welcome message if configured
       if (this.config.params.welcomeMessage) {
         await this.chatManager.sendSystemMessage(
-          this.config.params.welcomeMessage
+          this.config.params.welcomeMessage,
         );
       }
 
@@ -354,7 +354,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       });
       this.eventEmitter.emit(WIDGET_EVENTS.WALLET_CONNECT, address);
       this.pushSystemNotification(
-        `Wallet connected: ${truncateAddress(address)}`
+        `Wallet connected: ${truncateAddress(address)}`,
       );
       this.updateWalletStatus(this.chatManager.getState());
     });
@@ -378,7 +378,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       });
       this.eventEmitter.emit(WIDGET_EVENTS.NETWORK_CHANGE, chainId);
       this.pushSystemNotification(
-        `Switched to ${SUPPORTED_CHAINS[chainId] || `chain ${chainId}`}.`
+        `Switched to ${SUPPORTED_CHAINS[chainId] || `chain ${chainId}`}.`,
       );
       this.updateWalletStatus(this.chatManager.getState());
     });
@@ -397,13 +397,13 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   }
 
   private async handleTransactionRequest(
-    transaction: WalletTransaction
+    transaction: WalletTransaction,
   ): Promise<void> {
     if (!this.walletManager) {
       await this.chatManager.sendTransactionResult(
         false,
         undefined,
-        'No wallet connected'
+        'No wallet connected',
       );
       return;
     }
@@ -600,7 +600,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         type: 'system',
         content: 'Chat interface is initializing…',
         timestamp: new Date(),
-      })
+      }),
     );
 
     this.typingIndicatorElement = createElement('div', {
@@ -848,8 +848,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     const backgroundColor = isSystem
       ? theme.palette.surface
       : isUser
-      ? theme.palette.primary
-      : theme.palette.surface;
+        ? theme.palette.primary
+        : theme.palette.surface;
     const textColor = isUser ? theme.palette.background : theme.palette.text;
     const borderColor = isUser ? theme.palette.primary : theme.palette.border;
     const accentColor = theme.palette.accent || theme.palette.primary;
@@ -859,7 +859,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       backgroundColor,
       textColor,
       accentColor,
-      borderColor
+      borderColor,
     );
 
     const bubble = createElement('div', {
@@ -868,8 +868,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         isUser
           ? CSS_CLASSES.MESSAGE_USER
           : isSystem
-          ? CSS_CLASSES.MESSAGE_SYSTEM
-          : CSS_CLASSES.MESSAGE_ASSISTANT,
+            ? CSS_CLASSES.MESSAGE_SYSTEM
+            : CSS_CLASSES.MESSAGE_ASSISTANT,
       ],
       styles: {
         alignSelf: isUser ? 'flex-end' : 'flex-start',
@@ -925,7 +925,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
             letterSpacing: '0.04em',
           },
           children: [`Tool • ${toolStream.topic}`],
-        })
+        }),
       );
 
       const toolContent = createElement('pre', {
@@ -958,7 +958,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
             color: textColor,
           },
           children: [formatTimestamp(timestamp)],
-        })
+        }),
       );
     }
 
@@ -1069,7 +1069,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     const currentState = this.lastState || this.chatManager.getState();
     if (currentState.connectionStatus !== ConnectionStatus.CONNECTED) {
       this.pushSystemNotification(
-        'Waiting for connection before sending messages.'
+        'Waiting for connection before sending messages.',
       );
       return;
     }
@@ -1099,7 +1099,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     this.messageInputElement.style.height = 'auto';
     const targetHeight = Math.min(
       Math.max(this.messageInputElement.scrollHeight, minHeight),
-      180
+      180,
     );
     this.messageInputElement.style.height = `${targetHeight}px`;
     this.scheduleLayoutMeasurement();
@@ -1122,7 +1122,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     ) {
       if (!this.hasAnnouncedConnection) {
         this.pushSystemNotification(
-          'Assistant is ready. Ask your first question!'
+          'Assistant is ready. Ask your first question!',
         );
       }
       this.hasAnnouncedConnection = true;
@@ -1253,7 +1253,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
           type: 'system',
           content: 'Say hello to begin the conversation.',
           timestamp: new Date(),
-        })
+        }),
       );
     } else {
       messages.forEach((message) => {
@@ -1263,7 +1263,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
             content: message.content,
             timestamp: message.timestamp,
             toolStream: message.toolStream,
-          })
+          }),
         );
       });
     }
@@ -1316,7 +1316,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     this.messageInputElement.disabled = inputDisabled;
     this.messageInputElement.setAttribute(
       'aria-disabled',
-      inputDisabled ? 'true' : 'false'
+      inputDisabled ? 'true' : 'false',
     );
     this.sendButtonElement.disabled = sendDisabled;
 
@@ -1386,7 +1386,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
           : undefined);
 
       this.walletStatusElement.textContent = truncateAddress(
-        walletState.address
+        walletState.address,
       );
       this.walletStatusElement.title = chainName
         ? `Connected to ${chainName}`
@@ -1415,7 +1415,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     if (!this.walletManager) {
       this.pushSystemNotification(
-        'No wallet provider configured. Embed with an injected provider to enable transactions.'
+        'No wallet provider configured. Embed with an injected provider to enable transactions.',
       );
       return;
     }
@@ -1453,13 +1453,13 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       case ConnectionStatus.CONNECTED:
         if (previousStatus && previousStatus !== ConnectionStatus.CONNECTED) {
           this.pushSystemNotification(
-            'Connection restored. Preparing services…'
+            'Connection restored. Preparing services…',
           );
         }
         break;
       case ConnectionStatus.RECONNECTING:
         this.pushSystemNotification(
-          'Connection dropped. Attempting to reconnect…'
+          'Connection dropped. Attempting to reconnect…',
         );
         this.hasAnnouncedConnection = false;
         break;
@@ -1469,7 +1469,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         break;
       case ConnectionStatus.ERROR:
         this.pushSystemNotification(
-          'A connection error occurred. Please retry.'
+          'A connection error occurred. Please retry.',
         );
         this.hasAnnouncedConnection = false;
         break;

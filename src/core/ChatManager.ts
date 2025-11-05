@@ -4,26 +4,20 @@
  */
 
 import { EventEmitter } from 'eventemitter3';
-import type {
-  ChatMessage,
-  ChatState,
-  BackendReadiness,
-  WalletTransaction,
-  WalletState,
-  ChatManagerConfig,
-  AomiChatError,
-  ToolStreamUpdate,
-} from '../types';
 import {
   ConnectionStatus,
   ReadinessPhase,
+  type ChatMessage,
+  type ChatState,
+  type BackendReadiness,
+  type WalletTransaction,
+  type WalletState,
+  type ChatManagerConfig,
+  type AomiChatError,
+  type ToolStreamUpdate,
 } from '../types';
-import {
-  createConnectionError,
-  createChatError,
-} from '../types/errors';
-import { ERROR_CODES } from '../types/constants';
-import { API_ENDPOINTS, TIMING } from '../types/constants';
+import { createConnectionError, createChatError } from '../types/errors';
+import { API_ENDPOINTS, ERROR_CODES, TIMING } from '../types/constants';
 import { generateSessionId, withTimeout } from '../utils';
 
 /*
@@ -73,11 +67,11 @@ interface BackendStatePayload {
 }
 
 interface ChatManagerEvents {
-  stateChange: (state: ChatState) => void;
-  message: (message: ChatMessage) => void;
-  error: (error: AomiChatError) => void;
-  connectionChange: (status: ConnectionStatus) => void;
-  transactionRequest: (transaction: WalletTransaction) => void;
+  stateChange: (_state: ChatState) => void;
+  message: (_message: ChatMessage) => void;
+  error: (_error: AomiChatError) => void;
+  connectionChange: (_status: ConnectionStatus) => void;
+  transactionRequest: (_transaction: WalletTransaction) => void;
 }
 
 /*
@@ -91,8 +85,8 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
   private state: ChatState;
   private eventSource: EventSource | null = null;
   private reconnectAttempt = 0;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private lastPendingTransactionRaw: string | null = null;
 
   constructor(config: Partial<ChatManagerConfig> = {}) {
@@ -169,7 +163,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.eventSource = new EventSource(url);
 
       this.eventSource.onopen = () => {
-        console.log('🌐 SSE connection opened:', url);
+        console.warn('SSE connection opened:', url);
         this.setConnectionStatus(ConnectionStatus.CONNECTED);
         this.reconnectAttempt = 0;
         this.startHeartbeat();
@@ -397,7 +391,13 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     }
 
     const readiness = this.normalizeReadiness(payload);
-    if (readiness && (readiness.phase !== this.state.readiness.phase || readiness.detail !== this.state.readiness.detail)) {
+    if (
+      readiness
+      && (
+        readiness.phase !== this.state.readiness.phase
+        || readiness.detail !== this.state.readiness.detail
+      )
+    ) {
       this.state.readiness = readiness;
       stateChanged = true;
     }
@@ -605,7 +605,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     const delay = this.config.reconnectDelay! * Math.pow(2, this.reconnectAttempt);
     this.reconnectAttempt++;
 
-    console.log(`Scheduling reconnect attempt ${this.reconnectAttempt} in ${delay}ms`);
+    console.warn(`Scheduling reconnect attempt ${this.reconnectAttempt} in ${delay}ms`);
 
     this.reconnectTimer = setTimeout(() => {
       this.connectSSE().catch(error => {
