@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 // Core type definitions for Aomi Chat Widget
 
 /*
@@ -7,19 +6,7 @@
  * ============================================================================
  */
 
-export type SupportedChainId =
-  | 1
-  | 5
-  | 10
-  | 100
-  | 1337
-  | 31337
-  | 137
-  | 42161
-  | 59140
-  | 59144
-  | 8453
-  | 11155111;
+export type SupportedChainId = 1 | 5 | 11155111 | 100 | 137 | 42161 | 8453 | 10;
 
 export type PerNetworkConfig<T> = Partial<Record<SupportedChainId, T>>;
 export type PerModeConfig<T> = Partial<Record<AomiChatMode, T>>;
@@ -42,10 +29,6 @@ export interface ChatMessage {
   type: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
-  toolStream?: {
-    topic: string;
-    content: string;
-  };
   metadata?: Record<string, unknown>;
 }
 
@@ -424,5 +407,3 @@ export type OptionalKeys<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>
 
 export * from './constants';
 export * from './errors';
-
-/* eslint-enable no-unused-vars, @typescript-eslint/no-unused-vars */

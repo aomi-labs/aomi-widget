@@ -175,7 +175,6 @@ export function isSessionError(error: unknown): error is SessionError {
  * ============================================================================
  */
 
-/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 export enum ErrorSeverity {
   LOW = 'low',
   MEDIUM = 'medium',
@@ -257,7 +256,6 @@ export enum RecoveryStrategy {
   MANUAL = 'manual',
   NONE = 'none',
 }
-/* eslint-enable no-unused-vars, @typescript-eslint/no-unused-vars */
 
 export function getRecoveryStrategy(error: AomiChatError): RecoveryStrategy {
   switch (error.code) {

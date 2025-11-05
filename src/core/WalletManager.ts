@@ -27,11 +27,11 @@ interface TransactionRequest {
 }
 
 interface WalletManagerEvents {
-  connect: [string];
-  disconnect: [];
-  chainChange: [SupportedChainId];
-  accountsChange: [string[]];
-  error: [AomiChatError];
+  connect: (address: string) => void;
+  disconnect: () => void;
+  chainChange: (chainId: SupportedChainId) => void;
+  accountsChange: (accounts: string[]) => void;
+  error: (error: AomiChatError) => void;
 }
 
 /*
@@ -443,17 +443,6 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     const configs: Record<SupportedChainId, any> = {
       1: null, // Mainnet is built-in
       5: null, // Goerli is built-in
-      10: {
-        chainId: '0xa',
-        chainName: 'Optimism',
-        nativeCurrency: {
-          name: 'Ether',
-          symbol: 'ETH',
-          decimals: 18,
-        },
-        rpcUrls: ['https://mainnet.optimism.io'],
-        blockExplorerUrls: ['https://optimistic.etherscan.io'],
-      },
       11155111: null, // Sepolia is built-in
       100: {
         chainId: '0x64',
@@ -466,8 +455,6 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
         rpcUrls: ['https://rpc.gnosischain.com'],
         blockExplorerUrls: ['https://gnosisscan.io'],
       },
-      1337: null, // Local development
-      31337: null, // Anvil/Hardhat
       137: {
         chainId: '0x89',
         chainName: 'Polygon',
@@ -501,27 +488,16 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
         rpcUrls: ['https://mainnet.base.org'],
         blockExplorerUrls: ['https://basescan.org'],
       },
-      59140: {
-        chainId: '0xe704',
-        chainName: 'Linea Sepolia',
+      10: {
+        chainId: '0xa',
+        chainName: 'Optimism',
         nativeCurrency: {
-          name: 'Linea Ether',
+          name: 'Ether',
           symbol: 'ETH',
           decimals: 18,
         },
-        rpcUrls: ['https://rpc-sepolia.linea.build'],
-        blockExplorerUrls: ['https://sepolia.lineascan.build'],
-      },
-      59144: {
-        chainId: '0xe708',
-        chainName: 'Linea',
-        nativeCurrency: {
-          name: 'Linea Ether',
-          symbol: 'ETH',
-          decimals: 18,
-        },
-        rpcUrls: ['https://rpc.linea.build'],
-        blockExplorerUrls: ['https://lineascan.build'],
+        rpcUrls: ['https://mainnet.optimism.io'],
+        blockExplorerUrls: ['https://optimistic.etherscan.io'],
       },
     };
 
@@ -592,7 +568,6 @@ export function detectWallets(): Array<{ name: string; provider: EthereumProvide
 
 // Extend global Window interface
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
   interface Window {
     ethereum?: EthereumProvider & {
       isMetaMask?: boolean;
