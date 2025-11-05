@@ -460,7 +460,6 @@ export async function retry<T>(
     maxAttempts?: number;
     delay?: number;
     backoffFactor?: number;
-    // eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
     shouldRetry?: (error: unknown) => boolean;
   } = {},
 ): Promise<T> {

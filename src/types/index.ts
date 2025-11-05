@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 // Core type definitions for Aomi Chat Widget
 
 /*
@@ -7,19 +6,7 @@
  * ============================================================================
  */
 
-export type SupportedChainId =
-  | 1
-  | 5
-  | 10
-  | 100
-  | 1337
-  | 31337
-  | 137
-  | 42161
-  | 59140
-  | 59144
-  | 8453
-  | 11155111;
+export type SupportedChainId = 1 | 5 | 11155111 | 100 | 137 | 42161 | 8453 | 10;
 
 export type PerNetworkConfig<T> = Partial<Record<SupportedChainId, T>>;
 export type PerModeConfig<T> = Partial<Record<AomiChatMode, T>>;
@@ -42,11 +29,13 @@ export interface ChatMessage {
   type: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
-  toolStream?: {
-    topic: string;
-    content: string;
-  };
+  toolStream?: ToolStreamUpdate;
   metadata?: Record<string, unknown>;
+}
+
+export interface ToolStreamUpdate {
+  topic: string;
+  content: string;
 }
 
 export interface WalletTransaction {
@@ -99,7 +88,7 @@ export interface AnalyticsConfig {
 export interface ChatCommand {
   command: string;
   description: string;
-  handler: (args: string[]) => Promise<void> | void;
+  handler: (_args: string[]) => Promise<void> | void;
 }
 
 /*
@@ -223,18 +212,18 @@ export interface ChatState {
 
 export interface AomiChatEventListeners {
   onReady?: () => void;
-  onMessage?: (message: ChatMessage) => void;
-  onTransactionRequest?: (transaction: WalletTransaction) => void;
-  onError?: (error: AomiChatError) => void;
-  onSessionStart?: (sessionId: string) => void;
-  onSessionEnd?: (sessionId: string) => void;
-  onNetworkChange?: (chainId: SupportedChainId) => void;
-  onWalletConnect?: (address: string) => void;
+  onMessage?: (_message: ChatMessage) => void;
+  onTransactionRequest?: (_transaction: WalletTransaction) => void;
+  onError?: (_error: AomiChatError) => void;
+  onSessionStart?: (_sessionId: string) => void;
+  onSessionEnd?: (_sessionId: string) => void;
+  onNetworkChange?: (_chainId: SupportedChainId) => void;
+  onWalletConnect?: (_address: string) => void;
   onWalletDisconnect?: () => void;
-  onTypingChange?: (isTyping: boolean) => void;
-  onProcessingChange?: (isProcessing: boolean) => void;
-  onConnectionChange?: (status: ConnectionStatus) => void;
-  onResize?: (dimensions: { width: number; height: number }) => void;
+  onTypingChange?: (_isTyping: boolean) => void;
+  onProcessingChange?: (_isProcessing: boolean) => void;
+  onConnectionChange?: (_status: ConnectionStatus) => void;
+  onResize?: (_dimensions: { width: number; height: number }) => void;
 }
 
 export interface AomiChatError {
@@ -424,5 +413,3 @@ export type OptionalKeys<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>
 
 export * from './constants';
 export * from './errors';
-
-/* eslint-enable no-unused-vars, @typescript-eslint/no-unused-vars */

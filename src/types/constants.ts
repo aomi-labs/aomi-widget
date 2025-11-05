@@ -24,16 +24,12 @@ export const DEFAULT_RECONNECT_DELAY = 3000;
 export const SUPPORTED_CHAINS: Record<SupportedChainId, string> = {
   1: 'Ethereum',
   5: 'Goerli',
-  10: 'Optimism',
+  11155111: 'Sepolia',
   100: 'Gnosis',
-  1337: 'Localhost',
-  31337: 'Anvil',
   137: 'Polygon',
   42161: 'Arbitrum One',
-  59140: 'Linea Sepolia',
-  59144: 'Linea',
   8453: 'Base',
-  11155111: 'Sepolia',
+  10: 'Optimism',
 } as const;
 
 export const DEFAULT_CHAIN_ID: SupportedChainId = 1;

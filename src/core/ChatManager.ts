@@ -1,5 +1,6 @@
 /*
- * ChatManager - Aligns widget behaviour with the updated frontend core logic
+ * ChatManager - Manages chat connection, state, and communication
+ * Adapted from your existing chat-manager.ts
  */
 
 import { EventEmitter } from 'eventemitter3';
@@ -13,49 +14,71 @@ import {
   type WalletState,
   type ChatManagerConfig,
   type AomiChatError,
+  type ToolStreamUpdate,
 } from '../types';
-import {
-  createConnectionError,
-  createChatError,
-} from '../types/errors';
-import { ERROR_CODES, API_ENDPOINTS, TIMING } from '../types/constants';
+import { createConnectionError, createChatError } from '../types/errors';
+import { API_ENDPOINTS, ERROR_CODES, TIMING } from '../types/constants';
 import { generateSessionId, withTimeout } from '../utils';
 
-interface SessionMessagePayload {
-  sender?: string;
+/*
+ * ============================================================================
+ * TYPES
+ * ============================================================================
+ */
+
+type ToolStreamPayload =
+  | [unknown, unknown]
+  | {
+    topic?: unknown;
+    content?: unknown;
+  }
+  | null
+  | undefined;
+
+interface BackendMessagePayload {
+  sender?: 'user' | 'assistant' | 'system' | 'agent';
   content?: string;
   timestamp?: string;
+  is_streaming?: boolean;
   tool_stream?: ToolStreamPayload;
+  toolStream?: ToolStreamPayload;
 }
 
-interface SessionResponsePayload {
-  messages?: SessionMessagePayload[] | null;
-  is_processing?: boolean;
-  pending_wallet_tx?: string | null;
-  readiness?: ReadinessPayload | null;
-}
-
-type ToolStreamPayload = [string, string] | { topic?: unknown; content?: unknown } | null | undefined;
-
-interface ReadinessPayload {
+interface BackendReadinessPayload {
   phase?: unknown;
   detail?: unknown;
   message?: unknown;
 }
 
-interface ChatManagerEvents {
-  stateChange: [ChatState];
-  message: [ChatMessage];
-  error: [AomiChatError];
-  connectionChange: [ConnectionStatus];
-  transactionRequest: [WalletTransaction];
+interface BackendStatePayload {
+  messages?: BackendMessagePayload[] | null;
+  isTyping?: boolean;
+  is_typing?: boolean;
+  isProcessing?: boolean;
+  is_processing?: boolean;
+  pending_wallet_tx?: string | null;
+  readiness?: BackendReadinessPayload | null;
+  missingApiKey?: boolean | string;
+  missing_api_key?: boolean | string;
+  isLoading?: boolean | string;
+  is_loading?: boolean | string;
+  isConnectingMcp?: boolean | string;
+  is_connecting_mcp?: boolean | string;
 }
 
-type NetworkSwitchResult = {
-  success: boolean;
-  message: string;
-  data?: Record<string, unknown>;
-};
+interface ChatManagerEvents {
+  stateChange: (_state: ChatState) => void;
+  message: (_message: ChatMessage) => void;
+  error: (_error: AomiChatError) => void;
+  connectionChange: (_status: ConnectionStatus) => void;
+  transactionRequest: (_transaction: WalletTransaction) => void;
+}
+
+/*
+ * ============================================================================
+ * CHAT MANAGER CLASS
+ * ============================================================================
+ */
 
 export class ChatManager extends EventEmitter<ChatManagerEvents> {
   private config: ChatManagerConfig;
@@ -75,6 +98,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       maxMessageLength: config.maxMessageLength || 2000,
       reconnectAttempts: config.reconnectAttempts || 5,
       reconnectDelay: config.reconnectDelay || 3000,
+      ...config,
     };
 
     this.state = {
@@ -89,7 +113,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
         isConnected: false,
       },
       sessionId: this.config.sessionId,
-      pendingTransaction: undefined,
     };
   }
 
@@ -99,68 +122,71 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
    * ============================================================================
    */
 
+  /**
+   * Gets the current state
+   */
   public getState(): ChatState {
-    return {
-      ...this.state,
-      messages: [...this.state.messages],
-      walletState: { ...this.state.walletState },
-    };
+    return { ...this.state };
   }
 
+  /**
+   * Gets the session ID
+   */
   public getSessionId(): string {
     return this.config.sessionId;
   }
 
+  /**
+   * Sets a new session ID and reconnects if needed
+   */
   public setSessionId(sessionId: string): void {
     this.config.sessionId = sessionId;
     this.state.sessionId = sessionId;
 
     if (this.state.connectionStatus === ConnectionStatus.CONNECTED) {
-      void this.connectSSE();
+      this.connectSSE();
     }
   }
 
+  /**
+   * Connects to the backend via Server-Sent Events
+   */
   public async connectSSE(): Promise<void> {
     this.setConnectionStatus(ConnectionStatus.CONNECTING);
-    this.updateReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
+    this.setReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
 
-    this.teardownEventSource();
+    // Close existing connection
+    this.disconnectSSE();
 
     try {
-      const streamUrl = `${this.config.backendUrl}${API_ENDPOINTS.CHAT_STREAM}?session_id=${encodeURIComponent(
-        this.config.sessionId,
-      )}`;
-      this.eventSource = new EventSource(streamUrl);
+      const url = `${this.config.backendUrl}${API_ENDPOINTS.CHAT_STREAM}?session_id=${this.config.sessionId}`;
+      this.eventSource = new EventSource(url);
 
       this.eventSource.onopen = () => {
+        console.warn('SSE connection opened:', url);
         this.setConnectionStatus(ConnectionStatus.CONNECTED);
         this.reconnectAttempt = 0;
         this.startHeartbeat();
-        void this.refreshState();
+        this.refreshState().catch((error) => {
+          console.warn('Failed to refresh chat state after opening SSE connection:', error);
+        });
       };
 
       this.eventSource.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data) as SessionResponsePayload;
-          this.processBackendPayload(payload);
+          const data: BackendStatePayload = JSON.parse(event.data);
+          this.updateChatState(data);
         } catch (error) {
-          console.error('Failed to parse SSE payload:', error);
+          console.error('Failed to parse SSE message:', error);
           this.emit('error', createChatError(ERROR_CODES.INVALID_MESSAGE, 'Invalid message format'));
         }
       };
 
       this.eventSource.onerror = (event) => {
         console.error('SSE connection error:', event);
-
-        if (this.state.isProcessing) {
-          this.state.isProcessing = false;
-          this.state.isTyping = false;
-          this.emitStateChange();
-        }
-
         this.handleConnectionError();
-        void this.refreshState();
       };
+
     } catch (error) {
       console.error('Failed to create SSE connection:', error);
       this.emit('error', createConnectionError('Failed to establish connection'));
@@ -168,20 +194,51 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     }
   }
 
+  /**
+   * Disconnects from the backend
+   */
   public disconnectSSE(): void {
-    this.teardownEventSource();
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+
+    this.stopHeartbeat();
+    this.clearReconnectTimer();
     this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
   }
 
+  private async refreshState(): Promise<void> {
+    try {
+      const response = await withTimeout(
+        fetch(`${this.config.backendUrl}${API_ENDPOINTS.STATE}?session_id=${this.config.sessionId}`, {
+          method: 'GET',
+        }),
+        TIMING.CONNECTION_TIMEOUT,
+      );
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const payload = await response.json() as BackendStatePayload;
+      this.updateChatState(payload);
+    } catch (error) {
+      console.warn('Failed to fetch chat state:', error);
+    }
+  }
+
+  /**
+   * Sends a message to the backend
+   */
   public async sendMessage(message: string): Promise<void> {
-    const content = message.trim();
+    const trimmedMessage = message.trim();
 
-    if (!content) {
+    if (!trimmedMessage) {
       throw createChatError(ERROR_CODES.INVALID_MESSAGE, 'Message cannot be empty');
     }
 
-    if (content.length > (this.config.maxMessageLength ?? 0)) {
+    if (trimmedMessage.length > this.config.maxMessageLength!) {
       throw createChatError(ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds ${this.config.maxMessageLength} characters`);
     }
 
@@ -189,96 +246,94 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       throw createConnectionError('Not connected to backend');
     }
 
+    if (this.state.readiness.phase !== ReadinessPhase.READY) {
+      throw createChatError(ERROR_CODES.INVALID_CONFIG, 'Backend is not ready to accept messages');
+    }
+
+    if (this.state.isProcessing) {
+      throw createChatError(ERROR_CODES.RATE_LIMITED, 'Previous message is still being processed');
+    }
+
     try {
-      const response = await this.postToBackend(API_ENDPOINTS.CHAT, {
-        message: content,
+      const payload = await this.postToBackend(API_ENDPOINTS.CHAT, {
+        message: trimmedMessage,
         session_id: this.config.sessionId,
       });
 
-      this.processBackendPayload(response);
+      this.updateChatState(payload);
     } catch (error) {
       console.error('Failed to send message:', error);
       throw createChatError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to send message');
     }
   }
 
+  /**
+   * Sends a system message
+   */
   public async sendSystemMessage(message: string): Promise<void> {
     try {
-      const response = await this.postToBackend(API_ENDPOINTS.SYSTEM, {
+      const payload = await this.postToBackend(API_ENDPOINTS.SYSTEM, {
         message,
         session_id: this.config.sessionId,
       });
-
-      this.processBackendPayload(response);
+      this.updateChatState(payload);
     } catch (error) {
       console.error('Failed to send system message:', error);
       throw createChatError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to send system message');
     }
   }
 
+  /**
+   * Interrupts current processing
+   */
   public async interrupt(): Promise<void> {
     try {
-      const response = await this.postToBackend(API_ENDPOINTS.INTERRUPT, {
+      const payload = await this.postToBackend(API_ENDPOINTS.INTERRUPT, {
         session_id: this.config.sessionId,
       });
-
-      this.processBackendPayload(response);
+      this.updateChatState(payload);
     } catch (error) {
       console.error('Failed to interrupt:', error);
       throw createChatError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to interrupt processing');
     }
   }
 
-  public async sendNetworkSwitchRequest(networkName: string): Promise<NetworkSwitchResult> {
+  /**
+   * Sends transaction result back to backend
+   */
+  public async sendTransactionResult(
+    success: boolean,
+    txHash?: string,
+    error?: string,
+  ): Promise<void> {
     try {
-      await this.sendSystemMessage(`Detected user's wallet connected to ${networkName} network`);
-      return {
-        success: true,
-        message: `Network switch system message sent for ${networkName}`,
-        data: { network: networkName },
-      };
-    } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
-      return {
-        success: false,
-        message: err,
-      };
-    }
-  }
-
-  public async sendTransactionResult(success: boolean, transactionHash?: string, error?: string): Promise<void> {
-    const message = success
-      ? `Transaction sent: ${transactionHash}`
-      : `Transaction rejected by user${error ? `: ${error}` : ''}`;
-
-    try {
-      await this.sendSystemMessage(message);
+      await this.sendSystemMessage(
+        `Transaction ${success ? 'completed' : 'failed'}${txHash ? `: ${txHash}` : ''}${error ? ` (${error})` : ''}`,
+      );
     } catch (err) {
       console.error('Failed to send transaction result:', err);
-    } finally {
-      this.clearPendingTransaction();
     }
   }
 
-  public clearPendingTransaction(): void {
-    if (this.state.pendingTransaction) {
-      this.state.pendingTransaction = undefined;
-      this.lastPendingTransactionRaw = null;
-      this.emitStateChange();
-    }
-  }
-
+  /**
+   * Clears all messages
+   */
   public clearMessages(): void {
-    if (this.state.messages.length === 0) return;
     this.state.messages = [];
     this.emitStateChange();
   }
 
+  /**
+   * Updates wallet state
+   */
   public updateWalletState(walletState: Partial<WalletState>): void {
     this.state.walletState = { ...this.state.walletState, ...walletState };
     this.emitStateChange();
   }
 
+  /**
+   * Destroys the chat manager
+   */
   public destroy(): void {
     this.disconnectSSE();
     this.removeAllListeners();
@@ -286,24 +341,32 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
 
   /*
    * ============================================================================
-   * INTERNAL STATE HANDLING
+   * PRIVATE METHODS
    * ============================================================================
    */
 
-  private processBackendPayload(payload: SessionResponsePayload): void {
+  private updateChatState(payload: BackendStatePayload | undefined | null): void {
     if (!payload) {
       return;
     }
 
-    const previousMessages = this.state.messages;
+    const previousMessages = this.state.messages.slice();
     let stateChanged = false;
 
     if (Array.isArray(payload.messages)) {
-      const nextMessages = this.buildMessages(payload.messages, previousMessages);
-      this.state.messages = nextMessages;
+      const converted = payload.messages
+        .filter((msg): msg is BackendMessagePayload => Boolean(msg))
+        .map((msg, index) => this.convertBackendMessage(msg, index, previousMessages[index]));
+
+      this.state.messages = converted;
       stateChanged = true;
 
-      nextMessages.forEach((message, index) => {
+      if (!this.state.isTyping && converted.some(message => message.metadata?.streaming)) {
+        this.state.isTyping = true;
+        stateChanged = true;
+      }
+
+      converted.forEach((message, index) => {
         const previous = previousMessages[index];
         const isNewMessage = !previous || previous.id !== message.id;
         const contentChanged = previous && previous.content !== message.content;
@@ -313,60 +376,41 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
           this.emit('message', message);
         }
       });
-    } else if (payload.messages === null) {
-      if (previousMessages.length > 0) {
-        this.state.messages = [];
-        stateChanged = true;
-      }
-    } else if (payload.messages !== undefined) {
-      console.error('Received malformed messages payload from backend:', payload.messages);
     }
 
-    if (payload.is_processing !== undefined) {
-      const processing = Boolean(payload.is_processing);
-      if (processing !== this.state.isProcessing) {
-        this.state.isProcessing = processing;
-        stateChanged = true;
-      }
-
-      if (this.state.isTyping !== processing) {
-        this.state.isTyping = processing;
-        stateChanged = true;
-      }
+    const typingFlag = this.resolveBoolean(payload.isTyping ?? payload.is_typing);
+    if (typingFlag !== null && typingFlag !== this.state.isTyping) {
+      this.state.isTyping = typingFlag;
+      stateChanged = true;
     }
 
-    if (payload.readiness !== undefined) {
-      const readiness = this.normaliseReadiness(payload.readiness);
-      if (readiness) {
-        const current = this.state.readiness;
-        if (
-          current.phase !== readiness.phase ||
-          current.detail !== readiness.detail
-        ) {
-          this.state.readiness = readiness;
-          stateChanged = true;
-        }
-      }
+    const processingFlag = this.resolveBoolean(payload.isProcessing ?? payload.is_processing);
+    if (processingFlag !== null && processingFlag !== this.state.isProcessing) {
+      this.state.isProcessing = processingFlag;
+      stateChanged = true;
     }
 
-    if (payload.pending_wallet_tx !== undefined) {
-      if (payload.pending_wallet_tx === null) {
-        if (this.state.pendingTransaction) {
-          this.state.pendingTransaction = undefined;
-          this.lastPendingTransactionRaw = null;
-          stateChanged = true;
-        }
-      } else if (payload.pending_wallet_tx !== this.lastPendingTransactionRaw) {
-        try {
-          const transaction = JSON.parse(payload.pending_wallet_tx) as WalletTransaction;
-          this.state.pendingTransaction = transaction;
-          this.lastPendingTransactionRaw = payload.pending_wallet_tx;
-          this.emit('transactionRequest', transaction);
-          stateChanged = true;
-        } catch (error) {
-          console.error('Failed to parse wallet transaction payload:', error);
-        }
-      }
+    const readiness = this.normalizeReadiness(payload);
+    if (
+      readiness
+      && (
+        readiness.phase !== this.state.readiness.phase
+        || readiness.detail !== this.state.readiness.detail
+      )
+    ) {
+      this.state.readiness = readiness;
+      stateChanged = true;
+    }
+
+    if (
+      !readiness &&
+      this.state.connectionStatus === ConnectionStatus.CONNECTED &&
+      this.state.readiness.phase !== ReadinessPhase.READY &&
+      this.state.readiness.phase !== ReadinessPhase.ERROR &&
+      this.state.readiness.phase !== ReadinessPhase.MISSING_API_KEY
+    ) {
+      this.state.readiness = { phase: ReadinessPhase.READY };
+      stateChanged = true;
     }
 
     if ('pending_wallet_tx' in payload) {
@@ -396,82 +440,103 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     }
   }
 
-  private buildMessages(messages: SessionMessagePayload[], previousMessages: ChatMessage[]): ChatMessage[] {
-    return messages
-      .filter((msg): msg is SessionMessagePayload => Boolean(msg))
-      .map((msg, index) => {
-        const type = this.normaliseSender(msg.sender);
-        const content = msg.content ?? '';
-        const timestamp = this.parseTimestamp(msg.timestamp);
-        const toolStream = normaliseToolStream(msg.tool_stream);
+  private convertBackendMessage(
+    message: BackendMessagePayload,
+    index: number,
+    previousMessage?: ChatMessage,
+  ): ChatMessage {
+    const sender = message.sender === 'user'
+      ? 'user'
+      : message.sender === 'system'
+        ? 'system'
+        : 'assistant';
 
-        const previous = previousMessages[index];
-        const id = previous ? previous.id : generateSessionId();
+    const parsedTimestamp = message.timestamp ? new Date(message.timestamp) : new Date();
+    const timestamp = Number.isNaN(parsedTimestamp.valueOf()) ? new Date() : parsedTimestamp;
+    const idBase = message.timestamp || `${sender}-${index}`;
+    const toolStream = normaliseToolStream(message.tool_stream ?? message.toolStream);
 
-        return {
-          id,
-          type,
-          content,
-          timestamp,
-          toolStream,
-        };
-      });
+    return {
+      id: previousMessage?.id ?? `${idBase}-${index}`,
+      type: sender,
+      content: message.content ?? '',
+      timestamp,
+      metadata: {
+        streaming: Boolean(message.is_streaming),
+      },
+      toolStream,
+    };
   }
 
-  private normaliseSender(sender?: string): ChatMessage['type'] {
-    switch (sender) {
-      case 'user':
-        return 'user';
-      case 'system':
-        return 'system';
-      default:
-        return 'assistant';
+  private resolveBoolean(value: unknown): boolean | null {
+    if (typeof value === 'boolean') {
+      return value;
     }
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+    return null;
   }
 
-  private parseTimestamp(timestamp?: string): Date {
-    if (!timestamp) {
-      return new Date();
+  private normalizeReadiness(payload: BackendStatePayload): BackendReadiness | null {
+    const readinessPayload = payload.readiness;
+
+    if (typeof readinessPayload === 'string') {
+      return { phase: this.mapReadinessPhase(readinessPayload) };
     }
 
-    const parsed = new Date(timestamp);
-    if (Number.isNaN(parsed.valueOf())) {
-      return new Date();
+    if (readinessPayload && typeof readinessPayload === 'object' && typeof readinessPayload.phase === 'string') {
+      const phase = this.mapReadinessPhase(readinessPayload.phase);
+      const detailCandidate = typeof readinessPayload.detail === 'string' && readinessPayload.detail.trim().length > 0
+        ? readinessPayload.detail
+        : typeof readinessPayload.message === 'string' && readinessPayload.message.trim().length > 0
+          ? readinessPayload.message
+          : undefined;
+
+      return { phase, detail: detailCandidate };
     }
 
-    return parsed;
+    if (this.resolveBoolean(payload.missingApiKey ?? payload.missing_api_key)) {
+      return { phase: ReadinessPhase.MISSING_API_KEY };
+    }
+
+    if (this.resolveBoolean(payload.isLoading ?? payload.is_loading)) {
+      return { phase: ReadinessPhase.VALIDATING_ANTHROPIC };
+    }
+
+    if (this.resolveBoolean(payload.isConnectingMcp ?? payload.is_connecting_mcp)) {
+      return { phase: ReadinessPhase.CONNECTING_MCP };
+    }
+
+    return null;
   }
 
-  private normaliseReadiness(payload?: ReadinessPayload | null): BackendReadiness | null {
-    if (!payload || typeof payload.phase !== 'string') {
-      return null;
-    }
+  private mapReadinessPhase(value: string): ReadinessPhase {
+    const normalised = value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
 
-    const detailRaw = typeof payload.detail === 'string' && payload.detail.trim().length > 0
-      ? payload.detail.trim()
-      : typeof payload.message === 'string' && payload.message.trim().length > 0
-        ? payload.message.trim()
-        : undefined;
-
-    switch (payload.phase) {
+    switch (normalised) {
       case 'connecting_mcp':
-        return { phase: ReadinessPhase.CONNECTING_MCP, detail: detailRaw };
+        return ReadinessPhase.CONNECTING_MCP;
       case 'validating_anthropic':
-        return { phase: ReadinessPhase.VALIDATING_ANTHROPIC, detail: detailRaw };
+        return ReadinessPhase.VALIDATING_ANTHROPIC;
       case 'ready':
-        return { phase: ReadinessPhase.READY, detail: detailRaw };
+        return ReadinessPhase.READY;
       case 'missing_api_key':
-        return { phase: ReadinessPhase.MISSING_API_KEY, detail: detailRaw };
+        return ReadinessPhase.MISSING_API_KEY;
       case 'error':
-        return { phase: ReadinessPhase.ERROR, detail: detailRaw };
+        return ReadinessPhase.ERROR;
+      case 'initializing':
+      case 'initialising':
+      case 'starting':
+        return ReadinessPhase.CONNECTING_MCP;
       default:
-        return { phase: ReadinessPhase.ERROR, detail: detailRaw };
+        console.warn('Unknown readiness phase received:', value);
+        return ReadinessPhase.CONNECTING_MCP;
     }
-  }
-
-  private updateReadiness(readiness: BackendReadiness): void {
-    this.state.readiness = readiness;
-    this.emitStateChange();
   }
 
   private setConnectionStatus(status: ConnectionStatus): void {
@@ -482,17 +547,16 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     }
   }
 
+  private setReadiness(readiness: BackendReadiness): void {
+    this.state.readiness = readiness;
+    this.emitStateChange();
+  }
+
   private emitStateChange(): void {
     this.emit('stateChange', this.getState());
   }
 
-  /*
-   * ============================================================================
-   * BACKEND COMMUNICATION
-   * ============================================================================
-   */
-
-  private async postToBackend(endpoint: string, data: Record<string, unknown>): Promise<SessionResponsePayload> {
+  private async postToBackend(endpoint: string, data: Record<string, unknown>): Promise<BackendStatePayload> {
     const url = `${this.config.backendUrl}${endpoint}`;
 
     try {
@@ -511,7 +575,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return await response.json() as SessionResponsePayload;
+      return await response.json() as BackendStatePayload;
     } catch (error) {
       if (error instanceof Error && error.message.includes('timed out')) {
         throw createConnectionError('Request timed out');
@@ -520,58 +584,33 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     }
   }
 
-  private async refreshState(): Promise<void> {
-    try {
-      const response = await withTimeout(
-        fetch(
-          `${this.config.backendUrl}${API_ENDPOINTS.STATE}?session_id=${encodeURIComponent(
-            this.config.sessionId,
-          )}`,
-        ),
-        TIMING.CONNECTION_TIMEOUT,
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const payload = await response.json() as SessionResponsePayload;
-      this.processBackendPayload(payload);
-    } catch (error) {
-      console.warn('Failed to refresh chat state:', error);
-    }
-  }
-
-  /*
-   * ============================================================================
-   * CONNECTION MANAGEMENT
-   * ============================================================================
-   */
-
   private handleConnectionError(): void {
     this.setConnectionStatus(ConnectionStatus.ERROR);
     this.stopHeartbeat();
 
-    if (this.reconnectAttempt < (this.config.reconnectAttempts ?? 0)) {
+    if (this.reconnectAttempt < this.config.reconnectAttempts!) {
       this.scheduleReconnect();
     } else {
-      this.updateReadiness({ phase: ReadinessPhase.ERROR, detail: 'Connection lost' });
+      this.setReadiness({ phase: ReadinessPhase.ERROR, detail: 'Connection lost' });
       this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
       this.emit('error', createConnectionError('Max reconnection attempts reached'));
-      this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
     }
   }
 
   private scheduleReconnect(): void {
     this.clearReconnectTimer();
     this.setConnectionStatus(ConnectionStatus.RECONNECTING);
-    this.updateReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
+    this.setReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
 
-    const delay = (this.config.reconnectDelay ?? 0) * Math.pow(2, this.reconnectAttempt);
-    this.reconnectAttempt += 1;
+    const delay = this.config.reconnectDelay! * Math.pow(2, this.reconnectAttempt);
+    this.reconnectAttempt++;
+
+    console.warn(`Scheduling reconnect attempt ${this.reconnectAttempt} in ${delay}ms`);
 
     this.reconnectTimer = setTimeout(() => {
-      void this.connectSSE();
+      this.connectSSE().catch(error => {
+        console.error('Reconnection attempt failed:', error);
+      });
     }, delay);
   }
 
@@ -586,6 +625,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       if (this.state.connectionStatus === ConnectionStatus.CONNECTED && this.eventSource) {
+        // Check if connection is still alive
         if (this.eventSource.readyState !== EventSource.OPEN) {
           console.warn('SSE connection lost, attempting to reconnect');
           this.handleConnectionError();
@@ -600,47 +640,39 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.heartbeatTimer = null;
     }
   }
-
-  private teardownEventSource(): void {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
-    this.stopHeartbeat();
-    this.clearReconnectTimer();
-  }
 }
 
-function normaliseToolStream(raw: ToolStreamPayload): ChatMessage['toolStream'] | undefined {
-  if (!raw) {
-    return undefined;
-  }
+function normaliseToolStream(raw: ToolStreamPayload): ToolStreamUpdate | undefined {
+  if (!raw) return undefined;
 
   if (Array.isArray(raw)) {
     const [topic, content] = raw;
     return typeof topic === 'string'
-      ? { topic, content: typeof content === 'string' ? content : '' }
+      ? {
+        topic,
+        content: typeof content === 'string' ? content : '',
+      }
       : undefined;
   }
 
   if (typeof raw === 'object') {
     const { topic, content } = raw as { topic?: unknown; content?: unknown };
     return typeof topic === 'string'
-      ? { topic, content: typeof content === 'string' ? content : '' }
+      ? {
+        topic,
+        content: typeof content === 'string' ? content : '',
+      }
       : undefined;
   }
 
   return undefined;
 }
 
-function areToolStreamsEqual(a?: ChatMessage['toolStream'], b?: ChatMessage['toolStream']): boolean {
-  if (!a && !b) {
-    return true;
-  }
-
-  if (!a || !b) {
-    return false;
-  }
-
+function areToolStreamsEqual(
+  a?: ToolStreamUpdate,
+  b?: ToolStreamUpdate,
+): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
   return a.topic === b.topic && a.content === b.content;
 }

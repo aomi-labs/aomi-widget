@@ -301,10 +301,8 @@ MIT License - see LICENSE file for details.
 
 ## 📞 Support
 
-- Documentation: [docs.aomi.ai/widget](https://docs.aomi.ai/widget)
-- Issues: [GitHub Issues](https://github.com/aomi-labs/widget-lib/issues)
-- Discord: [Aomi Labs Community](https://discord.gg/aomi)
+- Issues: [GitHub Issues](https://github.com/aomi-labs/aomi-widget/issues)
 
 ---
 
-Built with ❤️ by [Aomi Labs](https://aomi.ai)
+Built with ❤️ by [Aomi Labs](https://aomi.dev)

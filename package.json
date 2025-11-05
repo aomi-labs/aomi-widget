@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Embeddable AI chat widget with Web3 capabilities",
   "type": "module",
   "main": "dist/index.js",
@@ -43,7 +43,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aomi-labs/widget-lib"
+    "url": "https://github.com/aomi-labs/aomi-widget"
   },
   "peerDependencies": {
     "react": ">=16.8.0",
