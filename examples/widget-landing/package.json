@@ -10,7 +10,7 @@
     "vercel-build": "npm install --prefix ../.. && npm run build --prefix ../.. && vite build"
   },
   "dependencies": {
-    "@aomi-labs/widget-lib": "^0.2.0"
+    "@aomi-labs/widget-lib": "^0.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",
