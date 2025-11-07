@@ -8,16 +8,6 @@
 
 export type SupportedChainId = 1 | 5 | 11155111 | 100 | 137 | 42161 | 8453 | 10;
 
-export type PerNetworkConfig<T> = Partial<Record<SupportedChainId, T>>;
-export type PerModeConfig<T> = Partial<Record<AomiChatMode, T>>;
-
-export type FlexibleConfig<T> =
-  | T
-  | PerNetworkConfig<T>
-  | PerModeConfig<T>
-  | PerModeConfig<PerNetworkConfig<T>>
-  | PerNetworkConfig<PerModeConfig<T>>;
-
 /*
  * ============================================================================
  * CHAT MESSAGE TYPES
@@ -52,26 +42,6 @@ export interface WalletTransaction {
  * CONFIGURATION TYPES
  * ============================================================================
  */
-
-export type AomiChatMode = 'full' | 'minimal' | 'compact' | 'terminal';
-export type AomiChatTheme = 'light' | 'dark' | 'terminal' | 'neon' | 'minimal';
-
-export interface AomiChatWidgetPaletteColors {
-  primary: string;
-  background: string;
-  surface: string;
-  text: string;
-  textSecondary: string;
-  border: string;
-  success: string;
-  error: string;
-  warning: string;
-  accent: string;
-}
-
-export interface AomiChatWidgetPalette extends AomiChatWidgetPaletteColors {
-  baseTheme: AomiChatTheme;
-}
 
 export interface RateLimitConfig {
   maxMessages?: number;
@@ -109,8 +79,6 @@ export interface AomiChatWidgetParams {
   sessionId?: string;
 
   // UI Customization
-  theme?: AomiChatTheme | AomiChatWidgetPalette;
-  mode?: AomiChatMode;
   welcomeMessage?: string;
   placeholder?: string;
   showWalletStatus?: boolean;
@@ -131,7 +99,7 @@ export interface AomiChatWidgetParams {
 
   // Advanced Features
   customCommands?: ChatCommand[];
-  rateLimiting?: FlexibleConfig<RateLimitConfig>;
+  rateLimiting?: RateLimitConfig;
 
   // Integration Settings
   apiKey?: string;
@@ -357,38 +325,6 @@ export interface WalletStatusProps {
 export interface TypingIndicatorProps {
   isTyping: boolean;
   className?: string;
-}
-
-/*
- * ============================================================================
- * THEME TYPES
- * ============================================================================
- */
-
-export interface ThemeDefinition {
-  name: string;
-  palette: AomiChatWidgetPaletteColors;
-  fonts?: {
-    primary?: string;
-    monospace?: string;
-  };
-  spacing?: {
-    xs?: string;
-    sm?: string;
-    md?: string;
-    lg?: string;
-    xl?: string;
-  };
-  borderRadius?: {
-    sm?: string;
-    md?: string;
-    lg?: string;
-  };
-  shadows?: {
-    sm?: string;
-    md?: string;
-    lg?: string;
-  };
 }
 
 /*

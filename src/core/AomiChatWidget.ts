@@ -36,8 +36,47 @@ import {
 } from '../utils';
 import { renderMarkdown, buildMarkdownColors } from '../utils/markdown';
 import { ChatManager } from './ChatManager';
-import { ThemeManager } from './ThemeManager';
 import { WalletManager } from './WalletManager';
+
+type DefaultThemePalette = {
+  primary: string;
+  background: string;
+  surface: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  success: string;
+  error: string;
+  warning: string;
+  accent: string;
+};
+
+type DefaultThemeFonts = {
+  primary: string;
+  monospace: string;
+};
+
+const DEFAULT_WIDGET_THEME: {
+  palette: DefaultThemePalette;
+  fonts: DefaultThemeFonts;
+} = {
+  palette: {
+    primary: '#111827',
+    background: '#ffffff',
+    surface: '#f8fafc',
+    text: '#0f172a',
+    textSecondary: '#475569',
+    border: '#e2e8f0',
+    success: '#059669',
+    error: '#dc2626',
+    warning: '#f97316',
+    accent: '#2563eb',
+  },
+  fonts: {
+    primary: '"Inter", "Helvetica Neue", Arial, sans-serif',
+    monospace: '"JetBrains Mono", "SF Mono", monospace',
+  },
+};
 
 type MessageBubblePayload = {
   type: ChatMessage['type'];
@@ -52,11 +91,10 @@ type MessageBubblePayload = {
  * ============================================================================
  */
 
-class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
+class DefaultAomiWidget implements AomiChatWidgetHandler {
   private container: HTMLElement;
   private config: WidgetConfig;
   private chatManager: ChatManager;
-  private themeManager: ThemeManager;
   private walletManager: WalletManager | null = null;
   private widgetElement: HTMLElement | null = null;
   private statusBadgeElement: HTMLElement | null = null;
@@ -93,8 +131,6 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       reconnectAttempts: 5,
       reconnectDelay: 3000,
     });
-
-    this.themeManager = new ThemeManager(config.params.theme);
 
     // Initialize wallet manager if provider is available
     if (config.provider) {
@@ -145,12 +181,6 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     // Update configuration
     this.config.params = mergedParams;
-
-    // Update theme if changed
-    if (params.theme) {
-      this.themeManager.updateTheme(params.theme);
-      this.applyTheme();
-    }
 
     // Update dimensions if changed
     if (params.width || params.height) {
@@ -258,7 +288,6 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
 
     // Clean up managers
     this.chatManager.destroy();
-    this.themeManager.destroy();
 
     if (this.walletManager) {
       this.walletManager.destroy();
@@ -431,13 +460,10 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     this.resetDomReferences();
 
     // Create widget element
+    const palette = this.getThemePalette();
+
     this.widgetElement = createElement('div', {
-      className: [
-        CSS_CLASSES.WIDGET_ROOT,
-        CSS_CLASSES.WIDGET_CONTAINER,
-        this.themeManager.getThemeClass(),
-        this.getModeClass(),
-      ],
+      className: [CSS_CLASSES.WIDGET_ROOT, CSS_CLASSES.WIDGET_CONTAINER].join(' '),
       styles: {
         width: this.config.params.width || DEFAULT_WIDGET_WIDTH,
         height: this.config.params.height || DEFAULT_WIDGET_HEIGHT,
@@ -446,12 +472,11 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: this.themeManager.getFontFamily(),
+        fontFamily: this.getFontFamily(),
+        backgroundColor: palette.background,
+        color: palette.text,
       },
     });
-
-    // Apply theme
-    this.applyTheme();
 
     // Render chat interface
     this.renderChatInterface();
@@ -464,6 +489,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   private renderChatInterface(): void {
     if (!this.widgetElement) return;
 
+    const palette = this.getThemePalette();
+
     const chatInterface = createElement('div', {
       className: CSS_CLASSES.CHAT_INTERFACE,
       styles: {
@@ -471,7 +498,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: this.themeManager.getColor('surface'),
+        backgroundColor: palette.surface,
         borderRadius: '12px',
         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
         overflow: 'hidden',
@@ -496,7 +523,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   }
 
   private createHeader(): HTMLElement {
-    const theme = this.themeManager.getComputedTheme();
+    const palette = this.getThemePalette();
 
     this.statusBadgeElement = createElement('span', {
       className: CSS_CLASSES.STATUS_BADGE,
@@ -506,10 +533,10 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         gap: '6px',
         padding: '4px 10px',
         borderRadius: '999px',
-        backgroundColor: theme.palette.surface,
-        color: theme.palette.textSecondary,
+        backgroundColor: palette.surface,
+        color: palette.textSecondary,
         fontSize: '12px',
-        border: `1px solid ${theme.palette.border}`,
+        border: `1px solid ${palette.border}`,
       },
       children: ['Initializing'],
     });
@@ -519,7 +546,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       styles: {
         fontWeight: '600',
         fontSize: '15px',
-        color: theme.palette.text,
+        color: palette.text,
       },
       children: [this.config.params.content?.welcomeTitle || 'Aomi Assistant'],
     });
@@ -533,9 +560,9 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         gap: '8px',
         padding: '6px 12px',
         borderRadius: '999px',
-        backgroundColor: theme.palette.surface,
-        border: `1px solid ${theme.palette.border}`,
-        color: theme.palette.textSecondary,
+        backgroundColor: palette.surface,
+        border: `1px solid ${palette.border}`,
+        color: palette.textSecondary,
         fontSize: '12px',
         fontWeight: '500',
         cursor: 'pointer',
@@ -565,8 +592,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '16px 20px',
-        backgroundColor: this.themeManager.getColor('background'),
-        borderBottom: `1px solid ${this.themeManager.getColor('border')}`,
+        backgroundColor: palette.background,
+        borderBottom: `1px solid ${palette.border}`,
       },
     });
 
@@ -578,7 +605,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   }
 
   private createBody(): HTMLElement {
-    const theme = this.themeManager.getComputedTheme();
+    const palette = this.getThemePalette();
 
     this.messageListElement = createElement('div', {
       className: CSS_CLASSES.MESSAGE_LIST,
@@ -589,7 +616,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        backgroundColor: theme.palette.background,
+        backgroundColor: palette.background,
         minHeight: '0',
       },
     });
@@ -611,9 +638,9 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         alignSelf: 'flex-start',
         borderRadius: '12px',
         fontSize: '12px',
-        color: theme.palette.textSecondary,
-        backgroundColor: theme.palette.surface,
-        border: `1px solid ${theme.palette.border}`,
+        color: palette.textSecondary,
+        backgroundColor: palette.surface,
+        border: `1px solid ${palette.border}`,
         flexShrink: '0',
       },
       children: ['Assistant is typing…'],
@@ -625,7 +652,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         flex: '1 1 auto',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: theme.palette.background,
+        backgroundColor: palette.background,
         minHeight: '0',
         overflow: 'hidden',
       },
@@ -638,7 +665,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   }
 
   private createActionBar(): HTMLElement {
-    const theme = this.themeManager.getComputedTheme();
+    const palette = this.getThemePalette();
 
     this.messageInputElement = createElement('textarea', {
       className: [CSS_CLASSES.MESSAGE_INPUT, CSS_CLASSES.INPUT_FIELD],
@@ -656,7 +683,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         fontSize: '14px',
         lineHeight: '20px',
         backgroundColor: 'transparent',
-        color: theme.palette.text,
+        color: palette.text,
         minHeight: '48px',
       },
     }) as HTMLTextAreaElement;
@@ -668,10 +695,10 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         border: 'none',
         borderRadius: '999px',
         padding: '10px 16px',
-        background: `linear-gradient(135deg, ${theme.palette.primary}, ${
-          theme.palette.accent || theme.palette.primary
+        background: `linear-gradient(135deg, ${palette.primary}, ${
+          palette.accent || palette.primary
         })`,
-        color: theme.palette.background,
+        color: palette.background,
         fontWeight: '600',
         cursor: 'pointer',
         transition: 'opacity 0.2s ease',
@@ -686,9 +713,9 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         alignItems: 'center',
         gap: '12px',
         padding: '12px 16px',
-        backgroundColor: theme.palette.surface,
+        backgroundColor: palette.surface,
         borderRadius: '10px',
-        border: `1px solid ${theme.palette.border}`,
+        border: `1px solid ${palette.border}`,
       },
       children: [this.messageInputElement, this.sendButtonElement],
     });
@@ -697,8 +724,8 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       className: CSS_CLASSES.INPUT_FORM,
       styles: {
         padding: '16px 20px 20px',
-        backgroundColor: theme.palette.background,
-        borderTop: `1px solid ${theme.palette.border}`,
+        backgroundColor: palette.background,
+        borderTop: `1px solid ${palette.border}`,
         flexShrink: '0',
       },
       children: [controls],
@@ -841,20 +868,20 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     timestamp,
     toolStream,
   }: MessageBubblePayload): HTMLElement {
-    const theme = this.themeManager.getComputedTheme();
+    const palette = this.getThemePalette();
 
     const isUser = type === 'user';
     const isSystem = type === 'system';
     const backgroundColor = isSystem
-      ? theme.palette.surface
+      ? palette.surface
       : isUser
-        ? theme.palette.primary
-        : theme.palette.surface;
-    const textColor = isUser ? theme.palette.background : theme.palette.text;
-    const borderColor = isUser ? theme.palette.primary : theme.palette.border;
-    const accentColor = theme.palette.accent || theme.palette.primary;
-    const fontFamily = this.themeManager.getFontFamily();
-    const monospaceFont = this.themeManager.getMonospaceFontFamily();
+        ? palette.primary
+        : palette.surface;
+    const textColor = isUser ? palette.background : palette.text;
+    const borderColor = isUser ? palette.primary : palette.border;
+    const accentColor = palette.accent || palette.primary;
+    const fontFamily = this.getFontFamily();
+    const monospaceFont = this.getMonospaceFontFamily();
     const markdownColors = buildMarkdownColors(
       backgroundColor,
       textColor,
@@ -911,7 +938,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
           padding: '8px 10px',
           borderRadius: '10px',
           border: `1px solid ${accentColor}`,
-          backgroundColor: theme.palette.background,
+          backgroundColor: palette.background,
         },
       });
 
@@ -937,7 +964,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
           lineHeight: '1.5',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
-          color: theme.palette.textSecondary,
+          color: palette.textSecondary,
           backgroundColor: 'transparent',
         },
       }) as HTMLPreElement;
@@ -1155,39 +1182,39 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   private updateStatusBadge(state: ChatState): void {
     if (!this.statusBadgeElement) return;
 
-    const theme = this.themeManager.getComputedTheme();
     let label = 'Initializing…';
-    let background = theme.palette.surface;
-    let color = theme.palette.textSecondary;
-    let border = theme.palette.border;
+    const palette = this.getThemePalette();
+    let background = palette.surface;
+    let color = palette.textSecondary;
+    let border = palette.border;
 
     switch (state.connectionStatus) {
       case ConnectionStatus.CONNECTED:
         switch (state.readiness.phase) {
           case ReadinessPhase.READY:
             label = 'Connected';
-            background = theme.palette.success;
-            color = theme.palette.background;
-            border = theme.palette.success;
+            background = palette.success;
+            color = palette.background;
+            border = palette.success;
             break;
           case ReadinessPhase.MISSING_API_KEY:
             label = 'Missing API Key';
-            background = theme.palette.error;
-            color = theme.palette.background;
-            border = theme.palette.error;
+            background = palette.error;
+            color = palette.background;
+            border = palette.error;
             break;
           case ReadinessPhase.ERROR:
             label = state.readiness.detail || 'Backend Error';
-            background = theme.palette.error;
-            color = theme.palette.background;
-            border = theme.palette.error;
+            background = palette.error;
+            color = palette.background;
+            border = palette.error;
             break;
           default: {
             const phaseLabel = this.describeReadiness(state.readiness.phase);
             label = state.readiness.detail ?? `Preparing (${phaseLabel})`;
-            background = theme.palette.warning;
-            color = theme.palette.background;
-            border = theme.palette.warning;
+            background = palette.warning;
+            color = palette.background;
+            border = palette.warning;
             break;
           }
         }
@@ -1195,22 +1222,22 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       case ConnectionStatus.CONNECTING:
       case ConnectionStatus.RECONNECTING:
         label = 'Connecting…';
-        background = theme.palette.warning;
-        color = theme.palette.background;
-        border = theme.palette.warning;
+        background = palette.warning;
+        color = palette.background;
+        border = palette.warning;
         break;
       case ConnectionStatus.DISCONNECTED:
         label = 'Disconnected';
-        background = theme.palette.error;
-        color = theme.palette.background;
-        border = theme.palette.error;
+        background = palette.error;
+        color = palette.background;
+        border = palette.error;
         break;
       case ConnectionStatus.ERROR:
       default:
         label = 'Error';
-        background = theme.palette.error;
-        color = theme.palette.background;
-        border = theme.palette.error;
+        background = palette.error;
+        color = palette.background;
+        border = palette.error;
         break;
     }
 
@@ -1346,7 +1373,7 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
   private updateWalletStatus(state: ChatState): void {
     if (!this.walletStatusElement) return;
 
-    const theme = this.themeManager.getComputedTheme();
+    const palette = this.getThemePalette();
 
     if (!this.walletManager) {
       this.walletStatusElement.textContent = 'Wallet Unavailable';
@@ -1354,9 +1381,9 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
       this.walletStatusElement.title =
         'Provide an Ethereum provider to enable wallet features.';
       Object.assign(this.walletStatusElement.style, {
-        backgroundColor: theme.palette.surface,
-        border: `1px dashed ${theme.palette.border}`,
-        color: theme.palette.textSecondary,
+        backgroundColor: palette.surface,
+        border: `1px dashed ${palette.border}`,
+        color: palette.textSecondary,
         cursor: 'not-allowed',
       });
       return;
@@ -1370,9 +1397,9 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     if (this.isWalletActionPending) {
       this.walletStatusElement.textContent = 'Working…';
       Object.assign(this.walletStatusElement.style, {
-        backgroundColor: theme.palette.surface,
-        border: `1px solid ${theme.palette.border}`,
-        color: theme.palette.textSecondary,
+        backgroundColor: palette.surface,
+        border: `1px solid ${palette.border}`,
+        color: palette.textSecondary,
       });
       return;
     }
@@ -1393,17 +1420,17 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
         : 'Wallet connected';
 
       Object.assign(this.walletStatusElement.style, {
-        backgroundColor: theme.palette.success,
-        border: `1px solid ${theme.palette.success}`,
-        color: theme.palette.background,
+        backgroundColor: palette.success,
+        border: `1px solid ${palette.success}`,
+        color: palette.background,
       });
     } else {
       this.walletStatusElement.textContent = 'Connect Wallet';
       this.walletStatusElement.title = 'Connect an Ethereum wallet';
       Object.assign(this.walletStatusElement.style, {
-        backgroundColor: theme.palette.surface,
-        border: `1px solid ${theme.palette.border}`,
-        color: theme.palette.textSecondary,
+        backgroundColor: palette.surface,
+        border: `1px solid ${palette.border}`,
+        color: palette.textSecondary,
       });
     }
   }
@@ -1478,38 +1505,6 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     }
   }
 
-  private applyTheme(): void {
-    if (!this.widgetElement) return;
-
-    const theme = this.themeManager.getComputedTheme();
-
-    // Apply CSS custom properties for theme colors
-    Object.entries(theme.palette).forEach(([key, value]) => {
-      this.widgetElement!.style.setProperty(`--aomi-${key}`, value);
-    });
-
-    // Apply theme class
-    this.widgetElement.className = [
-      CSS_CLASSES.WIDGET_ROOT,
-      CSS_CLASSES.WIDGET_CONTAINER,
-      this.themeManager.getThemeClass(),
-      this.getModeClass(),
-    ].join(' ');
-  }
-
-  private getModeClass(): string {
-    switch (this.config.params.mode) {
-      case 'minimal':
-        return CSS_CLASSES.MODE_MINIMAL;
-      case 'compact':
-        return CSS_CLASSES.MODE_COMPACT;
-      case 'terminal':
-        return CSS_CLASSES.MODE_TERMINAL;
-      default:
-        return CSS_CLASSES.MODE_FULL;
-    }
-  }
-
   private updateDimensions(): void {
     if (!this.widgetElement) return;
 
@@ -1518,6 +1513,18 @@ class AomiChatWidgetHandlerImpl implements AomiChatWidgetHandler {
     this.widgetElement.style.height =
       this.config.params.height || DEFAULT_WIDGET_HEIGHT;
     this.scheduleLayoutMeasurement(true);
+  }
+
+  private getThemePalette(): DefaultThemePalette {
+    return DEFAULT_WIDGET_THEME.palette;
+  }
+
+  private getFontFamily(): string {
+    return DEFAULT_WIDGET_THEME.fonts.primary;
+  }
+
+  private getMonospaceFontFamily(): string {
+    return DEFAULT_WIDGET_THEME.fonts.monospace;
   }
 }
 
@@ -1551,8 +1558,8 @@ export function createAomiChatWidget(
   }
 
   // Create and return widget handler
-  return new AomiChatWidgetHandlerImpl(container, config);
+  return new DefaultAomiWidget(container, config);
 }
 
 // Export the handler class for testing
-export { AomiChatWidgetHandlerImpl as AomiChatWidgetHandler };
+export { DefaultAomiWidget };

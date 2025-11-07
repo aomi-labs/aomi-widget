@@ -4,7 +4,36 @@
 
 Transform the existing Aomi chatbot application into an embeddable widget package (similar to CoW Swap widget) that allows any website to integrate an AI agent chatbot with Web3 capabilities.
 
+> **Update (2024-XX):** The customizable theme system referenced throughout this document has been retired. The shipping widget now exposes a single neutral theme baked into `DefaultAomiWidget`, which focuses the library on chat and wallet logic.
+
 ## 📊 **Current System Analysis**
+
+
+```mermaid
+graph TD
+    A[DefaultAomiWidget] --> B[ChatManager]
+    A --> C[WalletManager]
+    A --> D[EventEmitter]
+    
+    subgraph State Management
+        B --> E[ChatState]
+        B --> F[ConnectionStatus]
+        C --> G[WalletState]
+    end
+
+    subgraph Event Flow
+        D --> H[Message Events]
+        D --> I[Connection Events]
+        D --> J[Wallet Events]
+        D --> K[Transaction Events]
+    end
+
+    subgraph Core Types
+        L[ChatMessage]
+        M[WalletTransaction]
+        N[WidgetConfig]
+    end
+```
 
 ### **Existing Architecture**
 ```

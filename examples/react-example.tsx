@@ -3,7 +3,6 @@ import { createChatWidget, AomiChatWidgetHandler, ChatMessage, AomiChatError } f
 
 interface ChatWidgetProps {
   appCode: string;
-  theme?: 'light' | 'dark' | 'terminal' | 'neon' | 'minimal';
   width?: string;
   height?: string;
   baseUrl?: string;
@@ -14,7 +13,6 @@ interface ChatWidgetProps {
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   appCode,
-  theme = 'dark',
   width = '400px',
   height = '600px',
   baseUrl,
@@ -32,7 +30,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     try {
       const widget = createChatWidget(containerRef.current, {
         appCode,
-        theme,
         width,
         height,
         baseUrl,
@@ -57,7 +54,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         onError(error as AomiChatError);
       }
     }
-  }, [appCode, theme, width, height, baseUrl, onReady, onMessage, onError]);
+  }, [appCode, width, height, baseUrl, onReady, onMessage, onError]);
 
   return (
     <div 
@@ -95,10 +92,9 @@ const App: React.FC = () => {
       <h1>🤖 Aomi Chat Widget - React Example</h1>
       
       <div style={{ marginBottom: '20px' }}>
-        <h2>Dark Theme</h2>
+        <h2>Default Widget</h2>
         <ChatWidget
           appCode="my-react-app"
-          theme="dark"
           width="100%"
           height="500px"
           baseUrl="http://localhost:8080"
@@ -109,10 +105,9 @@ const App: React.FC = () => {
       </div>
 
       <div style={{ marginBottom: '20px' }}>
-        <h2>Terminal Theme</h2>
+        <h2>Compact Widget</h2>
         <ChatWidget
           appCode="my-react-app"
-          theme="terminal"
           width="100%"
           height="400px"
           baseUrl="http://localhost:8080"

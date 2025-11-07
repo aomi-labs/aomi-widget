@@ -3,7 +3,6 @@
 import { createAomiChatWidget } from './core/AomiChatWidget';
 import {
   SUPPORTED_CHAINS,
-  PREDEFINED_THEMES,
   ERROR_CODES,
   WIDGET_EVENTS,
 } from './types/constants';
@@ -13,13 +12,6 @@ export { createAomiChatWidget };
 
 // Core managers
 export { ChatManager } from './core/ChatManager';
-export {
-  ThemeManager,
-  createThemeManager,
-  getAvailableThemes,
-  validateCustomPalette,
-  createCustomPalette,
-} from './core/ThemeManager';
 export { WalletManager, createWalletManager, isValidProvider, detectWallets } from './core/WalletManager';
 
 // Types
@@ -38,11 +30,6 @@ export type {
   ToolStreamUpdate,
 
   // Configuration types
-  AomiChatMode,
-  AomiChatTheme,
-  AomiChatWidgetPalette,
-  AomiChatWidgetPaletteColors,
-  FlexibleConfig,
   SupportedChainId,
 
   // Network and provider types
@@ -56,8 +43,6 @@ export type {
 
 
   // Theme types
-  ThemeDefinition,
-
   // Component types (for React usage)
   ChatInterfaceProps,
   MessageListProps,
@@ -112,10 +97,6 @@ export {
   SUPPORTED_CHAINS,
   DEFAULT_CHAIN_ID,
 
-  // Theme constants
-  THEME_PALETTES,
-  PREDEFINED_THEMES,
-
   // Error codes
   ERROR_CODES,
 
@@ -135,7 +116,6 @@ export {
 // Utilities
 export {
   // Configuration utilities
-  resolveFlexibleConfig,
   validateWidgetParams,
 
   // Session utilities
@@ -176,8 +156,6 @@ export const VERSION = '0.1.0';
 
 // Import necessary types for the convenience function
 import type {
-  AomiChatTheme,
-  AomiChatWidgetPalette,
   EthereumProvider,
   ChatMessage,
   AomiChatError,
@@ -191,7 +169,6 @@ export function createChatWidget(
   containerId: string | HTMLElement,
   options: {
     appCode: string;
-    theme?: AomiChatTheme | AomiChatWidgetPalette;
     width?: string;
     height?: string;
     baseUrl?: string;
@@ -218,7 +195,6 @@ export function createChatWidget(
   const config: WidgetConfig = {
     params: {
       appCode: options.appCode,
-      theme: options.theme,
       width: options.width,
       height: options.height,
       baseUrl: options.baseUrl,
@@ -240,7 +216,6 @@ export default {
   createAomiChatWidget,
   VERSION,
   SUPPORTED_CHAINS,
-  PREDEFINED_THEMES,
   ERROR_CODES,
   WIDGET_EVENTS,
 };

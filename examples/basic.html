@@ -180,13 +180,13 @@
                 <div class="logs" id="basic-logs"></div>
             </div>
             
-            <!-- Terminal Widget Example -->
+            <!-- Operations Widget Example -->
             <div class="example">
-                <h2><span>💻</span> Terminal Theme</h2>
-                <div class="status info" id="terminal-status">Terminal theme with green glow...</div>
+                <h2><span>💻</span> Operations Console</h2>
+                <div class="status info" id="terminal-status">Simulates a CLI-style assistant response loop...</div>
                 
                 <div class="controls">
-                    <button onclick="loadTerminalWidget()">Load Terminal</button>
+                    <button onclick="loadTerminalWidget()">Load Console</button>
                     <button onclick="sendTestMessage('terminal')" disabled id="terminal-send">Send Test</button>
                     <button onclick="destroyWidget('terminal')" disabled id="terminal-destroy">Destroy</button>
                 </div>
@@ -198,14 +198,14 @@
                 <div class="logs" id="terminal-logs"></div>
             </div>
             
-            <!-- Custom Theme Widget -->
+            <!-- Custom Copy Widget -->
             <div class="example">
-                <h2><span>🎨</span> Custom Theme</h2>
-                <div class="status info" id="custom-status">Custom brand colors...</div>
+                <h2><span>🎨</span> Custom Copy</h2>
+                <div class="status info" id="custom-status">Showcases dynamic placeholders and content text...</div>
                 
                 <div class="controls">
                     <button onclick="loadCustomWidget()">Load Custom</button>
-                    <button onclick="updateTheme()" disabled id="custom-update">Update Theme</button>
+                    <button onclick="refreshCustomCopy()" disabled id="custom-update">Refresh Copy</button>
                     <button onclick="destroyWidget('custom')" disabled id="custom-destroy">Destroy</button>
                 </div>
                 
@@ -218,8 +218,8 @@
             
             <!-- Compact Widget -->
             <div class="example">
-                <h2><span>📱</span> Compact Mode</h2>
-                <div class="status info" id="compact-status">Smaller size for mobile...</div>
+                <h2><span>📱</span> Compact Widget</h2>
+                <div class="status info" id="compact-status">Smaller footprint for sidebars or mobile views...</div>
                 
                 <div class="controls">
                     <button onclick="loadCompactWidget()">Load Compact</button>
@@ -319,7 +319,6 @@
                 
                 widgets.basic = AomiWidget.createChatWidget(container, {
                     appCode: 'basic-demo',
-                    theme: 'light',
                     width: '100%',
                     height: '500px',
                     baseUrl: 'http://localhost:8080',
@@ -354,10 +353,8 @@
                 
                 widgets.terminal = AomiWidget.createChatWidget(container, {
                     appCode: 'terminal-demo',
-                    theme: 'terminal',
                     width: '100%',
                     height: '500px',
-                    mode: 'terminal',
                     welcomeMessage: '> System initialized. AI agent ready.',
                     placeholder: '> Enter command...',
                     baseUrl: 'http://localhost:8080',
@@ -383,41 +380,38 @@
             }
         }
         
-        // Custom Theme Widget
+        // Custom Copy Widget
         function loadCustomWidget() {
             try {
                 const container = document.getElementById('custom-widget');
                 container.innerHTML = '';
                 
-                updateStatus('custom', 'Loading custom theme...', 'info');
+                updateStatus('custom', 'Loading custom copy...', 'info');
                 
-                const customTheme = {
-                    baseTheme: 'dark',
-                    primary: '#ff6b35',
-                    background: '#1a1a2e',
-                    surface: '#16213e',
-                    text: '#ffffff',
-                    textSecondary: '#a8a8a8',
-                    border: '#0f3460',
-                    success: '#00d26a',
-                    error: '#ff4757',
-                    warning: '#ffa500',
-                    accent: '#8b5cf6'
+                const conciergeContent = {
+                    welcomeTitle: 'Concierge Assistant',
+                    connectWalletText: 'Link wallet',
+                    disconnectText: 'Disconnect',
+                    networkSwitchText: 'Switch network',
+                    errorMessages: {
+                        default: 'Something went wrong. Try again shortly.',
+                    },
                 };
                 
                 widgets.custom = AomiWidget.createChatWidget(container, {
                     appCode: 'custom-demo',
-                    theme: customTheme,
                     width: '100%',
                     height: '500px',
-                    welcomeMessage: 'Welcome to our custom-branded AI assistant!',
+                    placeholder: 'Describe your request...',
+                    welcomeMessage: 'Happy to help! Tell me what you need.',
+                    content: conciergeContent,
                     baseUrl: 'http://localhost:8080',
                     provider: mockProvider,
                     onReady: () => {
-                        updateStatus('custom', 'Custom widget ready!', 'success');
+                        updateStatus('custom', 'Custom copy widget ready!', 'success');
                         enableButton('custom-update');
                         enableButton('custom-destroy');
-                        logEvent('custom', 'Ready', { theme: 'custom' });
+                        logEvent('custom', 'Ready', { variant: 'custom-copy' });
                     },
                     onMessage: (message) => {
                         logEvent('custom', 'Message', { type: message.type });
@@ -433,7 +427,7 @@
                 logError('custom', error.message);
             }
         }
-        
+
         // Compact Widget
         function loadCompactWidget() {
             try {
@@ -444,10 +438,8 @@
                 
                 widgets.compact = AomiWidget.createChatWidget(container, {
                     appCode: 'compact-demo',
-                    theme: 'minimal',
                     width: '300px',
                     height: '400px',
-                    mode: 'compact',
                     placeholder: 'Ask me anything...',
                     baseUrl: 'http://localhost:8080',
                     provider: mockProvider,
@@ -455,7 +447,7 @@
                         updateStatus('compact', 'Compact widget ready!', 'success');
                         enableButton('compact-resize');
                         enableButton('compact-destroy');
-                        logEvent('compact', 'Ready', { mode: 'compact' });
+                        logEvent('compact', 'Ready', { variant: 'compact' });
                     },
                     onMessage: (message) => {
                         logEvent('compact', 'Message', { type: message.type });
@@ -480,25 +472,17 @@
             }
         }
         
-        function updateTheme() {
+        function refreshCustomCopy() {
             if (widgets.custom) {
-                const newTheme = {
-                    baseTheme: 'light',
-                    primary: '#00d26a',
-                    background: '#ffffff',
-                    surface: '#f8f9fa',
-                    text: '#333333',
-                    textSecondary: '#666666',
-                    border: '#e0e0e0',
-                    success: '#28a745',
-                    error: '#dc3545',
-                    warning: '#ffc107',
-                    accent: '#007bff'
-                };
-                
-                widgets.custom.updateParams({ theme: newTheme });
-                logEvent('custom', 'ThemeUpdated', { theme: 'light' });
-                updateStatus('custom', 'Theme updated to light!', 'success');
+                widgets.custom.updateParams({
+                    placeholder: 'Need quick assistance? Drop your question here…',
+                    content: {
+                        welcomeTitle: 'Concierge Assistant (updated)',
+                        connectWalletText: 'Connect wallet to continue',
+                    }
+                });
+                logEvent('custom', 'CopyUpdated', {});
+                updateStatus('custom', 'Placeholder and copy refreshed!', 'success');
             }
         }
         

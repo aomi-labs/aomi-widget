@@ -17,7 +17,6 @@ import { createChatWidget } from '@aomi-labs/widget-lib';
 
 const widget = createChatWidget('chat-container', {
   appCode: 'my-dapp',
-  theme: 'terminal',
   provider: window.ethereum
 });
 ```
@@ -30,11 +29,6 @@ import { createAomiChatWidget } from '@aomi-labs/widget-lib';
 const widget = createAomiChatWidget(container, {
   params: {
     appCode: 'my-advanced-dapp',
-    theme: {
-      baseTheme: 'dark',
-      primary: '#00ff88',
-      background: '#0a0a0a'
-    },
     width: '500px',
     height: '700px',
     enableTransactions: true,
@@ -59,10 +53,8 @@ interface AomiChatWidgetParams {
   appCode: string;
 
   // Appearance
-  theme?: 'light' | 'dark' | 'terminal' | 'neon' | 'minimal' | CustomTheme;
   width?: string;
   height?: string;
-  mode?: 'full' | 'minimal' | 'compact' | 'terminal';
 
   // Behavior
   welcomeMessage?: string;
@@ -114,7 +106,7 @@ await widget.sendMessage('Hello AI!');
 
 // Update configuration
 widget.updateParams({
-  theme: 'light',
+  placeholder: 'What can I help you with?',
   enableTransactions: false
 });
 
@@ -131,36 +123,6 @@ widget.resize('600px', '800px');
 widget.destroy();
 ```
 
-## 🎨 Themes
-
-### Predefined Themes
-
-- `light` - Clean light theme
-- `dark` - Modern dark theme  
-- `terminal` - Green terminal style
-- `neon` - Cyberpunk neon theme
-- `minimal` - Clean minimal design
-
-### Custom Themes
-
-```typescript
-const customTheme = {
-  baseTheme: 'dark',
-  primary: '#ff6b35',
-  background: '#1a1a1a',
-  surface: '#2d2d2d',
-  text: '#ffffff',
-  textSecondary: '#cccccc',
-  border: '#404040',
-  success: '#00d26a',
-  error: '#ff4757',
-  warning: '#ffa500',
-  accent: '#8b5cf6'
-};
-
-widget.updateParams({ theme: customTheme });
-```
-
 ## 🌐 Network Support
 
 Supported networks:
@@ -174,28 +136,6 @@ Supported networks:
 - Optimism (10)
 
 ## 🔧 Advanced Features
-
-### Flexible Configuration
-
-Configure different settings per network or mode:
-
-```typescript
-const config = {
-  appCode: 'my-app',
-  // Different settings per network
-  enableTransactions: {
-    1: true,      // Mainnet: enabled
-    5: false,     // Goerli: disabled
-    100: true     // Gnosis: enabled
-  },
-  // Different settings per mode
-  welcomeMessage: {
-    full: 'Welcome to our full chat experience!',
-    minimal: 'Hi there!',
-    compact: 'Hello!'
-  }
-};
-```
 
 ### Custom Commands
 
@@ -256,7 +196,7 @@ npm run dev
 import { createChatWidget, createAomiChatWidget } from '@aomi-labs/widget-lib';
 
 // Core managers
-import { ChatManager, ThemeManager, WalletManager } from '@aomi-labs/widget-lib';
+import { ChatManager, WalletManager } from '@aomi-labs/widget-lib';
 
 // Types
 import type { 
@@ -269,7 +209,6 @@ import type {
 // Constants
 import { 
   SUPPORTED_CHAINS, 
-  PREDEFINED_THEMES, 
   ERROR_CODES 
 } from '@aomi-labs/widget-lib';
 
@@ -285,7 +224,6 @@ import {
 
 - `@aomi-labs/widget-react` - React wrapper component
 - `@aomi-labs/widget-vue` - Vue.js wrapper component  
-- `@aomi-labs/widget-themes` - Additional theme packs
 
 ## 📄 License
 

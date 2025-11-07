@@ -2,83 +2,9 @@
 
 import type {
   AomiChatWidgetParams,
-  FlexibleConfig,
   SupportedChainId,
-  AomiChatMode,
-  AomiChatTheme,
-  AomiChatWidgetPalette,
 } from '../types';
-import { SUPPORTED_CHAINS, PREDEFINED_THEMES } from '../types/constants';
-
-/*
- * ============================================================================
- * CONFIGURATION UTILITIES
- * ============================================================================
- */
-
-/**
- * Resolves a flexible configuration value based on chain ID and mode
- */
-export function resolveFlexibleConfig<T>(
-  config: FlexibleConfig<T>,
-  chainId: SupportedChainId,
-  mode: AomiChatMode,
-): T | undefined {
-  // If it's a simple value, return it
-  if (typeof config !== 'object' || config === null) {
-    return config as T;
-  }
-
-  // Check if it's a per-mode configuration
-  if (isPerModeConfig(config)) {
-    const modeValue = config[mode];
-    if (modeValue === undefined) {
-      return undefined;
-    }
-
-    // If the mode value is itself a per-network config
-    if (isPerNetworkConfig(modeValue)) {
-      return modeValue[chainId];
-    }
-
-    return modeValue as T;
-  }
-
-  // Check if it's a per-network configuration
-  if (isPerNetworkConfig(config)) {
-    const networkValue = config[chainId];
-    if (networkValue === undefined) {
-      return undefined;
-    }
-
-    // If the network value is itself a per-mode config
-    if (isPerModeConfig(networkValue)) {
-      return networkValue[mode];
-    }
-
-    return networkValue as T;
-  }
-
-  return config as T;
-}
-
-function isPerModeConfig<T>(config: unknown): config is Partial<Record<AomiChatMode, T>> {
-  if (typeof config !== 'object' || config === null) return false;
-
-  const modes: AomiChatMode[] = ['full', 'minimal', 'compact', 'terminal'];
-  const keys = Object.keys(config);
-
-  return keys.length > 0 && keys.every(key => modes.includes(key as AomiChatMode));
-}
-
-function isPerNetworkConfig<T>(config: unknown): config is Partial<Record<SupportedChainId, T>> {
-  if (typeof config !== 'object' || config === null) return false;
-
-  const chainIds = Object.keys(SUPPORTED_CHAINS).map(id => parseInt(id) as SupportedChainId);
-  const keys = Object.keys(config).map(key => parseInt(key));
-
-  return keys.length > 0 && keys.every(key => chainIds.includes(key as SupportedChainId));
-}
+import { SUPPORTED_CHAINS } from '../types/constants';
 
 /*
  * ============================================================================
@@ -125,34 +51,12 @@ export function validateWidgetParams(params: AomiChatWidgetParams): string[] {
     }
   }
 
-  // Validate theme
-  if (params.theme && !isValidTheme(params.theme)) {
-    errors.push('theme must be a valid theme name or theme palette object');
-  }
-
-  // Validate mode
-  if (params.mode && !['full', 'minimal', 'compact', 'terminal'].includes(params.mode)) {
-    errors.push('mode must be one of: full, minimal, compact, terminal');
-  }
-
   return errors;
 }
 
 function isValidDimension(dimension: string): boolean {
   // Simple regex to validate CSS dimensions
   return /^(\d+(\.\d+)?(px|%|em|rem|vh|vw)|auto|inherit)$/.test(dimension);
-}
-
-function isValidTheme(theme: AomiChatTheme | AomiChatWidgetPalette): boolean {
-  if (typeof theme === 'string') {
-    return Object.keys(PREDEFINED_THEMES).includes(theme);
-  }
-
-  if (typeof theme === 'object' && theme !== null) {
-    return 'baseTheme' in theme && typeof theme.baseTheme === 'string';
-  }
-
-  return false;
 }
 
 /*
@@ -204,19 +108,6 @@ export function buildWidgetUrl(baseUrl: string, params: AomiChatWidgetParams): s
 
   if (params.sessionId) {
     url.searchParams.set('sessionId', params.sessionId);
-  }
-
-  if (params.theme) {
-    if (typeof params.theme === 'string') {
-      url.searchParams.set('theme', params.theme);
-    } else {
-      // For complex theme objects, encode as JSON
-      url.searchParams.set('palette', JSON.stringify(params.theme));
-    }
-  }
-
-  if (params.mode) {
-    url.searchParams.set('mode', params.mode);
   }
 
   if (params.chainId) {
@@ -274,21 +165,6 @@ export function parseWidgetParams(searchParams: URLSearchParams): Partial<AomiCh
 
   const sessionId = searchParams.get('sessionId');
   if (sessionId) params.sessionId = sessionId;
-
-  const theme = searchParams.get('theme');
-  if (theme) params.theme = theme as AomiChatTheme;
-
-  const palette = searchParams.get('palette');
-  if (palette) {
-    try {
-      params.theme = JSON.parse(palette) as AomiChatWidgetPalette;
-    } catch {
-      // Ignore invalid JSON
-    }
-  }
-
-  const mode = searchParams.get('mode');
-  if (mode) params.mode = mode as AomiChatMode;
 
   const chainId = searchParams.get('chainId');
   if (chainId) {

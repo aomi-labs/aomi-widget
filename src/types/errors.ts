@@ -218,7 +218,6 @@ export function getErrorSeverity(error: AomiChatError): ErrorSeverity {
 export const ERROR_MESSAGES = {
   [ERROR_CODES.INVALID_CONFIG]: 'Invalid widget configuration provided',
   [ERROR_CODES.MISSING_APP_CODE]: 'App code is required for widget initialization',
-  [ERROR_CODES.INVALID_THEME]: 'Invalid theme configuration',
   [ERROR_CODES.INVALID_DIMENSIONS]: 'Invalid widget dimensions',
 
   [ERROR_CODES.CONNECTION_FAILED]: 'Failed to connect to the chat backend',
