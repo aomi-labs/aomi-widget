@@ -3,7 +3,6 @@ import {
   type BackendReadiness,
   type ChatMessage,
   type ToolStreamUpdate,
-  type SupportedChainId,
 } from '../types';
 import { createTransactionError } from '../types/errors';
 import { isEthereumAddress } from './index';
@@ -53,95 +52,6 @@ export interface TransactionRequest {
   value: string;
   data: string;
   gas?: string;
-}
-
-export const NETWORK_CONFIGS: Record<SupportedChainId, any> = {
-  1: null,
-  5: null,
-  11155111: null,
-  100: {
-    chainId: '0x64',
-    chainName: 'Gnosis',
-    nativeCurrency: {
-      name: 'xDai',
-      symbol: 'XDAI',
-      decimals: 18,
-    },
-    rpcUrls: ['https://rpc.gnosischain.com'],
-    blockExplorerUrls: ['https://gnosisscan.io'],
-  },
-  137: {
-    chainId: '0x89',
-    chainName: 'Polygon',
-    nativeCurrency: {
-      name: 'MATIC',
-      symbol: 'MATIC',
-      decimals: 18,
-    },
-    rpcUrls: ['https://polygon-rpc.com'],
-    blockExplorerUrls: ['https://polygonscan.com'],
-  },
-  42161: {
-    chainId: '0xa4b1',
-    chainName: 'Arbitrum One',
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18,
-    },
-    rpcUrls: ['https://arb1.arbitrum.io/rpc'],
-    blockExplorerUrls: ['https://arbiscan.io'],
-  },
-  8453: {
-    chainId: '0x2105',
-    chainName: 'Base',
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18,
-    },
-    rpcUrls: ['https://mainnet.base.org'],
-    blockExplorerUrls: ['https://basescan.org'],
-  },
-  10: {
-    chainId: '0xa',
-    chainName: 'Optimism',
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18,
-    },
-    rpcUrls: ['https://mainnet.optimism.io'],
-    blockExplorerUrls: ['https://optimistic.etherscan.io'],
-  },
-  1337: null,
-  31337: null,
-  59140: {
-    chainId: '0xe6b4',
-    chainName: 'Linea Sepolia',
-    nativeCurrency: {
-      name: 'Linea Ether',
-      symbol: 'ETH',
-      decimals: 18,
-    },
-    rpcUrls: ['https://rpc.sepolia.linea.build'],
-    blockExplorerUrls: ['https://sepolia.lineascan.build'],
-  },
-  59144: {
-    chainId: '0xe6b8',
-    chainName: 'Linea',
-    nativeCurrency: {
-      name: 'Linea Ether',
-      symbol: 'ETH',
-      decimals: 18,
-    },
-    rpcUrls: ['https://rpc.linea.build'],
-    blockExplorerUrls: ['https://lineascan.build'],
-  },
-};
-
-export function getNetworkConfig(chainId: SupportedChainId): any {
-  return NETWORK_CONFIGS[chainId] ?? null;
 }
 
 export function convertBackendMessage(
