@@ -2,8 +2,6 @@ import DOMPurify from 'dompurify';
 import { Marked, Renderer } from 'marked';
 import { addAlpha, adjustColor, getRelativeLuminance, mixColors } from './color-utils';
 
-type MermaidModule = typeof import('mermaid');
-
 export interface MarkdownColors {
   text: string;
   muted: string;
@@ -24,10 +22,7 @@ export interface MarkdownRenderOptions {
   monospaceFontFamily: string;
 }
 
-const MERMAID_CONTAINER_CLASS = 'aomi-md-mermaid';
 const CALLOUT_BODY_ATTR = 'data-callout-body';
-
-let mermaidPromise: Promise<MermaidModule['default'] | null> | null = null;
 
 const calloutIconMap: Record<string, string> = {
   note: '📝',
@@ -47,19 +42,6 @@ const ALLOWED_TAGS = [
   'img', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'table', 'tbody', 'td', 'th', 'thead', 'tr', 'ul',
 ];
 
-const MERMAID_THEME_DEFAULTS = {
-  primaryColor: '#1e293b',
-  primaryTextColor: '#e2e8f0',
-  primaryBorderColor: '#475569',
-  lineColor: '#64748b',
-  secondaryColor: '#334155',
-  tertiaryColor: '#0f172a',
-  background: '#0f172a',
-  mainBkg: '#1e293b',
-  secondBkg: '#334155',
-  tertiaryBkg: '#475569',
-};
-
 /**
  * Renders markdown into a styled HTMLElement mirroring the product-mono implementation.
  */
@@ -76,7 +58,7 @@ export function renderMarkdown(content: string, options: MarkdownRenderOptions):
   const rawHtml = typeof parsed === 'string' ? parsed : '';
   const sanitized = DOMPurify.sanitize(rawHtml, {
     ALLOWED_TAGS,
-    ADD_ATTR: ['target', 'rel', 'data-code'],
+    ADD_ATTR: ['target', 'rel'],
   });
 
   const container = document.createElement('div');
@@ -87,29 +69,15 @@ export function renderMarkdown(content: string, options: MarkdownRenderOptions):
   transformCallouts(container);
   styleElements(container, options);
   normalizeBlockSpacing(container);
-  renderMermaidDiagrams(container, options);
 
   return container;
 }
 
 /**
- * Creates a marked renderer with mermaid support.
+ * Creates a marked renderer.
  */
 function createRenderer(): Renderer {
-  const renderer = new Renderer();
-  const baseCodeRenderer = renderer.code.bind(renderer);
-
-  renderer.code = (code: string, infostring?: string, escaped?: boolean): string => {
-    const lang = (infostring ?? '').trim().toLowerCase();
-    if (lang === 'mermaid') {
-      const encoded = encodeURIComponent(code);
-      return `<div class="${MERMAID_CONTAINER_CLASS}" data-code="${encoded}"></div>`;
-    }
-
-    return baseCodeRenderer(code, infostring, escaped ?? false);
-  };
-
-  return renderer;
+  return new Renderer();
 }
 
 /**
@@ -468,132 +436,6 @@ function styleCallouts(container: HTMLElement, options: MarkdownRenderOptions): 
     if (!(icon instanceof HTMLElement)) return;
     icon.style.fontSize = '16px';
   });
-
-  container.querySelectorAll(`.${MERMAID_CONTAINER_CLASS}`).forEach((node) => {
-    if (!(node instanceof HTMLElement)) return;
-    node.style.marginTop = '20px';
-    node.style.marginBottom = '16px';
-    node.style.padding = '12px';
-    node.style.borderRadius = '8px';
-    node.style.backgroundColor = colors.blockBackground;
-    node.style.border = `1px solid ${colors.blockBorder}`;
-    node.style.overflow = 'hidden';
-  });
-}
-
-/**
- * Loads mermaid and renders diagrams in markdown content.
- */
-function renderMermaidDiagrams(container: HTMLElement, options: MarkdownRenderOptions): void {
-  const mermaidNodes = Array.from(
-    container.querySelectorAll<HTMLElement>(`.${MERMAID_CONTAINER_CLASS}`),
-  );
-
-  if (mermaidNodes.length === 0 || typeof window === 'undefined') {
-    return;
-  }
-
-  const themeVariables = createMermaidTheme(options.colors);
-
-  getMermaid(themeVariables)
-    .then((mermaidApi) => {
-      if (!mermaidApi) return;
-
-      mermaidNodes.forEach(async (node) => {
-        const encoded = node.dataset.code ?? '';
-        const code = decodeURIComponent(encoded);
-
-        if (!code.trim()) {
-          node.remove();
-          return;
-        }
-
-        try {
-          const { svg } = await mermaidApi.render(`aomi-mermaid-${hashString(code)}`, code.trim());
-          node.innerHTML = svg;
-          const svgElement = node.querySelector('svg');
-          if (svgElement) {
-            svgElement.setAttribute('width', '100%');
-            svgElement.style.width = '100%';
-            svgElement.style.height = 'auto';
-            svgElement.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          }
-        } catch (error) {
-          console.error('Mermaid rendering error:', error);
-          node.innerHTML = '';
-          const fallback = document.createElement('pre');
-          fallback.textContent = code;
-          fallback.style.margin = '0';
-          fallback.style.padding = '0';
-          fallback.style.background = 'transparent';
-          fallback.style.color = options.colors.text;
-          fallback.style.fontFamily = options.monospaceFontFamily;
-          node.appendChild(fallback);
-        }
-      });
-    })
-    .catch((error) => {
-      console.error('Failed to initialize mermaid:', error);
-    });
-}
-
-/**
- * Lazily loads mermaid and applies theme variables.
- */
-async function getMermaid(themeVariables: Record<string, string>): Promise<MermaidModule['default'] | null> {
-  if (typeof window === 'undefined') return null;
-
-  if (!mermaidPromise) {
-    mermaidPromise = import('mermaid')
-      .then((module) => module.default)
-      .catch((error) => {
-        console.error('Failed to load mermaid:', error);
-        return null;
-      });
-  }
-
-  const mermaidApi = await mermaidPromise;
-  if (!mermaidApi) {
-    return null;
-  }
-
-  mermaidApi.initialize({
-    startOnLoad: false,
-    theme: 'dark',
-    themeVariables,
-  });
-
-  return mermaidApi;
-}
-
-/**
- * Creates theme overrides for mermaid diagrams based on message palette.
- */
-function createMermaidTheme(colors: MarkdownColors): Record<string, string> {
-  return {
-    ...MERMAID_THEME_DEFAULTS,
-    primaryColor: colors.blockBackground,
-    primaryTextColor: colors.text,
-    primaryBorderColor: colors.blockBorder,
-    lineColor: colors.border,
-    secondaryColor: colors.inlineBackground,
-    tertiaryColor: colors.background,
-    background: colors.background,
-    mainBkg: colors.blockBackground,
-    secondBkg: colors.inlineBackground,
-    tertiaryBkg: colors.blockBackground,
-  };
-}
-
-/**
- * Hash helper for stable mermaid IDs.
- */
-function hashString(input: string): string {
-  let hash = 0;
-  for (let i = 0; i < input.length; i += 1) {
-    hash = (hash * 31 + input.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash).toString(16);
 }
 
 /**
