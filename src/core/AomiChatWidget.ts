@@ -33,7 +33,7 @@ import {
   isBrowser,
   truncateAddress,
 } from '../utils';
-import { renderMarkdown, buildMarkdownColors } from '../utils/markdown';
+import { renderMarkdown } from '../utils/markdown';
 import { ChatManager } from './ChatManager';
 import { WalletManager } from './WalletManager';
 
@@ -822,17 +822,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
     const isUser = type === 'user';
     const isSystem = type === 'system';
-    const baseBackground = isUser ? palette.surface : palette.background;
-    const textColor = palette.text;
-    const accentColor = palette.accent || palette.primary;
     const fontFamily = this.getFontFamily();
     const monospaceFont = this.getMonospaceFontFamily();
-    const markdownColors = buildMarkdownColors(
-      baseBackground,
-      textColor,
-      accentColor,
-      palette.border,
-    );
 
     const wrapper = createElement('div', {
       className: CSS_CLASSES.MESSAGE_CONTAINER,
@@ -889,7 +880,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
     if (trimmedContent.length > 0) {
       const markdownElement = renderMarkdown(trimmedContent, {
-        colors: markdownColors,
         fontFamily,
         monospaceFontFamily: monospaceFont,
       });
@@ -901,6 +891,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     }
 
     if (toolStream) {
+      const accentColor = palette.accent || palette.primary;
       const toolWrapper = createElement('div', {
         styles: {
           display: 'flex',
