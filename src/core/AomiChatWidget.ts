@@ -31,7 +31,6 @@ import {
   generateSessionId,
   createElement,
   isBrowser,
-  formatTimestamp,
   truncateAddress,
 } from '../utils';
 import { renderMarkdown, buildMarkdownColors } from '../utils/markdown';
@@ -630,22 +629,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       }),
     );
 
-    this.typingIndicatorElement = createElement('div', {
-      className: CSS_CLASSES.TYPING_INDICATOR,
-      styles: {
-        display: 'none',
-        padding: '8px 12px',
-        alignSelf: 'flex-start',
-        borderRadius: '12px',
-        fontSize: '12px',
-        color: palette.textSecondary,
-        backgroundColor: palette.surface,
-        border: `1px solid ${palette.border}`,
-        flexShrink: '0',
-      },
-      children: ['Assistant is typing…'],
-    });
-
     const body = createElement('div', {
       className: CSS_CLASSES.CHAT_BODY,
       styles: {
@@ -659,8 +642,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     });
 
     body.appendChild(this.messageListElement);
-    body.appendChild(this.typingIndicatorElement);
-
     return body;
   }
 
@@ -865,7 +846,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private createMessageBubble({
     type,
     content,
-    timestamp,
     toolStream,
   }: MessageBubblePayload): HTMLElement {
     const palette = this.getThemePalette();
@@ -913,7 +893,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
             color: palette.text,
             fontSize: '14px',
             lineHeight: '22px',
-            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
@@ -997,20 +976,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     }
 
     wrapper.appendChild(contentHost);
-
-    if (timestamp) {
-      wrapper.appendChild(
-        createElement('div', {
-          styles: {
-            fontSize: '12px',
-            color: palette.textSecondary,
-            fontFamily: monospaceFont,
-            alignSelf: isUser ? 'flex-end' : 'flex-start',
-          },
-          children: [formatTimestamp(timestamp)],
-        }),
-      );
-    }
 
     return wrapper;
   }

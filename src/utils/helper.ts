@@ -6,7 +6,7 @@ import {
   type SupportedChainId,
 } from '../types';
 import { createTransactionError } from '../types/errors';
-import { isEthereumAddress } from '../utils';
+import { isEthereumAddress } from './index';
 
 export type ToolStreamPayload =
   | [unknown, unknown]

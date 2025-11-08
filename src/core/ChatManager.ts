@@ -25,7 +25,7 @@ import {
   normalizeBackendReadiness,
   resolveBackendBoolean,
   areToolStreamsEqual,
-} from './util';
+} from '../utils/helper';
 
 /*
  * ============================================================================

@@ -121,7 +121,7 @@ function applyBaseStyles(container: HTMLElement, options: MarkdownRenderOptions)
   container.style.fontFamily = options.fontFamily;
   container.style.fontSize = '13px';
   container.style.color = options.colors.text;
-  container.style.lineHeight = '1.6';
+  container.style.lineHeight = '1.7';
   container.style.gap = '0';
 }
 
@@ -139,7 +139,7 @@ function styleElements(container: HTMLElement, options: MarkdownRenderOptions): 
     element.style.marginTop = isInCallout ? '4px' : '20px';
     element.style.marginBottom = isInCallout ? '8px' : '16px';
     element.style.fontSize = isInCallout ? '12px' : '13px';
-    element.style.lineHeight = '1.6';
+    element.style.lineHeight = isInCallout ? '1.5' : '1.7';
     element.style.color = isInCallout ? colors.text : colors.text;
   });
 
@@ -192,7 +192,7 @@ function styleElements(container: HTMLElement, options: MarkdownRenderOptions): 
     block.style.marginTop = '20px';
     block.style.marginBottom = '16px';
     block.style.padding = '12px';
-    block.style.borderRadius = '8px';
+    block.style.borderRadius = '6px';
     block.style.backgroundColor = colors.blockBackground;
     block.style.border = `1px solid ${colors.blockBorder}`;
     block.style.overflowX = 'auto';
@@ -227,11 +227,13 @@ function styleElements(container: HTMLElement, options: MarkdownRenderOptions): 
 
     blockquote.style.marginTop = '16px';
     blockquote.style.marginBottom = '16px';
+    blockquote.style.marginLeft = '12px';
     blockquote.style.padding = '12px 16px';
     blockquote.style.borderLeft = `2px solid ${colors.border}`;
     blockquote.style.backgroundColor = colors.inlineBackground;
     blockquote.style.borderRadius = '6px';
     blockquote.style.color = colors.muted;
+    blockquote.style.fontSize = '12px';
   });
 
   styleCallouts(container, options);

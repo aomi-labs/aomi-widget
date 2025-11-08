@@ -16,7 +16,7 @@ import {
   type TransactionRequest,
   getNetworkConfig,
   validateTransactionPayload,
-} from './util';
+} from '../utils/helper';
 
 /*
  * ============================================================================
