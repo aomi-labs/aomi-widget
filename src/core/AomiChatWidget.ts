@@ -592,7 +592,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         alignItems: 'center',
         padding: '16px 20px',
         backgroundColor: palette.background,
-        borderBottom: `1px solid ${palette.border}`,
       },
     });
 
@@ -653,7 +652,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       attributes: {
         placeholder:
           this.config.params.placeholder ||
-          'Ask anything about your Web3 experience…',
+          '',
         rows: '1',
       },
       styles: {
@@ -674,17 +673,15 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       attributes: { type: 'submit' },
       styles: {
         border: 'none',
-        borderRadius: '999px',
-        padding: '10px 16px',
-        background: `linear-gradient(135deg, ${palette.primary}, ${
-          palette.accent || palette.primary
-        })`,
-        color: palette.background,
-        fontWeight: '600',
+        borderRadius: '12px',
+        padding: '10px 14px',
+        background: '#e5e7eb',
+        color: palette.text,
+        fontWeight: '500',
         cursor: 'pointer',
-        transition: 'opacity 0.2s ease',
+        transition: 'background-color 0.2s ease, opacity 0.2s ease',
       },
-      children: ['Send'],
+      children: ['↑'],
     }) as HTMLButtonElement;
 
     const controls = createElement('div', {
@@ -706,7 +703,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       styles: {
         padding: '16px 20px 20px',
         backgroundColor: palette.background,
-        borderTop: `1px solid ${palette.border}`,
         flexShrink: '0',
       },
       children: [controls],
@@ -1340,9 +1336,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       ? 'not-allowed'
       : 'pointer';
 
-    const defaultPlaceholder =
-      this.config.params.placeholder ||
-      'Ask anything about your Web3 experience…';
+    const defaultPlaceholder = this.config.params.placeholder || '';
     let placeholder = defaultPlaceholder;
 
     if (fatalReadiness) {
