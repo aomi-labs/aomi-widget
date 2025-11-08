@@ -12,8 +12,6 @@ export interface MarkdownColors {
   inlineBackground: string;
   blockBackground: string;
   blockBorder: string;
-  calloutBackground: string;
-  calloutBorder: string;
 }
 
 export interface MarkdownRenderOptions {
@@ -21,21 +19,6 @@ export interface MarkdownRenderOptions {
   fontFamily: string;
   monospaceFontFamily: string;
 }
-
-const CALLOUT_BODY_ATTR = 'data-callout-body';
-
-const calloutIconMap: Record<string, string> = {
-  note: '📝',
-  info: 'ℹ️',
-  tip: '💡',
-  success: '✅',
-  warning: '⚠️',
-  caution: '⚠️',
-  danger: '🚨',
-  error: '🚨',
-  bug: '🐞',
-  example: '🧪',
-};
 
 const ALLOWED_TAGS = [
   'a', 'abbr', 'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3', 'hr', 'i',
@@ -66,7 +49,6 @@ export function renderMarkdown(content: string, options: MarkdownRenderOptions):
   container.innerHTML = sanitized;
 
   applyBaseStyles(container, options);
-  transformCallouts(container);
   styleElements(container, options);
   normalizeBlockSpacing(container);
 
@@ -101,14 +83,11 @@ function styleElements(container: HTMLElement, options: MarkdownRenderOptions): 
 
   container.querySelectorAll('p').forEach((element) => {
     if (!(element instanceof HTMLElement)) return;
-    if (element.dataset.calloutTitle === 'true') return;
-
-    const isInCallout = !!element.closest(`[${CALLOUT_BODY_ATTR}="true"]`);
-    element.style.marginTop = isInCallout ? '4px' : '20px';
-    element.style.marginBottom = isInCallout ? '8px' : '16px';
-    element.style.fontSize = isInCallout ? '12px' : '13px';
-    element.style.lineHeight = isInCallout ? '1.5' : '1.7';
-    element.style.color = isInCallout ? colors.text : colors.text;
+    element.style.marginTop = '20px';
+    element.style.marginBottom = '16px';
+    element.style.fontSize = '13px';
+    element.style.lineHeight = '1.7';
+    element.style.color = colors.text;
   });
 
   container.querySelectorAll('a').forEach((anchor) => {
@@ -191,8 +170,6 @@ function styleElements(container: HTMLElement, options: MarkdownRenderOptions): 
 
   container.querySelectorAll('blockquote').forEach((blockquote) => {
     if (!(blockquote instanceof HTMLElement)) return;
-    if (blockquote.classList.contains('aomi-md-callout')) return;
-
     blockquote.style.marginTop = '16px';
     blockquote.style.marginBottom = '16px';
     blockquote.style.marginLeft = '12px';
@@ -204,7 +181,6 @@ function styleElements(container: HTMLElement, options: MarkdownRenderOptions): 
     blockquote.style.fontSize = '12px';
   });
 
-  styleCallouts(container, options);
   styleHeadings(container, colors);
   styleTables(container, options);
 
@@ -322,7 +298,7 @@ function styleTables(container: HTMLElement, options: MarkdownRenderOptions): vo
 function normalizeBlockSpacing(container: HTMLElement): void {
   const blocks = Array.from(
     container.querySelectorAll<HTMLElement>(
-      'h1, h2, h3, p, ul, ol, pre, blockquote, .aomi-md-callout, table, hr',
+      'h1, h2, h3, p, ul, ol, pre, blockquote, table, hr',
     ),
   );
 
@@ -342,111 +318,6 @@ function normalizeBlockSpacing(container: HTMLElement): void {
 }
 
 /**
- * Converts blockquotes with [!TYPE] syntax into callout cards.
- */
-function transformCallouts(container: HTMLElement): void {
-  const blockquotes = Array.from(container.querySelectorAll('blockquote'));
-
-  blockquotes.forEach((blockquote) => {
-    if (!(blockquote instanceof HTMLElement)) return;
-    const firstElement = blockquote.firstElementChild as HTMLElement | null;
-    const firstText = firstElement?.textContent?.trim() ?? '';
-    const calloutMatch = firstText.match(/^\[!([A-Z]+)]\s*(.*)$/i);
-
-    if (!calloutMatch) return;
-
-    const [, rawType, restText] = calloutMatch;
-    if (firstElement) {
-      blockquote.removeChild(firstElement);
-    }
-
-    const calloutType = rawType.toLowerCase();
-    const titleText = capitalize(calloutType);
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'aomi-md-callout';
-
-    const header = document.createElement('div');
-    header.className = 'aomi-md-callout-header';
-
-    const icon = document.createElement('span');
-    icon.className = 'aomi-md-callout-icon';
-    icon.textContent = calloutIconMap[calloutType] ?? '⚠️';
-
-    const title = document.createElement('span');
-    title.className = 'aomi-md-callout-title';
-    title.dataset.calloutTitle = 'true';
-    title.textContent = titleText;
-
-    header.appendChild(icon);
-    header.appendChild(title);
-
-    const body = document.createElement('div');
-    body.className = 'aomi-md-callout-body';
-    body.setAttribute(CALLOUT_BODY_ATTR, 'true');
-
-    if (restText) {
-      const paragraph = document.createElement('p');
-      paragraph.textContent = restText;
-      body.appendChild(paragraph);
-    }
-
-    while (blockquote.firstChild) {
-      body.appendChild(blockquote.firstChild);
-    }
-
-    wrapper.appendChild(header);
-    wrapper.appendChild(body);
-    blockquote.replaceWith(wrapper);
-  });
-}
-
-/**
- * Styles callout containers after transformation.
- */
-function styleCallouts(container: HTMLElement, options: MarkdownRenderOptions): void {
-  const { colors } = options;
-
-  container.querySelectorAll('.aomi-md-callout').forEach((callout) => {
-    if (!(callout instanceof HTMLElement)) return;
-    callout.style.marginTop = '16px';
-    callout.style.marginBottom = '16px';
-    callout.style.padding = '16px';
-    callout.style.borderRadius = '10px';
-    callout.style.border = `1px solid ${colors.calloutBorder}`;
-    callout.style.backgroundColor = colors.calloutBackground;
-    callout.style.color = colors.text;
-    callout.style.fontSize = '12px';
-  });
-
-  container.querySelectorAll('.aomi-md-callout-header').forEach((header) => {
-    if (!(header instanceof HTMLElement)) return;
-    header.style.display = 'flex';
-    header.style.alignItems = 'center';
-    header.style.gap = '8px';
-    header.style.fontWeight = '600';
-    header.style.fontSize = '12px';
-    header.style.textTransform = 'uppercase';
-    header.style.letterSpacing = '0.08em';
-    header.style.color = colors.accent;
-    header.style.marginBottom = '8px';
-  });
-
-  container.querySelectorAll('.aomi-md-callout-icon').forEach((icon) => {
-    if (!(icon instanceof HTMLElement)) return;
-    icon.style.fontSize = '16px';
-  });
-}
-
-/**
- * Capitalizes a string.
- */
-function capitalize(value: string): string {
-  if (!value) return value;
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-}
-
-/**
  * Builds markdown colors for a message bubble based on theme palette and role.
  */
 export function buildMarkdownColors(
@@ -461,8 +332,6 @@ export function buildMarkdownColors(
   const inlineBackground = addAlpha(isLightBackground ? '#000000' : '#ffffff', 0.12);
   const blockBackground = mixColors(baseBackground, isLightBackground ? '#000000' : '#0f172a', 0.08);
   const blockBorder = addAlpha(border, isLightBackground ? 0.4 : 0.6);
-  const calloutBackground = addAlpha(accent, 0.12);
-  const calloutBorder = addAlpha(accent, 0.45);
   const muted = addAlpha(baseText, isLightBackground ? 0.7 : 0.65);
   const accentHover = adjustColor(accent, isLightBackground ? -0.15 : 0.2);
 
@@ -476,7 +345,5 @@ export function buildMarkdownColors(
     inlineBackground,
     blockBackground,
     blockBorder,
-    calloutBackground,
-    calloutBorder,
   };
 }
