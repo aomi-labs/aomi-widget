@@ -612,10 +612,10 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       styles: {
         flex: '1 1 auto',
         overflowY: 'auto',
-        padding: '20px',
+        padding: '32px 32px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: '24px',
         backgroundColor: palette.background,
         minHeight: '0',
       },
@@ -872,24 +872,29 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
     const isUser = type === 'user';
     const isSystem = type === 'system';
-    const backgroundColor = isSystem
-      ? palette.surface
-      : isUser
-        ? palette.primary
-        : palette.surface;
-    const textColor = isUser ? palette.background : palette.text;
-    const borderColor = isUser ? palette.primary : palette.border;
+    const baseBackground = isUser ? palette.surface : palette.background;
+    const textColor = palette.text;
     const accentColor = palette.accent || palette.primary;
     const fontFamily = this.getFontFamily();
     const monospaceFont = this.getMonospaceFontFamily();
     const markdownColors = buildMarkdownColors(
-      backgroundColor,
+      baseBackground,
       textColor,
       accentColor,
-      borderColor,
+      palette.border,
     );
 
-    const bubble = createElement('div', {
+    const wrapper = createElement('div', {
+      className: CSS_CLASSES.MESSAGE_CONTAINER,
+      styles: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        alignItems: isUser ? 'flex-end' : 'flex-start',
+      },
+    });
+
+    const contentHost = createElement('div', {
       className: [
         CSS_CLASSES.MESSAGE_BUBBLE,
         isUser
@@ -897,22 +902,38 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
           : isSystem
             ? CSS_CLASSES.MESSAGE_SYSTEM
             : CSS_CLASSES.MESSAGE_ASSISTANT,
-      ],
-      styles: {
-        alignSelf: isUser ? 'flex-end' : 'flex-start',
-        maxWidth: '80%',
-        padding: '12px 14px',
-        borderRadius: isUser ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-        backgroundColor,
-        color: textColor,
-        border: `1px solid ${borderColor}`,
-        fontSize: '14px',
-        lineHeight: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-        fontFamily,
-      },
+      ].join(' '),
+      styles: isUser
+        ? {
+            maxWidth: '65%',
+            padding: '12px 18px',
+            borderRadius: '999px',
+            backgroundColor: palette.surface,
+            border: `1px solid ${palette.border}`,
+            color: palette.text,
+            fontSize: '14px',
+            lineHeight: '22px',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            fontFamily,
+            textAlign: 'left',
+          }
+        : {
+            maxWidth: '75%',
+            padding: '0',
+            borderRadius: '0',
+            backgroundColor: 'transparent',
+            color: palette.text,
+            fontSize: '15px',
+            lineHeight: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            fontFamily,
+            textAlign: 'left',
+          },
     });
 
     const trimmedContent = content?.trim() ?? '';
@@ -925,8 +946,9 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       });
 
       markdownElement.style.wordBreak = 'break-word';
+      markdownElement.style.margin = '0';
 
-      bubble.appendChild(markdownElement);
+      contentHost.appendChild(markdownElement);
     }
 
     if (toolStream) {
@@ -938,7 +960,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
           padding: '8px 10px',
           borderRadius: '10px',
           border: `1px solid ${accentColor}`,
-          backgroundColor: palette.background,
+          backgroundColor: palette.surface,
         },
       });
 
@@ -971,25 +993,26 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       toolContent.textContent = toolStream.content;
 
       toolWrapper.appendChild(toolContent);
-      bubble.appendChild(toolWrapper);
+      contentHost.appendChild(toolWrapper);
     }
 
+    wrapper.appendChild(contentHost);
+
     if (timestamp) {
-      bubble.appendChild(
+      wrapper.appendChild(
         createElement('div', {
           styles: {
             fontSize: '12px',
-            opacity: '0.7',
-            textAlign: isUser ? 'right' : 'left',
+            color: palette.textSecondary,
             fontFamily: monospaceFont,
-            color: textColor,
+            alignSelf: isUser ? 'flex-end' : 'flex-start',
           },
           children: [formatTimestamp(timestamp)],
         }),
       );
     }
 
-    return bubble;
+    return wrapper;
   }
 
   private resetDomReferences(): void {
