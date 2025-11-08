@@ -12,19 +12,17 @@ import {
 } from '../types/errors';
 import { SUPPORTED_CHAINS, ERROR_CODES } from '../types/constants';
 import { isEthereumAddress, isTransactionHash } from '../utils';
+import {
+  type TransactionRequest,
+  getNetworkConfig,
+  validateTransactionPayload,
+} from './util';
 
 /*
  * ============================================================================
  * TYPES
  * ============================================================================
  */
-
-interface TransactionRequest {
-  to: string;
-  value: string;
-  data: string;
-  gas?: string;
-}
 
 interface WalletManagerEvents {
   connect: (_address: string) => void;
@@ -179,7 +177,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
 
     try {
       // Validate transaction
-      this.validateTransaction(transaction);
+      validateTransactionPayload(transaction);
 
       // Prepare transaction parameters
       const txParams: any = {
@@ -394,29 +392,8 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     this.disconnect();
   }
 
-  private validateTransaction(transaction: TransactionRequest): void {
-    if (!isEthereumAddress(transaction.to)) {
-      throw createTransactionError('Invalid recipient address');
-    }
-
-    // Validate value (should be hex string)
-    if (!/^0x[0-9a-fA-F]*$/.test(transaction.value)) {
-      throw createTransactionError('Invalid transaction value');
-    }
-
-    // Validate data (should be hex string)
-    if (transaction.data && !/^0x[0-9a-fA-F]*$/.test(transaction.data)) {
-      throw createTransactionError('Invalid transaction data');
-    }
-
-    // Validate gas (should be hex string if provided)
-    if (transaction.gas && !/^0x[0-9a-fA-F]*$/.test(transaction.gas)) {
-      throw createTransactionError('Invalid gas value');
-    }
-  }
-
   private async addNetwork(chainId: SupportedChainId): Promise<void> {
-    const networkConfig = this.getNetworkConfig(chainId);
+    const networkConfig = getNetworkConfig(chainId);
 
     if (!networkConfig) {
       throw createWalletError(
@@ -439,70 +416,6 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     }
   }
 
-  private getNetworkConfig(chainId: SupportedChainId): any {
-    const configs: Record<SupportedChainId, any> = {
-      1: null, // Mainnet is built-in
-      5: null, // Goerli is built-in
-      11155111: null, // Sepolia is built-in
-      100: {
-        chainId: '0x64',
-        chainName: 'Gnosis',
-        nativeCurrency: {
-          name: 'xDai',
-          symbol: 'XDAI',
-          decimals: 18,
-        },
-        rpcUrls: ['https://rpc.gnosischain.com'],
-        blockExplorerUrls: ['https://gnosisscan.io'],
-      },
-      137: {
-        chainId: '0x89',
-        chainName: 'Polygon',
-        nativeCurrency: {
-          name: 'MATIC',
-          symbol: 'MATIC',
-          decimals: 18,
-        },
-        rpcUrls: ['https://polygon-rpc.com'],
-        blockExplorerUrls: ['https://polygonscan.com'],
-      },
-      42161: {
-        chainId: '0xa4b1',
-        chainName: 'Arbitrum One',
-        nativeCurrency: {
-          name: 'Ether',
-          symbol: 'ETH',
-          decimals: 18,
-        },
-        rpcUrls: ['https://arb1.arbitrum.io/rpc'],
-        blockExplorerUrls: ['https://arbiscan.io'],
-      },
-      8453: {
-        chainId: '0x2105',
-        chainName: 'Base',
-        nativeCurrency: {
-          name: 'Ether',
-          symbol: 'ETH',
-          decimals: 18,
-        },
-        rpcUrls: ['https://mainnet.base.org'],
-        blockExplorerUrls: ['https://basescan.org'],
-      },
-      10: {
-        chainId: '0xa',
-        chainName: 'Optimism',
-        nativeCurrency: {
-          name: 'Ether',
-          symbol: 'ETH',
-          decimals: 18,
-        },
-        rpcUrls: ['https://mainnet.optimism.io'],
-        blockExplorerUrls: ['https://optimistic.etherscan.io'],
-      },
-    };
-
-    return configs[chainId];
-  }
 }
 
 /*
