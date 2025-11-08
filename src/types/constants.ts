@@ -30,6 +30,10 @@ export const SUPPORTED_CHAINS: Record<SupportedChainId, string> = {
   42161: 'Arbitrum One',
   8453: 'Base',
   10: 'Optimism',
+  1337: 'Localhost',
+  31337: 'Anvil',
+  59140: 'Linea Sepolia',
+  59144: 'Linea',
 } as const;
 
 export const DEFAULT_CHAIN_ID: SupportedChainId = 1;
@@ -67,6 +71,7 @@ export const ERROR_CODES = {
   SESSION_EXPIRED: 'SESSION_EXPIRED',
 
   // General errors
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
   UNKNOWN_ERROR: 'UNKNOWN_ERROR',
   INITIALIZATION_FAILED: 'INITIALIZATION_FAILED',
   PROVIDER_ERROR: 'PROVIDER_ERROR',
@@ -121,7 +126,6 @@ export const CSS_CLASSES = {
   CHAT_HEADER: 'aomi-chat-header',
   CHAT_TITLE: 'aomi-chat-title',
   CHAT_BODY: 'aomi-chat-body',
-  STATUS_BADGE: 'aomi-status-badge',
   MESSAGE_LIST: 'aomi-message-list',
   MESSAGE_CONTAINER: 'aomi-message-container',
   MESSAGE_BUBBLE: 'aomi-message',

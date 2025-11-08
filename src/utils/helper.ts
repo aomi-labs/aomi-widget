@@ -114,6 +114,30 @@ export const NETWORK_CONFIGS: Record<SupportedChainId, any> = {
     rpcUrls: ['https://mainnet.optimism.io'],
     blockExplorerUrls: ['https://optimistic.etherscan.io'],
   },
+  1337: null,
+  31337: null,
+  59140: {
+    chainId: '0xe6b4',
+    chainName: 'Linea Sepolia',
+    nativeCurrency: {
+      name: 'Linea Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['https://rpc.sepolia.linea.build'],
+    blockExplorerUrls: ['https://sepolia.lineascan.build'],
+  },
+  59144: {
+    chainId: '0xe6b8',
+    chainName: 'Linea',
+    nativeCurrency: {
+      name: 'Linea Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['https://rpc.linea.build'],
+    blockExplorerUrls: ['https://lineascan.build'],
+  },
 };
 
 export function getNetworkConfig(chainId: SupportedChainId): any {

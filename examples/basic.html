@@ -190,33 +190,13 @@
             basic: null
         };
         
-        // Mock Ethereum provider for demo
-        const mockProvider = {
-            request: async ({ method, params }) => {
-                console.log('Mock provider request:', method, params);
-                await new Promise(resolve => setTimeout(resolve, 100)); // Simulate network delay
-                
-                switch (method) {
-                    case 'eth_accounts':
-                        return ['0x742d35Cc6645C0532C8ae7a8a4eaaE43e3Df9E10'];
-                    case 'eth_chainId':
-                        return '0x1'; // Mainnet
-                    case 'eth_getBalance':
-                        return '0x1bc16d674ec80000'; // 2 ETH
-                    case 'personal_sign':
-                        return '0x' + 'a'.repeat(130); // Mock signature
-                    default:
-                        throw new Error(`Unsupported method: ${method}`);
-                }
-            },
-            on: (event, handler) => {
-                console.log(`Mock provider listening to: ${event}`);
-                // Simulate some events
-                if (event === 'accountsChanged') {
-                    setTimeout(() => handler(['0x742d35Cc6645C0532C8ae7a8a4eaaE43e3Df9E10']), 2000);
-                }
+        function resolveInjectedProvider(widgetType) {
+            const provider = window.ethereum;
+            if (!provider) {
+                updateStatus(widgetType, 'No injected wallet detected. Install MetaMask or another EIP-1193 wallet.', 'error');
             }
-        };
+            return provider;
+        }
         
         function logEvent(widgetType, eventName, data) {
             const logsContainer = document.getElementById(`${widgetType}-logs`);
@@ -260,12 +240,18 @@
                 
                 updateStatus('basic', 'Loading basic widget...', 'info');
                 
+                const provider = resolveInjectedProvider('basic');
+                if (!provider) {
+                    disableButton('basic-destroy');
+                    return;
+                }
+
                 widgets.basic = AomiWidget.createChatWidget(container, {
                     appCode: 'basic-demo',
                     width: '100%',
                     height: '500px',
                     baseUrl: 'http://localhost:8080',
-                    provider: mockProvider,
+                    provider,
                     onReady: () => {
                         updateStatus('basic', 'Widget ready!', 'success');
                         enableButton('basic-destroy');

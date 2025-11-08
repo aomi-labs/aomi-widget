@@ -96,7 +96,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private chatManager: ChatManager;
   private walletManager: WalletManager | null = null;
   private widgetElement: HTMLElement | null = null;
-  private statusBadgeElement: HTMLElement | null = null;
   private messageListElement: HTMLElement | null = null;
   private typingIndicatorElement: HTMLElement | null = null;
   private inputFormElement: HTMLFormElement | null = null;
@@ -524,22 +523,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private createHeader(): HTMLElement {
     const palette = this.getThemePalette();
 
-    this.statusBadgeElement = createElement('span', {
-      className: CSS_CLASSES.STATUS_BADGE,
-      styles: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '4px 10px',
-        borderRadius: '999px',
-        backgroundColor: palette.surface,
-        color: palette.textSecondary,
-        fontSize: '12px',
-        border: `1px solid ${palette.border}`,
-      },
-      children: ['Initializing'],
-    });
-
     const title = createElement('div', {
       className: CSS_CLASSES.CHAT_TITLE,
       styles: {
@@ -575,15 +558,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       void this.handleWalletButtonClick();
     });
 
-    const statusGroup = createElement('div', {
-      styles: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-      },
-      children: [this.statusBadgeElement, this.walletStatusElement],
-    });
-
     const header = createElement('div', {
       className: CSS_CLASSES.CHAT_HEADER,
       styles: {
@@ -596,7 +570,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     });
 
     header.appendChild(title);
-    header.appendChild(statusGroup);
+    header.appendChild(this.walletStatusElement);
 
     this.updateWalletStatus(this.chatManager.getState());
     return header;
@@ -977,7 +951,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   }
 
   private resetDomReferences(): void {
-    this.statusBadgeElement = null;
     this.messageListElement = null;
     this.typingIndicatorElement = null;
     this.inputFormElement = null;
@@ -1143,7 +1116,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       this.hasAnnouncedConnection = false;
     }
 
-    this.updateStatusBadge(state);
     this.updateMessages(state.messages);
     this.updateTypingIndicator(state.isTyping || state.isProcessing);
     this.updateInputControls(state);
@@ -1163,98 +1135,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     this.scheduleLayoutMeasurement();
   }
 
-  private updateStatusBadge(state: ChatState): void {
-    if (!this.statusBadgeElement) return;
-
-    let label = 'Initializing…';
-    const palette = this.getThemePalette();
-    let background = palette.surface;
-    let color = palette.textSecondary;
-    let border = palette.border;
-
-    switch (state.connectionStatus) {
-      case ConnectionStatus.CONNECTED:
-        switch (state.readiness.phase) {
-          case ReadinessPhase.READY:
-            label = 'Connected';
-            background = palette.success;
-            color = palette.background;
-            border = palette.success;
-            break;
-          case ReadinessPhase.MISSING_API_KEY:
-            label = 'Missing API Key';
-            background = palette.error;
-            color = palette.background;
-            border = palette.error;
-            break;
-          case ReadinessPhase.ERROR:
-            label = state.readiness.detail || 'Backend Error';
-            background = palette.error;
-            color = palette.background;
-            border = palette.error;
-            break;
-          default: {
-            const phaseLabel = this.describeReadiness(state.readiness.phase);
-            label = state.readiness.detail ?? `Preparing (${phaseLabel})`;
-            background = palette.warning;
-            color = palette.background;
-            border = palette.warning;
-            break;
-          }
-        }
-        break;
-      case ConnectionStatus.CONNECTING:
-      case ConnectionStatus.RECONNECTING:
-        label = 'Connecting…';
-        background = palette.warning;
-        color = palette.background;
-        border = palette.warning;
-        break;
-      case ConnectionStatus.DISCONNECTED:
-        label = 'Disconnected';
-        background = palette.error;
-        color = palette.background;
-        border = palette.error;
-        break;
-      case ConnectionStatus.ERROR:
-      default:
-        label = 'Error';
-        background = palette.error;
-        color = palette.background;
-        border = palette.error;
-        break;
-    }
-
-    this.statusBadgeElement.textContent = label;
-    Object.assign(this.statusBadgeElement.style, {
-      backgroundColor: background,
-      color,
-      border: `1px solid ${border}`,
-    });
-  }
-
-  private describeReadiness(phase: ReadinessPhase): string {
-    switch (phase) {
-      case ReadinessPhase.CONNECTING_MCP:
-        return 'backend services';
-      case ReadinessPhase.VALIDATING_ANTHROPIC:
-        return 'model providers';
-      case ReadinessPhase.READY:
-        return 'ready';
-      case ReadinessPhase.MISSING_API_KEY:
-        return 'missing api key';
-      case ReadinessPhase.ERROR:
-        return 'error';
-      default:
-        return 'starting';
-    }
-  }
-
   private updateMessages(messages: ChatMessage[]): void {
     if (!this.messageListElement) return;
-
-    // Preserve scroll position if the user is near the bottom
-    const isNearBottom = this.isNearBottom(this.messageListElement);
 
     this.messageListElement.innerHTML = '';
 
@@ -1279,18 +1161,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       });
     }
 
-    if (isNearBottom) {
-      this.scrollMessagesToBottom();
-    }
     this.scheduleLayoutMeasurement();
-  }
-
-  private isNearBottom(element: HTMLElement): boolean {
-    const threshold = 120;
-    return (
-      element.scrollHeight - element.scrollTop - element.clientHeight <
-      threshold
-    );
   }
 
   private scrollMessagesToBottom(): void {

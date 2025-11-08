@@ -1,6 +1,23 @@
 // WalletManager - Handles wallet connection and transactions
 
 import { EventEmitter } from 'eventemitter3';
+import type { Address } from 'viem';
+import {
+  connect as wagmiConnect,
+  disconnect as wagmiDisconnect,
+  getAccount as wagmiGetAccount,
+  getBalance as wagmiGetBalance,
+  getConnectors as wagmiGetConnectors,
+  reconnect as wagmiReconnect,
+  sendTransaction as wagmiSendTransaction,
+  signMessage as wagmiSignMessage,
+  switchChain as wagmiSwitchChain,
+  watchAccount,
+  watchChainId,
+  type Config,
+  type Connector,
+  type GetAccountReturnType,
+} from '@wagmi/core';
 import type {
   EthereumProvider,
   SupportedChainId,
@@ -14,9 +31,9 @@ import { SUPPORTED_CHAINS, ERROR_CODES } from '../types/constants';
 import { isEthereumAddress, isTransactionHash } from '../utils';
 import {
   type TransactionRequest,
-  getNetworkConfig,
   validateTransactionPayload,
 } from '../utils/helper';
+import { createWidgetWagmiClient } from './wagmiConfig';
 
 /*
  * ============================================================================
@@ -39,16 +56,19 @@ interface WalletManagerEvents {
  */
 
 export class WalletManager extends EventEmitter<WalletManagerEvents> {
-  private provider: EthereumProvider;
+  private provider?: EthereumProvider;
   private currentAccount: string | null = null;
   private currentChainId: SupportedChainId | null = null;
   private isConnected = false;
+  private wagmiConfig!: Config;
+  private preferredConnectorId?: string;
+  private unwatchAccount?: () => void;
+  private unwatchChain?: () => void;
 
   constructor(provider: EthereumProvider) {
     super();
     this.provider = provider;
-    this.setupEventListeners();
-    this.initializeState();
+    this.initializeWagmiClient();
   }
 
   /*
@@ -91,37 +111,37 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
    */
   public async connect(): Promise<string> {
     try {
-      const accounts = await this.provider.request({
-        id: Date.now(),
-        method: 'eth_requestAccounts',
-        params: [],
-      }) as string[];
+      const connector = this.selectConnector();
+      if (!connector) {
+        throw createWalletError(
+          ERROR_CODES.PROVIDER_ERROR,
+          'No wallet connectors are available',
+        );
+      }
 
-      if (!accounts || accounts.length === 0) {
+      const result = await wagmiConnect(this.wagmiConfig, { connector });
+      const account = result.accounts[0];
+
+      if (!account || !isEthereumAddress(account)) {
         throw createWalletError(
           ERROR_CODES.WALLET_CONNECTION_FAILED,
           'No accounts returned from wallet',
         );
       }
 
-      const account = accounts[0];
-      if (!isEthereumAddress(account)) {
-        throw createWalletError(
-          ERROR_CODES.WALLET_CONNECTION_FAILED,
-          'Invalid account address',
-        );
-      }
-
-      this.currentAccount = account;
-      this.isConnected = true;
-
-      // Get chain ID
-      await this.updateChainId();
-
-      this.emit('connect', account);
       return account;
 
-    } catch (error) {
+    } catch (error: any) {
+      if (this.isUserRejectedRequestError(error)) {
+        const rejectionMessage = error?.message || 'User rejected wallet connection';
+        const rejectionError = createWalletError(
+          ERROR_CODES.PERMISSION_DENIED,
+          rejectionMessage,
+        );
+        this.emit('error', rejectionError);
+        throw rejectionError;
+      }
+
       const walletError = error instanceof Error
         ? createWalletError(ERROR_CODES.WALLET_CONNECTION_FAILED, error.message)
         : createWalletError(ERROR_CODES.WALLET_CONNECTION_FAILED, 'Unknown error');
@@ -134,11 +154,14 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
   /**
    * Disconnects from the wallet
    */
-  public disconnect(): void {
-    this.currentAccount = null;
-    this.currentChainId = null;
-    this.isConnected = false;
-    this.emit('disconnect');
+  public async disconnect(): Promise<void> {
+    try {
+      await wagmiDisconnect(this.wagmiConfig);
+    } catch {
+      // Ignore disconnect errors and fall back to local cleanup
+    } finally {
+      this.handleDisconnect();
+    }
   }
 
   /**
@@ -146,21 +169,14 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
    */
   public async switchNetwork(chainId: SupportedChainId): Promise<void> {
     try {
-      await this.provider.request({
-        id: Date.now(),
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${chainId.toString(16)}` }],
-      });
+      await wagmiSwitchChain(this.wagmiConfig, { chainId });
     } catch (error: any) {
-      // If the chain is not added, try to add it
-      if (error.code === 4902) {
-        await this.addNetwork(chainId);
-      } else {
-        throw createWalletError(
-          ERROR_CODES.UNSUPPORTED_NETWORK,
-          `Failed to switch to network ${chainId}: ${error.message}`,
-        );
-      }
+      throw createWalletError(
+        ERROR_CODES.UNSUPPORTED_NETWORK,
+        error?.message
+          ? `Failed to switch to network ${chainId}: ${error.message}`
+          : `Failed to switch to network ${chainId}`,
+      );
     }
   }
 
@@ -176,27 +192,16 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     }
 
     try {
-      // Validate transaction
       validateTransactionPayload(transaction);
 
-      // Prepare transaction parameters
-      const txParams: any = {
-        from: this.currentAccount,
-        to: transaction.to,
-        value: transaction.value,
-        data: transaction.data,
-      };
-
-      if (transaction.gas) {
-        txParams.gas = transaction.gas;
-      }
-
-      // Send transaction
-      const txHash = await this.provider.request({
-        id: Date.now(),
-        method: 'eth_sendTransaction',
-        params: [txParams],
-      }) as string;
+      const txHash = await wagmiSendTransaction(this.wagmiConfig, {
+        account: this.currentAccount as Address,
+        chainId: this.currentChainId ?? undefined,
+        to: transaction.to as Address,
+        data: transaction.data as `0x${string}`,
+        value: this.hexToBigInt(transaction.value),
+        gas: this.hexToBigInt(transaction.gas),
+      });
 
       if (!isTransactionHash(txHash)) {
         throw createTransactionError('Invalid transaction hash returned');
@@ -230,13 +235,10 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     }
 
     try {
-      const signature = await this.provider.request({
-        id: Date.now(),
-        method: 'personal_sign',
-        params: [message, this.currentAccount],
-      }) as string;
-
-      return signature;
+      return await wagmiSignMessage(this.wagmiConfig, {
+        account: this.currentAccount as Address,
+        message,
+      });
 
     } catch (error: any) {
       if (error.code === 4001) {
@@ -248,7 +250,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
 
       throw createWalletError(
         ERROR_CODES.UNKNOWN_ERROR,
-        `Failed to sign message: ${error.message}`,
+        `Failed to sign message: ${error?.message || 'Unknown error'}`,
       );
     }
   }
@@ -267,18 +269,17 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     }
 
     try {
-      const balance = await this.provider.request({
-        id: Date.now(),
-        method: 'eth_getBalance',
-        params: [accountAddress, 'latest'],
-      }) as string;
+      const result = await wagmiGetBalance(this.wagmiConfig, {
+        address: accountAddress as Address,
+        chainId: this.currentChainId ?? undefined,
+      });
 
-      return balance;
+      return this.bigIntToHex(result.value);
 
     } catch (error: any) {
       throw createWalletError(
         ERROR_CODES.UNKNOWN_ERROR,
-        `Failed to get balance: ${error.message}`,
+        `Failed to get balance: ${error?.message || 'Unknown error'}`,
       );
     }
   }
@@ -287,25 +288,16 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
    * Updates the provider
    */
   public updateProvider(provider: EthereumProvider): void {
-    // Clean up old provider
-    this.removeProviderListeners();
-
-    // Set new provider
     this.provider = provider;
-
-    // Setup new listeners
-    this.setupEventListeners();
-
-    // Re-initialize state
-    this.initializeState();
+    this.initializeWagmiClient();
   }
 
   /**
    * Destroys the wallet manager
    */
   public destroy(): void {
-    this.removeProviderListeners();
-    this.disconnect();
+    this.teardownWagmiWatchers();
+    void this.disconnect();
     this.removeAllListeners();
   }
 
@@ -315,105 +307,166 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
    * ============================================================================
    */
 
-  private async initializeState(): Promise<void> {
+  private initializeWagmiClient(): void {
+    this.teardownWagmiWatchers();
+    const { config, preferredConnectorId } = createWidgetWagmiClient({
+      provider: this.provider,
+    });
+    this.wagmiConfig = config;
+    this.preferredConnectorId = preferredConnectorId;
+    this.setupWagmiWatchers();
+    this.syncInitialAccountState();
+    void this.tryReconnect();
+  }
+
+  private async tryReconnect(): Promise<void> {
     try {
-      // Check if already connected
-      const accounts = await this.provider.request({
-        id: Date.now(),
-        method: 'eth_accounts',
-        params: [],
-      }) as string[];
-
-      if (accounts && accounts.length > 0 && isEthereumAddress(accounts[0])) {
-        this.currentAccount = accounts[0];
-        this.isConnected = true;
-        await this.updateChainId();
-        this.emit('connect', accounts[0]);
-      }
+      await wagmiReconnect(this.wagmiConfig);
     } catch (error) {
-      // Ignore errors during initialization
-      console.warn('Failed to initialize wallet state:', error);
+      console.warn('Failed to reconnect wallet session:', error);
+    } finally {
+      this.syncInitialAccountState();
     }
   }
 
-  private async updateChainId(): Promise<void> {
-    try {
-      const chainId = await this.provider.request({
-        id: Date.now(),
-        method: 'eth_chainId',
-        params: [],
-      }) as string;
-
-      const numericChainId = parseInt(chainId, 16) as SupportedChainId;
-
-      if (this.currentChainId !== numericChainId) {
-        this.currentChainId = numericChainId;
-        this.emit('chainChange', numericChainId);
-      }
-    } catch (error) {
-      console.warn('Failed to get chain ID:', error);
-    }
+  private setupWagmiWatchers(): void {
+    this.unwatchAccount = watchAccount(this.wagmiConfig, {
+      onChange: this.handleAccountChange,
+    });
+    this.unwatchChain = watchChainId(this.wagmiConfig, {
+      onChange: this.handleChainIdChange,
+    });
   }
 
-  private setupEventListeners(): void {
-    if (this.provider.on) {
-      this.provider.on('accountsChanged', this.handleAccountsChanged.bind(this) as any);
-      this.provider.on('chainChanged', this.handleChainChanged.bind(this) as any);
-      this.provider.on('disconnect', this.handleDisconnect.bind(this));
-    }
+  private teardownWagmiWatchers(): void {
+    this.unwatchAccount?.();
+    this.unwatchAccount = undefined;
+    this.unwatchChain?.();
+    this.unwatchChain = undefined;
   }
 
-  private removeProviderListeners(): void {
-    if (this.provider.removeListener) {
-      this.provider.removeListener?.('accountsChanged', this.handleAccountsChanged.bind(this) as any);
-      this.provider.removeListener?.('chainChanged', this.handleChainChanged.bind(this) as any);
-      this.provider.removeListener('disconnect', this.handleDisconnect.bind(this));
-    }
+  private syncInitialAccountState(): void {
+    const account = wagmiGetAccount(this.wagmiConfig);
+    this.applyAccountState(account, null);
   }
 
-  private handleAccountsChanged(accounts: string[]): void {
-    if (!accounts || accounts.length === 0) {
-      this.disconnect();
-    } else if (accounts[0] !== this.currentAccount) {
-      this.currentAccount = accounts[0];
+  private handleAccountChange = (
+    account: GetAccountReturnType<Config>,
+    previous: GetAccountReturnType<Config>,
+  ): void => {
+    this.applyAccountState(account, previous);
+  };
+
+  private handleChainIdChange = (chainId?: number, previous?: number): void => {
+    if (!this.isConnected || !chainId || chainId === previous) {
+      return;
+    }
+
+    const normalized = this.normalizeChainId(chainId);
+    if (!normalized || normalized === this.currentChainId) {
+      return;
+    }
+
+    this.currentChainId = normalized;
+    this.emit('chainChange', normalized);
+  };
+
+  private applyAccountState(
+    account: GetAccountReturnType<Config>,
+    previous: GetAccountReturnType<Config> | null,
+  ): void {
+    if (account.isConnected && account.address) {
+      const address = account.address;
+      const addresses = account.addresses ?? (address ? [address] : []);
+      const chainId = this.normalizeChainId(account.chainId);
+
+      const previousAddresses = previous?.addresses ?? [];
+      const addressesChanged =
+        addresses.length !== previousAddresses.length ||
+        addresses.some((addr, index) =>
+          (previousAddresses[index] ?? '').toLowerCase() !== addr.toLowerCase(),
+        );
+
+      const addressChanged =
+        this.currentAccount?.toLowerCase() !== address.toLowerCase();
+
+      this.currentAccount = address;
       this.isConnected = true;
-      this.emit('accountsChange', accounts);
-      this.emit('connect', accounts[0]);
-    }
-  }
 
-  private handleChainChanged(chainId: string): void {
-    const numericChainId = parseInt(chainId, 16) as SupportedChainId;
-    this.currentChainId = numericChainId;
-    this.emit('chainChange', numericChainId);
+      if (chainId && this.currentChainId !== chainId) {
+        this.currentChainId = chainId;
+        this.emit('chainChange', chainId);
+      }
+
+      if (!previous || !previous.isConnected || addressChanged) {
+        this.emit('connect', address);
+      } else if (addressesChanged && addresses.length > 0) {
+        this.emit('accountsChange', [...addresses]);
+      }
+
+    } else if (previous?.isConnected || this.isConnected) {
+      this.handleDisconnect();
+    }
   }
 
   private handleDisconnect(): void {
-    this.disconnect();
+    if (!this.isConnected && !this.currentAccount) {
+      return;
+    }
+
+    this.currentAccount = null;
+    this.currentChainId = null;
+    this.isConnected = false;
+    this.emit('disconnect');
   }
 
-  private async addNetwork(chainId: SupportedChainId): Promise<void> {
-    const networkConfig = getNetworkConfig(chainId);
-
-    if (!networkConfig) {
-      throw createWalletError(
-        ERROR_CODES.UNSUPPORTED_NETWORK,
-        `Network ${chainId} is not supported`,
-      );
+  private selectConnector(): Connector | null {
+    const connectors = wagmiGetConnectors(this.wagmiConfig);
+    if (!connectors || connectors.length === 0) {
+      return null;
     }
 
+    if (this.preferredConnectorId) {
+      const preferred = connectors.find(
+        (connector) => connector.id === this.preferredConnectorId,
+      );
+      if (preferred) {
+        return preferred;
+      }
+    }
+
+    return connectors[0] ?? null;
+  }
+
+  private normalizeChainId(chainId?: number | null): SupportedChainId | null {
+    if (!chainId) return null;
+    return Object.prototype.hasOwnProperty.call(SUPPORTED_CHAINS, chainId)
+      ? (chainId as SupportedChainId)
+      : null;
+  }
+
+  private hexToBigInt(value?: string): bigint | undefined {
+    if (!value) return undefined;
     try {
-      await this.provider.request({
-        id: Date.now(),
-        method: 'wallet_addEthereumChain',
-        params: [networkConfig],
-      });
-    } catch (error: any) {
-      throw createWalletError(
-        ERROR_CODES.UNSUPPORTED_NETWORK,
-        `Failed to add network ${chainId}: ${error.message}`,
-      );
+      const normalized = value === '0x' ? '0x0' : value;
+      return BigInt(normalized);
+    } catch {
+      return undefined;
     }
+  }
+
+  private bigIntToHex(value: bigint): string {
+    return `0x${value.toString(16)}`;
+  }
+
+  private isUserRejectedRequestError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const rpcError = error as { code?: number | string; name?: string };
+    return (
+      rpcError.code === 4001 ||
+      rpcError.code === 'ACTION_REJECTED' ||
+      rpcError.name === 'UserRejectedRequestError'
+    );
   }
 
 }
