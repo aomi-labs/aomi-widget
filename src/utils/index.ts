@@ -122,35 +122,6 @@ export function buildWidgetUrl(baseUrl: string, params: AomiChatWidgetParams): s
     url.searchParams.set('placeholder', params.placeholder);
   }
 
-  // Boolean flags
-  if (params.showWalletStatus === false) {
-    url.searchParams.set('showWalletStatus', 'false');
-  }
-
-  if (params.showNetworkSelector === false) {
-    url.searchParams.set('showNetworkSelector', 'false');
-  }
-
-  if (params.hideHeader) {
-    url.searchParams.set('hideHeader', 'true');
-  }
-
-  if (params.hideFooter) {
-    url.searchParams.set('hideFooter', 'true');
-  }
-
-  if (params.enableTransactions === false) {
-    url.searchParams.set('enableTransactions', 'false');
-  }
-
-  if (params.requireWalletConnection) {
-    url.searchParams.set('requireWalletConnection', 'true');
-  }
-
-  if (params.standaloneMode === false) {
-    url.searchParams.set('standaloneMode', 'false');
-  }
-
   return url.toString();
 }
 
@@ -177,28 +148,6 @@ export function parseWidgetParams(searchParams: URLSearchParams): Partial<AomiCh
 
   const placeholder = searchParams.get('placeholder');
   if (placeholder) params.placeholder = placeholder;
-
-  // Boolean parameters
-  const showWalletStatus = searchParams.get('showWalletStatus');
-  if (showWalletStatus === 'false') params.showWalletStatus = false;
-
-  const showNetworkSelector = searchParams.get('showNetworkSelector');
-  if (showNetworkSelector === 'false') params.showNetworkSelector = false;
-
-  const hideHeader = searchParams.get('hideHeader');
-  if (hideHeader === 'true') params.hideHeader = true;
-
-  const hideFooter = searchParams.get('hideFooter');
-  if (hideFooter === 'true') params.hideFooter = true;
-
-  const enableTransactions = searchParams.get('enableTransactions');
-  if (enableTransactions === 'false') params.enableTransactions = false;
-
-  const requireWalletConnection = searchParams.get('requireWalletConnection');
-  if (requireWalletConnection === 'true') params.requireWalletConnection = true;
-
-  const standaloneMode = searchParams.get('standaloneMode');
-  if (standaloneMode === 'false') params.standaloneMode = false;
 
   return params;
 }

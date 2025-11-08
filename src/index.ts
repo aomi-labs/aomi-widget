@@ -40,20 +40,6 @@ export type {
   ConnectionStatus,
   BackendReadiness,
   ReadinessPhase,
-
-
-  // Theme types
-  // Component types (for React usage)
-  ChatInterfaceProps,
-  MessageListProps,
-  MessageInputProps,
-  WalletStatusProps,
-  TypingIndicatorProps,
-
-  // Utility types
-  DeepPartial,
-  RequiredKeys,
-  OptionalKeys,
 } from './types';
 
 // Error classes

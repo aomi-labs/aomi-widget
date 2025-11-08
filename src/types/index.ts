@@ -51,30 +51,6 @@ export interface WalletTransaction {
 
 /*
  * ============================================================================
- * CONFIGURATION TYPES
- * ============================================================================
- */
-
-export interface RateLimitConfig {
-  maxMessages?: number;
-  windowMs?: number;
-  skipWhenConnected?: boolean;
-}
-
-export interface AnalyticsConfig {
-  trackEvents?: boolean;
-  customId?: string;
-  excludeContent?: boolean;
-}
-
-export interface ChatCommand {
-  command: string;
-  description: string;
-  handler: (_args: string[]) => Promise<void> | void;
-}
-
-/*
- * ============================================================================
  * MAIN WIDGET CONFIGURATION
  * ============================================================================
  */
@@ -93,46 +69,14 @@ export interface AomiChatWidgetParams {
   // UI Customization
   welcomeMessage?: string;
   placeholder?: string;
-  showWalletStatus?: boolean;
-  showNetworkSelector?: boolean;
-  hideHeader?: boolean;
-  hideFooter?: boolean;
 
   // Network Configuration
   chainId?: SupportedChainId;
   supportedChains?: SupportedChainId[];
 
-  // Behavioral Settings
-  enableTransactions?: boolean;
-  requireWalletConnection?: boolean;
-  sessionPersistence?: boolean;
-  autoConnect?: boolean;
-  standaloneMode?: boolean;
-
-  // Advanced Features
-  customCommands?: ChatCommand[];
-  rateLimiting?: RateLimitConfig;
-
-  // Integration Settings
-  apiKey?: string;
-  webhookUrl?: string;
-  analytics?: AnalyticsConfig;
-
-  // Sounds and Media
-  sounds?: {
-    messageReceived?: string | null;
-    messageSent?: string | null;
-    transactionSuccess?: string | null;
-    transactionError?: string | null;
-  };
-
   // Content Customization
   content?: {
     welcomeTitle?: string;
-    connectWalletText?: string;
-    disconnectText?: string;
-    networkSwitchText?: string;
-    errorMessages?: Record<string, string>;
   };
 }
 
@@ -280,13 +224,6 @@ export interface WidgetConfig {
   listeners?: AomiChatEventListeners;
 }
 
-export interface BackendApiConfig {
-  baseUrl: string;
-  sessionId: string;
-  timeout?: number;
-  retryAttempts?: number;
-}
-
 export interface ChatManagerConfig {
   backendUrl: string;
   sessionId: string;
@@ -294,64 +231,6 @@ export interface ChatManagerConfig {
   reconnectAttempts?: number;
   reconnectDelay?: number;
 }
-
-/*
- * ============================================================================
- * COMPONENT PROPS (for React components)
- * ============================================================================
- */
-
-export interface ChatInterfaceProps {
-  messages: ChatMessage[];
-  isTyping: boolean;
-  isProcessing: boolean;
-  onSendMessage: (message: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  className?: string;
-}
-
-export interface MessageListProps {
-  messages: ChatMessage[];
-  isTyping: boolean;
-  className?: string;
-}
-
-export interface MessageInputProps {
-  onSendMessage: (message: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  maxLength?: number;
-  className?: string;
-}
-
-export interface WalletStatusProps {
-  walletState: WalletState;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
-  onNetworkSwitch?: (chainId: SupportedChainId) => void;
-  showNetworkSelector?: boolean;
-  className?: string;
-}
-
-export interface TypingIndicatorProps {
-  isTyping: boolean;
-  className?: string;
-}
-
-/*
- * ============================================================================
- * UTILITY TYPES
- * ============================================================================
- */
-
-export type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
-
-export type RequiredKeys<T, K extends keyof T> = T & Required<Pick<T, K>>;
-
-export type OptionalKeys<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 /*
  * ============================================================================
