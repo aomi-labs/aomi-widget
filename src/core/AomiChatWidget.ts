@@ -3,7 +3,6 @@
 import { EventEmitter } from 'eventemitter3';
 import {
   ConnectionStatus,
-  ReadinessPhase,
   type AomiChatWidgetParams,
   type AomiChatWidgetHandler,
   type WidgetConfig,
@@ -1077,8 +1076,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     }
 
     if (
-      previousState?.readiness.phase !== ReadinessPhase.READY &&
-      state.readiness.phase === ReadinessPhase.READY
+      previousState?.connectionStatus !== ConnectionStatus.CONNECTED &&
+      state.connectionStatus === ConnectionStatus.CONNECTED
     ) {
       if (!this.hasAnnouncedConnection) {
         this.pushSystemNotification(
@@ -1088,7 +1087,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       this.hasAnnouncedConnection = true;
     }
 
-    if (state.readiness.phase !== ReadinessPhase.READY) {
+    if (state.connectionStatus !== ConnectionStatus.CONNECTED) {
       this.hasAnnouncedConnection = false;
     }
 
@@ -1154,21 +1153,9 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private updateInputControls(state: ChatState, forceDisable = false): void {
     if (!this.messageInputElement || !this.sendButtonElement) return;
 
-    const backendReady = state.readiness.phase === ReadinessPhase.READY;
-    const fatalReadiness =
-      state.readiness.phase === ReadinessPhase.MISSING_API_KEY ||
-      state.readiness.phase === ReadinessPhase.ERROR;
-    const backendBusy = !backendReady && !fatalReadiness;
-
-    const inputDisabled =
-      forceDisable || state.isProcessing || backendBusy || fatalReadiness;
-
-    const sendDisabled =
-      forceDisable ||
-      state.connectionStatus !== ConnectionStatus.CONNECTED ||
-      state.isProcessing ||
-      backendBusy ||
-      fatalReadiness;
+    const backendReady = state.connectionStatus === ConnectionStatus.CONNECTED;
+    const inputDisabled = forceDisable || !backendReady || state.isProcessing;
+    const sendDisabled = forceDisable || !backendReady || state.isProcessing;
 
     this.messageInputElement.readOnly = inputDisabled;
     this.messageInputElement.disabled = inputDisabled;
@@ -1186,12 +1173,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     const defaultPlaceholder = this.resolvedParams.placeholder || '';
     let placeholder = defaultPlaceholder;
 
-    if (fatalReadiness) {
-      placeholder = 'Backend configuration error. Please verify server setup.';
-    } else if (state.connectionStatus !== ConnectionStatus.CONNECTED) {
+    if (!backendReady) {
       placeholder = 'Connecting to backend…';
-    } else if (backendBusy) {
-      placeholder = 'Preparing backend services…';
     } else if (state.isProcessing) {
       placeholder = 'Processing your previous request…';
     }

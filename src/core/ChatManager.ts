@@ -6,10 +6,8 @@
 import { EventEmitter } from 'eventemitter3';
 import {
   ConnectionStatus,
-  ReadinessPhase,
   type ChatMessage,
   type ChatState,
-  type BackendReadiness,
   type WalletTransaction,
   type WalletState,
   type ChatManagerConfig,
@@ -22,7 +20,6 @@ import {
   type BackendMessagePayload,
   type BackendStatePayload,
   convertBackendMessage,
-  normalizeBackendReadiness,
   resolveBackendBoolean,
   areToolStreamsEqual,
 } from '../utils/helper';
@@ -73,9 +70,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       isTyping: false,
       isProcessing: false,
       connectionStatus: ConnectionStatus.DISCONNECTED,
-      readiness: {
-        phase: ReadinessPhase.INITIALIZING,
-      },
       walletState: {
         isConnected: false,
       },
@@ -120,7 +114,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
    */
   public async connectSSE(): Promise<void> {
     this.setConnectionStatus(ConnectionStatus.CONNECTING);
-    this.setReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
 
     // Close existing connection
     this.disconnectSSE();
@@ -211,10 +204,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
 
     if (this.state.connectionStatus !== ConnectionStatus.CONNECTED) {
       throw createConnectionError('Not connected to backend');
-    }
-
-    if (this.state.readiness.phase !== ReadinessPhase.READY) {
-      throw createChatError(ERROR_CODES.INVALID_CONFIG, 'Backend is not ready to accept messages');
     }
 
     if (this.state.isProcessing) {
@@ -357,29 +346,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       stateChanged = true;
     }
 
-    const readiness = normalizeBackendReadiness(payload);
-    if (
-      readiness
-      && (
-        readiness.phase !== this.state.readiness.phase
-        || readiness.detail !== this.state.readiness.detail
-      )
-    ) {
-      this.state.readiness = readiness;
-      stateChanged = true;
-    }
-
-    if (
-      !readiness &&
-      this.state.connectionStatus === ConnectionStatus.CONNECTED &&
-      this.state.readiness.phase !== ReadinessPhase.READY &&
-      this.state.readiness.phase !== ReadinessPhase.ERROR &&
-      this.state.readiness.phase !== ReadinessPhase.MISSING_API_KEY
-    ) {
-      this.state.readiness = { phase: ReadinessPhase.READY };
-      stateChanged = true;
-    }
-
     if ('pending_wallet_tx' in payload) {
       const raw = payload.pending_wallet_tx ?? null;
 
@@ -413,11 +379,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.emit('connectionChange', status);
       this.emitStateChange();
     }
-  }
-
-  private setReadiness(readiness: BackendReadiness): void {
-    this.state.readiness = readiness;
-    this.emitStateChange();
   }
 
   private emitStateChange(): void {
@@ -459,7 +420,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     if (this.reconnectAttempt < this.config.reconnectAttempts!) {
       this.scheduleReconnect();
     } else {
-      this.setReadiness({ phase: ReadinessPhase.ERROR, detail: 'Connection lost' });
       this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
       this.emit('error', createConnectionError('Max reconnection attempts reached'));
     }
@@ -468,7 +428,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
   private scheduleReconnect(): void {
     this.clearReconnectTimer();
     this.setConnectionStatus(ConnectionStatus.RECONNECTING);
-    this.setReadiness({ phase: ReadinessPhase.CONNECTING_MCP });
 
     const delay = this.config.reconnectDelay! * Math.pow(2, this.reconnectAttempt);
     this.reconnectAttempt++;

@@ -1,6 +1,4 @@
 import {
-  ReadinessPhase,
-  type BackendReadiness,
   type ChatMessage,
   type ToolStreamUpdate,
 } from '../types';
@@ -25,12 +23,6 @@ export interface BackendMessagePayload {
   toolStream?: ToolStreamPayload;
 }
 
-export interface BackendReadinessPayload {
-  phase?: unknown;
-  detail?: unknown;
-  message?: unknown;
-}
-
 export interface BackendStatePayload {
   messages?: BackendMessagePayload[] | null;
   isTyping?: boolean;
@@ -38,13 +30,6 @@ export interface BackendStatePayload {
   isProcessing?: boolean;
   is_processing?: boolean;
   pending_wallet_tx?: string | null;
-  readiness?: BackendReadinessPayload | null;
-  missingApiKey?: boolean | string;
-  missing_api_key?: boolean | string;
-  isLoading?: boolean | string;
-  is_loading?: boolean | string;
-  isConnectingMcp?: boolean | string;
-  is_connecting_mcp?: boolean | string;
 }
 
 export interface TransactionRequest {
@@ -90,67 +75,6 @@ export function resolveBackendBoolean(value: unknown): boolean | null {
     return value.toLowerCase() === 'true';
   }
   return null;
-}
-
-export function normalizeBackendReadiness(payload: BackendStatePayload): BackendReadiness | null {
-  const readinessPayload = payload.readiness;
-
-  if (typeof readinessPayload === 'string') {
-    return { phase: mapReadinessPhase(readinessPayload) };
-  }
-
-  if (readinessPayload && typeof readinessPayload === 'object' && typeof readinessPayload.phase === 'string') {
-    const phase = mapReadinessPhase(readinessPayload.phase);
-    const detailCandidate = typeof readinessPayload.detail === 'string' && readinessPayload.detail.trim().length > 0
-      ? readinessPayload.detail
-      : typeof readinessPayload.message === 'string' && readinessPayload.message.trim().length > 0
-        ? readinessPayload.message
-        : undefined;
-
-    return { phase, detail: detailCandidate };
-  }
-
-  if (resolveBackendBoolean(payload.missingApiKey ?? payload.missing_api_key)) {
-    return { phase: ReadinessPhase.MISSING_API_KEY };
-  }
-
-  if (resolveBackendBoolean(payload.isLoading ?? payload.is_loading)) {
-    return { phase: ReadinessPhase.VALIDATING_ANTHROPIC };
-  }
-
-  if (resolveBackendBoolean(payload.isConnectingMcp ?? payload.is_connecting_mcp)) {
-    return { phase: ReadinessPhase.CONNECTING_MCP };
-  }
-
-  return null;
-}
-
-export function mapReadinessPhase(value: string): ReadinessPhase {
-  const normalised = value
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-
-  switch (normalised) {
-    case 'connecting_mcp':
-      return ReadinessPhase.CONNECTING_MCP;
-    case 'validating_anthropic':
-      return ReadinessPhase.VALIDATING_ANTHROPIC;
-    case 'ready':
-      return ReadinessPhase.READY;
-    case 'missing_api_key':
-      return ReadinessPhase.MISSING_API_KEY;
-    case 'error':
-      return ReadinessPhase.ERROR;
-    case 'initializing':
-    case 'initialising':
-    case 'starting':
-      return ReadinessPhase.CONNECTING_MCP;
-    default:
-      console.warn('Unknown readiness phase received:', value);
-      return ReadinessPhase.CONNECTING_MCP;
-  }
 }
 
 export function normaliseToolStream(raw: ToolStreamPayload): ToolStreamUpdate | undefined {
