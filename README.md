@@ -133,22 +133,10 @@ widget.resize('600px', '800px');
 widget.destroy();
 ```
 
-### Flexible configuration & themes
+### Theme & surface options
 
-- Most string/number params now accept objects keyed by chain ID or interaction mode (`'chat' | 'onchain'`), e.g.:
-  ```ts
-  const params: AomiChatWidgetParams = {
-    appCode: 'my-app',
-    width: { 1: '480px', 8453: '420px' },
-    placeholder: { chat: 'Ask anything', onchain: 'Ready to transact?' },
-    theme: {
-      palette: { accent: '#4f46e5' },
-      content: { welcomeTitle: { chat: 'Assistant', onchain: 'Onchain Copilot' } },
-    },
-  };
-  ```
-- Use `resolveWidgetParams(params, context)` if you need the fully-resolved result in your host app.
-- `renderSurface` defaults to `'iframe'`, sandboxing the UI while keeping the inline renderer available for legacy embedders.
+- Supply `theme.palette`, `theme.fonts`, `theme.images`, or `theme.content` to customize the neutral UI without touching CSS.
+- `renderSurface` defaults to `'iframe'` for sandboxed rendering; switch to `'inline'` to mount directly into the host DOM when needed.
 
 ### React adapter
 

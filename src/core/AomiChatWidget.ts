@@ -13,7 +13,6 @@ import {
   type ChatMessage,
   type WalletTransaction,
   type ResolvedAomiChatWidgetParams,
-  type WidgetResolutionContext,
 } from '../types';
 import {
   createConfigurationError,
@@ -81,7 +80,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private viewDocument!: Document;
   private mountRoot!: HTMLElement;
   private resolvedParams!: ResolvedAomiChatWidgetParams;
-  private resolutionContext: WidgetResolutionContext | null = null;
 
   constructor(container: HTMLElement, config: WidgetConfig) {
     this.eventEmitter = new EventEmitter();
@@ -354,9 +352,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         `Wallet connected: ${truncateAddress(address)}`,
       );
       this.updateWalletStatus(this.chatManager.getState());
-      this.refreshResolvedParams({
-        chainId: this.walletManager?.getCurrentChainId() ?? undefined,
-      });
+      this.refreshResolvedParams();
       this.render();
     });
 
@@ -384,7 +380,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         `Switched to ${SUPPORTED_CHAINS[chainId] || `chain ${chainId}`}.`,
       );
       this.updateWalletStatus(this.chatManager.getState());
-      this.refreshResolvedParams({ chainId });
+      this.refreshResolvedParams();
       this.render();
     });
 
@@ -937,27 +933,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     this.chatBodyElement = null;
   }
 
-  private refreshResolvedParams(
-    overrides?: Partial<WidgetResolutionContext>,
-  ): void {
-    this.resolutionContext = this.createResolutionContext(overrides);
-    this.resolvedParams = resolveWidgetParams(
-      this.config.params,
-      this.resolutionContext,
-    );
-  }
-
-  private createResolutionContext(
-    overrides?: Partial<WidgetResolutionContext>,
-  ): WidgetResolutionContext {
-    const walletChainId = this.walletManager?.getCurrentChainId();
-    return {
-      chainId:
-        overrides?.chainId ??
-        walletChainId ??
-        this.config.params.chainId,
-      mode: overrides?.mode ?? this.config.params.interactionMode,
-    };
+  private refreshResolvedParams(): void {
+    this.resolvedParams = resolveWidgetParams(this.config.params);
   }
 
   private registerConfigListeners(): void {

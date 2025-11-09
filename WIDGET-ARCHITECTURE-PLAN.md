@@ -156,38 +156,6 @@ import { AomiChatWidget } from '@aomi-labs/widget-react';
 
 ## ⚙️ **Configuration System**
 
-### **Flexible Configuration Pattern (like CoW Swap)**
-```typescript
-export type FlexibleConfig<T> =
-  | T
-  | PerNetworkConfig<T>
-  | PerModeConfig<T>
-  | PerModeConfig<PerNetworkConfig<T>>
-  | PerNetworkConfig<PerModeConfig<T>>
-
-export interface AomiChatWidgetParams {
-  // Required
-  appCode: string                    // Unique app identifier
-  
-  // Core Configuration
-  width?: string                     // Widget width (default: '400px')
-  height?: string                    // Widget height (default: '600px')
-  baseUrl?: string                   // Backend URL override
-  
-  // UI Customization
-  theme?: AomiChatTheme | AomiChatWidgetPalette
-  mode?: 'full' | 'minimal' | 'compact'
-  welcomeMessage?: string
-  placeholder?: string
-  showWalletStatus?: boolean
-  showNetworkSelector?: boolean
-  
-  // Network Configuration
-  chainId?: number
-  supportedChains?: number[]
-  
-  // Behavioral Settings
-  enableTransactions?: boolean
   requireWalletConnection?: boolean
   sessionPersistence?: boolean
   autoConnect?: boolean

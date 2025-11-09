@@ -2,11 +2,9 @@
 
 import type {
   AomiChatWidgetParams,
-  FlexibleConfig,
   SupportedChainId,
 } from '../types';
 import { SUPPORTED_CHAINS } from '../types/constants';
-import { forEachFlexibleValue } from './flexibleConfig';
 
 /*
  * ============================================================================
@@ -26,9 +24,17 @@ export function validateWidgetParams(params: AomiChatWidgetParams): string[] {
   }
 
   // Validate dimensions
-  validateDimensionConfig('width', params.width, errors);
-  validateDimensionConfig('height', params.height, errors);
-  validatePositiveNumber('maxHeight', params.maxHeight, errors);
+  if (params.width && !isValidDimension(params.width)) {
+    errors.push('width must be a valid CSS dimension (e.g., "400px", "100%")');
+  }
+
+  if (params.height && !isValidDimension(params.height)) {
+    errors.push('height must be a valid CSS dimension (e.g., "600px", "100vh")');
+  }
+
+  if (params.maxHeight && (typeof params.maxHeight !== 'number' || params.maxHeight <= 0)) {
+    errors.push('maxHeight must be a positive number');
+  }
 
   // Validate chain ID
   if (params.chainId && !Object.keys(SUPPORTED_CHAINS).includes(params.chainId.toString())) {
@@ -46,36 +52,6 @@ export function validateWidgetParams(params: AomiChatWidgetParams): string[] {
   }
 
   return errors;
-}
-
-function validateDimensionConfig(
-  label: string,
-  config: FlexibleConfig<string> | undefined,
-  errors: string[],
-): void {
-  if (!config) return;
-
-  forEachFlexibleValue(config, (value) => {
-    if (!isValidDimension(value)) {
-      errors.push(
-        `${label} must be a valid CSS dimension (e.g., "400px", "100%")`,
-      );
-    }
-  });
-}
-
-function validatePositiveNumber(
-  label: string,
-  config: FlexibleConfig<number> | undefined,
-  errors: string[],
-): void {
-  if (!config) return;
-
-  forEachFlexibleValue(config, (value) => {
-    if (typeof value !== 'number' || value <= 0) {
-      errors.push(`${label} must be a positive number`);
-    }
-  });
 }
 
 function isValidDimension(dimension: string): boolean {

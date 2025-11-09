@@ -1,7 +1,5 @@
 import type { AomiChatError } from './errors';
 
-// Core type definitions for Aomi Chat Widget
-
 /*
  * ============================================================================
  * CORE WIDGET TYPES
@@ -67,18 +65,6 @@ export enum WidgetRenderSurface {
   IFRAME = 'iframe',
 }
 
-export type PerChainConfig<T> = Partial<Record<SupportedChainId, T>>;
-export type PerInteractionModeConfig<T> = Partial<Record<InteractionMode, T>>;
-
-export type FlexibleConfig<T> =
-  | T
-  | PerChainConfig<T>
-  | PerInteractionModeConfig<T>
-  | PerChainConfig<PerInteractionModeConfig<T>>
-  | PerInteractionModeConfig<PerChainConfig<T>>;
-
-export type FlexibleValue<T> = FlexibleConfig<T> | undefined;
-
 export interface AomiWidgetPalette {
   primary: string;
   background: string;
@@ -109,9 +95,9 @@ export interface AomiWidgetSounds {
 }
 
 export interface AomiChatContentConfig {
-  welcomeTitle?: FlexibleConfig<string>;
-  assistantName?: FlexibleConfig<string>;
-  emptyStateMessage?: FlexibleConfig<string>;
+  welcomeTitle?: string;
+  assistantName?: string;
+  emptyStateMessage?: string;
 }
 
 export interface AomiChatContentResolved {
@@ -141,17 +127,17 @@ export interface AomiChatWidgetParams {
   appCode: string;
 
   // Core Configuration
-  width?: FlexibleConfig<string>;
-  height?: FlexibleConfig<string>;
-  maxHeight?: FlexibleConfig<number>;
+  width?: string;
+  height?: string;
+  maxHeight?: number;
   baseUrl?: string;
   sessionId?: string;
   interactionMode?: InteractionMode;
   renderSurface?: WidgetRenderSurface;
 
   // UI Customization
-  welcomeMessage?: FlexibleConfig<string>;
-  placeholder?: FlexibleConfig<string>;
+  welcomeMessage?: string;
+  placeholder?: string;
 
   // Network Configuration
   chainId?: SupportedChainId;
@@ -159,7 +145,7 @@ export interface AomiChatWidgetParams {
 
   // Content Customization
   content?: AomiChatContentConfig;
-  theme?: FlexibleConfig<AomiWidgetThemeConfig>;
+  theme?: AomiWidgetThemeConfig;
 }
 
 export interface ResolvedAomiChatWidgetParams {
@@ -179,11 +165,6 @@ export interface ResolvedAomiChatWidgetParams {
   theme: AomiWidgetThemeDefinition;
 }
 
-export interface WidgetResolutionContext {
-  chainId?: SupportedChainId;
-  mode?: InteractionMode;
-}
-
 /*
  * ============================================================================
  * WIDGET STATE TYPES
@@ -196,21 +177,6 @@ export enum ConnectionStatus {
   DISCONNECTED = 'disconnected',
   ERROR = 'error',
   RECONNECTING = 'reconnecting'
-}
-
-export enum ReadinessPhase {
-  INITIALIZING = 'initializing',
-  CONNECTING_MCP = 'connecting_mcp',
-  VALIDATING_ANTHROPIC = 'validating_anthropic',
-  READY = 'ready',
-  MISSING_API_KEY = 'missing_api_key',
-  ERROR = 'error'
-}
-
-export interface BackendReadiness {
-  phase: ReadinessPhase;
-  detail?: string;
-  retryCount?: number;
 }
 
 export interface WalletState {
@@ -226,7 +192,6 @@ export interface ChatState {
   isTyping: boolean;
   isProcessing: boolean;
   connectionStatus: ConnectionStatus;
-  readiness: BackendReadiness;
   walletState: WalletState;
   sessionId: string;
   pendingTransaction?: WalletTransaction;

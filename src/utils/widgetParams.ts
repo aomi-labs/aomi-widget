@@ -13,48 +13,26 @@ import {
   type AomiChatWidgetParams,
   type AomiWidgetThemeConfig,
   type AomiWidgetThemeDefinition,
-  type FlexibleConfig,
   type ResolvedAomiChatWidgetParams,
-  type WidgetResolutionContext,
 } from '../types';
-import {
-  resolveFlexibleConfigValue,
-} from './flexibleConfig';
-
-const DIMENSION_FALLBACKS: Record<'width' | 'height', string> = {
-  width: DEFAULT_WIDGET_WIDTH,
-  height: DEFAULT_WIDGET_HEIGHT,
-};
 
 export function resolveWidgetParams(
   params: AomiChatWidgetParams,
-  context: WidgetResolutionContext = {},
 ): ResolvedAomiChatWidgetParams {
-  const mode = context.mode ?? params.interactionMode ?? DEFAULT_INTERACTION_MODE;
-  const chainId =
-    context.chainId ??
-    params.chainId ??
-    DEFAULT_CHAIN_ID;
+  const width = params.width || DEFAULT_WIDGET_WIDTH;
+  const height = params.height || DEFAULT_WIDGET_HEIGHT;
+  const maxHeight =
+    typeof params.maxHeight === 'number' ? params.maxHeight : DEFAULT_MAX_HEIGHT;
+  const interactionMode = params.interactionMode ?? DEFAULT_INTERACTION_MODE;
+  const chainId = params.chainId ?? DEFAULT_CHAIN_ID;
 
-  const resolutionContext: WidgetResolutionContext = {
-    chainId,
-    mode,
+  const theme = mergeTheme(DEFAULT_WIDGET_THEME, params.theme);
+  const content = mergeContent(theme.content, params.content);
+
+  const themedDefinition: AomiWidgetThemeDefinition = {
+    ...theme,
+    content,
   };
-
-  const width = resolveDimension(params.width, resolutionContext, 'width');
-  const height = resolveDimension(params.height, resolutionContext, 'height');
-  const maxHeight = resolveNumber(params.maxHeight, resolutionContext, DEFAULT_MAX_HEIGHT);
-  const welcomeMessage = resolveFlexibleConfigValue(params.welcomeMessage, resolutionContext);
-  const placeholder = resolveFlexibleConfigValue(params.placeholder, resolutionContext);
-  const contentOverrides = resolveContent(params.content, resolutionContext);
-  const themeOverride = resolveFlexibleConfigValue(params.theme, resolutionContext);
-
-  const theme = mergeTheme(
-    DEFAULT_WIDGET_THEME,
-    themeOverride,
-    resolutionContext,
-    contentOverrides,
-  );
 
   return {
     appCode: params.appCode,
@@ -63,109 +41,51 @@ export function resolveWidgetParams(
     maxHeight,
     baseUrl: params.baseUrl,
     sessionId: params.sessionId,
-    interactionMode: mode,
+    interactionMode,
     renderSurface: params.renderSurface ?? DEFAULT_RENDER_SURFACE,
-    welcomeMessage,
-    placeholder,
+    welcomeMessage: params.welcomeMessage,
+    placeholder: params.placeholder,
     chainId,
     supportedChains: params.supportedChains,
-    content: theme.content,
-    theme,
-  };
-}
-
-function resolveDimension(
-  dimension: FlexibleConfig<string> | undefined,
-  context: WidgetResolutionContext,
-  axis: 'width' | 'height',
-): string {
-  const resolved = resolveFlexibleConfigValue(dimension, context);
-  return resolved || DIMENSION_FALLBACKS[axis];
-}
-
-function resolveNumber(
-  value: FlexibleConfig<number> | undefined,
-  context: WidgetResolutionContext,
-  fallback: number,
-): number {
-  const resolved = resolveFlexibleConfigValue(value, context);
-  return typeof resolved === 'number' ? resolved : fallback;
-}
-
-export function resolveContent(
-  config: AomiChatContentConfig | undefined,
-  context: WidgetResolutionContext,
-): Partial<AomiChatContentResolved> {
-  if (!config) return {};
-
-  const resolved: Partial<AomiChatContentResolved> = {};
-  if (config.welcomeTitle !== undefined) {
-    const value = resolveFlexibleConfigValue(config.welcomeTitle, context);
-    if (value) resolved.welcomeTitle = value;
-  }
-  if (config.assistantName !== undefined) {
-    const value = resolveFlexibleConfigValue(config.assistantName, context);
-    if (value) resolved.assistantName = value;
-  }
-  if (config.emptyStateMessage !== undefined) {
-    const value = resolveFlexibleConfigValue(config.emptyStateMessage, context);
-    if (value) resolved.emptyStateMessage = value;
-  }
-
-  return resolved;
-}
-
-function mergeContent(
-  base: AomiChatContentResolved,
-  overrides: Partial<AomiChatContentResolved> = {},
-): AomiChatContentResolved {
-  return {
-    welcomeTitle: overrides.welcomeTitle ?? base.welcomeTitle,
-    assistantName: overrides.assistantName ?? base.assistantName,
-    emptyStateMessage: overrides.emptyStateMessage ?? base.emptyStateMessage,
+    content,
+    theme: themedDefinition,
   };
 }
 
 function mergeTheme(
   base: AomiWidgetThemeDefinition,
-  override: AomiWidgetThemeConfig | undefined,
-  context: WidgetResolutionContext,
-  contentOverrides: Partial<AomiChatContentResolved>,
+  override?: AomiWidgetThemeConfig,
 ): AomiWidgetThemeDefinition {
-  const palette = {
-    ...base.palette,
-    ...(override?.palette ?? {}),
-  };
-
-  const fonts = {
-    ...base.fonts,
-    ...(override?.fonts ?? {}),
-  };
-
-  const images = {
-    ...base.images,
-    ...(override?.images ?? {}),
-  };
-
-  const sounds = {
-    ...base.sounds,
-    ...(override?.sounds ?? {}),
-  };
-
-  const themeContent = resolveContent(override?.content, context);
-  const mergedContent = mergeContent(
-    base.content,
-    {
-      ...themeContent,
-      ...contentOverrides,
+  return {
+    palette: {
+      ...base.palette,
+      ...(override?.palette ?? {}),
     },
-  );
+    fonts: {
+      ...base.fonts,
+      ...(override?.fonts ?? {}),
+    },
+    images: {
+      ...base.images,
+      ...(override?.images ?? {}),
+    },
+    sounds: {
+      ...base.sounds,
+      ...(override?.sounds ?? {}),
+    },
+    content: mergeContent(base.content, override?.content),
+  };
+}
+
+function mergeContent(
+  base: AomiChatContentResolved,
+  overrides?: Partial<AomiChatContentConfig>,
+): AomiChatContentResolved {
+  if (!overrides) return { ...base };
 
   return {
-    palette,
-    fonts,
-    images,
-    sounds,
-    content: mergedContent,
+    welcomeTitle: overrides.welcomeTitle ?? base.welcomeTitle,
+    assistantName: overrides.assistantName ?? base.assistantName,
+    emptyStateMessage: overrides.emptyStateMessage ?? base.emptyStateMessage,
   };
 }

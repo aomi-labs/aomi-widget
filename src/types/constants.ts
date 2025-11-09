@@ -5,7 +5,7 @@ import {
   WidgetRenderSurface,
   type AomiWidgetThemeDefinition,
   type SupportedChainId,
-} from './contracts';
+} from './interfaces';
 
 /*
  * ============================================================================

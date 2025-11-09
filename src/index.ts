@@ -35,11 +35,7 @@ export type {
   // Network and provider types
   EthereumProvider,
   JsonRpcRequest,
-
-  // State types
   ConnectionStatus,
-  BackendReadiness,
-  ReadinessPhase,
 } from './types';
 
 // Error classes
