@@ -21,7 +21,7 @@ import {
   polygon,
   sepolia,
 } from 'viem/chains';
-import type { EthereumProvider } from '../types';
+import type { EthereumProvider } from '../types/interfaces';
 
 const DEFAULT_CHAINS = [
   mainnet,

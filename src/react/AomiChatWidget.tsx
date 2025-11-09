@@ -6,7 +6,7 @@ import type {
   AomiChatWidgetHandler,
   AomiChatWidgetParams,
   EthereumProvider,
-} from '../types';
+} from '../types/interfaces';
 import { createAomiChatWidget } from '../core/AomiChatWidget';
 
 export interface ReactAomiChatWidgetProps {

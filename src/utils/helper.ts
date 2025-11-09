@@ -1,9 +1,9 @@
 import {
   type ChatMessage,
   type ToolStreamUpdate,
-} from '../types';
+} from '../types/interfaces';
 import { createTransactionError } from '../types/errors';
-import { isEthereumAddress } from '../utils';
+import { isEthereumAddress } from './base';
 
 export type ToolStreamPayload =
   | [unknown, unknown]

@@ -14,7 +14,7 @@ import {
   type AomiWidgetThemeConfig,
   type AomiWidgetThemeDefinition,
   type ResolvedAomiChatWidgetParams,
-} from '../types';
+} from '../types/interfaces';
 
 export function resolveWidgetParams(
   params: AomiChatWidgetParams,

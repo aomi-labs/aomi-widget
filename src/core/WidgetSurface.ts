@@ -4,7 +4,7 @@ import {
   DEFAULT_WIDGET_WIDTH,
 } from '../types/constants';
 import { createConfigurationError } from '../types/errors';
-import type { WidgetRenderSurface } from '../types';
+import type { WidgetRenderSurface } from '../types/interfaces';
 
 export interface WidgetSurfaceOptions {
   mode: WidgetRenderSurface;

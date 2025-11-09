@@ -3,7 +3,7 @@
 import type {
   AomiChatWidgetParams,
   SupportedChainId,
-} from '../types';
+} from '../types/interfaces';
 import { SUPPORTED_CHAINS } from '../types/constants';
 
 /*

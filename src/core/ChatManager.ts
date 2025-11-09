@@ -11,11 +11,14 @@ import {
   type WalletTransaction,
   type WalletState,
   type ChatManagerConfig,
+} from '../types/interfaces';
+import {
   type AomiChatError,
-} from '../types';
-import { createConnectionError, createChatError } from '../types/errors';
+  createConnectionError,
+  createChatError,
+} from '../types/errors';
 import { API_ENDPOINTS, ERROR_CODES, TIMING } from '../types/constants';
-import { generateSessionId, withTimeout } from '../utils';
+import { generateSessionId, withTimeout } from '../utils/base';
 import {
   type BackendMessagePayload,
   type BackendStatePayload,

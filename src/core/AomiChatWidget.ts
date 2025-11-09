@@ -12,7 +12,7 @@ import {
   type ChatMessage,
   type WalletTransaction,
   type ResolvedAomiChatWidgetParams,
-} from '../types';
+} from '../types/interfaces';
 import {
   createConfigurationError,
   createConnectionError,
@@ -31,7 +31,7 @@ import {
   createElement,
   isBrowser,
   truncateAddress,
-} from '../utils';
+} from '../utils/base';
 import { renderMarkdown } from '../utils/markdown';
 import { resolveWidgetParams } from '../utils/widgetParams';
 import { ChatManager } from './ChatManager';

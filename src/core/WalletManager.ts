@@ -21,14 +21,14 @@ import {
 import type {
   EthereumProvider,
   SupportedChainId,
-  AomiChatError,
-} from '../types';
+} from '../types/interfaces';
 import {
+  type AomiChatError,
   createWalletError,
   createTransactionError,
 } from '../types/errors';
 import { SUPPORTED_CHAINS, ERROR_CODES } from '../types/constants';
-import { isEthereumAddress, isTransactionHash } from '../utils';
+import { isEthereumAddress, isTransactionHash } from '../utils/base';
 import {
   type TransactionRequest,
   validateTransactionPayload,

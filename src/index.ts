@@ -36,7 +36,7 @@ export type {
   EthereumProvider,
   JsonRpcRequest,
   ConnectionStatus,
-} from './types';
+} from './types/interfaces';
 
 // Error classes
 export {
@@ -131,7 +131,7 @@ export {
   formatTimestamp,
   truncateAddress,
   formatNumber,
-} from './utils';
+} from './utils/base';
 export { resolveWidgetParams } from './utils/widgetParams';
 export {
   AomiChatWidget as ReactAomiChatWidget,
@@ -145,11 +145,13 @@ export const VERSION = '0.1.0';
 import type {
   EthereumProvider,
   ChatMessage,
-  AomiChatError,
   AomiChatWidgetHandler,
   WidgetConfig,
-} from './types';
-import { createConfigurationError } from './types/errors';
+} from './types/interfaces';
+import {
+  type AomiChatError,
+  createConfigurationError,
+} from './types/errors';
 
 // Simple convenience function for basic usage
 export function createChatWidget(
