@@ -1,6 +1,11 @@
 // Constants for the Aomi Chat Widget
 
-import type { SupportedChainId } from './index';
+import {
+  InteractionMode,
+  WidgetRenderSurface,
+  type AomiWidgetThemeDefinition,
+  type SupportedChainId,
+} from './contracts';
 
 /*
  * ============================================================================
@@ -14,6 +19,8 @@ export const DEFAULT_MAX_HEIGHT = 800;
 export const DEFAULT_MESSAGE_LENGTH = 2000;
 export const DEFAULT_RECONNECT_ATTEMPTS = 5;
 export const DEFAULT_RECONNECT_DELAY = 3000;
+export const DEFAULT_INTERACTION_MODE = InteractionMode.CHAT;
+export const DEFAULT_RENDER_SURFACE = WidgetRenderSurface.IFRAME;
 
 /*
  * ============================================================================
@@ -37,6 +44,39 @@ export const SUPPORTED_CHAINS: Record<SupportedChainId, string> = {
 } as const;
 
 export const DEFAULT_CHAIN_ID: SupportedChainId = 1;
+
+export const DEFAULT_WIDGET_THEME: AomiWidgetThemeDefinition = {
+  palette: {
+    primary: '#111827',
+    background: '#ffffff',
+    surface: '#f8fafc',
+    text: '#0f172a',
+    textSecondary: '#475569',
+    border: '#e2e8f0',
+    success: '#059669',
+    error: '#dc2626',
+    warning: '#f97316',
+    accent: '#2563eb',
+  },
+  fonts: {
+    primary: '"Inter", "Helvetica Neue", Arial, sans-serif',
+    monospace: '"JetBrains Mono", "SF Mono", monospace',
+  },
+  images: {
+    emptyState: null,
+    avatarAssistant: null,
+  },
+  sounds: {
+    message: null,
+    notification: null,
+    transaction: null,
+  },
+  content: {
+    welcomeTitle: 'Aomi Assistant',
+    assistantName: 'Aomi',
+    emptyStateMessage: 'Chat interface is initializing…',
+  },
+} as const;
 
 
 /*

@@ -5,7 +5,7 @@ import {
   type ToolStreamUpdate,
 } from '../types';
 import { createTransactionError } from '../types/errors';
-import { isEthereumAddress } from './index';
+import { isEthereumAddress } from '../utils';
 
 export type ToolStreamPayload =
   | [unknown, unknown]

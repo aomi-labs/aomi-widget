@@ -14,7 +14,16 @@ const ALLOWED_TAGS = [
 /**
  * Renders markdown into a styled HTMLElement mirroring the product-mono implementation.
  */
-export function renderMarkdown(content: string, options: MarkdownRenderOptions): HTMLElement {
+export function renderMarkdown(
+  content: string,
+  options: MarkdownRenderOptions,
+  doc?: Document,
+): HTMLElement {
+  const targetDocument = doc ?? (typeof document !== 'undefined' ? document : null);
+  if (!targetDocument) {
+    throw new Error('Markdown rendering requires a Document context');
+  }
+
   const renderer = createRenderer();
   const parser = new Marked();
   parser.use({ renderer });
@@ -30,7 +39,7 @@ export function renderMarkdown(content: string, options: MarkdownRenderOptions):
     ADD_ATTR: ['target', 'rel'],
   });
 
-  const container = document.createElement('div');
+  const container = targetDocument.createElement('div');
   container.className = 'aomi-markdown';
   container.innerHTML = sanitized;
 
@@ -164,7 +173,8 @@ function styleTables(container: HTMLElement): void {
     if (!(table instanceof HTMLTableElement)) return;
 
     if (!table.parentElement?.classList.contains('aomi-md-table-wrapper')) {
-      const wrapper = document.createElement('div');
+      const wrapper = container.ownerDocument?.createElement('div');
+      if (!wrapper) return;
       wrapper.className = 'aomi-md-table-wrapper';
       wrapper.style.overflowX = 'auto';
 

@@ -55,10 +55,12 @@ interface AomiChatWidgetParams {
   // Appearance
   width?: string;
   height?: string;
+  renderSurface?: 'inline' | 'iframe';
 
   // Behavior
   welcomeMessage?: string;
   placeholder?: string;
+  interactionMode?: 'chat' | 'onchain';
   enableTransactions?: boolean;
   requireWalletConnection?: boolean;
 
@@ -70,6 +72,14 @@ interface AomiChatWidgetParams {
   baseUrl?: string;
   apiKey?: string;
   sessionId?: string;
+
+  // Presentation
+  theme?: AomiWidgetThemeConfig;
+  content?: {
+    welcomeTitle?: string;
+    assistantName?: string;
+    emptyStateMessage?: string;
+  };
 }
 ```
 
@@ -122,6 +132,35 @@ widget.resize('600px', '800px');
 // Destroy widget
 widget.destroy();
 ```
+
+### Flexible configuration & themes
+
+- Most string/number params now accept objects keyed by chain ID or interaction mode (`'chat' | 'onchain'`), e.g.:
+  ```ts
+  const params: AomiChatWidgetParams = {
+    appCode: 'my-app',
+    width: { 1: '480px', 8453: '420px' },
+    placeholder: { chat: 'Ask anything', onchain: 'Ready to transact?' },
+    theme: {
+      palette: { accent: '#4f46e5' },
+      content: { welcomeTitle: { chat: 'Assistant', onchain: 'Onchain Copilot' } },
+    },
+  };
+  ```
+- Use `resolveWidgetParams(params, context)` if you need the fully-resolved result in your host app.
+- `renderSurface` defaults to `'iframe'`, sandboxing the UI while keeping the inline renderer available for legacy embedders.
+
+### React adapter
+
+The repo now ships a React-first wrapper inspired by `@cowprotocol/widget-react`:
+
+```tsx
+import { ReactAomiChatWidget } from '@aomi-labs/widget-lib';
+
+<ReactAomiChatWidget params={params} provider={window.ethereum} />;
+```
+
+It manages widget lifecycle automatically and reacts to prop changes without leaking DOM nodes.
 
 ## 🌐 Network Support
 

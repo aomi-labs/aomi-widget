@@ -136,6 +136,11 @@ export {
   truncateAddress,
   formatNumber,
 } from './utils';
+export { resolveWidgetParams } from './utils/widgetParams';
+export {
+  AomiChatWidget as ReactAomiChatWidget,
+  type ReactAomiChatWidgetProps,
+} from './react/AomiChatWidget';
 
 // Package version (this would be set during build)
 export const VERSION = '0.1.0';

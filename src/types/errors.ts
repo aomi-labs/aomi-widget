@@ -175,40 +175,6 @@ export function isSessionError(error: unknown): error is SessionError {
  * ============================================================================
  */
 
-export enum ErrorSeverity {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  CRITICAL = 'critical',
-}
-
-export function getErrorSeverity(error: AomiChatError): ErrorSeverity {
-  switch (error.code) {
-    case ERROR_CODES.MISSING_APP_CODE:
-    case ERROR_CODES.INITIALIZATION_FAILED:
-    case ERROR_CODES.BACKEND_UNAVAILABLE:
-      return ErrorSeverity.CRITICAL;
-
-    case ERROR_CODES.CONNECTION_FAILED:
-    case ERROR_CODES.AUTHENTICATION_FAILED:
-    case ERROR_CODES.SESSION_EXPIRED:
-      return ErrorSeverity.HIGH;
-
-    case ERROR_CODES.WALLET_NOT_CONNECTED:
-    case ERROR_CODES.UNSUPPORTED_NETWORK:
-    case ERROR_CODES.TRANSACTION_FAILED:
-      return ErrorSeverity.MEDIUM;
-
-    case ERROR_CODES.MESSAGE_TOO_LONG:
-    case ERROR_CODES.RATE_LIMITED:
-    case ERROR_CODES.INVALID_MESSAGE:
-      return ErrorSeverity.LOW;
-
-    default:
-      return ErrorSeverity.MEDIUM;
-  }
-}
-
 /*
  * ============================================================================
  * ERROR MESSAGES
@@ -292,7 +258,6 @@ export function getRecoveryStrategy(error: AomiChatError): RecoveryStrategy {
 
 export interface ErrorReport {
   error: AomiChatError;
-  severity: ErrorSeverity;
   recoveryStrategy: RecoveryStrategy;
   context: {
     timestamp: string;
@@ -308,7 +273,6 @@ export function createErrorReport(
 ): ErrorReport {
   return {
     error,
-    severity: getErrorSeverity(error),
     recoveryStrategy: getRecoveryStrategy(error),
     context: {
       timestamp: new Date().toISOString(),
