@@ -40,29 +40,8 @@ export type {
 
 // Error classes
 export {
-  type AomiChatError,
-  ConfigurationError,
-  ConnectionError,
-  WalletError,
-  TransactionError,
-  ChatError,
-  RateLimitError,
-  SessionError,
-  createConfigurationError,
-  createConnectionError,
-  createWalletError,
-  createTransactionError,
-  createChatError,
-  createRateLimitError,
-  createSessionError,
-  isAomiChatError,
-  isConfigurationError,
-  isConnectionError,
-  isWalletError,
-  isTransactionError,
-  isChatError,
-  isRateLimitError,
-  isSessionError,
+  type WidgetError,
+  createWidgetError,
 } from './types/errors';
 
 // Constants
@@ -148,10 +127,7 @@ import type {
   AomiChatWidgetHandler,
   WidgetConfig,
 } from './types/interfaces';
-import {
-  type AomiChatError,
-  createConfigurationError,
-} from './types/errors';
+import type { WidgetError } from './types/errors';
 
 // Simple convenience function for basic usage
 export function createChatWidget(
@@ -164,7 +140,7 @@ export function createChatWidget(
     provider?: EthereumProvider;
     onReady?: () => void;
     onMessage?: (_message: ChatMessage) => void;
-    onError?: (_error: AomiChatError) => void;
+    onError?: (_error: WidgetError | Error) => void;
   },
 ): AomiChatWidgetHandler {
   // Get container element
@@ -173,7 +149,7 @@ export function createChatWidget(
     : containerId;
 
   if (!container) {
-    throw createConfigurationError(
+    throw new Error(
       typeof containerId === 'string'
         ? `Element with id "${containerId}" not found`
         : 'Invalid container element',

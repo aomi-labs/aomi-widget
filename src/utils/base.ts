@@ -4,7 +4,6 @@ import type {
   AomiChatWidgetParams,
   SupportedChainId,
 } from '../types/interfaces';
-import { SUPPORTED_CHAINS } from '../types/constants';
 
 /*
  * ============================================================================
@@ -16,47 +15,10 @@ import { SUPPORTED_CHAINS } from '../types/constants';
  * Validates widget configuration parameters
  */
 export function validateWidgetParams(params: AomiChatWidgetParams): string[] {
-  const errors: string[] = [];
-
-  // Required fields
   if (!params.appCode || typeof params.appCode !== 'string') {
-    errors.push('appCode is required and must be a string');
+    return ['appCode is required and must be a string'];
   }
-
-  // Validate dimensions
-  if (params.width && !isValidDimension(params.width)) {
-    errors.push('width must be a valid CSS dimension (e.g., "400px", "100%")');
-  }
-
-  if (params.height && !isValidDimension(params.height)) {
-    errors.push('height must be a valid CSS dimension (e.g., "600px", "100vh")');
-  }
-
-  if (params.maxHeight && (typeof params.maxHeight !== 'number' || params.maxHeight <= 0)) {
-    errors.push('maxHeight must be a positive number');
-  }
-
-  // Validate chain ID
-  if (params.chainId && !Object.keys(SUPPORTED_CHAINS).includes(params.chainId.toString())) {
-    errors.push(`chainId must be one of: ${Object.keys(SUPPORTED_CHAINS).join(', ')}`);
-  }
-
-  // Validate supported chains
-  if (params.supportedChains) {
-    const invalidChains = params.supportedChains.filter(
-      id => !Object.keys(SUPPORTED_CHAINS).includes(id.toString()),
-    );
-    if (invalidChains.length > 0) {
-      errors.push(`supportedChains contains invalid chain IDs: ${invalidChains.join(', ')}`);
-    }
-  }
-
-  return errors;
-}
-
-function isValidDimension(dimension: string): boolean {
-  // Simple regex to validate CSS dimensions
-  return /^(\d+(\.\d+)?(px|%|em|rem|vh|vw)|auto|inherit)$/.test(dimension);
+  return [];
 }
 
 /*

@@ -13,11 +13,7 @@ import {
   type WalletTransaction,
   type ResolvedAomiChatWidgetParams,
 } from '../types/interfaces';
-import {
-  createConfigurationError,
-  createConnectionError,
-  AomiChatError as AomiError,
-} from '../types/errors';
+import { createWidgetError } from '../types/errors';
 import {
   ERROR_CODES,
   DEFAULT_WIDGET_HEIGHT,
@@ -118,7 +114,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
   public async sendMessage(message: string): Promise<void> {
     if (this.isDestroyed) {
-      throw new AomiError(
+      throw createWidgetError(
         ERROR_CODES.INITIALIZATION_FAILED,
         'Widget has been destroyed',
       );
@@ -129,7 +125,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
   public updateParams(params: Partial<AomiChatWidgetParams>): void {
     if (this.isDestroyed) {
-      throw new AomiError(
+      throw createWidgetError(
         ERROR_CODES.INITIALIZATION_FAILED,
         'Widget has been destroyed',
       );
@@ -140,7 +136,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     const errors = validateWidgetParams(mergedParams);
 
     if (errors.length > 0) {
-      throw createConfigurationError(
+      throw createWidgetError(
+        ERROR_CODES.INVALID_CONFIG,
         `Invalid parameters: ${errors.join(', ')}`,
       );
     }
@@ -159,7 +156,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
   public updateProvider(provider?: EthereumProvider): void {
     if (this.isDestroyed) {
-      throw new AomiError(
+      throw createWidgetError(
         ERROR_CODES.INITIALIZATION_FAILED,
         'Widget has been destroyed',
       );
@@ -295,12 +292,12 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
       this.eventEmitter.emit(WIDGET_EVENTS.READY);
     } catch (error) {
-      const chatError =
-        error instanceof AomiError
+      const widgetError =
+        error instanceof Error
           ? error
-          : createConnectionError('Failed to initialize widget');
+          : createWidgetError(ERROR_CODES.CONNECTION_FAILED, 'Failed to initialize widget');
 
-      this.eventEmitter.emit(WIDGET_EVENTS.ERROR, chatError);
+      this.eventEmitter.emit(WIDGET_EVENTS.ERROR, widgetError);
     }
   }
 
@@ -1373,18 +1370,21 @@ export function createAomiChatWidget(
 ): AomiChatWidgetHandler {
   // Validate environment
   if (!isBrowser()) {
-    throw createConfigurationError('Widget can only be created in a browser environment');
+    throw new Error('Widget can only be created in a browser environment');
   }
 
   // Validate container
   if (!container || !(container instanceof HTMLElement)) {
-    throw createConfigurationError('Container must be a valid HTML element');
+    throw new Error('Container must be a valid HTML element');
   }
 
   // Validate configuration
   const errors = validateWidgetParams(config.params);
   if (errors.length > 0) {
-    throw createConfigurationError(`Configuration errors: ${errors.join(', ')}`);
+    throw createWidgetError(
+      ERROR_CODES.INVALID_CONFIG,
+      `Configuration errors: ${errors.join(', ')}`,
+    );
   }
 
   // Create and return widget handler

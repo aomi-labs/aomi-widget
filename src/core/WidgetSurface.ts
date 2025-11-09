@@ -3,7 +3,6 @@ import {
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_WIDTH,
 } from '../types/constants';
-import { createConfigurationError } from '../types/errors';
 import type { WidgetRenderSurface } from '../types/interfaces';
 
 export interface WidgetSurfaceOptions {
@@ -51,7 +50,7 @@ export class WidgetSurface {
 
       const iframeDocument = iframe.contentDocument;
       if (!iframeDocument || !iframeDocument.body) {
-        throw createConfigurationError('Failed to initialize iframe document');
+        throw new Error('Failed to initialize iframe document');
       }
 
       iframeDocument.open();
@@ -64,7 +63,7 @@ export class WidgetSurface {
       this.container.innerHTML = '';
       const ownerDocument = this.container.ownerDocument;
       if (!ownerDocument) {
-        throw createConfigurationError('Container is detached from a document');
+        throw new Error('Container is detached from a document');
       }
       this.documentRef = ownerDocument;
       this.rootElement = this.container;

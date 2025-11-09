@@ -12,11 +12,7 @@ import {
   type WalletState,
   type ChatManagerConfig,
 } from '../types/interfaces';
-import {
-  type AomiChatError,
-  createConnectionError,
-  createChatError,
-} from '../types/errors';
+import { createWidgetError } from '../types/errors';
 import { API_ENDPOINTS, ERROR_CODES, TIMING } from '../types/constants';
 import { generateSessionId, withTimeout } from '../utils/base';
 import {
@@ -36,7 +32,7 @@ import {
 interface ChatManagerEvents {
   stateChange: (_state: ChatState) => void;
   message: (_message: ChatMessage) => void;
-  error: (_error: AomiChatError) => void;
+  error: (_error: Error) => void;
   connectionChange: (_status: ConnectionStatus) => void;
   transactionRequest: (_transaction: WalletTransaction) => void;
 }
@@ -141,7 +137,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
           this.updateChatState(data);
         } catch (error) {
           console.error('Failed to parse SSE message:', error);
-          this.emit('error', createChatError(ERROR_CODES.INVALID_MESSAGE, 'Invalid message format'));
+      this.emit('error', createWidgetError(ERROR_CODES.INVALID_MESSAGE, 'Invalid message format'));
         }
       };
 
@@ -152,7 +148,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
 
     } catch (error) {
       console.error('Failed to create SSE connection:', error);
-      this.emit('error', createConnectionError('Failed to establish connection'));
+      this.emit('error', createWidgetError(ERROR_CODES.CONNECTION_FAILED, 'Failed to establish connection'));
       this.handleConnectionError();
     }
   }
@@ -198,19 +194,19 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
     const trimmedMessage = message.trim();
 
     if (!trimmedMessage) {
-      throw createChatError(ERROR_CODES.INVALID_MESSAGE, 'Message cannot be empty');
+      throw createWidgetError(ERROR_CODES.INVALID_MESSAGE, 'Message cannot be empty');
     }
 
     if (trimmedMessage.length > this.config.maxMessageLength!) {
-      throw createChatError(ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds ${this.config.maxMessageLength} characters`);
+      throw createWidgetError(ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds ${this.config.maxMessageLength} characters`);
     }
 
     if (this.state.connectionStatus !== ConnectionStatus.CONNECTED) {
-      throw createConnectionError('Not connected to backend');
+      throw createWidgetError(ERROR_CODES.CONNECTION_FAILED, 'Not connected to backend');
     }
 
     if (this.state.isProcessing) {
-      throw createChatError(ERROR_CODES.RATE_LIMITED, 'Previous message is still being processed');
+      throw createWidgetError(ERROR_CODES.RATE_LIMITED, 'Previous message is still being processed');
     }
 
     try {
@@ -222,7 +218,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.updateChatState(payload);
     } catch (error) {
       console.error('Failed to send message:', error);
-      throw createChatError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to send message');
+      throw createWidgetError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to send message');
     }
   }
 
@@ -238,7 +234,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.updateChatState(payload);
     } catch (error) {
       console.error('Failed to send system message:', error);
-      throw createChatError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to send system message');
+      throw createWidgetError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to send system message');
     }
   }
 
@@ -253,7 +249,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.updateChatState(payload);
     } catch (error) {
       console.error('Failed to interrupt:', error);
-      throw createChatError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to interrupt processing');
+      throw createWidgetError(ERROR_CODES.UNKNOWN_ERROR, 'Failed to interrupt processing');
     }
   }
 
@@ -410,9 +406,9 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       return await response.json() as BackendStatePayload;
     } catch (error) {
       if (error instanceof Error && error.message.includes('timed out')) {
-        throw createConnectionError('Request timed out');
+        throw createWidgetError(ERROR_CODES.CONNECTION_TIMEOUT, 'Request timed out');
       }
-      throw createConnectionError(`Request failed: ${error}`);
+      throw createWidgetError(ERROR_CODES.CONNECTION_FAILED, `Request failed: ${error}`);
     }
   }
 
@@ -424,7 +420,7 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.scheduleReconnect();
     } else {
       this.setConnectionStatus(ConnectionStatus.DISCONNECTED);
-      this.emit('error', createConnectionError('Max reconnection attempts reached'));
+      this.emit('error', createWidgetError(ERROR_CODES.CONNECTION_FAILED, 'Max reconnection attempts reached'));
     }
   }
 

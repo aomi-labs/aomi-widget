@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { createChatWidget, AomiChatWidgetHandler, ChatMessage, AomiChatError } from '@aomi-labs/widget-lib';
+import { createChatWidget, AomiChatWidgetHandler, ChatMessage, WidgetError } from '@aomi-labs/widget-lib';
 
 interface ChatWidgetProps {
   appCode: string;
@@ -8,7 +8,7 @@ interface ChatWidgetProps {
   baseUrl?: string;
   onReady?: () => void;
   onMessage?: (message: ChatMessage) => void;
-  onError?: (error: AomiChatError) => void;
+  onError?: (error: WidgetError | Error) => void;
 }
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
@@ -51,7 +51,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     } catch (error) {
       console.error('Failed to create Aomi chat widget:', error);
       if (onError) {
-        onError(error as AomiChatError);
+        onError(error as WidgetError);
       }
     }
   }, [appCode, width, height, baseUrl, onReady, onMessage, onError]);
@@ -83,7 +83,7 @@ const App: React.FC = () => {
     console.log('New message:', message);
   };
 
-  const handleError = (error: AomiChatError) => {
+  const handleError = (error: WidgetError | Error) => {
     console.error('Widget error:', error);
   };
 

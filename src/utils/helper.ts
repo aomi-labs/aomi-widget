@@ -2,7 +2,6 @@ import {
   type ChatMessage,
   type ToolStreamUpdate,
 } from '../types/interfaces';
-import { createTransactionError } from '../types/errors';
 import { isEthereumAddress } from './base';
 
 export type ToolStreamPayload =
@@ -114,19 +113,19 @@ export function areToolStreamsEqual(
 
 export function validateTransactionPayload(transaction: TransactionRequest): void {
   if (!isEthereumAddress(transaction.to)) {
-    throw createTransactionError('Invalid recipient address');
+    throw new Error('Invalid recipient address');
   }
 
   if (!isHex(transaction.value)) {
-    throw createTransactionError('Invalid transaction value');
+    throw new Error('Invalid transaction value');
   }
 
   if (transaction.data && !isHex(transaction.data)) {
-    throw createTransactionError('Invalid transaction data');
+    throw new Error('Invalid transaction data');
   }
 
   if (transaction.gas && !isHex(transaction.gas)) {
-    throw createTransactionError('Invalid gas value');
+    throw new Error('Invalid gas value');
   }
 }
 

@@ -1,4 +1,4 @@
-import type { AomiChatError } from './errors';
+import type { WidgetError } from './errors';
 
 /*
  * ============================================================================
@@ -55,6 +55,7 @@ export interface WalletTransaction {
  * ============================================================================
  */
 
+// 删
 export enum InteractionMode {
   CHAT = 'chat',
   ONCHAIN = 'onchain',
@@ -83,23 +84,27 @@ export interface AomiWidgetFonts {
   monospace: string;
 }
 
+// 删
 export interface AomiWidgetImages {
   emptyState?: string | null;
   avatarAssistant?: string | null;
 }
 
+// 删
 export interface AomiWidgetSounds {
   message?: string | null;
   notification?: string | null;
   transaction?: string | null;
 }
 
+// 删
 export interface AomiChatContentConfig {
   welcomeTitle?: string;
   assistantName?: string;
   emptyStateMessage?: string;
 }
 
+// 删
 export interface AomiChatContentResolved {
   welcomeTitle: string;
   assistantName: string;
@@ -207,16 +212,16 @@ export interface AomiChatEventListeners {
   onReady?: () => void;
   onMessage?: (_message: ChatMessage) => void;
   onTransactionRequest?: (_transaction: WalletTransaction) => void;
-  onError?: (_error: AomiChatError) => void;
+  onError?: (_error: WidgetError) => void;
   onSessionStart?: (_sessionId: string) => void;
   onSessionEnd?: (_sessionId: string) => void;
   onNetworkChange?: (_chainId: SupportedChainId) => void;
   onWalletConnect?: (_address: string) => void;
   onWalletDisconnect?: () => void;
-  onTypingChange?: (_isTyping: boolean) => void;
-  onProcessingChange?: (_isProcessing: boolean) => void;
-  onConnectionChange?: (_status: ConnectionStatus) => void;
-  onResize?: (_dimensions: { width: number; height: number }) => void;
+  onTypingChange?: (_isTyping: boolean) => void; // 删
+  onProcessingChange?: (_isProcessing: boolean) => void; // 删
+  onConnectionChange?: (_status: ConnectionStatus) => void;  // 删
+  onResize?: (_dimensions: { width: number; height: number }) => void; // 删
 }
 
 /*

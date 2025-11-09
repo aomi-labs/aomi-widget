@@ -22,11 +22,7 @@ import type {
   EthereumProvider,
   SupportedChainId,
 } from '../types/interfaces';
-import {
-  type AomiChatError,
-  createWalletError,
-  createTransactionError,
-} from '../types/errors';
+import { createWidgetError } from '../types/errors';
 import { SUPPORTED_CHAINS, ERROR_CODES } from '../types/constants';
 import { isEthereumAddress, isTransactionHash } from '../utils/base';
 import {
@@ -46,7 +42,7 @@ interface WalletManagerEvents {
   disconnect: () => void;
   chainChange: (_chainId: SupportedChainId) => void;
   accountsChange: (_accounts: string[]) => void;
-  error: (_error: AomiChatError) => void;
+  error: (_error: Error) => void;
 }
 
 /*
@@ -113,7 +109,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     try {
       const connector = this.selectConnector();
       if (!connector) {
-        throw createWalletError(
+        throw createWidgetError(
           ERROR_CODES.PROVIDER_ERROR,
           'No wallet connectors are available',
         );
@@ -123,7 +119,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
       const account = result.accounts[0];
 
       if (!account || !isEthereumAddress(account)) {
-        throw createWalletError(
+        throw createWidgetError(
           ERROR_CODES.WALLET_CONNECTION_FAILED,
           'No accounts returned from wallet',
         );
@@ -134,7 +130,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     } catch (error: any) {
       if (this.isUserRejectedRequestError(error)) {
         const rejectionMessage = error?.message || 'User rejected wallet connection';
-        const rejectionError = createWalletError(
+        const rejectionError = createWidgetError(
           ERROR_CODES.PERMISSION_DENIED,
           rejectionMessage,
         );
@@ -143,8 +139,8 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
       }
 
       const walletError = error instanceof Error
-        ? createWalletError(ERROR_CODES.WALLET_CONNECTION_FAILED, error.message)
-        : createWalletError(ERROR_CODES.WALLET_CONNECTION_FAILED, 'Unknown error');
+        ? createWidgetError(ERROR_CODES.WALLET_CONNECTION_FAILED, error.message)
+        : createWidgetError(ERROR_CODES.WALLET_CONNECTION_FAILED, 'Unknown error');
 
       this.emit('error', walletError);
       throw walletError;
@@ -171,7 +167,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     try {
       await wagmiSwitchChain(this.wagmiConfig, { chainId });
     } catch (error: any) {
-      throw createWalletError(
+      throw createWidgetError(
         ERROR_CODES.UNSUPPORTED_NETWORK,
         error?.message
           ? `Failed to switch to network ${chainId}: ${error.message}`
@@ -185,7 +181,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
    */
   public async sendTransaction(transaction: TransactionRequest): Promise<string> {
     if (!this.isConnected || !this.currentAccount) {
-      throw createWalletError(
+      throw createWidgetError(
         ERROR_CODES.WALLET_NOT_CONNECTED,
         'Wallet is not connected',
       );
@@ -204,7 +200,10 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
       });
 
       if (!isTransactionHash(txHash)) {
-        throw createTransactionError('Invalid transaction hash returned');
+        throw createWidgetError(
+          ERROR_CODES.TRANSACTION_FAILED,
+          'Invalid transaction hash returned',
+        );
       }
 
       return txHash;
@@ -212,14 +211,14 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     } catch (error: any) {
       // Handle user rejection
       if (error.code === 4001) {
-        throw createWalletError(
+        throw createWidgetError(
           ERROR_CODES.TRANSACTION_REJECTED,
           'Transaction was rejected by user',
         );
       }
 
       const message = error.message || 'Transaction failed';
-      throw createTransactionError(message);
+      throw createWidgetError(ERROR_CODES.TRANSACTION_FAILED, message);
     }
   }
 
@@ -228,7 +227,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
    */
   public async signMessage(message: string): Promise<string> {
     if (!this.isConnected || !this.currentAccount) {
-      throw createWalletError(
+      throw createWidgetError(
         ERROR_CODES.WALLET_NOT_CONNECTED,
         'Wallet is not connected',
       );
@@ -242,13 +241,13 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
 
     } catch (error: any) {
       if (error.code === 4001) {
-        throw createWalletError(
+        throw createWidgetError(
           ERROR_CODES.TRANSACTION_REJECTED,
           'Message signing was rejected by user',
         );
       }
 
-      throw createWalletError(
+      throw createWidgetError(
         ERROR_CODES.UNKNOWN_ERROR,
         `Failed to sign message: ${error?.message || 'Unknown error'}`,
       );
@@ -262,7 +261,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
     const accountAddress = address || this.currentAccount;
 
     if (!accountAddress) {
-      throw createWalletError(
+      throw createWidgetError(
         ERROR_CODES.WALLET_NOT_CONNECTED,
         'No account available',
       );
@@ -277,7 +276,7 @@ export class WalletManager extends EventEmitter<WalletManagerEvents> {
       return this.bigIntToHex(result.value);
 
     } catch (error: any) {
-      throw createWalletError(
+      throw createWidgetError(
         ERROR_CODES.UNKNOWN_ERROR,
         `Failed to get balance: ${error?.message || 'Unknown error'}`,
       );
