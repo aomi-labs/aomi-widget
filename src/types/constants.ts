@@ -4,7 +4,7 @@ import {
   SurfaceMode,
   type AomiWidgetThemeDefinition,
   type SupportedChainId,
-} from './interfaces';
+} from './interface';
 
 /*
  * ============================================================================

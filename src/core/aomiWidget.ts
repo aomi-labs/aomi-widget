@@ -12,8 +12,8 @@ import {
   type ChatMessage,
   type WalletTransaction,
   type ResolvedParams,
-} from '../types/interfaces';
-import { createWidgetError } from '../types/interfaces';
+} from '../types/interface';
+import { createWidgetError } from '../types/interface';
 import {
   ERROR_CODES,
   CSS_CLASSES,
@@ -26,12 +26,12 @@ import {
   createElement,
   isBrowser,
   truncateAddress,
-} from '../utils/base';
+} from '../utils/helper';
 import { renderMarkdown } from '../utils/markdown';
 import { resolveWidgetParams } from '../utils/widgetParams';
 import { ChatManager } from './ChatManager';
-import { WalletManager } from './WalletManager';
-import { WidgetSurface } from './WidgetSurface';
+import { WalletManager } from './walletManager';
+import { WidgetSurface } from './widgetSurface';
 
 type MessageBubblePayload = {
   type: ChatMessage['type'];
@@ -233,13 +233,6 @@ class DefaultAomiWidget implements AomiWidgetHandler {
     try {
       // Connect to backend
       await this.chatManager.connectSSE();
-
-      // Send welcome message if configured
-      if (this.resolvedParams.welcomeMessage) {
-        await this.chatManager.sendSystemMessage(
-          this.resolvedParams.welcomeMessage,
-        );
-      }
 
       this.eventEmitter.emit(WIDGET_EVENTS.READY);
     } catch (error) {

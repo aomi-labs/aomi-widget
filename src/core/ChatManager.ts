@@ -10,10 +10,10 @@ import {
   type ChatState,
   type WalletTransaction,
   type ChatManagerConfig,
-} from '../types/interfaces';
-import { createWidgetError } from '../types/interfaces';
+} from '../types/interface';
+import { createWidgetError } from '../types/interface';
 import { API_ENDPOINTS, ERROR_CODES, TIMING } from '../types/constants';
-import { generateSessionId, withTimeout } from '../utils/base';
+import { generateSessionId, withTimeout } from '../utils/helper';
 import {
   type BackendMessagePayload,
   type BackendStatePayload,

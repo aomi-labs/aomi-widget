@@ -11,7 +11,7 @@ import {
   type AomiWidgetThemeConfig,
   type AomiWidgetThemeDefinition,
   type ResolvedParams,
-} from '../types/interfaces';
+} from '../types/interface';
 
 export function resolveWidgetParams(
   params: OptionalParam,
@@ -32,7 +32,6 @@ export function resolveWidgetParams(
     baseUrl: params.baseUrl,
     sessionId: params.sessionId,
     renderSurface: params.surfaceMode ?? DEFAULT_RENDER_SURFACE,
-    welcomeMessage: params.welcomeMessage,
     placeholder: params.placeholder,
     chainId,
     supportedChains: params.supportedChains,

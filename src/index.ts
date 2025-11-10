@@ -1,6 +1,6 @@
 // Main entry point for the Aomi Chat Widget Library
 
-import { createAomiWidget } from './core/AomiChatWidget';
+import { createAomiWidget } from './core/aomiWidget';
 import {
   SUPPORTED_CHAINS,
   ERROR_CODES,
@@ -12,7 +12,7 @@ export { createAomiWidget };
 
 // Core managers
 export { ChatManager } from './core/ChatManager';
-export { WalletManager, createWalletManager, isValidProvider, detectWallets } from './core/WalletManager';
+export { WalletManager, createWalletManager, isValidProvider, detectWallets } from './core/walletManager';
 
 // Types
 export type {
@@ -35,13 +35,13 @@ export type {
   EthereumProvider,
   JsonRpcRequest,
   ConnectionStatus,
-} from './types/interfaces';
+} from './types/interface';
 
 // Error classes
 export {
   type WidgetError,
   createWidgetError,
-} from './types/interfaces';
+} from './types/interface';
 
 // Constants
 export {
@@ -96,7 +96,7 @@ export {
 
   // Formatting utilities
   truncateAddress,
-} from './utils/base';
+} from './utils/helper';
 export { resolveWidgetParams } from './utils/widgetParams';
 export {
   AomiChatWidget as ReactAomiWidget,
@@ -112,8 +112,8 @@ import type {
   ChatMessage,
   AomiWidgetHandler,
   WidgetConfig,
-} from './types/interfaces';
-import type { WidgetError } from './types/interfaces';
+} from './types/interface';
+import type { WidgetError } from './types/interface';
 
 // Simple convenience function for basic usage
 export function createChatWidget(

@@ -101,7 +101,6 @@ export interface OptionalParam {
   surfaceMode?: SurfaceMode;
 
   // UI Customization
-  welcomeMessage?: string;
   placeholder?: string;
   title?: string;
   emptyStateMessage?: string;
@@ -122,7 +121,6 @@ export interface ResolvedParams {
   baseUrl?: string;
   sessionId?: string;
   renderSurface: SurfaceMode;
-  welcomeMessage?: string;
   placeholder?: string;
   chainId?: SupportedChainId;
   supportedChains?: SupportedChainId[];

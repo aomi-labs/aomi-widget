@@ -1,8 +1,8 @@
 import {
   type ChatMessage,
   type ToolStreamUpdate,
-} from '../types/interfaces';
-import { isEthereumAddress } from './base';
+  type OptionalParam,
+} from '../types/interface';
 
 export type ToolStreamPayload =
   | [unknown, unknown]
@@ -129,4 +129,173 @@ export function validateTransactionPayload(transaction: TransactionRequest): voi
 
 function isHex(value: string): boolean {
   return /^0x[0-9a-fA-F]*$/.test(value);
+}
+
+/*
+ * ============================================================================
+ * VALIDATION UTILITIES
+ * ============================================================================
+ */
+
+/**
+ * Validates widget configuration parameters
+ */
+export function validateWidgetParams(params: OptionalParam): string[] {
+  if (!params.appCode || typeof params.appCode !== 'string') {
+    return ['appCode is required and must be a string'];
+  }
+  return [];
+}
+
+/*
+ * ============================================================================
+ * SESSION UTILITIES
+ * ============================================================================
+ */
+
+/**
+ * Generates a unique session ID
+ */
+export function generateSessionId(): string {
+  // Use crypto.randomUUID if available (modern browsers)
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  // Fallback UUID v4 implementation
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/*
+ * ============================================================================
+ * DOM UTILITIES
+ * ============================================================================
+ */
+
+/**
+ * Creates a DOM element with classes and attributes
+ */
+export function createElement<K extends keyof HTMLElementTagNameMap>(
+  tagName: K,
+  options: {
+    className?: string | string[];
+    attributes?: Record<string, string>;
+    styles?: Partial<CSSStyleDeclaration>;
+    children?: (HTMLElement | string)[];
+  } = {},
+  doc?: Document,
+): HTMLElementTagNameMap[K] {
+  const targetDocument = doc ?? (typeof document !== 'undefined' ? document : null);
+  if (!targetDocument) {
+    throw new Error('No document available for DOM operations');
+  }
+
+  const element = targetDocument.createElement(tagName);
+
+  // Set classes
+  if (options.className) {
+    if (Array.isArray(options.className)) {
+      element.classList.add(...options.className);
+    } else {
+      element.className = options.className;
+    }
+  }
+
+  // Set attributes
+  if (options.attributes) {
+    Object.entries(options.attributes).forEach(([key, value]) => {
+      element.setAttribute(key, value);
+    });
+  }
+
+  // Set styles
+  if (options.styles) {
+    Object.assign(element.style, options.styles);
+  }
+
+  // Add children
+  if (options.children) {
+    options.children.forEach(child => {
+      if (typeof child === 'string') {
+        element.appendChild(targetDocument.createTextNode(child));
+      } else {
+        element.appendChild(child);
+      }
+    });
+  }
+
+  return element;
+}
+
+/*
+ * ============================================================================
+ * TYPE GUARDS
+ * ============================================================================
+ */
+
+/**
+ * Type guard to check if a value is a valid Ethereum address
+ */
+export function isEthereumAddress(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+/**
+ * Type guard to check if a value is a valid transaction hash
+ */
+export function isTransactionHash(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
+/*
+ * ============================================================================
+ * ASYNC UTILITIES
+ * ============================================================================
+ */
+
+/**
+ * Creates a promise that rejects after a timeout
+ */
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Operation timed out')), timeoutMs)),
+  ]);
+}
+
+/*
+ * ============================================================================
+ * ENVIRONMENT UTILITIES
+ * ============================================================================
+ */
+
+/**
+ * Detects if running in a browser environment
+ */
+export function isBrowser(): boolean {
+  return typeof window !== 'undefined' && typeof document !== 'undefined';
+}
+
+/*
+ * ============================================================================
+ * FORMATTING UTILITIES
+ * ============================================================================
+ */
+
+/**
+ * Truncates an Ethereum address for display
+ */
+export function truncateAddress(address: string, startChars = 6, endChars = 4): string {
+  if (!isEthereumAddress(address)) return address;
+
+  if (address.length <= startChars + endChars) return address;
+
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
 }

@@ -6,8 +6,8 @@ import type {
   AomiWidgetHandler,
   OptionalParam,
   EthereumProvider,
-} from '../types/interfaces';
-import { createAomiWidget } from '../core/AomiChatWidget';
+} from '../types/interface';
+import { createAomiWidget } from '../core/aomiWidget';
 
 export interface ReactAomiChatWidgetProps {
   params: OptionalParam;

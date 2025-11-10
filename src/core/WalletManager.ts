@@ -21,11 +21,12 @@ import {
 import type {
   EthereumProvider,
   SupportedChainId,
-} from '../types/interfaces';
-import { createWidgetError } from '../types/interfaces';
+} from '../types/interface';
+import { createWidgetError } from '../types/interface';
 import { SUPPORTED_CHAINS, ERROR_CODES } from '../types/constants';
-import { isEthereumAddress, isTransactionHash } from '../utils/base';
 import {
+  isEthereumAddress,
+  isTransactionHash,
   type TransactionRequest,
   validateTransactionPayload,
 } from '../utils/helper';
