@@ -24,8 +24,6 @@ export interface BackendMessagePayload {
 
 export interface BackendStatePayload {
   messages?: BackendMessagePayload[] | null;
-  isTyping?: boolean;
-  is_typing?: boolean;
   isProcessing?: boolean;
   is_processing?: boolean;
   pending_wallet_tx?: string | null;

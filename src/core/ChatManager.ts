@@ -9,7 +9,6 @@ import {
   type ChatMessage,
   type ChatState,
   type WalletTransaction,
-  type WalletState,
   type ChatManagerConfig,
 } from '../types/interfaces';
 import { createWidgetError } from '../types/interfaces';
@@ -66,12 +65,8 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
 
     this.state = {
       messages: [],
-      isTyping: false,
       isProcessing: false,
       connectionStatus: ConnectionStatus.DISCONNECTED,
-      walletState: {
-        isConnected: false,
-      },
       sessionId: this.config.sessionId,
     };
   }
@@ -279,14 +274,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
   }
 
   /**
-   * Updates wallet state
-   */
-  public updateWalletState(walletState: Partial<WalletState>): void {
-    this.state.walletState = { ...this.state.walletState, ...walletState };
-    this.emitStateChange();
-  }
-
-  /**
    * Destroys the chat manager
    */
   public destroy(): void {
@@ -316,11 +303,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
       this.state.messages = converted;
       stateChanged = true;
 
-      if (!this.state.isTyping && converted.some(message => message.metadata?.streaming)) {
-        this.state.isTyping = true;
-        stateChanged = true;
-      }
-
       converted.forEach((message, index) => {
         const previous = previousMessages[index];
         const isNewMessage = !previous || previous.id !== message.id;
@@ -331,12 +313,6 @@ export class ChatManager extends EventEmitter<ChatManagerEvents> {
           this.emit('message', message);
         }
       });
-    }
-
-    const typingFlag = resolveBackendBoolean(payload.isTyping ?? payload.is_typing);
-    if (typingFlag !== null && typingFlag !== this.state.isTyping) {
-      this.state.isTyping = typingFlag;
-      stateChanged = true;
     }
 
     const processingFlag = resolveBackendBoolean(payload.isProcessing ?? payload.is_processing);

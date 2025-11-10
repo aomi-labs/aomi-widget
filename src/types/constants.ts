@@ -115,7 +115,6 @@ export const WIDGET_EVENTS = {
 
   // Chat events
   MESSAGE: 'message',
-  TYPING_CHANGE: 'typingChange',
   PROCESSING_CHANGE: 'processingChange',
 
   // Connection events
@@ -162,7 +161,6 @@ export const CSS_CLASSES = {
   INPUT_FIELD: 'aomi-chat-input-field',
   SEND_BUTTON: 'aomi-chat-send-button',
   WALLET_STATUS: 'aomi-wallet-status',
-  TYPING_INDICATOR: 'aomi-typing-indicator',
 
   // State classes
   LOADING: 'aomi-loading',
@@ -195,7 +193,6 @@ export const API_ENDPOINTS = {
  */
 
 export const TIMING = {
-  TYPING_INDICATOR_DELAY: 100,
   MESSAGE_ANIMATION_DURATION: 300,
   CONNECTION_TIMEOUT: 10000,
   RETRY_DELAY: 1000,

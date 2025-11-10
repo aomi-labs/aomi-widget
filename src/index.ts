@@ -26,7 +26,6 @@ export type {
   ChatMessage,
   ChatState,
   WalletTransaction,
-  WalletState,
   ToolStreamUpdate,
 
   // Configuration types

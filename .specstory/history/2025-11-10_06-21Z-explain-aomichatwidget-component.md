@@ -1075,3 +1075,813 @@ The examples show different patterns: wrapper components, buttons, layout contai
 
 ---
 
+_**User (2025-11-09 22:44Z)**_
+
+explain lass ChatManager extends EventEmitter<ChatManagerEvents>
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Reading `ChatManager.ts` to explain how it extends `EventEmitter`:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/ChatManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "ChatManagerEvents|interface.*ChatManagerEvents|type.*ChatManagerEvents" in "/Users/ceciliazhang/Code/aomi-widget/src" • 2 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/ChatManager.ts` | `interface ChatManagerEvents \{` | L31 |
+| `src/core/ChatManager.ts` | `export class ChatManager extends EventEmitter<ChatManagerEvents> \{` | L45 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking the EventEmitter type definition:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/node_modules/eventemitter3/index.d.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+## Explanation: `class ChatManager extends EventEmitter<ChatManagerEvents>`
+
+### 1. **What is `EventEmitter`?**
+
+`EventEmitter` is a class from the `eventemitter3` library that provides an event-driven pattern. It lets objects emit events and allows other code to listen for those events.
+
+### 2. **The Type Parameter: `ChatManagerEvents`**
+
+```31:37:src/core/ChatManager.ts
+interface ChatManagerEvents {
+  stateChange: (_state: ChatState) => void;
+  message: (_message: ChatMessage) => void;
+  error: (_error: Error) => void;
+  connectionChange: (_status: ConnectionStatus) => void;
+  transactionRequest: (_transaction: WalletTransaction) => void;
+}
+```
+
+This interface defines:
+- Event names: `stateChange`, `message`, `error`, `connectionChange`, `transactionRequest`
+- Event handler signatures: each property is a function type that describes what data is passed when that event fires
+
+### 3. **How Inheritance Works**
+
+```45:45:src/core/ChatManager.ts
+export class ChatManager extends EventEmitter<ChatManagerEvents> {
+```
+
+This means:
+- `ChatManager` inherits all methods from `EventEmitter`
+- TypeScript enforces that events match `ChatManagerEvents`
+- You get type-safe event handling
+
+### 4. **What Methods Does ChatManager Get?**
+
+From `EventEmitter`, `ChatManager` automatically has:
+
+- `emit(event, ...args)` - Emit events
+- `on(event, listener)` - Listen to events
+- `off(event, listener)` - Remove listeners
+- `once(event, listener)` - Listen once
+- `removeAllListeners()` - Remove all listeners
+
+### 5. **How It's Used in ChatManager**
+
+#### **Emitting Events:**
+
+```313:313:src/core/ChatManager.ts
+          this.emit('message', message);
+```
+
+```354:354:src/core/ChatManager.ts
+      this.emit('connectionChange', status);
+```
+
+```339:339:src/core/ChatManager.ts
+          this.emit('transactionRequest', parsed);
+```
+
+```360:360:src/core/ChatManager.ts
+    this.emit('stateChange', this.getState());
+```
+
+#### **Listening to Events (in AomiChatWidget):**
+
+```306:308:src/core/AomiChatWidget.ts
+    this.chatManager.on('stateChange', (state) => {
+      // Forward state changes to widget listeners
+      this.forwardStateEvents(state);
+    });
+```
+
+```311:313:src/core/AomiChatWidget.ts
+    this.chatManager.on('message', (message) => {
+      this.eventEmitter.emit(WIDGET_EVENTS.MESSAGE, message);
+    });
+```
+
+### 6. **Type Safety Benefits**
+
+Because of the generic type parameter, TypeScript ensures:
+
+✅ **Correct event names:**
+```typescript
+// ✅ Valid
+chatManager.on('stateChange', (state) => { ... });
+chatManager.emit('message', message);
+
+// ❌ TypeScript error - 'invalidEvent' doesn't exist
+chatManager.on('invalidEvent', () => { ... });
+```
+
+✅ **Correct event data:**
+```typescript
+// ✅ Valid - stateChange expects ChatState
+chatManager.on('stateChange', (state: ChatState) => { ... });
+
+// ❌ TypeScript error - wrong parameter type
+chatManager.emit('stateChange', 'wrong type');
+```
+
+### 7. **Complete Example Flow**
+
+```typescript
+// 1. Create ChatManager instance
+const chatManager = new ChatManager(config);
+
+// 2. Listen to events (type-safe!)
+chatManager.on('stateChange', (state: ChatState) => {
+  console.log('State changed:', state);
+});
+
+chatManager.on('message', (message: ChatMessage) => {
+  console.log('New message:', message);
+});
+
+// 3. ChatManager emits events internally
+// When state changes:
+this.emit('stateChange', this.getState()); // ✅ Type-safe!
+
+// When new message arrives:
+this.emit('message', newMessage); // ✅ Type-safe!
+```
+
+### 8. **Why Use This Pattern?**
+
+1. Decoupling: `ChatManager` doesn't need to know who's listening
+2. Multiple listeners: Many parts can listen to the same events
+3. Type safety: TypeScript catches errors at compile time
+4. Standard pattern: Common in Node.js and event-driven architectures
+
+### 9. **Constructor Note**
+
+```54:55:src/core/ChatManager.ts
+  constructor(config: Partial<ChatManagerConfig> = {}) {
+    super();
+```
+
+The `super()` call initializes the `EventEmitter` parent class, enabling event functionality.
+
+**Summary**: `ChatManager extends EventEmitter<ChatManagerEvents>` gives `ChatManager` event capabilities with TypeScript type safety, ensuring only valid events with correct data types can be emitted and listened to.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+@AomiChatWidget.ts (71) what about his line?
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Examining how `AomiChatWidget` uses `EventEmitter`:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "eventEmitter\.(emit|on|off)" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 17 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.on(eventName, listener as any);` | L193 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.off(eventName, listener as any);` | L202 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.SESSION_END, this.activeSessionId);` | L245 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.DESTROY);` | L249 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.READY);` | L271 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.ERROR, widgetError);` | L278 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.MESSAGE, message);` | L290 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.ERROR, error);` | L294 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.CONNECTION_CHANGE, status);` | L300 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.TRANSACTION_REQUEST, transaction);` | L304 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.WALLET_CONNECT, address);` | L318 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.WALLET_DISCONNECT);` | L328 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.NETWORK_CHANGE, chainId);` | L336 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.ERROR, error);` | L346 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.on(event, handler as () => void);` | L779 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.SESSION_END, this.activeSessionId);` | L876 |
+| `src/core/AomiChatWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.SESSION_START, state.sessionId);` | L879 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "AomiChatEventListeners|interface.*AomiChatEventListeners|type.*AomiChatEventListeners" in "/Users/ceciliazhang/Code/aomi-widget/src/types" • 6 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/interfaces.ts` | `export interface AomiChatEventListeners \{` | L160 |
+| `src/types/interfaces.ts` | `on: <K extends keyof AomiChatEventListeners>(` | L191 |
+| `src/types/interfaces.ts` | `listener: NonNullable<AomiChatEventListeners[K]>` | L193 |
+| `src/types/interfaces.ts` | `off: <K extends keyof AomiChatEventListeners>(` | L195 |
+| `src/types/interfaces.ts` | `listener: NonNullable<AomiChatEventListeners[K]>` | L197 |
+| `src/types/interfaces.ts` | `listeners?: AomiChatEventListeners;` | L235 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/types/interfaces.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "WIDGET_EVENTS|export.*WIDGET_EVENTS" in "/Users/ceciliazhang/Code/aomi-widget/src/types/constants.ts" • 1 match</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/constants.ts` | `export const WIDGET_EVENTS = \{` | L110 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/types/constants.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "getEventNameForListener" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 3 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `const eventName = this.getEventNameForListener(event);` | L192 |
+| `src/core/AomiChatWidget.ts` | `const eventName = this.getEventNameForListener(event);` | L201 |
+| `src/core/AomiChatWidget.ts` | `private getEventNameForListener(event: keyof AomiChatEventListeners): string \{` | L784 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+
+
+---
+
+
+## Explanation: `this.eventEmitter = new EventEmitter();`
+
+### **Key Difference: Composition vs Inheritance**
+
+**ChatManager** (extends EventEmitter):
+```typescript
+class ChatManager extends EventEmitter<ChatManagerEvents> {
+  // ChatManager IS an EventEmitter
+}
+```
+
+**AomiChatWidget** (has EventEmitter):
+```60:71:src/core/AomiChatWidget.ts
+  private eventEmitter: EventEmitter;
+  private lastState: ChatState | null = null;
+  private isSending = false;
+  private hasAnnouncedConnection = false;
+  private activeSessionId: string | null = null;
+  private surface!: WidgetSurface;
+  private viewDocument!: Document;
+  private mountRoot!: HTMLElement;
+  private resolvedParams!: ResolvedAomiChatWidgetParams;
+
+  constructor(container: HTMLElement, config: WidgetConfig) {
+    this.eventEmitter = new EventEmitter();
+```
+
+`AomiChatWidget` uses composition: it has an `EventEmitter` as a property instead of extending it.
+
+### **Why This Approach?**
+
+1. `AomiChatWidget` implements `AomiChatWidgetHandler`:
+```49:49:src/core/AomiChatWidget.ts
+class DefaultAomiWidget implements AomiChatWidgetHandler {
+```
+   - It can't extend `EventEmitter` if it needs to implement an interface
+   - Composition avoids conflicts with the interface
+
+2. Event forwarding/proxy pattern:
+```282:300:src/core/AomiChatWidget.ts
+  private setupEventListeners(): void {
+    // Chat manager events
+    this.chatManager.on('stateChange', (state) => {
+      // Forward state changes to widget listeners
+      this.forwardStateEvents(state);
+    });
+
+    this.chatManager.on('message', (message) => {
+      this.eventEmitter.emit(WIDGET_EVENTS.MESSAGE, message);
+    });
+
+    this.chatManager.on('error', (error) => {
+      this.eventEmitter.emit(WIDGET_EVENTS.ERROR, error);
+      this.pushSystemNotification(error.message);
+    });
+
+    this.chatManager.on('connectionChange', (status) => {
+      this.handleConnectionStatusChange(status);
+      this.eventEmitter.emit(WIDGET_EVENTS.CONNECTION_CHANGE, status);
+    });
+```
+   - Listens to `ChatManager` and `WalletManager` events
+   - Forwards/transforms them through its own `eventEmitter`
+   - Acts as an event aggregator
+
+3. Custom event API:
+```188:204:src/core/AomiChatWidget.ts
+  public on<K extends keyof AomiChatEventListeners>(
+    event: K,
+    listener: NonNullable<AomiChatEventListeners[K]>,
+  ): AomiChatWidgetHandler {
+    const eventName = this.getEventNameForListener(event);
+    this.eventEmitter.on(eventName, listener as any);
+    return this;
+  }
+
+  public off<K extends keyof AomiChatEventListeners>(
+    event: K,
+    listener: NonNullable<AomiChatEventListeners[K]>,
+  ): AomiChatWidgetHandler {
+    const eventName = this.getEventNameForListener(event);
+    this.eventEmitter.off(eventName, listener as any);
+    return this;
+  }
+```
+   - Provides its own `on()`/`off()` methods
+   - Maps listener names (e.g., `onReady`) to internal event names (e.g., `'ready'`)
+   - Uses `getEventNameForListener()` for the mapping
+
+### **How It Works**
+
+1. Initialization:
+```71:71:src/core/AomiChatWidget.ts
+    this.eventEmitter = new EventEmitter();
+```
+   - Creates an untyped `EventEmitter` instance
+   - Used internally for event forwarding
+
+2. Event emission:
+```271:271:src/core/AomiChatWidget.ts
+      this.eventEmitter.emit(WIDGET_EVENTS.READY);
+```
+```290:290:src/core/AomiChatWidget.ts
+      this.eventEmitter.emit(WIDGET_EVENTS.MESSAGE, message);
+```
+
+3. Event listening (public API):
+```typescript
+widget.on('onReady', () => {
+  console.log('Widget is ready!');
+});
+```
+   - Maps `'onReady'` → `WIDGET_EVENTS.READY` → emits `'ready'`
+
+### **Event Flow Diagram**
+
+```
+ChatManager emits 'message'
+    ↓
+AomiChatWidget listens (setupEventListeners)
+    ↓
+AomiChatWidget.eventEmitter.emit('message')
+    ↓
+External code listens via widget.on('onMessage', ...)
+```
+
+### **Why Not Use Typed EventEmitter?**
+
+The internal `eventEmitter` is untyped because:
+- Events come from multiple sources (`ChatManager`, `WalletManager`)
+- The public API (`on()`/`off()`) provides type safety via `AomiChatEventListeners`
+- Internal forwarding doesn't need strict typing
+
+### **Summary**
+
+- `ChatManager extends EventEmitter<ChatManagerEvents>` → IS an EventEmitter
+- `AomiChatWidget` has `this.eventEmitter = new EventEmitter()` → HAS an EventEmitter
+
+This allows `AomiChatWidget` to:
+- Implement `AomiChatWidgetHandler`
+- Aggregate events from multiple managers
+- Provide a custom, type-safe public API
+- Forward/transform events internally
+
+The untyped internal `EventEmitter` is fine because the public API (`on()`/`off()`) enforces types through `AomiChatEventListeners`.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+also chatManager.on('stateChange', ...) with interface ChatManagerEvents {
+
+  stateChange: (_state: ChatState) => void; ...} which means typescript identify this field by string?
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Explaining how TypeScript matches the string `'stateChange'` to the interface property:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/ChatManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Explaining how TypeScript matches the string `'stateChange'` to the interface property:
+
+## How TypeScript Matches String Literals to Interface Keys
+
+### 1. **The Interface as a Type Map**
+
+```31:37:src/core/ChatManager.ts
+interface ChatManagerEvents {
+  stateChange: (_state: ChatState) => void;
+  message: (_message: ChatMessage) => void;
+  error: (_error: Error) => void;
+  connectionChange: (_status: ConnectionStatus) => void;
+  transactionRequest: (_transaction: WalletTransaction) => void;
+}
+```
+
+This interface maps:
+- Keys (property names) → Event names (strings)
+- Values (function types) → Event handler signatures
+
+### 2. **How EventEmitter Uses the Generic Type**
+
+When you write:
+```typescript
+class ChatManager extends EventEmitter<ChatManagerEvents>
+```
+
+TypeScript extracts the keys from `ChatManagerEvents` using `keyof`:
+
+```typescript
+// TypeScript internally does something like:
+type EventNames = keyof ChatManagerEvents;
+// Result: 'stateChange' | 'message' | 'error' | 'connectionChange' | 'transactionRequest'
+```
+
+### 3. **The `on()` Method Signature**
+
+Looking at EventEmitter's type definition:
+
+```40:44:node_modules/eventemitter3/index.d.ts
+  on<T extends EventEmitter.EventNames<EventTypes>>(
+    event: T,
+    fn: EventEmitter.EventListener<EventTypes, T>,
+    context?: Context
+  ): this;
+```
+
+Where `EventNames` extracts keys:
+
+```105:107:node_modules/eventemitter3/index.d.ts
+  export type EventNames<T extends ValidEventTypes> = T extends string | symbol
+    ? T
+    : keyof T;
+```
+
+So when `T = ChatManagerEvents` (an object), `EventNames<T>` becomes `keyof ChatManagerEvents`, which is:
+```typescript
+'stateChange' | 'message' | 'error' | 'connectionChange' | 'transactionRequest'
+```
+
+### 4. **String Literal Type Matching**
+
+When you write:
+
+```284:287:src/core/AomiChatWidget.ts
+    this.chatManager.on('stateChange', (state) => {
+      // Forward state changes to widget listeners
+      this.forwardStateEvents(state);
+    });
+```
+
+TypeScript:
+1. Sees `'stateChange'` as a string literal type (not just `string`)
+2. Checks if `'stateChange'` is assignable to `keyof ChatManagerEvents`
+3. If yes, it narrows the listener type to match that event's signature
+
+### 5. **Type Inference Flow**
+
+```typescript
+// Step 1: You write
+chatManager.on('stateChange', (state) => { ... })
+
+// Step 2: TypeScript infers T = 'stateChange'
+// T extends keyof ChatManagerEvents ✅
+
+// Step 3: TypeScript looks up the listener type
+// EventListener<ChatManagerEvents, 'stateChange'>
+// = ChatManagerEvents['stateChange']
+// = (_state: ChatState) => void
+
+// Step 4: TypeScript infers 'state' parameter type
+// state: ChatState ✅
+```
+
+### 6. **Visual Example**
+
+```typescript
+interface ChatManagerEvents {
+  stateChange: (_state: ChatState) => void;  // ← Key: 'stateChange'
+  message: (_message: ChatMessage) => void;  // ← Key: 'message'
+}
+
+// TypeScript extracts keys:
+type Keys = keyof ChatManagerEvents;
+// = 'stateChange' | 'message'
+
+// When you use 'stateChange':
+chatManager.on('stateChange', ...)
+//              ^^^^^^^^^^^^
+//              TypeScript checks: Is 'stateChange' in Keys? ✅ Yes!
+
+// Then it looks up the value:
+type Handler = ChatManagerEvents['stateChange'];
+// = (_state: ChatState) => void
+
+// So the callback parameter is typed as ChatState:
+chatManager.on('stateChange', (state) => {
+  // state: ChatState ✅
+})
+```
+
+### 7. **Type Safety in Action**
+
+```typescript
+// ✅ Valid - 'stateChange' exists in ChatManagerEvents
+chatManager.on('stateChange', (state: ChatState) => { ... });
+
+// ❌ TypeScript Error - 'invalidEvent' doesn't exist
+chatManager.on('invalidEvent', () => { ... });
+// Error: Argument of type '"invalidEvent"' is not assignable 
+//        to parameter of type 'keyof ChatManagerEvents'
+
+// ✅ Valid - correct parameter type
+chatManager.on('stateChange', (state: ChatState) => { ... });
+
+// ❌ TypeScript Error - wrong parameter type
+chatManager.on('stateChange', (state: string) => { ... });
+// Error: Type '(state: string) => void' is not assignable to 
+//        type '(state: ChatState) => void'
+```
+
+### 8. **How TypeScript "Identifies" by String**
+
+TypeScript uses:
+1. String literal types: `'stateChange'` is a specific string type, not just `string`
+2. `keyof` operator: Extracts all keys from an interface/type
+3. Type narrowing: When you use a literal, TypeScript narrows to that specific key
+4. Indexed access types: `ChatManagerEvents['stateChange']` gets the value type
+
+### 9. **Complete Type Flow**
+
+```typescript
+// 1. Interface definition
+interface ChatManagerEvents {
+  stateChange: (_state: ChatState) => void;
+}
+
+// 2. Generic type parameter
+class ChatManager extends EventEmitter<ChatManagerEvents>
+
+// 3. EventEmitter extracts keys
+type EventNames = keyof ChatManagerEvents  // 'stateChange' | ...
+
+// 4. on() method signature
+on<T extends EventNames>(event: T, fn: ChatManagerEvents[T]): this
+
+// 5. When you call it
+chatManager.on('stateChange', ...)
+//              ^^^^^^^^^^^^
+//              T = 'stateChange' (literal type)
+
+// 6. TypeScript looks up the handler type
+ChatManagerEvents['stateChange']  // (_state: ChatState) => void
+
+// 7. Type checks the callback
+(state) => { ... }  // state inferred as ChatState ✅
+```
+
+### **Summary**
+
+Yes, TypeScript identifies the field by the string literal:
+- The string `'stateChange'` is a literal type, not just `string`
+- `keyof ChatManagerEvents` extracts all property names as a union type
+- TypeScript matches the literal to the union and narrows the handler type accordingly
+- This provides type safety: only valid event names are allowed, and handlers must match the correct signature
+
+This is how TypeScript provides type-safe event handling: the string literal is matched to the interface key at compile time.
+
+---
+

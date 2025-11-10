@@ -143,20 +143,10 @@ export enum ConnectionStatus {
   RECONNECTING = 'reconnecting'
 }
 
-export interface WalletState {
-  isConnected: boolean;
-  address?: string;
-  chainId?: SupportedChainId;
-  networkName?: string;
-  balance?: string;
-}
-
 export interface ChatState {
   messages: ChatMessage[];
-  isTyping: boolean;
   isProcessing: boolean;
   connectionStatus: ConnectionStatus;
-  walletState: WalletState;
   sessionId: string;
   pendingTransaction?: WalletTransaction;
 }

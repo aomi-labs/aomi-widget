@@ -53,8 +53,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private walletManager: WalletManager | null = null;
   private widgetElement: HTMLElement | null = null;
   private messageListElement: HTMLElement | null = null;
-  private typingIndicatorElement: HTMLElement | null = null;
-  private inputFormElement: HTMLFormElement | null = null;
   private messageInputElement: HTMLTextAreaElement | null = null;
   private sendButtonElement: HTMLButtonElement | null = null;
   private walletStatusElement: HTMLButtonElement | null = null;
@@ -63,7 +61,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private lastState: ChatState | null = null;
   private isSending = false;
   private hasAnnouncedConnection = false;
-  private isWalletActionPending = false;
   private activeSessionId: string | null = null;
   private surface!: WidgetSurface;
   private viewDocument!: Document;
@@ -171,6 +168,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         this.walletManager = null;
       }
     }
+
+    this.updateWalletStatus();
   }
 
   public getState(): ChatState {
@@ -316,52 +315,36 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     if (!this.walletManager) return;
 
     this.walletManager.on('connect', (address) => {
-      this.chatManager.updateWalletState({
-        isConnected: true,
-        address,
-        chainId: this.walletManager?.getCurrentChainId() ?? undefined,
-        networkName: this.walletManager?.getCurrentNetworkName() ?? undefined,
-      });
       this.eventEmitter.emit(WIDGET_EVENTS.WALLET_CONNECT, address);
       this.pushSystemNotification(
         `Wallet connected: ${truncateAddress(address)}`,
       );
-      this.updateWalletStatus(this.chatManager.getState());
+      this.updateWalletStatus();
       this.refreshResolvedParams();
       this.render();
     });
 
     this.walletManager.on('disconnect', () => {
-      this.chatManager.updateWalletState({
-        isConnected: false,
-        address: undefined,
-        chainId: undefined,
-        networkName: undefined,
-      });
       this.eventEmitter.emit(WIDGET_EVENTS.WALLET_DISCONNECT);
       this.pushSystemNotification('Wallet disconnected.');
-      this.updateWalletStatus(this.chatManager.getState());
+      this.updateWalletStatus();
       this.refreshResolvedParams();
       this.render();
     });
 
     this.walletManager.on('chainChange', (chainId) => {
-      this.chatManager.updateWalletState({
-        chainId,
-        networkName: this.walletManager?.getCurrentNetworkName() ?? undefined,
-      });
       this.eventEmitter.emit(WIDGET_EVENTS.NETWORK_CHANGE, chainId);
       this.pushSystemNotification(
         `Switched to ${SUPPORTED_CHAINS[chainId] || `chain ${chainId}`}.`,
       );
-      this.updateWalletStatus(this.chatManager.getState());
+      this.updateWalletStatus();
       this.refreshResolvedParams();
       this.render();
     });
 
     this.walletManager.on('error', (error) => {
       this.eventEmitter.emit(WIDGET_EVENTS.ERROR, error);
-      this.updateWalletStatus(this.chatManager.getState());
+      this.updateWalletStatus();
     });
   }
 
@@ -515,7 +498,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     header.appendChild(title);
     header.appendChild(this.walletStatusElement);
 
-    this.updateWalletStatus(this.chatManager.getState());
+    this.updateWalletStatus();
     return header;
   }
 
@@ -587,7 +570,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
     this.sendButtonElement = createElement('button', {
       className: CSS_CLASSES.SEND_BUTTON,
-      attributes: { type: 'submit' },
+      attributes: { type: 'button' },
       styles: {
         border: 'none',
         borderRadius: '12px',
@@ -615,7 +598,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       children: [this.messageInputElement, this.sendButtonElement],
     }, this.viewDocument);
 
-    this.inputFormElement = createElement('form', {
+    const actionBarWrapper = createElement('div', {
       className: CSS_CLASSES.INPUT_FORM,
       styles: {
         padding: '16px 20px 20px',
@@ -623,9 +606,9 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         flexShrink: '0',
       },
       children: [controls],
-    }, this.viewDocument) as HTMLFormElement;
+    }, this.viewDocument);
 
-    return this.inputFormElement;
+    return actionBarWrapper;
   }
 
   private createMessageBubble({
@@ -762,8 +745,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
   private resetDomReferences(): void {
     this.messageListElement = null;
-    this.typingIndicatorElement = null;
-    this.inputFormElement = null;
     this.messageInputElement = null;
     this.sendButtonElement = null;
     this.walletStatusElement = null;
@@ -817,16 +798,11 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   }
 
   private bindActionBarEvents(): void {
-    if (
-      !this.inputFormElement ||
-      !this.messageInputElement ||
-      !this.sendButtonElement
-    ) {
+    if (!this.messageInputElement || !this.sendButtonElement) {
       return;
     }
 
-    this.inputFormElement.addEventListener('submit', (event) => {
-      event.preventDefault();
+    this.sendButtonElement.addEventListener('click', () => {
       void this.handleSendMessage();
     });
 
@@ -920,9 +896,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     }
 
     this.updateMessages(state.messages);
-    this.updateTypingIndicator(state.isTyping || state.isProcessing);
     this.updateInputControls(state);
-    this.updateWalletStatus(state);
+    this.updateWalletStatus();
     this.lastState = state;
   }
 
@@ -969,11 +944,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     this.messageListElement.scrollTop = this.messageListElement.scrollHeight;
   }
 
-  private updateTypingIndicator(isTyping: boolean): void {
-    if (!this.typingIndicatorElement) return;
-    this.typingIndicatorElement.style.display = isTyping ? 'flex' : 'none';
-  }
-
   private updateInputControls(state: ChatState, forceDisable = false): void {
     if (!this.messageInputElement || !this.sendButtonElement) return;
 
@@ -1006,51 +976,19 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     this.messageInputElement.placeholder = placeholder;
   }
 
-  private updateWalletStatus(state: ChatState): void {
+  private updateWalletStatus(): void {
     if (!this.walletStatusElement) return;
 
     const palette = this.getThemePalette();
+    const isConnected = this.walletManager?.getIsConnected() ?? false;
+    const address = this.walletManager?.getCurrentAccount() ?? null;
+    const chainId = this.walletManager?.getCurrentChainId() ?? undefined;
+    const chainName =
+      this.walletManager?.getCurrentNetworkName() ||
+      (chainId ? SUPPORTED_CHAINS[chainId] : undefined);
 
-    if (!this.walletManager) {
-      this.walletStatusElement.textContent = 'Wallet Unavailable';
-      this.walletStatusElement.disabled = true;
-      this.walletStatusElement.title =
-        'Provide an Ethereum provider to enable wallet features.';
-      Object.assign(this.walletStatusElement.style, {
-        backgroundColor: palette.surface,
-        border: `1px dashed ${palette.border}`,
-        color: palette.textSecondary,
-        cursor: 'not-allowed',
-      });
-      return;
-    }
-
-    this.walletStatusElement.disabled = this.isWalletActionPending;
-    this.walletStatusElement.style.cursor = this.isWalletActionPending
-      ? 'wait'
-      : 'pointer';
-
-    if (this.isWalletActionPending) {
-      this.walletStatusElement.textContent = 'Working…';
-      Object.assign(this.walletStatusElement.style, {
-        backgroundColor: palette.surface,
-        border: `1px solid ${palette.border}`,
-        color: palette.textSecondary,
-      });
-      return;
-    }
-
-    const { walletState } = state;
-    if (walletState.isConnected && walletState.address) {
-      const chainName =
-        walletState.networkName ||
-        (walletState.chainId
-          ? SUPPORTED_CHAINS[walletState.chainId]
-          : undefined);
-
-      this.walletStatusElement.textContent = truncateAddress(
-        walletState.address,
-      );
+    if (isConnected && address) {
+      this.walletStatusElement.textContent = truncateAddress(address);
       this.walletStatusElement.title = chainName
         ? `Connected to ${chainName}`
         : 'Wallet connected';
@@ -1060,22 +998,19 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         border: `1px solid ${palette.success}`,
         color: palette.background,
       });
-    } else {
-      this.walletStatusElement.textContent = 'Connect Wallet';
-      this.walletStatusElement.title = 'Connect an Ethereum wallet';
-      Object.assign(this.walletStatusElement.style, {
-        backgroundColor: palette.surface,
-        border: `1px solid ${palette.border}`,
-        color: palette.textSecondary,
-      });
-    }
-  }
-
-  private async handleWalletButtonClick(): Promise<void> {
-    if (this.isWalletActionPending) {
       return;
     }
 
+    this.walletStatusElement.textContent = 'Connect Wallet';
+    this.walletStatusElement.title = 'Connect an Ethereum wallet';
+    Object.assign(this.walletStatusElement.style, {
+      backgroundColor: palette.surface,
+      border: `1px solid ${palette.border}`,
+      color: palette.textSecondary,
+    });
+  }
+
+  private async handleWalletButtonClick(): Promise<void> {
     if (!this.walletManager) {
       this.pushSystemNotification(
         'No wallet provider configured. Embed with an injected provider to enable transactions.',
@@ -1083,11 +1018,9 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       return;
     }
 
-    const currentState = this.lastState || this.chatManager.getState();
-    const isConnected = currentState.walletState.isConnected;
+    const isConnected = this.walletManager.getIsConnected();
 
-    this.isWalletActionPending = true;
-    this.updateWalletStatus(currentState);
+    this.updateWalletStatus();
 
     try {
       if (isConnected) {
@@ -1100,8 +1033,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         error instanceof Error ? error.message : 'Wallet action failed';
       this.pushSystemNotification(message);
     } finally {
-      this.isWalletActionPending = false;
-      this.updateWalletStatus(this.chatManager.getState());
+      this.updateWalletStatus();
     }
   }
 
