@@ -4938,3 +4938,605 @@ In summary: `ChatManager` is an event emitter that broadcasts typed events about
 
 ---
 
+_**User (2025-11-09 22:44Z)**_
+
+how does updateStateView work
+
+---
+
+_**Agent (model composer-1, mode Ask)**_
+
+
+
+---
+
+
+Searching for `updateStateView`:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "updateStateView" in "src/core/AomiChatWidget.ts" • 4 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.updateStateView(this.chatManager.getState());` | L95 |
+| `src/core/AomiChatWidget.ts` | `this.updateStateView(state);` | L328 |
+| `src/core/AomiChatWidget.ts` | `this.updateStateView(this.lastState);` | L389 |
+| `src/core/AomiChatWidget.ts` | `private updateStateView(state: ChatState): void \{` | L841 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "forwardStateEvents|stateChange" in "src/core/AomiChatWidget.ts" • 3 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.chatManager.on('stateChange', (state) => \{` | L260 |
+| `src/core/AomiChatWidget.ts` | `this.forwardStateEvents(state);` | L262 |
+| `src/core/AomiChatWidget.ts` | `private forwardStateEvents(state: ChatState): void \{` | L327 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Reading the full function and its call sites:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking `updateMessages` and `updateInputControls`:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "updateInputControls" in "src/core/AomiChatWidget.ts" • 0 matches</summary>
+
+Output mode: content
+
+
+_No matches found_
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+## How `updateStateView` Works
+
+```841:871:src/core/AomiChatWidget.ts
+private updateStateView(state: ChatState): void {
+  const previousState = this.lastState;
+
+  if (state.sessionId && state.sessionId !== this.activeSessionId) {
+    if (this.activeSessionId) {
+      this.eventEmitter.emit(WIDGET_EVENTS.SESSION_END, this.activeSessionId);
+    }
+    this.activeSessionId = state.sessionId;
+    this.eventEmitter.emit(WIDGET_EVENTS.SESSION_START, state.sessionId);
+  }
+
+  if (
+    previousState?.connectionStatus !== ConnectionStatus.CONNECTED &&
+    state.connectionStatus === ConnectionStatus.CONNECTED
+  ) {
+    if (!this.hasAnnouncedConnection) {
+      this.pushSystemNotification(
+        'Assistant is ready. Ask your first question!',
+      );
+    }
+    this.hasAnnouncedConnection = true;
+  }
+
+  if (state.connectionStatus !== ConnectionStatus.CONNECTED) {
+    this.hasAnnouncedConnection = false;
+  }
+
+  this.updateMessages(state.messages);
+  this.updateWalletStatus();
+  this.lastState = state;
+}
+```
+
+### Purpose
+Synchronizes the UI with the current `ChatState` from `ChatManager`.
+
+### Flow
+
+#### 1. Session management (lines 844-850)
+- Detects session ID changes
+- Emits `SESSION_END` for the old session (if any)
+- Emits `SESSION_START` for the new session
+- Updates `activeSessionId`
+
+#### 2. Connection status handling (lines 852-866)
+- Detects when connection transitions to `CONNECTED`
+- Shows a one-time "ready" notification
+- Resets the announcement flag if disconnected
+
+#### 3. UI updates (lines 868-869)
+- `updateMessages(state.messages)` — re-renders the message list
+- `updateWalletStatus()` — updates wallet button UI from `WalletManager`
+
+#### 4. State tracking (line 870)
+- Stores `state` in `this.lastState` for comparison
+
+### When it's called
+
+1. Initialization (```95:95:src/core/AomiChatWidget.ts```)
+   - After widget creation to set initial UI
+
+2. State changes (```260:262:src/core/AomiChatWidget.ts```)
+   ```
+   ChatManager emits 'stateChange' 
+     → forwardStateEvents() 
+     → updateStateView()
+   ```
+
+3. After re-render (```388:390:src/core/AomiChatWidget.ts```)
+   - Restores UI state if `lastState` exists
+
+### Helper functions called
+
+- `updateMessages()` (```884:908:src/core/AomiChatWidget.ts```)
+  - Clears and re-renders all messages
+  - Shows empty state if no messages
+
+- `updateWalletStatus()` (```916:940:src/core/AomiChatWidget.ts```)
+  - Reads from `WalletManager`
+  - Updates button text and styling
+
+### Design pattern
+- Reactive: responds to state changes
+- Declarative: UI reflects state
+- Centralized: single entry point for state-driven updates
+
+In summary: `updateStateView` is the main UI sync function that updates the widget UI whenever `ChatState` changes.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+when is it called?
+
+---
+
+_**Agent (model composer-1, mode Ask)**_
+
+
+
+---
+
+
+Checking all call sites for `updateStateView`:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "updateStateView" in "src/core/AomiChatWidget.ts" • 4 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.updateStateView(this.chatManager.getState());` | L95 |
+| `src/core/AomiChatWidget.ts` | `this.updateStateView(state);` | L328 |
+| `src/core/AomiChatWidget.ts` | `this.updateStateView(this.lastState);` | L389 |
+| `src/core/AomiChatWidget.ts` | `private updateStateView(state: ChatState): void \{` | L841 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="search" data-tool-name="codebase_search">
+<details>
+                <summary>Tool use: **codebase_search** • Searched codebase "When does ChatManager emit stateChange event?" • **6** results</summary>
+            
+| File | Lines |
+|------|-------|
+| `src/core/ChatManager.ts` | L42-444 |
+| `src/core/AomiChatWidget.ts` | L46-1049 |
+| `src/core/ChatManager.ts` | L42 |
+| `src/core/WalletManager.ts` | L51-470 |
+| `src/core/ChatManager.ts` | L30-444 |
+| `src/core/AomiChatWidget.ts` | L35-1049 |
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking when `ChatManager` emits `stateChange`:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "emitStateChange" in "src/core/ChatManager.ts" • 4 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/ChatManager.ts` | `this.emitStateChange();` | L273 |
+| `src/core/ChatManager.ts` | `this.emitStateChange();` | L347 |
+| `src/core/ChatManager.ts` | `this.emitStateChange();` | L355 |
+| `src/core/ChatManager.ts` | `private emitStateChange(): void \{` | L359 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/ChatManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/ChatManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/ChatManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/ChatManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking when `updateChatState` and `setConnectionStatus` are called:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "updateChatState|setConnectionStatus" in "src/core/ChatManager.ts" • 13 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/ChatManager.ts` | `this.setConnectionStatus(ConnectionStatus.CONNECTING);` | L110 |
+| `src/core/ChatManager.ts` | `this.setConnectionStatus(ConnectionStatus.CONNECTED);` | L121 |
+| `src/core/ChatManager.ts` | `this.updateChatState(data);` | L132 |
+| `src/core/ChatManager.ts` | `this.setConnectionStatus(ConnectionStatus.DISCONNECTED);` | L162 |
+| `src/core/ChatManager.ts` | `this.updateChatState(payload);` | L179 |
+| `src/core/ChatManager.ts` | `this.updateChatState(payload);` | L213 |
+| `src/core/ChatManager.ts` | `this.updateChatState(payload);` | L229 |
+| `src/core/ChatManager.ts` | `this.updateChatState(payload);` | L244 |
+| `src/core/ChatManager.ts` | `private updateChatState(payload: BackendStatePayload \| undefined \| null): void \{` | L290 |
+| `src/core/ChatManager.ts` | `private setConnectionStatus(status: ConnectionStatus): void \{` | L351 |
+| `src/core/ChatManager.ts` | `this.setConnectionStatus(ConnectionStatus.ERROR);` | L392 |
+| `src/core/ChatManager.ts` | `this.setConnectionStatus(ConnectionStatus.DISCONNECTED);` | L398 |
+| `src/core/ChatManager.ts` | `this.setConnectionStatus(ConnectionStatus.RECONNECTING);` | L405 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+When `updateStateView` is called:
+
+## Direct call sites
+
+### 1. Widget initialization (```95:95:src/core/AomiChatWidget.ts```)
+```typescript
+constructor() {
+  // ... setup code ...
+  this.updateStateView(this.chatManager.getState());
+}
+```
+- When: During widget construction
+- Purpose: Initial UI sync
+
+### 2. After re-render (```388:390:src/core/AomiChatWidget.ts```)
+```typescript
+private render(): void {
+  // ... render code ...
+  if (this.lastState) {
+    this.updateStateView(this.lastState);
+  }
+}
+```
+- When: After DOM re-render (e.g., theme/config change)
+- Purpose: Restore UI state
+
+### 3. Via event listener (```260:262:src/core/AomiChatWidget.ts``` → ```327:329:src/core/AomiChatWidget.ts```)
+```typescript
+this.chatManager.on('stateChange', (state) => {
+  this.forwardStateEvents(state);  // → updateStateView(state)
+});
+```
+- When: `ChatManager` emits `'stateChange'`
+- Purpose: React to state changes
+
+## When `ChatManager` emits `'stateChange'`
+
+### 1. Connection status changes (```351:356:src/core/ChatManager.ts```)
+- `setConnectionStatus()` is called when:
+  - Connecting (```110:110:src/core/ChatManager.ts```)
+  - Connected (```121:121:src/core/ChatManager.ts```)
+  - Disconnected (```162:162:src/core/ChatManager.ts```)
+  - Error (```392:392:src/core/ChatManager.ts```)
+  - Reconnecting (```405:405:src/core/ChatManager.ts```)
+
+### 2. Chat state updates (```290:348:src/core/ChatManager.ts```)
+- `updateChatState()` is called when:
+  - SSE connection receives data (```132:132:src/core/ChatManager.ts```)
+  - Sending a message (```179:179:src/core/ChatManager.ts```)
+  - Sending a system message (```213:213:src/core/ChatManager.ts```)
+  - Sending transaction result (```229:229:src/core/ChatManager.ts```)
+  - Clearing messages (```244:244:src/core/ChatManager.ts```)
+
+### 3. Messages cleared (```271:273:src/core/ChatManager.ts```)
+- When `clearMessages()` is called
+
+## Complete flow
+
+```
+User Action / Backend Event
+    ↓
+ChatManager updates internal state
+    ↓
+ChatManager.emitStateChange()
+    ↓
+ChatManager emits 'stateChange' event
+    ↓
+AomiChatWidget.forwardStateEvents()
+    ↓
+updateStateView(state)  ← UI updates here
+    ↓
+- updateMessages()
+- updateWalletStatus()
+- Session events
+- Connection notifications
+```
+
+## Summary
+
+`updateStateView` is called:
+1. Once during initialization
+2. After re-renders (if state exists)
+3. Whenever `ChatState` changes:
+   - New messages arrive
+   - Connection status changes
+   - Messages are cleared
+   - Processing state changes
+   - Session changes
+
+It keeps the UI synchronized with the chat state.
+
+---
+

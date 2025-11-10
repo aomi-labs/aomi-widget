@@ -1885,3 +1885,1340 @@ This is how TypeScript provides type-safe event handling: the string literal is 
 
 ---
 
+_**User (2025-11-09 22:44Z)**_
+
+@AomiChatWidget.ts (54) why do we let these value being nul
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Examining how these nullable properties are used to understand the initialization pattern:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "widgetElement\s*=|widgetElement\?\.|if.*widgetElement" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 5 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `if (this.isDestroyed \|\| !this.widgetElement) return;` | L215 |
+| `src/core/AomiChatWidget.ts` | `if (this.widgetElement && this.widgetElement.parentNode) \{` | L235 |
+| `src/core/AomiChatWidget.ts` | `this.widgetElement = createElement('div', \{` | L388 |
+| `src/core/AomiChatWidget.ts` | `if (!this.widgetElement) return;` | L415 |
+| `src/core/AomiChatWidget.ts` | `if (this.widgetElement) \{` | L1077 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "resetDomReferences|render\(\)|destroy\(\)" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 14 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.render();` | L94 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L144 |
+| `src/core/AomiChatWidget.ts` | `this.walletManager.destroy();` | L166 |
+| `src/core/AomiChatWidget.ts` | `public destroy(): void \{` | L225 |
+| `src/core/AomiChatWidget.ts` | `this.chatManager.destroy();` | L229 |
+| `src/core/AomiChatWidget.ts` | `this.walletManager.destroy();` | L232 |
+| `src/core/AomiChatWidget.ts` | `this.surface.destroy();` | L239 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L321 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L329 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L339 |
+| `src/core/AomiChatWidget.ts` | `private render(): void \{` | L380 |
+| `src/core/AomiChatWidget.ts` | `this.resetDomReferences();` | L383 |
+| `src/core/AomiChatWidget.ts` | `private resetDomReferences(): void \{` | L743 |
+| `src/core/AomiChatWidget.ts` | `this.surface.destroy();` | L1105 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+## Why These Values Start as `null`
+
+### 1. **Lazy initialization pattern**
+
+These DOM elements are created during `render()`, not in the constructor:
+
+```54:58:src/core/AomiChatWidget.ts
+  private widgetElement: HTMLElement | null = null;
+  private messageListElement: HTMLElement | null = null;
+  private messageInputElement: HTMLTextAreaElement | null = null;
+  private sendButtonElement: HTMLButtonElement | null = null;
+  private walletStatusElement: HTMLButtonElement | null = null;
+```
+
+They start as `null` because:
+- They don't exist when the class is instantiated
+- They're created later in `render()`
+- They can be destroyed and recreated multiple times
+
+### 2. **Lifecycle: Creation → Use → Reset → Recreate**
+
+Looking at the `render()` method:
+
+```379:411:src/core/AomiChatWidget.ts
+  private render(): void {
+    this.teardownLayoutObservers();
+    this.surface.setDimensions(this.resolvedParams.width, this.resolvedParams.height);
+    this.surface.clear();
+    this.resetDomReferences();
+
+    // Create widget element
+    const palette = this.getThemePalette();
+
+    this.widgetElement = createElement('div', {
+      className: [CSS_CLASSES.WIDGET_ROOT, CSS_CLASSES.WIDGET_CONTAINER].join(' '),
+      styles: {
+        width: '100%',
+        height: '100%',
+        maxHeight: '100vh',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: this.getFontFamily(),
+        backgroundColor: palette.background,
+        color: palette.text,
+      },
+    }, this.viewDocument);
+
+    // Render chat interface
+    this.renderChatInterface();
+
+    // Add to container
+    this.mountRoot.appendChild(this.widgetElement);
+    if (this.lastState) {
+      this.updateStateView(this.lastState);
+    }
+  }
+```
+
+Notice `resetDomReferences()` is called first:
+
+```742:747:src/core/AomiChatWidget.ts
+  private resetDomReferences(): void {
+    this.messageListElement = null;
+    this.messageInputElement = null;
+    this.sendButtonElement = null;
+    this.walletStatusElement = null;
+  }
+```
+
+This resets references before creating new DOM elements.
+
+### 3. **Why `render()` can be called multiple times**
+
+`render()` is called in multiple places:
+
+```94:94:src/core/AomiChatWidget.ts
+    this.render();
+```
+
+```144:144:src/core/AomiChatWidget.ts
+    this.render();
+```
+
+```321:321:src/core/AomiChatWidget.ts
+      this.render();
+```
+
+When `updateParams()` is called, it re-renders everything:
+
+```116:145:src/core/AomiChatWidget.ts
+  public updateParams(params: Partial<AomiChatWidgetParams>): void {
+    if (this.isDestroyed) {
+      throw createWidgetError(
+        ERROR_CODES.INITIALIZATION_FAILED,
+        'Widget has been destroyed',
+      );
+    }
+
+    // Validate new parameters
+    const mergedParams = { ...this.config.params, ...params };
+    const errors = validateWidgetParams(mergedParams);
+
+    if (errors.length > 0) {
+      throw createWidgetError(
+        ERROR_CODES.INVALID_CONFIG,
+        `Invalid parameters: ${errors.join(', ')}`,
+      );
+    }
+
+    const previousSurfaceMode = this.resolvedParams.renderSurface;
+    this.config.params = mergedParams;
+    this.refreshResolvedParams();
+
+    if (this.resolvedParams.renderSurface !== previousSurfaceMode) {
+      this.rebuildSurface();
+    }
+
+    this.updateDimensions();
+    this.render();
+  }
+```
+
+### 4. **Null checks protect against stale references**
+
+Methods check for `null` before using these elements:
+
+```413:414:src/core/AomiChatWidget.ts
+  private renderChatInterface(): void {
+    if (!this.widgetElement) return;
+```
+
+```214:215:src/core/AomiChatWidget.ts
+    if (this.isDestroyed || !this.widgetElement) return;
+```
+
+```1076:1079:src/core/AomiChatWidget.ts
+    if (this.widgetElement) {
+      this.widgetElement.style.width = '100%';
+      this.widgetElement.style.height = '100%';
+    }
+```
+
+### 5. **Cleanup on destroy**
+
+When the widget is destroyed:
+
+```234:236:src/core/AomiChatWidget.ts
+    if (this.widgetElement && this.widgetElement.parentNode) {
+      this.widgetElement.parentNode.removeChild(this.widgetElement);
+    }
+```
+
+The elements are removed from the DOM, but the references remain until garbage collection.
+
+### 6. **Comparison: nullable vs non-nullable**
+
+Some properties use the definite assignment assertion (`!`):
+
+```64:67:src/core/AomiChatWidget.ts
+  private surface!: WidgetSurface;
+  private viewDocument!: Document;
+  private mountRoot!: HTMLElement;
+  private resolvedParams!: ResolvedAomiChatWidgetParams;
+```
+
+These are set immediately in the constructor and don't change:
+
+```75:76:src/core/AomiChatWidget.ts
+    this.refreshResolvedParams();
+    this.rebuildSurface();
+```
+
+The DOM elements are nullable because:
+- They're created asynchronously (during `render()`)
+- They can be destroyed and recreated
+- They may not exist at certain lifecycle stages
+
+### **Summary: Why `null`?**
+
+1. Lazy initialization: Created when needed, not at construction
+2. Re-rendering: Can be destroyed and recreated multiple times
+3. Lifecycle management: May not exist during certain phases
+4. Type safety: Forces null checks before use
+5. Cleanup: Can be set to `null` when removed from DOM
+
+This pattern ensures:
+- No stale DOM references
+- Safe re-rendering
+- Proper cleanup
+- TypeScript enforces null checks
+
+Without `null`, TypeScript would assume these always exist, leading to potential runtime errors when they don't.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+who does this work updateInputControls
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Examining how `updateInputControls` works:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "updateInputControls" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 4 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.updateInputControls(currentState, true);` | L817 |
+| `src/core/AomiChatWidget.ts` | `this.updateInputControls(this.chatManager.getState());` | L828 |
+| `src/core/AomiChatWidget.ts` | `this.updateInputControls(state);` | L873 |
+| `src/core/AomiChatWidget.ts` | `private updateInputControls(state: ChatState, forceDisable = false): void \{` | L921 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking where `updateInputControls` is called:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+## How `updateInputControls` Works
+
+### **Purpose**
+Updates the input field and send button based on the chat state (connection status, processing state) to prevent invalid actions and provide feedback.
+
+### **Method Signature**
+
+```921:951:src/core/AomiChatWidget.ts
+  private updateInputControls(state: ChatState, forceDisable = false): void {
+    if (!this.messageInputElement || !this.sendButtonElement) return;
+
+    const backendReady = state.connectionStatus === ConnectionStatus.CONNECTED;
+    const inputDisabled = forceDisable || !backendReady || state.isProcessing;
+    const sendDisabled = forceDisable || !backendReady || state.isProcessing;
+
+    this.messageInputElement.readOnly = inputDisabled;
+    this.messageInputElement.disabled = inputDisabled;
+    this.messageInputElement.setAttribute(
+      'aria-disabled',
+      inputDisabled ? 'true' : 'false',
+    );
+    this.sendButtonElement.disabled = sendDisabled;
+
+    this.sendButtonElement.style.opacity = sendDisabled ? '0.6' : '1';
+    this.sendButtonElement.style.cursor = sendDisabled
+      ? 'not-allowed'
+      : 'pointer';
+
+    const defaultPlaceholder = this.resolvedParams.placeholder || '';
+    let placeholder = defaultPlaceholder;
+
+    if (!backendReady) {
+      placeholder = 'Connecting to backend…';
+    } else if (state.isProcessing) {
+      placeholder = 'Processing your previous request…';
+    }
+
+    this.messageInputElement.placeholder = placeholder;
+  }
+```
+
+### **Step-by-Step Breakdown**
+
+#### **1. Early Return Check**
+```typescript
+if (!this.messageInputElement || !this.sendButtonElement) return;
+```
+Exits if DOM elements aren't available.
+
+#### **2. Determine Disabled State**
+```typescript
+const backendReady = state.connectionStatus === ConnectionStatus.CONNECTED;
+const inputDisabled = forceDisable || !backendReady || state.isProcessing;
+const sendDisabled = forceDisable || !backendReady || state.isProcessing;
+```
+Disables when:
+- `forceDisable` is `true`
+- Backend is not connected
+- A request is processing
+
+#### **3. Update Input Field State**
+```typescript
+this.messageInputElement.readOnly = inputDisabled;
+this.messageInputElement.disabled = inputDisabled;
+this.messageInputElement.setAttribute('aria-disabled', inputDisabled ? 'true' : 'false');
+```
+Sets `readOnly`, `disabled`, and `aria-disabled` for accessibility.
+
+#### **4. Update Send Button State**
+```typescript
+this.sendButtonElement.disabled = sendDisabled;
+this.sendButtonElement.style.opacity = sendDisabled ? '0.6' : '1';
+this.sendButtonElement.style.cursor = sendDisabled ? 'not-allowed' : 'pointer';
+```
+Disables the button and adjusts visual feedback (opacity, cursor).
+
+#### **5. Update Placeholder Text**
+```typescript
+const defaultPlaceholder = this.resolvedParams.placeholder || '';
+let placeholder = defaultPlaceholder;
+
+if (!backendReady) {
+  placeholder = 'Connecting to backend…';
+} else if (state.isProcessing) {
+  placeholder = 'Processing your previous request…';
+}
+
+this.messageInputElement.placeholder = placeholder;
+```
+Shows contextual placeholder text based on state.
+
+### **Where It's Called**
+
+#### **1. When Sending a Message**
+```817:828:src/core/AomiChatWidget.ts
+    this.updateInputControls(currentState, true);
+
+    try {
+      await this.chatManager.sendMessage(value);
+      this.messageInputElement.value = '';
+      this.autoResizeMessageInput();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to send message';
+      this.pushSystemNotification(message);
+    } finally {
+      this.updateInputControls(this.chatManager.getState());
+    }
+```
+- Before sending: `forceDisable = true` to disable immediately
+- After sending: updates based on current state
+
+#### **2. When State Changes**
+```872:873:src/core/AomiChatWidget.ts
+    this.updateMessages(state.messages);
+    this.updateInputControls(state);
+```
+Called whenever chat state changes (connection, processing, etc.).
+
+### **State Scenarios**
+
+| State | Backend Ready | Processing | Input Disabled | Placeholder |
+|-------|---------------|------------|----------------|-------------|
+| Initializing | ❌ | ❌ | ✅ | "Connecting to backend…" |
+| Connected, idle | ✅ | ❌ | ❌ | Default placeholder |
+| Connected, processing | ✅ | ✅ | ✅ | "Processing your previous request…" |
+| Disconnected | ❌ | ❌ | ✅ | "Connecting to backend…" |
+
+### **Visual Feedback Flow**
+
+```
+User types message
+    ↓
+User clicks send
+    ↓
+updateInputControls(state, forceDisable=true)
+    → Input: disabled, placeholder: "Processing..."
+    → Button: disabled, opacity: 0.6, cursor: not-allowed
+    ↓
+Message sent to backend
+    ↓
+Backend responds
+    ↓
+updateInputControls(newState)
+    → Input: enabled (if connected & not processing)
+    → Button: enabled, opacity: 1, cursor: pointer
+```
+
+### **Benefits**
+
+1. Prevents invalid actions (sending while disconnected/processing)
+2. Clear visual feedback (disabled state, placeholder)
+3. Accessibility via ARIA attributes
+4. Dynamic updates as state changes
+5. Immediate feedback via `forceDisable`
+
+### **Summary**
+
+`updateInputControls` synchronizes the input and send button with the chat state:
+- Disables when the backend isn't ready or a request is processing
+- Updates placeholder text to reflect the current state
+- Provides visual feedback (opacity, cursor)
+- Ensures accessibility with ARIA attributes
+
+It's called whenever state changes and during message sending to keep the UI consistent with the backend state.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+remove this and it's related stuffs
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Finding all usages of `updateInputControls` and related code to remove:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "updateInputControls" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 4 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.updateInputControls(currentState, true);` | L817 |
+| `src/core/AomiChatWidget.ts` | `this.updateInputControls(this.chatManager.getState());` | L828 |
+| `src/core/AomiChatWidget.ts` | `this.updateInputControls(state);` | L873 |
+| `src/core/AomiChatWidget.ts` | `private updateInputControls(state: ChatState, forceDisable = false): void \{` | L921 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Reading the full method to identify its boundaries:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing `updateInputControls` and all its usages:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 2
+
+```diff
+@@ -814,6 +814,4 @@
+        return;
+      }
+- 
+-     this.updateInputControls(currentState, true);
+  
+      try {
+```
+
+**Chunk 2**
+Lines added: undefined, lines removed: 2
+
+```diff
+@@ -825,6 +823,4 @@
+          error instanceof Error ? error.message : &#39;Failed to send message&#39;;
+        this.pushSystemNotification(message);
+-     } finally {
+-       this.updateInputControls(this.chatManager.getState());
+      }
+    }
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 1
+
+```diff
+@@ -867,5 +867,4 @@
+  
+      this.updateMessages(state.messages);
+-     this.updateInputControls(state);
+      this.updateWalletStatus();
+      this.lastState = state;
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 32
+
+```diff
+@@ -913,36 +913,4 @@
+      this.messageListElement.scrollTop = this.messageListElement.scrollHeight;
+    }
+- 
+-   private updateInputControls(state: ChatState, forceDisable = false): void {
+-     if (!this.messageInputElement || !this.sendButtonElement) return;
+- 
+-     const backendReady = state.connectionStatus === ConnectionStatus.CONNECTED;
+-     const inputDisabled = forceDisable || !backendReady || state.isProcessing;
+-     const sendDisabled = forceDisable || !backendReady || state.isProcessing;
+- 
+-     this.messageInputElement.readOnly = inputDisabled;
+-     this.messageInputElement.disabled = inputDisabled;
+-     this.messageInputElement.setAttribute(
+-       &#39;aria-disabled&#39;,
+-       inputDisabled ? &#39;true&#39; : &#39;false&#39;,
+-     );
+-     this.sendButtonElement.disabled = sendDisabled;
+- 
+-     this.sendButtonElement.style.opacity = sendDisabled ? &#39;0.6&#39; : &#39;1&#39;;
+-     this.sendButtonElement.style.cursor = sendDisabled
+-       ? &#39;not-allowed&#39;
+-       : &#39;pointer&#39;;
+- 
+-     const defaultPlaceholder = this.resolvedParams.placeholder || &#39;&#39;;
+-     let placeholder = defaultPlaceholder;
+- 
+-     if (!backendReady) {
+-       placeholder = &#39;Connecting to backend…&#39;;
+-     } else if (state.isProcessing) {
+-       placeholder = &#39;Processing your previous request…&#39;;
+-     }
+- 
+-     this.messageInputElement.placeholder = placeholder;
+-   }
+  
+    private updateWalletStatus(): void {
+```
+
+</details>
+
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking for remaining references and lint errors:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "updateInputControls" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 0 matches</summary>
+
+Output mode: content
+
+
+_No matches found_
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="generic" data-tool-name="read_lints">
+<details>
+          <summary>Tool use: **read_lints** • Read lints for 1 file</summary>
+      
+Lint paths:
+
+- `src/core/AomiChatWidget.ts`
+
+Lint results
+
+
+**No lint errors found**
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removed `updateInputControls` and all related code:
+
+1. Removed the method definition (lines 921-951)
+2. Removed the call in `handleSendMessage` before sending (line 817)
+3. Removed the call in `handleSendMessage` finally block (line 828)
+4. Removed the call in `updateStateView` (line 873)
+
+No remaining references, and there are no linting errors. The input controls will no longer be automatically disabled/enabled based on connection or processing state.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+@AomiChatWidget.ts (928-929)  why does a button need textCOntext and title? which one is displyed on the button
+
+---
+
+_**Agent (model composer-1, mode Ask)**_
+
+
+
+---
+
+
+Examining how the button uses `textContent` and `title`:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "walletStatusElement.*createElement|walletStatusElement.*textContent|walletStatusElement.*title" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 5 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.walletStatusElement = createElement('button', \{` | L438 |
+| `src/core/AomiChatWidget.ts` | `this.walletStatusElement.textContent = truncateAddress(address);` | L928 |
+| `src/core/AomiChatWidget.ts` | `this.walletStatusElement.title = chainName` | L929 |
+| `src/core/AomiChatWidget.ts` | `this.walletStatusElement.textContent = 'Connect Wallet';` | L941 |
+| `src/core/AomiChatWidget.ts` | `this.walletStatusElement.title = 'Connect an Ethereum wallet';` | L942 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking where the button is created:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "truncateAddress" in "/Users/ceciliazhang/Code/aomi-widget/src/utils" • 1 match</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/utils/base.ts` | `export function truncateAddress(address: string, startChars = 6, endChars = 4): string \{` | L357 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/utils/base.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+
+
+---
+
+
+## `textContent` vs `title` on a Button
+
+### **`textContent` — visible text**
+- What appears on the button
+- The actual label users see
+
+### **`title` — tooltip**
+- Shown on hover
+- Provides additional context
+
+### **In Your Code:**
+
+```927:931:src/core/AomiChatWidget.ts
+    if (isConnected && address) {
+      this.walletStatusElement.textContent = truncateAddress(address);
+      this.walletStatusElement.title = chainName
+        ? `Connected to ${chainName}`
+        : 'Wallet connected';
+```
+
+When connected:
+- `textContent`: truncated address like `"0x1234...5678"` (displayed on button)
+- `title`: `"Connected to Ethereum"` (tooltip on hover)
+
+```941:942:src/core/AomiChatWidget.ts
+    this.walletStatusElement.textContent = 'Connect Wallet';
+    this.walletStatusElement.title = 'Connect an Ethereum wallet';
+```
+
+When disconnected:
+- `textContent`: `"Connect Wallet"` (displayed on button)
+- `title`: `"Connect an Ethereum wallet"` (tooltip on hover)
+
+### **Visual Example:**
+
+```
+┌─────────────────────────┐
+│  [0x1234...5678]  ← textContent (what you see)
+└─────────────────────────┘
+         ↑
+    Hover here → "Connected to Ethereum" (title tooltip)
+```
+
+### **Why Both?**
+
+1. Space: The button is small, so the address is truncated (`0x1234...5678`)
+2. Full info: The `title` tooltip shows the full network name on hover
+3. Accessibility: Screen readers can announce the `title` attribute
+
+### **Summary:**
+
+- `textContent` = displayed text on the button
+- `title` = tooltip shown on hover
+
+The button shows the truncated address (`textContent`), and hovering reveals the network name (`title`).
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+can we get rit of the hover
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Removing the `title` attribute (hover tooltip) from the wallet status button:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing the `title` attribute assignments:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 3
+
+```diff
+@@ -927,7 +927,4 @@
+      if (isConnected &amp;&amp; address) {
+        this.walletStatusElement.textContent = truncateAddress(address);
+-       this.walletStatusElement.title = chainName
+-         ? &#96;Connected to ${chainName}&#96;
+-         : &#39;Wallet connected&#39;;
+  
+        Object.assign(this.walletStatusElement.style, {
+```
+
+**Chunk 2**
+Lines added: undefined, lines removed: 1
+
+```diff
+@@ -940,5 +937,4 @@
+  
+      this.walletStatusElement.textContent = &#39;Connect Wallet&#39;;
+-     this.walletStatusElement.title = &#39;Connect an Ethereum wallet&#39;;
+      Object.assign(this.walletStatusElement.style, {
+        backgroundColor: palette.surface,
+```
+
+</details>
+
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking if `chainName` is still needed since it's no longer used:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "chainName" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 1 match</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `const chainName =` | L923 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="generic" data-tool-name="read_lints">
+<details>
+          <summary>Tool use: **read_lints** • Read lints for 1 file</summary>
+      
+Lint paths:
+
+- `src/core/AomiChatWidget.ts`
+
+Lint results
+
+Lint errors for `src/core/AomiChatWidget.ts`
+
+
+| Message | Range | Severity |
+|-------|-------|----------|
+| 'chainName' is declared but its value is never read. | 923:11-923:20 | DIAGNOSTIC_SEVERITY_WARNING |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing the unused `chainName` variable:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 4
+
+```diff
+@@ -920,8 +920,4 @@
+      const isConnected = this.walletManager?.getIsConnected() ?? false;
+      const address = this.walletManager?.getCurrentAccount() ?? null;
+-     const chainId = this.walletManager?.getCurrentChainId() ?? undefined;
+-     const chainName =
+-       this.walletManager?.getCurrentNetworkName() ||
+-       (chainId ? SUPPORTED_CHAINS[chainId] : undefined);
+  
+      if (isConnected &amp;&amp; address) {
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="generic" data-tool-name="read_lints">
+<details>
+          <summary>Tool use: **read_lints** • Read lints for 1 file</summary>
+      
+Lint paths:
+
+- `src/core/AomiChatWidget.ts`
+
+Lint results
+
+
+**No lint errors found**
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removed the hover tooltip (`title` attribute) from the wallet status button:
+
+1. Removed `title` assignment when wallet is connected (lines 929-931)
+2. Removed `title` assignment when wallet is disconnected (line 942)
+3. Removed unused `chainName` and `chainId` variables that were only used for the tooltip
+
+The button now only displays `textContent` (the truncated address or "Connect Wallet") with no hover tooltip. No linting errors.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+@AomiChatWidget.ts (61) what does this do
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking how `hasAnnouncedConnection` is used:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "hasAnnouncedConnection" in "/Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts" • 7 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `private hasAnnouncedConnection = false;` | L61 |
+| `src/core/AomiChatWidget.ts` | `if (!this.hasAnnouncedConnection) \{` | L856 |
+| `src/core/AomiChatWidget.ts` | `this.hasAnnouncedConnection = true;` | L861 |
+| `src/core/AomiChatWidget.ts` | `this.hasAnnouncedConnection = false;` | L865 |
+| `src/core/AomiChatWidget.ts` | `this.hasAnnouncedConnection = false;` | L988 |
+| `src/core/AomiChatWidget.ts` | `this.hasAnnouncedConnection = false;` | L992 |
+| `src/core/AomiChatWidget.ts` | `this.hasAnnouncedConnection = false;` | L998 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: /Users/ceciliazhang/Code/aomi-widget/src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+
+
+---
+
+
+
+---
+
+
+## What `hasAnnouncedConnection` Does
+
+`hasAnnouncedConnection` is a flag that ensures the "Assistant is ready" message is shown only once when the connection is first established, not on every reconnection.
+
+### **Purpose: Prevent Duplicate Welcome Messages**
+
+```852:866:src/core/AomiChatWidget.ts
+    if (
+      previousState?.connectionStatus !== ConnectionStatus.CONNECTED &&
+      state.connectionStatus === ConnectionStatus.CONNECTED
+    ) {
+      if (!this.hasAnnouncedConnection) {
+        this.pushSystemNotification(
+          'Assistant is ready. Ask your first question!',
+        );
+      }
+      this.hasAnnouncedConnection = true;
+    }
+
+    if (state.connectionStatus !== ConnectionStatus.CONNECTED) {
+      this.hasAnnouncedConnection = false;
+    }
+```
+
+### **How It Works:**
+
+1. First connection:
+   - When status changes to `CONNECTED` and `hasAnnouncedConnection` is `false`
+   - Shows: "Assistant is ready. Ask your first question!"
+   - Sets `hasAnnouncedConnection = true`
+
+2. Subsequent reconnections:
+   - When status changes to `CONNECTED` but `hasAnnouncedConnection` is `true`
+   - Skips the welcome message (already shown)
+
+3. Reset on disconnect:
+   - When status is not `CONNECTED`, sets `hasAnnouncedConnection = false`
+   - This allows the welcome message to show again after a full disconnect/reconnect cycle
+
+### **Also Reset in Error States:**
+
+```984:999:src/core/AomiChatWidget.ts
+      case ConnectionStatus.RECONNECTING:
+        this.pushSystemNotification(
+          'Connection dropped. Attempting to reconnect…',
+        );
+        this.hasAnnouncedConnection = false;
+        break;
+      case ConnectionStatus.DISCONNECTED:
+        this.pushSystemNotification('Connection lost. We will retry shortly.');
+        this.hasAnnouncedConnection = false;
+        break;
+      case ConnectionStatus.ERROR:
+        this.pushSystemNotification(
+          'A connection error occurred. Please retry.',
+        );
+        this.hasAnnouncedConnection = false;
+        break;
+```
+
+### **Example Flow:**
+
+```
+1. Widget starts → hasAnnouncedConnection = false
+2. Connects → Shows "Assistant is ready!" → hasAnnouncedConnection = true
+3. Connection drops → hasAnnouncedConnection = false
+4. Reconnects → Shows "Connection restored..." (different message)
+5. Connection drops again → hasAnnouncedConnection = false
+6. Reconnects → Shows "Assistant is ready!" again (because flag was reset)
+```
+
+### **Why This Matters:**
+
+Without this flag, the welcome message could appear:
+- Every time the connection is restored
+- During reconnection attempts
+- When the connection status flickers
+
+With the flag, users see:
+- One welcome message on initial connection
+- Different messages for reconnections ("Connection restored...")
+- The welcome message again only after a full disconnect/reconnect cycle
+
+**Summary**: `hasAnnouncedConnection` ensures the initial welcome message appears only once per connection session, avoiding duplicate notifications while still allowing it to reappear after a full disconnect/reconnect cycle.
+
+---
+
