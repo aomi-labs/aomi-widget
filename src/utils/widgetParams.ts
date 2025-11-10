@@ -7,15 +7,15 @@ import {
   DEFAULT_WIDGET_WIDTH,
 } from '../types/constants';
 import {
-  type AomiChatWidgetParams,
+  type OptionalParam,
   type AomiWidgetThemeConfig,
   type AomiWidgetThemeDefinition,
-  type ResolvedAomiChatWidgetParams,
+  type ResolvedParams,
 } from '../types/interfaces';
 
 export function resolveWidgetParams(
-  params: AomiChatWidgetParams,
-): ResolvedAomiChatWidgetParams {
+  params: OptionalParam,
+): ResolvedParams {
   const width = params.width || DEFAULT_WIDGET_WIDTH;
   const height = params.height || DEFAULT_WIDGET_HEIGHT;
   const maxHeight =
@@ -31,7 +31,7 @@ export function resolveWidgetParams(
     maxHeight,
     baseUrl: params.baseUrl,
     sessionId: params.sessionId,
-    renderSurface: params.renderSurface ?? DEFAULT_RENDER_SURFACE,
+    renderSurface: params.surfaceMode ?? DEFAULT_RENDER_SURFACE,
     welcomeMessage: params.welcomeMessage,
     placeholder: params.placeholder,
     chainId,

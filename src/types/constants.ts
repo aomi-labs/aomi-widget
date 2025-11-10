@@ -1,7 +1,7 @@
 // Constants for the Aomi Chat Widget
 
 import {
-  WidgetRenderSurface,
+  SurfaceMode,
   type AomiWidgetThemeDefinition,
   type SupportedChainId,
 } from './interfaces';
@@ -18,7 +18,7 @@ export const DEFAULT_MAX_HEIGHT = 800;
 export const DEFAULT_MESSAGE_LENGTH = 2000;
 export const DEFAULT_RECONNECT_ATTEMPTS = 5;
 export const DEFAULT_RECONNECT_DELAY = 3000;
-export const DEFAULT_RENDER_SURFACE = WidgetRenderSurface.IFRAME;
+export const DEFAULT_RENDER_SURFACE = SurfaceMode.IFRAME;
 
 /*
  * ============================================================================

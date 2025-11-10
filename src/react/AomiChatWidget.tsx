@@ -2,17 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import type {
-  AomiChatEventListeners,
-  AomiChatWidgetHandler,
-  AomiChatWidgetParams,
+  AomiEventListeners,
+  AomiWidgetHandler,
+  OptionalParam,
   EthereumProvider,
 } from '../types/interfaces';
-import { createAomiChatWidget } from '../core/AomiChatWidget';
+import { createAomiWidget } from '../core/AomiChatWidget';
 
 export interface ReactAomiChatWidgetProps {
-  params: AomiChatWidgetParams;
+  params: OptionalParam;
   provider?: EthereumProvider;
-  listeners?: AomiChatEventListeners;
+  listeners?: AomiEventListeners;
   className?: string;
   style?: CSSProperties;
 }
@@ -25,8 +25,8 @@ export function AomiChatWidget({
   style,
 }: ReactAomiChatWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const handlerRef = useRef<AomiChatWidgetHandler | null>(null);
-  const listenersRef = useRef<AomiChatEventListeners | undefined>(listeners);
+  const handlerRef = useRef<AomiWidgetHandler | null>(null);
+  const listenersRef = useRef<AomiEventListeners | undefined>(listeners);
   const [error, setError] = useState<Error | null>(null);
 
   const destroyHandler = useCallback(() => {
@@ -42,7 +42,7 @@ export function AomiChatWidget({
 
     if (!handlerRef.current) {
       try {
-        handlerRef.current = createAomiChatWidget(container, {
+        handlerRef.current = createAomiWidget(container, {
           params,
           provider,
           listeners,
@@ -90,7 +90,7 @@ export function AomiChatWidget({
     }
 
     try {
-      handlerRef.current = createAomiChatWidget(container, {
+      handlerRef.current = createAomiWidget(container, {
         params,
         provider,
         listeners,

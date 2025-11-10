@@ -55,7 +55,7 @@ export interface WalletTransaction {
  * ============================================================================
  */
 
-export enum WidgetRenderSurface {
+export enum SurfaceMode {
   INLINE = 'inline',
   IFRAME = 'iframe',
 }
@@ -88,7 +88,7 @@ export interface AomiWidgetThemeConfig {
   fonts?: Partial<AomiWidgetFonts>;
 }
 
-export interface AomiChatWidgetParams {
+export interface OptionalParam {
   // Required
   appCode: string;
 
@@ -98,7 +98,7 @@ export interface AomiChatWidgetParams {
   maxHeight?: number;
   baseUrl?: string;
   sessionId?: string;
-  renderSurface?: WidgetRenderSurface;
+  surfaceMode?: SurfaceMode;
 
   // UI Customization
   welcomeMessage?: string;
@@ -114,14 +114,14 @@ export interface AomiChatWidgetParams {
   theme?: AomiWidgetThemeConfig;
 }
 
-export interface ResolvedAomiChatWidgetParams {
+export interface ResolvedParams {
   appCode: string;
   width: string;
   height: string;
   maxHeight: number;
   baseUrl?: string;
   sessionId?: string;
-  renderSurface: WidgetRenderSurface;
+  renderSurface: SurfaceMode;
   welcomeMessage?: string;
   placeholder?: string;
   chainId?: SupportedChainId;
@@ -157,7 +157,7 @@ export interface ChatState {
  * ============================================================================
  */
 
-export interface AomiChatEventListeners {
+export interface AomiEventListeners {
   onReady?: () => void;
   onMessage?: (_message: ChatMessage) => void;
   onTransactionRequest?: (_transaction: WalletTransaction) => void;
@@ -175,10 +175,10 @@ export interface AomiChatEventListeners {
  * ============================================================================
  */
 
-export interface AomiChatWidgetHandler {
+export interface AomiWidgetHandler {
   // Core methods
   sendMessage: (message: string) => Promise<void>;
-  updateParams: (params: Partial<AomiChatWidgetParams>) => void;
+  updateParams: (params: Partial<OptionalParam>) => void;
   updateProvider: (provider?: EthereumProvider) => void;
   destroy: () => void;
 
@@ -188,14 +188,14 @@ export interface AomiChatWidgetHandler {
   isReady: () => boolean;
 
   // Event handling
-  on: <K extends keyof AomiChatEventListeners>(
+  on: <K extends keyof AomiEventListeners>(
     event: K,
-    listener: NonNullable<AomiChatEventListeners[K]>
-  ) => AomiChatWidgetHandler;
-  off: <K extends keyof AomiChatEventListeners>(
+    listener: NonNullable<AomiEventListeners[K]>
+  ) => AomiWidgetHandler;
+  off: <K extends keyof AomiEventListeners>(
     event: K,
-    listener: NonNullable<AomiChatEventListeners[K]>
-  ) => AomiChatWidgetHandler;
+    listener: NonNullable<AomiEventListeners[K]>
+  ) => AomiWidgetHandler;
 
   // Utility methods
   clearChat: () => void;
@@ -230,9 +230,9 @@ export interface EthereumProvider {
  */
 
 export interface WidgetConfig {
-  params: AomiChatWidgetParams;
+  params: OptionalParam;
   provider?: EthereumProvider;
-  listeners?: AomiChatEventListeners;
+  listeners?: AomiEventListeners;
 }
 
 export interface ChatManagerConfig {

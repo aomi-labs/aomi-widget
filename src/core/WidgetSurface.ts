@@ -3,10 +3,10 @@ import {
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_WIDTH,
 } from '../types/constants';
-import type { WidgetRenderSurface } from '../types/interfaces';
+import type { SurfaceMode } from '../types/interfaces';
 
 export interface WidgetSurfaceOptions {
-  mode: WidgetRenderSurface;
+  mode: SurfaceMode;
   width?: string;
   height?: string;
 }

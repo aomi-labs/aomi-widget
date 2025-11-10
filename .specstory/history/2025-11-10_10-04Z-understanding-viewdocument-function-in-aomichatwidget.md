@@ -156,3 +156,1204 @@ _**Agent (model composer-1, mode Agent)**_
 
 ---
 
+
+`viewDocument` is a Document object, which is part of the DOM (Document Object Model), not the DOM itself.
+
+## The distinction:
+
+- DOM: The model/structure representing the HTML document and its elements
+- Document: A specific object that represents one document in the DOM
+- `viewDocument`: A reference to a Document object (either the main page's document or an iframe's document)
+
+## In practical terms:
+
+`viewDocument` is the Document you use to:
+- Create elements (`viewDocument.createElement()`)
+- Create text nodes (`viewDocument.createTextNode()`)
+- Access the document's body (`viewDocument.body`)
+- Access the document element (`viewDocument.documentElement`)
+
+## Why it matters here:
+
+The widget can render in two modes:
+
+1. Direct mode: `viewDocument` = the main page's `document`
+   - Elements are created in the same document as the host page
+
+2. Iframe mode: `viewDocument` = the iframe's `contentDocument`
+   - Elements are created in a separate, isolated document
+   - Provides CSS/style isolation from the host page
+
+So `viewDocument` is the Document object you use to create and manipulate DOM elements, ensuring they're created in the correct document context (main page vs. iframe).
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+what's private surface!: WidgetSurface;
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Explaining `private surface!: WidgetSurface;`:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "surface" in "src/core/AomiChatWidget.ts" • 16 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `private surface!: WidgetSurface;` | L62 |
+| `src/core/AomiChatWidget.ts` | `this.surface.destroy();` | L217 |
+| `src/core/AomiChatWidget.ts` | `this.surface.setDimensions(this.resolvedParams.width, this.resolvedParams.height);` | L359 |
+| `src/core/AomiChatWidget.ts` | `this.surface.clear();` | L360 |
+| `src/core/AomiChatWidget.ts` | `backgroundColor: palette.surface,` | L404 |
+| `src/core/AomiChatWidget.ts` | `backgroundColor: palette.surface,` | L446 |
+| `src/core/AomiChatWidget.ts` | `backgroundColor: palette.surface,` | L569 |
+| `src/core/AomiChatWidget.ts` | `backgroundColor: palette.surface,` | L625 |
+| `src/core/AomiChatWidget.ts` | `backgroundColor: palette.surface,` | L680 |
+| `src/core/AomiChatWidget.ts` | `backgroundColor: palette.surface,` | L918 |
+| `src/core/AomiChatWidget.ts` | `this.surface.setDimensions(` | L985 |
+| `src/core/AomiChatWidget.ts` | `if (this.surface) \{` | L1017 |
+| `src/core/AomiChatWidget.ts` | `this.surface.destroy();` | L1018 |
+| `src/core/AomiChatWidget.ts` | `this.surface = new WidgetSurface(this.container, \{` | L1021 |
+| `src/core/AomiChatWidget.ts` | `this.viewDocument = this.surface.getDocument();` | L1026 |
+| `src/core/AomiChatWidget.ts` | `this.mountRoot = this.surface.getRoot();` | L1027 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+## `private surface!: WidgetSurface;`
+
+- `private`: Only accessible within the class
+- `surface`: The property name
+- `!`: TypeScript definite assignment assertion — tells TypeScript it will be assigned before use, even if not initialized at declaration
+- `WidgetSurface`: The type — manages the rendering surface (iframe or direct)
+
+## Purpose
+
+`surface` manages where the widget renders. It abstracts whether the widget renders in an iframe or directly in the container.
+
+## How it's used
+
+1. Initialized in the constructor via `rebuildSurface()`:
+```1016:1028:src/core/AomiChatWidget.ts
+  private rebuildSurface(): void {
+    if (this.surface) {
+      this.surface.destroy();
+    }
+
+    this.surface = new WidgetSurface(this.container, {
+      mode: this.resolvedParams.renderSurface,
+      width: this.resolvedParams.width,
+      height: this.resolvedParams.height,
+    });
+    this.viewDocument = this.surface.getDocument();
+    this.mountRoot = this.surface.getRoot();
+  }
+```
+
+2. Used throughout the class to:
+   - Set dimensions: `this.surface.setDimensions(...)`
+   - Clear content: `this.surface.clear()`
+   - Get the document: `this.surface.getDocument()`
+   - Get the root element: `this.surface.getRoot()`
+   - Clean up: `this.surface.destroy()`
+
+## Why the `!` assertion?
+
+TypeScript can't verify that `rebuildSurface()` runs before other methods use `surface`. The `!` asserts it will be assigned, avoiding a "possibly undefined" error.
+
+In short: `surface` is the rendering surface manager, initialized early in the constructor and used throughout the widget's lifecycle.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+rootElement refers to the root HTML component where the whole widget is mounted?
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking how `rootElement` is used:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/WidgetSurface.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "mountRoot" in "src/core/AomiChatWidget.ts" • 3 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `private mountRoot!: HTMLElement;` | L64 |
+| `src/core/AomiChatWidget.ts` | `this.mountRoot.appendChild(this.widgetElement);` | L386 |
+| `src/core/AomiChatWidget.ts` | `this.mountRoot = this.surface.getRoot();` | L1027 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Yes. `rootElement` is the root HTML element where the widget mounts, but it depends on the rendering mode:
+
+## In `WidgetSurface`:
+
+**Iframe mode** (line 61):
+```60:61:src/core/WidgetSurface.ts
+      this.documentRef = iframe.contentDocument || iframeDocument;
+      this.rootElement = this.documentRef.body;
+```
+- `rootElement` = the iframe's `<body>` element
+
+**Direct mode** (line 69):
+```68:69:src/core/WidgetSurface.ts
+      this.documentRef = ownerDocument;
+      this.rootElement = this.container;
+```
+- `rootElement` = the container element passed in
+
+## In `AomiChatWidget`:
+
+The widget uses `mountRoot` (which gets `rootElement` from `surface.getRoot()`) to mount the widget:
+
+```1026:1027:src/core/AomiChatWidget.ts
+    this.viewDocument = this.surface.getDocument();
+    this.mountRoot = this.surface.getRoot();
+```
+
+And then appends the widget's main element to it:
+
+```386:386:src/core/AomiChatWidget.ts
+    this.mountRoot.appendChild(this.widgetElement);
+```
+
+## Summary:
+
+- Iframe mode: `rootElement` = iframe's `<body>` (isolated document)
+- Direct mode: `rootElement` = the container element (same document as host page)
+
+So yes, `rootElement` is the mount point for the entire widget DOM tree.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+why do we need @AomiChatWidget.ts (60-61) 
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking how `lastState` is used:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "lastState" in "src/core/AomiChatWidget.ts" • 6 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `private lastState: ChatState \| null = null;` | L60 |
+| `src/core/AomiChatWidget.ts` | `if (this.lastState) \{` | L385 |
+| `src/core/AomiChatWidget.ts` | `this.updateStateView(this.lastState);` | L386 |
+| `src/core/AomiChatWidget.ts` | `const currentState = this.lastState \|\| this.chatManager.getState();` | L806 |
+| `src/core/AomiChatWidget.ts` | `this.lastState = state;` | L850 |
+| `src/core/AomiChatWidget.ts` | `const previousStatus = this.lastState?.connectionStatus;` | L950 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Reviewing the relevant sections to explain why `lastState` is needed:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+`lastState` serves three purposes:
+
+## 1. **State preservation across re-renders** (lines 385-387)
+
+When the widget re-renders (e.g., when params change), it restores the previous state so messages don't disappear:
+
+```385:387:src/core/AomiChatWidget.ts
+    if (this.lastState) {
+      this.updateStateView(this.lastState);
+    }
+```
+
+Without this, re-rendering would clear the chat history.
+
+## 2. **Detecting state changes** (line 950)
+
+Used to compare previous vs current connection status to show notifications only when status actually changes:
+
+```949:962:src/core/AomiChatWidget.ts
+  private handleConnectionStatusChange(status: ConnectionStatus): void {
+    const previousStatus = this.lastState?.connectionStatus;
+
+    if (previousStatus === status) {
+      return;
+    }
+
+    switch (status) {
+      case ConnectionStatus.CONNECTED:
+        if (previousStatus && previousStatus !== ConnectionStatus.CONNECTED) {
+          this.pushSystemNotification(
+            'Connection restored. Preparing services…',
+          );
+        }
+```
+
+This avoids duplicate notifications when the status hasn't changed.
+
+## 3. **Fallback for current state** (line 806)
+
+Used as a fallback when checking connection status:
+
+```806:806:src/core/AomiChatWidget.ts
+    const currentState = this.lastState || this.chatManager.getState();
+```
+
+## Summary
+
+`lastState` maintains state across re-renders, enables change detection, and provides a fallback. Without it, re-renders would lose chat history and connection state tracking.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+do you think this.render() is overused?
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking how many times `render()` is called and in what contexts:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "\.render\(\)" in "src/core/AomiChatWidget.ts" • 5 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `this.render();` | L90 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L127 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L297 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L305 |
+| `src/core/AomiChatWidget.ts` | `this.render();` | L315 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking what `render()` does and what changes when wallet events fire:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Yes, `render()` is overused. Here's why:
+
+## Current Usage
+
+`render()` is called 5 times:
+1. Constructor (line 90) — necessary
+2. `updateParams()` (line 127) — necessary when params change
+3. Wallet connect (line 297) — unnecessary
+4. Wallet disconnect (line 305) — unnecessary
+5. Chain change (line 315) — unnecessary
+
+## The Problem
+
+For wallet events, the code does:
+```290:297:src/core/AomiChatWidget.ts
+    this.walletManager.on('connect', (address) => {
+      this.eventEmitter.emit(WIDGET_EVENTS.WALLET_CONNECT, address);
+      this.pushSystemNotification(
+        `Wallet connected: ${truncateAddress(address)}`,
+      );
+      this.updateWalletStatus();
+      this.refreshResolvedParams();
+      this.render();
+    });
+```
+
+Issues:
+1. `updateWalletStatus()` already updates the button directly (lines 898-920)
+2. `render()` clears the entire DOM and recreates everything, destroying the button that was just updated
+3. `updateStateView()` (called at the end of `render()`) calls `updateWalletStatus()` again
+
+## What `render()` Does
+
+```358:388:src/core/AomiChatWidget.ts
+    this.surface.clear();
+    this.resetDomReferences();
+
+    // Create widget element
+    const palette = this.getThemePalette();
+
+    this.widgetElement = createElement('div', {
+      className: [CSS_CLASSES.WIDGET_ROOT, CSS_CLASSES.WIDGET_CONTAINER].join(' '),
+      styles: {
+        width: '100%',
+        height: '100%',
+        maxHeight: '100vh',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: this.getFontFamily(),
+        backgroundColor: palette.background,
+        color: palette.text,
+      },
+    }, this.surface.getDocument());
+
+    // Render chat interface
+    this.renderChatInterface();
+
+    // Add to container
+    this.surface.getRoot().appendChild(this.widgetElement);
+    if (this.lastState) {
+      this.updateStateView(this.lastState);
+    }
+```
+
+This is a full re-render: clears everything, recreates all DOM elements, and re-appends.
+
+## Recommendation
+
+Remove `render()` calls from wallet events. `updateWalletStatus()` already handles the button update:
+
+```typescript
+this.walletManager.on('connect', (address) => {
+  this.eventEmitter.emit(WIDGET_EVENTS.WALLET_CONNECT, address);
+  this.pushSystemNotification(`Wallet connected: ${truncateAddress(address)}`);
+  this.updateWalletStatus(); // This is sufficient!
+  // Remove: this.refreshResolvedParams();
+  // Remove: this.render();
+});
+```
+
+Only call `render()` when:
+- Initial construction
+- Params change in a way that affects structure/theme
+- Surface mode changes (iframe ↔ direct)
+
+Should I refactor this to remove the unnecessary `render()` calls?
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+updateWalletStatus handles the UI change right?
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking what `updateWalletStatus()` does:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Yes. `updateWalletStatus()` handles the UI change directly:
+
+```893:917:src/core/AomiChatWidget.ts
+  private updateWalletStatus(): void {
+    if (!this.walletStatusElement) return;
+
+    const palette = this.getThemePalette();
+    const isConnected = this.walletManager?.getIsConnected() ?? false;
+    const address = this.walletManager?.getCurrentAccount() ?? null;
+
+    if (isConnected && address) {
+      this.walletStatusElement.textContent = truncateAddress(address);
+
+      Object.assign(this.walletStatusElement.style, {
+        backgroundColor: palette.success,
+        border: `1px solid ${palette.success}`,
+        color: palette.background,
+      });
+      return;
+    }
+
+    this.walletStatusElement.textContent = 'Connect Wallet';
+    Object.assign(this.walletStatusElement.style, {
+      backgroundColor: palette.surface,
+      border: `1px solid ${palette.border}`,
+      color: palette.textSecondary,
+    });
+  }
+```
+
+It:
+1. Updates the button text (`textContent`)
+2. Updates the button styles (backgroundColor, border, color)
+
+So calling `render()` after `updateWalletStatus()` is redundant because:
+- `updateWalletStatus()` already updates the button
+- `render()` destroys and recreates the entire DOM, including the button that was just updated
+- `render()` then calls `updateStateView()`, which calls `updateWalletStatus()` again
+
+The wallet event handlers should only call `updateWalletStatus()` and skip `render()`.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+now explain @AomiChatWidget.ts (51-52)  and @AomiChatWidget.ts (63-64)  if they are repetitive
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking how `config` and `resolvedParams` are used to see if they're redundant:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "this\.config\." in "src/core/AomiChatWidget.ts" • 7 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `const mergedParams = \{ ...this.config.params, ...params \};` | L108 |
+| `src/core/AomiChatWidget.ts` | `this.config.params = mergedParams;` | L119 |
+| `src/core/AomiChatWidget.ts` | `this.config.provider = provider;` | L132 |
+| `src/core/AomiChatWidget.ts` | `this.resolvedParams = resolveWidgetParams(this.config.params);` | L724 |
+| `src/core/AomiChatWidget.ts` | `const listeners = this.config.listeners;` | L728 |
+| `src/core/AomiChatWidget.ts` | `return this.config.params.title?.trim() \|\| 'Aomi Assistant';` | L1004 |
+| `src/core/AomiChatWidget.ts` | `return this.config.params.emptyStateMessage?.trim() \|\| 'Chat interface is initializing…';` | L1008 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "this\.resolvedParams\." in "src/core/AomiChatWidget.ts" • 14 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `const previousSurfaceMode = this.resolvedParams.renderSurface;` | L118 |
+| `src/core/AomiChatWidget.ts` | `if (this.resolvedParams.renderSurface !== previousSurfaceMode) \{` | L122 |
+| `src/core/AomiChatWidget.ts` | `if (this.resolvedParams.welcomeMessage) \{` | L238 |
+| `src/core/AomiChatWidget.ts` | `this.resolvedParams.welcomeMessage,` | L240 |
+| `src/core/AomiChatWidget.ts` | `this.surface.setDimensions(this.resolvedParams.width, this.resolvedParams.height);` | L354 |
+| `src/core/AomiChatWidget.ts` | `this.resolvedParams.placeholder \|\|` | L524 |
+| `src/core/AomiChatWidget.ts` | `this.resolvedParams.width,` | L981 |
+| `src/core/AomiChatWidget.ts` | `this.resolvedParams.height,` | L982 |
+| `src/core/AomiChatWidget.ts` | `return this.resolvedParams.theme.palette;` | L992 |
+| `src/core/AomiChatWidget.ts` | `return this.resolvedParams.theme.fonts.primary;` | L996 |
+| `src/core/AomiChatWidget.ts` | `return this.resolvedParams.theme.fonts.monospace;` | L1000 |
+| `src/core/AomiChatWidget.ts` | `mode: this.resolvedParams.renderSurface,` | L1017 |
+| `src/core/AomiChatWidget.ts` | `width: this.resolvedParams.width,` | L1018 |
+| `src/core/AomiChatWidget.ts` | `height: this.resolvedParams.height,` | L1019 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking what `resolveWidgetParams` does to understand the relationship:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/widgetParams.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "WidgetConfig|ResolvedAomiChatWidgetParams" in "src/types/interfaces.ts" • 2 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/interfaces.ts` | `export interface ResolvedAomiChatWidgetParams \{` | L117 |
+| `src/types/interfaces.ts` | `export interface WidgetConfig \{` | L232 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking their type definitions:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/interfaces.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+They are not repetitive; they serve different purposes:
+
+## `config: WidgetConfig` (line 51)
+
+Stores the raw user-provided configuration:
+
+```typescript
+interface WidgetConfig {
+  params: AomiChatWidgetParams;      // Raw params (many optional fields)
+  provider?: EthereumProvider;       // Wallet provider
+  listeners?: AomiChatEventListeners; // Event callbacks
+}
+```
+
+- Contains user input with optional values (`width?`, `height?`, `theme?`, etc.)
+- Includes non-param data: `provider` and `listeners`
+- Used for: updating params, accessing listeners, storing the provider
+
+## `resolvedParams: ResolvedAomiChatWidgetParams` (line 63)
+
+Stores the computed/resolved version with defaults applied:
+
+```typescript
+interface ResolvedAomiChatWidgetParams {
+  width: string;              // Required (has default)
+  height: string;             // Required (has default)
+  maxHeight: number;         // Required (has default)
+  renderSurface: WidgetRenderSurface; // Required (has default)
+  theme: AomiWidgetThemeDefinition;   // Complete theme (merged with defaults)
+  // ... other fields
+}
+```
+
+- All values have defaults filled in (no optionals for core fields)
+- Theme is fully merged (`AomiWidgetThemeDefinition` vs partial `AomiWidgetThemeConfig`)
+- Used for: rendering, getting theme palette, getting dimensions
+
+## The Relationship
+
+```724:724:src/core/AomiChatWidget.ts
+    this.resolvedParams = resolveWidgetParams(this.config.params);
+```
+
+`resolvedParams` is derived from `config.params` by applying defaults.
+
+## Why Both?
+
+- `config`: Source of truth for user input; mutable (can be updated via `updateParams()`)
+- `resolvedParams`: Computed, ready-to-use values; recalculated when `config.params` changes
+
+This separation keeps raw input separate from resolved values, avoiding repeated default resolution during rendering.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+AomiEventListeners is an external interface right?
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking where `AomiChatEventListeners` is defined and how it's used:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "AomiChatEventListeners|AomiEventListeners" in "src/types/interfaces.ts" • 6 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/interfaces.ts` | `export interface AomiEventListeners \{` | L160 |
+| `src/types/interfaces.ts` | `on: <K extends keyof AomiEventListeners>(` | L191 |
+| `src/types/interfaces.ts` | `listener: NonNullable<AomiEventListeners[K]>` | L193 |
+| `src/types/interfaces.ts` | `off: <K extends keyof AomiEventListeners>(` | L195 |
+| `src/types/interfaces.ts` | `listener: NonNullable<AomiEventListeners[K]>` | L197 |
+| `src/types/interfaces.ts` | `listeners?: AomiEventListeners;` | L235 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "AomiChatEventListeners" in "src/core/AomiChatWidget.ts" • 0 matches</summary>
+
+Output mode: content
+
+
+_No matches found_
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/interfaces.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking if it's exported and used in the public API:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/interfaces.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "export.*AomiEventListeners|export.*AomiChatEventListeners" in "src" • 1 match</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/interfaces.ts` | `export interface AomiEventListeners \{` | L160 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/index.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Yes. `AomiEventListeners` is an external/public interface.
+
+## Evidence:
+
+1. It's exported from the types file:
+```160:170:src/types/interfaces.ts
+export interface AomiEventListeners {
+  onReady?: () => void;
+  onMessage?: (_message: ChatMessage) => void;
+  onTransactionRequest?: (_transaction: WalletTransaction) => void;
+  onError?: (_error: WidgetError) => void;
+  onSessionStart?: (_sessionId: string) => void;
+  onSessionEnd?: (_sessionId: string) => void;
+  onNetworkChange?: (_chainId: SupportedChainId) => void;
+  onWalletConnect?: (_address: string) => void;
+  onWalletDisconnect?: () => void;
+}
+```
+
+2. It's re-exported in the public API (`src/index.ts`):
+```18:24:src/index.ts
+export type {
+  // Main widget types
+  OptionalParam as AomiWidgetParams,
+  AomiWidgetHandler,
+  WidgetConfig,
+  AomiEventListeners,
+```
+
+3. It's used in the public `AomiWidgetHandler` interface:
+```191:198:src/types/interfaces.ts
+  on: <K extends keyof AomiEventListeners>(
+    event: K,
+    listener: NonNullable<AomiEventListeners[K]>
+  ) => AomiWidgetHandler;
+  off: <K extends keyof AomiEventListeners>(
+    event: K,
+    listener: NonNullable<AomiEventListeners[K]>
+  ) => AomiWidgetHandler;
+```
+
+4. It's used in the public `WidgetConfig` interface (which users pass when creating widgets):
+```232:236:src/types/interfaces.ts
+export interface WidgetConfig {
+  params: OptionalParam;
+  provider?: EthereumProvider;
+  listeners?: AomiEventListeners;
+}
+```
+
+So `AomiEventListeners` is part of the public API: users can provide these callbacks when creating widgets and use them with the `on()`/`off()` methods.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+run npm type checker
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking package.json for the typecheck command, then running it:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: package.json</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Running the typecheck script:
+
+
+---
+
+<tool-use data-tool-type="bash" data-tool-name="run_terminal_cmd">
+<details><summary>Tool use: **command** • Run command: npm run typecheck</summary>
+
+```bash
+npm run typecheck
+```
+
+```
+
+&gt; @aomi-labs/widget-lib@0.4.0 typecheck
+&gt; tsc --noEmit
+
+src/index.ts(3,34): error TS2307: Cannot find module &#39;./core/AomiWidget&#39; or its corresponding type declarations.
+src/index.ts(117,8): error TS2307: Cannot find module &#39;./react/AomiWidget&#39; or its corresponding type declarations.
+src/react/AomiChatWidget.tsx(5,3): error TS2724: &#39;&quot;../types/interfaces&quot;&#39; has no exported member named &#39;AomiChatEventListeners&#39;. Did you mean &#39;AomiEventListeners&#39;?
+src/react/AomiChatWidget.tsx(6,3): error TS2724: &#39;&quot;../types/interfaces&quot;&#39; has no exported member named &#39;AomiChatWidgetHandler&#39;. Did you mean &#39;AomiWidgetHandler&#39;?
+src/react/AomiChatWidget.tsx(10,10): error TS2724: &#39;&quot;../core/AomiChatWidget&quot;&#39; has no exported member named &#39;createAomiChatWidget&#39;. Did you mean &#39;createAomiWidget&#39;?
+src/utils/widgetParams.ts(34,27): error TS2339: Property &#39;renderSurface&#39; does not exist on type &#39;OptionalParam&#39;.
+
+```
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+TypeScript errors found. Checking the files to fix them:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/index.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/react/AomiChatWidget.tsx</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/widgetParams.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "export.*createAomi|export.*createAomiChat" in "src/core" • 1 match</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `export function createAomiWidget(` | L1033 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking exports and type definitions:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "^export|export function|export class" in "src/core/AomiChatWidget.ts" • 2 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `export function createAomiWidget(` | L1033 |
+| `src/core/AomiChatWidget.ts` | `export \{ DefaultAomiWidget \};` | L1061 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "OptionalParam|AomiChatWidgetParams" in "src/types/interfaces.ts" • 3 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/interfaces.ts` | `export interface OptionalParam \{` | L91 |
+| `src/types/interfaces.ts` | `updateParams: (params: Partial<OptionalParam>) => void;` | L181 |
+| `src/types/interfaces.ts` | `params: OptionalParam;` | L233 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/AomiChatWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking OptionalParam for renderSurface:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/interfaces.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking what `ResolvedParams` expects and the constants:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "ResolvedParams|ResolvedAomiChatWidgetParams" in "src/types/interfaces.ts" • 1 match</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/interfaces.ts` | `export interface ResolvedParams \{` | L117 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="unknown" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep**</summary>
+
+Status: **loading**
+
+
+</details>
+</tool-use>
+
+---
+

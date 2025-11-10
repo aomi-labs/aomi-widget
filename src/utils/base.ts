@@ -1,7 +1,7 @@
 // Utility functions for the Aomi Chat Widget
 
 import type {
-  AomiChatWidgetParams,
+  OptionalParam,
   SupportedChainId,
 } from '../types/interfaces';
 
@@ -14,7 +14,7 @@ import type {
 /**
  * Validates widget configuration parameters
  */
-export function validateWidgetParams(params: AomiChatWidgetParams): string[] {
+export function validateWidgetParams(params: OptionalParam): string[] {
   if (!params.appCode || typeof params.appCode !== 'string') {
     return ['appCode is required and must be a string'];
   }
@@ -62,7 +62,7 @@ export function isValidSessionId(sessionId: string): boolean {
 /**
  * Builds widget URL with parameters
  */
-export function buildWidgetUrl(baseUrl: string, params: AomiChatWidgetParams): string {
+export function buildWidgetUrl(baseUrl: string, params: OptionalParam): string {
   const url = new URL('/widget', baseUrl);
 
   // Add essential parameters
@@ -94,8 +94,8 @@ export function buildWidgetUrl(baseUrl: string, params: AomiChatWidgetParams): s
 /**
  * Parses widget parameters from URL search params
  */
-export function parseWidgetParams(searchParams: URLSearchParams): Partial<AomiChatWidgetParams> {
-  const params: Partial<AomiChatWidgetParams> = {};
+export function parseWidgetParams(searchParams: URLSearchParams): Partial<OptionalParam> {
+  const params: Partial<OptionalParam> = {};
 
   const appCode = searchParams.get('appCode');
   if (appCode) params.appCode = appCode;

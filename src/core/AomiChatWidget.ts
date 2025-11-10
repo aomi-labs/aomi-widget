@@ -1,17 +1,17 @@
-// AomiChatWidget - Main widget factory and management class
+// AomiWidget - Main widget factory and management class
 
 import { EventEmitter } from 'eventemitter3';
 import {
   ConnectionStatus,
-  type AomiChatWidgetParams,
-  type AomiChatWidgetHandler,
+  type OptionalParam,
+  type AomiWidgetHandler,
   type WidgetConfig,
   type ChatState,
-  type AomiChatEventListeners,
+  type AomiEventListeners,
   type EthereumProvider,
   type ChatMessage,
   type WalletTransaction,
-  type ResolvedAomiChatWidgetParams,
+  type ResolvedParams,
 } from '../types/interfaces';
 import { createWidgetError } from '../types/interfaces';
 import {
@@ -46,7 +46,7 @@ type MessageBubblePayload = {
  * ============================================================================
  */
 
-class DefaultAomiWidget implements AomiChatWidgetHandler {
+class DefaultAomiWidget implements AomiWidgetHandler {
   private container: HTMLElement;
   private config: WidgetConfig;
   private chatManager: ChatManager;
@@ -60,9 +60,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private lastState: ChatState | null = null;
   private activeSessionId: string | null = null;
   private surface!: WidgetSurface;
-  private viewDocument!: Document;
-  private mountRoot!: HTMLElement;
-  private resolvedParams!: ResolvedAomiChatWidgetParams;
+  private resolvedParams!: ResolvedParams;
 
   constructor(container: HTMLElement, config: WidgetConfig) {
     this.eventEmitter = new EventEmitter();
@@ -104,7 +102,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     return this.chatManager.sendMessage(message);
   }
 
-  public updateParams(params: Partial<AomiChatWidgetParams>): void {
+  public updateParams(params: Partial<OptionalParam>): void {
 
     // Validate new parameters
     const mergedParams = { ...this.config.params, ...params };
@@ -163,19 +161,19 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     return state.connectionStatus === ConnectionStatus.CONNECTED;
   }
 
-  public on<K extends keyof AomiChatEventListeners>(
+  public on<K extends keyof AomiEventListeners>(
     event: K,
-    listener: NonNullable<AomiChatEventListeners[K]>,
-  ): AomiChatWidgetHandler {
+    listener: NonNullable<AomiEventListeners[K]>,
+  ): AomiWidgetHandler {
     const eventName = this.getEventNameForListener(event);
     this.eventEmitter.on(eventName, listener as any);
     return this;
   }
 
-  public off<K extends keyof AomiChatEventListeners>(
+  public off<K extends keyof AomiEventListeners>(
     event: K,
-    listener: NonNullable<AomiChatEventListeners[K]>,
-  ): AomiChatWidgetHandler {
+    listener: NonNullable<AomiEventListeners[K]>,
+  ): AomiWidgetHandler {
     const eventName = this.getEventNameForListener(event);
     this.eventEmitter.off(eventName, listener as any);
     return this;
@@ -296,7 +294,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       );
       this.updateWalletStatus();
       this.refreshResolvedParams();
-      this.render();
     });
 
     this.walletManager.on('disconnect', () => {
@@ -304,7 +301,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       this.pushSystemNotification('Wallet disconnected.');
       this.updateWalletStatus();
       this.refreshResolvedParams();
-      this.render();
     });
 
     this.walletManager.on('chainChange', (chainId) => {
@@ -314,7 +310,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       );
       this.updateWalletStatus();
       this.refreshResolvedParams();
-      this.render();
     });
 
     this.walletManager.on('error', (error) => {
@@ -377,13 +372,13 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         backgroundColor: palette.background,
         color: palette.text,
       },
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     // Render chat interface
     this.renderChatInterface();
 
     // Add to container
-    this.mountRoot.appendChild(this.widgetElement);
+    this.surface.getRoot().appendChild(this.widgetElement);
     if (this.lastState) {
       this.updateStateView(this.lastState);
     }
@@ -407,7 +402,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         overflow: 'hidden',
         minHeight: '0',
       },
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     const header = this.createHeader();
     const body = this.createBody();
@@ -432,7 +427,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         color: palette.text,
       },
       children: [this.getWidgetTitle()],
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     this.walletStatusElement = createElement('button', {
       className: CSS_CLASSES.WALLET_STATUS,
@@ -453,7 +448,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
           'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease',
       },
       children: ['Connect Wallet'],
-    }, this.viewDocument) as HTMLButtonElement;
+    }, this.surface.getDocument()) as HTMLButtonElement;
 
     this.walletStatusElement.addEventListener('click', () => {
       void this.handleWalletButtonClick();
@@ -468,7 +463,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         padding: '16px 20px',
         backgroundColor: palette.background,
       },
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     header.appendChild(title);
     header.appendChild(this.walletStatusElement);
@@ -492,7 +487,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         backgroundColor: palette.background,
         minHeight: '0',
       },
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     // Initial placeholder
     this.messageListElement.appendChild(
@@ -513,7 +508,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         minHeight: '0',
         overflow: 'hidden',
       },
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     body.appendChild(this.messageListElement);
     return body;
@@ -541,7 +536,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         color: palette.text,
         minHeight: '48px',
       },
-    }, this.viewDocument) as HTMLTextAreaElement;
+    }, this.surface.getDocument()) as HTMLTextAreaElement;
 
     this.sendButtonElement = createElement('button', {
       className: CSS_CLASSES.SEND_BUTTON,
@@ -557,7 +552,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         transition: 'background-color 0.2s ease, opacity 0.2s ease',
       },
       children: ['↑'],
-    }, this.viewDocument) as HTMLButtonElement;
+    }, this.surface.getDocument()) as HTMLButtonElement;
 
     const controls = createElement('div', {
       className: CSS_CLASSES.ACTION_BAR,
@@ -571,7 +566,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         border: `1px solid ${palette.border}`,
       },
       children: [this.messageInputElement, this.sendButtonElement],
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     const actionBarWrapper = createElement('div', {
       className: CSS_CLASSES.INPUT_FORM,
@@ -581,7 +576,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         flexShrink: '0',
       },
       children: [controls],
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     return actionBarWrapper;
   }
@@ -606,7 +601,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         gap: '6px',
         alignItems: isUser ? 'flex-end' : 'flex-start',
       },
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     const contentHost = createElement('div', {
       className: [
@@ -647,7 +642,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
             fontFamily,
             textAlign: 'left',
           },
-    }, this.viewDocument);
+    }, this.surface.getDocument());
 
     const trimmedContent = content?.trim() ?? '';
 
@@ -658,7 +653,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
           fontFamily,
           monospaceFontFamily: monospaceFont,
         },
-        this.viewDocument,
+        this.surface.getDocument(),
       );
 
       markdownElement.style.wordBreak = 'break-word';
@@ -679,7 +674,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
           border: `1px solid ${accentColor}`,
           backgroundColor: palette.surface,
         },
-      }, this.viewDocument);
+      }, this.surface.getDocument());
 
       toolWrapper.appendChild(
         createElement('div', {
@@ -691,7 +686,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
             letterSpacing: '0.04em',
           },
           children: [`Tool • ${toolStream.topic}`],
-        }, this.viewDocument),
+        }, this.surface.getDocument()),
       );
 
       const toolContent = createElement('pre', {
@@ -706,7 +701,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
           color: palette.textSecondary,
           backgroundColor: 'transparent',
         },
-      }, this.viewDocument) as HTMLPreElement;
+      }, this.surface.getDocument()) as HTMLPreElement;
       toolContent.textContent = toolStream.content;
 
       toolWrapper.appendChild(toolContent);
@@ -734,7 +729,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     if (!listeners) return;
 
     const bindings: Array<{
-      key: keyof AomiChatEventListeners;
+      key: keyof AomiEventListeners;
       event: string;
     }> = [
       { key: 'onReady', event: WIDGET_EVENTS.READY },
@@ -756,8 +751,8 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     });
   }
 
-  private getEventNameForListener(event: keyof AomiChatEventListeners): string {
-    const map: Record<keyof AomiChatEventListeners, string> = {
+  private getEventNameForListener(event: keyof AomiEventListeners): string {
+    const map: Record<keyof AomiEventListeners, string> = {
       onReady: WIDGET_EVENTS.READY,
       onMessage: WIDGET_EVENTS.MESSAGE,
       onTransactionRequest: WIDGET_EVENTS.TRANSACTION_REQUEST,
@@ -1023,8 +1018,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       width: this.resolvedParams.width,
       height: this.resolvedParams.height,
     });
-    this.viewDocument = this.surface.getDocument();
-    this.mountRoot = this.surface.getRoot();
   }
 }
 
@@ -1037,10 +1030,10 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 /**
  * Creates and initializes an Aomi Chat Widget
  */
-export function createAomiChatWidget(
+export function createAomiWidget(
   container: HTMLElement,
   config: WidgetConfig,
-): AomiChatWidgetHandler {
+): AomiWidgetHandler {
   // Validate environment
   if (!isBrowser()) {
     throw new Error('Widget can only be created in a browser environment');

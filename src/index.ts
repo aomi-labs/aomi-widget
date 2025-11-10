@@ -1,6 +1,6 @@
 // Main entry point for the Aomi Chat Widget Library
 
-import { createAomiChatWidget } from './core/AomiChatWidget';
+import { createAomiWidget } from './core/AomiChatWidget';
 import {
   SUPPORTED_CHAINS,
   ERROR_CODES,
@@ -8,7 +8,7 @@ import {
 } from './types/constants';
 
 // Core widget factory
-export { createAomiChatWidget };
+export { createAomiWidget };
 
 // Core managers
 export { ChatManager } from './core/ChatManager';
@@ -17,10 +17,10 @@ export { WalletManager, createWalletManager, isValidProvider, detectWallets } fr
 // Types
 export type {
   // Main widget types
-  AomiChatWidgetParams,
-  AomiChatWidgetHandler,
+  OptionalParam as AomiWidgetParams,
+  AomiWidgetHandler,
   WidgetConfig,
-  AomiChatEventListeners,
+  AomiEventListeners,
 
   // Chat types
   ChatMessage,
@@ -112,8 +112,8 @@ export {
 } from './utils/base';
 export { resolveWidgetParams } from './utils/widgetParams';
 export {
-  AomiChatWidget as ReactAomiChatWidget,
-  type ReactAomiChatWidgetProps,
+  AomiChatWidget as ReactAomiWidget,
+  type ReactAomiChatWidgetProps as ReactAomiWidgetProps,
 } from './react/AomiChatWidget';
 
 // Package version (this would be set during build)
@@ -123,7 +123,7 @@ export const VERSION = '0.1.0';
 import type {
   EthereumProvider,
   ChatMessage,
-  AomiChatWidgetHandler,
+  AomiWidgetHandler,
   WidgetConfig,
 } from './types/interfaces';
 import type { WidgetError } from './types/interfaces';
@@ -141,7 +141,7 @@ export function createChatWidget(
     onMessage?: (_message: ChatMessage) => void;
     onError?: (_error: WidgetError | Error) => void;
   },
-): AomiChatWidgetHandler {
+): AomiWidgetHandler {
   // Get container element
   const container = typeof containerId === 'string'
     ? document.getElementById(containerId)
@@ -171,13 +171,13 @@ export function createChatWidget(
     },
   };
 
-  return createAomiChatWidget(container, config);
+  return createAomiWidget(container, config);
 }
 
 // Default export for convenience
 export default {
   createChatWidget,
-  createAomiChatWidget,
+  createAomiWidget,
   VERSION,
   SUPPORTED_CHAINS,
   ERROR_CODES,
