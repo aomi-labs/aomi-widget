@@ -80,35 +80,22 @@ export {
 
   // Session utilities
   generateSessionId,
-  isValidSessionId,
-
-  // URL utilities
-  buildWidgetUrl,
-  parseWidgetParams,
 
   // DOM utilities
   createElement,
-  isElementVisible,
 
   // Type guards
   isEthereumAddress,
   isTransactionHash,
-  hasProperty,
 
   // Async utilities
-  delay,
   withTimeout,
-  retry,
 
   // Environment utilities
   isBrowser,
-  isMobile,
-  getViewportDimensions,
 
   // Formatting utilities
-  formatTimestamp,
   truncateAddress,
-  formatNumber,
 } from './utils/base';
 export { resolveWidgetParams } from './utils/widgetParams';
 export {

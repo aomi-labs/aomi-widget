@@ -1345,15 +1345,1514 @@ Output mode: content
 
 ---
 
-<tool-use data-tool-type="unknown" data-tool-name="grep">
+<tool-use data-tool-type="grep" data-tool-name="grep">
 <details>
-<summary>Tool use: **grep**</summary>
+<summary>Tool use: **grep** • Grep for "renderSurface|surfaceMode|DEFAULT_RENDER_SURFACE|WidgetRenderSurface|SurfaceMode" in "src/types" • 5 matches</summary>
 
-Status: **loading**
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/types/interfaces.ts` | `export enum SurfaceMode \{` | L58 |
+| `src/types/interfaces.ts` | `surfaceMode?: SurfaceMode;` | L101 |
+| `src/types/interfaces.ts` | `renderSurface: SurfaceMode;` | L124 |
+| `src/types/constants.ts` | `SurfaceMode,` | L4 |
+| `src/types/constants.ts` | `export const DEFAULT_RENDER_SURFACE = SurfaceMode.IFRAME;` | L21 |
 
 
 </details>
 </tool-use>
+
+---
+
+
+
+---
+
+
+Fixing the type errors:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/constants.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/index.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Fixing the type errors:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/index.ts</summary>
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -1,5 +1,5 @@
+  // Main entry point for the Aomi Chat Widget Library
+  
+- import { createAomiWidget } from &#39;./core/AomiWidget&#39;;
++ import { createAomiWidget } from &#39;./core/AomiChatWidget&#39;;
+  import {
+    SUPPORTED_CHAINS,
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/index.ts</summary>
+
+**Chunk 1**
+Lines added: 3, lines removed: 3
+
+```diff
+@@ -113,7 +113,7 @@
+  export { resolveWidgetParams } from &#39;./utils/widgetParams&#39;;
+  export {
+-   AomiWidget as ReactAomiWidget,
+-   type ReactAomiWidgetProps,
+- } from &#39;./react/AomiWidget&#39;;
++   AomiChatWidget as ReactAomiWidget,
++   type ReactAomiChatWidgetProps as ReactAomiWidgetProps,
++ } from &#39;./react/AomiChatWidget&#39;;
+  
+  // Package version (this would be set during build)
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/react/AomiChatWidget.tsx</summary>
+
+**Chunk 1**
+Lines added: 3, lines removed: 3
+
+```diff
+@@ -3,10 +3,10 @@
+  
+  import type {
+-   AomiChatEventListeners,
+-   AomiChatWidgetHandler,
++   AomiEventListeners,
++   AomiWidgetHandler,
+    OptionalParam,
+    EthereumProvider,
+  } from &#39;../types/interfaces&#39;;
+- import { createAomiChatWidget } from &#39;../core/AomiChatWidget&#39;;
++ import { createAomiWidget } from &#39;../core/AomiChatWidget&#39;;
+  
+  export interface ReactAomiChatWidgetProps {
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/react/AomiChatWidget.tsx</summary>
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -13,5 +13,5 @@
+    params: OptionalParam;
+    provider?: EthereumProvider;
+-   listeners?: AomiChatEventListeners;
++   listeners?: AomiEventListeners;
+    className?: string;
+    style?: CSSProperties;
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "createAomiChatWidget|AomiChatWidgetHandler|AomiChatEventListeners" in "src/react/AomiChatWidget.tsx" • 4 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/react/AomiChatWidget.tsx` | `const handlerRef = useRef<AomiChatWidgetHandler \| null>(null);` | L28 |
+| `src/react/AomiChatWidget.tsx` | `const listenersRef = useRef<AomiChatEventListeners \| undefined>(listeners);` | L29 |
+| `src/react/AomiChatWidget.tsx` | `handlerRef.current = createAomiChatWidget(container, \{` | L45 |
+| `src/react/AomiChatWidget.tsx` | `handlerRef.current = createAomiChatWidget(container, \{` | L93 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Fixing remaining references in the React component:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/react/AomiChatWidget.tsx</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Fixing remaining references:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/react/AomiChatWidget.tsx</summary>
+
+**Chunk 1**
+Lines added: 2, lines removed: 2
+
+```diff
+@@ -26,6 +26,6 @@
+  }: ReactAomiChatWidgetProps) {
+    const containerRef = useRef&lt;HTMLDivElement | null&gt;(null);
+-   const handlerRef = useRef&lt;AomiChatWidgetHandler | null&gt;(null);
+-   const listenersRef = useRef&lt;AomiChatEventListeners | undefined&gt;(listeners);
++   const handlerRef = useRef&lt;AomiWidgetHandler | null&gt;(null);
++   const listenersRef = useRef&lt;AomiEventListeners | undefined&gt;(listeners);
+    const [error, setError] = useState&lt;Error | null&gt;(null);
+  
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/react/AomiChatWidget.tsx</summary>
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -43,5 +43,5 @@
+      if (!handlerRef.current) {
+        try {
+-         handlerRef.current = createAomiChatWidget(container, {
++         handlerRef.current = createAomiWidget(container, {
+            params,
+            provider,
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/widgetParams.ts</summary>
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -32,5 +32,5 @@
+      baseUrl: params.baseUrl,
+      sessionId: params.sessionId,
+-     renderSurface: params.renderSurface ?? DEFAULT_RENDER_SURFACE,
++     renderSurface: params.surfaceMode ?? DEFAULT_RENDER_SURFACE,
+      welcomeMessage: params.welcomeMessage,
+      placeholder: params.placeholder,
+```
+
+</details>
+
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking for other references to `renderSurface` that need updating:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "renderSurface|surfaceMode" in "src/core/AomiChatWidget.ts" • 3 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/AomiChatWidget.ts` | `const previousSurfaceMode = this.resolvedParams.renderSurface;` | L118 |
+| `src/core/AomiChatWidget.ts` | `if (this.resolvedParams.renderSurface !== previousSurfaceMode) \{` | L122 |
+| `src/core/AomiChatWidget.ts` | `mode: this.resolvedParams.renderSurface,` | L1017 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "renderSurface|surfaceMode" in "src/core/WidgetSurface.ts" • 0 matches</summary>
+
+Output mode: content
+
+
+_No matches found_
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Running the type checker again to verify all errors are fixed:
+
+
+---
+
+<tool-use data-tool-type="bash" data-tool-name="run_terminal_cmd">
+<details><summary>Tool use: **command** • Run command: npm run typecheck</summary>
+
+```bash
+npm run typecheck
+```
+
+```
+
+&gt; @aomi-labs/widget-lib@0.4.0 typecheck
+&gt; tsc --noEmit
+
+src/react/AomiChatWidget.tsx(93,28): error TS2552: Cannot find name &#39;createAomiChatWidget&#39;. Did you mean &#39;createAomiWidget&#39;?
+
+```
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking for a remaining reference:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/react/AomiChatWidget.tsx</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Fixing the remaining reference:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/react/AomiChatWidget.tsx</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Fixing the remaining reference:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/react/AomiChatWidget.tsx</summary>
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -91,5 +91,5 @@
+  
+      try {
+-       handlerRef.current = createAomiChatWidget(container, {
++       handlerRef.current = createAomiWidget(container, {
+          params,
+          provider,
+```
+
+</details>
+
+</tool-use>
+
+---
+
+
+
+---
+
+
+Running the type checker again:
+
+
+---
+
+<tool-use data-tool-type="bash" data-tool-name="run_terminal_cmd">
+<details><summary>Tool use: **command** • Run command: npm run typecheck</summary>
+
+```bash
+npm run typecheck
+```
+
+```
+
+&gt; @aomi-labs/widget-lib@0.4.0 typecheck
+&gt; tsc --noEmit
+
+
+```
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+All type errors are fixed. The type checker passes.
+
+## Fixed Issues:
+
+1. **`src/index.ts`**: Changed import from `./core/AomiWidget` to `./core/AomiChatWidget`
+2. **`src/index.ts`**: Changed export from `./react/AomiWidget` to `./react/AomiChatWidget` and updated type alias
+3. **`src/react/AomiChatWidget.tsx`**: Changed `AomiChatEventListeners` → `AomiEventListeners`
+4. **`src/react/AomiChatWidget.tsx`**: Changed `AomiChatWidgetHandler` → `AomiWidgetHandler`
+5. **`src/react/AomiChatWidget.tsx`**: Changed `createAomiChatWidget` → `createAomiWidget` (2 occurrences)
+6. **`src/utils/widgetParams.ts`**: Changed `params.renderSurface` → `params.surfaceMode` (since `OptionalParam` uses `surfaceMode`, while `ResolvedParams` uses `renderSurface`)
+
+TypeScript compilation now passes with no errors.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+now, review types/ and utils/ again, list all the function, identify the unused ones and remove
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Reviewing `types/` and `utils/` to list functions, identify unused ones, and remove them. Starting by exploring these directories:
+
+
+---
+
+<tool-use data-tool-type="generic" data-tool-name="list_dir">
+<details>
+            <summary>Tool use: **list_directory** • Listed directory undefined • **0** results</summary>
+        
+No results found
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="generic" data-tool-name="list_dir">
+<details>
+            <summary>Tool use: **list_directory** • Listed directory undefined • **0** results</summary>
+        
+No results found
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/interfaces.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/constants.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/base.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/widgetParams.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/markdown.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/helper.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking usage of each function across the codebase:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "validateWidgetParams|generateSessionId|isValidSessionId|buildWidgetUrl|parseWidgetParams|createElement|isElementVisible|isEthereumAddress|isTransactionHash|hasProperty|delay|withTimeout|retry|isBrowser|isMobile|getViewportDimensions|formatTimestamp|truncateAddress|formatNumber" in "src" • 9 matches</summary>
+
+Output mode: files_with_matches
+
+
+| File |
+|------|
+| `src/index.ts` |
+| `src/core/AomiChatWidget.ts` |
+| `src/utils/base.ts` |
+| `src/core/WidgetSurface.ts` |
+| `src/core/ChatManager.ts` |
+| `src/utils/helper.ts` |
+| `src/core/WalletManager.ts` |
+| `src/core/wagmiConfig.ts` |
+| `src/utils/markdown.ts` |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "resolveWidgetParams|renderMarkdown|convertBackendMessage|resolveBackendBoolean|normaliseToolStream|areToolStreamsEqual|validateTransactionPayload" in "src" • 7 matches</summary>
+
+Output mode: files_with_matches
+
+
+| File |
+|------|
+| `src/utils/widgetParams.ts` |
+| `src/index.ts` |
+| `src/core/AomiChatWidget.ts` |
+| `src/core/ChatManager.ts` |
+| `src/utils/helper.ts` |
+| `src/core/WalletManager.ts` |
+| `src/utils/markdown.ts` |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "createWidgetError" in "src" • 5 matches</summary>
+
+Output mode: files_with_matches
+
+
+| File |
+|------|
+| `src/index.ts` |
+| `src/types/interfaces.ts` |
+| `src/core/AomiChatWidget.ts` |
+| `src/core/ChatManager.ts` |
+| `src/core/WalletManager.ts` |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/index.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking which functions are actually used internally (not just exported):
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "\bisValidSessionId\b|\bbuildWidgetUrl\b|\bparseWidgetParams\b|\bisElementVisible\b|\bhasProperty\b|\bdelay\b|\bwithTimeout\b|\bretry\b|\bisMobile\b|\bgetViewportDimensions\b|\bformatTimestamp\b|\bformatNumber\b" in "src" • 35 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/index.ts` | `isValidSessionId,` | L83 |
+| `src/index.ts` | `buildWidgetUrl,` | L86 |
+| `src/index.ts` | `parseWidgetParams,` | L87 |
+| `src/index.ts` | `isElementVisible,` | L91 |
+| `src/index.ts` | `hasProperty,` | L96 |
+| `src/index.ts` | `delay,` | L99 |
+| `src/index.ts` | `withTimeout,` | L100 |
+| `src/index.ts` | `retry,` | L101 |
+| `src/index.ts` | `isMobile,` | L105 |
+| `src/index.ts` | `getViewportDimensions,` | L106 |
+| `src/index.ts` | `formatTimestamp,` | L109 |
+| `src/index.ts` | `formatNumber,` | L111 |
+| `src/core/AomiChatWidget.ts` | `this.pushSystemNotification('Connection lost. We will retry shortly.');` | L967 |
+| `src/core/AomiChatWidget.ts` | `'A connection error occurred. Please retry.',` | L971 |
+| `src/utils/base.ts` | `export function isValidSessionId(sessionId: string): boolean \{` | L50 |
+| `src/utils/base.ts` | `export function buildWidgetUrl(baseUrl: string, params: OptionalParam): string \{` | L65 |
+| `src/utils/base.ts` | `export function parseWidgetParams(searchParams: URLSearchParams): Partial<OptionalParam> \{` | L97 |
+| `src/utils/base.ts` | `export function isElementVisible(element: HTMLElement): boolean \{` | L185 |
+| `src/utils/base.ts` | `export function hasProperty<T extends object, K extends string \| number \| symbol>(` | L220 |
+| `src/utils/base.ts` | `export function delay(ms: number): Promise<void> \{` | L236 |
+| `src/utils/base.ts` | `export function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> \{` | L243 |
+| `src/utils/base.ts` | `export async function retry<T>(` | L254 |
+| `src/utils/base.ts` | `delay?: number;` | L258 |
+| `src/utils/base.ts` | `delay: initialDelay = 1000,` | L265 |
+| `src/utils/base.ts` | `await delay(delayMs);` | L283 |
+| `src/utils/base.ts` | `export function isMobile(): boolean \{` | L306 |
+| `src/utils/base.ts` | `export function getViewportDimensions(): \{ width: number; height: number \} \{` | L317 |
+| `src/utils/base.ts` | `export function formatTimestamp(timestamp: Date): string \{` | L337 |
+| `src/utils/base.ts` | `export function formatNumber(` | L368 |
+| `src/core/ChatManager.ts` | `import \{ generateSessionId, withTimeout \} from '../utils/base';` | L16 |
+| `src/core/ChatManager.ts` | `const response = await withTimeout(` | L167 |
+| `src/core/ChatManager.ts` | `const response = await withTimeout(` | L367 |
+| `src/core/ChatManager.ts` | `const delay = this.config.reconnectDelay! * Math.pow(2, this.reconnectAttempt);` | L407 |
+| `src/core/ChatManager.ts` | `console.warn(`Scheduling reconnect attempt $\{this.reconnectAttempt\} in $\{delay\}ms`);` | L410 |
+| `src/core/ChatManager.ts` | `\}, delay);` | L416 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "\bresolveBackendBoolean\b|\bareToolStreamsEqual\b|\bvalidateTransactionPayload\b" in "src" • 9 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/ChatManager.ts` | `resolveBackendBoolean,` | L21 |
+| `src/core/ChatManager.ts` | `areToolStreamsEqual,` | L22 |
+| `src/core/ChatManager.ts` | `const toolStreamChanged = previous && !areToolStreamsEqual(previous.toolStream, message.toolStream);` | L310 |
+| `src/core/ChatManager.ts` | `const processingFlag = resolveBackendBoolean(payload.isProcessing ?? payload.is_processing);` | L318 |
+| `src/utils/helper.ts` | `export function resolveBackendBoolean(value: unknown): boolean \| null \{` | L67 |
+| `src/utils/helper.ts` | `export function areToolStreamsEqual(` | L103 |
+| `src/utils/helper.ts` | `export function validateTransactionPayload(transaction: TransactionRequest): void \{` | L112 |
+| `src/core/WalletManager.ts` | `validateTransactionPayload,` | L30 |
+| `src/core/WalletManager.ts` | `validateTransactionPayload(transaction);` | L191 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="search" data-tool-name="codebase_search">
+<details>
+                <summary>Tool use: **codebase_search** • Searched codebase "Where are isValidSessionId, buildWidgetUrl, parseWidgetParams, isElementVisible, hasProperty, delay, withTimeout, retry, isMobile, getViewportDimensions, formatTimestamp, formatNumber used?" • **14** results</summary>
+            
+| File | Lines |
+|------|-------|
+| `src/index.ts` | L46-112 |
+| `src/core/AomiChatWidget.ts` | L35-1021 |
+| `src/utils/widgetParams.ts` | L56 |
+| `src/utils/base.ts` | L49-118 |
+| `src/core/AomiChatWidget.ts` | L46 |
+| `src/utils/base.ts` | L32-59 |
+| `src/index.ts` | L116-184 |
+| `src/utils/base.ts` | L64-124 |
+| `src/types/interfaces.ts` | L159-209 |
+| `src/core/AomiChatWidget.ts` | L48-1060 |
+| `src/core/ChatManager.ts` | L30-444 |
+| `src/core/ChatManager.ts` | L42-444 |
+| `README.md` | L102-217 |
+| `src/react/AomiChatWidget.tsx` | L11-124 |
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Creating a todo list and checking each function's usage:
+
+
+---
+
+<tool-use data-tool-type="generic" data-tool-name="todo_write">
+<details><summary>Tool use: **todo_write** • Todo List</summary>
+
+- [-] List all functions in types/ and utils/
+- [ ] Check which functions are used internally vs only exported
+- [ ] Remove unused functions
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "\bdelay\(|\bretry\(" in "src" • 2 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/utils/base.ts` | `export function delay(ms: number): Promise<void> \{` | L236 |
+| `src/utils/base.ts` | `await delay(delayMs);` | L283 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "from.*helper|import.*helper" in "src" • 2 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/ChatManager.ts` | `\} from '../utils/helper';` | L23 |
+| `src/core/WalletManager.ts` | `\} from '../utils/helper';` | L31 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking which functions from helper.ts are used:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "convertBackendMessage|normaliseToolStream" in "src" • 5 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/ChatManager.ts` | `convertBackendMessage,` | L20 |
+| `src/core/ChatManager.ts` | `.map((msg, index) => convertBackendMessage(msg, index, previousMessages[index]));` | L301 |
+| `src/utils/helper.ts` | `export function convertBackendMessage(` | L39 |
+| `src/utils/helper.ts` | `const toolStream = normaliseToolStream(message.tool_stream ?? message.toolStream);` | L53 |
+| `src/utils/helper.ts` | `export function normaliseToolStream(raw: ToolStreamPayload): ToolStreamUpdate \| undefined \{` | L77 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/ChatManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/WalletManager.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Compiling a list of all functions and their usage:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="write">
+
+<details><summary>Tool use: **code_edit** • Edit file: /Users/ceciliazhang/Code/aomi-widget/function-audit.md</summary>
+
+**Chunk 1**
+Lines added: 52, lines removed: 1
+
+```diff
+@@ -1,1 +1,52 @@
+- 
++ # Function Usage Audit
++ 
++ ## types/interfaces.ts
++ - ✅ &#96;createWidgetError&#96; - USED (AomiChatWidget, ChatManager, WalletManager)
++ 
++ ## utils/base.ts
++ - ✅ &#96;validateWidgetParams&#96; - USED (AomiChatWidget)
++ - ✅ &#96;generateSessionId&#96; - USED (AomiChatWidget)
++ - ❌ &#96;isValidSessionId&#96; - NOT USED internally (only exported)
++ - ❌ &#96;buildWidgetUrl&#96; - NOT USED internally (only exported)
++ - ❌ &#96;parseWidgetParams&#96; - NOT USED internally (only exported)
++ - ✅ &#96;createElement&#96; - USED (AomiChatWidget, WidgetSurface)
++ - ❌ &#96;isElementVisible&#96; - NOT USED internally (only exported)
++ - ✅ &#96;isEthereumAddress&#96; - USED (helper.ts, WalletManager)
++ - ✅ &#96;isTransactionHash&#96; - USED (WalletManager)
++ - ❌ &#96;hasProperty&#96; - NOT USED internally (only exported)
++ - ✅ &#96;delay&#96; - USED internally (only in retry function)
++ - ✅ &#96;withTimeout&#96; - USED (ChatManager)
++ - ❌ &#96;retry&#96; - NOT USED internally (only exported)
++ - ✅ &#96;isBrowser&#96; - USED (AomiChatWidget)
++ - ❌ &#96;isMobile&#96; - NOT USED internally (only exported)
++ - ❌ &#96;getViewportDimensions&#96; - NOT USED internally (only exported)
++ - ❌ &#96;formatTimestamp&#96; - NOT USED internally (only exported)
++ - ✅ &#96;truncateAddress&#96; - USED (AomiChatWidget)
++ - ❌ &#96;formatNumber&#96; - NOT USED internally (only exported)
++ 
++ ## utils/widgetParams.ts
++ - ✅ &#96;resolveWidgetParams&#96; - USED (AomiChatWidget)
++ - ✅ &#96;mergeTheme&#96; - USED internally (only in resolveWidgetParams)
++ 
++ ## utils/markdown.ts
++ - ✅ &#96;renderMarkdown&#96; - USED (AomiChatWidget)
++ 
++ ## utils/helper.ts
++ - ✅ &#96;convertBackendMessage&#96; - USED (ChatManager)
++ - ✅ &#96;normaliseToolStream&#96; - USED internally (only in convertBackendMessage)
++ - ✅ &#96;resolveBackendBoolean&#96; - USED (ChatManager)
++ - ✅ &#96;areToolStreamsEqual&#96; - USED (ChatManager)
++ - ✅ &#96;validateTransactionPayload&#96; - USED (WalletManager)
++ 
++ ## Summary: Functions to Remove (Only Exported, Never Used Internally)
++ 1. &#96;isValidSessionId&#96; (utils/base.ts)
++ 2. &#96;buildWidgetUrl&#96; (utils/base.ts)
++ 3. &#96;parseWidgetParams&#96; (utils/base.ts)
++ 4. &#96;isElementVisible&#96; (utils/base.ts)
++ 5. &#96;hasProperty&#96; (utils/base.ts)
++ 6. &#96;retry&#96; (utils/base.ts) - Note: uses &#96;delay&#96; internally, but &#96;delay&#96; is only used by &#96;retry&#96;
++ 7. &#96;isMobile&#96; (utils/base.ts)
++ 8. &#96;getViewportDimensions&#96; (utils/base.ts)
++ 9. &#96;formatTimestamp&#96; (utils/base.ts)
++ 10. &#96;formatNumber&#96; (utils/base.ts)
++ 
+```
+
+</details>
+
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing unused functions. Starting with `utils/base.ts`:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/base.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/base.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 73
+
+```diff
+@@ -45,77 +45,4 @@
+  }
+  
+- /**
+-  * Validates a session ID format
+-  */
+- export function isValidSessionId(sessionId: string): boolean {
+-   // UUID v4 format
+-   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+-   return uuidRegex.test(sessionId);
+- }
+- 
+- /*
+-  * ============================================================================
+-  * URL UTILITIES
+-  * ============================================================================
+-  */
+- 
+- /**
+-  * Builds widget URL with parameters
+-  */
+- export function buildWidgetUrl(baseUrl: string, params: OptionalParam): string {
+-   const url = new URL(&#39;/widget&#39;, baseUrl);
+- 
+-   // Add essential parameters
+-   url.searchParams.set(&#39;appCode&#39;, params.appCode);
+- 
+-   if (params.sessionId) {
+-     url.searchParams.set(&#39;sessionId&#39;, params.sessionId);
+-   }
+- 
+-   if (params.chainId) {
+-     url.searchParams.set(&#39;chainId&#39;, params.chainId.toString());
+-   }
+- 
+-   const welcomeMessage =
+-     typeof params.welcomeMessage === &#39;string&#39; ? params.welcomeMessage : undefined;
+-   if (welcomeMessage) {
+-     url.searchParams.set(&#39;welcomeMessage&#39;, welcomeMessage);
+-   }
+- 
+-   const placeholder =
+-     typeof params.placeholder === &#39;string&#39; ? params.placeholder : undefined;
+-   if (placeholder) {
+-     url.searchParams.set(&#39;placeholder&#39;, placeholder);
+-   }
+- 
+-   return url.toString();
+- }
+- 
+- /**
+-  * Parses widget parameters from URL search params
+-  */
+- export function parseWidgetParams(searchParams: URLSearchParams): Partial&lt;OptionalParam&gt; {
+-   const params: Partial&lt;OptionalParam&gt; = {};
+- 
+-   const appCode = searchParams.get(&#39;appCode&#39;);
+-   if (appCode) params.appCode = appCode;
+- 
+-   const sessionId = searchParams.get(&#39;sessionId&#39;);
+-   if (sessionId) params.sessionId = sessionId;
+- 
+-   const chainId = searchParams.get(&#39;chainId&#39;);
+-   if (chainId) {
+-     const parsed = parseInt(chainId);
+-     if (!isNaN(parsed)) params.chainId = parsed as SupportedChainId;
+-   }
+- 
+-   const welcomeMessage = searchParams.get(&#39;welcomeMessage&#39;);
+-   if (welcomeMessage) params.welcomeMessage = welcomeMessage;
+- 
+-   const placeholder = searchParams.get(&#39;placeholder&#39;);
+-   if (placeholder) params.placeholder = placeholder;
+- 
+-   return params;
+- }
+  
+  /*
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/base.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 12
+
+```diff
+@@ -107,16 +107,4 @@
+  }
+  
+- /**
+-  * Checks if an element is visible in the viewport
+-  */
+- export function isElementVisible(element: HTMLElement): boolean {
+-   const rect = element.getBoundingClientRect();
+-   return (
+-     rect.top &gt;= 0 &amp;&amp;
+-     rect.left &gt;= 0 &amp;&amp;
+-     rect.bottom &lt;= (window.innerHeight || document.documentElement.clientHeight) &amp;&amp;
+-     rect.right &lt;= (window.innerWidth || document.documentElement.clientWidth)
+-   );
+- }
+  
+  /*
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/base.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 9
+
+```diff
+@@ -130,13 +130,4 @@
+  }
+  
+- /**
+-  * Type guard to check if an object has a specific property
+-  */
+- export function hasProperty&lt;T extends object, K extends string | number | symbol&gt;(
+-   obj: T,
+-   prop: K,
+- ): obj is T &amp; Record&lt;K, unknown&gt; {
+-   return prop in obj;
+- }
+  
+  /*
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/base.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 7
+
+```diff
+@@ -137,11 +137,4 @@
+   */
+  
+- /**
+-  * Delays execution for a specified number of milliseconds
+-  */
+- export function delay(ms: number): Promise&lt;void&gt; {
+-   return new Promise(resolve =&gt; setTimeout(resolve, ms));
+- }
+- 
+  /**
+   * Creates a promise that rejects after a timeout
+```
+
+**Chunk 2**
+Lines added: undefined, lines removed: 39
+
+```diff
+@@ -154,43 +147,4 @@
+    ]);
+  }
+- 
+- /**
+-  * Retries a function with exponential backoff
+-  */
+- export async function retry&lt;T&gt;(
+-   fn: () =&gt; Promise&lt;T&gt;,
+-   options: {
+-     maxAttempts?: number;
+-     delay?: number;
+-     backoffFactor?: number;
+-     shouldRetry?: (error: unknown) =&gt; boolean;
+-   } = {},
+- ): Promise&lt;T&gt; {
+-   const {
+-     maxAttempts = 3,
+-     delay: initialDelay = 1000,
+-     backoffFactor = 2,
+-     shouldRetry = () =&gt; true,
+-   } = options;
+- 
+-   let lastError: unknown;
+- 
+-   for (let attempt = 1; attempt &lt;= maxAttempts; attempt++) {
+-     try {
+-       return await fn();
+-     } catch (error) {
+-       lastError = error;
+- 
+-       if (attempt === maxAttempts || !shouldRetry(error)) {
+-         throw error;
+-       }
+- 
+-       const delayMs = initialDelay * Math.pow(backoffFactor, attempt - 1);
+-       await delay(delayMs);
+-     }
+-   }
+- 
+-   throw lastError;
+- }
+  
+  /*
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/base.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 24
+
+```diff
+@@ -161,28 +161,4 @@
+  }
+  
+- /**
+-  * Detects if running on a mobile device
+-  */
+- export function isMobile(): boolean {
+-   if (!isBrowser()) return false;
+- 
+-   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+-     navigator.userAgent,
+-   );
+- }
+- 
+- /**
+-  * Gets the current viewport dimensions
+-  */
+- export function getViewportDimensions(): { width: number; height: number } {
+-   if (!isBrowser()) {
+-     return { width: 0, height: 0 };
+-   }
+- 
+-   return {
+-     width: window.innerWidth || document.documentElement.clientWidth,
+-     height: window.innerHeight || document.documentElement.clientHeight,
+-   };
+- }
+  
+  /*
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/base.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 20
+
+```diff
+@@ -168,24 +168,4 @@
+   */
+  
+- /**
+-  * Formats a timestamp as a human-readable string
+-  */
+- export function formatTimestamp(timestamp: Date): string {
+-   const now = new Date();
+-   const diff = now.getTime() - timestamp.getTime();
+- 
+-   if (diff &lt; 60000) { // Less than 1 minute
+-     return &#39;just now&#39;;
+-   } else if (diff &lt; 3600000) { // Less than 1 hour
+-     const minutes = Math.floor(diff / 60000);
+-     return &#96;${minutes} minute${minutes &gt; 1 ? &#39;s&#39; : &#39;&#39;} ago&#96;;
+-   } else if (diff &lt; 86400000) { // Less than 1 day
+-     const hours = Math.floor(diff / 3600000);
+-     return &#96;${hours} hour${hours &gt; 1 ? &#39;s&#39; : &#39;&#39;} ago&#96;;
+-   } else {
+-     return timestamp.toLocaleDateString();
+-   }
+- }
+- 
+  /**
+   * Truncates an Ethereum address for display
+```
+
+**Chunk 2**
+Lines added: undefined, lines removed: 24
+
+```diff
+@@ -198,27 +178,3 @@
+    return &#96;${address.slice(0, startChars)}...${address.slice(-endChars)}&#96;;
+  }
+- 
+- /**
+-  * Formats a number with appropriate decimal places
+-  */
+- export function formatNumber(
+-   value: number,
+-   options: {
+-     decimals?: number;
+-     compact?: boolean;
+-     currency?: string;
+-   } = {},
+- ): string {
+-   const { decimals = 2, compact = false, currency } = options;
+- 
+-   const formatter = new Intl.NumberFormat(&#39;en-US&#39;, {
+-     minimumFractionDigits: decimals,
+-     maximumFractionDigits: decimals,
+-     notation: compact ? &#39;compact&#39; : &#39;standard&#39;,
+-     style: currency ? &#39;currency&#39; : &#39;decimal&#39;,
+-     currency: currency || &#39;USD&#39;,
+-   });
+- 
+-   return formatter.format(value);
+- }
+  
+```
+
+</details>
+
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing their exports from `src/index.ts`:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/index.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 13
+
+```diff
+@@ -81,33 +81,20 @@
+    // Session utilities
+    generateSessionId,
+-   isValidSessionId,
+- 
+-   // URL utilities
+-   buildWidgetUrl,
+-   parseWidgetParams,
+  
+    // DOM utilities
+    createElement,
+-   isElementVisible,
+  
+    // Type guards
+    isEthereumAddress,
+    isTransactionHash,
+-   hasProperty,
+  
+    // Async utilities
+-   delay,
+    withTimeout,
+-   retry,
+  
+    // Environment utilities
+    isBrowser,
+-   isMobile,
+-   getViewportDimensions,
+  
+    // Formatting utilities
+-   formatTimestamp,
+    truncateAddress,
+-   formatNumber,
+  } from &#39;./utils/base&#39;;
+  export { resolveWidgetParams } from &#39;./utils/widgetParams&#39;;
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/base.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking if unused imports can be removed and running typecheck:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/base.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 1
+
+```diff
+@@ -3,5 +3,4 @@
+  import type {
+    OptionalParam,
+-   SupportedChainId,
+  } from &#39;../types/interfaces&#39;;
+  
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="bash" data-tool-name="run_terminal_cmd">
+<details><summary>Tool use: **command** • Run command: npm run typecheck</summary>
+
+```bash
+npm run typecheck
+```
+
+```
+
+&gt; @aomi-labs/widget-lib@0.4.0 typecheck
+&gt; tsc --noEmit
+
+
+```
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="generic" data-tool-name="todo_write">
+<details><summary>Tool use: **todo_write** • Todo List</summary>
+
+- [x] List all functions in types/ and utils/
+- [x] Check which functions are used internally vs only exported
+- [x] Remove unused functions
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing the temporary audit file and summarizing:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="delete_file">
+<details><summary>Tool use: **delete_file**</summary>
+
+Explanation: undefined
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+## Summary
+
+### Functions removed from `utils/base.ts`:
+1. `isValidSessionId` - Only exported, never used internally
+2. `buildWidgetUrl` - Only exported, never used internally
+3. `parseWidgetParams` - Only exported, never used internally
+4. `isElementVisible` - Only exported, never used internally
+5. `hasProperty` - Only exported, never used internally
+6. `delay` - Only used internally by `retry` (which was also unused)
+7. `retry` - Only exported, never used internally
+8. `isMobile` - Only exported, never used internally
+9. `getViewportDimensions` - Only exported, never used internally
+10. `formatTimestamp` - Only exported, never used internally
+11. `formatNumber` - Only exported, never used internally
+
+### Functions kept (used internally):
+- `validateWidgetParams` - Used in AomiChatWidget
+- `generateSessionId` - Used in AomiChatWidget
+- `createElement` - Used in AomiChatWidget, WidgetSurface
+- `isEthereumAddress` - Used in helper.ts, WalletManager
+- `isTransactionHash` - Used in WalletManager
+- `withTimeout` - Used in ChatManager
+- `isBrowser` - Used in AomiChatWidget
+- `truncateAddress` - Used in AomiChatWidget
+
+### All functions in other files are used:
+- `types/interfaces.ts`: `createWidgetError` - Used
+- `utils/widgetParams.ts`: `resolveWidgetParams` - Used
+- `utils/markdown.ts`: `renderMarkdown` - Used
+- `utils/helper.ts`: All functions are used
+
+### Changes made:
+1. Removed 11 unused functions from `utils/base.ts`
+2. Removed their exports from `src/index.ts`
+3. Removed unused import (`SupportedChainId`) from `utils/base.ts`
+4. Typecheck passes
+
+The codebase now only includes functions that are used internally or intentionally exported for public API use.
 
 ---
 
