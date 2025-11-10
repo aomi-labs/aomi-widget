@@ -42,7 +42,7 @@ export type {
 export {
   type WidgetError,
   createWidgetError,
-} from './types/errors';
+} from './types/interfaces';
 
 // Constants
 export {
@@ -127,7 +127,7 @@ import type {
   AomiChatWidgetHandler,
   WidgetConfig,
 } from './types/interfaces';
-import type { WidgetError } from './types/errors';
+import type { WidgetError } from './types/interfaces';
 
 // Simple convenience function for basic usage
 export function createChatWidget(

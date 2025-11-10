@@ -22,7 +22,7 @@ import type {
   EthereumProvider,
   SupportedChainId,
 } from '../types/interfaces';
-import { createWidgetError } from '../types/errors';
+import { createWidgetError } from '../types/interfaces';
 import { SUPPORTED_CHAINS, ERROR_CODES } from '../types/constants';
 import { isEthereumAddress, isTransactionHash } from '../utils/base';
 import {

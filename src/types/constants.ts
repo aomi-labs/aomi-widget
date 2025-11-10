@@ -1,7 +1,6 @@
 // Constants for the Aomi Chat Widget
 
 import {
-  InteractionMode,
   WidgetRenderSurface,
   type AomiWidgetThemeDefinition,
   type SupportedChainId,
@@ -19,7 +18,6 @@ export const DEFAULT_MAX_HEIGHT = 800;
 export const DEFAULT_MESSAGE_LENGTH = 2000;
 export const DEFAULT_RECONNECT_ATTEMPTS = 5;
 export const DEFAULT_RECONNECT_DELAY = 3000;
-export const DEFAULT_INTERACTION_MODE = InteractionMode.CHAT;
 export const DEFAULT_RENDER_SURFACE = WidgetRenderSurface.IFRAME;
 
 /*
@@ -61,20 +59,6 @@ export const DEFAULT_WIDGET_THEME: AomiWidgetThemeDefinition = {
   fonts: {
     primary: '"Inter", "Helvetica Neue", Arial, sans-serif',
     monospace: '"JetBrains Mono", "SF Mono", monospace',
-  },
-  images: {
-    emptyState: null,
-    avatarAssistant: null,
-  },
-  sounds: {
-    message: null,
-    notification: null,
-    transaction: null,
-  },
-  content: {
-    welcomeTitle: 'Aomi Assistant',
-    assistantName: 'Aomi',
-    emptyStateMessage: 'Chat interface is initializing…',
   },
 } as const;
 

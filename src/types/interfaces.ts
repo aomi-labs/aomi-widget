@@ -1,4 +1,4 @@
-import type { WidgetError } from './errors';
+import { ERROR_CODES } from './constants';
 
 /*
  * ============================================================================
@@ -55,12 +55,6 @@ export interface WalletTransaction {
  * ============================================================================
  */
 
-// 删
-export enum InteractionMode {
-  CHAT = 'chat',
-  ONCHAIN = 'onchain',
-}
-
 export enum WidgetRenderSurface {
   INLINE = 'inline',
   IFRAME = 'iframe',
@@ -84,47 +78,14 @@ export interface AomiWidgetFonts {
   monospace: string;
 }
 
-// 删
-export interface AomiWidgetImages {
-  emptyState?: string | null;
-  avatarAssistant?: string | null;
-}
-
-// 删
-export interface AomiWidgetSounds {
-  message?: string | null;
-  notification?: string | null;
-  transaction?: string | null;
-}
-
-// 删
-export interface AomiChatContentConfig {
-  welcomeTitle?: string;
-  assistantName?: string;
-  emptyStateMessage?: string;
-}
-
-// 删
-export interface AomiChatContentResolved {
-  welcomeTitle: string;
-  assistantName: string;
-  emptyStateMessage: string;
-}
-
 export interface AomiWidgetThemeDefinition {
   palette: AomiWidgetPalette;
   fonts: AomiWidgetFonts;
-  images: AomiWidgetImages;
-  sounds: AomiWidgetSounds;
-  content: AomiChatContentResolved;
 }
 
 export interface AomiWidgetThemeConfig {
   palette?: Partial<AomiWidgetPalette>;
   fonts?: Partial<AomiWidgetFonts>;
-  images?: Partial<AomiWidgetImages>;
-  sounds?: Partial<AomiWidgetSounds>;
-  content?: Partial<AomiChatContentConfig>;
 }
 
 export interface AomiChatWidgetParams {
@@ -137,19 +98,19 @@ export interface AomiChatWidgetParams {
   maxHeight?: number;
   baseUrl?: string;
   sessionId?: string;
-  interactionMode?: InteractionMode;
   renderSurface?: WidgetRenderSurface;
 
   // UI Customization
   welcomeMessage?: string;
   placeholder?: string;
+  title?: string;
+  emptyStateMessage?: string;
 
   // Network Configuration
   chainId?: SupportedChainId;
   supportedChains?: SupportedChainId[];
 
   // Content Customization
-  content?: AomiChatContentConfig;
   theme?: AomiWidgetThemeConfig;
 }
 
@@ -160,13 +121,11 @@ export interface ResolvedAomiChatWidgetParams {
   maxHeight: number;
   baseUrl?: string;
   sessionId?: string;
-  interactionMode: InteractionMode;
   renderSurface: WidgetRenderSurface;
   welcomeMessage?: string;
   placeholder?: string;
   chainId?: SupportedChainId;
   supportedChains?: SupportedChainId[];
-  content: AomiChatContentResolved;
   theme: AomiWidgetThemeDefinition;
 }
 
@@ -218,10 +177,6 @@ export interface AomiChatEventListeners {
   onNetworkChange?: (_chainId: SupportedChainId) => void;
   onWalletConnect?: (_address: string) => void;
   onWalletDisconnect?: () => void;
-  onTypingChange?: (_isTyping: boolean) => void; // 删
-  onProcessingChange?: (_isProcessing: boolean) => void; // 删
-  onConnectionChange?: (_status: ConnectionStatus) => void;  // 删
-  onResize?: (_dimensions: { width: number; height: number }) => void; // 删
 }
 
 /*
@@ -255,7 +210,6 @@ export interface AomiChatWidgetHandler {
   // Utility methods
   clearChat: () => void;
   exportChat: () => ChatMessage[];
-  resize: (width?: string, height?: string) => void;
   focus: () => void;
 }
 
@@ -297,4 +251,30 @@ export interface ChatManagerConfig {
   maxMessageLength?: number;
   reconnectAttempts?: number;
   reconnectDelay?: number;
+}
+
+
+/*
+ * ============================================================================
+ * WIDGET ERROR TYPES
+ * ============================================================================
+ */
+
+export type WidgetErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
+
+export interface WidgetError extends Error {
+  code: WidgetErrorCode;
+  details?: unknown;
+}
+
+export function createWidgetError(
+  code: WidgetErrorCode,
+  message: string,
+  details?: unknown,
+): WidgetError {
+  const error = new Error(message) as WidgetError;
+  error.name = `WidgetError(${code})`;
+  error.code = code;
+  error.details = details;
+  return error;
 }

@@ -12,7 +12,7 @@ import {
   type WalletState,
   type ChatManagerConfig,
 } from '../types/interfaces';
-import { createWidgetError } from '../types/errors';
+import { createWidgetError } from '../types/interfaces';
 import { API_ENDPOINTS, ERROR_CODES, TIMING } from '../types/constants';
 import { generateSessionId, withTimeout } from '../utils/base';
 import {

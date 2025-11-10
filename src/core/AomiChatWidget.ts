@@ -13,10 +13,9 @@ import {
   type WalletTransaction,
   type ResolvedAomiChatWidgetParams,
 } from '../types/interfaces';
-import { createWidgetError } from '../types/errors';
+import { createWidgetError } from '../types/interfaces';
 import {
   ERROR_CODES,
-  DEFAULT_WIDGET_HEIGHT,
   CSS_CLASSES,
   WIDGET_EVENTS,
   SUPPORTED_CHAINS,
@@ -66,11 +65,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private hasAnnouncedConnection = false;
   private isWalletActionPending = false;
   private activeSessionId: string | null = null;
-  private chatInterfaceElement: HTMLElement | null = null;
-  private chatBodyElement: HTMLElement | null = null;
-  private layoutResizeObserver: ResizeObserver | null = null;
-  private layoutResizeListener: (() => void) | null = null;
-  private layoutMeasurementFrame: number | null = null;
   private surface!: WidgetSurface;
   private viewDocument!: Document;
   private mountRoot!: HTMLElement;
@@ -219,20 +213,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     return this.getState().messages;
   }
 
-  public resize(width?: string, height?: string): void {
-    if (this.isDestroyed) return;
-
-    if (width) this.config.params.width = width;
-    if (height) this.config.params.height = height;
-
-    this.refreshResolvedParams();
-    this.updateDimensions();
-    this.eventEmitter.emit(WIDGET_EVENTS.RESIZE, {
-      width: parseInt(width || this.resolvedParams.width || '0', 10),
-      height: parseInt(height || this.resolvedParams.height || '0', 10),
-    });
-  }
-
   public focus(): void {
     if (this.isDestroyed || !this.widgetElement) return;
 
@@ -248,7 +228,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     if (this.isDestroyed) return;
 
     this.isDestroyed = true;
-    this.teardownLayoutObservers();
 
     // Clean up managers
     this.chatManager.destroy();
@@ -388,9 +367,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
   private forwardStateEvents(state: ChatState): void {
     this.updateStateView(state);
-    // Forward typing and processing changes
-    this.eventEmitter.emit(WIDGET_EVENTS.TYPING_CHANGE, state.isTyping);
-    this.eventEmitter.emit(WIDGET_EVENTS.PROCESSING_CHANGE, state.isProcessing);
   }
 
   private async handleTransactionRequest(
@@ -422,7 +398,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   }
 
   private render(): void {
-    this.teardownLayoutObservers();
     this.surface.setDimensions(this.resolvedParams.width, this.resolvedParams.height);
     this.surface.clear();
     this.resetDomReferences();
@@ -451,7 +426,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
     // Add to container
     this.mountRoot.appendChild(this.widgetElement);
-    this.initializeLayoutObservers();
     if (this.lastState) {
       this.updateStateView(this.lastState);
     }
@@ -477,13 +451,9 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       },
     }, this.viewDocument);
 
-    this.chatInterfaceElement = chatInterface;
-
     const header = this.createHeader();
     const body = this.createBody();
     const actionBar = this.createActionBar();
-
-    this.chatBodyElement = body;
 
     chatInterface.appendChild(header);
     chatInterface.appendChild(body);
@@ -503,7 +473,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         fontSize: '15px',
         color: palette.text,
       },
-      children: [this.resolvedParams.content.welcomeTitle],
+      children: [this.getWidgetTitle()],
     }, this.viewDocument);
 
     this.walletStatusElement = createElement('button', {
@@ -570,7 +540,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     this.messageListElement.appendChild(
       this.createMessageBubble({
         type: 'system',
-        content: this.resolvedParams.content.emptyStateMessage,
+        content: this.getEmptyStateMessage(),
         timestamp: new Date(),
       }),
     );
@@ -656,134 +626,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     }, this.viewDocument) as HTMLFormElement;
 
     return this.inputFormElement;
-  }
-
-  private initializeLayoutObservers(): void {
-    if (!isBrowser()) return;
-
-    this.teardownLayoutObservers();
-
-    if (this.chatInterfaceElement && typeof ResizeObserver !== 'undefined') {
-      this.layoutResizeObserver = new ResizeObserver(() => {
-        this.scheduleLayoutMeasurement();
-      });
-      this.layoutResizeObserver.observe(this.chatInterfaceElement);
-    }
-
-    this.layoutResizeListener = () => {
-      this.scheduleLayoutMeasurement(true);
-    };
-
-    window.addEventListener('resize', this.layoutResizeListener);
-    this.scheduleLayoutMeasurement(true);
-  }
-
-  private teardownLayoutObservers(): void {
-    if (this.layoutResizeObserver) {
-      this.layoutResizeObserver.disconnect();
-      this.layoutResizeObserver = null;
-    }
-
-    if (this.layoutResizeListener) {
-      window.removeEventListener('resize', this.layoutResizeListener);
-      this.layoutResizeListener = null;
-    }
-
-    if (this.layoutMeasurementFrame !== null) {
-      window.cancelAnimationFrame(this.layoutMeasurementFrame);
-      this.layoutMeasurementFrame = null;
-    }
-  }
-
-  private scheduleLayoutMeasurement(force = false): void {
-    if (!isBrowser()) return;
-
-    if (this.layoutMeasurementFrame !== null) {
-      if (!force) {
-        return;
-      }
-
-      window.cancelAnimationFrame(this.layoutMeasurementFrame);
-      this.layoutMeasurementFrame = null;
-    }
-
-    this.layoutMeasurementFrame = window.requestAnimationFrame(() => {
-      this.layoutMeasurementFrame = null;
-      this.applyWidgetViewportClamp();
-      this.updateScrollableRegion();
-    });
-  }
-
-  private applyWidgetViewportClamp(): void {
-    if (!this.widgetElement || !isBrowser()) return;
-
-    const viewportHeight =
-      window.innerHeight || document.documentElement?.clientHeight || 0;
-
-    if (!viewportHeight) {
-      return;
-    }
-
-    const margin = 32;
-    const maxHeight =
-      viewportHeight > margin ? viewportHeight - margin : viewportHeight;
-
-    if (maxHeight <= 0) {
-      return;
-    }
-
-    const configuredHeightPx = this.parsePixelValue(this.resolvedParams.height);
-    const defaultHeightPx = this.parsePixelValue(DEFAULT_WIDGET_HEIGHT) ?? 0;
-
-    if (configuredHeightPx !== null) {
-      const targetHeight = Math.min(configuredHeightPx, maxHeight);
-      this.widgetElement.style.height = `${targetHeight}px`;
-      this.widgetElement.style.maxHeight = `${maxHeight}px`;
-    } else if (defaultHeightPx) {
-      const targetHeight = Math.min(defaultHeightPx, maxHeight);
-      this.widgetElement.style.height = `${targetHeight}px`;
-      this.widgetElement.style.maxHeight = `${maxHeight}px`;
-    } else {
-      this.widgetElement.style.maxHeight = `${maxHeight}px`;
-    }
-  }
-
-  private updateScrollableRegion(): void {
-    if (!this.chatBodyElement || !this.messageListElement) return;
-
-    const bodyRect = this.chatBodyElement.getBoundingClientRect();
-    if (!bodyRect.height) return;
-
-    let typingHeight = 0;
-    if (
-      this.typingIndicatorElement &&
-      this.typingIndicatorElement.style.display !== 'none'
-    ) {
-      typingHeight =
-        this.typingIndicatorElement.getBoundingClientRect().height || 0;
-    }
-
-    const availableHeight = Math.max(bodyRect.height - typingHeight, 0);
-
-    if (availableHeight > 0) {
-      this.messageListElement.style.maxHeight = `${availableHeight}px`;
-      this.messageListElement.style.height = `${availableHeight}px`;
-    } else {
-      this.messageListElement.style.maxHeight = '';
-      this.messageListElement.style.height = '';
-    }
-  }
-
-  private parsePixelValue(value?: string): number | null {
-    if (!value) return null;
-
-    const trimmed = value.trim().toLowerCase();
-    if (!trimmed.endsWith('px')) {
-      return null;
-    }
-
-    const numeric = Number.parseFloat(trimmed.slice(0, -2));
-    return Number.isFinite(numeric) ? numeric : null;
   }
 
   private createMessageBubble({
@@ -925,8 +767,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     this.messageInputElement = null;
     this.sendButtonElement = null;
     this.walletStatusElement = null;
-    this.chatInterfaceElement = null;
-    this.chatBodyElement = null;
   }
 
   private refreshResolvedParams(): void {
@@ -950,10 +790,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       { key: 'onNetworkChange', event: WIDGET_EVENTS.NETWORK_CHANGE },
       { key: 'onWalletConnect', event: WIDGET_EVENTS.WALLET_CONNECT },
       { key: 'onWalletDisconnect', event: WIDGET_EVENTS.WALLET_DISCONNECT },
-      { key: 'onTypingChange', event: WIDGET_EVENTS.TYPING_CHANGE },
-      { key: 'onProcessingChange', event: WIDGET_EVENTS.PROCESSING_CHANGE },
-      { key: 'onConnectionChange', event: WIDGET_EVENTS.CONNECTION_CHANGE },
-      { key: 'onResize', event: WIDGET_EVENTS.RESIZE },
     ];
 
     bindings.forEach(({ key, event }) => {
@@ -975,10 +811,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       onNetworkChange: WIDGET_EVENTS.NETWORK_CHANGE,
       onWalletConnect: WIDGET_EVENTS.WALLET_CONNECT,
       onWalletDisconnect: WIDGET_EVENTS.WALLET_DISCONNECT,
-      onTypingChange: WIDGET_EVENTS.TYPING_CHANGE,
-      onProcessingChange: WIDGET_EVENTS.PROCESSING_CHANGE,
-      onConnectionChange: WIDGET_EVENTS.CONNECTION_CHANGE,
-      onResize: WIDGET_EVENTS.RESIZE,
     };
 
     return map[event] || event;
@@ -1058,7 +890,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       180,
     );
     this.messageInputElement.style.height = `${targetHeight}px`;
-    this.scheduleLayoutMeasurement();
   }
 
   private updateStateView(state: ChatState): void {
@@ -1104,7 +935,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
     });
     this.messageListElement.appendChild(bubble);
     this.scrollMessagesToBottom();
-    this.scheduleLayoutMeasurement();
   }
 
   private updateMessages(messages: ChatMessage[]): void {
@@ -1116,7 +946,7 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       this.messageListElement.appendChild(
         this.createMessageBubble({
           type: 'system',
-          content: this.resolvedParams.content.emptyStateMessage,
+          content: this.getEmptyStateMessage(),
           timestamp: new Date(),
         }),
       );
@@ -1132,8 +962,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
         );
       });
     }
-
-    this.scheduleLayoutMeasurement();
   }
 
   private scrollMessagesToBottom(): void {
@@ -1144,7 +972,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
   private updateTypingIndicator(isTyping: boolean): void {
     if (!this.typingIndicatorElement) return;
     this.typingIndicatorElement.style.display = isTyping ? 'flex' : 'none';
-    this.scheduleLayoutMeasurement();
   }
 
   private updateInputControls(state: ChatState, forceDisable = false): void {
@@ -1324,8 +1151,6 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
       this.widgetElement.style.width = '100%';
       this.widgetElement.style.height = '100%';
     }
-
-    this.scheduleLayoutMeasurement(true);
   }
 
   private getThemePalette() {
@@ -1338,6 +1163,14 @@ class DefaultAomiWidget implements AomiChatWidgetHandler {
 
   private getMonospaceFontFamily(): string {
     return this.resolvedParams.theme.fonts.monospace;
+  }
+
+  private getWidgetTitle(): string {
+    return this.config.params.title?.trim() || 'Aomi Assistant';
+  }
+
+  private getEmptyStateMessage(): string {
+    return this.config.params.emptyStateMessage?.trim() || 'Chat interface is initializing…';
   }
 
   private rebuildSurface(): void {

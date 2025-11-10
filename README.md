@@ -60,7 +60,8 @@ interface AomiChatWidgetParams {
   // Behavior
   welcomeMessage?: string;
   placeholder?: string;
-  interactionMode?: 'chat' | 'onchain';
+  title?: string;
+  emptyStateMessage?: string;
   enableTransactions?: boolean;
   requireWalletConnection?: boolean;
 
@@ -72,14 +73,7 @@ interface AomiChatWidgetParams {
   baseUrl?: string;
   apiKey?: string;
   sessionId?: string;
-
-  // Presentation
   theme?: AomiWidgetThemeConfig;
-  content?: {
-    welcomeTitle?: string;
-    assistantName?: string;
-    emptyStateMessage?: string;
-  };
 }
 ```
 
@@ -135,7 +129,7 @@ widget.destroy();
 
 ### Theme & surface options
 
-- Supply `theme.palette`, `theme.fonts`, `theme.images`, or `theme.content` to customize the neutral UI without touching CSS.
+- Supply `theme.palette` or `theme.fonts` to tweak the neutral UI without touching CSS.
 - `renderSurface` defaults to `'iframe'` for sandboxed rendering; switch to `'inline'` to mount directly into the host DOM when needed.
 
 ### React adapter
