@@ -95,7 +95,6 @@ export interface OptionalParam {
   // Core Configuration
   width?: string;
   height?: string;
-  maxHeight?: number;
   baseUrl?: string;
   sessionId?: string;
   surfaceMode?: SurfaceMode;
@@ -105,25 +104,15 @@ export interface OptionalParam {
   title?: string;
   emptyStateMessage?: string;
 
-  // Network Configuration
-  chainId?: SupportedChainId;
-  supportedChains?: SupportedChainId[];
-
   // Content Customization
   theme?: AomiWidgetThemeConfig;
 }
 
 export interface ResolvedParams {
-  appCode: string;
   width: string;
   height: string;
-  maxHeight: number;
-  baseUrl?: string;
-  sessionId?: string;
   renderSurface: SurfaceMode;
   placeholder?: string;
-  chainId?: SupportedChainId;
-  supportedChains?: SupportedChainId[];
   theme: AomiWidgetThemeDefinition;
 }
 

@@ -3428,3 +3428,709 @@ Output mode: content
 
 ---
 
+
+Checking usage in `aomiWidget.ts`:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/aomiWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/types/interface.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 1
+
+```diff
+@@ -102,5 +102,4 @@
+  
+    // UI Customization
+-   welcomeMessage?: string;
+    placeholder?: string;
+    title?: string;
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/types/interface.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 1
+
+```diff
+@@ -122,5 +122,4 @@
+    sessionId?: string;
+    renderSurface: SurfaceMode;
+-   welcomeMessage?: string;
+    placeholder?: string;
+    chainId?: SupportedChainId;
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/widgetParams.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 1
+
+```diff
+@@ -33,5 +33,4 @@
+      sessionId: params.sessionId,
+      renderSurface: params.surfaceMode ?? DEFAULT_RENDER_SURFACE,
+-     welcomeMessage: params.welcomeMessage,
+      placeholder: params.placeholder,
+      chainId,
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/aomiWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing `welcomeMessage` usage from `aomiWidget.ts`:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/core/aomiWidget.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 7
+
+```diff
+@@ -234,11 +234,4 @@
+        // Connect to backend
+        await this.chatManager.connectSSE();
+- 
+-       // Send welcome message if configured
+-       if (this.resolvedParams.welcomeMessage) {
+-         await this.chatManager.sendSystemMessage(
+-           this.resolvedParams.welcomeMessage,
+-         );
+-       }
+  
+        this.eventEmitter.emit(WIDGET_EVENTS.READY);
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="bash" data-tool-name="run_terminal_cmd">
+<details><summary>Tool use: **command** • Run command: npm run typecheck</summary>
+
+```bash
+npm run typecheck
+```
+
+```
+
+&gt; @aomi-labs/widget-lib@0.4.0 typecheck
+&gt; tsc --noEmit
+
+
+```
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking for any remaining references to `welcomeMessage`:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "welcomeMessage|welcome_message|welcome-message" in "src" • 0 matches</summary>
+
+Output mode: content
+
+
+_No matches found_
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking examples and other files:
+
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "welcomeMessage|welcome_message|welcome-message" in "." • 5 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `./README.md` | `welcomeMessage?: string;` | L61 |
+| `./WIDGET-ARCHITECTURE-PLAN.md` | `welcomeMessage: 'Hello! How can I help with Web3?'` | L139 |
+| `./WIDGET-ARCHITECTURE-PLAN.md` | `welcomeMessage=Hello%20World` | L314 |
+| `./WIDGET-ARCHITECTURE-PLAN.md` | `welcomeMessage: 'Welcome to our DeFi platform! How can I help?',` | L379 |
+| `./IMPLEMENTATION-SUMMARY.md` | `welcomeMessage?: string;` | L96 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removed `welcomeMessage` from the codebase.
+
+## Changes Made:
+
+1. **`src/types/interface.ts`**:
+   - Removed `welcomeMessage?: string;` from `OptionalParam` interface
+   - Removed `welcomeMessage?: string;` from `ResolvedParams` interface
+
+2. **`src/utils/widgetParams.ts`**:
+   - Removed `welcomeMessage: params.welcomeMessage,` from the return object
+
+3. **`src/core/aomiWidget.ts`**:
+   - Removed the code block that sent the welcome message on initialization
+
+## Verification:
+
+- Typecheck passes
+- No remaining references to `welcomeMessage` in source code
+
+Note: There are still references to `welcomeMessage` in documentation files (`README.md`, `WIDGET-ARCHITECTURE-PLAN.md`, `IMPLEMENTATION-SUMMARY.md`), but these are just examples and don't affect functionality. Should I update those as well?
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+@widgetParams.ts (16-40) for each fied in ResolvedParams, what are they used for
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Checking `ResolvedParams` fields and their usage:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/interface.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "resolvedParams\.|this\.resolvedParams\." in "src/core/aomiWidget.ts" • 12 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/aomiWidget.ts` | `const previousSurfaceMode = this.resolvedParams.renderSurface;` | L118 |
+| `src/core/aomiWidget.ts` | `if (this.resolvedParams.renderSurface !== previousSurfaceMode) \{` | L122 |
+| `src/core/aomiWidget.ts` | `this.surface.setDimensions(this.resolvedParams.width, this.resolvedParams.height);` | L347 |
+| `src/core/aomiWidget.ts` | `this.resolvedParams.placeholder \|\|` | L517 |
+| `src/core/aomiWidget.ts` | `this.resolvedParams.width,` | L974 |
+| `src/core/aomiWidget.ts` | `this.resolvedParams.height,` | L975 |
+| `src/core/aomiWidget.ts` | `return this.resolvedParams.theme.palette;` | L985 |
+| `src/core/aomiWidget.ts` | `return this.resolvedParams.theme.fonts.primary;` | L989 |
+| `src/core/aomiWidget.ts` | `return this.resolvedParams.theme.fonts.monospace;` | L993 |
+| `src/core/aomiWidget.ts` | `mode: this.resolvedParams.renderSurface,` | L1010 |
+| `src/core/aomiWidget.ts` | `width: this.resolvedParams.width,` | L1011 |
+| `src/core/aomiWidget.ts` | `height: this.resolvedParams.height,` | L1012 |
+
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="search" data-tool-name="codebase_search">
+<details>
+                <summary>Tool use: **codebase_search** • Searched codebase "Where are ResolvedParams fields like width, height, maxHeight, baseUrl, sessionId, renderSurface, placeholder, chainId, supportedChains, theme used?" • **14** results</summary>
+            
+| File | Lines |
+|------|-------|
+| `src/types/interface.ts` | L90-133 |
+| `src/utils/widgetParams.ts` | L55 |
+| `src/types/interface.ts` | L85-127 |
+| `src/core/aomiWidget.ts` | L35-1014 |
+| `README.md` | L108 |
+| `src/core/aomiWidget.ts` | L46-1014 |
+| `README.md` | L102-217 |
+| `src/core/aomiWidget.ts` | L46 |
+| `src/core/aomiWidget.ts` | L46-1050 |
+| `IMPLEMENTATION-SUMMARY.md` | L65-147 |
+| `WIDGET-ARCHITECTURE-PLAN.md` | L329-417 |
+| `src/index.ts` | L103-171 |
+| `src/core/wagmiConfig.ts` | L51-100 |
+| `WIDGET-ARCHITECTURE-PLAN.md` | L146-217 |
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Checking where each field is used:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/aomiWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/aomiWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/aomiWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/aomiWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/core/aomiWidget.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "appCode|baseUrl|sessionId|chainId|supportedChains|maxHeight" in "src/core" • 39 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/aomiWidget.ts` | `backendUrl: config.params.baseUrl \|\| 'http://localhost:8080',` | L76 |
+| `src/core/aomiWidget.ts` | `sessionId: config.params.sessionId \|\| generateSessionId(),` | L77 |
+| `src/core/aomiWidget.ts` | `this.walletManager.on('chainChange', (chainId) => \{` | L299 |
+| `src/core/aomiWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.NETWORK_CHANGE, chainId);` | L300 |
+| `src/core/aomiWidget.ts` | ``Switched to $\{SUPPORTED_CHAINS[chainId] \|\| `chain $\{chainId\}`\}.`,` | L302 |
+| `src/core/aomiWidget.ts` | `maxHeight: '100vh',` | L359 |
+| `src/core/aomiWidget.ts` | `if (state.sessionId && state.sessionId !== this.activeSessionId) \{` | L829 |
+| `src/core/aomiWidget.ts` | `this.activeSessionId = state.sessionId;` | L833 |
+| `src/core/aomiWidget.ts` | `this.eventEmitter.emit(WIDGET_EVENTS.SESSION_START, state.sessionId);` | L834 |
+| `src/core/chatManager.ts` | `sessionId: config.sessionId \|\| generateSessionId(),` | L59 |
+| `src/core/chatManager.ts` | `sessionId: this.config.sessionId,` | L70 |
+| `src/core/chatManager.ts` | `return this.config.sessionId;` | L91 |
+| `src/core/chatManager.ts` | `public setSessionId(sessionId: string): void \{` | L97 |
+| `src/core/chatManager.ts` | `this.config.sessionId = sessionId;` | L98 |
+| `src/core/chatManager.ts` | `this.state.sessionId = sessionId;` | L99 |
+| `src/core/chatManager.ts` | `const url = `$\{this.config.backendUrl\}$\{API_ENDPOINTS.CHAT_STREAM\}?session_id=$\{this.config.sessionId\}`;` | L116 |
+| `src/core/chatManager.ts` | `fetch(`$\{this.config.backendUrl\}$\{API_ENDPOINTS.STATE\}?session_id=$\{this.config.sessionId\}`, \{` | L168 |
+| `src/core/chatManager.ts` | `session_id: this.config.sessionId,` | L210 |
+| `src/core/chatManager.ts` | `session_id: this.config.sessionId,` | L227 |
+| `src/core/chatManager.ts` | `session_id: this.config.sessionId,` | L242 |
+| `src/core/walletManager.ts` | `chainChange: (_chainId: SupportedChainId) => void;` | L44 |
+| `src/core/walletManager.ts` | `public async switchNetwork(chainId: SupportedChainId): Promise<void> \{` | L167 |
+| `src/core/walletManager.ts` | `await wagmiSwitchChain(this.wagmiConfig, \{ chainId \});` | L169 |
+| `src/core/walletManager.ts` | `? `Failed to switch to network $\{chainId\}: $\{error.message\}`` | L174 |
+| `src/core/walletManager.ts` | `: `Failed to switch to network $\{chainId\}`,` | L175 |
+| `src/core/walletManager.ts` | `chainId: this.currentChainId ?? undefined,` | L196 |
+| `src/core/walletManager.ts` | `chainId: this.currentChainId ?? undefined,` | L274 |
+| `src/core/walletManager.ts` | `private handleChainIdChange = (chainId?: number, previous?: number): void => \{` | L360 |
+| `src/core/walletManager.ts` | `if (!this.isConnected \|\| !chainId \|\| chainId === previous) \{` | L361 |
+| `src/core/walletManager.ts` | `const normalized = this.normalizeChainId(chainId);` | L365 |
+| `src/core/walletManager.ts` | `const chainId = this.normalizeChainId(account.chainId);` | L381 |
+| `src/core/walletManager.ts` | `if (chainId && this.currentChainId !== chainId) \{` | L396 |
+| `src/core/walletManager.ts` | `this.currentChainId = chainId;` | L397 |
+| `src/core/walletManager.ts` | `this.emit('chainChange', chainId);` | L398 |
+| `src/core/walletManager.ts` | `private normalizeChainId(chainId?: number \| null): SupportedChainId \| null \{` | L441 |
+| `src/core/walletManager.ts` | `if (!chainId) return null;` | L442 |
+| `src/core/walletManager.ts` | `return Object.prototype.hasOwnProperty.call(SUPPORTED_CHAINS, chainId)` | L443 |
+| `src/core/walletManager.ts` | `? (chainId as SupportedChainId)` | L444 |
+| `src/core/wagmiConfig.ts` | `[chainId in (typeof DEFAULT_CHAINS)[number]['id']]: ReturnType<typeof http>;` | L41 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Usage of each field in `ResolvedParams`:
+
+## Field Usage Breakdown
+
+### 1. `appCode: string`
+- Purpose: Required identifier for the widget application
+- Usage: Passed through from params (no direct usage found in widget code, likely used by backend)
+
+### 2. `width: string`
+- Purpose: Widget width (e.g., "400px", "500px")
+- Usage:
+  - Line 347: `this.surface.setDimensions(this.resolvedParams.width, this.resolvedParams.height)` - Sets widget dimensions during render
+  - Line 974-975: Used in `updateDimensions()` to resize widget
+  - Line 1011: Used when creating `WidgetSurface`
+
+### 3. `height: string`
+- Purpose: Widget height (e.g., "600px", "700px")
+- Usage: Same as `width` - used for widget dimensions
+
+### 4. `maxHeight: number`
+- Purpose: Maximum height constraint for the widget
+- Usage: Not directly used in current code (may be reserved for future use or CSS styling)
+
+### 5. `baseUrl?: string`
+- Purpose: Backend API base URL
+- Usage:
+  - Line 76: `backendUrl: config.params.baseUrl || 'http://localhost:8080'` - Passed to `ChatManager` for API connections
+
+### 6. `sessionId?: string`
+- Purpose: Chat session identifier
+- Usage:
+  - Line 77: `sessionId: config.params.sessionId || generateSessionId()` - Passed to `ChatManager` to track chat sessions
+
+### 7. `renderSurface: SurfaceMode`
+- Purpose: Rendering mode - either `'inline'` or `'iframe'`
+- Usage:
+  - Line 118: `const previousSurfaceMode = this.resolvedParams.renderSurface` - Detects surface mode changes
+  - Line 122: Used to determine if surface needs rebuilding
+  - Line 1010: `mode: this.resolvedParams.renderSurface` - Passed to `WidgetSurface` constructor
+
+### 8. `placeholder?: string`
+- Purpose: Placeholder text for the message input field
+- Usage:
+  - Line 517: `placeholder: this.resolvedParams.placeholder || ''` - Sets placeholder text on textarea input
+
+### 9. `chainId?: SupportedChainId`
+- Purpose: Default blockchain network ID
+- Usage: Not directly used in widget code (likely used by WalletManager or backend)
+
+### 10. `supportedChains?: SupportedChainId[]`
+- Purpose: List of supported blockchain networks
+- Usage: Not directly used in widget code (likely used for validation or UI display)
+
+### 11. `theme: AomiWidgetThemeDefinition`
+- Purpose: Complete theme configuration (colors, fonts)
+- Usage:
+  - Line 985: `return this.resolvedParams.theme.palette` - Gets color palette for styling
+  - Line 989: `return this.resolvedParams.theme.fonts.primary` - Gets primary font family
+  - Line 993: `return this.resolvedParams.theme.fonts.monospace` - Gets monospace font family
+
+## Summary
+
+- Actively used: `width`, `height`, `renderSurface`, `placeholder`, `theme`
+- Passed to managers: `baseUrl`, `sessionId`
+- Not directly used in widget code: `appCode`, `maxHeight`, `chainId`, `supportedChains` (likely used by backend or other components)
+
+All fields are resolved with defaults, so the widget always has complete configuration values even if the user doesn't provide them.
+
+---
+
+_**User (2025-11-09 22:44Z)**_
+
+if they are not directly used then delete
+
+---
+
+_**Agent (model composer-1, mode Agent)**_
+
+
+
+---
+
+
+Removing unused fields from `ResolvedParams` and `resolveWidgetParams`:
+
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/types/interface.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="read" data-tool-name="read_file">
+<details><summary>Tool use: **read_file** • Read file: src/utils/widgetParams.ts</summary>
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "resolvedParams\.(appCode|maxHeight|baseUrl|sessionId|chainId|supportedChains)" in "src" • 0 matches</summary>
+
+Output mode: content
+
+
+_No matches found_
+
+</details>
+</tool-use>
+
+---
+
+<tool-use data-tool-type="grep" data-tool-name="grep">
+<details>
+<summary>Tool use: **grep** • Grep for "config\.params\.(baseUrl|sessionId)" in "src/core/aomiWidget.ts" • 2 matches</summary>
+
+Output mode: content
+
+
+| File | Content | Line |
+|------|------|------|
+| `src/core/aomiWidget.ts` | `backendUrl: config.params.baseUrl \|\| 'http://localhost:8080',` | L76 |
+| `src/core/aomiWidget.ts` | `sessionId: config.params.sessionId \|\| generateSessionId(),` | L77 |
+
+
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removing unused fields from `ResolvedParams` and `resolveWidgetParams`:
+
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/types/interface.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 6
+
+```diff
+@@ -115,14 +115,8 @@
+  
+  export interface ResolvedParams {
+-   appCode: string;
+    width: string;
+    height: string;
+-   maxHeight: number;
+-   baseUrl?: string;
+-   sessionId?: string;
+    renderSurface: SurfaceMode;
+    placeholder?: string;
+-   chainId?: SupportedChainId;
+-   supportedChains?: SupportedChainId[];
+    theme: AomiWidgetThemeDefinition;
+  }
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/widgetParams.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 2
+
+```diff
+@@ -1,5 +1,3 @@
+  import {
+-   DEFAULT_CHAIN_ID,
+-   DEFAULT_MAX_HEIGHT,
+    DEFAULT_RENDER_SURFACE,
+    DEFAULT_WIDGET_HEIGHT,
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="search_replace">
+
+<details><summary>Tool use: **code_edit** • Edit file: src/utils/widgetParams.ts</summary>
+
+**Chunk 1**
+Lines added: undefined, lines removed: 10
+
+```diff
+@@ -17,21 +17,11 @@
+    const width = params.width || DEFAULT_WIDGET_WIDTH;
+    const height = params.height || DEFAULT_WIDGET_HEIGHT;
+-   const maxHeight =
+-     typeof params.maxHeight === &#39;number&#39; ? params.maxHeight : DEFAULT_MAX_HEIGHT;
+-   const chainId = params.chainId ?? DEFAULT_CHAIN_ID;
+- 
+    const theme = mergeTheme(DEFAULT_WIDGET_THEME, params.theme);
+  
+    return {
+-     appCode: params.appCode,
+      width,
+      height,
+-     maxHeight,
+-     baseUrl: params.baseUrl,
+-     sessionId: params.sessionId,
+      renderSurface: params.surfaceMode ?? DEFAULT_RENDER_SURFACE,
+      placeholder: params.placeholder,
+-     chainId,
+-     supportedChains: params.supportedChains,
+      theme,
+    };
+```
+
+</details>
+
+</tool-use>
+
+---
+
+<tool-use data-tool-type="bash" data-tool-name="run_terminal_cmd">
+<details><summary>Tool use: **command** • Run command: npm run typecheck</summary>
+
+```bash
+npm run typecheck
+```
+
+```
+
+&gt; @aomi-labs/widget-lib@0.4.0 typecheck
+&gt; tsc --noEmit
+
+
+```
+</details>
+</tool-use>
+
+---
+
+
+
+---
+
+
+Removed unused fields from `ResolvedParams`. Summary:
+
+## Removed Fields:
+1. `appCode` - Not used directly in widget code
+2. `maxHeight` - Not used anywhere
+3. `baseUrl` - Accessed via `config.params.baseUrl`, not `resolvedParams`
+4. `sessionId` - Accessed via `config.params.sessionId`, not `resolvedParams`
+5. `chainId` - Not used directly
+6. `supportedChains` - Not used directly
+
+## Kept Fields (actually used):
+1. `width` - Used for widget dimensions
+2. `height` - Used for widget dimensions
+3. `renderSurface` - Used for surface mode detection
+4. `placeholder` - Used for input placeholder text
+5. `theme` - Used for styling (palette, fonts)
+
+## Changes Made:
+- Updated `ResolvedParams` interface to only include used fields
+- Updated `resolveWidgetParams()` to only resolve and return used fields
+- Removed unused imports (`DEFAULT_CHAIN_ID`, `DEFAULT_MAX_HEIGHT`)
+- Typecheck passes
+
+`ResolvedParams` now only contains fields that are directly used by the widget.
+
+---
+

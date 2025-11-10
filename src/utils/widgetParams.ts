@@ -1,6 +1,4 @@
 import {
-  DEFAULT_CHAIN_ID,
-  DEFAULT_MAX_HEIGHT,
   DEFAULT_RENDER_SURFACE,
   DEFAULT_WIDGET_HEIGHT,
   DEFAULT_WIDGET_THEME,
@@ -18,23 +16,13 @@ export function resolveWidgetParams(
 ): ResolvedParams {
   const width = params.width || DEFAULT_WIDGET_WIDTH;
   const height = params.height || DEFAULT_WIDGET_HEIGHT;
-  const maxHeight =
-    typeof params.maxHeight === 'number' ? params.maxHeight : DEFAULT_MAX_HEIGHT;
-  const chainId = params.chainId ?? DEFAULT_CHAIN_ID;
-
   const theme = mergeTheme(DEFAULT_WIDGET_THEME, params.theme);
 
   return {
-    appCode: params.appCode,
     width,
     height,
-    maxHeight,
-    baseUrl: params.baseUrl,
-    sessionId: params.sessionId,
     renderSurface: params.surfaceMode ?? DEFAULT_RENDER_SURFACE,
     placeholder: params.placeholder,
-    chainId,
-    supportedChains: params.supportedChains,
     theme,
   };
 }

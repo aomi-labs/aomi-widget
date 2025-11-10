@@ -11,7 +11,7 @@ import {
 export { createAomiWidget };
 
 // Core managers
-export { ChatManager } from './core/ChatManager';
+export { ChatManager } from './core/chatManager';
 export { WalletManager, createWalletManager, isValidProvider, detectWallets } from './core/walletManager';
 
 // Types

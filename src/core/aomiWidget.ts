@@ -29,7 +29,7 @@ import {
 } from '../utils/helper';
 import { renderMarkdown } from '../utils/markdown';
 import { resolveWidgetParams } from '../utils/widgetParams';
-import { ChatManager } from './ChatManager';
+import { ChatManager } from './chatManager';
 import { WalletManager } from './walletManager';
 import { WidgetSurface } from './widgetSurface';
 
