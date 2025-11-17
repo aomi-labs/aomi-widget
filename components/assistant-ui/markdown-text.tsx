@@ -205,7 +205,7 @@ const defaultComponents = memoizeMarkdownComponents({
   pre: ({ className, ...props }) => (
     <pre
       className={cn(
-        "aui-md-pre overflow-x-auto !rounded-t-none rounded-b-lg bg-black p-4 text-white",
+        "aui-md-pre overflow-x-auto !rounded-t-none rounded-b-lg bg-accent p-6 text-black text-[12px]",
         className,
       )}
       {...props}
@@ -217,7 +217,7 @@ const defaultComponents = memoizeMarkdownComponents({
       <code
         className={cn(
           !isCodeBlock &&
-            "aui-md-inline-code rounded border bg-muted font-semibold",
+            "aui-md-inline-code rounded border bg-muted text-[12px]",
           className,
         )}
         {...props}

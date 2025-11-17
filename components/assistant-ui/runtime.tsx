@@ -19,15 +19,33 @@ function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
   }
 
   if (msg.tool_stream) {
-    let toolInfo = "";
-    if (Array.isArray(msg.tool_stream)) {
-      toolInfo = `Tool: ${msg.tool_stream[0]} - ${msg.tool_stream[1]}`;
+    // Handle tool call as a proper tool-call content part
+    if (Array.isArray(msg.tool_stream) && msg.tool_stream.length === 2) {
+      // Format: [toolName, argsJSON]
+      const [toolTopic, resultContent] = msg.tool_stream;
+      content.push({
+        type: "tool-call" as const,
+        toolCallId: `tool_${Date.now()}`, // Generate unique ID
+        toolName: toolTopic,
+        args: undefined, // No args yet during streaming
+        result: (() => {
+            try {
+              return JSON.parse(resultContent);
+            } catch {
+              return { args: resultContent };
+            }
+          })(), 
+      });
     } else if (typeof msg.tool_stream === "object") {
-      toolInfo = `Tool: ${JSON.stringify(msg.tool_stream)}`;
-    }
-
-    if (toolInfo) {
-      content.push({ type: "text" as const, text: toolInfo });
+      // Format: { topic, content } or custom object
+      const toolData = msg.tool_stream as { topic?: unknown; content?: unknown };
+      content.push({
+        type: "tool-call" as const,
+        toolCallId: `tool_${Date.now()}`,
+        toolName: String(toolData.topic || "unknown"),
+        args: undefined,
+        result: toolData.content || toolData,
+      });
     }
   }
 
