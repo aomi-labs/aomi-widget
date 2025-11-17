@@ -13,11 +13,17 @@ import {
 } from "@/components/ui/sidebar";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 
+// h-full min-h-full border-r border-sidebar-border bg-sidebar
 export function ThreadListSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar {...props}>
+    <Sidebar
+      collapsible="offcanvas"
+      variant="inset"
+      className="relative"
+      {...props}
+    >
       <SidebarHeader className="aui-sidebar-header mb-2 border-b">
         <div className="aui-sidebar-header-content flex items-center justify-between">
           <SidebarMenu>
