@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { MyRuntimeProvider } from "@/components/assistant-ui/runtime";
 
-export const Assistant = () => {
+export const AomiFrame = () => {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
   const sessionId = "default-session";
 

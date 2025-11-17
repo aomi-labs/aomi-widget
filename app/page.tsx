@@ -1,5 +1,5 @@
-import { Assistant } from "./assistant";
+import { AomiFrame } from "../components/aomi-frame";
 
 export default function Home() {
-  return <Assistant />;
+  return <AomiFrame />;
 }
