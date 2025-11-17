@@ -1,0 +1,65 @@
+export interface SessionMessagePayload {
+  sender?: string;
+  content?: string;
+  timestamp?: string;
+  is_streaming?: boolean;
+  tool_stream?: [string, string] | { topic?: unknown; content?: unknown } | null;
+}
+
+export interface SessionResponsePayload {
+  messages?: SessionMessagePayload[] | null;
+  is_processing?: boolean;
+  pending_wallet_tx?: string | null;
+}
+
+export type BackendSessionResponse = SessionResponsePayload;
+
+async function postState(
+  backendUrl: string,
+  path: string,
+  payload: Record<string, unknown>
+): Promise<SessionResponsePayload> {
+  const response = await fetch(`${backendUrl}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return (await response.json()) as SessionResponsePayload;
+}
+
+export class BackendApi {
+  constructor(private backendUrl: string) {}
+
+  setBackendUrl(url: string) {
+    this.backendUrl = url;
+  }
+
+  async fetchState(sessionId: string): Promise<SessionResponsePayload> {
+    const response = await fetch(
+      `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as SessionResponsePayload;
+  }
+
+  async postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload> {
+    return postState(this.backendUrl, "/api/chat", { message, session_id: sessionId });
+  }
+
+  async postSystemMessage(sessionId: string, message: string): Promise<SessionResponsePayload> {
+    return postState(this.backendUrl, "/api/system", { message, session_id: sessionId });
+  }
+
+  async postInterrupt(sessionId: string): Promise<SessionResponsePayload> {
+    return postState(this.backendUrl, "/api/interrupt", { session_id: sessionId });
+  }
+}

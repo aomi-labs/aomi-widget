@@ -1,10 +1,5 @@
 "use client";
 
-import { AssistantRuntimeProvider } from "@assistant-ui/react";
-import {
-  useChatRuntime,
-  AssistantChatTransport,
-} from "@assistant-ui/react-ai-sdk";
 import { Thread } from "@/components/assistant-ui/thread";
 import {
   SidebarInset,
@@ -21,16 +16,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { MyRuntimeProvider } from "@/components/assistant-ui/runtime";
 
 export const Assistant = () => {
-  const runtime = useChatRuntime({
-    transport: new AssistantChatTransport({
-      api: "/api/chat",
-    }),
-  });
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
+  const sessionId = "default-session";
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
+    <MyRuntimeProvider backendUrl={backendUrl} sessionId={sessionId}>
       <SidebarProvider>
         <div className="flex h-dvh w-full pr-0.5">
           <ThreadListSidebar />
@@ -62,6 +55,6 @@ export const Assistant = () => {
           </SidebarInset>
         </div>
       </SidebarProvider>
-    </AssistantRuntimeProvider>
+    </MyRuntimeProvider>
   );
 };
