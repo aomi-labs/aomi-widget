@@ -1,18 +1,35 @@
 'use client'
 
-import { wagmiAdapter, projectId } from '../lib/wallet-manager'
+// import { wagmiAdapter, projectId } from '../lib/wallet-manager'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppKitProvider } from '@reown/appkit/react'
-import { mainnet, arbitrum } from '@reown/appkit/networks'
+import { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networks'
 import React, { type ReactNode } from 'react'
-import { cookieToInitialState, WagmiProvider, type Config } from 'wagmi'
+import { cookieStorage, cookieToInitialState, createStorage, WagmiProvider, type Config } from 'wagmi'
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 
-// Set up queryClient
-const queryClient = new QueryClient()
+// Get projectId from https://dashboard.reown.com
+export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
 
 if (!projectId) {
   throw new Error('Project ID is not defined')
 }
+
+export const networks = [mainnet, arbitrum, optimism, base, polygon]
+
+//Set up the Wagmi Adapter (Config)
+export const wagmiAdapter = new WagmiAdapter({
+  storage: createStorage({
+    storage: cookieStorage
+  }),
+  ssr: true,
+  projectId,
+  networks
+})
+
+// Set up queryClient
+const queryClient = new QueryClient()
+
 
 const appkitProjectId = projectId as string
 
@@ -35,11 +52,6 @@ function ContextProvider({ children, cookies }: { children: ReactNode; cookies: 
       defaultNetwork={mainnet}
       metadata={metadata}
       features={{ analytics: true }}
-      themeVariables={{
-        '--apkt-accent': 'white',
-        '--w3m-border-radius-master': '99999999px',
-        // '--apkt-border-radius-master': '99999999px'
-      }}
     >
       <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState}>
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

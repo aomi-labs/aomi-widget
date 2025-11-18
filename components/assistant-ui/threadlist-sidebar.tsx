@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useAppKit } from "@reown/appkit/react";
-import { Button } from "@/components/ui/button";
+import { AppKitButton } from "@reown/appkit/react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,8 +19,6 @@ import { ThreadList } from "@/components/assistant-ui/thread-list";
 export function ThreadListSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  const { open } = useAppKit();
-
   return (
     <Sidebar
       collapsible="offcanvas"
@@ -60,12 +57,7 @@ export function ThreadListSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Button
-                className="w-full rounded-full bg-primary text-white"
-                onClick={() => open({ view: "Connect" })}
-              >
-                Connect Wallet
-              </Button>
+              <AppKitButton className="w-full" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
