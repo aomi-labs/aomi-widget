@@ -1,32 +1,4 @@
-import { cookieStorage, createStorage, http } from '@wagmi/core'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networks'
-
-// Get projectId from https://dashboard.reown.com
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
-
-if (!projectId) {
-  throw new Error('Project ID is not defined')
-}
-
-export const networks = [mainnet, arbitrum, optimism, base, polygon]
-
-//Set up the Wagmi Adapter (Config)
-export const wagmiAdapter = new WagmiAdapter({
-  storage: createStorage({
-    storage: cookieStorage
-  }),
-  ssr: true,
-  projectId,
-  networks
-})
-
-export const config = wagmiAdapter.wagmiConfig
-
-// ==================================================================
-
-
-export interface WalletManagerConfig {
+export interface WalletCallbacks {
   sendSystemMessage: (message: string) => Promise<void>;
   logMessage?: (message: string) => void;
 }
@@ -45,15 +17,15 @@ export interface WalletState {
 }
 
 export class WalletManager {
-  private config: WalletManagerConfig;
+  private callbacks: WalletCallbacks;
   private onConnectionChange: (isConnected: boolean, address?: string) => void;
   private onChainChange: (chainId: number, networkName: string) => void;
   private onError: (error: Error) => void;
 
   private state: WalletState;
 
-  constructor(config: WalletManagerConfig, eventHandlers: Partial<WalletManagerEventHandlers> = {}) {
-    this.config = config;
+  constructor(callbacks: WalletCallbacks, eventHandlers: Partial<WalletManagerEventHandlers> = {}) {
+    this.callbacks = callbacks;
 
     // Event handlers
     this.onConnectionChange = eventHandlers.onConnectionChange || (() => {});
@@ -87,7 +59,7 @@ export class WalletManager {
   // Send system message to backend
   private async sendSystemMessage(message: string): Promise<void> {
     try {
-      await this.config.sendSystemMessage(message);
+      await this.callbacks.sendSystemMessage(message);
     } catch (error) {
       this.onError(error instanceof Error ? error : new Error(String(error)));
     }
@@ -165,8 +137,8 @@ export class WalletManager {
   }
 
   private logMessage(message: string): void {
-    if (this.config.logMessage) {
-      this.config.logMessage(message);
+    if (this.callbacks.logMessage) {
+      this.callbacks.logMessage(message);
     } else {
       console.log(`[WalletManager] ${message}`);
     }

@@ -46,11 +46,6 @@ export function ThreadListSidebar({
                       className="aomi-sidebar-header-icon size-7 ml-3"
                     />
                   </div>
-                  {/* <div className="aomi-sidebar-header-heading mr-6 flex flex-col gap-0.5 leading-none">
-                    <span className="aomi-sidebar-header-title font-semibold">
-                      assistant-ui
-                    </span>
-                  </div> */}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
