@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AppKitButton } from "@reown/appkit/react";
+import { useAppKit } from "@reown/appkit/react";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +20,8 @@ import { ThreadList } from "@/components/assistant-ui/thread-list";
 export function ThreadListSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const { open } = useAppKit();
+
   return (
     <Sidebar
       collapsible="offcanvas"
@@ -61,25 +64,13 @@ export function ThreadListSidebar({
       <SidebarFooter className="aomi-sidebar-footer border-t">
         <SidebarMenu>
           <SidebarMenuItem>
-            {/* <AppKitButton /> */}
-
             <SidebarMenuButton size="lg" asChild>
-              {/* <Link
-                href="https://github.com/assistant-ui/assistant-ui"
-                target="_blank"
+              <Button
+                className="w-full rounded-full bg-primary text-white"
+                onClick={() => open({ view: "Connect" })}
               >
-                <div className="aomi-sidebar-footer-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <p>blah blah</p>
-                </div>
-                <div className="aomi-sidebar-footer-heading flex flex-col gap-0.5 leading-none">
-                  <span className="aomi-sidebar-footer-title font-semibold">
-                    GitHub
-                  </span>
-                  <span>View Source</span>
-                </div>
-              </Link> */}
-              <AppKitButton className="aomi-wallet-connet bg-muted"/>
-
+                Connect Wallet
+              </Button>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
