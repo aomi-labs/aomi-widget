@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AppKitButton } from "@reown/appkit/react";
+import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import { useEnsName } from "wagmi";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +21,48 @@ import { ThreadList } from "@/components/assistant-ui/thread-list";
 export function ThreadListSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const { chainId } = useAppKitNetwork();
+
+  const { data: ensName } = useEnsName({
+    address: address as `0x${string}` | undefined,
+    chainId: 1,
+    query: { enabled: Boolean(address) },
+  });
+
+  const formatAddress = (addr?: string) =>
+    addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+
+  const networkName = isConnected
+    ? (() => {
+      switch (typeof chainId === "string" ? Number(chainId) : chainId) {
+        case 1:
+          return "Ethereum";
+        case 137:
+          return "Polygon";
+      case 42161:
+        return "Arbitrum";
+      case 8453:
+        return "Base";
+        case 10:
+          return "Optimism";
+        default:
+          return null;
+      }
+    })()
+    : null;
+
+  const handleClick = () => {
+    if (isConnected) {
+      void open({ view: "Account" });
+    } else {
+      void open({ view: "Connect" });
+    }
+  };
+
+  const label = isConnected ? ensName ?? formatAddress(address) : "Connect Wallet";
+
   return (
     <Sidebar
       collapsible="offcanvas"
@@ -49,15 +93,25 @@ export function ThreadListSidebar({
           </SidebarMenu>
         </div>
       </SidebarHeader>
-      <SidebarContent className="aomi-sidebar-content px-2">
+      <SidebarContent className="aomi-sidebar-content">
         <ThreadList />
       </SidebarContent>
       <SidebarRail />
-      <SidebarFooter className="aomi-sidebar-footer border-t">
+      <SidebarFooter className="aomi-sidebar-footer border-t border-sm py-4">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <AppKitButton className="w-full" />
+              <Button
+                className="w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white"
+                onClick={handleClick}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{label}</span>
+                  {networkName ? (
+                    <span className="text-[11px] text-white/80">• {networkName}</span>
+                  ) : null}
+                </div>
+              </Button>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
