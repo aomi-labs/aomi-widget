@@ -56,7 +56,7 @@ function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
   };
 }
 
-export function MyRuntimeProvider({
+export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
   sessionId = "default-session",

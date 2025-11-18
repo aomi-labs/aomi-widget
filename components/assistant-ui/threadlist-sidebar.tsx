@@ -1,6 +1,8 @@
+"use client";
+
 import * as React from "react";
-import { Github, MessagesSquare} from "lucide-react";
 import Link from "next/link";
+import { AppKitButton } from "@reown/appkit/react";
 import {
   Sidebar,
   SidebarContent,
@@ -59,13 +61,15 @@ export function ThreadListSidebar({
       <SidebarFooter className="aomi-sidebar-footer border-t">
         <SidebarMenu>
           <SidebarMenuItem>
+            {/* <AppKitButton /> */}
+
             <SidebarMenuButton size="lg" asChild>
-              <Link
+              {/* <Link
                 href="https://github.com/assistant-ui/assistant-ui"
                 target="_blank"
               >
                 <div className="aomi-sidebar-footer-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Github className="aomi-sidebar-footer-icon size-4" />
+                    <p>blah blah</p>
                 </div>
                 <div className="aomi-sidebar-footer-heading flex flex-col gap-0.5 leading-none">
                   <span className="aomi-sidebar-footer-title font-semibold">
@@ -73,7 +77,9 @@ export function ThreadListSidebar({
                   </span>
                   <span>View Source</span>
                 </div>
-              </Link>
+              </Link> */}
+              <AppKitButton className="aomi-wallet-connet bg-muted"/>
+
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

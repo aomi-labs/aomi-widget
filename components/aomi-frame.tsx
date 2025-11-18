@@ -18,7 +18,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
-import { MyRuntimeProvider } from "@/components/assistant-ui/runtime";
+import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
@@ -38,7 +38,7 @@ export const AomiFrame = ({
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <MyRuntimeProvider backendUrl={backendUrl} sessionId={sessionId}>
+    <AomiRuntimeProvider backendUrl={backendUrl} sessionId={sessionId}>
       <SidebarProvider>
         <div
           className={cn(
@@ -67,6 +67,6 @@ export const AomiFrame = ({
           </SidebarInset>
         </div>
       </SidebarProvider>
-    </MyRuntimeProvider>
+    </AomiRuntimeProvider>
   );
 };
