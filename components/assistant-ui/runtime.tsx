@@ -9,7 +9,7 @@ import {
   type AppendMessage,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
-import { BackendApi, type SessionMessagePayload } from "@/lib/backend-api";
+import { BackendApi, SystemResponsePayload, type SessionMessagePayload } from "@/lib/backend-api";
 
 function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
   const role = msg.sender === "user" ? "user" : "assistant";
@@ -55,6 +55,12 @@ function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
     content: content.length > 0 ? content : [{ type: "text" as const, text: "" }],
     ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
   };
+}
+
+function renderSystemResponse(msg: SystemResponsePayload) {
+  // TODO
+  
+
 }
 
 export function AomiRuntimeProvider({
@@ -187,6 +193,7 @@ export function AomiRuntimeProvider({
 
   const sendSystemMessage = useCallback(
     async (message: string) => {
+      console.log("System message:", message);
       setIsRunning(true);
 
       try {
