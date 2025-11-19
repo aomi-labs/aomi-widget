@@ -1,7 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import {
   AssistantRuntimeProvider,
@@ -9,7 +16,26 @@ import {
   type AppendMessage,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
-import { BackendApi, SystemResponsePayload, type SessionMessagePayload } from "@/lib/backend-api";
+import {
+  BackendApi,
+  type SessionMessagePayload,
+  type SystemCommand,
+} from "@/lib/backend-api";
+
+type SystemNotification = {
+  message: string;
+  timestamp?: Date;
+} | null;
+
+const SystemNotificationContext = createContext<SystemNotification | undefined>(undefined);
+
+export const useSystemNotification = () => {
+  const context = useContext(SystemNotificationContext);
+  if (context === undefined) {
+    throw new Error("useSystemNotification must be used within AomiRuntimeProvider");
+  }
+  return context;
+};
 
 function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
   const role = msg.sender === "user" ? "user" : "assistant";
@@ -57,12 +83,6 @@ function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
   };
 }
 
-function renderSystemResponse(msg: SystemResponsePayload) {
-  // TODO
-  
-
-}
-
 export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
@@ -76,6 +96,7 @@ export function AomiRuntimeProvider({
   const { chainId } = useAppKitNetwork();
   const [messages, setMessages] = useState<ThreadMessageLike[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [systemNotification, setSystemNotification] = useState<SystemNotification>(null);
   const backendApiRef = useRef(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastWalletRef = useRef<{
@@ -85,7 +106,7 @@ export function AomiRuntimeProvider({
   }>({ isConnected: false });
 
   useEffect(() => {
-    backendApiRef.current.setBackendUrl(backendUrl);
+    backendApiRef.current = new BackendApi(backendUrl);
   }, [backendUrl]);
 
   const stopPolling = useCallback(() => {
@@ -95,16 +116,18 @@ export function AomiRuntimeProvider({
     }
   }, []);
 
+  const applyMessages = useCallback((msgs?: SessionMessagePayload[] | null) => {
+    if (!msgs) return;
+    setMessages(msgs.map(convertMessage));
+  }, []);
+
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) return;
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
         const state = await backendApiRef.current.fetchState(sessionId);
-
-        if (state.messages) {
-          setMessages(state.messages.map(convertMessage));
-        }
+        applyMessages(state.messages);
 
         if (!state.is_processing) {
           setIsRunning(false);
@@ -116,18 +139,18 @@ export function AomiRuntimeProvider({
         setIsRunning(false);
       }
     }, 500);
-  }, [sessionId, stopPolling]);
+  }, [applyMessages, sessionId, stopPolling]);
 
   useEffect(() => {
     const fetchInitialState = async () => {
       try {
         const state = await backendApiRef.current.fetchState(sessionId);
-        if (state.messages) {
-          setMessages(state.messages.map(convertMessage));
-        }
+        applyMessages(state.messages);
         if (state.is_processing) {
           setIsRunning(true);
           startPolling();
+        } else {
+          setIsRunning(false);
         }
       } catch (error) {
         console.error("Failed to fetch initial state:", error);
@@ -161,10 +184,7 @@ export function AomiRuntimeProvider({
 
       try {
         const response = await backendApiRef.current.postChatMessage(sessionId, text);
-
-        if (response.messages) {
-          setMessages(response.messages.map(convertMessage));
-        }
+        applyMessages(response.messages);
 
         if (response.is_processing) {
           startPolling();
@@ -192,22 +212,22 @@ export function AomiRuntimeProvider({
   );
 
   const sendSystemMessage = useCallback(
-    async (message: string) => {
-      console.log("System message:", message);
+    async (command: SystemCommand) => {
+      console.log("System command:", command);
       setIsRunning(true);
 
       try {
-        const response = await backendApiRef.current.postSystemMessage(sessionId, message);
+        setSystemNotification({
+          message: command.notification,
+          timestamp: new Date(),
+        });
 
-        if (response.messages) {
-          setMessages(response.messages.map(convertMessage));
-        }
-
-        if (response.is_processing) {
-          startPolling();
-        } else {
-          setIsRunning(false);
-        }
+        await backendApiRef.current.postSystemMessage(
+          sessionId,
+          command.message_to_backend,
+        );
+        startPolling();
+        setIsRunning(false);
       } catch (error) {
         console.error("Failed to send system message:", error);
         setIsRunning(false);
@@ -287,13 +307,15 @@ export function AomiRuntimeProvider({
       const shouldConnect = !prev.isConnected || addressChanged;
 
       if (shouldConnect) {
-        void sendSystemMessage(
-          `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${numericChainId}). Ready to help with transactions.`
-        );
+        void sendSystemMessage({
+          message_to_backend: `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${numericChainId}). Ready to help with transactions.`,
+          notification: `Wallet connected to ${networkName}`,
+        });
       } else if (prev.chainId !== numericChainId) {
-        void sendSystemMessage(
-          `User switched wallet to ${networkName} network (Chain ID: ${numericChainId}).`
-        );
+        void sendSystemMessage({
+          message_to_backend: `User switched wallet to ${networkName} network (Chain ID: ${numericChainId}).`,
+          notification: `Wallet switched to ${networkName}`,
+        });
       }
 
       lastWalletRef.current = {
@@ -302,10 +324,17 @@ export function AomiRuntimeProvider({
         chainId: numericChainId,
       };
     } else if (!isConnected && prev.isConnected) {
-      void sendSystemMessage("Wallet disconnected by user.");
+      void sendSystemMessage({
+        message_to_backend: "Wallet disconnected by user.",
+        notification: "Wallet disconnected",
+      });
       lastWalletRef.current = { isConnected: false };
     }
   }, [address, chainId, isConnected, sendSystemMessage]);
 
-  return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
+  return (
+    <SystemNotificationContext.Provider value={systemNotification}>
+      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+    </SystemNotificationContext.Provider>
+  );
 }

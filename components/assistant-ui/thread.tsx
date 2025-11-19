@@ -1,4 +1,5 @@
 import {
+  AlertCircleIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
@@ -33,6 +34,7 @@ import {
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
 
+import { useSystemNotification } from "@/components/assistant-ui/runtime";
 import { cn } from "@/lib/utils";
 
 export const Thread: FC = () => {
@@ -49,6 +51,8 @@ export const Thread: FC = () => {
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
+
+            <SystemNotification />
 
             <ThreadPrimitive.Messages
               components={{
@@ -383,5 +387,26 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
         </TooltipIconButton>
       </BranchPickerPrimitive.Next>
     </BranchPickerPrimitive.Root>
+  );
+};
+
+const SystemNotification: FC = () => {
+  const notification = useSystemNotification();
+  if (!notification) return null;
+
+  const { message, timestamp } = notification;
+
+  return (
+    <div className="aui-system-notification mx-auto mt-4 flex w-full max-w-[var(--thread-max-width)] justify-center px-2">
+      <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-50">
+        <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-200" />
+        <div className="flex flex-col gap-1 text-center">
+          <span className="text-xs text-red font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200/80">
+            System Notification
+          </span>
+          <p className="text-sm text-red leading-relaxed text-foreground dark:text-white/90">{message}</p>
+        </div>
+      </div>
+    </div>
   );
 };
