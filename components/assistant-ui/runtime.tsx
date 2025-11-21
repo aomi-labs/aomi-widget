@@ -16,11 +16,7 @@ import {
   type AppendMessage,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
-import {
-  BackendApi,
-  type SessionMessagePayload,
-  type SystemCommand,
-} from "@/lib/backend-api";
+import { BackendApi, type SessionMessage } from "@/lib/backend-api";
 
 type SystemNotification = {
   message: string;
@@ -37,7 +33,65 @@ export const useSystemNotification = () => {
   return context;
 };
 
-function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
+function parseTimestamp(timestamp?: string) {
+  if (!timestamp) return undefined;
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.valueOf()) ? undefined : parsed;
+}
+
+function extractNotification(msg: SessionMessage): SystemNotification {
+    // SessionMessage {
+    //   sender: 'system';
+    //   content: 'system's msg to the agent'; => system send to the agent e.g. "wallet connected on X network with address Y, call tools with network param X"
+    //   timestamp: some-time;                 => "Error calling tool WebSearch: 404"
+    //   is_streaming: false;
+    //   tool_stream: ['notification name to print', '']; => system notification to show to the user "Wallet connected on X network"
+    //                                                    => "WebSearch Error"
+    // }
+  if (msg.sender !== "system" || !msg.tool_stream) {
+    return null;
+  }
+  if (Array.isArray(msg.tool_stream) && typeof msg.tool_stream[0] === "string") {
+    return {
+      message: msg.tool_stream[0],
+      timestamp: parseTimestamp(msg.timestamp),
+    };
+  } else if (typeof msg.tool_stream === "object" && msg.tool_stream !== null) {
+    const toolData = msg.tool_stream as { topic?: unknown; content?: unknown };
+    return toolData.topic
+      ? { message: String(toolData.topic), timestamp: parseTimestamp(msg.timestamp) }
+      : null;
+  }
+  return null;
+}
+
+function convertDOMTool(msg: SessionMessage): string {
+    // SessionMessage {
+    //   sender: 'system';
+    //   content: 'system's msg to the agent'; => system send to the agent e.g. "wallet connected on X network with address Y, call tools with network param X"
+    //   timestamp: some-time;
+    //   is_streaming: false;
+    //   tool_stream: ['notification name to print', '']; => system notification to show to the user "Wallet connected on X network"
+    // }
+  if (msg.sender !== "system" || !msg.tool_stream) {
+    return '';
+  }
+  if (msg.tool_stream) {
+    // TODO
+    // if (Array.isArray(msg.tool_stream) && msg.tool_stream.length === 2) {
+    //   // Format: [toolName, argsJSON]
+    //   const [notification, args, emptyConetnt] = msg.tool_stream;
+    //   return notification
+    // } else if (typeof msg.tool_stream === "object") {
+    //   // Format: { topic, content } or custom object
+    //   const toolData = msg.tool_stream as { topic?: unknown; args?: unknown; content?: unknown };
+    //   return toolData.args ? String(toolData.args) : '';
+    // }
+  }
+  return '';
+}
+
+function convertMessage(msg: SessionMessage): ThreadMessageLike {
   const role = msg.sender === "user" ? "user" : "assistant";
   const content = [];
 
@@ -45,7 +99,7 @@ function convertMessage(msg: SessionMessagePayload): ThreadMessageLike {
     content.push({ type: "text" as const, text: msg.content });
   }
 
-  if (msg.tool_stream) {
+  if (msg.tool_stream && msg.sender !== "system") {
     // Handle tool call as a proper tool-call content part
     if (Array.isArray(msg.tool_stream) && msg.tool_stream.length === 2) {
       // Format: [toolName, argsJSON]
@@ -116,9 +170,20 @@ export function AomiRuntimeProvider({
     }
   }, []);
 
-  const applyMessages = useCallback((msgs?: SessionMessagePayload[] | null) => {
+  const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
     if (!msgs) return;
-    setMessages(msgs.map(convertMessage));
+
+    const converted = msgs.map(convertMessage);
+    setMessages(converted);
+
+    const latestNotification = [...msgs]
+      .reverse()
+      .map(extractNotification)
+      .find((n) => n && n.message);
+
+    if (latestNotification) {
+      setSystemNotification(latestNotification);
+    }
   }, []);
 
   const startPolling = useCallback(() => {
@@ -212,20 +277,23 @@ export function AomiRuntimeProvider({
   );
 
   const sendSystemMessage = useCallback(
-    async (command: SystemCommand) => {
-      console.log("System command:", command);
+    async (message: string) => {
       setIsRunning(true);
 
       try {
-        setSystemNotification({
-          message: command.notification,
-          timestamp: new Date(),
-        });
-
-        await backendApiRef.current.postSystemMessage(
+        const response = await backendApiRef.current.postSystemMessage(
           sessionId,
-          command.message_to_backend,
+          message,
         );
+
+        if (response.res) {
+          const notification = extractNotification(response.res);
+          if (notification?.message) {
+            setSystemNotification(notification);
+          }
+          setMessages((prev) => [...prev, convertMessage(response.res as SessionMessage)]);
+        }
+
         startPolling();
         setIsRunning(false);
       } catch (error) {
@@ -300,6 +368,8 @@ export function AomiRuntimeProvider({
     const numericChainId =
       typeof chainId === "string" ? Number(chainId) : chainId;
 
+    console.log("Wallet effect", { isConnected, address, chainId, prev });
+
     if (isConnected && normalizedAddress && numericChainId) {
       const networkName = getNetworkName(numericChainId);
 
@@ -307,15 +377,11 @@ export function AomiRuntimeProvider({
       const shouldConnect = !prev.isConnected || addressChanged;
 
       if (shouldConnect) {
-        void sendSystemMessage({
-          message_to_backend: `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${numericChainId}). Ready to help with transactions.`,
-          notification: `Wallet connected to ${networkName}`,
-        });
+        const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${numericChainId}). Ready to help with transactions.`;
+        void sendSystemMessage(message);
       } else if (prev.chainId !== numericChainId) {
-        void sendSystemMessage({
-          message_to_backend: `User switched wallet to ${networkName} network (Chain ID: ${numericChainId}).`,
-          notification: `Wallet switched to ${networkName}`,
-        });
+        const message = `User switched wallet to ${networkName} network (Chain ID: ${numericChainId}).`;
+        void sendSystemMessage(message);
       }
 
       lastWalletRef.current = {
@@ -324,10 +390,8 @@ export function AomiRuntimeProvider({
         chainId: numericChainId,
       };
     } else if (!isConnected && prev.isConnected) {
-      void sendSystemMessage({
-        message_to_backend: "Wallet disconnected by user.",
-        notification: "Wallet disconnected",
-      });
+      
+      void sendSystemMessage("Wallet disconnected by user.");
       lastWalletRef.current = { isConnected: false };
     }
   }, [address, chainId, isConnected, sendSystemMessage]);

@@ -1,4 +1,4 @@
-export interface SessionMessagePayload {
+export interface SessionMessage {
   sender?: string;
   content?: string;
   timestamp?: string;
@@ -7,7 +7,7 @@ export interface SessionMessagePayload {
 }
 
 export interface SessionResponsePayload {
-  messages?: SessionMessagePayload[] | null;
+  messages?: SessionMessage[] | null;
   is_processing?: boolean;
   pending_wallet_tx?: string | null;
 }
@@ -15,12 +15,7 @@ export interface SessionResponsePayload {
 export type BackendSessionResponse = SessionResponsePayload;
 
 export interface SystemResponsePayload {
-  res?: SessionMessagePayload | null;
-}
-
-export interface SystemCommand {
-  message_to_backend: string;
-  notification: string;
+  res?: SessionMessage | null;
 }
 
 async function postState<T>(
