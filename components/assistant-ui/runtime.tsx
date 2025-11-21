@@ -92,6 +92,13 @@ function convertDOMTool(msg: SessionMessage): string {
 }
 
 function convertMessage(msg: SessionMessage): ThreadMessageLike {
+  if (msg.sender === "system") {
+    return {
+      role: "assistant",
+      content: [{ type: "text" as const, text: "" }],
+      ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
+    };
+  }
   const role = msg.sender === "user" ? "user" : "assistant";
   const content = [];
 
@@ -99,26 +106,25 @@ function convertMessage(msg: SessionMessage): ThreadMessageLike {
     content.push({ type: "text" as const, text: msg.content });
   }
 
-  if (msg.tool_stream && msg.sender !== "system") {
-    // Handle tool call as a proper tool-call content part
+  // Ignore tool_stream for system messages (used for notification),
+  // but handle tool streams for non-system senders.
+  if (msg.tool_stream && msg.sender === "assistant") {
     if (Array.isArray(msg.tool_stream) && msg.tool_stream.length === 2) {
-      // Format: [toolName, argsJSON]
       const [toolTopic, resultContent] = msg.tool_stream;
       content.push({
         type: "tool-call" as const,
-        toolCallId: `tool_${Date.now()}`, // Generate unique ID
+        toolCallId: `tool_${Date.now()}`,
         toolName: toolTopic,
-        args: undefined, // No args yet during streaming
+        args: undefined,
         result: (() => {
-            try {
-              return JSON.parse(resultContent);
-            } catch {
-              return { args: resultContent };
-            }
-          })(), 
+          try {
+            return JSON.parse(resultContent);
+          } catch {
+            return { args: resultContent };
+          }
+        })(),
       });
     } else if (typeof msg.tool_stream === "object") {
-      // Format: { topic, content } or custom object
       const toolData = msg.tool_stream as { topic?: unknown; content?: unknown };
       content.push({
         type: "tool-call" as const,
