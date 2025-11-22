@@ -17,6 +17,7 @@ import {
   type ThreadMessageLike,
 } from "@assistant-ui/react";
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
+import { constructNotification, constructThreadMessage } from "@/lib/conversion";
 
 type SystemNotification = {
   message: string;
@@ -32,116 +33,6 @@ export const useSystemNotification = () => {
   }
   return context;
 };
-
-function parseTimestamp(timestamp?: string) {
-  if (!timestamp) return undefined;
-  const parsed = new Date(timestamp);
-  return Number.isNaN(parsed.valueOf()) ? undefined : parsed;
-}
-
-function extractNotification(msg: SessionMessage): SystemNotification {
-    // SessionMessage {
-    //   sender: 'system';
-    //   content: 'system's msg to the agent'; => system send to the agent e.g. "wallet connected on X network with address Y, call tools with network param X"
-    //   timestamp: some-time;                 => "Error calling tool WebSearch: 404"
-    //   is_streaming: false;
-    //   tool_stream: ['notification name to print', '']; => system notification to show to the user "Wallet connected on X network"
-    //                                                    => "WebSearch Error"
-    // }
-  if (msg.sender !== "system" || !msg.tool_stream) {
-    return null;
-  }
-  if (Array.isArray(msg.tool_stream) && typeof msg.tool_stream[0] === "string") {
-    return {
-      message: msg.tool_stream[0],
-      timestamp: parseTimestamp(msg.timestamp),
-    };
-  } else if (typeof msg.tool_stream === "object" && msg.tool_stream !== null) {
-    const toolData = msg.tool_stream as { topic?: unknown; content?: unknown };
-    return toolData.topic
-      ? { message: String(toolData.topic), timestamp: parseTimestamp(msg.timestamp) }
-      : null;
-  }
-  return null;
-}
-
-function convertDOMTool(msg: SessionMessage): string {
-    // SessionMessage {
-    //   sender: 'system';
-    //   content: 'system's msg to the agent'; => system send to the agent e.g. "wallet connected on X network with address Y, call tools with network param X"
-    //   timestamp: some-time;
-    //   is_streaming: false;
-    //   tool_stream: ['notification name to print', '']; => system notification to show to the user "Wallet connected on X network"
-    // }
-  if (msg.sender !== "system" || !msg.tool_stream) {
-    return '';
-  }
-  if (msg.tool_stream) {
-    // TODO
-    // if (Array.isArray(msg.tool_stream) && msg.tool_stream.length === 2) {
-    //   // Format: [toolName, argsJSON]
-    //   const [notification, args, emptyConetnt] = msg.tool_stream;
-    //   return notification
-    // } else if (typeof msg.tool_stream === "object") {
-    //   // Format: { topic, content } or custom object
-    //   const toolData = msg.tool_stream as { topic?: unknown; args?: unknown; content?: unknown };
-    //   return toolData.args ? String(toolData.args) : '';
-    // }
-  }
-  return '';
-}
-
-function convertMessage(msg: SessionMessage): ThreadMessageLike {
-  if (msg.sender === "system") {
-    return {
-      role: "assistant",
-      content: [{ type: "text" as const, text: "" }],
-      ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
-    };
-  }
-  const role = msg.sender === "user" ? "user" : "assistant";
-  const content = [];
-
-  if (msg.content) {
-    content.push({ type: "text" as const, text: msg.content });
-  }
-
-  // Ignore tool_stream for system messages (used for notification),
-  // but handle tool streams for non-system senders.
-  if (msg.tool_stream && msg.sender === "assistant") {
-    if (Array.isArray(msg.tool_stream) && msg.tool_stream.length === 2) {
-      const [toolTopic, resultContent] = msg.tool_stream;
-      content.push({
-        type: "tool-call" as const,
-        toolCallId: `tool_${Date.now()}`,
-        toolName: toolTopic,
-        args: undefined,
-        result: (() => {
-          try {
-            return JSON.parse(resultContent);
-          } catch {
-            return { args: resultContent };
-          }
-        })(),
-      });
-    } else if (typeof msg.tool_stream === "object") {
-      const toolData = msg.tool_stream as { topic?: unknown; content?: unknown };
-      content.push({
-        type: "tool-call" as const,
-        toolCallId: `tool_${Date.now()}`,
-        toolName: String(toolData.topic || "unknown"),
-        args: undefined,
-        result: toolData.content || toolData,
-      });
-    }
-  }
-
-  return {
-    role,
-    content: content.length > 0 ? content : [{ type: "text" as const, text: "" }],
-    ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
-  };
-}
 
 export function AomiRuntimeProvider({
   children,
@@ -165,6 +56,31 @@ export function AomiRuntimeProvider({
     chainId?: number;
   }>({ isConnected: false });
 
+
+  const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
+    if (!msgs) return;
+
+    const threadMessages: ThreadMessageLike[] = [];
+    let latestNotification: SystemNotification = null;
+
+    for (const msg of msgs) {
+      if (msg.sender === "system") {
+        const notif = constructNotification(msg);
+        if (notif?.message) {
+          latestNotification = notif;
+        }
+        continue;
+      }
+      threadMessages.push(constructThreadMessage(msg));
+    }
+
+    setMessages(threadMessages);
+    if (latestNotification) {
+      setSystemNotification(latestNotification);
+    }
+  }, []);
+
+
   useEffect(() => {
     backendApiRef.current = new BackendApi(backendUrl);
   }, [backendUrl]);
@@ -176,25 +92,9 @@ export function AomiRuntimeProvider({
     }
   }, []);
 
-  const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
-    if (!msgs) return;
-
-    const converted = msgs.map(convertMessage);
-    setMessages(converted);
-
-    const latestNotification = [...msgs]
-      .reverse()
-      .map(extractNotification)
-      .find((n) => n && n.message);
-
-    if (latestNotification) {
-      setSystemNotification(latestNotification);
-    }
-  }, []);
-
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) return;
-
+    setIsRunning(true);
     pollingIntervalRef.current = setInterval(async () => {
       try {
         const state = await backendApiRef.current.fetchState(sessionId);
@@ -212,29 +112,30 @@ export function AomiRuntimeProvider({
     }, 500);
   }, [applyMessages, sessionId, stopPolling]);
 
-  useEffect(() => {
-    const fetchInitialState = async () => {
-      try {
-        const state = await backendApiRef.current.fetchState(sessionId);
-        applyMessages(state.messages);
-        if (state.is_processing) {
-          setIsRunning(true);
-          startPolling();
-        } else {
-          setIsRunning(false);
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
+
+  const syncState = useCallback(async () => {
+    try {
+      const state = await backendApiRef.current.fetchState(sessionId);
+      applyMessages(state.messages);
+      if (state.is_processing) {
+        startPolling();
+      } else {
+        setIsRunning(false);
       }
-    };
+    } catch (error) {
+      console.error("Polling error:", error);
+    }
+  }, [applyMessages, sessionId, startPolling]);
 
-    fetchInitialState();
 
+  // Initialization
+  useEffect(() => {
+    void syncState();
     return () => {
       stopPolling();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, backendUrl]);
+  }, [sessionId, backendUrl, stopPolling, syncState]);
+
 
   const onNew = useCallback(
     async (message: AppendMessage) => {
@@ -251,41 +152,22 @@ export function AomiRuntimeProvider({
         createdAt: new Date(),
       };
       setMessages((prev) => [...prev, userMessage]);
-      setIsRunning(true);
 
       try {
-        const response = await backendApiRef.current.postChatMessage(sessionId, text);
-        applyMessages(response.messages);
-
-        if (response.is_processing) {
-          startPolling();
-        } else {
-          setIsRunning(false);
-        }
+        setIsRunning(true);
+        await backendApiRef.current.postChatMessage(sessionId, text);
+        await syncState();
       } catch (error) {
         console.error("Failed to send message:", error);
         setIsRunning(false);
-
-        const errorMessage: ThreadMessageLike = {
-          role: "assistant",
-          content: [
-            {
-              type: "text",
-              text: `Error: ${error instanceof Error ? error.message : "Failed to send message"}`,
-            },
-          ],
-          createdAt: new Date(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
       }
     },
-    [sessionId, startPolling]
+    [sessionId, syncState]
   );
 
   const sendSystemMessage = useCallback(
     async (message: string) => {
       setIsRunning(true);
-
       try {
         const response = await backendApiRef.current.postSystemMessage(
           sessionId,
@@ -293,15 +175,13 @@ export function AomiRuntimeProvider({
         );
 
         if (response.res) {
-          const notification = extractNotification(response.res);
+          const notification = constructNotification(response.res);
           if (notification?.message) {
             setSystemNotification(notification);
           }
-          setMessages((prev) => [...prev, convertMessage(response.res as SessionMessage)]);
         }
 
         startPolling();
-        setIsRunning(false);
       } catch (error) {
         console.error("Failed to send system message:", error);
         setIsRunning(false);

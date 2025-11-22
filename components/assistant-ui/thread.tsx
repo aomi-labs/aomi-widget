@@ -394,7 +394,7 @@ const SystemNotification: FC = () => {
   const notification = useSystemNotification();
   if (!notification) return null;
 
-  const { message, timestamp } = notification;
+  const { message } = notification;
 
   return (
     <div className="aui-system-notification mx-auto mt-4 flex w-full max-w-[var(--thread-max-width)] justify-center px-2">

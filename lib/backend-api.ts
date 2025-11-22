@@ -18,6 +18,11 @@ export interface SystemResponsePayload {
   res?: SessionMessage | null;
 }
 
+export type SystemNotification = {
+  message: string;
+  timestamp?: Date;
+};
+
 async function postState<T>(
   backendUrl: string,
   path: string,

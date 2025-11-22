@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
 import { Button } from "@/components/ui/button";
@@ -81,10 +82,13 @@ export function ThreadListSidebar({
                   rel="noopener noreferrer"
                 >
                   <div className="aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white">
-                    <img
+                    <Image
                       src="/assets/images/a.svg"
                       alt="Logo"
+                      width={28}
+                      height={28}
                       className="aomi-sidebar-header-icon size-7 ml-3"
+                      priority
                     />
                   </div>
                 </Link>

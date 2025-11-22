@@ -12,12 +12,10 @@ import { Separator } from "@/components/ui/separator";
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { cn } from "@/lib/utils";
+import { cn, generateSessionId } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
 
 type AomiFrameProps = {
@@ -25,6 +23,7 @@ type AomiFrameProps = {
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
+  sessionId?: string;
 };
 
 export const AomiFrame = ({
@@ -32,13 +31,14 @@ export const AomiFrame = ({
   height = "80vh",
   className,
   style,
+  sessionId,
 }: AomiFrameProps) => {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
-  const sessionId = "default-session";
+  const frameSessionId = sessionId ?? generateSessionId();
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <AomiRuntimeProvider backendUrl={backendUrl} sessionId={sessionId}>
+    <AomiRuntimeProvider backendUrl={backendUrl} sessionId={frameSessionId}>
       <SidebarProvider>
         <div
           className={cn(
