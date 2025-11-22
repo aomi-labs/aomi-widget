@@ -1,10 +1,11 @@
-import { SessionMessage, SystemNotification } from "@/lib/backend-api";
+import { SessionMessage } from "@/lib/backend-api";
 import { ThreadMessageLike } from "@assistant-ui/react";
 
-export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike {
+export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike | null {
+  if (msg.sender === "system") return null;
+
   const content = [];
-  const role: ThreadMessageLike["role"] =
-    msg.sender === "user" ? "user" : msg.sender === "system" ? "system" : "assistant";
+  const role: ThreadMessageLike["role"] = msg.sender === "user" ? "user" : "assistant";
 
   if (msg.content) {
     content.push({ type: "text" as const, text: msg.content });
@@ -46,30 +47,17 @@ export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike {
 //                                                    => "WebSearch Error"
 // }
 
-export function constructNotification(msg: SessionMessage): SystemNotification {
-  const [topic] = parseToolStream(msg.tool_stream) ?? [];
-  if (topic) {
-    return {
-        message: topic,
-        timestamp: parseTimestamp(msg.timestamp)
-    }
-  }
-  return {
-    message: '',
-    timestamp: parseTimestamp(msg.timestamp)
-  }
-}
-
 export function constructSystemMessage(msg: SessionMessage): ThreadMessageLike | null {
-  const notification = constructNotification(msg);
-  const messageText = notification?.message || msg.content || "";
+  const [topic] = parseToolStream(msg.tool_stream) ?? [];
+  const messageText = topic || msg.content || "";
+  const timestamp = parseTimestamp(msg.timestamp);
 
   if (!messageText.trim()) return null;
 
   return {
     role: "system",
     content: [{ type: "text", text: messageText }],
-    ...(notification?.timestamp && { createdAt: notification.timestamp }),
+    ...(timestamp && { createdAt: timestamp }),
   };
 }
 

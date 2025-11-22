@@ -1,14 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime,
@@ -16,26 +9,12 @@ import {
   type ThreadMessageLike,
 } from "@assistant-ui/react";
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
-import { constructNotification, constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
+import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
 
-type SystemNotification = {
-  message: string;
-  timestamp?: Date;
-} | null;
-
-const SystemNotificationContext = createContext<SystemNotification | undefined>(undefined);
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;
 };
 const RuntimeActionsContext = createContext<RuntimeActions | undefined>(undefined);
-
-export const useSystemNotification = () => {
-  const context = useContext(SystemNotificationContext);
-  if (context === undefined) {
-    throw new Error("useSystemNotification must be used within AomiRuntimeProvider");
-  }
-  return context;
-};
 
 export const useRuntimeActions = () => {
   const context = useContext(RuntimeActionsContext);
@@ -56,7 +35,6 @@ export function AomiRuntimeProvider({
 }>) {
   const [messages, setMessages] = useState<ThreadMessageLike[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [systemNotification, setSystemNotification] = useState<SystemNotification>(null);
   const backendApiRef = useRef(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -65,27 +43,22 @@ export function AomiRuntimeProvider({
     if (!msgs) return;
 
     const threadMessages: ThreadMessageLike[] = [];
-    let latestNotification: SystemNotification = null;
 
     for (const msg of msgs) {
       if (msg.sender === "system") {
-        const notif = constructNotification(msg);
         const systemMessage = constructSystemMessage(msg);
         if (systemMessage) {
           threadMessages.push(systemMessage);
         }
-        if (notif?.message) {
-          latestNotification = notif;
-        }
         continue;
       }
-      threadMessages.push(constructThreadMessage(msg));
+      const threadMessage = constructThreadMessage(msg);
+      if (threadMessage) {
+        threadMessages.push(threadMessage);
+      }
     }
 
     setMessages(threadMessages);
-    if (latestNotification) {
-      setSystemNotification(latestNotification);
-    }
   }, []);
 
 
@@ -182,9 +155,9 @@ export function AomiRuntimeProvider({
         );
 
         if (response.res) {
-          const notification = constructNotification(response.res);
-          if (notification?.message) {
-            setSystemNotification(notification);
+          const systemMessage = constructSystemMessage(response.res);
+          if (systemMessage) {
+            setMessages((prev) => [...prev, systemMessage]);
           }
         }
 
@@ -220,9 +193,7 @@ export function AomiRuntimeProvider({
 
   return (
     <RuntimeActionsContext.Provider value={{ sendSystemMessage }}>
-      <SystemNotificationContext.Provider value={systemNotification}>
-        <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
-      </SystemNotificationContext.Provider>
+      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
     </RuntimeActionsContext.Provider>
   );
 }

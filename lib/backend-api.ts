@@ -18,11 +18,6 @@ export interface SystemResponsePayload {
   res?: SessionMessage | null;
 }
 
-export type SystemNotification = {
-  message: string;
-  timestamp?: Date;
-};
-
 async function postState<T>(
   backendUrl: string,
   path: string,
@@ -42,7 +37,6 @@ async function postState<T>(
 }
 
 export class BackendApi {
-  // TODO: use SSE to push notifications
   private connectionStatus = false;
   private eventSource: EventSource | null = null;
 
