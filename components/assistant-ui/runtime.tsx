@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime,
@@ -25,11 +24,23 @@ type SystemNotification = {
 } | null;
 
 const SystemNotificationContext = createContext<SystemNotification | undefined>(undefined);
+type RuntimeActions = {
+  sendSystemMessage: (message: string) => Promise<void>;
+};
+const RuntimeActionsContext = createContext<RuntimeActions | undefined>(undefined);
 
 export const useSystemNotification = () => {
   const context = useContext(SystemNotificationContext);
   if (context === undefined) {
     throw new Error("useSystemNotification must be used within AomiRuntimeProvider");
+  }
+  return context;
+};
+
+export const useRuntimeActions = () => {
+  const context = useContext(RuntimeActionsContext);
+  if (!context) {
+    throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
   }
   return context;
 };
@@ -43,18 +54,11 @@ export function AomiRuntimeProvider({
   backendUrl?: string;
   sessionId?: string;
 }>) {
-  const { address, isConnected } = useAppKitAccount();
-  const { chainId } = useAppKitNetwork();
   const [messages, setMessages] = useState<ThreadMessageLike[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [systemNotification, setSystemNotification] = useState<SystemNotification>(null);
   const backendApiRef = useRef(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastWalletRef = useRef<{
-    isConnected: boolean;
-    address?: string;
-    chainId?: number;
-  }>({ isConnected: false });
 
 
   const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
@@ -113,28 +117,27 @@ export function AomiRuntimeProvider({
   }, [applyMessages, sessionId, stopPolling]);
 
 
-  const syncState = useCallback(async () => {
-    try {
-      const state = await backendApiRef.current.fetchState(sessionId);
-      applyMessages(state.messages);
-      if (state.is_processing) {
-        startPolling();
-      } else {
-        setIsRunning(false);
-      }
-    } catch (error) {
-      console.error("Polling error:", error);
-    }
-  }, [applyMessages, sessionId, startPolling]);
-
-
   // Initialization
   useEffect(() => {
-    void syncState();
+    const fetchInitialState = async () => {
+      try {
+        const state = await backendApiRef.current.fetchState(sessionId);
+        if (state.is_processing) {
+          setIsRunning(true);
+          startPolling();
+        } else {
+          setIsRunning(false);
+        }
+      } catch (error) {
+        console.error("Failed to fetch initial state:", error);
+      }
+    };
+
+    void fetchInitialState();
     return () => {
       stopPolling();
     };
-  }, [sessionId, backendUrl, stopPolling, syncState]);
+  }, [sessionId, backendUrl, stopPolling, applyMessages, startPolling]);
 
 
   const onNew = useCallback(
@@ -156,13 +159,13 @@ export function AomiRuntimeProvider({
       try {
         setIsRunning(true);
         await backendApiRef.current.postChatMessage(sessionId, text);
-        await syncState();
+        startPolling();
       } catch (error) {
         console.error("Failed to send message:", error);
         setIsRunning(false);
       }
     },
-    [sessionId, syncState]
+    [sessionId, applyMessages, startPolling]
   );
 
   const sendSystemMessage = useCallback(
@@ -181,25 +184,14 @@ export function AomiRuntimeProvider({
           }
         }
 
-        startPolling();
+        await startPolling();
       } catch (error) {
         console.error("Failed to send system message:", error);
         setIsRunning(false);
 
-        const errorMessage: ThreadMessageLike = {
-          role: "assistant",
-          content: [
-            {
-              type: "text",
-              text: `Error: ${error instanceof Error ? error.message : "Failed to send system message"}`,
-            },
-          ],
-          createdAt: new Date(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
       }
     },
-    [sessionId, startPolling]
+    [sessionId, applyMessages, startPolling]
   );
 
   const onCancel = useCallback(async () => {
@@ -222,69 +214,11 @@ export function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
   });
 
-  useEffect(() => {
-    const getNetworkName = (id: number): string => {
-      switch (id) {
-        case 1:
-          return "ethereum";
-        case 137:
-          return "polygon";
-        case 42161:
-          return "arbitrum";
-        case 8453:
-          return "base";
-        case 10:
-          return "optimism";
-        case 11155111:
-          return "sepolia";
-        case 1337:
-        case 31337:
-          return "testnet";
-        case 59140:
-          return "linea-sepolia";
-        case 59144:
-          return "linea";
-        default:
-          return "testnet";
-      }
-    };
-
-    const prev = lastWalletRef.current;
-    const normalizedAddress = address?.toLowerCase();
-    const numericChainId =
-      typeof chainId === "string" ? Number(chainId) : chainId;
-
-    console.log("Wallet effect", { isConnected, address, chainId, prev });
-
-    if (isConnected && normalizedAddress && numericChainId) {
-      const networkName = getNetworkName(numericChainId);
-
-      const addressChanged = prev.address !== normalizedAddress;
-      const shouldConnect = !prev.isConnected || addressChanged;
-
-      if (shouldConnect) {
-        const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${numericChainId}). Ready to help with transactions.`;
-        void sendSystemMessage(message);
-      } else if (prev.chainId !== numericChainId) {
-        const message = `User switched wallet to ${networkName} network (Chain ID: ${numericChainId}).`;
-        void sendSystemMessage(message);
-      }
-
-      lastWalletRef.current = {
-        isConnected: true,
-        address: normalizedAddress,
-        chainId: numericChainId,
-      };
-    } else if (!isConnected && prev.isConnected) {
-      
-      void sendSystemMessage("Wallet disconnected by user.");
-      lastWalletRef.current = { isConnected: false };
-    }
-  }, [address, chainId, isConnected, sendSystemMessage]);
-
   return (
-    <SystemNotificationContext.Provider value={systemNotification}>
-      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
-    </SystemNotificationContext.Provider>
+    <RuntimeActionsContext.Provider value={{ sendSystemMessage }}>
+      <SystemNotificationContext.Provider value={systemNotification}>
+        <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+      </SystemNotificationContext.Provider>
+    </RuntimeActionsContext.Provider>
   );
 }

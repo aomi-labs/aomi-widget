@@ -42,6 +42,10 @@ async function postState<T>(
 }
 
 export class BackendApi {
+  // TODO: use SSE to push notifications
+  private connectionStatus = false;
+  private eventSource: EventSource | null = null;
+
   constructor(private readonly backendUrl: string) {}
 
   async fetchState(sessionId: string): Promise<SessionResponsePayload> {
@@ -64,5 +68,72 @@ export class BackendApi {
 
   async postInterrupt(sessionId: string): Promise<SessionResponsePayload> {
     return postState<SessionResponsePayload>(this.backendUrl, "/api/interrupt", { session_id: sessionId });
+  }
+
+  disconnectSSE(): void {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    this.setConnectionStatus(false);
+  }
+
+  setConnectionStatus(on: boolean): void {
+    this.connectionStatus = on
+  }
+
+  async connectSSE(sessionId: string, publicKey?: string) {
+    // Close existing connection
+    this.disconnectSSE();
+
+    try {
+      // Build URL with optional public_key parameter
+      const url = new URL(`${this.backendUrl}/api/chat/stream`);
+      url.searchParams.set('session_id', sessionId);
+      if (publicKey) {
+        url.searchParams.set('public_key', publicKey);
+      }
+
+      this.eventSource = new EventSource(url.toString());
+
+      this.eventSource.onopen = () => {
+        console.log('🌐 SSE connection opened to:', url.toString());
+        this.setConnectionStatus(true);
+      };
+
+      this.eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          // this.updateChatState(data);
+        } catch (error) {
+          console.error('Failed to parse SSE data:', error);
+        }
+      };
+
+      this.eventSource.onerror = (error) => {
+        console.error('SSE connection error:', error);
+      };
+
+    } catch (error) {
+      console.error('Failed to establish SSE connection:', error);
+      this.handleConnectionError(sessionId, publicKey);
+    }
+  }
+
+  private handleConnectionError(sessionId: string, publicKey?: string): void {
+    this.setConnectionStatus(false);
+    let attempt = 0;
+    let total = 3;
+    if (attempt < total) {
+      attempt++;
+      console.log(`Attempting to reconnect (${attempt}/${total})...`);
+
+      setTimeout(() => {
+        this.connectSSE(sessionId, publicKey);
+      }, 100);
+    } else {
+      console.error('Max reconnection attempts reached');
+      this.setConnectionStatus(false);
+    }
   }
 }

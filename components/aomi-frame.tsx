@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { cn, generateSessionId } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
+import { WalletSystemMessenger } from "@/components/wallet-providers";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
@@ -39,6 +40,7 @@ export const AomiFrame = ({
 
   return (
     <AomiRuntimeProvider backendUrl={backendUrl} sessionId={frameSessionId}>
+      <WalletSystemMessenger />
       <SidebarProvider>
         <div
           className={cn(
