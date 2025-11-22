@@ -3,7 +3,8 @@ import { ThreadMessageLike } from "@assistant-ui/react";
 
 export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike {
   const content = [];
-  const role = msg.sender === "user" ? "user" : "assistant";
+  const role: ThreadMessageLike["role"] =
+    msg.sender === "user" ? "user" : msg.sender === "system" ? "system" : "assistant";
 
   if (msg.content) {
     content.push({ type: "text" as const, text: msg.content });
@@ -12,25 +13,25 @@ export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike {
   const [topic, toolContent] = parseToolStream(msg.tool_stream) ?? [];
   if (topic && toolContent) {
     content.push({
-        type: "tool-call" as const,
-        toolCallId: `tool_${Date.now()}`,
-        toolName: topic,
-        args: undefined,
-        result: (() => {
-          try {
-            return JSON.parse(toolContent);
-          } catch {
-            return { args: toolContent };
-          }
-        })(),
-    })
+      type: "tool-call" as const,
+      toolCallId: `tool_${Date.now()}`,
+      toolName: topic,
+      args: undefined,
+      result: (() => {
+        try {
+          return JSON.parse(toolContent);
+        } catch {
+          return { args: toolContent };
+        }
+      })(),
+    });
   }
 
   const threadMessage = {
     role,
     content: content.length > 0 ? content : [{ type: "text" as const, text: "" }],
     ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
-  }
+  };
 
   return threadMessage;
 }
@@ -57,6 +58,19 @@ export function constructNotification(msg: SessionMessage): SystemNotification {
     message: '',
     timestamp: parseTimestamp(msg.timestamp)
   }
+}
+
+export function constructSystemMessage(msg: SessionMessage): ThreadMessageLike | null {
+  const notification = constructNotification(msg);
+  const messageText = notification?.message || msg.content || "";
+
+  if (!messageText.trim()) return null;
+
+  return {
+    role: "system",
+    content: [{ type: "text", text: messageText }],
+    ...(notification?.timestamp && { createdAt: notification.timestamp }),
+  };
 }
 
 export function constructUITool(): string {

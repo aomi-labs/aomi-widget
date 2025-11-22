@@ -16,7 +16,7 @@ import {
   type ThreadMessageLike,
 } from "@assistant-ui/react";
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
-import { constructNotification, constructThreadMessage } from "@/lib/conversion";
+import { constructNotification, constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
 
 type SystemNotification = {
   message: string;
@@ -70,6 +70,10 @@ export function AomiRuntimeProvider({
     for (const msg of msgs) {
       if (msg.sender === "system") {
         const notif = constructNotification(msg);
+        const systemMessage = constructSystemMessage(msg);
+        if (systemMessage) {
+          threadMessages.push(systemMessage);
+        }
         if (notif?.message) {
           latestNotification = notif;
         }

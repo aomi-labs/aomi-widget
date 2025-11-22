@@ -34,7 +34,6 @@ import {
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
 
-import { useSystemNotification } from "@/components/assistant-ui/runtime";
 import { cn } from "@/lib/utils";
 
 export const Thread: FC = () => {
@@ -52,13 +51,12 @@ export const Thread: FC = () => {
               <ThreadWelcome />
             </ThreadPrimitive.If>
 
-            <SystemNotification />
-
             <ThreadPrimitive.Messages
               components={{
                 UserMessage,
                 EditComposer,
                 AssistantMessage,
+                SystemMessage,
               }}
             />
 
@@ -390,23 +388,25 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   );
 };
 
-const SystemNotification: FC = () => {
-  const notification = useSystemNotification();
-  if (!notification) return null;
-
-  const { message } = notification;
-
+const SystemMessage: FC = () => {
   return (
-    <div className="aui-system-notification mx-auto mt-4 flex w-full max-w-[var(--thread-max-width)] justify-center px-2">
-      <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-50">
-        <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-200" />
-        <div className="flex flex-col gap-1 text-center">
-          <span className="text-xs text-red font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200/80">
-            System Notification
-          </span>
-          <p className="text-sm text-red leading-relaxed text-foreground dark:text-white/90">{message}</p>
+    <MessagePrimitive.Root asChild>
+      <div
+        className="aui-system-message-root mx-auto w-full max-w-[var(--thread-max-width)] px-2 py-4 animate-in fade-in slide-in-from-bottom-1"
+        data-role="system"
+      >
+        <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-50">
+          <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-200" />
+          <div className="flex flex-col gap-1 text-center">
+            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200/80">
+              System Notification
+            </span>
+            <div className="text-sm leading-relaxed text-foreground dark:text-white/90">
+              <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </MessagePrimitive.Root>
   );
 };
