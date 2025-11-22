@@ -395,13 +395,13 @@ const SystemMessage: FC = () => {
         className="aui-system-message-root mx-auto w-full max-w-[var(--thread-max-width)] px-2 py-4 animate-in fade-in slide-in-from-bottom-1"
         data-role="system"
       >
-        <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-50">
-          <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-200" />
-          <div className="flex flex-col gap-1 text-center">
-            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200/80">
-              System Notification
+        <div className="aui-system-message-card flex w-full flex-wrap items-start gap-3 rounded-3xl border px-5 py-4 text-left text-sm bg-background/70 dark:bg-muted/30">
+          <AlertCircleIcon className="aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" />
+          <div className="aui-system-message-body flex flex-col gap-1">
+            <span className="aui-system-message-title font-medium text-foreground">
+              System notice
             </span>
-            <div className="text-sm leading-relaxed text-foreground dark:text-white/90">
+            <div className="aui-system-message-content leading-relaxed text-muted-foreground">
               <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
             </div>
           </div>
