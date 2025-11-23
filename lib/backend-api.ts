@@ -18,6 +18,20 @@ export interface SystemResponsePayload {
   res?: SessionMessage | null;
 }
 
+// Thread Management Types
+export interface ThreadMetadata {
+  session_id: string;
+  main_topic: string;
+  is_archived?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateThreadResponse {
+  session_id: string;
+  main_topic?: string;
+}
+
 async function postState<T>(
   backendUrl: string,
   path: string,
@@ -128,6 +142,115 @@ export class BackendApi {
     } else {
       console.error('Max reconnection attempts reached');
       this.setConnectionStatus(false);
+    }
+  }
+
+  // ==================== Thread Management API ====================
+
+  /**
+   * Fetch all threads/sessions for a given public key
+   * @param publicKey - User's wallet address
+   * @returns Array of thread metadata
+   */
+  async fetchThreads(publicKey: string): Promise<ThreadMetadata[]> {
+    const response = await fetch(
+      `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as ThreadMetadata[];
+  }
+
+  /**
+   * Create a new thread/session
+   * @param publicKey - User's wallet address
+   * @param title - Optional initial title for the thread
+   * @returns Created thread information
+   */
+  async createThread(publicKey: string, title?: string): Promise<CreateThreadResponse> {
+    const payload: Record<string, unknown> = { public_key: publicKey };
+    if (title) {
+      payload.title = title;
+    }
+
+    const response = await fetch(`${this.backendUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create thread: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as CreateThreadResponse;
+  }
+
+  /**
+   * Archive a thread/session
+   * @param sessionId - The session ID to archive
+   */
+  async archiveThread(sessionId: string): Promise<void> {
+    const response = await fetch(
+      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`,
+      { method: 'POST' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
+    }
+  }
+
+  /**
+   * Unarchive a thread/session
+   * @param sessionId - The session ID to unarchive
+   */
+  async unarchiveThread(sessionId: string): Promise<void> {
+    const response = await fetch(
+      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`,
+      { method: 'POST' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
+    }
+  }
+
+  /**
+   * Delete a thread/session permanently
+   * @param sessionId - The session ID to delete
+   */
+  async deleteThread(sessionId: string): Promise<void> {
+    const response = await fetch(
+      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`,
+      { method: 'DELETE' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete thread: HTTP ${response.status}`);
+    }
+  }
+
+  /**
+   * Rename a thread/session
+   * @param sessionId - The session ID to rename
+   * @param newTitle - The new title for the thread
+   */
+  async renameThread(sessionId: string, newTitle: string): Promise<void> {
+    const response = await fetch(
+      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
   }
 }
