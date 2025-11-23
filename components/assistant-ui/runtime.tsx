@@ -44,6 +44,8 @@ export function AomiRuntimeProvider({
     setThreads,
     threadMetadata,
     setThreadMetadata,
+    threadCnt,
+    setThreadCnt,
     getThreadMessages,
     setThreadMessages,
     updateThreadMetadata,
@@ -146,14 +148,31 @@ export function AomiRuntimeProvider({
         const threadList = await backendApiRef.current.fetchThreads(publicKey);
         const newMetadata = new Map(threadMetadata);
 
+        // Track the highest thread number we find
+        let maxThreadNum = threadCnt;
+
         for (const thread of threadList) {
+          const title = thread.main_topic || "New Chat";
           newMetadata.set(thread.session_id, {
-            title: thread.main_topic || "New Chat",
+            title,
             status: thread.is_archived ? "archived" : "regular",
           });
+
+          // Extract thread number if title follows "Thread N" format
+          const match = title.match(/^Thread (\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxThreadNum) {
+              maxThreadNum = num;
+            }
+          }
         }
 
         setThreadMetadata(newMetadata);
+        // Update counter to be at least as high as the highest thread number
+        if (maxThreadNum > threadCnt) {
+          setThreadCnt(maxThreadNum);
+        }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
       }
@@ -164,22 +183,24 @@ export function AomiRuntimeProvider({
 
   // ==================== Thread List Adapter ====================
   const threadListAdapter: ExternalStoreThreadListAdapter = (() => {
-    // Build thread arrays from metadata
+    // Build thread arrays from metadata (newest first)
     const regularThreads = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "regular")
       .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
         id,
         title: meta.title,
         status: "regular",
-      }));
+      }))
+      .reverse(); // Show newest threads first
 
     const archivedThreadsArray = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "archived")
-      .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
+      .map(([id]): ExternalStoreThreadData<"archived"> => ({
         id,
-        title: meta.title,
+        title: id, // Display session_id as title for now
         status: "archived",
-      }));
+      }))
+      .reverse(); // Show newest archived threads first
 
     return {
       threadId: currentThreadId,
@@ -194,27 +215,31 @@ export function AomiRuntimeProvider({
         }
 
         try {
-          // Note: createThread might not work yet, so we'll create locally for now
+          // Generate sequential title
+          const nextCount = threadCnt + 1;
+          const threadTitle = `Thread ${nextCount}`;
           const newId = `local-thread-${Date.now()}`;
 
           // Try backend first, fall back to local if it fails
           try {
-            const newThread = await backendApiRef.current.createThread(publicKey, "New Chat");
+            const newThread = await backendApiRef.current.createThread(publicKey, threadTitle);
             const backendId = newThread.session_id;
 
             setThreadMetadata((prev) =>
-              new Map(prev).set(backendId, { title: "New Chat", status: "regular" })
+              new Map(prev).set(backendId, { title: threadTitle, status: "regular" })
             );
             setThreadMessages(backendId, []);
             setCurrentThreadId(backendId);
+            setThreadCnt(nextCount); // Increment counter
           } catch (error) {
             console.warn("Backend createThread failed, creating locally:", error);
             // Fallback to local thread
             setThreadMetadata((prev) =>
-              new Map(prev).set(newId, { title: "New Chat", status: "regular" })
+              new Map(prev).set(newId, { title: threadTitle, status: "regular" })
             );
             setThreadMessages(newId, []);
             setCurrentThreadId(newId);
+            setThreadCnt(nextCount); // Increment counter
           }
         } catch (error) {
           console.error("Failed to create new thread:", error);

@@ -32,15 +32,24 @@ export interface CreateThreadResponse {
   main_topic?: string;
 }
 
+function toQueryString(payload: Record<string, unknown>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === undefined || value === null) continue;
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
 async function postState<T>(
   backendUrl: string,
   path: string,
   payload: Record<string, unknown>
 ): Promise<T> {
-  const response = await fetch(`${backendUrl}${path}`, {
+  const query = toQueryString(payload);
+  const response = await fetch(`${backendUrl}${path}${query}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
