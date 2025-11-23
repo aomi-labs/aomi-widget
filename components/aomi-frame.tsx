@@ -15,16 +15,17 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { cn, generateSessionId } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
+import { ThreadContextProvider } from "@/lib/thread-context";
 import { WalletSystemMessenger } from "@/components/wallet-providers";
+import { useAppKitAccount } from "@reown/appkit/react";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
-  sessionId?: string;
 };
 
 export const AomiFrame = ({
@@ -32,14 +33,14 @@ export const AomiFrame = ({
   height = "80vh",
   className,
   style,
-  sessionId,
 }: AomiFrameProps) => {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
-  const frameSessionId = sessionId ?? generateSessionId();
   const frameStyle: CSSProperties = { width, height, ...style };
+  const { address } = useAppKitAccount();
 
   return (
-    <AomiRuntimeProvider backendUrl={backendUrl} sessionId={frameSessionId}>
+    <ThreadContextProvider>
+      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={address}>
       <WalletSystemMessenger />
       <SidebarProvider>
         <div
@@ -69,6 +70,7 @@ export const AomiFrame = ({
           </SidebarInset>
         </div>
       </SidebarProvider>
-    </AomiRuntimeProvider>
+      </AomiRuntimeProvider>
+    </ThreadContextProvider>
   );
 };

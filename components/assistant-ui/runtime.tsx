@@ -7,9 +7,12 @@ import {
   useExternalStoreRuntime,
   type AppendMessage,
   type ThreadMessageLike,
+  type ExternalStoreThreadListAdapter,
+  type ExternalStoreThreadData,
 } from "@assistant-ui/react";
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
 import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
+import { useThreadContext } from "@/lib/thread-context";
 
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;
@@ -27,18 +30,34 @@ export const useRuntimeActions = () => {
 export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
-  sessionId = "default-session",
+  publicKey,
 }: Readonly<{
   children: ReactNode;
   backendUrl?: string;
-  sessionId?: string;
+  publicKey?: string;
 }>) {
-  const [messages, setMessages] = useState<ThreadMessageLike[]>([]);
+  // ==================== Thread Context Integration ====================
+  const {
+    currentThreadId,
+    setCurrentThreadId,
+    threads,
+    setThreads,
+    threadMetadata,
+    setThreadMetadata,
+    getThreadMessages,
+    setThreadMessages,
+    updateThreadMetadata,
+  } = useThreadContext();
+
+  // ==================== State ====================
   const [isRunning, setIsRunning] = useState(false);
   const backendApiRef = useRef(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Get messages for current thread
+  const currentMessages = getThreadMessages(currentThreadId);
 
+  // ==================== Message Processing ====================
   const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
     if (!msgs) return;
 
@@ -58,14 +77,15 @@ export function AomiRuntimeProvider({
       }
     }
 
-    setMessages(threadMessages);
-  }, []);
+    setThreadMessages(currentThreadId, threadMessages);
+  }, [currentThreadId, setThreadMessages]);
 
-
+  // ==================== Backend API ====================
   useEffect(() => {
     backendApiRef.current = new BackendApi(backendUrl);
   }, [backendUrl]);
 
+  // ==================== Polling Logic ====================
   const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -78,7 +98,7 @@ export function AomiRuntimeProvider({
     setIsRunning(true);
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        const state = await backendApiRef.current.fetchState(sessionId);
+        const state = await backendApiRef.current.fetchState(currentThreadId);
         applyMessages(state.messages);
 
         if (!state.is_processing) {
@@ -91,14 +111,15 @@ export function AomiRuntimeProvider({
         setIsRunning(false);
       }
     }, 500);
-  }, [applyMessages, sessionId, stopPolling]);
+  }, [currentThreadId, applyMessages, stopPolling]);
 
-
-  // Initialization
+  // ==================== Load Initial Thread State ====================
   useEffect(() => {
     const fetchInitialState = async () => {
       try {
-        const state = await backendApiRef.current.fetchState(sessionId);
+        const state = await backendApiRef.current.fetchState(currentThreadId);
+        applyMessages(state.messages);
+
         if (state.is_processing) {
           setIsRunning(true);
           startPolling();
@@ -114,9 +135,178 @@ export function AomiRuntimeProvider({
     return () => {
       stopPolling();
     };
-  }, [sessionId, backendUrl, stopPolling, applyMessages, startPolling]);
+  }, [currentThreadId, applyMessages, startPolling, stopPolling]);
 
+  // ==================== Load Thread List from Backend ====================
+  useEffect(() => {
+    if (!publicKey) return;
 
+    const fetchThreadList = async () => {
+      try {
+        const threadList = await backendApiRef.current.fetchThreads(publicKey);
+        const newMetadata = new Map(threadMetadata);
+
+        for (const thread of threadList) {
+          newMetadata.set(thread.session_id, {
+            title: thread.main_topic || "New Chat",
+            status: thread.is_archived ? "archived" : "regular",
+          });
+        }
+
+        setThreadMetadata(newMetadata);
+      } catch (error) {
+        console.error("Failed to fetch thread list:", error);
+      }
+    };
+
+    void fetchThreadList();
+  }, [publicKey]); // Only run on mount and when publicKey changes
+
+  // ==================== Thread List Adapter ====================
+  const threadListAdapter: ExternalStoreThreadListAdapter = {
+    threadId: currentThreadId,
+
+    // Regular threads
+    threads: Array.from(threadMetadata.entries())
+      .filter(([_, meta]) => meta.status === "regular")
+      .map(([id, meta]): ExternalStoreThreadData => ({
+        threadId: id,
+        title: meta.title,
+        status: "regular",
+      })),
+
+    // Archived threads
+    archivedThreads: Array.from(threadMetadata.entries())
+      .filter(([_, meta]) => meta.status === "archived")
+      .map(([id, meta]): ExternalStoreThreadData => ({
+        threadId: id,
+        title: meta.title,
+        status: "archived",
+      })),
+
+    // Create new thread
+    onSwitchToNewThread: async () => {
+      if (!publicKey) {
+        console.warn("Cannot create thread: publicKey not provided");
+        return;
+      }
+
+      try {
+        // Note: createThread might not work yet, so we'll create locally for now
+        const newId = `local-thread-${Date.now()}`;
+
+        // Try backend first, fall back to local if it fails
+        try {
+          const newThread = await backendApiRef.current.createThread(publicKey, "New Chat");
+          const backendId = newThread.session_id;
+
+          setThreadMetadata((prev) =>
+            new Map(prev).set(backendId, { title: "New Chat", status: "regular" })
+          );
+          setThreadMessages(backendId, []);
+          setCurrentThreadId(backendId);
+        } catch (error) {
+          console.warn("Backend createThread failed, creating locally:", error);
+          // Fallback to local thread
+          setThreadMetadata((prev) =>
+            new Map(prev).set(newId, { title: "New Chat", status: "regular" })
+          );
+          setThreadMessages(newId, []);
+          setCurrentThreadId(newId);
+        }
+      } catch (error) {
+        console.error("Failed to create new thread:", error);
+      }
+    },
+
+    // Switch to existing thread
+    onSwitchToThread: (threadId: string) => {
+      setCurrentThreadId(threadId);
+    },
+
+    // Rename thread
+    onRename: async (threadId: string, newTitle: string) => {
+      // Optimistic update
+      updateThreadMetadata(threadId, { title: newTitle });
+
+      try {
+        await backendApiRef.current.renameThread(threadId, newTitle);
+      } catch (error) {
+        console.error("Failed to rename thread:", error);
+        // Could rollback here, but we'll keep the optimistic update
+      }
+    },
+
+    // Archive thread
+    onArchive: async (threadId: string) => {
+      // Optimistic update
+      updateThreadMetadata(threadId, { status: "archived" });
+
+      try {
+        await backendApiRef.current.archiveThread(threadId);
+      } catch (error) {
+        console.error("Failed to archive thread:", error);
+        // Rollback on error
+        updateThreadMetadata(threadId, { status: "regular" });
+      }
+    },
+
+    // Unarchive thread
+    onUnarchive: async (threadId: string) => {
+      // Optimistic update
+      updateThreadMetadata(threadId, { status: "regular" });
+
+      try {
+        await backendApiRef.current.unarchiveThread(threadId);
+      } catch (error) {
+        console.error("Failed to unarchive thread:", error);
+        // Rollback on error
+        updateThreadMetadata(threadId, { status: "archived" });
+      }
+    },
+
+    // Delete thread
+    onDelete: async (threadId: string) => {
+      try {
+        await backendApiRef.current.deleteThread(threadId);
+
+        // Remove from context
+        setThreadMetadata((prev) => {
+          const next = new Map(prev);
+          next.delete(threadId);
+          return next;
+        });
+        setThreads((prev) => {
+          const next = new Map(prev);
+          next.delete(threadId);
+          return next;
+        });
+
+        // Switch to another thread if current was deleted
+        if (currentThreadId === threadId) {
+          const firstRegularThread = Array.from(threadMetadata.entries())
+            .find(([id, meta]) => meta.status === "regular" && id !== threadId);
+
+          if (firstRegularThread) {
+            setCurrentThreadId(firstRegularThread[0]);
+          } else {
+            // No threads left, create a default one
+            const defaultId = "default-session";
+            setThreadMetadata((prev) =>
+              new Map(prev).set(defaultId, { title: "New Chat", status: "regular" })
+            );
+            setThreadMessages(defaultId, []);
+            setCurrentThreadId(defaultId);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to delete thread:", error);
+        throw error; // Let the UI handle the error
+      }
+    },
+  };
+
+  // ==================== Message Handlers ====================
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = message.content
@@ -131,18 +321,20 @@ export function AomiRuntimeProvider({
         content: [{ type: "text", text }],
         createdAt: new Date(),
       };
-      setMessages((prev) => [...prev, userMessage]);
+
+      // Add message to current thread
+      setThreadMessages(currentThreadId, [...currentMessages, userMessage]);
 
       try {
         setIsRunning(true);
-        await backendApiRef.current.postChatMessage(sessionId, text);
+        await backendApiRef.current.postChatMessage(currentThreadId, text);
         startPolling();
       } catch (error) {
         console.error("Failed to send message:", error);
         setIsRunning(false);
       }
     },
-    [sessionId, applyMessages, startPolling]
+    [currentThreadId, currentMessages, setThreadMessages, startPolling]
   );
 
   const sendSystemMessage = useCallback(
@@ -150,14 +342,14 @@ export function AomiRuntimeProvider({
       setIsRunning(true);
       try {
         const response = await backendApiRef.current.postSystemMessage(
-          sessionId,
+          currentThreadId,
           message,
         );
 
         if (response.res) {
           const systemMessage = constructSystemMessage(response.res);
           if (systemMessage) {
-            setMessages((prev) => [...prev, systemMessage]);
+            setThreadMessages(currentThreadId, [...currentMessages, systemMessage]);
           }
         }
 
@@ -165,30 +357,33 @@ export function AomiRuntimeProvider({
       } catch (error) {
         console.error("Failed to send system message:", error);
         setIsRunning(false);
-
       }
     },
-    [sessionId, applyMessages, startPolling]
+    [currentThreadId, currentMessages, setThreadMessages, startPolling]
   );
 
   const onCancel = useCallback(async () => {
     stopPolling();
 
     try {
-      await backendApiRef.current.postInterrupt(sessionId);
+      await backendApiRef.current.postInterrupt(currentThreadId);
       setIsRunning(false);
     } catch (error) {
       console.error("Failed to cancel:", error);
     }
-  }, [sessionId, stopPolling]);
+  }, [currentThreadId, stopPolling]);
 
+  // ==================== Runtime ====================
   const runtime = useExternalStoreRuntime({
-    messages,
-    setMessages: (msgs) => setMessages([...msgs]),
+    messages: currentMessages,
+    setMessages: (msgs) => setThreadMessages(currentThreadId, [...msgs]),
     isRunning,
     onNew,
     onCancel,
     convertMessage: (msg) => msg,
+    adapters: {
+      threadList: threadListAdapter, // 🎯 Thread list adapter enabled!
+    },
   });
 
   return (
