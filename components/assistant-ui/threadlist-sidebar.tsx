@@ -17,6 +17,12 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type HistorySession = {
+  session_id: string;
+  main_topic: string;
+};
 
 // h-full min-h-full border-r border-sidebar-border bg-sidebar
 export function ThreadListSidebar({
@@ -25,6 +31,13 @@ export function ThreadListSidebar({
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { chainId } = useAppKitNetwork();
+  const [historySessions, setHistorySessions] = React.useState<HistorySession[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = React.useState(false);
+  const [sessionError, setSessionError] = React.useState<string | null>(null);
+  const backendUrl = React.useMemo(
+    () => process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080",
+    [],
+  );
 
   const { data: ensName } = useEnsName({
     address: address as `0x${string}` | undefined,
@@ -42,10 +55,10 @@ export function ThreadListSidebar({
           return "Ethereum";
         case 137:
           return "Polygon";
-      case 42161:
-        return "Arbitrum";
-      case 8453:
-        return "Base";
+        case 42161:
+          return "Arbitrum";
+        case 8453:
+          return "Base";
         case 10:
           return "Optimism";
         default:
@@ -63,6 +76,37 @@ export function ThreadListSidebar({
   };
 
   const label = isConnected ? ensName ?? formatAddress(address) : "Connect Wallet";
+
+  React.useEffect(() => {
+    const fetchSessions = async () => {
+      if (!address) {
+        setHistorySessions([]);
+        setSessionError(null);
+        return;
+      }
+
+      setIsLoadingSessions(true);
+      setSessionError(null);
+      try {
+        const res = await fetch(
+          `${backendUrl}/api/sessions?public_key=${encodeURIComponent(address)}`,
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to load sessions: ${res.status}`);
+        }
+        const data = (await res.json()) as HistorySession[];
+        setHistorySessions(data);
+      } catch (error) {
+        console.error(error);
+        setSessionError("Could not load sessions");
+        setHistorySessions([]);
+      } finally {
+        setIsLoadingSessions(false);
+      }
+    };
+
+    void fetchSessions();
+  }, [address, backendUrl]);
 
   return (
     <Sidebar
@@ -99,6 +143,55 @@ export function ThreadListSidebar({
       </SidebarHeader>
       <SidebarContent className="aomi-sidebar-content">
         <ThreadList />
+        {/* <div className="mb-2 px-2 text-xs font-semibold uppercase text-sidebar-foreground/70">
+          Recent Sessions
+        </div> */}
+        <SidebarMenu className="mb-3">
+          {isLoadingSessions ? (
+            Array.from({ length: 3 }, (_, idx) => (
+              <SidebarMenuItem key={`session-skel-${idx}`}>
+                <div className="flex items-center gap-2 px-2 py-1.5">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-10" />
+                </div>
+              </SidebarMenuItem>
+            ))
+          ) : sessionError ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                variant="outline"
+                className="justify-between text-xs text-red-500"
+                disabled
+              >
+                {sessionError}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : historySessions.length > 0 ? (
+            historySessions.map((session) => (
+              <SidebarMenuItem key={session.session_id}>
+                <SidebarMenuButton
+                  variant="outline"
+                  className="justify-between text-xs"
+                >
+                  <span className="truncate">{session.main_topic || "Untitled"}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {session.session_id.slice(0, 6)}…
+                  </span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))
+          ) : (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                variant="outline"
+                className="justify-start text-xs text-muted-foreground"
+                disabled
+              >
+                {address ? "No sessions yet" : "Connect wallet to load sessions"}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+        </SidebarMenu>
       </SidebarContent>
       <SidebarRail />
       <SidebarFooter className="aomi-sidebar-footer border-t border-sm py-4">
