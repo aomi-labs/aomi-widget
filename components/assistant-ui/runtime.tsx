@@ -37,7 +37,11 @@ export function AomiRuntimeProvider({
   const [isRunning, setIsRunning] = useState(false);
   const backendApiRef = useRef(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingSystemMessagesRef = useRef<String[]>([]);
 
+
+  const hasPendingSystemMessage = () => pendingSystemMessagesRef.current.length > 0;
+  const conversationStarted = () => messages.length > 0;
 
   const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
     if (!msgs) return;
@@ -82,6 +86,42 @@ export function AomiRuntimeProvider({
         applyMessages(state.messages);
 
         if (!state.is_processing) {
+          // If there are pending system messages, append them now
+          if (hasPendingSystemMessage()) {
+            const pendingMessages = pendingSystemMessagesRef.current;
+            pendingSystemMessagesRef.current = [];
+
+            const systemMessages: ThreadMessageLike[] = [];
+            for (const msg of pendingMessages) {
+              backendApiRef.current.postSystemMessage(sessionId, msg.toString());
+            }
+          }
+
+          setIsRunning(false);
+          stopPolling();
+
+          if (hasPendingSystemMessage()) {
+            rePolling();
+          }
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+        stopPolling();
+        setIsRunning(false);
+      }
+    }, 500);
+  }, [applyMessages, sessionId, stopPolling]);
+
+
+  const rePolling = useCallback(() => {
+    if (pollingIntervalRef.current) return;
+    setIsRunning(true);
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const state = await backendApiRef.current.fetchState(sessionId);
+        applyMessages(state.messages);
+
+        if (!state.is_processing) {
           setIsRunning(false);
           stopPolling();
         }
@@ -92,7 +132,6 @@ export function AomiRuntimeProvider({
       }
     }, 500);
   }, [applyMessages, sessionId, stopPolling]);
-
 
   // Initialization
   useEffect(() => {
@@ -147,28 +186,34 @@ export function AomiRuntimeProvider({
 
   const sendSystemMessage = useCallback(
     async (message: string) => {
-      setIsRunning(true);
       try {
-        const response = await backendApiRef.current.postSystemMessage(
-          sessionId,
-          message,
-        );
-
-        if (response.res) {
-          const systemMessage = constructSystemMessage(response.res);
-          if (systemMessage) {
-            setMessages((prev) => [...prev, systemMessage]);
+        if (conversationStarted()) {
+          const response = await backendApiRef.current.postSystemMessage(
+            sessionId,
+            message,
+          );
+          const sessionMessage = response.res;
+          if (sessionMessage) {
+            // Conversation already started, emit system message immediately
+            setIsRunning(true);
+            const systemMessage = constructSystemMessage(sessionMessage);
+            if (systemMessage) {
+              setMessages((prev) => [...prev, systemMessage]);
+            }
+            startPolling();
           }
-        }
 
-        await startPolling();
+        } else {
+          // Conversation hasn't started, queue the system message for later
+          // We con't wanna see a Wallet Notification right away
+          pendingSystemMessagesRef.current.push(message);
+        }
       } catch (error) {
         console.error("Failed to send system message:", error);
         setIsRunning(false);
-
       }
     },
-    [sessionId, applyMessages, startPolling]
+    [sessionId, messages.length, startPolling]
   );
 
   const onCancel = useCallback(async () => {
