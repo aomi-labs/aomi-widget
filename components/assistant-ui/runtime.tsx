@@ -44,8 +44,6 @@ export function AomiRuntimeProvider({
     setThreads,
     threadMetadata,
     setThreadMetadata,
-    threadCnt,
-    setThreadCnt,
     getThreadMessages,
     setThreadMessages,
     updateThreadMetadata,
@@ -148,31 +146,14 @@ export function AomiRuntimeProvider({
         const threadList = await backendApiRef.current.fetchThreads(publicKey);
         const newMetadata = new Map(threadMetadata);
 
-        // Track the highest thread number we find
-        let maxThreadNum = threadCnt;
-
         for (const thread of threadList) {
-          const title = thread.main_topic || "New Chat";
           newMetadata.set(thread.session_id, {
-            title,
+            title: thread.main_topic || "New Chat",
             status: thread.is_archived ? "archived" : "regular",
           });
-
-          // Extract thread number if title follows "Thread N" format
-          const match = title.match(/^Thread (\d+)$/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxThreadNum) {
-              maxThreadNum = num;
-            }
-          }
         }
 
         setThreadMetadata(newMetadata);
-        // Update counter to be at least as high as the highest thread number
-        if (maxThreadNum > threadCnt) {
-          setThreadCnt(maxThreadNum);
-        }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
       }
@@ -209,40 +190,21 @@ export function AomiRuntimeProvider({
 
       // Create new thread
       onSwitchToNewThread: async () => {
-        if (!publicKey) {
-          console.warn("Cannot create thread: publicKey not provided");
-          return;
-        }
-
         try {
-          // Generate sequential title
-          const nextCount = threadCnt + 1;
-          const threadTitle = `Thread ${nextCount}`;
-          const newId = `local-thread-${Date.now()}`;
+          // Backend generates both session_id and main_topic
+          // Pass publicKey if available
+          const newThread = await backendApiRef.current.createThread(publicKey);
+          const backendId = newThread.session_id;
+          const backendTitle = newThread.main_topic || "New Chat";
 
-          // Try backend first, fall back to local if it fails
-          try {
-            const newThread = await backendApiRef.current.createThread(publicKey, threadTitle);
-            const backendId = newThread.session_id;
-
-            setThreadMetadata((prev) =>
-              new Map(prev).set(backendId, { title: threadTitle, status: "regular" })
-            );
-            setThreadMessages(backendId, []);
-            setCurrentThreadId(backendId);
-            setThreadCnt(nextCount); // Increment counter
-          } catch (error) {
-            console.warn("Backend createThread failed, creating locally:", error);
-            // Fallback to local thread
-            setThreadMetadata((prev) =>
-              new Map(prev).set(newId, { title: threadTitle, status: "regular" })
-            );
-            setThreadMessages(newId, []);
-            setCurrentThreadId(newId);
-            setThreadCnt(nextCount); // Increment counter
-          }
+          setThreadMetadata((prev) =>
+            new Map(prev).set(backendId, { title: backendTitle, status: "regular" })
+          );
+          setThreadMessages(backendId, []);
+          setCurrentThreadId(backendId);
         } catch (error) {
           console.error("Failed to create new thread:", error);
+          // Could show error toast to user here
         }
       },
 

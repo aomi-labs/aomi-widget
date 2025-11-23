@@ -175,20 +175,17 @@ export class BackendApi {
 
   /**
    * Create a new thread/session
-   * @param publicKey - User's wallet address
-   * @param title - Optional initial title for the thread
-   * @returns Created thread information
+   * Backend is responsible for generating both session_id and main_topic
+   * @param publicKey - Optional user's wallet address
+   * @returns Created thread information with backend-generated ID and topic
    */
-  async createThread(publicKey: string, title?: string): Promise<CreateThreadResponse> {
-    const payload: Record<string, unknown> = { public_key: publicKey };
-    if (title) {
-      payload.title = title;
-    }
+  async createThread(publicKey?: string): Promise<CreateThreadResponse> {
+    const body = publicKey ? { public_key: publicKey } : {};
 
     const response = await fetch(`${this.backendUrl}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
