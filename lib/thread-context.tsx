@@ -100,9 +100,9 @@ export function ThreadContextProvider({
   children,
   initialThreadId = "default-session",
 }: ThreadContextProviderProps) {
-  // Current thread ID
-  const [currentThreadId, setCurrentThreadId] = useState(initialThreadId);
 
+  const [threadCnt, setThreadCnt] = useState<number>(0);
+  
   // Thread messages storage
   const [threads, setThreads] = useState<Map<string, ThreadMessageLike[]>>(
     () => new Map([[initialThreadId, []]])
@@ -110,7 +110,38 @@ export function ThreadContextProvider({
 
   // Thread metadata storage
   const [threadMetadata, setThreadMetadata] = useState<Map<string, ThreadMetadata>>(
-    () => new Map([[initialThreadId, { title: "New Chat", status: "regular" }]])
+    () => new Map([[initialThreadId, { title: "New Chat fmlll", status: "regular" }]])
+  );
+
+  // Ensure a thread has placeholder metadata/messages before use
+  const ensureThreadExists = useCallback(
+    (threadId: string) => {
+      setThreadMetadata((prev) => {
+        if (prev.has(threadId)) return prev;
+        const next = new Map(prev);
+        next.set(threadId, { title: "New Chat", status: "regular" });
+        return next;
+      });
+
+      setThreads((prev) => {
+        if (prev.has(threadId)) return prev;
+        const next = new Map(prev);
+        next.set(threadId, []);
+        return next;
+      });
+    },
+    []
+  );
+
+  // Current thread ID
+  const [currentThreadId, _setCurrentThreadId] = useState(initialThreadId);
+
+  const setCurrentThreadId = useCallback(
+    (threadId: string) => {
+      ensureThreadExists(threadId);
+      _setCurrentThreadId(threadId);
+    },
+    [ensureThreadExists]
   );
 
   // Helper: Get messages for a specific thread

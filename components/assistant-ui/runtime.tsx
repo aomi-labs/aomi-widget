@@ -163,148 +163,151 @@ export function AomiRuntimeProvider({
   }, [publicKey]); // Only run on mount and when publicKey changes
 
   // ==================== Thread List Adapter ====================
-  const threadListAdapter: ExternalStoreThreadListAdapter = {
-    threadId: currentThreadId,
-
-    // Regular threads
-    threads: Array.from(threadMetadata.entries())
+  const threadListAdapter: ExternalStoreThreadListAdapter = (() => {
+    // Build thread arrays from metadata
+    const regularThreads = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "regular")
-      .map(([id, meta]): ExternalStoreThreadData => ({
-        threadId: id,
+      .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
+        id,
         title: meta.title,
         status: "regular",
-      })),
+      }));
 
-    // Archived threads
-    archivedThreads: Array.from(threadMetadata.entries())
+    const archivedThreadsArray = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "archived")
-      .map(([id, meta]): ExternalStoreThreadData => ({
-        threadId: id,
+      .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
+        id,
         title: meta.title,
         status: "archived",
-      })),
+      }));
 
-    // Create new thread
-    onSwitchToNewThread: async () => {
-      if (!publicKey) {
-        console.warn("Cannot create thread: publicKey not provided");
-        return;
-      }
+    return {
+      threadId: currentThreadId,
+      threads: regularThreads,
+      archivedThreads: archivedThreadsArray,
 
-      try {
-        // Note: createThread might not work yet, so we'll create locally for now
-        const newId = `local-thread-${Date.now()}`;
+      // Create new thread
+      onSwitchToNewThread: async () => {
+        if (!publicKey) {
+          console.warn("Cannot create thread: publicKey not provided");
+          return;
+        }
 
-        // Try backend first, fall back to local if it fails
         try {
-          const newThread = await backendApiRef.current.createThread(publicKey, "New Chat");
-          const backendId = newThread.session_id;
+          // Note: createThread might not work yet, so we'll create locally for now
+          const newId = `local-thread-${Date.now()}`;
 
-          setThreadMetadata((prev) =>
-            new Map(prev).set(backendId, { title: "New Chat", status: "regular" })
-          );
-          setThreadMessages(backendId, []);
-          setCurrentThreadId(backendId);
-        } catch (error) {
-          console.warn("Backend createThread failed, creating locally:", error);
-          // Fallback to local thread
-          setThreadMetadata((prev) =>
-            new Map(prev).set(newId, { title: "New Chat", status: "regular" })
-          );
-          setThreadMessages(newId, []);
-          setCurrentThreadId(newId);
-        }
-      } catch (error) {
-        console.error("Failed to create new thread:", error);
-      }
-    },
+          // Try backend first, fall back to local if it fails
+          try {
+            const newThread = await backendApiRef.current.createThread(publicKey, "New Chat");
+            const backendId = newThread.session_id;
 
-    // Switch to existing thread
-    onSwitchToThread: (threadId: string) => {
-      setCurrentThreadId(threadId);
-    },
-
-    // Rename thread
-    onRename: async (threadId: string, newTitle: string) => {
-      // Optimistic update
-      updateThreadMetadata(threadId, { title: newTitle });
-
-      try {
-        await backendApiRef.current.renameThread(threadId, newTitle);
-      } catch (error) {
-        console.error("Failed to rename thread:", error);
-        // Could rollback here, but we'll keep the optimistic update
-      }
-    },
-
-    // Archive thread
-    onArchive: async (threadId: string) => {
-      // Optimistic update
-      updateThreadMetadata(threadId, { status: "archived" });
-
-      try {
-        await backendApiRef.current.archiveThread(threadId);
-      } catch (error) {
-        console.error("Failed to archive thread:", error);
-        // Rollback on error
-        updateThreadMetadata(threadId, { status: "regular" });
-      }
-    },
-
-    // Unarchive thread
-    onUnarchive: async (threadId: string) => {
-      // Optimistic update
-      updateThreadMetadata(threadId, { status: "regular" });
-
-      try {
-        await backendApiRef.current.unarchiveThread(threadId);
-      } catch (error) {
-        console.error("Failed to unarchive thread:", error);
-        // Rollback on error
-        updateThreadMetadata(threadId, { status: "archived" });
-      }
-    },
-
-    // Delete thread
-    onDelete: async (threadId: string) => {
-      try {
-        await backendApiRef.current.deleteThread(threadId);
-
-        // Remove from context
-        setThreadMetadata((prev) => {
-          const next = new Map(prev);
-          next.delete(threadId);
-          return next;
-        });
-        setThreads((prev) => {
-          const next = new Map(prev);
-          next.delete(threadId);
-          return next;
-        });
-
-        // Switch to another thread if current was deleted
-        if (currentThreadId === threadId) {
-          const firstRegularThread = Array.from(threadMetadata.entries())
-            .find(([id, meta]) => meta.status === "regular" && id !== threadId);
-
-          if (firstRegularThread) {
-            setCurrentThreadId(firstRegularThread[0]);
-          } else {
-            // No threads left, create a default one
-            const defaultId = "default-session";
             setThreadMetadata((prev) =>
-              new Map(prev).set(defaultId, { title: "New Chat", status: "regular" })
+              new Map(prev).set(backendId, { title: "New Chat", status: "regular" })
             );
-            setThreadMessages(defaultId, []);
-            setCurrentThreadId(defaultId);
+            setThreadMessages(backendId, []);
+            setCurrentThreadId(backendId);
+          } catch (error) {
+            console.warn("Backend createThread failed, creating locally:", error);
+            // Fallback to local thread
+            setThreadMetadata((prev) =>
+              new Map(prev).set(newId, { title: "New Chat", status: "regular" })
+            );
+            setThreadMessages(newId, []);
+            setCurrentThreadId(newId);
           }
+        } catch (error) {
+          console.error("Failed to create new thread:", error);
         }
-      } catch (error) {
-        console.error("Failed to delete thread:", error);
-        throw error; // Let the UI handle the error
-      }
-    },
-  };
+      },
+
+      // Switch to existing thread
+      onSwitchToThread: (threadId: string) => {
+        setCurrentThreadId(threadId);
+      },
+
+      // Rename thread
+      onRename: async (threadId: string, newTitle: string) => {
+        // Optimistic update
+        updateThreadMetadata(threadId, { title: newTitle });
+
+        try {
+          await backendApiRef.current.renameThread(threadId, newTitle);
+        } catch (error) {
+          console.error("Failed to rename thread:", error);
+          // Could rollback here, but we'll keep the optimistic update
+        }
+      },
+
+      // Archive thread
+      onArchive: async (threadId: string) => {
+        // Optimistic update
+        updateThreadMetadata(threadId, { status: "archived" });
+
+        try {
+          await backendApiRef.current.archiveThread(threadId);
+        } catch (error) {
+          console.error("Failed to archive thread:", error);
+          // Rollback on error
+          updateThreadMetadata(threadId, { status: "regular" });
+        }
+      },
+
+      // Unarchive thread
+      onUnarchive: async (threadId: string) => {
+        // Optimistic update
+        updateThreadMetadata(threadId, { status: "regular" });
+
+        try {
+          await backendApiRef.current.unarchiveThread(threadId);
+        } catch (error) {
+          console.error("Failed to unarchive thread:", error);
+          // Rollback on error
+          updateThreadMetadata(threadId, { status: "archived" });
+        }
+      },
+
+        // Delete thread
+        onDelete: async (threadId: string) => {
+          try {
+            await backendApiRef.current.deleteThread(threadId);
+
+            // Remove from context
+            setThreadMetadata((prev) => {
+              const next = new Map(prev);
+              next.delete(threadId);
+              return next;
+            });
+            setThreads((prev) => {
+              const next = new Map(prev);
+              next.delete(threadId);
+              return next;
+            });
+
+            // Switch to another thread if current was deleted
+            if (currentThreadId === threadId) {
+              const firstRegularThread = Array.from(threadMetadata.entries())
+                .find(([id, meta]) => meta.status === "regular" && id !== threadId);
+
+              if (firstRegularThread) {
+                setCurrentThreadId(firstRegularThread[0]);
+              } else {
+                // No threads left, create a default one
+                const defaultId = "default-session";
+                setThreadMetadata((prev) =>
+                  new Map(prev).set(defaultId, { title: "New Chat", status: "regular" })
+                );
+                setThreadMessages(defaultId, []);
+                setCurrentThreadId(defaultId);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to delete thread:", error);
+            throw error; // Let the UI handle the error
+          }
+        },
+      };
+  })();
 
   // ==================== Message Handlers ====================
   const onNew = useCallback(
