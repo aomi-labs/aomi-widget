@@ -48,15 +48,23 @@ async function postState<T>(
   payload: Record<string, unknown>
 ): Promise<T> {
   const query = toQueryString(payload);
-  const response = await fetch(`${backendUrl}${path}${query}`, {
+  const url = `${backendUrl}${path}${query}`;
+  console.log('🔵 [postState] URL:', url);
+  console.log('🔵 [postState] Payload:', payload);
+
+  const response = await fetch(url, {
     method: "POST",
   });
+  console.log('🔵 [postState] Response status:', response.status);
 
   if (!response.ok) {
+    console.error('🔴 [postState] Error:', response.status, response.statusText);
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  return (await response.json()) as T;
+  const data = (await response.json()) as T;
+  console.log('🟢 [postState] Success:', data);
+  return data;
 }
 
 export class BackendApi {
@@ -66,25 +74,42 @@ export class BackendApi {
   constructor(private readonly backendUrl: string) {}
 
   async fetchState(sessionId: string): Promise<SessionResponsePayload> {
-    const response = await fetch(`${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`);
+    console.log('🔵 [fetchState] Called with sessionId:', sessionId);
+    const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
+    console.log('🔵 [fetchState] URL:', url);
+
+    const response = await fetch(url);
+    console.log('🔵 [fetchState] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
+      console.error('🔴 [fetchState] Error:', response.status, response.statusText);
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    return (await response.json()) as SessionResponsePayload;
+    const data = (await response.json()) as SessionResponsePayload;
+    console.log('🟢 [fetchState] Success:', data);
+    return data;
   }
 
   async postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload> {
-    return postState<SessionResponsePayload>(this.backendUrl, "/api/chat", { message, session_id: sessionId });
+    console.log('🔵 [postChatMessage] Called with sessionId:', sessionId, 'message:', message);
+    const result = await postState<SessionResponsePayload>(this.backendUrl, "/api/chat", { message, session_id: sessionId });
+    console.log('🟢 [postChatMessage] Success:', result);
+    return result;
   }
 
   async postSystemMessage(sessionId: string, message: string): Promise<SystemResponsePayload> {
-    return postState<SystemResponsePayload>(this.backendUrl, "/api/system", { message, session_id: sessionId });
+    console.log('🔵 [postSystemMessage] Called with sessionId:', sessionId, 'message:', message);
+    const result = await postState<SystemResponsePayload>(this.backendUrl, "/api/system", { message, session_id: sessionId });
+    console.log('🟢 [postSystemMessage] Success:', result);
+    return result;
   }
 
   async postInterrupt(sessionId: string): Promise<SessionResponsePayload> {
-    return postState<SessionResponsePayload>(this.backendUrl, "/api/interrupt", { session_id: sessionId });
+    console.log('🔵 [postInterrupt] Called with sessionId:', sessionId);
+    const result = await postState<SessionResponsePayload>(this.backendUrl, "/api/interrupt", { session_id: sessionId });
+    console.log('🟢 [postInterrupt] Success:', result);
+    return result;
   }
 
   disconnectSSE(): void {
@@ -162,15 +187,21 @@ export class BackendApi {
    * @returns Array of thread metadata
    */
   async fetchThreads(publicKey: string): Promise<ThreadMetadata[]> {
-    const response = await fetch(
-      `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`
-    );
+    console.log('🔵 [fetchThreads] Called with publicKey:', publicKey);
+    const url = `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
+    console.log('🔵 [fetchThreads] URL:', url);
+
+    const response = await fetch(url);
+    console.log('🔵 [fetchThreads] Response status:', response.status);
 
     if (!response.ok) {
+      console.error('🔴 [fetchThreads] Error:', response.status);
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as ThreadMetadata[];
+    const data = (await response.json()) as ThreadMetadata[];
+    console.log('🟢 [fetchThreads] Success:', data);
+    return data;
   }
 
   /**
@@ -180,6 +211,7 @@ export class BackendApi {
    * @returns Created thread information with backend-generated ID
    */
   async createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse> {
+    console.log('🔵 [createThread] Called with publicKey:', publicKey, 'title:', title);
     const body: Record<string, string> = {};
     if (publicKey) {
       body.public_key = publicKey;
@@ -187,18 +219,26 @@ export class BackendApi {
     if (title) {
       body.title = title;
     }
+    console.log('🔵 [createThread] Request body:', body);
 
-    const response = await fetch(`${this.backendUrl}/api/sessions`, {
+    const url = `${this.backendUrl}/api/sessions`;
+    console.log('🔵 [createThread] URL:', url);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+    console.log('🔵 [createThread] Response status:', response.status);
 
     if (!response.ok) {
+      console.error('🔴 [createThread] Error:', response.status);
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as CreateThreadResponse;
+    const data = (await response.json()) as CreateThreadResponse;
+    console.log('🟢 [createThread] Success:', data);
+    return data;
   }
 
   /**
@@ -206,14 +246,18 @@ export class BackendApi {
    * @param sessionId - The session ID to archive
    */
   async archiveThread(sessionId: string): Promise<void> {
-    const response = await fetch(
-      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`,
-      { method: 'POST' }
-    );
+    console.log('🔵 [archiveThread] Called with sessionId:', sessionId);
+    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`;
+    console.log('🔵 [archiveThread] URL:', url);
+
+    const response = await fetch(url, { method: 'POST' });
+    console.log('🔵 [archiveThread] Response status:', response.status);
 
     if (!response.ok) {
+      console.error('🔴 [archiveThread] Error:', response.status);
       throw new Error(`Failed to archive thread: HTTP ${response.status}`);
     }
+    console.log('🟢 [archiveThread] Success');
   }
 
   /**
@@ -221,14 +265,18 @@ export class BackendApi {
    * @param sessionId - The session ID to unarchive
    */
   async unarchiveThread(sessionId: string): Promise<void> {
-    const response = await fetch(
-      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`,
-      { method: 'POST' }
-    );
+    console.log('🔵 [unarchiveThread] Called with sessionId:', sessionId);
+    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`;
+    console.log('🔵 [unarchiveThread] URL:', url);
+
+    const response = await fetch(url, { method: 'POST' });
+    console.log('🔵 [unarchiveThread] Response status:', response.status);
 
     if (!response.ok) {
+      console.error('🔴 [unarchiveThread] Error:', response.status);
       throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
     }
+    console.log('🟢 [unarchiveThread] Success');
   }
 
   /**
@@ -236,14 +284,18 @@ export class BackendApi {
    * @param sessionId - The session ID to delete
    */
   async deleteThread(sessionId: string): Promise<void> {
-    const response = await fetch(
-      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`,
-      { method: 'DELETE' }
-    );
+    console.log('🔵 [deleteThread] Called with sessionId:', sessionId);
+    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    console.log('🔵 [deleteThread] URL:', url);
+
+    const response = await fetch(url, { method: 'DELETE' });
+    console.log('🔵 [deleteThread] Response status:', response.status);
 
     if (!response.ok) {
+      console.error('🔴 [deleteThread] Error:', response.status);
       throw new Error(`Failed to delete thread: HTTP ${response.status}`);
     }
+    console.log('🟢 [deleteThread] Success');
   }
 
   /**
@@ -252,17 +304,21 @@ export class BackendApi {
    * @param newTitle - The new title for the thread
    */
   async renameThread(sessionId: string, newTitle: string): Promise<void> {
-    const response = await fetch(
-      `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle }),
-      }
-    );
+    console.log('🔵 [renameThread] Called with sessionId:', sessionId, 'newTitle:', newTitle);
+    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    console.log('🔵 [renameThread] URL:', url);
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newTitle }),
+    });
+    console.log('🔵 [renameThread] Response status:', response.status);
 
     if (!response.ok) {
+      console.error('🔴 [renameThread] Error:', response.status);
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
+    console.log('🟢 [renameThread] Success');
   }
 }

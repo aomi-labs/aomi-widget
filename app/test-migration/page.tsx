@@ -561,7 +561,7 @@ function TestPageContent() {
 
 export default function TestMigrationPage() {
   return (
-    <ThreadContextProvider initialThreadId="default-session">
+    <ThreadContextProvider>
       <TestPageContent />
     </ThreadContextProvider>
   );

@@ -4,6 +4,13 @@ import { createContext, useContext, useState, ReactNode, useCallback } from "rea
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 /**
+ * Generate a UUID v4 session ID (matches backend's generate_session_id)
+ */
+function generateSessionId(): string {
+  return crypto.randomUUID();
+}
+
+/**
  * Thread Context Value
  *
  * Manages global state for multi-thread support:
@@ -75,7 +82,7 @@ export type ThreadContextProviderProps = {
   children: ReactNode;
   /**
    * Initial thread ID to set as current
-   * @default "default-session"
+   * @default Generated UUID v4 (matches backend's generate_session_id)
    */
   initialThreadId?: string;
 };
@@ -102,19 +109,26 @@ export type ThreadContextProviderProps = {
  */
 export function ThreadContextProvider({
   children,
-  initialThreadId = "default-session",
+  initialThreadId,
 }: ThreadContextProviderProps) {
+
+  // Generate UUID v4 on initialization if no initialThreadId provided
+  const [generateThreadId] = useState(() => {
+    const id = initialThreadId || generateSessionId();
+    console.log('🔵 [ThreadContext] Initialized with thread ID:', id);
+    return id;
+  });
 
   const [threadCnt, setThreadCnt] = useState<number>(1); // For sequential "Chat N" titles
 
   // Thread messages storage
   const [threads, setThreads] = useState<Map<string, ThreadMessageLike[]>>(
-    () => new Map([[initialThreadId, []]])
+    () => new Map([[generateThreadId, []]])
   );
 
   // Thread metadata storage
   const [threadMetadata, setThreadMetadata] = useState<Map<string, ThreadMetadata>>(
-    () => new Map([[initialThreadId, { title: "Chat 1", status: "regular" }]])
+    () => new Map([[generateThreadId, { title: "Chat 1", status: "regular" }]])
   );
 
   // Ensure a thread has placeholder metadata/messages before use
@@ -138,7 +152,7 @@ export function ThreadContextProvider({
   );
 
   // Current thread ID
-  const [currentThreadId, _setCurrentThreadId] = useState(initialThreadId);
+  const [currentThreadId, _setCurrentThreadId] = useState(generateThreadId);
 
   const setCurrentThreadId = useCallback(
     (threadId: string) => {
