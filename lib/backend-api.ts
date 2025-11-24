@@ -32,6 +32,15 @@ export interface CreateThreadResponse {
   title?: string;
 }
 
+export type SystemUpdate =
+  | {
+    type: "TitleChanged";
+    data: {
+      session_id: string;
+      new_title: string;
+    };
+  };
+
 function toQueryString(payload: Record<string, unknown>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(payload)) {
@@ -70,6 +79,7 @@ async function postState<T>(
 export class BackendApi {
   private connectionStatus = false;
   private eventSource: EventSource | null = null;
+  private updatesEventSource: EventSource | null = null;
 
   constructor(private readonly backendUrl: string) {}
 
@@ -177,6 +187,41 @@ export class BackendApi {
       console.error('Max reconnection attempts reached');
       this.setConnectionStatus(false);
     }
+  }
+
+  subscribeToUpdates(
+    onUpdate: (update: SystemUpdate) => void,
+    onError?: (error: unknown) => void
+  ): () => void {
+    // Close any existing connection before opening a new one
+    if (this.updatesEventSource) {
+      this.updatesEventSource.close();
+    }
+
+    const updatesUrl = new URL("/api/updates", this.backendUrl).toString();
+    this.updatesEventSource = new EventSource(updatesUrl);
+
+    this.updatesEventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data) as SystemUpdate;
+        onUpdate(parsed);
+      } catch (error) {
+        console.error("Failed to parse system update SSE:", error);
+        onError?.(error);
+      }
+    };
+
+    this.updatesEventSource.onerror = (error) => {
+      console.error("System updates SSE error:", error);
+      onError?.(error);
+    };
+
+    return () => {
+      if (this.updatesEventSource) {
+        this.updatesEventSource.close();
+        this.updatesEventSource = null;
+      }
+    };
   }
 
   // ==================== Thread Management API ====================

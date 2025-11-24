@@ -437,6 +437,30 @@ export function AomiRuntimeProvider({
     }
   }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
 
+  useEffect(() => {
+    const unsubscribe = backendApiRef.current.subscribeToUpdates(
+      (update) => {
+        if (update.type !== "TitleChanged") return;
+        const sessionId = update.data.session_id;
+        const newTitle = update.data.new_title;
+
+        setThreadMetadata((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(sessionId);
+          next.set(sessionId, { title: newTitle, status: existing?.status ?? "regular" });
+          return next;
+        });
+      },
+      (error) => {
+        console.error("Failed to handle system update SSE:", error);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [backendUrl, setThreadMetadata]);
+
   return (
     <RuntimeActionsContext.Provider value={{ sendSystemMessage }}>
       <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
