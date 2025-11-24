@@ -21,7 +21,7 @@ export interface SystemResponsePayload {
 // Thread Management Types
 export interface ThreadMetadata {
   session_id: string;
-  main_topic: string;
+  title: string;
   is_archived?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -29,7 +29,7 @@ export interface ThreadMetadata {
 
 export interface CreateThreadResponse {
   session_id: string;
-  main_topic?: string;
+  title?: string;
 }
 
 function toQueryString(payload: Record<string, unknown>): string {
@@ -175,12 +175,18 @@ export class BackendApi {
 
   /**
    * Create a new thread/session
-   * Backend is responsible for generating both session_id and main_topic
    * @param publicKey - Optional user's wallet address
-   * @returns Created thread information with backend-generated ID and topic
+   * @param title - Thread title (e.g., "Chat 1", "Chat 2")
+   * @returns Created thread information with backend-generated ID
    */
-  async createThread(publicKey?: string): Promise<CreateThreadResponse> {
-    const body = publicKey ? { public_key: publicKey } : {};
+  async createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse> {
+    const body: Record<string, string> = {};
+    if (publicKey) {
+      body.public_key = publicKey;
+    }
+    if (title) {
+      body.title = title;
+    }
 
     const response = await fetch(`${this.backendUrl}/api/sessions`, {
       method: 'POST',

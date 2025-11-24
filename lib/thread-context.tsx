@@ -105,7 +105,7 @@ export function ThreadContextProvider({
   initialThreadId = "default-session",
 }: ThreadContextProviderProps) {
 
-  const [threadCnt, setThreadCnt] = useState<number>(0); // Reserved for future use
+  const [threadCnt, setThreadCnt] = useState<number>(1); // For sequential "Chat N" titles
 
   // Thread messages storage
   const [threads, setThreads] = useState<Map<string, ThreadMessageLike[]>>(
@@ -114,7 +114,7 @@ export function ThreadContextProvider({
 
   // Thread metadata storage
   const [threadMetadata, setThreadMetadata] = useState<Map<string, ThreadMetadata>>(
-    () => new Map([[initialThreadId, { title: "New Chat", status: "regular" }]])
+    () => new Map([[initialThreadId, { title: "Chat 1", status: "regular" }]])
   );
 
   // Ensure a thread has placeholder metadata/messages before use

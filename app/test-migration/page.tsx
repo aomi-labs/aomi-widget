@@ -87,7 +87,7 @@ function TestPageContent() {
       // Sync to context
       threads.forEach(thread => {
         updateThreadMetadata(thread.session_id, {
-          title: thread.main_topic || "Untitled",
+          title: thread.title || "Untitled",
           status: thread.is_archived ? "archived" : "regular",
         });
       });
@@ -116,7 +116,7 @@ function TestPageContent() {
 
       // Add to context
       updateThreadMetadata(newThread.session_id, {
-        title: newThread.main_topic || "Test Thread",
+        title: newThread.title || "Test Thread",
         status: "regular",
       });
       setThreadMessages(newThread.session_id, []);
@@ -401,7 +401,7 @@ function TestPageContent() {
                         className="flex items-center justify-between p-2 bg-muted rounded text-sm"
                       >
                         <div className="flex-1">
-                          <div className="font-medium">{thread.main_topic}</div>
+                          <div className="font-medium">{thread.title}</div>
                           <div className="text-xs text-muted-foreground">
                             {thread.session_id}
                           </div>

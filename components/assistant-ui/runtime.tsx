@@ -44,6 +44,8 @@ export function AomiRuntimeProvider({
     setThreads,
     threadMetadata,
     setThreadMetadata,
+    threadCnt,
+    setThreadCnt,
     getThreadMessages,
     setThreadMessages,
     updateThreadMetadata,
@@ -146,14 +148,31 @@ export function AomiRuntimeProvider({
         const threadList = await backendApiRef.current.fetchThreads(publicKey);
         const newMetadata = new Map(threadMetadata);
 
+        // Track highest chat number
+        let maxChatNum = threadCnt;
+
         for (const thread of threadList) {
+          const title = thread.title || "New Chat";
           newMetadata.set(thread.session_id, {
-            title: thread.main_topic || "New Chat",
+            title,
             status: thread.is_archived ? "archived" : "regular",
           });
+
+          // Extract chat number if title follows "Chat N" format
+          const match = title.match(/^Chat (\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxChatNum) {
+              maxChatNum = num;
+            }
+          }
         }
 
         setThreadMetadata(newMetadata);
+        // Sync counter to highest chat number
+        if (maxChatNum > threadCnt) {
+          setThreadCnt(maxChatNum);
+        }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
       }
@@ -191,17 +210,21 @@ export function AomiRuntimeProvider({
       // Create new thread
       onSwitchToNewThread: async () => {
         try {
-          // Backend generates both session_id and main_topic
-          // Pass publicKey if available
-          const newThread = await backendApiRef.current.createThread(publicKey);
+          // Generate sequential title
+          const nextCount = threadCnt + 1;
+          const chatTitle = `Chat ${nextCount}`;
+
+          // Create thread with title
+          const newThread = await backendApiRef.current.createThread(publicKey, chatTitle);
           const backendId = newThread.session_id;
-          const backendTitle = newThread.main_topic || "New Chat";
+          const backendTitle = newThread.title || chatTitle;
 
           setThreadMetadata((prev) =>
             new Map(prev).set(backendId, { title: backendTitle, status: "regular" })
           );
           setThreadMessages(backendId, []);
           setCurrentThreadId(backendId);
+          setThreadCnt(nextCount); // Increment counter
         } catch (error) {
           console.error("Failed to create new thread:", error);
           // Could show error toast to user here
