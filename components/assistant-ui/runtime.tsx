@@ -55,6 +55,7 @@ export function AomiRuntimeProvider({
   const [isRunning, setIsRunning] = useState(false);
   const backendApiRef = useRef(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingSystemMessagesRef = useRef<Map<string, string[]>>(new Map());
 
   // Get messages for current thread
   const currentMessages = getThreadMessages(currentThreadId);
@@ -320,6 +321,44 @@ export function AomiRuntimeProvider({
   })();
 
   // ==================== Message Handlers ====================
+  const sendSystemMessageNow = useCallback(
+    async (threadId: string, message: string) => {
+      setIsRunning(true);
+      try {
+        const response = await backendApiRef.current.postSystemMessage(threadId, message);
+
+        if (response.res) {
+          const systemMessage = constructSystemMessage(response.res);
+          if (systemMessage) {
+            const updatedMessages = [...getThreadMessages(threadId), systemMessage];
+            setThreadMessages(threadId, updatedMessages);
+          }
+        }
+
+        await startPolling();
+      } catch (error) {
+        console.error("Failed to send system message:", error);
+        setIsRunning(false);
+      }
+    },
+    [getThreadMessages, setThreadMessages, startPolling]
+  );
+
+  const flushPendingSystemMessages = useCallback(
+    async (threadId: string) => {
+      const pending = pendingSystemMessagesRef.current.get(threadId);
+      if (!pending?.length) return;
+
+      pendingSystemMessagesRef.current.delete(threadId);
+      for (const pendingMessage of pending) {
+        // Send sequentially to preserve order
+        // eslint-disable-next-line no-await-in-loop
+        await sendSystemMessageNow(threadId, pendingMessage);
+      }
+    },
+    [sendSystemMessageNow]
+  );
+
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = message.content
@@ -341,38 +380,30 @@ export function AomiRuntimeProvider({
       try {
         setIsRunning(true);
         await backendApiRef.current.postChatMessage(currentThreadId, text);
+        await flushPendingSystemMessages(currentThreadId);
         startPolling();
       } catch (error) {
         console.error("Failed to send message:", error);
         setIsRunning(false);
       }
     },
-    [currentThreadId, currentMessages, setThreadMessages, startPolling]
+    [currentThreadId, currentMessages, flushPendingSystemMessages, setThreadMessages, startPolling]
   );
 
   const sendSystemMessage = useCallback(
     async (message: string) => {
-      setIsRunning(true);
-      try {
-        const response = await backendApiRef.current.postSystemMessage(
-          currentThreadId,
-          message,
-        );
+      const threadMessages = getThreadMessages(currentThreadId);
+      const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
 
-        if (response.res) {
-          const systemMessage = constructSystemMessage(response.res);
-          if (systemMessage) {
-            setThreadMessages(currentThreadId, [...currentMessages, systemMessage]);
-          }
-        }
-
-        await startPolling();
-      } catch (error) {
-        console.error("Failed to send system message:", error);
-        setIsRunning(false);
+      if (!hasUserMessages) {
+        const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
+        pendingSystemMessagesRef.current.set(currentThreadId, [...pending, message]);
+        return;
       }
+
+      await sendSystemMessageNow(currentThreadId, message);
     },
-    [currentThreadId, currentMessages, setThreadMessages, startPolling]
+    [currentThreadId, getThreadMessages, sendSystemMessageNow]
   );
 
   const onCancel = useCallback(async () => {
@@ -398,6 +429,13 @@ export function AomiRuntimeProvider({
       threadList: threadListAdapter, // 🎯 Thread list adapter enabled!
     },
   });
+
+  useEffect(() => {
+    const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
+    if (hasUserMessages) {
+      void flushPendingSystemMessages(currentThreadId);
+    }
+  }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
 
   return (
     <RuntimeActionsContext.Provider value={{ sendSystemMessage }}>
