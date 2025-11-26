@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Tell Tailwind v4 to scan parent src directory for classes */
+@source "../../src";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
