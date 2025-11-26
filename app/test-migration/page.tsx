@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ThreadContextProvider, useThreadContext } from "@/lib/thread-context";
-import { BackendApi, type ThreadMetadata } from "@/lib/backend-api";
+import { ThreadContextProvider, useThreadContext } from "@/src/lib/thread-context";
+import { BackendApi, type ThreadMetadata } from "@/src/lib/backend-api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
