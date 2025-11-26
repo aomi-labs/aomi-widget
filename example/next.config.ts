@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
       "ox": path.resolve(__dirname, "node_modules/viem/node_modules/ox"),
     };
 
-    // Ensure modules from parent src directory resolve to example-2's node_modules
+    // Ensure modules from parent src directory resolve to example's node_modules
     config.resolve.modules = [
       path.resolve(__dirname, "node_modules"),
       "node_modules",

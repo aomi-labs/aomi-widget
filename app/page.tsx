@@ -1,4 +1,4 @@
-import { AomiFrame } from "../components/aomi-frame";
+import { AomiFrame } from "../src/components/aomi-frame";
 
 export default function Home() {
   return (

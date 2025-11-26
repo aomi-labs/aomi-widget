@@ -1,5 +1,5 @@
 {
-  "name": "example-2",
+  "name": "example",
   "version": "1.0.0",
   "keywords": [],
   "author": "",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@assistant-ui/react": "^0.11.28",
+    "@assistant-ui/react-ai-sdk": "^1.1.13",
     "@assistant-ui/react-markdown": "^0.11.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -31,11 +32,13 @@
     "@tanstack/react-query": "^5.90.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.23.24",
     "lucide-react": "^0.545.0",
     "motion": "^12.23.22",
     "next": "15.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-shiki": "^0.9.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.17",
