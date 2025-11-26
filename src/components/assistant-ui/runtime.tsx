@@ -10,9 +10,9 @@ import {
   type ExternalStoreThreadListAdapter,
   type ExternalStoreThreadData,
 } from "@assistant-ui/react";
-import { BackendApi, type SessionMessage } from "@/src/lib/backend-api";
-import { constructSystemMessage, constructThreadMessage } from "@/src/lib/conversion";
-import { useThreadContext } from "@/src/lib/thread-context";
+import { BackendApi, type SessionMessage } from "@/lib/backend-api";
+import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
+import { useThreadContext } from "@/lib/thread-context";
 
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;

@@ -1,4 +1,4 @@
-import { SessionMessage } from "@/src/lib/backend-api";
+import { SessionMessage } from "@/lib/backend-api";
 import { ThreadMessageLike } from "@assistant-ui/react";
 
 export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike | null {

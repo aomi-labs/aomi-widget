@@ -34,7 +34,7 @@ import {
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
 
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 
 export const Thread: FC = () => {
   return (

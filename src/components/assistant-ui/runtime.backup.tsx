@@ -8,8 +8,8 @@ import {
   type AppendMessage,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
-import { BackendApi, type SessionMessage } from "@/src/lib/backend-api";
-import { constructSystemMessage, constructThreadMessage } from "@/src/lib/conversion";
+import { BackendApi, type SessionMessage } from "@/lib/backend-api";
+import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
 
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;

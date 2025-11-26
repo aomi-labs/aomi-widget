@@ -15,9 +15,9 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
-import { ThreadContextProvider } from "@/src/lib/thread-context";
+import { ThreadContextProvider } from "@/lib/thread-context";
 import { WalletSystemMessenger } from "@/components/wallet-providers";
 import { useAppKitAccount } from "@reown/appkit/react";
 
