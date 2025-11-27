@@ -1,70 +1,93 @@
 'use client'
 
-// import { wagmiAdapter, projectId } from '../lib/wallet-manager'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AppKitProvider } from '@reown/appkit/react'
-import { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networks'
-import React, { type ReactNode } from 'react'
-import { cookieStorage, cookieToInitialState, createStorage, WagmiProvider, type Config } from 'wagmi'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { useEffect, useRef } from 'react'
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
 import { useRuntimeActions } from '@/components/assistant-ui/runtime'
 
-// Get projectId from https://dashboard.reown.com
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
+// ============================================
+// Re-exports from wallet libraries
+// ============================================
+export { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networks'
 
-if (!projectId) {
-  throw new Error('Project ID is not defined')
-}
+// ============================================
+// Shared Utilities
+// ============================================
 
-export const networks = [mainnet, arbitrum, optimism, base, polygon]
+/**
+ * Format wallet address for display (0x1234...5678)
+ */
+export const formatAddress = (addr?: string): string =>
+  addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
 
-//Set up the Wagmi Adapter (Config)
-export const wagmiAdapter = new WagmiAdapter({
-  storage: createStorage({
-    storage: cookieStorage
-  }),
-  ssr: true,
-  projectId,
-  networks
-})
+/**
+ * Get human-readable network name from chainId (for UI display - capitalized)
+ */
+export const getNetworkDisplayName = (chainId: number | string | undefined): string | null => {
+  if (!chainId) return null;
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "Ethereum";
+    case 137:
+      return "Polygon";
+    case 42161:
+      return "Arbitrum";
+    case 8453:
+      return "Base";
+    case 10:
+      return "Optimism";
+    case 11155111:
+      return "Sepolia";
+    case 1337:
+    case 31337:
+      return "Testnet";
+    case 59140:
+      return "Linea Sepolia";
+    case 59144:
+      return "Linea";
+    default:
+      return null;
+  }
+};
 
-// Set up queryClient
-const queryClient = new QueryClient()
+/**
+ * Get network name from chainId (for system messages - lowercase)
+ */
+export const getNetworkName = (chainId: number | string): string => {
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return 'ethereum';
+    case 137:
+      return 'polygon';
+    case 42161:
+      return 'arbitrum';
+    case 8453:
+      return 'base';
+    case 10:
+      return 'optimism';
+    case 11155111:
+      return 'sepolia';
+    case 1337:
+    case 31337:
+      return 'testnet';
+    case 59140:
+      return 'linea-sepolia';
+    case 59144:
+      return 'linea';
+    default:
+      return 'testnet';
+  }
+};
 
+// ============================================
+// WalletSystemMessenger Component
+// ============================================
 
-const appkitProjectId = projectId as string
-
-// Set up metadata
-const metadata = {
-  name: 'appkit-example',
-  description: 'AppKit Example',
-  url: 'https://appkitexampleapp.com', // origin must match your domain & subdomain
-  icons: ['https://avatars.githubusercontent.com/u/179229932']
-}
-
-function ContextProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {
-  const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig as Config, cookies)
-
-  return (
-    <AppKitProvider
-      adapters={[wagmiAdapter]}
-      projectId={appkitProjectId}
-      networks={[mainnet, arbitrum]}
-      defaultNetwork={mainnet}
-      metadata={metadata}
-      features={{ analytics: true }}
-    >
-      <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState}>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      </WagmiProvider>
-    </AppKitProvider>
-  )
-}
-
-export default ContextProvider
-
+/**
+ * Invisible component that sends system messages when wallet state changes
+ * (connect, disconnect, network switch)
+ */
 export function WalletSystemMessenger() {
   const { address, isConnected } = useAppKitAccount();
   const { chainId } = useAppKitNetwork();
@@ -74,32 +97,6 @@ export function WalletSystemMessenger() {
     address?: string;
     chainId?: number;
   }>({ isConnected: false });
-
-  const getNetworkName = (id: number): string => {
-    switch (id) {
-      case 1:
-        return 'ethereum';
-      case 137:
-        return 'polygon';
-      case 42161:
-        return 'arbitrum';
-      case 8453:
-        return 'base';
-      case 10:
-        return 'optimism';
-      case 11155111:
-        return 'sepolia';
-      case 1337:
-      case 31337:
-        return 'testnet';
-      case 59140:
-        return 'linea-sepolia';
-      case 59144:
-        return 'linea';
-      default:
-        return 'testnet';
-    }
-  };
 
   // Handle initial connect or address change
   useEffect(() => {

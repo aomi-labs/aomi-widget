@@ -23,6 +23,7 @@ export {
 export { Thread } from "./components/assistant-ui/thread";
 export { ThreadList } from "./components/assistant-ui/thread-list";
 export { BaseSidebar } from "./components/assistant-ui/base-sidebar";
+export { ThreadListSidebar } from "./components/assistant-ui/threadlist-sidebar";
 export { MarkdownText } from "./components/assistant-ui/markdown-text";
 export { ToolFallback } from "./components/assistant-ui/tool-fallback";
 export { TooltipIconButton } from "./components/assistant-ui/tooltip-icon-button";
@@ -110,6 +111,25 @@ export {
   SidebarMenuAction,
   SidebarMenuBadge,
 } from "./components/ui/sidebar";
+
+// ============================================
+// Wallet Components & Utilities
+// ============================================
+export { WalletFooter } from "./components/assistant-ui/wallet-footer";
+export {
+  // Component
+  WalletSystemMessenger,
+  // Utilities
+  formatAddress,
+  getNetworkDisplayName,
+  getNetworkName,
+  // Network re-exports
+  mainnet,
+  arbitrum,
+  optimism,
+  base,
+  polygon,
+} from "./components/wallet-providers";
 
 // ============================================
 // Hooks

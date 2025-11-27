@@ -2,7 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { Thread } from "@/components/assistant-ui/thread";
-import { BaseSidebar } from "@/components/assistant-ui/base-sidebar";
+import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
@@ -56,7 +56,7 @@ export const AomiFrame = ({
           )}
           style={frameStyle}
         >
-          {sidebar ?? <BaseSidebar />}
+          {sidebar ?? <ThreadListSidebar />}
           <SidebarInset className = "relative">
             <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
               <SidebarTrigger />

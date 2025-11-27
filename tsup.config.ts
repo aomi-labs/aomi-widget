@@ -36,6 +36,7 @@ export default defineConfig({
     // Web3
     "@reown/appkit",
     "@reown/appkit/react",
+    "@reown/appkit/networks",
     "@reown/appkit-adapter-wagmi",
     "wagmi",
     "viem",

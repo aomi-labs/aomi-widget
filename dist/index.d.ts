@@ -9,6 +9,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as AvatarPrimitive from '@radix-ui/react-avatar';
 import { ClassValue } from 'clsx';
+export { arbitrum, base, mainnet, optimism, polygon } from '@reown/appkit/networks';
 
 type AomiFrameProps = {
     width?: CSSProperties["width"];
@@ -198,6 +199,8 @@ type BaseSidebarProps = React$1.ComponentProps<typeof Sidebar> & {
 };
 declare function BaseSidebar({ footerLabel, footerSecondaryLabel, onFooterClick, logoUrl, logoHref, ...props }: BaseSidebarProps): react_jsx_runtime.JSX.Element;
 
+declare function ThreadListSidebar({ ...props }: React$1.ComponentProps<typeof Sidebar>): react_jsx_runtime.JSX.Element;
+
 declare const MarkdownText: React$1.MemoExoticComponent<() => react_jsx_runtime.JSX.Element>;
 
 declare const ToolFallback: ToolCallMessagePartComponent;
@@ -267,8 +270,28 @@ declare function SheetFooter({ className, ...props }: React$1.ComponentProps<"di
 declare function SheetTitle({ className, ...props }: React$1.ComponentProps<typeof DialogPrimitive.Title>): react_jsx_runtime.JSX.Element;
 declare function SheetDescription({ className, ...props }: React$1.ComponentProps<typeof DialogPrimitive.Description>): react_jsx_runtime.JSX.Element;
 
+declare function WalletFooter(): react_jsx_runtime.JSX.Element;
+
+/**
+ * Format wallet address for display (0x1234...5678)
+ */
+declare const formatAddress: (addr?: string) => string;
+/**
+ * Get human-readable network name from chainId (for UI display - capitalized)
+ */
+declare const getNetworkDisplayName: (chainId: number | string | undefined) => string | null;
+/**
+ * Get network name from chainId (for system messages - lowercase)
+ */
+declare const getNetworkName: (chainId: number | string) => string;
+/**
+ * Invisible component that sends system messages when wallet state changes
+ * (connect, disconnect, network switch)
+ */
+declare function WalletSystemMessenger(): null;
+
 declare function useIsMobile(): boolean;
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, badgeVariants, buttonVariants, cn, useIsMobile, useRuntimeActions, useSidebar, useThreadContext };
+export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, WalletFooter, WalletSystemMessenger, badgeVariants, buttonVariants, cn, formatAddress, getNetworkDisplayName, getNetworkName, useIsMobile, useRuntimeActions, useSidebar, useThreadContext };

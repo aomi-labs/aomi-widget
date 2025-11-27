@@ -1,0 +1,57 @@
+"use client";
+
+import * as React from "react";
+import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import { useEnsName } from "wagmi";
+import { Button } from "@/components/ui/button";
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
+import { formatAddress, getNetworkName, useWalletButtonState } from "../wallet-providers";
+
+export function WalletFooter() {
+
+  const { address, chainId, isConnected } = useWalletButtonState();
+  const { open } = useAppKit();
+
+
+  const { data: ensName } = useEnsName({
+    address: address as `0x${string}` | undefined,
+    chainId: 1,
+    query: { enabled: Boolean(address) },
+  });
+
+  const networkName = getNetworkName(chainId as number);
+
+  const handleClick = () => {
+    if (isConnected) {
+      void open({ view: "Account" });
+    } else {
+      void open({ view: "Connect" });
+    }
+  };
+
+  const label = isConnected ? ensName ?? formatAddress(address) : "Connect Wallet";
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton size="lg" asChild>
+          <Button
+            className="w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white"
+            onClick={handleClick}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{label}</span>
+              {networkName ? (
+                <span className="text-[11px] text-white/80">• {networkName}</span>
+              ) : null}
+            </div>
+          </Button>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
