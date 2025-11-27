@@ -3,11 +3,8 @@
 import { useEffect, useRef } from "react";
 import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
-import {
-  useRuntimeActions,
-  getNetworkName,
-  useWalletButtonState,
-} from "@aomi-labs/widget-lib";
+import { useRuntimeActions, useWalletButtonState } from "@aomi-labs/widget-lib";
+import { getNetworkName } from "./utils";
 
 /**
  * Invisible component that sends system messages when wallet state changes

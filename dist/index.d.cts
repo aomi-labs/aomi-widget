@@ -10,7 +10,6 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as AvatarPrimitive from '@radix-ui/react-avatar';
 import * as zustand from 'zustand';
 import { ClassValue } from 'clsx';
-export { arbitrum, base, mainnet, optimism, polygon } from '@reown/appkit/networks';
 
 type AomiFrameProps = {
     width?: CSSProperties["width"];
@@ -277,14 +276,6 @@ declare function SheetFooter({ className, ...props }: React$1.ComponentProps<"di
 declare function SheetTitle({ className, ...props }: React$1.ComponentProps<typeof DialogPrimitive.Title>): react_jsx_runtime.JSX.Element;
 declare function SheetDescription({ className, ...props }: React$1.ComponentProps<typeof DialogPrimitive.Description>): react_jsx_runtime.JSX.Element;
 
-/**
- * Format wallet address for display (0x1234...5678)
- */
-declare const formatAddress: (addr?: string) => string;
-/**
- * Get network name from chainId (for system messages - lowercase)
- */
-declare const getNetworkName: (chainId: number | string) => string;
 type WalletButtonState = {
     address?: string;
     chainId?: number;
@@ -294,10 +285,14 @@ type WalletButtonState = {
 type WalletActions = {
     setWallet: (data: Partial<WalletButtonState>) => void;
 };
+/**
+ * Shared wallet state store for components to read/write wallet connection status.
+ * This store is wallet-agnostic - consumer apps populate it via their own wallet hooks.
+ */
 declare const useWalletButtonState: zustand.UseBoundStore<zustand.StoreApi<WalletButtonState & WalletActions>>;
 
 declare function useIsMobile(): boolean;
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, badgeVariants, buttonVariants, cn, formatAddress, getNetworkName, useIsMobile, useRuntimeActions, useSidebar, useThreadContext, useWalletButtonState };
+export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, badgeVariants, buttonVariants, cn, useIsMobile, useRuntimeActions, useSidebar, useThreadContext, useWalletButtonState };

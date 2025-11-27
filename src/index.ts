@@ -113,21 +113,9 @@ export {
 } from "./components/ui/sidebar";
 
 // ============================================
-// Wallet Utilities (pure functions + state store)
+// Wallet State Store (wallet-agnostic)
 // ============================================
-export {
-  // Utilities
-  formatAddress,
-  getNetworkName,
-  // State store
-  useWalletButtonState,
-  // Network re-exports
-  mainnet,
-  arbitrum,
-  optimism,
-  base,
-  polygon,
-} from "./utils/wallet";
+export { useWalletButtonState } from "./utils/wallet";
 
 // ============================================
 // Hooks

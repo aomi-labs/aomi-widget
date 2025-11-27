@@ -137,16 +137,9 @@ __export(index_exports, {
   TooltipProvider: () => TooltipProvider,
   TooltipTrigger: () => TooltipTrigger,
   UserMessageAttachments: () => UserMessageAttachments,
-  arbitrum: () => import_networks.arbitrum,
   badgeVariants: () => badgeVariants,
-  base: () => import_networks.base,
   buttonVariants: () => buttonVariants,
   cn: () => cn,
-  formatAddress: () => formatAddress,
-  getNetworkName: () => getNetworkName,
-  mainnet: () => import_networks.mainnet,
-  optimism: () => import_networks.optimism,
-  polygon: () => import_networks.polygon,
   useIsMobile: () => useIsMobile,
   useRuntimeActions: () => useRuntimeActions,
   useSidebar: () => useSidebar,
@@ -3272,34 +3265,6 @@ Label.displayName = "Label";
 
 // src/utils/wallet.ts
 var import_react12 = require("zustand/react");
-var import_networks = require("@reown/appkit/networks");
-var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-var getNetworkName = (chainId) => {
-  const id = typeof chainId === "string" ? Number(chainId) : chainId;
-  switch (id) {
-    case 1:
-      return "ethereum";
-    case 137:
-      return "polygon";
-    case 42161:
-      return "arbitrum";
-    case 8453:
-      return "base";
-    case 10:
-      return "optimism";
-    case 11155111:
-      return "sepolia";
-    case 1337:
-    case 31337:
-      return "testnet";
-    case 59140:
-      return "linea-sepolia";
-    case 59144:
-      return "linea";
-    default:
-      return "testnet";
-  }
-};
 var useWalletButtonState = (0, import_react12.create)((set) => ({
   address: void 0,
   chainId: void 0,
@@ -3386,16 +3351,9 @@ var useWalletButtonState = (0, import_react12.create)((set) => ({
   TooltipProvider,
   TooltipTrigger,
   UserMessageAttachments,
-  arbitrum,
   badgeVariants,
-  base,
   buttonVariants,
   cn,
-  formatAddress,
-  getNetworkName,
-  mainnet,
-  optimism,
-  polygon,
   useIsMobile,
   useRuntimeActions,
   useSidebar,

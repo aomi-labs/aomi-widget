@@ -7,10 +7,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  formatAddress,
-  getNetworkName,
   useWalletButtonState,
 } from "@aomi-labs/widget-lib";
+import { formatAddress, getNetworkName } from "./utils";
 
 export function WalletFooter() {
   const { address, chainId, isConnected, ensName } = useWalletButtonState();
