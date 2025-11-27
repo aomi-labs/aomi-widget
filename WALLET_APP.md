@@ -19,29 +19,33 @@
 ### Files to Modify
 
 **example/src/components/wallet-providers.tsx**
-- Remove `AppKitProvider` wrapper
-- Add `createAppKit()` call at module level (after wagmiAdapter setup)
-- Keep `WagmiProvider` and `QueryClientProvider` in the component
+- Keep `AppKitProvider` wrapper so hooks have context
+- Add `createAppKit()` call at module level (after wagmiAdapter setup) using the same config you pass to `AppKitProvider`
+- Keep `WagmiProvider` and `QueryClientProvider` inside the component
 
 ### Key Pattern
 ```tsx
 // Module level - runs on import, before any component renders
-const modal = createAppKit({
+const appKitConfig = {
   adapters: [wagmiAdapter],
   projectId,
   networks,
   metadata,
   // ...other config
-})
+} as const
+
+createAppKit(appKitConfig)
 
 // Component just wraps with Wagmi/Query providers
 function ContextProvider({ children }) {
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    </WagmiProvider>
+    <AppKitProvider {...appKitConfig}>
+      <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      </WagmiProvider>
+    </AppKitProvider>
   )
 }
 ```

@@ -1,8 +1,7 @@
-'use client'
-
 import { useEffect, useRef } from 'react'
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
 import { useRuntimeActions } from '@/components/assistant-ui/runtime'
+import { create } from 'zustand/react';
 
 // ============================================
 // Re-exports from wallet libraries
@@ -18,37 +17,6 @@ export { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networ
  */
 export const formatAddress = (addr?: string): string =>
   addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-
-/**
- * Get human-readable network name from chainId (for UI display - capitalized)
- */
-export const getNetworkDisplayName = (chainId: number | string | undefined): string | null => {
-  if (!chainId) return null;
-  const id = typeof chainId === "string" ? Number(chainId) : chainId;
-  switch (id) {
-    case 1:
-      return "Ethereum";
-    case 137:
-      return "Polygon";
-    case 42161:
-      return "Arbitrum";
-    case 8453:
-      return "Base";
-    case 10:
-      return "Optimism";
-    case 11155111:
-      return "Sepolia";
-    case 1337:
-    case 31337:
-      return "Testnet";
-    case 59140:
-      return "Linea Sepolia";
-    case 59144:
-      return "Linea";
-    default:
-      return null;
-  }
-};
 
 /**
  * Get network name from chainId (for system messages - lowercase)
@@ -80,6 +48,23 @@ export const getNetworkName = (chainId: number | string): string => {
   }
 };
 
+type WalletButtonState = {
+  address?: string;
+  chainId?: number;
+  isConnected: boolean;
+};
+
+type WalletActions = {
+  setWallet: (data: WalletButtonState) => void;
+};
+
+export const useWalletButtonState = create<WalletButtonState & WalletActions>((set) => ({
+  address: undefined,
+  chainId: undefined,
+  isConnected: false,
+  setWallet: (data) => set(() => data),
+}));
+
 // ============================================
 // WalletSystemMessenger Component
 // ============================================
@@ -92,6 +77,7 @@ export function WalletSystemMessenger() {
   const { address, isConnected } = useAppKitAccount();
   const { chainId } = useAppKitNetwork();
   const { sendSystemMessage } = useRuntimeActions();
+  const { setWallet } = useWalletButtonState();
   const lastWalletRef = useRef<{
     isConnected: boolean;
     address?: string;
@@ -103,6 +89,8 @@ export function WalletSystemMessenger() {
     const prev = lastWalletRef.current;
     const normalizedAddress = address?.toLowerCase();
     const numericChainId = typeof chainId === 'string' ? Number(chainId) : chainId;
+
+    setWallet({isConnected, address, chainId: numericChainId});
 
     const shouldNotify =
       isConnected &&
@@ -126,6 +114,9 @@ export function WalletSystemMessenger() {
   // Handle disconnect
   useEffect(() => {
     const prev = lastWalletRef.current;
+
+    setWallet({isConnected});
+
     if (!isConnected && prev.isConnected) {
       void sendSystemMessage('Wallet disconnected by user.');
       console.log('Wallet disconnected by user.');
@@ -138,6 +129,8 @@ export function WalletSystemMessenger() {
     const prev = lastWalletRef.current;
     const normalizedAddress = address?.toLowerCase();
     const numericChainId = typeof chainId === 'string' ? Number(chainId) : chainId;
+
+    setWallet({isConnected, address, chainId: numericChainId});
 
     if (
       isConnected &&
