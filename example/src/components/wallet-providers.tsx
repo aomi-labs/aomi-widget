@@ -1,13 +1,16 @@
-'use client'
+"use client"
 
-import { AppKitProvider, createAppKit } from "@reown/appkit/react"
+import { AppKitProvider } from "@reown/appkit/react"
 import { Config, WagmiProvider, cookieToInitialState } from "wagmi"
 import React, { type ReactNode } from 'react'
+import { initializeAppKit } from "@aomi-labs/widget-lib"
 
 import { appKitProviderConfig, wagmiAdapter } from "@/components/config"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 const queryClient = new QueryClient()
+
+initializeAppKit(appKitProviderConfig)
 
 
 function ContextProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {

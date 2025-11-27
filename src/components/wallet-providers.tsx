@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
+import { createAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
 import { useRuntimeActions } from '@/components/assistant-ui/runtime'
 import { create } from 'zustand/react';
 
@@ -7,6 +7,23 @@ import { create } from 'zustand/react';
 // Re-exports from wallet libraries
 // ============================================
 export { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networks'
+
+// ============================================
+// AppKit Initialization
+// ============================================
+
+let appKitInitialized = false
+
+/**
+ * Ensure createAppKit runs exactly once on the client before any hooks are used.
+ */
+export const initializeAppKit = (config: Parameters<typeof createAppKit>[0]) => {
+  if (appKitInitialized) return
+  if (typeof window === 'undefined') return
+
+  createAppKit(config)
+  appKitInitialized = true
+}
 
 // ============================================
 // Shared Utilities

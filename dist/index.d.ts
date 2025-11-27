@@ -8,6 +8,7 @@ import * as SeparatorPrimitive from '@radix-ui/react-separator';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as AvatarPrimitive from '@radix-ui/react-avatar';
+import { createAppKit } from '@reown/appkit/react';
 import { ClassValue } from 'clsx';
 export { arbitrum, base, mainnet, optimism, polygon } from '@reown/appkit/networks';
 
@@ -273,13 +274,13 @@ declare function SheetDescription({ className, ...props }: React$1.ComponentProp
 declare function WalletFooter(): react_jsx_runtime.JSX.Element;
 
 /**
+ * Ensure createAppKit runs exactly once on the client before any hooks are used.
+ */
+declare const initializeAppKit: (config: Parameters<typeof createAppKit>[0]) => void;
+/**
  * Format wallet address for display (0x1234...5678)
  */
 declare const formatAddress: (addr?: string) => string;
-/**
- * Get human-readable network name from chainId (for UI display - capitalized)
- */
-declare const getNetworkDisplayName: (chainId: number | string | undefined) => string | null;
 /**
  * Get network name from chainId (for system messages - lowercase)
  */
@@ -294,4 +295,4 @@ declare function useIsMobile(): boolean;
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, WalletFooter, WalletSystemMessenger, badgeVariants, buttonVariants, cn, formatAddress, getNetworkDisplayName, getNetworkName, useIsMobile, useRuntimeActions, useSidebar, useThreadContext };
+export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, WalletFooter, WalletSystemMessenger, badgeVariants, buttonVariants, cn, formatAddress, getNetworkName, initializeAppKit, useIsMobile, useRuntimeActions, useSidebar, useThreadContext };

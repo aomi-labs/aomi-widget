@@ -119,9 +119,9 @@ export { WalletFooter } from "./components/assistant-ui/wallet-footer";
 export {
   // Component
   WalletSystemMessenger,
+  initializeAppKit,
   // Utilities
   formatAddress,
-  getNetworkDisplayName,
   getNetworkName,
   // Network re-exports
   mainnet,
