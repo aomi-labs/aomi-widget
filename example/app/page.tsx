@@ -1,8 +1,8 @@
-import { AomiFrame } from "@/components/aomi-frame";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-black p-6"> 
+    <main className="flex min-h-screen items-center justify-center bg-black p-6">
       <AomiFrame
         height="720px"
         width="1200px"

@@ -1,8 +1,8 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Thread } from "@/components/assistant-ui/thread";
-import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
+import { BaseSidebar } from "@/components/assistant-ui/base-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
@@ -18,14 +18,18 @@ import {
 import { cn } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
 import { ThreadContextProvider } from "@/lib/thread-context";
-import { WalletSystemMessenger } from "@/components/wallet-providers";
-import { useAppKitAccount } from "@reown/appkit/react";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
+  /** Wallet address for the user (optional - for wallet integration) */
+  walletAddress?: string;
+  /** Custom sidebar component (optional - replaces default ThreadListSidebar) */
+  sidebar?: ReactNode;
+  /** Additional content to render inside the frame (e.g., WalletSystemMessenger) */
+  children?: ReactNode;
 };
 
 export const AomiFrame = ({
@@ -33,15 +37,17 @@ export const AomiFrame = ({
   height = "80vh",
   className,
   style,
+  walletAddress,
+  sidebar,
+  children,
 }: AomiFrameProps) => {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
-  const { address } = useAppKitAccount();
 
   return (
     <ThreadContextProvider>
-      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={address}>
-      <WalletSystemMessenger />
+      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={walletAddress}>
+      {children}
       <SidebarProvider>
         <div
           className={cn(
@@ -50,7 +56,7 @@ export const AomiFrame = ({
           )}
           style={frameStyle}
         >
-          <ThreadListSidebar />
+          {sidebar ?? <BaseSidebar />}
           <SidebarInset className = "relative">
             <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
               <SidebarTrigger />

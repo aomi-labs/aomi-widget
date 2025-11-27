@@ -52,7 +52,9 @@
 
 ```json
 {
+  "@ai-sdk/openai": "^2.0.73",
   "@assistant-ui/react": "^0.11.28",
+  "@assistant-ui/react-ai-sdk": "^1.1.13",
   "@assistant-ui/react-markdown": "^0.11.1",
   "@radix-ui/react-avatar": "^1.1.10",
   "@radix-ui/react-dialog": "^1.1.15",
@@ -62,13 +64,16 @@
   "@reown/appkit": "^1.8.14",
   "@reown/appkit-adapter-wagmi": "^1.8.14",
   "@tanstack/react-query": "^5.90.10",
+  "ai": "^5.0.102",
   "class-variance-authority": "^0.7.1",
   "clsx": "^2.1.1",
+  "framer-motion": "^12.23.24",
   "lucide-react": "^0.545.0",
   "motion": "^12.23.22",
   "next": "15.5.4",
   "react": "^19.2.0",
   "react-dom": "^19.2.0",
+  "react-shiki": "^0.9.0",
   "remark-gfm": "^4.0.1",
   "tailwind-merge": "^3.3.1",
   "tailwindcss": "^4.1.17",
@@ -81,22 +86,31 @@
 
 ### Key Dependency Differences
 
-| Package | Root | Example | Impact |
+| Package | Root | Example | Status |
 |---------|------|---------|--------|
-| `@ai-sdk/openai` | `^2.0.46` | **MISSING** | AI SDK not available |
-| `@assistant-ui/react-ai-sdk` | `^1.1.5` | **MISSING** | AI SDK integration missing |
-| `ai` | `^5.0.65` | **MISSING** | Vercel AI SDK missing |
-| `framer-motion` | `^12.23.22` | **MISSING** | Animation library missing |
-| `react-shiki` | `^0.9.0` | **MISSING** | Syntax highlighting missing |
-| `viem` | `^2.40.3` | `2.40.3` (pinned) | Version pinning difference |
-| `wagmi` | `^2.19.5` | `^2.19.4` | Minor version difference |
-| `tailwindcss` | devDependencies | dependencies | Build vs runtime |
+| `@ai-sdk/openai` | `^2.0.46` | `^2.0.73` | ✅ Both have it (example newer) |
+| `@assistant-ui/react-ai-sdk` | `^1.1.5` | `^1.1.13` | ✅ Both have it (example newer) |
+| `ai` | `^5.0.65` | `^5.0.102` | ✅ Both have it (example newer) |
+| `framer-motion` | `^12.23.22` | `^12.23.24` | ✅ Both have it (example newer) |
+| `react-shiki` | `^0.9.0` | `^0.9.0` | ✅ Both have it |
+| `viem` | `^2.40.3` | `2.40.3` (pinned) | Minor: version pinning difference |
+| `wagmi` | `^2.19.5` | `^2.19.4` | Minor: version difference |
+| `tailwindcss` | devDependencies | dependencies | Build vs runtime placement |
 
 ### Example-Specific Additions
 
 | Package | Version | Purpose |
 |---------|---------|---------|
 | npm overrides for `@noble/*` | Various | Fix crypto lib conflicts |
+
+### Scripts Difference
+
+| Script | Root | Example |
+|--------|------|---------|
+| `dev` | `next dev --turbopack` | `next dev --turbopack` |
+| `build` | `next build` | `next build` |
+| `start` | `next start` | `next start` |
+| `lint` | `next lint` | `next lint` |
 
 ---
 
@@ -205,25 +219,26 @@ example/app/layout.tsx
 
 The root app uses `bg-black` while example uses `bg-white`. This creates an immediate visual contrast difference.
 
-### 4.2 Missing Animation Library
-**Impact: MEDIUM**
+### ~~4.2 Missing Animation Library~~ ✅ RESOLVED
+**Impact: NONE**
 
-Root has `framer-motion` for animations. Example only has `motion` but NOT `framer-motion`. Some animation features may not work or look different.
+~~Root has `framer-motion` for animations. Example only has `motion` but NOT `framer-motion`.~~
 
-### 4.3 Missing Syntax Highlighting
-**Impact: LOW-MEDIUM**
+Both projects now have `framer-motion` installed.
 
-`react-shiki` is missing in example. Code blocks in markdown may render without syntax highlighting.
+### ~~4.3 Missing Syntax Highlighting~~ ✅ RESOLVED
+**Impact: NONE**
 
-### 4.4 Missing AI SDK Packages
-**Impact: FUNCTIONAL**
+~~`react-shiki` is missing in example.~~
 
-Example is missing:
-- `@ai-sdk/openai`
-- `@assistant-ui/react-ai-sdk`
-- `ai`
+Both projects now have `react-shiki` installed.
 
-This could cause runtime errors if any components depend on these for AI functionality.
+### ~~4.4 Missing AI SDK Packages~~ ✅ RESOLVED
+**Impact: NONE**
+
+~~Example was missing `@ai-sdk/openai`, `@assistant-ui/react-ai-sdk`, and `ai`.~~
+
+All AI SDK packages are now installed in the example project.
 
 ### 4.5 Static Assets Difference
 **Impact: MEDIUM**
@@ -235,16 +250,17 @@ This could cause runtime errors if any components depend on these for AI functio
 
 The root project is **missing the fonts folder**. If any component uses custom fonts from `/assets/fonts/`, they won't load in the root app.
 
-### 4.6 Webpack Configuration
-**Impact: MEDIUM**
+### 4.6 Next.js Configuration
+**Impact: LOW**
 
-Example has custom webpack config in `next.config.ts`:
+Both projects use minimal Next.js configuration. Example previously had custom webpack/Turbopack config for module resolution but this has been commented out as it's not needed.
+
 ```typescript
-// Forces ox module resolution to fix viem compatibility
-"ox": path.resolve(__dirname, "node_modules/viem/node_modules/ox")
+// example/next.config.ts - Currently minimal config
+const nextConfig: NextConfig = {};
 ```
 
-Root has no webpack customization. This could cause module resolution differences.
+Root has no customization either. Both projects now share similar configuration.
 
 ### 4.7 Package Manager Resolution
 **Impact: MEDIUM**
@@ -264,27 +280,30 @@ This shouldn't affect runtime but indicates different setup intentions.
 
 ---
 
-## Summary of Required Fixes
+## Summary of Current State
 
-### To Make Example Match Root:
+### ✅ Resolved Issues
 
-1. **Change background color** in `example/app/page.tsx`:
-   ```tsx
-   className="flex min-h-screen items-center justify-center bg-black p-6"
-   ```
+The following dependency differences have been **resolved** by installing packages in the example project:
 
-2. **Add missing dependencies**:
-   ```bash
-   npm install @ai-sdk/openai @assistant-ui/react-ai-sdk ai framer-motion react-shiki
-   ```
+| Previously Missing | Now Installed |
+|--------------------|---------------|
+| `@ai-sdk/openai` | `^2.0.73` |
+| `@assistant-ui/react-ai-sdk` | `^1.1.13` |
+| `ai` | `^5.0.102` |
+| `framer-motion` | `^12.23.24` |
+| `react-shiki` | `^0.9.0` |
 
-3. **Remove fonts from example** (or add to root) for consistency
+### Remaining Differences
 
-### To Make Root Match Example:
+1. **Background color** - Root uses `bg-black`, Example uses `bg-white`
+   - Fix: Change `example/app/page.tsx` to use `bg-black`
 
-1. **Copy fonts folder** to `public/assets/fonts/`
+2. **Static assets** - Root is missing fonts folder
+   - Fix: Copy fonts to `public/assets/fonts/` in root, or remove from example
 
-2. **Add webpack config** if ox module issues occur
+3. **Package manager** - Root has both npm and pnpm lock files
+   - Recommendation: Standardize on one package manager
 
 ---
 
