@@ -1,17 +1,24 @@
 "use client"
 
-import { AppKitProvider } from "@reown/appkit/react"
+import { createAppKit, AppKitProvider } from "@reown/appkit/react"
 import { Config, WagmiProvider, cookieToInitialState } from "wagmi"
 import React, { type ReactNode } from 'react'
-import { initializeAppKit } from "@aomi-labs/widget-lib"
 
 import { appKitProviderConfig, wagmiAdapter } from "@/components/config"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 const queryClient = new QueryClient()
 
-initializeAppKit(appKitProviderConfig)
+// Initialize AppKit (runs once on client-side)
+let appKitInitialized = false
+const initializeAppKit = (config: Parameters<typeof createAppKit>[0]) => {
+  if (appKitInitialized) return
+  if (typeof window === 'undefined') return
+  createAppKit(config)
+  appKitInitialized = true
+}
 
+initializeAppKit(appKitProviderConfig)
 
 function ContextProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {
   const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig as Config, cookies)
@@ -24,7 +31,5 @@ function ContextProvider({ children, cookies }: { children: ReactNode; cookies: 
     </AppKitProvider>
   )
 }
-
-console.log("</AppKitProvider>")
 
 export default ContextProvider

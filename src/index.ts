@@ -113,23 +113,21 @@ export {
 } from "./components/ui/sidebar";
 
 // ============================================
-// Wallet Components & Utilities
+// Wallet Utilities (pure functions + state store)
 // ============================================
-export { WalletFooter } from "./components/assistant-ui/wallet-footer";
 export {
-  // Component
-  WalletSystemMessenger,
-  initializeAppKit,
   // Utilities
   formatAddress,
   getNetworkName,
+  // State store
+  useWalletButtonState,
   // Network re-exports
   mainnet,
   arbitrum,
   optimism,
   base,
   polygon,
-} from "./components/wallet-providers";
+} from "./utils/wallet";
 
 // ============================================
 // Hooks

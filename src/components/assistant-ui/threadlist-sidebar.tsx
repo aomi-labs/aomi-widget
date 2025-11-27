@@ -14,11 +14,16 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
-import { WalletFooter } from "@/components/assistant-ui/wallet-footer";
+
+type ThreadListSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  /** Optional footer component (e.g., WalletFooter from consumer app) */
+  footer?: React.ReactNode;
+};
 
 export function ThreadListSidebar({
+  footer,
   ...props
-}: React.ComponentProps<typeof Sidebar>) {
+}: ThreadListSidebarProps) {
   return (
     <Sidebar
       collapsible="offcanvas"
@@ -56,9 +61,11 @@ export function ThreadListSidebar({
         <ThreadList />
       </SidebarContent>
       <SidebarRail />
-      <SidebarFooter className="aomi-sidebar-footer border-t border-sm py-4">
-        <WalletFooter />
-      </SidebarFooter>
+      {footer && (
+        <SidebarFooter className="aomi-sidebar-footer border-t border-sm py-4">
+          {footer}
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }

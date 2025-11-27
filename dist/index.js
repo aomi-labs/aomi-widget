@@ -2019,13 +2019,151 @@ var ThreadListItemArchive = () => {
   ) });
 };
 
-// src/components/assistant-ui/wallet-footer.tsx
-import { useAppKit } from "@reown/appkit/react";
-import { useEnsName } from "wagmi";
+// src/components/assistant-ui/threadlist-sidebar.tsx
+import { jsx as jsx16, jsxs as jsxs11 } from "react/jsx-runtime";
+function ThreadListSidebar(_a) {
+  var _b = _a, {
+    footer
+  } = _b, props = __objRest(_b, [
+    "footer"
+  ]);
+  return /* @__PURE__ */ jsxs11(
+    Sidebar,
+    __spreadProps(__spreadValues({
+      collapsible: "offcanvas",
+      variant: "inset",
+      className: "relative"
+    }, props), {
+      children: [
+        /* @__PURE__ */ jsx16(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ jsx16("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ jsx16(SidebarMenu, { children: /* @__PURE__ */ jsx16(SidebarMenuItem, { children: /* @__PURE__ */ jsx16(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx16(
+          Link,
+          {
+            href: "https://aomi.dev",
+            target: "_blank",
+            rel: "noopener noreferrer",
+            children: /* @__PURE__ */ jsx16("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ jsx16(
+              Image3,
+              {
+                src: "/assets/images/a.svg",
+                alt: "Logo",
+                width: 28,
+                height: 28,
+                className: "aomi-sidebar-header-icon size-7 ml-3",
+                priority: true
+              }
+            ) })
+          }
+        ) }) }) }) }) }),
+        /* @__PURE__ */ jsx16(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ jsx16(ThreadList, {}) }),
+        /* @__PURE__ */ jsx16(SidebarRail, {}),
+        footer && /* @__PURE__ */ jsx16(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: footer })
+      ]
+    })
+  );
+}
 
-// src/components/wallet-providers.tsx
-import { useEffect as useEffect5, useRef as useRef2 } from "react";
-import { createAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+// src/components/ui/breadcrumb.tsx
+import { Slot as Slot3 } from "@radix-ui/react-slot";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { jsx as jsx17, jsxs as jsxs12 } from "react/jsx-runtime";
+function Breadcrumb(_a) {
+  var props = __objRest(_a, []);
+  return /* @__PURE__ */ jsx17("nav", __spreadValues({ "aria-label": "breadcrumb", "data-slot": "breadcrumb" }, props));
+}
+function BreadcrumbList(_a) {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx17(
+    "ol",
+    __spreadValues({
+      "data-slot": "breadcrumb-list",
+      className: cn(
+        "flex flex-wrap items-center gap-1.5 text-sm break-words text-muted-foreground sm:gap-2.5",
+        className
+      )
+    }, props)
+  );
+}
+function BreadcrumbItem(_a) {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx17(
+    "li",
+    __spreadValues({
+      "data-slot": "breadcrumb-item",
+      className: cn("inline-flex items-center gap-1.5", className)
+    }, props)
+  );
+}
+function BreadcrumbLink(_a) {
+  var _b = _a, {
+    asChild,
+    className
+  } = _b, props = __objRest(_b, [
+    "asChild",
+    "className"
+  ]);
+  const Comp = asChild ? Slot3 : "a";
+  return /* @__PURE__ */ jsx17(
+    Comp,
+    __spreadValues({
+      "data-slot": "breadcrumb-link",
+      className: cn("transition-colors hover:text-foreground", className)
+    }, props)
+  );
+}
+function BreadcrumbPage(_a) {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx17(
+    "span",
+    __spreadValues({
+      "data-slot": "breadcrumb-page",
+      role: "link",
+      "aria-disabled": "true",
+      "aria-current": "page",
+      className: cn("font-normal text-foreground", className)
+    }, props)
+  );
+}
+function BreadcrumbSeparator(_a) {
+  var _b = _a, {
+    children,
+    className
+  } = _b, props = __objRest(_b, [
+    "children",
+    "className"
+  ]);
+  return /* @__PURE__ */ jsx17(
+    "li",
+    __spreadProps(__spreadValues({
+      "data-slot": "breadcrumb-separator",
+      role: "presentation",
+      "aria-hidden": "true",
+      className: cn("[&>svg]:size-3.5", className)
+    }, props), {
+      children: children != null ? children : /* @__PURE__ */ jsx17(ChevronRight, {})
+    })
+  );
+}
+function BreadcrumbEllipsis(_a) {
+  var _b = _a, {
+    className
+  } = _b, props = __objRest(_b, [
+    "className"
+  ]);
+  return /* @__PURE__ */ jsxs12(
+    "span",
+    __spreadProps(__spreadValues({
+      "data-slot": "breadcrumb-ellipsis",
+      role: "presentation",
+      "aria-hidden": "true",
+      className: cn("flex size-9 items-center justify-center", className)
+    }, props), {
+      children: [
+        /* @__PURE__ */ jsx17(MoreHorizontal, { className: "size-4" }),
+        /* @__PURE__ */ jsx17("span", { className: "sr-only", children: "More" })
+      ]
+    })
+  );
+}
 
 // src/components/assistant-ui/runtime.tsx
 import { createContext as createContext3, useCallback as useCallback3, useContext as useContext3, useEffect as useEffect4, useRef, useState as useState7 } from "react";
@@ -2364,7 +2502,7 @@ function parseToolStream(toolStream) {
 
 // src/lib/thread-context.tsx
 import { createContext as createContext2, useContext as useContext2, useState as useState6, useCallback as useCallback2 } from "react";
-import { jsx as jsx16 } from "react/jsx-runtime";
+import { jsx as jsx18 } from "react/jsx-runtime";
 function generateSessionId() {
   return crypto.randomUUID();
 }
@@ -2470,11 +2608,11 @@ function ThreadContextProvider({
     getThreadMetadata,
     updateThreadMetadata
   };
-  return /* @__PURE__ */ jsx16(ThreadContext.Provider, { value, children });
+  return /* @__PURE__ */ jsx18(ThreadContext.Provider, { value, children });
 }
 
 // src/components/assistant-ui/runtime.tsx
-import { jsx as jsx17 } from "react/jsx-runtime";
+import { jsx as jsx19 } from "react/jsx-runtime";
 var RuntimeActionsContext = createContext3(void 0);
 var useRuntimeActions = () => {
   const context = useContext3(RuntimeActionsContext);
@@ -2818,19 +2956,234 @@ function AomiRuntimeProvider({
       unsubscribe();
     };
   }, [backendUrl, setThreadMetadata]);
-  return /* @__PURE__ */ jsx17(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ jsx17(AssistantRuntimeProvider, { runtime, children }) });
+  return /* @__PURE__ */ jsx19(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ jsx19(AssistantRuntimeProvider, { runtime, children }) });
 }
 
-// src/components/wallet-providers.tsx
+// src/components/aomi-frame.tsx
+import { jsx as jsx20, jsxs as jsxs13 } from "react/jsx-runtime";
+var AomiFrame = ({
+  width = "100%",
+  height = "80vh",
+  className,
+  style,
+  walletAddress,
+  sidebar,
+  sidebarFooter,
+  children
+}) => {
+  var _a;
+  const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
+  const frameStyle = __spreadValues({ width, height }, style);
+  return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(AomiRuntimeProvider, { backendUrl, publicKey: walletAddress, children: [
+    children,
+    /* @__PURE__ */ jsx20(SidebarProvider, { children: /* @__PURE__ */ jsxs13(
+      "div",
+      {
+        className: cn(
+          "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
+          className
+        ),
+        style: frameStyle,
+        children: [
+          sidebar != null ? sidebar : /* @__PURE__ */ jsx20(ThreadListSidebar, { footer: sidebarFooter }),
+          /* @__PURE__ */ jsxs13(SidebarInset, { className: "relative", children: [
+            /* @__PURE__ */ jsxs13("header", { className: "flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3", children: [
+              /* @__PURE__ */ jsx20(SidebarTrigger, {}),
+              /* @__PURE__ */ jsx20(Separator, { orientation: "vertical", className: "mr-2 h-4" }),
+              /* @__PURE__ */ jsx20(Breadcrumb, { children: /* @__PURE__ */ jsxs13(BreadcrumbList, { children: [
+                /* @__PURE__ */ jsx20(BreadcrumbItem, { className: "hidden md:block", children: "Your First Conversation" }),
+                /* @__PURE__ */ jsx20(BreadcrumbSeparator, { className: "hidden md:block" })
+              ] }) })
+            ] }),
+            /* @__PURE__ */ jsx20("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ jsx20(Thread, {}) })
+          ] })
+        ]
+      }
+    ) })
+  ] }) });
+};
+
+// src/components/assistant-ui/base-sidebar.tsx
+import Link2 from "next/link";
+import Image4 from "next/image";
+import { jsx as jsx21, jsxs as jsxs14 } from "react/jsx-runtime";
+function BaseSidebar(_a) {
+  var _b = _a, {
+    footerLabel = "Connect Wallet",
+    footerSecondaryLabel,
+    onFooterClick,
+    logoUrl = "/assets/images/a.svg",
+    logoHref = "https://aomi.dev"
+  } = _b, props = __objRest(_b, [
+    "footerLabel",
+    "footerSecondaryLabel",
+    "onFooterClick",
+    "logoUrl",
+    "logoHref"
+  ]);
+  return /* @__PURE__ */ jsxs14(
+    Sidebar,
+    __spreadProps(__spreadValues({
+      collapsible: "offcanvas",
+      variant: "inset",
+      className: "relative"
+    }, props), {
+      children: [
+        /* @__PURE__ */ jsx21(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ jsx21("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ jsx21(SidebarMenu, { children: /* @__PURE__ */ jsx21(SidebarMenuItem, { children: /* @__PURE__ */ jsx21(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx21(
+          Link2,
+          {
+            href: logoHref,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            children: /* @__PURE__ */ jsx21("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ jsx21(
+              Image4,
+              {
+                src: logoUrl,
+                alt: "Logo",
+                width: 28,
+                height: 28,
+                className: "aomi-sidebar-header-icon size-7 ml-3",
+                priority: true
+              }
+            ) })
+          }
+        ) }) }) }) }) }),
+        /* @__PURE__ */ jsx21(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ jsx21(ThreadList, {}) }),
+        /* @__PURE__ */ jsx21(SidebarRail, {}),
+        /* @__PURE__ */ jsx21(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: /* @__PURE__ */ jsx21(SidebarMenu, { children: /* @__PURE__ */ jsx21(SidebarMenuItem, { children: /* @__PURE__ */ jsx21(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx21(
+          Button,
+          {
+            className: "w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white",
+            onClick: onFooterClick,
+            children: /* @__PURE__ */ jsxs14("div", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsx21("span", { className: "text-sm", children: footerLabel }),
+              footerSecondaryLabel ? /* @__PURE__ */ jsxs14("span", { className: "text-[11px] text-white/80", children: [
+                "\u2022 ",
+                footerSecondaryLabel
+              ] }) : null
+            ] })
+          }
+        ) }) }) }) })
+      ]
+    })
+  );
+}
+
+// src/components/ui/card.tsx
+import * as React3 from "react";
+import { jsx as jsx22 } from "react/jsx-runtime";
+var Card = React3.forwardRef((_a, ref) => {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx22(
+    "div",
+    __spreadValues({
+      ref,
+      className: cn(
+        "rounded-lg border bg-card text-card-foreground shadow-sm",
+        className
+      )
+    }, props)
+  );
+});
+Card.displayName = "Card";
+var CardHeader = React3.forwardRef((_a, ref) => {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx22(
+    "div",
+    __spreadValues({
+      ref,
+      className: cn("flex flex-col space-y-1.5 p-6", className)
+    }, props)
+  );
+});
+CardHeader.displayName = "CardHeader";
+var CardTitle = React3.forwardRef((_a, ref) => {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx22(
+    "h3",
+    __spreadValues({
+      ref,
+      className: cn(
+        "text-2xl font-semibold leading-none tracking-tight",
+        className
+      )
+    }, props)
+  );
+});
+CardTitle.displayName = "CardTitle";
+var CardDescription = React3.forwardRef((_a, ref) => {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx22(
+    "p",
+    __spreadValues({
+      ref,
+      className: cn("text-sm text-muted-foreground", className)
+    }, props)
+  );
+});
+CardDescription.displayName = "CardDescription";
+var CardContent = React3.forwardRef((_a, ref) => {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx22("div", __spreadValues({ ref, className: cn("p-6 pt-0", className) }, props));
+});
+CardContent.displayName = "CardContent";
+var CardFooter = React3.forwardRef((_a, ref) => {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx22(
+    "div",
+    __spreadValues({
+      ref,
+      className: cn("flex items-center p-6 pt-0", className)
+    }, props)
+  );
+});
+CardFooter.displayName = "CardFooter";
+
+// src/components/ui/badge.tsx
+import { cva as cva3 } from "class-variance-authority";
+import { jsx as jsx23 } from "react/jsx-runtime";
+var badgeVariants = cva3(
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        outline: "text-foreground"
+      }
+    },
+    defaultVariants: {
+      variant: "default"
+    }
+  }
+);
+function Badge(_a) {
+  var _b = _a, { className, variant } = _b, props = __objRest(_b, ["className", "variant"]);
+  return /* @__PURE__ */ jsx23("div", __spreadValues({ className: cn(badgeVariants({ variant }), className) }, props));
+}
+
+// src/components/ui/label.tsx
+import * as React4 from "react";
+import { jsx as jsx24 } from "react/jsx-runtime";
+var Label = React4.forwardRef((_a, ref) => {
+  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
+  return /* @__PURE__ */ jsx24(
+    "label",
+    __spreadValues({
+      ref,
+      className: cn(
+        "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+        className
+      )
+    }, props)
+  );
+});
+Label.displayName = "Label";
+
+// src/utils/wallet.ts
 import { create } from "zustand/react";
 import { mainnet, arbitrum, optimism, base, polygon } from "@reown/appkit/networks";
-var appKitInitialized = false;
-var initializeAppKit = (config) => {
-  if (appKitInitialized) return;
-  if (typeof window === "undefined") return;
-  createAppKit(config);
-  appKitInitialized = true;
-};
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
 var getNetworkName = (chainId) => {
   const id = typeof chainId === "string" ? Number(chainId) : chainId;
@@ -2862,458 +3215,9 @@ var useWalletButtonState = create((set) => ({
   address: void 0,
   chainId: void 0,
   isConnected: false,
-  setWallet: (data) => set(() => data)
+  ensName: void 0,
+  setWallet: (data) => set((prev) => __spreadValues(__spreadValues({}, prev), data))
 }));
-function WalletSystemMessenger() {
-  const { address, isConnected } = useAppKitAccount();
-  const { chainId } = useAppKitNetwork();
-  const { sendSystemMessage } = useRuntimeActions();
-  const { setWallet } = useWalletButtonState();
-  const lastWalletRef = useRef2({ isConnected: false });
-  useEffect5(() => {
-    const prev = lastWalletRef.current;
-    const normalizedAddress = address == null ? void 0 : address.toLowerCase();
-    const numericChainId = typeof chainId === "string" ? Number(chainId) : chainId;
-    setWallet({ isConnected, address, chainId: numericChainId });
-    const shouldNotify = isConnected && normalizedAddress && numericChainId && (!prev.isConnected || prev.address !== normalizedAddress);
-    if (shouldNotify) {
-      const networkName = getNetworkName(numericChainId);
-      const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${numericChainId}). Ready to help with transactions.`;
-      console.log(message);
-      void sendSystemMessage(message);
-      lastWalletRef.current = {
-        isConnected: true,
-        address: normalizedAddress,
-        chainId: numericChainId
-      };
-    }
-  }, [address, chainId, isConnected, sendSystemMessage]);
-  useEffect5(() => {
-    const prev = lastWalletRef.current;
-    setWallet({ isConnected });
-    if (!isConnected && prev.isConnected) {
-      void sendSystemMessage("Wallet disconnected by user.");
-      console.log("Wallet disconnected by user.");
-      lastWalletRef.current = { isConnected: false };
-    }
-  }, [isConnected, sendSystemMessage]);
-  useEffect5(() => {
-    const prev = lastWalletRef.current;
-    const normalizedAddress = address == null ? void 0 : address.toLowerCase();
-    const numericChainId = typeof chainId === "string" ? Number(chainId) : chainId;
-    setWallet({ isConnected, address, chainId: numericChainId });
-    if (isConnected && normalizedAddress && numericChainId && prev.isConnected && prev.address === normalizedAddress && prev.chainId !== numericChainId) {
-      const networkName = getNetworkName(numericChainId);
-      const message = `User switched wallet to ${networkName} network (Chain ID: ${numericChainId}).`;
-      console.log(message);
-      void sendSystemMessage(message);
-      lastWalletRef.current = {
-        isConnected: true,
-        address: normalizedAddress,
-        chainId: numericChainId
-      };
-    }
-  }, [address, chainId, isConnected, sendSystemMessage]);
-  return null;
-}
-
-// src/components/assistant-ui/wallet-footer.tsx
-import { jsx as jsx18, jsxs as jsxs11 } from "react/jsx-runtime";
-function WalletFooter() {
-  const { address, chainId, isConnected } = useWalletButtonState();
-  const { open } = useAppKit();
-  const { data: ensName } = useEnsName({
-    address,
-    chainId: 1,
-    query: { enabled: Boolean(address) }
-  });
-  const networkName = getNetworkName(chainId);
-  const handleClick = () => {
-    if (isConnected) {
-      void open({ view: "Account" });
-    } else {
-      void open({ view: "Connect" });
-    }
-  };
-  const label = isConnected ? ensName != null ? ensName : formatAddress(address) : "Connect Wallet";
-  return /* @__PURE__ */ jsx18(SidebarMenu, { children: /* @__PURE__ */ jsx18(SidebarMenuItem, { children: /* @__PURE__ */ jsx18(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx18(
-    Button,
-    {
-      className: "w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white",
-      onClick: handleClick,
-      children: /* @__PURE__ */ jsxs11("div", { className: "flex items-center gap-2", children: [
-        /* @__PURE__ */ jsx18("span", { className: "text-sm", children: label }),
-        networkName ? /* @__PURE__ */ jsxs11("span", { className: "text-[11px] text-white/80", children: [
-          "\u2022 ",
-          networkName
-        ] }) : null
-      ] })
-    }
-  ) }) }) });
-}
-
-// src/components/assistant-ui/threadlist-sidebar.tsx
-import { jsx as jsx19, jsxs as jsxs12 } from "react/jsx-runtime";
-function ThreadListSidebar(_a) {
-  var props = __objRest(_a, []);
-  return /* @__PURE__ */ jsxs12(
-    Sidebar,
-    __spreadProps(__spreadValues({
-      collapsible: "offcanvas",
-      variant: "inset",
-      className: "relative"
-    }, props), {
-      children: [
-        /* @__PURE__ */ jsx19(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ jsx19("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ jsx19(SidebarMenu, { children: /* @__PURE__ */ jsx19(SidebarMenuItem, { children: /* @__PURE__ */ jsx19(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx19(
-          Link,
-          {
-            href: "https://aomi.dev",
-            target: "_blank",
-            rel: "noopener noreferrer",
-            children: /* @__PURE__ */ jsx19("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ jsx19(
-              Image3,
-              {
-                src: "/assets/images/a.svg",
-                alt: "Logo",
-                width: 28,
-                height: 28,
-                className: "aomi-sidebar-header-icon size-7 ml-3",
-                priority: true
-              }
-            ) })
-          }
-        ) }) }) }) }) }),
-        /* @__PURE__ */ jsx19(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ jsx19(ThreadList, {}) }),
-        /* @__PURE__ */ jsx19(SidebarRail, {}),
-        /* @__PURE__ */ jsx19(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: /* @__PURE__ */ jsx19(WalletFooter, {}) })
-      ]
-    })
-  );
-}
-
-// src/components/ui/breadcrumb.tsx
-import { Slot as Slot3 } from "@radix-ui/react-slot";
-import { ChevronRight, MoreHorizontal } from "lucide-react";
-import { jsx as jsx20, jsxs as jsxs13 } from "react/jsx-runtime";
-function Breadcrumb(_a) {
-  var props = __objRest(_a, []);
-  return /* @__PURE__ */ jsx20("nav", __spreadValues({ "aria-label": "breadcrumb", "data-slot": "breadcrumb" }, props));
-}
-function BreadcrumbList(_a) {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx20(
-    "ol",
-    __spreadValues({
-      "data-slot": "breadcrumb-list",
-      className: cn(
-        "flex flex-wrap items-center gap-1.5 text-sm break-words text-muted-foreground sm:gap-2.5",
-        className
-      )
-    }, props)
-  );
-}
-function BreadcrumbItem(_a) {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx20(
-    "li",
-    __spreadValues({
-      "data-slot": "breadcrumb-item",
-      className: cn("inline-flex items-center gap-1.5", className)
-    }, props)
-  );
-}
-function BreadcrumbLink(_a) {
-  var _b = _a, {
-    asChild,
-    className
-  } = _b, props = __objRest(_b, [
-    "asChild",
-    "className"
-  ]);
-  const Comp = asChild ? Slot3 : "a";
-  return /* @__PURE__ */ jsx20(
-    Comp,
-    __spreadValues({
-      "data-slot": "breadcrumb-link",
-      className: cn("transition-colors hover:text-foreground", className)
-    }, props)
-  );
-}
-function BreadcrumbPage(_a) {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx20(
-    "span",
-    __spreadValues({
-      "data-slot": "breadcrumb-page",
-      role: "link",
-      "aria-disabled": "true",
-      "aria-current": "page",
-      className: cn("font-normal text-foreground", className)
-    }, props)
-  );
-}
-function BreadcrumbSeparator(_a) {
-  var _b = _a, {
-    children,
-    className
-  } = _b, props = __objRest(_b, [
-    "children",
-    "className"
-  ]);
-  return /* @__PURE__ */ jsx20(
-    "li",
-    __spreadProps(__spreadValues({
-      "data-slot": "breadcrumb-separator",
-      role: "presentation",
-      "aria-hidden": "true",
-      className: cn("[&>svg]:size-3.5", className)
-    }, props), {
-      children: children != null ? children : /* @__PURE__ */ jsx20(ChevronRight, {})
-    })
-  );
-}
-function BreadcrumbEllipsis(_a) {
-  var _b = _a, {
-    className
-  } = _b, props = __objRest(_b, [
-    "className"
-  ]);
-  return /* @__PURE__ */ jsxs13(
-    "span",
-    __spreadProps(__spreadValues({
-      "data-slot": "breadcrumb-ellipsis",
-      role: "presentation",
-      "aria-hidden": "true",
-      className: cn("flex size-9 items-center justify-center", className)
-    }, props), {
-      children: [
-        /* @__PURE__ */ jsx20(MoreHorizontal, { className: "size-4" }),
-        /* @__PURE__ */ jsx20("span", { className: "sr-only", children: "More" })
-      ]
-    })
-  );
-}
-
-// src/components/aomi-frame.tsx
-import { jsx as jsx21, jsxs as jsxs14 } from "react/jsx-runtime";
-var AomiFrame = ({
-  width = "100%",
-  height = "80vh",
-  className,
-  style,
-  walletAddress,
-  sidebar,
-  children
-}) => {
-  var _a;
-  const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
-  const frameStyle = __spreadValues({ width, height }, style);
-  return /* @__PURE__ */ jsx21(ThreadContextProvider, { children: /* @__PURE__ */ jsxs14(AomiRuntimeProvider, { backendUrl, publicKey: walletAddress, children: [
-    children,
-    /* @__PURE__ */ jsx21(SidebarProvider, { children: /* @__PURE__ */ jsxs14(
-      "div",
-      {
-        className: cn(
-          "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
-          className
-        ),
-        style: frameStyle,
-        children: [
-          sidebar != null ? sidebar : /* @__PURE__ */ jsx21(ThreadListSidebar, {}),
-          /* @__PURE__ */ jsxs14(SidebarInset, { className: "relative", children: [
-            /* @__PURE__ */ jsxs14("header", { className: "flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3", children: [
-              /* @__PURE__ */ jsx21(SidebarTrigger, {}),
-              /* @__PURE__ */ jsx21(Separator, { orientation: "vertical", className: "mr-2 h-4" }),
-              /* @__PURE__ */ jsx21(Breadcrumb, { children: /* @__PURE__ */ jsxs14(BreadcrumbList, { children: [
-                /* @__PURE__ */ jsx21(BreadcrumbItem, { className: "hidden md:block", children: "Your First Conversation" }),
-                /* @__PURE__ */ jsx21(BreadcrumbSeparator, { className: "hidden md:block" })
-              ] }) })
-            ] }),
-            /* @__PURE__ */ jsx21("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ jsx21(Thread, {}) })
-          ] })
-        ]
-      }
-    ) })
-  ] }) });
-};
-
-// src/components/assistant-ui/base-sidebar.tsx
-import Link2 from "next/link";
-import Image4 from "next/image";
-import { jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
-function BaseSidebar(_a) {
-  var _b = _a, {
-    footerLabel = "Connect Wallet",
-    footerSecondaryLabel,
-    onFooterClick,
-    logoUrl = "/assets/images/a.svg",
-    logoHref = "https://aomi.dev"
-  } = _b, props = __objRest(_b, [
-    "footerLabel",
-    "footerSecondaryLabel",
-    "onFooterClick",
-    "logoUrl",
-    "logoHref"
-  ]);
-  return /* @__PURE__ */ jsxs15(
-    Sidebar,
-    __spreadProps(__spreadValues({
-      collapsible: "offcanvas",
-      variant: "inset",
-      className: "relative"
-    }, props), {
-      children: [
-        /* @__PURE__ */ jsx22(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ jsx22("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ jsx22(SidebarMenu, { children: /* @__PURE__ */ jsx22(SidebarMenuItem, { children: /* @__PURE__ */ jsx22(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx22(
-          Link2,
-          {
-            href: logoHref,
-            target: "_blank",
-            rel: "noopener noreferrer",
-            children: /* @__PURE__ */ jsx22("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ jsx22(
-              Image4,
-              {
-                src: logoUrl,
-                alt: "Logo",
-                width: 28,
-                height: 28,
-                className: "aomi-sidebar-header-icon size-7 ml-3",
-                priority: true
-              }
-            ) })
-          }
-        ) }) }) }) }) }),
-        /* @__PURE__ */ jsx22(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ jsx22(ThreadList, {}) }),
-        /* @__PURE__ */ jsx22(SidebarRail, {}),
-        /* @__PURE__ */ jsx22(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: /* @__PURE__ */ jsx22(SidebarMenu, { children: /* @__PURE__ */ jsx22(SidebarMenuItem, { children: /* @__PURE__ */ jsx22(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx22(
-          Button,
-          {
-            className: "w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white",
-            onClick: onFooterClick,
-            children: /* @__PURE__ */ jsxs15("div", { className: "flex items-center gap-2", children: [
-              /* @__PURE__ */ jsx22("span", { className: "text-sm", children: footerLabel }),
-              footerSecondaryLabel ? /* @__PURE__ */ jsxs15("span", { className: "text-[11px] text-white/80", children: [
-                "\u2022 ",
-                footerSecondaryLabel
-              ] }) : null
-            ] })
-          }
-        ) }) }) }) })
-      ]
-    })
-  );
-}
-
-// src/components/ui/card.tsx
-import * as React3 from "react";
-import { jsx as jsx23 } from "react/jsx-runtime";
-var Card = React3.forwardRef((_a, ref) => {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx23(
-    "div",
-    __spreadValues({
-      ref,
-      className: cn(
-        "rounded-lg border bg-card text-card-foreground shadow-sm",
-        className
-      )
-    }, props)
-  );
-});
-Card.displayName = "Card";
-var CardHeader = React3.forwardRef((_a, ref) => {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx23(
-    "div",
-    __spreadValues({
-      ref,
-      className: cn("flex flex-col space-y-1.5 p-6", className)
-    }, props)
-  );
-});
-CardHeader.displayName = "CardHeader";
-var CardTitle = React3.forwardRef((_a, ref) => {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx23(
-    "h3",
-    __spreadValues({
-      ref,
-      className: cn(
-        "text-2xl font-semibold leading-none tracking-tight",
-        className
-      )
-    }, props)
-  );
-});
-CardTitle.displayName = "CardTitle";
-var CardDescription = React3.forwardRef((_a, ref) => {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx23(
-    "p",
-    __spreadValues({
-      ref,
-      className: cn("text-sm text-muted-foreground", className)
-    }, props)
-  );
-});
-CardDescription.displayName = "CardDescription";
-var CardContent = React3.forwardRef((_a, ref) => {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx23("div", __spreadValues({ ref, className: cn("p-6 pt-0", className) }, props));
-});
-CardContent.displayName = "CardContent";
-var CardFooter = React3.forwardRef((_a, ref) => {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx23(
-    "div",
-    __spreadValues({
-      ref,
-      className: cn("flex items-center p-6 pt-0", className)
-    }, props)
-  );
-});
-CardFooter.displayName = "CardFooter";
-
-// src/components/ui/badge.tsx
-import { cva as cva3 } from "class-variance-authority";
-import { jsx as jsx24 } from "react/jsx-runtime";
-var badgeVariants = cva3(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-  {
-    variants: {
-      variant: {
-        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground"
-      }
-    },
-    defaultVariants: {
-      variant: "default"
-    }
-  }
-);
-function Badge(_a) {
-  var _b = _a, { className, variant } = _b, props = __objRest(_b, ["className", "variant"]);
-  return /* @__PURE__ */ jsx24("div", __spreadValues({ className: cn(badgeVariants({ variant }), className) }, props));
-}
-
-// src/components/ui/label.tsx
-import * as React4 from "react";
-import { jsx as jsx25 } from "react/jsx-runtime";
-var Label = React4.forwardRef((_a, ref) => {
-  var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx25(
-    "label",
-    __spreadValues({
-      ref,
-      className: cn(
-        "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
-        className
-      )
-    }, props)
-  );
-});
-Label.displayName = "Label";
 export {
   AomiFrame,
   AomiRuntimeProvider,
@@ -3392,8 +3296,6 @@ export {
   TooltipProvider,
   TooltipTrigger,
   UserMessageAttachments,
-  WalletFooter,
-  WalletSystemMessenger,
   arbitrum,
   badgeVariants,
   base,
@@ -3401,13 +3303,13 @@ export {
   cn,
   formatAddress,
   getNetworkName,
-  initializeAppKit,
   mainnet,
   optimism,
   polygon,
   useIsMobile,
   useRuntimeActions,
   useSidebar,
-  useThreadContext
+  useThreadContext,
+  useWalletButtonState
 };
 //# sourceMappingURL=index.js.map

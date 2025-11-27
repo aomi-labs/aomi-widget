@@ -28,6 +28,8 @@ type AomiFrameProps = {
   walletAddress?: string;
   /** Custom sidebar component (optional - replaces default ThreadListSidebar) */
   sidebar?: ReactNode;
+  /** Footer component for the sidebar (e.g., WalletFooter) */
+  sidebarFooter?: ReactNode;
   /** Additional content to render inside the frame (e.g., WalletSystemMessenger) */
   children?: ReactNode;
 };
@@ -39,6 +41,7 @@ export const AomiFrame = ({
   style,
   walletAddress,
   sidebar,
+  sidebarFooter,
   children,
 }: AomiFrameProps) => {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
@@ -56,7 +59,7 @@ export const AomiFrame = ({
           )}
           style={frameStyle}
         >
-          {sidebar ?? <ThreadListSidebar />}
+          {sidebar ?? <ThreadListSidebar footer={sidebarFooter} />}
           <SidebarInset className = "relative">
             <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
               <SidebarTrigger />

@@ -1,27 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
-import { useEnsName } from "wagmi";
-import { Button } from "@/components/ui/button";
+import { useAppKit } from "@reown/appkit/react";
 import {
+  Button,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import { formatAddress, getNetworkName, useWalletButtonState } from "../wallet-providers";
+  formatAddress,
+  getNetworkName,
+  useWalletButtonState,
+} from "@aomi-labs/widget-lib";
 
 export function WalletFooter() {
-
-  const { address, chainId, isConnected } = useWalletButtonState();
+  const { address, chainId, isConnected, ensName } = useWalletButtonState();
   const { open } = useAppKit();
-
-
-  const { data: ensName } = useEnsName({
-    address: address as `0x${string}` | undefined,
-    chainId: 1,
-    query: { enabled: Boolean(address) },
-  });
 
   const networkName = getNetworkName(chainId as number);
 

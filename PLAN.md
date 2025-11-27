@@ -172,10 +172,6 @@ export default defineConfig({
     "@radix-ui/react-separator": "^1.0.0",
     "@radix-ui/react-slot": "^1.0.0",
     "@radix-ui/react-tooltip": "^1.0.0",
-    "@reown/appkit": "^1.0.0",
-    "@tanstack/react-query": "^5.0.0",
-    "wagmi": "^2.0.0",
-    "viem": "^2.0.0",
     "lucide-react": "^0.500.0",
     "zustand": "^5.0.0"
   },
@@ -338,3 +334,252 @@ Instruct consumers to add to their Tailwind config or CSS.
 - [ ] Example app renders identically to root app
 - [ ] No TypeScript errors in example
 - [ ] Library can be published to npm
+
+---
+
+# Wallet Module Refactoring Plan (Option B)
+
+## Goal
+Move wallet **components** (that use hooks) to the example app while keeping **utilities** in the library. This follows the pattern used by libraries like RainbowKit which exports wallet connectors from a separate subpath (`@rainbow-me/rainbowkit/wallets`).
+
+## Current Problem (SSR)
+- `WalletFooter` calls `useAppKit()` which runs during SSR
+- `initializeAppKit()` has SSR guard that skips on server
+- Hook expects `createAppKit` to have been called → error
+
+## Research Findings
+
+### Industry Patterns
+
+**RainbowKit Architecture** ([GitHub](https://github.com/rainbow-me/rainbowkit)):
+- Peer dependencies: `@tanstack/react-query`, `react`, `viem`, `wagmi`
+- Exports via subpaths: `./` (main), `./styles.css`, `./wallets`
+- Uses `sideEffects: false` for tree-shaking
+
+**Reown AppKit SSR Best Practices** ([Docs](https://docs.reown.com/appkit/react/core/installation)):
+- Set `ssr: true` in WagmiAdapter
+- Use `cookieStorage` for persistence
+- Use `'use client'` directive for client components
+- Wrap problematic components with client-side only wrapper or use dynamic imports with `{ ssr: false }`
+
+**Optional Peer Dependencies Pattern** ([Stack Overflow](https://stackoverflow.com/questions/68452138/how-to-make-optional-peer-dependencies-truly-optional)):
+- Use `peerDependenciesMeta` to mark as optional
+- Dynamic imports for graceful fallback
+- Separate entry points for optional features
+
+**Tree-Shakeable Libraries** ([DEV.to](https://dev.to/lukasbombach/how-to-write-a-tree-shakable-component-library-4ied)):
+- Set `sideEffects: false` in package.json
+- Split into multiple entry points
+- Works on file boundaries
+
+## Solution: Keep Utilities Only
+
+### What Stays in Library (`@aomi-labs/widget-lib`)
+
+**Pure utilities (no hooks, no SSR issues):**
+```
+src/utils/wallet.ts
+├── formatAddress()        - Pure function
+├── getNetworkName()       - Pure function
+├── useWalletButtonState   - Zustand store (client-safe)
+└── Network re-exports     - Re-exports from @reown/appkit/networks
+```
+
+### What Moves to Example App
+
+**Components using AppKit hooks:**
+```
+example/src/components/wallet/
+├── wallet-footer.tsx           - Uses useAppKit()
+├── wallet-system-messenger.tsx - Uses useAppKitAccount(), useAppKitNetwork()
+└── index.ts                    - Re-exports
+```
+
+**Provider setup (already there):**
+```
+example/src/components/
+├── config.tsx              - AppKit & Wagmi config
+└── wallet-providers.tsx    - ContextProvider + initializeAppKit
+```
+
+### Library Changes
+
+1. **Create `src/utils/wallet.ts`:**
+   ```ts
+   import { create } from 'zustand/react';
+
+   // Re-exports
+   export { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networks';
+
+   // Pure utilities
+   export const formatAddress = (addr?: string): string =>
+     addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+
+   export const getNetworkName = (chainId: number | string): string => {
+     const id = typeof chainId === "string" ? Number(chainId) : chainId;
+     switch (id) {
+       case 1: return 'ethereum';
+       case 137: return 'polygon';
+       case 42161: return 'arbitrum';
+       case 8453: return 'base';
+       case 10: return 'optimism';
+       case 11155111: return 'sepolia';
+       case 59140: return 'linea-sepolia';
+       case 59144: return 'linea';
+       default: return 'testnet';
+     }
+   };
+
+   // Zustand store (no AppKit dependency)
+   type WalletButtonState = {
+     address?: string;
+     chainId?: number;
+     isConnected: boolean;
+     ensName?: string;
+   };
+
+   type WalletActions = {
+     setWallet: (data: Partial<WalletButtonState>) => void;
+   };
+
+   export const useWalletButtonState = create<WalletButtonState & WalletActions>((set) => ({
+     address: undefined,
+     chainId: undefined,
+     isConnected: false,
+     ensName: undefined,
+     setWallet: (data) => set((prev) => ({ ...prev, ...data })),
+   }));
+   ```
+
+2. **Delete `src/components/wallet-providers.tsx`** entirely
+
+3. **Delete `src/components/assistant-ui/wallet-footer.tsx`** entirely
+
+4. **Update `src/components/assistant-ui/base-sidebar.tsx`:**
+   - Remove `WalletFooter` from sidebar footer
+   - Add optional `footer` slot prop for consumers
+
+5. **Update `src/index.ts` exports:**
+   ```ts
+   // Remove:
+   export { WalletFooter } from './components/assistant-ui/wallet-footer';
+   export { WalletSystemMessenger, initializeAppKit } from './components/wallet-providers';
+
+   // Add:
+   export {
+     formatAddress,
+     getNetworkName,
+     useWalletButtonState,
+     mainnet, arbitrum, optimism, base, polygon
+   } from './utils/wallet';
+   ```
+
+6. **Update `package.json` peer dependencies:**
+   ```json
+   {
+     "peerDependencies": {
+       // REMOVE these (no longer needed):
+       // "@reown/appkit": "^1.0.0",
+       // "@reown/appkit-adapter-wagmi": "^1.0.0",
+       // "wagmi": "^2.0.0",
+       // "viem": "^2.0.0"
+
+       // KEEP zustand
+       "zustand": "^5.0.0"
+     },
+     "peerDependenciesMeta": {
+       "@reown/appkit": { "optional": true }
+     }
+   }
+   ```
+
+### Example App Changes
+
+1. **Create `example/src/components/wallet/wallet-footer.tsx`:**
+   ```tsx
+   "use client";
+   import { useAppKit } from "@reown/appkit/react";
+   import { Button } from "@aomi-labs/widget-lib";
+   import { formatAddress, getNetworkName, useWalletButtonState } from "@aomi-labs/widget-lib";
+
+   export function WalletFooter() {
+     const { address, chainId, isConnected, ensName } = useWalletButtonState();
+     const { open } = useAppKit();
+
+     // ... rest of implementation
+   }
+   ```
+
+2. **Create `example/src/components/wallet/wallet-system-messenger.tsx`:**
+   ```tsx
+   "use client";
+   import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+   import { useEnsName } from "wagmi";
+   import { useRuntimeActions, getNetworkName, useWalletButtonState } from "@aomi-labs/widget-lib";
+
+   export function WalletSystemMessenger() {
+     // ... implementation moved from library
+   }
+   ```
+
+3. **Update example app layout to use footer slot:**
+   ```tsx
+   import { AomiFrame } from "@aomi-labs/widget-lib";
+   import { WalletFooter } from "@/components/wallet/wallet-footer";
+   import { WalletSystemMessenger } from "@/components/wallet/wallet-system-messenger";
+
+   <AomiFrame sidebarFooter={<WalletFooter />}>
+     <WalletSystemMessenger />
+   </AomiFrame>
+   ```
+
+### File Structure After Refactor
+
+```
+src/
+├── utils/
+│   └── wallet.ts              # Pure utilities + zustand store
+├── components/
+│   └── assistant-ui/
+│       └── base-sidebar.tsx   # Updated with footer slot
+└── index.ts                   # Updated exports
+
+example/src/components/
+├── config.tsx                 # AppKit config (unchanged)
+├── wallet-providers.tsx       # ContextProvider + initializeAppKit
+└── wallet/
+    ├── wallet-footer.tsx      # UI component (moved from lib)
+    ├── wallet-system-messenger.tsx  # System message component (moved from lib)
+    └── index.ts               # Re-exports
+```
+
+## Benefits
+
+1. **No SSR issues in library** - All hook-using components are in consumer apps
+2. **Clean separation** - Library provides utilities, apps provide integration
+3. **Follows industry patterns** - Similar to RainbowKit's subpath exports
+4. **Tree-shakeable** - Consumers who don't use wallet features don't bundle wallet code
+5. **Consumer control** - Apps decide their own wallet provider setup
+6. **Optional wallet support** - Library works without wallet deps installed
+
+## Implementation Steps
+
+1. [ ] Create `src/utils/wallet.ts` with utilities + store
+2. [ ] Update `base-sidebar.tsx` to accept optional `footer` prop
+3. [ ] Delete `wallet-footer.tsx` from library
+4. [ ] Delete `wallet-providers.tsx` from library (or keep only network re-exports)
+5. [ ] Update `src/index.ts` exports
+6. [ ] Update library `package.json` - remove wallet peer deps
+7. [ ] Create `example/src/components/wallet/` directory
+8. [ ] Move wallet components to example app
+9. [ ] Update example app to pass footer slot
+10. [ ] Rebuild library
+11. [ ] Test example app
+
+## Sources
+
+- [Reown AppKit Installation](https://docs.reown.com/appkit/react/core/installation) - SSR configuration
+- [RainbowKit GitHub](https://github.com/rainbow-me/rainbowkit) - Subpath exports pattern
+- [How to make optional peer dependencies truly optional](https://stackoverflow.com/questions/68452138/how-to-make-optional-peer-dependencies-truly-optional)
+- [Tree Shaking in React component libraries](https://dev.to/lukasbombach/how-to-write-a-tree-shakable-component-library-4ied)
+- [wagmi Getting Started](https://wagmi.sh/react/getting-started)
