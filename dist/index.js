@@ -31,6 +31,9 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
+// src/components/aomi-frame.tsx
+import { useState as useState8, useCallback as useCallback4 } from "react";
+
 // src/components/assistant-ui/thread.tsx
 import {
   AlertCircleIcon,
@@ -1368,10 +1371,11 @@ function Skeleton(_a) {
 import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
 var SIDEBAR_COOKIE_NAME = "sidebar_state";
 var SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-var SIDEBAR_WIDTH = "16rem";
 var SIDEBAR_WIDTH_MOBILE = "18rem";
 var SIDEBAR_WIDTH_ICON = "3rem";
 var SIDEBAR_KEYBOARD_SHORTCUT = "b";
+var SIDEBAR_MIN_WIDTH = 100;
+var SIDEBAR_MAX_WIDTH = 200;
 var SidebarContext = React2.createContext(null);
 function useSidebar() {
   const context = React2.useContext(SidebarContext);
@@ -1400,6 +1404,7 @@ function SidebarProvider(_a) {
   const [openMobile, setOpenMobile] = React2.useState(false);
   const [_open, _setOpen] = React2.useState(defaultOpen);
   const open = openProp != null ? openProp : _open;
+  const [sidebarWidth, setSidebarWidth] = React2.useState(256);
   const setOpen = React2.useCallback(
     (value) => {
       const openState = typeof value === "function" ? value(open) : value;
@@ -1434,16 +1439,18 @@ function SidebarProvider(_a) {
       isMobile,
       openMobile,
       setOpenMobile,
-      toggleSidebar
+      toggleSidebar,
+      sidebarWidth,
+      setSidebarWidth
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarWidth]
   );
   return /* @__PURE__ */ jsx14(SidebarContext.Provider, { value: contextValue, children: /* @__PURE__ */ jsx14(TooltipProvider, { delayDuration: 0, children: /* @__PURE__ */ jsx14(
     "div",
     __spreadProps(__spreadValues({
       "data-slot": "sidebar-wrapper",
       style: __spreadValues({
-        "--sidebar-width": SIDEBAR_WIDTH,
+        "--sidebar-width": `${sidebarWidth}px`,
         "--sidebar-width-icon": SIDEBAR_WIDTH_ICON
       }, style),
       className: cn(
@@ -1591,7 +1598,65 @@ function SidebarTrigger(_a) {
 }
 function SidebarRail(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, sidebarWidth, setSidebarWidth, setOpen } = useSidebar();
+  const isDraggingRef = React2.useRef(false);
+  const startXRef = React2.useRef(0);
+  const startWidthRef = React2.useRef(0);
+  const hasDraggedRef = React2.useRef(false);
+  const rafRef = React2.useRef(null);
+  const handleMouseDown = React2.useCallback(
+    (e) => {
+      e.preventDefault();
+      isDraggingRef.current = true;
+      hasDraggedRef.current = false;
+      startXRef.current = e.clientX;
+      startWidthRef.current = sidebarWidth;
+      document.body.style.cursor = "ew-resize";
+      document.body.style.userSelect = "none";
+    },
+    [sidebarWidth]
+  );
+  React2.useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDraggingRef.current) return;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      rafRef.current = requestAnimationFrame(() => {
+        const deltaX = e.clientX - startXRef.current;
+        if (Math.abs(deltaX) > 5) {
+          hasDraggedRef.current = true;
+        }
+        const rawWidth = startWidthRef.current + deltaX;
+        if (rawWidth < SIDEBAR_MIN_WIDTH) {
+          setOpen(false);
+        } else {
+          setOpen(true);
+          setSidebarWidth(Math.min(SIDEBAR_MAX_WIDTH, rawWidth));
+        }
+      });
+    };
+    const handleMouseUp = () => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [setSidebarWidth, setOpen]);
+  const handleClick = React2.useCallback(() => {
+    if (!hasDraggedRef.current) {
+      toggleSidebar();
+    }
+  }, [toggleSidebar]);
   return /* @__PURE__ */ jsx14(
     "button",
     __spreadValues({
@@ -1599,12 +1664,12 @@ function SidebarRail(_a) {
       "data-slot": "sidebar-rail",
       "aria-label": "Toggle Sidebar",
       tabIndex: -1,
-      onClick: toggleSidebar,
-      title: "Toggle Sidebar",
+      onMouseDown: handleMouseDown,
+      onClick: handleClick,
+      title: "Drag to resize, click to toggle",
       className: cn(
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex",
-        "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
-        "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
+        "cursor-ew-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
         "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
@@ -2166,7 +2231,7 @@ function BreadcrumbEllipsis(_a) {
 }
 
 // src/components/assistant-ui/runtime.tsx
-import { createContext as createContext3, useCallback as useCallback3, useContext as useContext3, useEffect as useEffect4, useRef, useState as useState7 } from "react";
+import { createContext as createContext3, useCallback as useCallback3, useContext as useContext3, useEffect as useEffect4, useRef as useRef2, useState as useState7 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -2640,9 +2705,9 @@ function AomiRuntimeProvider({
     updateThreadMetadata
   } = useThreadContext();
   const [isRunning, setIsRunning] = useState7(false);
-  const backendApiRef = useRef(new BackendApi(backendUrl));
-  const pollingIntervalRef = useRef(null);
-  const pendingSystemMessagesRef = useRef(/* @__PURE__ */ new Map());
+  const backendApiRef = useRef2(new BackendApi(backendUrl));
+  const pollingIntervalRef = useRef2(null);
+  const pendingSystemMessagesRef = useRef2(/* @__PURE__ */ new Map());
   const currentMessages = getThreadMessages(currentThreadId);
   const applyMessages = useCallback3((msgs) => {
     if (!msgs) return;
@@ -2959,6 +3024,68 @@ function AomiRuntimeProvider({
   return /* @__PURE__ */ jsx19(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ jsx19(AssistantRuntimeProvider, { runtime, children }) });
 }
 
+// src/utils/wallet.ts
+import { useEffect as useEffect5, useRef as useRef3 } from "react";
+var getNetworkName = (chainId) => {
+  if (chainId === void 0) return "";
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 42161:
+      return "arbitrum";
+    case 8453:
+      return "base";
+    case 10:
+      return "optimism";
+    case 11155111:
+      return "sepolia";
+    case 1337:
+    case 31337:
+      return "testnet";
+    case 59140:
+      return "linea-sepolia";
+    case 59144:
+      return "linea";
+    default:
+      return "testnet";
+  }
+};
+var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+function WalletSystemMessageEmitter({ wallet }) {
+  const { sendSystemMessage } = useRuntimeActions();
+  const lastWalletRef = useRef3({ isConnected: false });
+  useEffect5(() => {
+    const prev = lastWalletRef.current;
+    const { address, chainId, isConnected } = wallet;
+    const normalizedAddress = address == null ? void 0 : address.toLowerCase();
+    if (isConnected && normalizedAddress && chainId && (!prev.isConnected || prev.address !== normalizedAddress)) {
+      const networkName = getNetworkName(chainId);
+      const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+      return;
+    }
+    if (!isConnected && prev.isConnected) {
+      void sendSystemMessage("Wallet disconnected by user.");
+      console.log("Wallet disconnected by user.");
+      lastWalletRef.current = { isConnected: false };
+      return;
+    }
+    if (isConnected && normalizedAddress && chainId && prev.isConnected && prev.address === normalizedAddress && prev.chainId !== chainId) {
+      const networkName = getNetworkName(chainId);
+      const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+    }
+  }, [wallet, sendSystemMessage]);
+  return null;
+}
+
 // src/components/aomi-frame.tsx
 import { jsx as jsx20, jsxs as jsxs13 } from "react/jsx-runtime";
 var AomiFrame = ({
@@ -2966,15 +3093,23 @@ var AomiFrame = ({
   height = "80vh",
   className,
   style,
-  walletAddress,
-  sidebar,
-  sidebarFooter,
+  walletFooter,
   children
 }) => {
   var _a;
   const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
   const frameStyle = __spreadValues({ width, height }, style);
-  return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(AomiRuntimeProvider, { backendUrl, publicKey: walletAddress, children: [
+  const [wallet, setWalletState] = useState8({
+    isConnected: false,
+    address: void 0,
+    chainId: void 0,
+    ensName: void 0
+  });
+  const setWallet = useCallback4((data) => {
+    setWalletState((prev) => __spreadValues(__spreadValues({}, prev), data));
+  }, []);
+  return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(AomiRuntimeProvider, { backendUrl, publicKey: wallet.address, children: [
+    /* @__PURE__ */ jsx20(WalletSystemMessageEmitter, { wallet }),
     children,
     /* @__PURE__ */ jsx20(SidebarProvider, { children: /* @__PURE__ */ jsxs13(
       "div",
@@ -2985,7 +3120,7 @@ var AomiFrame = ({
         ),
         style: frameStyle,
         children: [
-          sidebar != null ? sidebar : /* @__PURE__ */ jsx20(ThreadListSidebar, { footer: sidebarFooter }),
+          /* @__PURE__ */ jsx20(ThreadListSidebar, { footer: walletFooter == null ? void 0 : walletFooter({ wallet, setWallet }) }),
           /* @__PURE__ */ jsxs13(SidebarInset, { className: "relative", children: [
             /* @__PURE__ */ jsxs13("header", { className: "flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3", children: [
               /* @__PURE__ */ jsx20(SidebarTrigger, {}),
@@ -3180,16 +3315,6 @@ var Label = React4.forwardRef((_a, ref) => {
   );
 });
 Label.displayName = "Label";
-
-// src/utils/wallet.ts
-import { create } from "zustand/react";
-var useWalletButtonState = create((set) => ({
-  address: void 0,
-  chainId: void 0,
-  isConnected: false,
-  ensName: void 0,
-  setWallet: (data) => set((prev) => __spreadValues(__spreadValues({}, prev), data))
-}));
 export {
   AomiFrame,
   AomiRuntimeProvider,
@@ -3271,10 +3396,11 @@ export {
   badgeVariants,
   buttonVariants,
   cn,
+  formatAddress,
+  getNetworkName,
   useIsMobile,
   useRuntimeActions,
   useSidebar,
-  useThreadContext,
-  useWalletButtonState
+  useThreadContext
 };
 //# sourceMappingURL=index.js.map

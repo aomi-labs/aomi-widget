@@ -8,24 +8,38 @@ import * as SeparatorPrimitive from '@radix-ui/react-separator';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as AvatarPrimitive from '@radix-ui/react-avatar';
-import * as zustand from 'zustand';
 import { ClassValue } from 'clsx';
+
+type WalletButtonState = {
+    address?: string;
+    chainId?: number;
+    isConnected: boolean;
+    ensName?: string;
+};
+type WalletFooterProps = {
+    wallet: WalletButtonState;
+    setWallet: (data: Partial<WalletButtonState>) => void;
+};
+/**
+ * Get network name from chainId
+ */
+declare const getNetworkName: (chainId: number | string | undefined) => string;
+/**
+ * Format wallet address for display (0x1234...5678)
+ */
+declare const formatAddress: (addr?: string) => string;
 
 type AomiFrameProps = {
     width?: CSSProperties["width"];
     height?: CSSProperties["height"];
     className?: string;
     style?: CSSProperties;
-    /** Wallet address for the user (optional - for wallet integration) */
-    walletAddress?: string;
-    /** Custom sidebar component (optional - replaces default ThreadListSidebar) */
-    sidebar?: ReactNode;
-    /** Footer component for the sidebar (e.g., WalletFooter) */
-    sidebarFooter?: ReactNode;
-    /** Additional content to render inside the frame (e.g., WalletSystemMessenger) */
+    /** Render prop for wallet footer - receives wallet state and setter from lib */
+    walletFooter?: (props: WalletFooterProps) => ReactNode;
+    /** Additional content to render inside the frame */
     children?: ReactNode;
 };
-declare const AomiFrame: ({ width, height, className, style, walletAddress, sidebar, sidebarFooter, children, }: AomiFrameProps) => react_jsx_runtime.JSX.Element;
+declare const AomiFrame: ({ width, height, className, style, walletFooter, children, }: AomiFrameProps) => react_jsx_runtime.JSX.Element;
 
 type RuntimeActions = {
     sendSystemMessage: (message: string) => Promise<void>;
@@ -136,6 +150,8 @@ type SidebarContextProps = {
     setOpenMobile: (open: boolean) => void;
     isMobile: boolean;
     toggleSidebar: () => void;
+    sidebarWidth: number;
+    setSidebarWidth: (width: number) => void;
 };
 declare function useSidebar(): SidebarContextProps;
 declare function SidebarProvider({ defaultOpen, open: openProp, onOpenChange: setOpenProp, className, style, children, ...props }: React$1.ComponentProps<"div"> & {
@@ -276,23 +292,8 @@ declare function SheetFooter({ className, ...props }: React$1.ComponentProps<"di
 declare function SheetTitle({ className, ...props }: React$1.ComponentProps<typeof DialogPrimitive.Title>): react_jsx_runtime.JSX.Element;
 declare function SheetDescription({ className, ...props }: React$1.ComponentProps<typeof DialogPrimitive.Description>): react_jsx_runtime.JSX.Element;
 
-type WalletButtonState = {
-    address?: string;
-    chainId?: number;
-    isConnected: boolean;
-    ensName?: string;
-};
-type WalletActions = {
-    setWallet: (data: Partial<WalletButtonState>) => void;
-};
-/**
- * Shared wallet state store for components to read/write wallet connection status.
- * This store is wallet-agnostic - consumer apps populate it via their own wallet hooks.
- */
-declare const useWalletButtonState: zustand.UseBoundStore<zustand.StoreApi<WalletButtonState & WalletActions>>;
-
 declare function useIsMobile(): boolean;
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, badgeVariants, buttonVariants, cn, useIsMobile, useRuntimeActions, useSidebar, useThreadContext, useWalletButtonState };
+export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, type WalletButtonState, type WalletFooterProps, badgeVariants, buttonVariants, cn, formatAddress, getNetworkName, useIsMobile, useRuntimeActions, useSidebar, useThreadContext };
