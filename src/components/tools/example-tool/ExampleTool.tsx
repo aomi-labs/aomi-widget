@@ -59,7 +59,7 @@ export const ExampleTool = makeAssistantToolUI<
               <div className="flex items-center gap-2">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 <span className="text-sm">
-                  Searching for "{args.query}"...
+                  Searching for &quot;{args.query}&quot;...
                 </span>
               </div>
             )}

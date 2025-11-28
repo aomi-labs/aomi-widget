@@ -35,6 +35,16 @@ const eslintConfig = [
       ...(nextConfig?.rules ?? {}),
       // We lint a library + an example app; there is no root pages/app dir.
       "next/no-html-link-for-pages": "off",
+      // We use React 17+ JSX transform; no need for React in scope.
+      "react/react-in-jsx-scope": "off",
+      // TS types handle props; no runtime prop-types.
+      "react/prop-types": "off",
+    },
+    settings: {
+      ...(nextConfig?.settings ?? {}),
+      react: {
+        version: "detect",
+      },
     },
   },
 ];
