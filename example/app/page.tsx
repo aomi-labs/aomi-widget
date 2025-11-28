@@ -108,9 +108,11 @@ export default function Home() {
                   transition: "height 180ms ease, max-height 180ms ease",
                 }}
               >
-                <AomiFrame height={frameHeight} width="100%" sidebarFooter={<WalletFooter />}>
-                  <WalletSystemMessenger />
-                </AomiFrame>
+                <div className="text-slate-900">
+                  <AomiFrame height={frameHeight} width="100%" sidebarFooter={<WalletFooter />}>
+                    <WalletSystemMessenger />
+                  </AomiFrame>
+                </div>
               </div>
             </div>
           </div>
