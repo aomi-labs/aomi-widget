@@ -300,6 +300,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const startXRef = React.useRef(0);
   const startWidthRef = React.useRef(0);
   const hasDraggedRef = React.useRef(false);
+  const rafRef = React.useRef<number | null>(null);
 
   const handleMouseDown = React.useCallback(
     (e: React.MouseEvent) => {
@@ -318,28 +319,26 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingRef.current) return;
 
-      const deltaX = e.clientX - startXRef.current;
-      // If moved more than 5px, consider it a drag
-      if (Math.abs(deltaX) > 5) {
-        hasDraggedRef.current = true;
+      // Cancel any pending RAF
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
       }
 
-      const rawWidth = startWidthRef.current + deltaX;
+      rafRef.current = requestAnimationFrame(() => {
+        const deltaX = e.clientX - startXRef.current;
+        if (Math.abs(deltaX) > 5) {
+          hasDraggedRef.current = true;
+        }
 
-      // If dragged below minimum, collapse the sidebar
-      if (rawWidth < SIDEBAR_MIN_WIDTH) {
-        setOpen(false);
-        return;
-      }
+        const rawWidth = startWidthRef.current + deltaX;
 
-      if (rawWidth > SIDEBAR_MAX_WIDTH) {
-        setOpen(true);
-        return;
-      } else {
-        // Clamp to max width
-        const newWidth = Math.min(SIDEBAR_MAX_WIDTH, rawWidth);
-        setSidebarWidth(newWidth);
-      }
+        if (rawWidth < SIDEBAR_MIN_WIDTH) {
+          setOpen(false);
+        } else {
+          setOpen(true);
+          setSidebarWidth(Math.min(SIDEBAR_MAX_WIDTH, rawWidth));
+        }
+      });
     };
 
     const handleMouseUp = () => {
@@ -347,6 +346,9 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       isDraggingRef.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
     };
 
     document.addEventListener("mousemove", handleMouseMove);
@@ -359,7 +361,6 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   }, [setSidebarWidth, setOpen]);
 
   const handleClick = React.useCallback(() => {
-    // Only toggle if we didn't drag
     if (!hasDraggedRef.current) {
       toggleSidebar();
     }

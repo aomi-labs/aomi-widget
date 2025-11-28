@@ -1465,7 +1465,7 @@ var SIDEBAR_WIDTH_MOBILE = "18rem";
 var SIDEBAR_WIDTH_ICON = "3rem";
 var SIDEBAR_KEYBOARD_SHORTCUT = "b";
 var SIDEBAR_MIN_WIDTH = 100;
-var SIDEBAR_MAX_WIDTH = 480;
+var SIDEBAR_MAX_WIDTH = 200;
 var SidebarContext = React2.createContext(null);
 function useSidebar() {
   const context = React2.useContext(SidebarContext);
@@ -1693,6 +1693,7 @@ function SidebarRail(_a) {
   const startXRef = React2.useRef(0);
   const startWidthRef = React2.useRef(0);
   const hasDraggedRef = React2.useRef(false);
+  const rafRef = React2.useRef(null);
   const handleMouseDown = React2.useCallback(
     (e) => {
       e.preventDefault();
@@ -1708,24 +1709,31 @@ function SidebarRail(_a) {
   React2.useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isDraggingRef.current) return;
-      const deltaX = e.clientX - startXRef.current;
-      if (Math.abs(deltaX) > 5) {
-        hasDraggedRef.current = true;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
       }
-      const rawWidth = startWidthRef.current + deltaX;
-      if (rawWidth < SIDEBAR_MIN_WIDTH) {
-        setOpen(false);
-        return;
-      }
-      const newWidth = Math.min(SIDEBAR_MAX_WIDTH, rawWidth);
-      setSidebarWidth(newWidth);
-      setOpen(true);
+      rafRef.current = requestAnimationFrame(() => {
+        const deltaX = e.clientX - startXRef.current;
+        if (Math.abs(deltaX) > 5) {
+          hasDraggedRef.current = true;
+        }
+        const rawWidth = startWidthRef.current + deltaX;
+        if (rawWidth < SIDEBAR_MIN_WIDTH) {
+          setOpen(false);
+        } else {
+          setOpen(true);
+          setSidebarWidth(Math.min(SIDEBAR_MAX_WIDTH, rawWidth));
+        }
+      });
     };
     const handleMouseUp = () => {
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
