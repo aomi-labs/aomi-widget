@@ -80,7 +80,7 @@ export const AomiFrame = ({
                 <Breadcrumb>
                   <BreadcrumbList>
                     <BreadcrumbItem className="hidden md:block">
-                      Your First Conversation
+                      Untitled
                     </BreadcrumbItem>
                     <BreadcrumbSeparator className="hidden md:block" />
                   </BreadcrumbList>

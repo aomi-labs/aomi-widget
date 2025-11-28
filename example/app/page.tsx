@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import { WalletFooter, WalletSystemMessenger } from "@/components/wallet";
+import { WalletFooter } from "@/components/wallet";
 
 const highlights = [
   "Ship a full-stack, LLM-ready onchain assistant in one import.",
@@ -44,7 +44,7 @@ export default function Home() {
         className={`relative mx-auto flex w-full ${containerWidthClass} flex-col gap-16 px-10 sm:px-16 xl:px-24 py-14 sm:py-18 lg:py-20 transition-[max-width] duration-200`}
       >
         <section className="grid items-center gap-10 rounded-3xl border border-white/5 bg-white/5 px-6 py-10 shadow-[0_24px_80px_rgba(5,6,15,0.55)] backdrop-blur-md lg:grid-cols-[1.05fr_0.95fr] lg:px-10 lg:py-12">
-          <div className="space-y-6">
+          <div className="ml-5 mr-3 space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200">
               Aomi Widget · React
             </div>
@@ -112,9 +112,11 @@ export default function Home() {
                   className="aomi-frame-embed text-slate-900"
                   data-mode={isExpanded ? "desktop" : "mobile"}
                 >
-                  <AomiFrame height={frameHeight} width="100%" sidebarFooter={<WalletFooter />}>
-                    <WalletSystemMessenger />
-                  </AomiFrame>
+                  <AomiFrame
+                    height={frameHeight} 
+                    width="100%"
+                    walletFooter={(props) => <WalletFooter {...props} />}
+                  />
                 </div>
               </div>
             </div>
