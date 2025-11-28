@@ -102,8 +102,6 @@
     "typescript": "^5",
     "viem": "^2.40.3",
     "wagmi": "^2.19.5",
-    "zustand": "^5.0.8",
-    "@typescript-eslint/eslint-plugin": "^8.18.0",
-    "@typescript-eslint/parser": "^8.18.0"
+    "zustand": "^5.0.8"
   }
 }
