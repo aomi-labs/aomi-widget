@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useState, useCallback, type CSSProperties, type ReactNode } from "react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import {
@@ -18,19 +18,20 @@ import {
 import { cn } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
 import { ThreadContextProvider } from "@/lib/thread-context";
+import {
+  WalletSystemMessageEmitter,
+  type WalletButtonState,
+  type WalletFooterProps,
+} from "@/utils/wallet";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
-  /** Wallet address for the user (optional - for wallet integration) */
-  walletAddress?: string;
-  /** Custom sidebar component (optional - replaces default ThreadListSidebar) */
-  sidebar?: ReactNode;
-  /** Footer component for the sidebar (e.g., WalletFooter) */
-  sidebarFooter?: ReactNode;
-  /** Additional content to render inside the frame (e.g., WalletSystemMessenger) */
+  /** Render prop for wallet footer - receives wallet state and setter from lib */
+  walletFooter?: (props: WalletFooterProps) => ReactNode;
+  /** Additional content to render inside the frame */
   children?: ReactNode;
 };
 
@@ -39,46 +40,58 @@ export const AomiFrame = ({
   height = "80vh",
   className,
   style,
-  walletAddress,
-  sidebar,
-  sidebarFooter,
+  walletFooter,
   children,
 }: AomiFrameProps) => {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
 
+  // Local wallet state (replaces Zustand)
+  const [wallet, setWalletState] = useState<WalletButtonState>({
+    isConnected: false,
+    address: undefined,
+    chainId: undefined,
+    ensName: undefined,
+  });
+
+  const setWallet = useCallback((data: Partial<WalletButtonState>) => {
+    setWalletState((prev) => ({ ...prev, ...data }));
+  }, []);
+
   return (
     <ThreadContextProvider>
-      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={walletAddress}>
-      {children}
-      <SidebarProvider>
-        <div
-          className={cn(
-            "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
-            className
-          )}
-          style={frameStyle}
-        >
-          {sidebar ?? <ThreadListSidebar footer={sidebarFooter} />}
-          <SidebarInset className = "relative">
-            <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
-              <SidebarTrigger />
-              <Separator orientation="vertical" className="mr-2 h-4" />
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem className="hidden md:block">
-                    Your First Conversation
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator className="hidden md:block" />
-                </BreadcrumbList>
-              </Breadcrumb>
-            </header>
-            <div className="flex-1 overflow-hidden">
-              <Thread />
-            </div>
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
+      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={wallet.address}>
+        {/* Internal: watches wallet state and sends system messages */}
+        <WalletSystemMessageEmitter wallet={wallet} />
+        {children}
+        <SidebarProvider>
+          <div
+            className={cn(
+              "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
+              className
+            )}
+            style={frameStyle}
+          >
+            <ThreadListSidebar footer={walletFooter?.({ wallet, setWallet })} />
+            <SidebarInset className="relative">
+              <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
+                <SidebarTrigger />
+                <Separator orientation="vertical" className="mr-2 h-4" />
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem className="hidden md:block">
+                      Your First Conversation
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden md:block" />
+                  </BreadcrumbList>
+                </Breadcrumb>
+              </header>
+              <div className="flex-1 overflow-hidden">
+                <Thread />
+              </div>
+            </SidebarInset>
+          </div>
+        </SidebarProvider>
       </AomiRuntimeProvider>
     </ThreadContextProvider>
   );

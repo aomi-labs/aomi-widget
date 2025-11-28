@@ -1,30 +1,53 @@
 "use client";
 
-import * as React from "react";
+import { useEffect } from "react";
 import { useAppKit } from "@reown/appkit/react";
+import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import { useEnsName } from "wagmi";
 import {
   Button,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useWalletButtonState,
+  formatAddress,
+  getNetworkName,
+  type WalletFooterProps,
 } from "@aomi-labs/widget-lib";
 
-export function WalletFooter() {
-  const { address, chainId, isConnected, ensName } = useWalletButtonState();
+export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
+  const { address, isConnected } = useAppKitAccount();
+  const { chainId } = useAppKitNetwork();
+  const { data: ensName } = useEnsName({
+    address: address as `0x${string}` | undefined,
+    chainId: 1,
+    query: { enabled: Boolean(address) },
+  });
   const { open } = useAppKit();
 
-  const networkName = getNetworkName(chainId as number);
+  // Sync AppKit state → lib
+  useEffect(() => {
+    const numericChainId = typeof chainId === "string" ? Number(chainId) : chainId;
+    setWallet({
+      address,
+      chainId: numericChainId,
+      isConnected,
+      ensName: ensName ?? undefined,
+    });
+  }, [address, chainId, isConnected, ensName, setWallet]);
+
+  const networkName = getNetworkName(wallet.chainId);
 
   const handleClick = () => {
-    if (isConnected) {
+    if (wallet.isConnected) {
       void open({ view: "Account" });
     } else {
       void open({ view: "Connect" });
     }
   };
 
-  const label = isConnected ? ensName ?? formatAddress(address) : "Connect Wallet";
+  const label = wallet.isConnected
+    ? wallet.ensName ?? formatAddress(wallet.address)
+    : "Connect Wallet";
 
   return (
     <SidebarMenu>
@@ -46,40 +69,3 @@ export function WalletFooter() {
     </SidebarMenu>
   );
 }
-
-
-/**
- * Format wallet address for display (0x1234...5678)
- */
-export const formatAddress = (addr?: string): string =>
-  addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-
-/**
- * Get network name from chainId (for system messages - lowercase)
- */
-export const getNetworkName = (chainId: number | string): string => {
-  const id = typeof chainId === "string" ? Number(chainId) : chainId;
-  switch (id) {
-    case 1:
-      return 'ethereum';
-    case 137:
-      return 'polygon';
-    case 42161:
-      return 'arbitrum';
-    case 8453:
-      return 'base';
-    case 10:
-      return 'optimism';
-    case 11155111:
-      return 'sepolia';
-    case 1337:
-    case 31337:
-      return 'testnet';
-    case 59140:
-      return 'linea-sepolia';
-    case 59144:
-      return 'linea';
-    default:
-      return 'testnet';
-  }
-};

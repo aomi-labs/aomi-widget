@@ -113,9 +113,10 @@ export {
 } from "./components/ui/sidebar";
 
 // ============================================
-// Wallet State Store (wallet-agnostic)
+// Wallet Types & Utilities
 // ============================================
-export { useWalletButtonState } from "./utils/wallet";
+export type { WalletButtonState, WalletFooterProps } from "./utils/wallet";
+export { formatAddress, getNetworkName } from "./utils/wallet";
 
 // ============================================
 // Hooks

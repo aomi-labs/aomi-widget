@@ -140,13 +140,17 @@ __export(index_exports, {
   badgeVariants: () => badgeVariants,
   buttonVariants: () => buttonVariants,
   cn: () => cn,
+  formatAddress: () => formatAddress,
+  getNetworkName: () => getNetworkName,
   useIsMobile: () => useIsMobile,
   useRuntimeActions: () => useRuntimeActions,
   useSidebar: () => useSidebar,
-  useThreadContext: () => useThreadContext,
-  useWalletButtonState: () => useWalletButtonState
+  useThreadContext: () => useThreadContext
 });
 module.exports = __toCommonJS(index_exports);
+
+// src/components/aomi-frame.tsx
+var import_react13 = require("react");
 
 // src/components/assistant-ui/thread.tsx
 var import_lucide_react5 = require("lucide-react");
@@ -3041,6 +3045,68 @@ function AomiRuntimeProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react11.AssistantRuntimeProvider, { runtime, children }) });
 }
 
+// src/utils/wallet.ts
+var import_react12 = require("react");
+var getNetworkName = (chainId) => {
+  if (chainId === void 0) return "";
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 42161:
+      return "arbitrum";
+    case 8453:
+      return "base";
+    case 10:
+      return "optimism";
+    case 11155111:
+      return "sepolia";
+    case 1337:
+    case 31337:
+      return "testnet";
+    case 59140:
+      return "linea-sepolia";
+    case 59144:
+      return "linea";
+    default:
+      return "testnet";
+  }
+};
+var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+function WalletSystemMessageEmitter({ wallet }) {
+  const { sendSystemMessage } = useRuntimeActions();
+  const lastWalletRef = (0, import_react12.useRef)({ isConnected: false });
+  (0, import_react12.useEffect)(() => {
+    const prev = lastWalletRef.current;
+    const { address, chainId, isConnected } = wallet;
+    const normalizedAddress = address == null ? void 0 : address.toLowerCase();
+    if (isConnected && normalizedAddress && chainId && (!prev.isConnected || prev.address !== normalizedAddress)) {
+      const networkName = getNetworkName(chainId);
+      const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+      return;
+    }
+    if (!isConnected && prev.isConnected) {
+      void sendSystemMessage("Wallet disconnected by user.");
+      console.log("Wallet disconnected by user.");
+      lastWalletRef.current = { isConnected: false };
+      return;
+    }
+    if (isConnected && normalizedAddress && chainId && prev.isConnected && prev.address === normalizedAddress && prev.chainId !== chainId) {
+      const networkName = getNetworkName(chainId);
+      const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+    }
+  }, [wallet, sendSystemMessage]);
+  return null;
+}
+
 // src/components/aomi-frame.tsx
 var import_jsx_runtime20 = require("react/jsx-runtime");
 var AomiFrame = ({
@@ -3048,15 +3114,23 @@ var AomiFrame = ({
   height = "80vh",
   className,
   style,
-  walletAddress,
-  sidebar,
-  sidebarFooter,
+  walletFooter,
   children
 }) => {
   var _a;
   const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
   const frameStyle = __spreadValues({ width, height }, style);
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(AomiRuntimeProvider, { backendUrl, publicKey: walletAddress, children: [
+  const [wallet, setWalletState] = (0, import_react13.useState)({
+    isConnected: false,
+    address: void 0,
+    chainId: void 0,
+    ensName: void 0
+  });
+  const setWallet = (0, import_react13.useCallback)((data) => {
+    setWalletState((prev) => __spreadValues(__spreadValues({}, prev), data));
+  }, []);
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(AomiRuntimeProvider, { backendUrl, publicKey: wallet.address, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(WalletSystemMessageEmitter, { wallet }),
     children,
     /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(SidebarProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
       "div",
@@ -3067,7 +3141,7 @@ var AomiFrame = ({
         ),
         style: frameStyle,
         children: [
-          sidebar != null ? sidebar : /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadListSidebar, { footer: sidebarFooter }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadListSidebar, { footer: walletFooter == null ? void 0 : walletFooter({ wallet, setWallet }) }),
           /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(SidebarInset, { className: "relative", children: [
             /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("header", { className: "flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3", children: [
               /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(SidebarTrigger, {}),
@@ -3262,16 +3336,6 @@ var Label = React4.forwardRef((_a, ref) => {
   );
 });
 Label.displayName = "Label";
-
-// src/utils/wallet.ts
-var import_react12 = require("zustand/react");
-var useWalletButtonState = (0, import_react12.create)((set) => ({
-  address: void 0,
-  chainId: void 0,
-  isConnected: false,
-  ensName: void 0,
-  setWallet: (data) => set((prev) => __spreadValues(__spreadValues({}, prev), data))
-}));
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AomiFrame,
@@ -3354,10 +3418,11 @@ var useWalletButtonState = (0, import_react12.create)((set) => ({
   badgeVariants,
   buttonVariants,
   cn,
+  formatAddress,
+  getNetworkName,
   useIsMobile,
   useRuntimeActions,
   useSidebar,
-  useThreadContext,
-  useWalletButtonState
+  useThreadContext
 });
 //# sourceMappingURL=index.cjs.map

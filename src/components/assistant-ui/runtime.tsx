@@ -13,7 +13,6 @@ import {
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
 import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
 import { useThreadContext } from "@/lib/thread-context";
-
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;
 };
@@ -50,6 +49,7 @@ export function AomiRuntimeProvider({
     setThreadMessages,
     updateThreadMetadata,
   } = useThreadContext();
+
 
   // ==================== State ====================
   const [isRunning, setIsRunning] = useState(false);

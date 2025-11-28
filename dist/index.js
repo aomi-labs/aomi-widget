@@ -31,6 +31,9 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
+// src/components/aomi-frame.tsx
+import { useState as useState8, useCallback as useCallback4 } from "react";
+
 // src/components/assistant-ui/thread.tsx
 import {
   AlertCircleIcon,
@@ -2959,6 +2962,68 @@ function AomiRuntimeProvider({
   return /* @__PURE__ */ jsx19(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ jsx19(AssistantRuntimeProvider, { runtime, children }) });
 }
 
+// src/utils/wallet.ts
+import { useEffect as useEffect5, useRef as useRef2 } from "react";
+var getNetworkName = (chainId) => {
+  if (chainId === void 0) return "";
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 42161:
+      return "arbitrum";
+    case 8453:
+      return "base";
+    case 10:
+      return "optimism";
+    case 11155111:
+      return "sepolia";
+    case 1337:
+    case 31337:
+      return "testnet";
+    case 59140:
+      return "linea-sepolia";
+    case 59144:
+      return "linea";
+    default:
+      return "testnet";
+  }
+};
+var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+function WalletSystemMessageEmitter({ wallet }) {
+  const { sendSystemMessage } = useRuntimeActions();
+  const lastWalletRef = useRef2({ isConnected: false });
+  useEffect5(() => {
+    const prev = lastWalletRef.current;
+    const { address, chainId, isConnected } = wallet;
+    const normalizedAddress = address == null ? void 0 : address.toLowerCase();
+    if (isConnected && normalizedAddress && chainId && (!prev.isConnected || prev.address !== normalizedAddress)) {
+      const networkName = getNetworkName(chainId);
+      const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+      return;
+    }
+    if (!isConnected && prev.isConnected) {
+      void sendSystemMessage("Wallet disconnected by user.");
+      console.log("Wallet disconnected by user.");
+      lastWalletRef.current = { isConnected: false };
+      return;
+    }
+    if (isConnected && normalizedAddress && chainId && prev.isConnected && prev.address === normalizedAddress && prev.chainId !== chainId) {
+      const networkName = getNetworkName(chainId);
+      const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+    }
+  }, [wallet, sendSystemMessage]);
+  return null;
+}
+
 // src/components/aomi-frame.tsx
 import { jsx as jsx20, jsxs as jsxs13 } from "react/jsx-runtime";
 var AomiFrame = ({
@@ -2966,15 +3031,23 @@ var AomiFrame = ({
   height = "80vh",
   className,
   style,
-  walletAddress,
-  sidebar,
-  sidebarFooter,
+  walletFooter,
   children
 }) => {
   var _a;
   const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
   const frameStyle = __spreadValues({ width, height }, style);
-  return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(AomiRuntimeProvider, { backendUrl, publicKey: walletAddress, children: [
+  const [wallet, setWalletState] = useState8({
+    isConnected: false,
+    address: void 0,
+    chainId: void 0,
+    ensName: void 0
+  });
+  const setWallet = useCallback4((data) => {
+    setWalletState((prev) => __spreadValues(__spreadValues({}, prev), data));
+  }, []);
+  return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(AomiRuntimeProvider, { backendUrl, publicKey: wallet.address, children: [
+    /* @__PURE__ */ jsx20(WalletSystemMessageEmitter, { wallet }),
     children,
     /* @__PURE__ */ jsx20(SidebarProvider, { children: /* @__PURE__ */ jsxs13(
       "div",
@@ -2985,7 +3058,7 @@ var AomiFrame = ({
         ),
         style: frameStyle,
         children: [
-          sidebar != null ? sidebar : /* @__PURE__ */ jsx20(ThreadListSidebar, { footer: sidebarFooter }),
+          /* @__PURE__ */ jsx20(ThreadListSidebar, { footer: walletFooter == null ? void 0 : walletFooter({ wallet, setWallet }) }),
           /* @__PURE__ */ jsxs13(SidebarInset, { className: "relative", children: [
             /* @__PURE__ */ jsxs13("header", { className: "flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3", children: [
               /* @__PURE__ */ jsx20(SidebarTrigger, {}),
@@ -3180,16 +3253,6 @@ var Label = React4.forwardRef((_a, ref) => {
   );
 });
 Label.displayName = "Label";
-
-// src/utils/wallet.ts
-import { create } from "zustand/react";
-var useWalletButtonState = create((set) => ({
-  address: void 0,
-  chainId: void 0,
-  isConnected: false,
-  ensName: void 0,
-  setWallet: (data) => set((prev) => __spreadValues(__spreadValues({}, prev), data))
-}));
 export {
   AomiFrame,
   AomiRuntimeProvider,
@@ -3271,10 +3334,11 @@ export {
   badgeVariants,
   buttonVariants,
   cn,
+  formatAddress,
+  getNetworkName,
   useIsMobile,
   useRuntimeActions,
   useSidebar,
-  useThreadContext,
-  useWalletButtonState
+  useThreadContext
 };
 //# sourceMappingURL=index.js.map
