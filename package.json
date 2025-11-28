@@ -27,7 +27,7 @@
     "build": "next build",
     "build:lib": "tsup",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext ts,tsx",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
     "prepublishOnly": "pnpm run build:lib"
@@ -90,6 +90,8 @@
     "next": "15.5.4",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-shiki": "^0.9.0",
@@ -100,6 +102,8 @@
     "typescript": "^5",
     "viem": "^2.40.3",
     "wagmi": "^2.19.5",
-    "zustand": "^5.0.8"
+    "zustand": "^5.0.8",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0"
   }
 }
