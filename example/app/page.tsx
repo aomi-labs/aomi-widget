@@ -108,7 +108,10 @@ export default function Home() {
                   transition: "height 180ms ease, max-height 180ms ease",
                 }}
               >
-                <div className="text-slate-900">
+                <div
+                  className="aomi-frame-embed text-slate-900"
+                  data-mode={isExpanded ? "desktop" : "mobile"}
+                >
                   <AomiFrame height={frameHeight} width="100%" sidebarFooter={<WalletFooter />}>
                     <WalletSystemMessenger />
                   </AomiFrame>

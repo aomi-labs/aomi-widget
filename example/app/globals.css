@@ -9,3 +9,24 @@
  * Example app can add custom styles below.
  * The library styles (theme variables, base styles) are imported above.
  */
+
+/* Force sidebar collapsed in mobile demo mode */
+.aomi-frame-embed[data-mode="mobile"] {
+  --sidebar-width: 0px;
+  --sidebar-width-icon: 0px;
+}
+
+.aomi-frame-embed[data-mode="mobile"] [data-slot="sidebar"],
+.aomi-frame-embed[data-mode="mobile"] [data-slot="sidebar-gap"],
+.aomi-frame-embed[data-mode="mobile"] [data-slot="sidebar-container"],
+.aomi-frame-embed[data-mode="mobile"] [data-slot="sidebar-rail"] {
+  width: 0 !important;
+  min-width: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.aomi-frame-embed[data-mode="mobile"] [data-slot="sidebar-inset"] {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
