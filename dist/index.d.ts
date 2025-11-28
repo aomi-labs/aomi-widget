@@ -150,6 +150,8 @@ type SidebarContextProps = {
     setOpenMobile: (open: boolean) => void;
     isMobile: boolean;
     toggleSidebar: () => void;
+    sidebarWidth: number;
+    setSidebarWidth: (width: number) => void;
 };
 declare function useSidebar(): SidebarContextProps;
 declare function SidebarProvider({ defaultOpen, open: openProp, onOpenChange: setOpenProp, className, style, children, ...props }: React$1.ComponentProps<"div"> & {

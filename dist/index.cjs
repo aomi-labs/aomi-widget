@@ -1461,10 +1461,11 @@ function Skeleton(_a) {
 var import_jsx_runtime14 = require("react/jsx-runtime");
 var SIDEBAR_COOKIE_NAME = "sidebar_state";
 var SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-var SIDEBAR_WIDTH = "16rem";
 var SIDEBAR_WIDTH_MOBILE = "18rem";
 var SIDEBAR_WIDTH_ICON = "3rem";
 var SIDEBAR_KEYBOARD_SHORTCUT = "b";
+var SIDEBAR_MIN_WIDTH = 100;
+var SIDEBAR_MAX_WIDTH = 480;
 var SidebarContext = React2.createContext(null);
 function useSidebar() {
   const context = React2.useContext(SidebarContext);
@@ -1493,6 +1494,7 @@ function SidebarProvider(_a) {
   const [openMobile, setOpenMobile] = React2.useState(false);
   const [_open, _setOpen] = React2.useState(defaultOpen);
   const open = openProp != null ? openProp : _open;
+  const [sidebarWidth, setSidebarWidth] = React2.useState(256);
   const setOpen = React2.useCallback(
     (value) => {
       const openState = typeof value === "function" ? value(open) : value;
@@ -1527,16 +1529,18 @@ function SidebarProvider(_a) {
       isMobile,
       openMobile,
       setOpenMobile,
-      toggleSidebar
+      toggleSidebar,
+      sidebarWidth,
+      setSidebarWidth
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarWidth]
   );
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SidebarContext.Provider, { value: contextValue, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(TooltipProvider, { delayDuration: 0, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
     "div",
     __spreadProps(__spreadValues({
       "data-slot": "sidebar-wrapper",
       style: __spreadValues({
-        "--sidebar-width": SIDEBAR_WIDTH,
+        "--sidebar-width": `${sidebarWidth}px`,
         "--sidebar-width-icon": SIDEBAR_WIDTH_ICON
       }, style),
       className: cn(
@@ -1684,7 +1688,57 @@ function SidebarTrigger(_a) {
 }
 function SidebarRail(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, sidebarWidth, setSidebarWidth, setOpen } = useSidebar();
+  const isDraggingRef = React2.useRef(false);
+  const startXRef = React2.useRef(0);
+  const startWidthRef = React2.useRef(0);
+  const hasDraggedRef = React2.useRef(false);
+  const handleMouseDown = React2.useCallback(
+    (e) => {
+      e.preventDefault();
+      isDraggingRef.current = true;
+      hasDraggedRef.current = false;
+      startXRef.current = e.clientX;
+      startWidthRef.current = sidebarWidth;
+      document.body.style.cursor = "ew-resize";
+      document.body.style.userSelect = "none";
+    },
+    [sidebarWidth]
+  );
+  React2.useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDraggingRef.current) return;
+      const deltaX = e.clientX - startXRef.current;
+      if (Math.abs(deltaX) > 5) {
+        hasDraggedRef.current = true;
+      }
+      const rawWidth = startWidthRef.current + deltaX;
+      if (rawWidth < SIDEBAR_MIN_WIDTH) {
+        setOpen(false);
+        return;
+      }
+      const newWidth = Math.min(SIDEBAR_MAX_WIDTH, rawWidth);
+      setSidebarWidth(newWidth);
+      setOpen(true);
+    };
+    const handleMouseUp = () => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [setSidebarWidth, setOpen]);
+  const handleClick = React2.useCallback(() => {
+    if (!hasDraggedRef.current) {
+      toggleSidebar();
+    }
+  }, [toggleSidebar]);
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
     "button",
     __spreadValues({
@@ -1692,12 +1746,12 @@ function SidebarRail(_a) {
       "data-slot": "sidebar-rail",
       "aria-label": "Toggle Sidebar",
       tabIndex: -1,
-      onClick: toggleSidebar,
-      title: "Toggle Sidebar",
+      onMouseDown: handleMouseDown,
+      onClick: handleClick,
+      title: "Drag to resize, click to toggle",
       className: cn(
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex",
-        "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
-        "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
+        "cursor-ew-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
         "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
