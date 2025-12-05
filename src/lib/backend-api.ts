@@ -9,6 +9,8 @@ export interface SessionMessage {
 export interface SessionResponsePayload {
   messages?: SessionMessage[] | null;
   is_processing?: boolean;
+  session_exists?: boolean;
+  session_id?: string;
   pending_wallet_tx?: string | null;
 }
 

@@ -2775,6 +2775,7 @@ function useCurrentThreadMetadata() {
 // src/components/assistant-ui/runtime.tsx
 var import_jsx_runtime19 = require("react/jsx-runtime");
 var RuntimeActionsContext = (0, import_react10.createContext)(void 0);
+var isTempThreadId = (id) => id.startsWith("temp-");
 var useRuntimeActions = () => {
   const context = (0, import_react10.useContext)(RuntimeActionsContext);
   if (!context) {
@@ -2804,9 +2805,35 @@ function AomiRuntimeProvider({
   const backendApiRef = (0, import_react10.useRef)(new BackendApi(backendUrl));
   const pollingIntervalRef = (0, import_react10.useRef)(null);
   const pendingSystemMessagesRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const pendingChatMessagesRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
   const currentMessages = getThreadMessages(currentThreadId);
+  const currentThreadIdRef = (0, import_react10.useRef)(currentThreadId);
+  (0, import_react10.useEffect)(() => {
+    currentThreadIdRef.current = currentThreadId;
+  }, [currentThreadId]);
+  const skipInitialFetchRef = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
+  const tempToBackendIdRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const resolveThreadId = (0, import_react10.useCallback)((threadId) => {
+    return tempToBackendIdRef.current.get(threadId) || threadId;
+  }, []);
+  const findTempIdForBackendId = (0, import_react10.useCallback)((backendId) => {
+    for (const [tempId, bId] of tempToBackendIdRef.current.entries()) {
+      if (bId === backendId) return tempId;
+    }
+    return void 0;
+  }, []);
+  const isThreadReady = (0, import_react10.useCallback)((threadId) => {
+    if (!isTempThreadId(threadId)) return true;
+    return tempToBackendIdRef.current.has(threadId);
+  }, []);
   const applyMessages = (0, import_react10.useCallback)((msgs) => {
+    var _a, _b;
     if (!msgs) return;
+    const hasPendingMessages = pendingChatMessagesRef.current.has(currentThreadId) && ((_b = (_a = pendingChatMessagesRef.current.get(currentThreadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
+    if (hasPendingMessages) {
+      console.log("Skipping applyMessages - pending messages exist for thread:", currentThreadId);
+      return;
+    }
     const threadMessages = [];
     for (const msg of msgs) {
       if (msg.sender === "system") {
@@ -2833,11 +2860,18 @@ function AomiRuntimeProvider({
     }
   }, []);
   const startPolling = (0, import_react10.useCallback)(() => {
+    if (!isThreadReady(currentThreadId)) return;
     if (pollingIntervalRef.current) return;
+    const backendThreadId = resolveThreadId(currentThreadId);
     setIsRunning(true);
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        const state = await backendApiRef.current.fetchState(currentThreadId);
+        const state = await backendApiRef.current.fetchState(backendThreadId);
+        if (state.session_exists === false) {
+          setIsRunning(false);
+          stopPolling();
+          return;
+        }
         applyMessages(state.messages);
         if (!state.is_processing) {
           setIsRunning(false);
@@ -2849,11 +2883,25 @@ function AomiRuntimeProvider({
         setIsRunning(false);
       }
     }, 500);
-  }, [currentThreadId, applyMessages, stopPolling]);
+  }, [currentThreadId, applyMessages, stopPolling, isThreadReady, resolveThreadId]);
   (0, import_react10.useEffect)(() => {
     const fetchInitialState = async () => {
+      if (isTempThreadId(currentThreadId) && !tempToBackendIdRef.current.has(currentThreadId)) {
+        setIsRunning(false);
+        return;
+      }
+      if (skipInitialFetchRef.current.has(currentThreadId)) {
+        skipInitialFetchRef.current.delete(currentThreadId);
+        setIsRunning(false);
+        return;
+      }
+      const backendThreadId = resolveThreadId(currentThreadId);
       try {
-        const state = await backendApiRef.current.fetchState(currentThreadId);
+        const state = await backendApiRef.current.fetchState(backendThreadId);
+        if (state.session_exists === false) {
+          setIsRunning(false);
+          return;
+        }
         applyMessages(state.messages);
         if (state.is_processing) {
           setIsRunning(true);
@@ -2869,7 +2917,7 @@ function AomiRuntimeProvider({
     return () => {
       stopPolling();
     };
-  }, [currentThreadId, applyMessages, startPolling, stopPolling]);
+  }, [currentThreadId, applyMessages, startPolling, stopPolling, resolveThreadId]);
   (0, import_react10.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
@@ -2925,22 +2973,24 @@ function AomiRuntimeProvider({
         );
         setThreadMessages(tempId, []);
         setCurrentThreadId(tempId);
-        backendApiRef.current.createThread(publicKey, void 0).then((newThread) => {
+        backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
           const backendId = newThread.session_id;
-          setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            next.delete(tempId);
-            next.set(backendId, { title: "New Chat", status: "regular" });
-            return next;
-          });
-          setThreads((prev) => {
-            const next = new Map(prev);
-            const tempMessages = next.get(tempId) || [];
-            next.delete(tempId);
-            next.set(backendId, tempMessages);
-            return next;
-          });
-          setCurrentThreadId(backendId);
+          tempToBackendIdRef.current.set(tempId, backendId);
+          skipInitialFetchRef.current.add(tempId);
+          const pendingMessages = pendingChatMessagesRef.current.get(tempId);
+          if (pendingMessages == null ? void 0 : pendingMessages.length) {
+            pendingChatMessagesRef.current.delete(tempId);
+            for (const text of pendingMessages) {
+              try {
+                await backendApiRef.current.postChatMessage(backendId, text);
+              } catch (error) {
+                console.error("Failed to send queued message:", error);
+              }
+            }
+            if (currentThreadIdRef.current === tempId) {
+              startPolling();
+            }
+          }
         }).catch((error) => {
           console.error("Failed to create new thread:", error);
           setThreadMetadata((prev) => {
@@ -3024,9 +3074,10 @@ function AomiRuntimeProvider({
   })();
   const sendSystemMessageNow = (0, import_react10.useCallback)(
     async (threadId, message) => {
+      const backendThreadId = resolveThreadId(threadId);
       setIsRunning(true);
       try {
-        const response = await backendApiRef.current.postSystemMessage(threadId, message);
+        const response = await backendApiRef.current.postSystemMessage(backendThreadId, message);
         if (response.res) {
           const systemMessage = constructSystemMessage(response.res);
           if (systemMessage) {
@@ -3040,7 +3091,7 @@ function AomiRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [getThreadMessages, setThreadMessages, startPolling]
+    [getThreadMessages, setThreadMessages, startPolling, resolveThreadId]
   );
   const flushPendingSystemMessages = (0, import_react10.useCallback)(
     async (threadId) => {
@@ -3053,6 +3104,23 @@ function AomiRuntimeProvider({
     },
     [sendSystemMessageNow]
   );
+  const flushPendingChatMessages = (0, import_react10.useCallback)(
+    async (threadId) => {
+      const pending = pendingChatMessagesRef.current.get(threadId);
+      if (!(pending == null ? void 0 : pending.length)) return;
+      pendingChatMessagesRef.current.delete(threadId);
+      const backendThreadId = resolveThreadId(threadId);
+      for (const text of pending) {
+        try {
+          await backendApiRef.current.postChatMessage(backendThreadId, text);
+        } catch (error) {
+          console.error("Failed to send queued message:", error);
+        }
+      }
+      startPolling();
+    },
+    [resolveThreadId, startPolling]
+  );
   const onNew = (0, import_react10.useCallback)(
     async (message) => {
       const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
@@ -3063,9 +3131,17 @@ function AomiRuntimeProvider({
         createdAt: /* @__PURE__ */ new Date()
       };
       setThreadMessages(currentThreadId, [...currentMessages, userMessage]);
+      if (!isThreadReady(currentThreadId)) {
+        console.log("Thread not ready yet; queuing message for later delivery.");
+        setIsRunning(true);
+        const pending = pendingChatMessagesRef.current.get(currentThreadId) || [];
+        pendingChatMessagesRef.current.set(currentThreadId, [...pending, text]);
+        return;
+      }
+      const backendThreadId = resolveThreadId(currentThreadId);
       try {
         setIsRunning(true);
-        await backendApiRef.current.postChatMessage(currentThreadId, text);
+        await backendApiRef.current.postChatMessage(backendThreadId, text);
         await flushPendingSystemMessages(currentThreadId);
         startPolling();
       } catch (error) {
@@ -3073,10 +3149,11 @@ function AomiRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [currentThreadId, currentMessages, flushPendingSystemMessages, setThreadMessages, startPolling]
+    [currentThreadId, currentMessages, flushPendingSystemMessages, setThreadMessages, startPolling, isThreadReady, resolveThreadId]
   );
   const sendSystemMessage = (0, import_react10.useCallback)(
     async (message) => {
+      if (!isThreadReady(currentThreadId)) return;
       const threadMessages = getThreadMessages(currentThreadId);
       const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
       if (!hasUserMessages) {
@@ -3086,17 +3163,19 @@ function AomiRuntimeProvider({
       }
       await sendSystemMessageNow(currentThreadId, message);
     },
-    [currentThreadId, getThreadMessages, sendSystemMessageNow]
+    [currentThreadId, getThreadMessages, sendSystemMessageNow, isThreadReady]
   );
   const onCancel = (0, import_react10.useCallback)(async () => {
+    if (!isThreadReady(currentThreadId)) return;
     stopPolling();
+    const backendThreadId = resolveThreadId(currentThreadId);
     try {
-      await backendApiRef.current.postInterrupt(currentThreadId);
+      await backendApiRef.current.postInterrupt(backendThreadId);
       setIsRunning(false);
     } catch (error) {
       console.error("Failed to cancel:", error);
     }
-  }, [currentThreadId, stopPolling]);
+  }, [currentThreadId, stopPolling, isThreadReady, resolveThreadId]);
   const runtime = (0, import_react11.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => setThreadMessages(currentThreadId, [...msgs]),
@@ -3110,6 +3189,7 @@ function AomiRuntimeProvider({
     }
   });
   (0, import_react10.useEffect)(() => {
+    if (isTempThreadId(currentThreadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
     if (hasUserMessages) {
       void flushPendingSystemMessages(currentThreadId);
@@ -3121,11 +3201,13 @@ function AomiRuntimeProvider({
         if (update.type !== "TitleChanged") return;
         const sessionId = update.data.session_id;
         const newTitle = update.data.new_title;
+        const tempId = findTempIdForBackendId(sessionId);
+        const threadIdToUpdate = tempId || sessionId;
         setThreadMetadata((prev) => {
           var _a;
           const next = new Map(prev);
-          const existing = next.get(sessionId);
-          next.set(sessionId, { title: newTitle, status: (_a = existing == null ? void 0 : existing.status) != null ? _a : "regular" });
+          const existing = next.get(threadIdToUpdate);
+          next.set(threadIdToUpdate, { title: newTitle, status: (_a = existing == null ? void 0 : existing.status) != null ? _a : "regular" });
           return next;
         });
       },
@@ -3136,7 +3218,7 @@ function AomiRuntimeProvider({
     return () => {
       unsubscribe();
     };
-  }, [backendUrl, setThreadMetadata]);
+  }, [backendUrl, setThreadMetadata, findTempIdForBackendId]);
   return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react11.AssistantRuntimeProvider, { runtime, children }) });
 }
 
