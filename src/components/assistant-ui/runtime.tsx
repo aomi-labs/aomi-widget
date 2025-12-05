@@ -24,6 +24,10 @@ const parseTimestamp = (value?: string) => {
   const ts = Date.parse(value);
   return Number.isNaN(ts) ? 0 : ts;
 };
+const isPlaceholderTitle = (title?: string) => {
+  const normalized = title?.trim() ?? "";
+  return !normalized || normalized.startsWith("#[");
+};
 
 export const useRuntimeActions = () => {
   const context = useContext(RuntimeActionsContext);
@@ -230,7 +234,8 @@ export function AomiRuntimeProvider({
         let maxChatNum = threadCnt;
 
         for (const thread of threadList) {
-          const title = thread.title || "New Chat";
+          const rawTitle = thread.title ?? "";
+          const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive =
             thread.last_active_at ||
             thread.updated_at ||
@@ -279,19 +284,21 @@ export function AomiRuntimeProvider({
 
     const regularThreads = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "regular")
+      .filter(([_, meta]) => !isPlaceholderTitle(meta.title))
       .sort(sortByLastActiveDesc)
       .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
         id,
-        title: meta.title,
+        title: meta.title || "New Chat",
         status: "regular",
       }));
 
     const archivedThreadsArray = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "archived")
+      .filter(([_, meta]) => !isPlaceholderTitle(meta.title))
       .sort(sortByLastActiveDesc)
       .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
         id,
-        title: meta.title,
+        title: meta.title || "New Chat",
         status: "archived",
       }));
 
@@ -375,7 +382,7 @@ export function AomiRuntimeProvider({
       // Rename thread
       onRename: async (threadId: string, newTitle: string) => {
         // Optimistic update
-        updateThreadMetadata(threadId, { title: newTitle });
+        updateThreadMetadata(threadId, { title: isPlaceholderTitle(newTitle) ? "" : newTitle });
 
         try {
           await backendApiRef.current.renameThread(threadId, newTitle);
@@ -642,7 +649,7 @@ export function AomiRuntimeProvider({
           const next = new Map(prev);
           const existing = next.get(threadIdToUpdate);
           next.set(threadIdToUpdate, {
-            title: newTitle,
+            title: isPlaceholderTitle(newTitle) ? "" : newTitle,
             status: existing?.status ?? "regular",
             lastActiveAt: existing?.lastActiveAt,
           });

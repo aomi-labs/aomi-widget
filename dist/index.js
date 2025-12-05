@@ -2703,6 +2703,11 @@ var parseTimestamp2 = (value) => {
   const ts = Date.parse(value);
   return Number.isNaN(ts) ? 0 : ts;
 };
+var isPlaceholderTitle = (title) => {
+  var _a;
+  const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
+  return !normalized || normalized.startsWith("#[");
+};
 var useRuntimeActions = () => {
   const context = useContext3(RuntimeActionsContext);
   if (!context) {
@@ -2848,14 +2853,15 @@ function AomiRuntimeProvider({
   useEffect4(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
-      var _a;
+      var _a, _b;
       try {
         const threadList = await backendApiRef.current.fetchThreads(publicKey);
         const newMetadata = new Map(threadMetadata);
         let maxChatNum = threadCnt;
         for (const thread of threadList) {
-          const title = thread.title || "New Chat";
-          const lastActive = thread.last_active_at || thread.updated_at || thread.created_at || ((_a = newMetadata.get(thread.session_id)) == null ? void 0 : _a.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
+          const rawTitle = (_a = thread.title) != null ? _a : "";
+          const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
+          const lastActive = thread.last_active_at || thread.updated_at || thread.created_at || ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
@@ -2885,14 +2891,14 @@ function AomiRuntimeProvider({
       const tsB = parseTimestamp2(metaB.lastActiveAt);
       return tsB - tsA;
     };
-    const regularThreads = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(([id, meta]) => ({
+    const regularThreads = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "regular").filter(([_, meta]) => !isPlaceholderTitle(meta.title)).sort(sortByLastActiveDesc).map(([id, meta]) => ({
       id,
-      title: meta.title,
+      title: meta.title || "New Chat",
       status: "regular"
     }));
-    const archivedThreadsArray = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(([id, meta]) => ({
+    const archivedThreadsArray = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "archived").filter(([_, meta]) => !isPlaceholderTitle(meta.title)).sort(sortByLastActiveDesc).map(([id, meta]) => ({
       id,
-      title: meta.title,
+      title: meta.title || "New Chat",
       status: "archived"
     }));
     return {
@@ -2949,7 +2955,7 @@ function AomiRuntimeProvider({
       },
       // Rename thread
       onRename: async (threadId, newTitle) => {
-        updateThreadMetadata(threadId, { title: newTitle });
+        updateThreadMetadata(threadId, { title: isPlaceholderTitle(newTitle) ? "" : newTitle });
         try {
           await backendApiRef.current.renameThread(threadId, newTitle);
         } catch (error) {
@@ -3160,7 +3166,7 @@ function AomiRuntimeProvider({
           const next = new Map(prev);
           const existing = next.get(threadIdToUpdate);
           next.set(threadIdToUpdate, {
-            title: newTitle,
+            title: isPlaceholderTitle(newTitle) ? "" : newTitle,
             status: (_a = existing == null ? void 0 : existing.status) != null ? _a : "regular",
             lastActiveAt: existing == null ? void 0 : existing.lastActiveAt
           });
