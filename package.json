@@ -27,6 +27,7 @@
     "dev:example:live": "pnpm run build:lib -- --watch & pnpm --filter example dev",
     "build": "next build",
     "build:lib": "tsup",
+    "vercel-build": "pnpm run build:lib && next build",
     "start": "next start",
     "lint": "eslint . --ext ts,tsx",
     "prettier": "prettier --check .",
