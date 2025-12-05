@@ -210,26 +210,56 @@ export function AomiRuntimeProvider({
 
       // Create new thread
       onSwitchToNewThread: async () => {
-        try {
-          // Generate sequential title
-          const nextCount = threadCnt + 1;
-          const chatTitle = `Chat ${nextCount}`;
+        // Generate a temporary ID for immediate UI update
+        const tempId = `temp-${crypto.randomUUID()}`;
+        
+        // Immediately show the new chat in UI (non-blocking)
+        setThreadMetadata((prev) =>
+          new Map(prev).set(tempId, { title: "New Chat", status: "regular" })
+        );
+        setThreadMessages(tempId, []);
+        setCurrentThreadId(tempId);
 
-          // Create thread with title
-          const newThread = await backendApiRef.current.createThread(publicKey, chatTitle);
-          const backendId = newThread.session_id;
-          const backendTitle = newThread.title || chatTitle;
-
-          setThreadMetadata((prev) =>
-            new Map(prev).set(backendId, { title: backendTitle, status: "regular" })
-          );
-          setThreadMessages(backendId, []);
-          setCurrentThreadId(backendId);
-          setThreadCnt(nextCount); // Increment counter
-        } catch (error) {
-          console.error("Failed to create new thread:", error);
-          // Could show error toast to user here
-        }
+        // Create thread on backend in background (with null title)
+        backendApiRef.current.createThread(publicKey, undefined)
+          .then((newThread) => {
+            const backendId = newThread.session_id;
+            
+            // Replace temp thread with real backend thread
+            setThreadMetadata((prev) => {
+              const next = new Map(prev);
+              // Remove temp entry
+              next.delete(tempId);
+              // Add real entry with "New Chat" as display title
+              next.set(backendId, { title: "New Chat", status: "regular" });
+              return next;
+            });
+            
+            setThreads((prev) => {
+              const next = new Map(prev);
+              const tempMessages = next.get(tempId) || [];
+              next.delete(tempId);
+              next.set(backendId, tempMessages);
+              return next;
+            });
+            
+            // Update current thread ID to the real one
+            setCurrentThreadId(backendId);
+          })
+          .catch((error) => {
+            console.error("Failed to create new thread:", error);
+            // On error, remove the temp thread from UI
+            setThreadMetadata((prev) => {
+              const next = new Map(prev);
+              next.delete(tempId);
+              return next;
+            });
+            setThreads((prev) => {
+              const next = new Map(prev);
+              next.delete(tempId);
+              return next;
+            });
+          });
       },
 
       // Switch to existing thread

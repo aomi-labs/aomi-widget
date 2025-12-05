@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
-import { ThreadContextProvider } from "@/lib/thread-context";
+import { ThreadContextProvider, useCurrentThreadMetadata } from "@/lib/thread-context";
 import {
   WalletSystemMessageEmitter,
   type WalletButtonState,
@@ -63,36 +63,68 @@ export const AomiFrame = ({
       <AomiRuntimeProvider backendUrl={backendUrl} publicKey={wallet.address}>
         {/* Internal: watches wallet state and sends system messages */}
         <WalletSystemMessageEmitter wallet={wallet} />
-        {children}
-        <SidebarProvider>
-          <div
-            className={cn(
-              "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
-              className
-            )}
-            style={frameStyle}
-          >
-            <ThreadListSidebar footer={walletFooter?.({ wallet, setWallet })} />
-            <SidebarInset className="relative">
-              <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
-                <SidebarTrigger />
-                <Separator orientation="vertical" className="mr-2 h-4" />
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem className="hidden md:block">
-                      Untitled
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator className="hidden md:block" />
-                  </BreadcrumbList>
-                </Breadcrumb>
-              </header>
-              <div className="flex-1 overflow-hidden">
-                <Thread />
-              </div>
-            </SidebarInset>
-          </div>
-        </SidebarProvider>
+        <FrameShell
+          className={className}
+          frameStyle={frameStyle}
+          walletFooter={walletFooter}
+          wallet={wallet}
+          setWallet={setWallet}
+        >
+          {children}
+        </FrameShell>
       </AomiRuntimeProvider>
     </ThreadContextProvider>
+  );
+};
+
+type FrameShellProps = {
+  className?: string;
+  frameStyle: CSSProperties;
+  walletFooter?: (props: WalletFooterProps) => ReactNode;
+  wallet: WalletButtonState;
+  setWallet: (data: Partial<WalletButtonState>) => void;
+  children?: ReactNode;
+};
+
+const FrameShell = ({
+  className,
+  frameStyle,
+  walletFooter,
+  wallet,
+  setWallet,
+  children,
+}: FrameShellProps) => {
+  const currentTitle = useCurrentThreadMetadata()?.title ?? "New Chat";
+
+  return (
+    <SidebarProvider>
+      {children}
+      <div
+        className={cn(
+          "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
+          className
+        )}
+        style={frameStyle}
+      >
+        <ThreadListSidebar footer={walletFooter?.({ wallet, setWallet })} />
+        <SidebarInset className="relative">
+          <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
+            <SidebarTrigger />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem className="hidden md:block">
+                  {currentTitle}
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+              </BreadcrumbList>
+            </Breadcrumb>
+          </header>
+          <div className="flex-1 overflow-hidden">
+            <Thread />
+          </div>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 };

@@ -2022,7 +2022,7 @@ import {
   ThreadListPrimitive,
   useAssistantState as useAssistantState2
 } from "@assistant-ui/react";
-import { ArchiveIcon, PlusIcon as PlusIcon2 } from "lucide-react";
+import { PlusIcon as PlusIcon2, TrashIcon } from "lucide-react";
 import { Fragment, jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
 var ThreadList = () => {
   return /* @__PURE__ */ jsxs10(ThreadListPrimitive.Root, { className: "aui-root aui-thread-list-root flex flex-col items-stretch gap-1.5", children: [
@@ -2038,7 +2038,7 @@ var ThreadListNew = () => {
       variant: "ghost",
       children: [
         /* @__PURE__ */ jsx15(PlusIcon2, {}),
-        "New Thread"
+        "New Chat"
       ]
     }
   ) });
@@ -2066,20 +2066,29 @@ var ThreadListSkeleton = () => {
 var ThreadListItem = () => {
   return /* @__PURE__ */ jsxs10(ThreadListItemPrimitive.Root, { className: "aui-thread-list-item flex items-center gap-2 rounded-lg transition-all hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-muted", children: [
     /* @__PURE__ */ jsx15(ThreadListItemPrimitive.Trigger, { className: "aui-thread-list-item-trigger flex-grow px-3 py-2 text-start", children: /* @__PURE__ */ jsx15(ThreadListItemTitle, {}) }),
-    /* @__PURE__ */ jsx15(ThreadListItemArchive, {})
+    /* @__PURE__ */ jsx15(ThreadListItemDelete, {})
   ] });
 };
 var ThreadListItemTitle = () => {
   return /* @__PURE__ */ jsx15("span", { className: "aui-thread-list-item-title text-sm", children: /* @__PURE__ */ jsx15(ThreadListItemPrimitive.Title, { fallback: "New Chat" }) });
 };
-var ThreadListItemArchive = () => {
-  return /* @__PURE__ */ jsx15(ThreadListItemPrimitive.Archive, { asChild: true, children: /* @__PURE__ */ jsx15(
+var ThreadListItemDelete = () => {
+  return /* @__PURE__ */ jsx15(ThreadListItemPrimitive.Delete, { asChild: true, children: /* @__PURE__ */ jsx15(
     TooltipIconButton,
     {
-      className: "aui-thread-list-item-archive mr-3 ml-auto size-4 p-0 text-foreground hover:text-primary",
+      className: "aui-thread-list-item-delete mr-3 ml-auto size-4 p-0 text-foreground hover:text-primary",
       variant: "ghost",
-      tooltip: "Archive thread",
-      children: /* @__PURE__ */ jsx15(ArchiveIcon, {})
+      tooltip: "Delete thread",
+      onClick: (event) => {
+        const confirmed = window.confirm(
+          "Delete this chat? This action cannot be undone."
+        );
+        if (!confirmed) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      },
+      children: /* @__PURE__ */ jsx15(TrashIcon, {})
     }
   ) });
 };
@@ -2405,7 +2414,7 @@ var BackendApi = class {
   /**
    * Create a new thread/session
    * @param publicKey - Optional user's wallet address
-   * @param title - Thread title (e.g., "Chat 1", "Chat 2")
+   * @param title - Thread title (keep empty for backend to own the title)
    * @returns Created thread information with backend-generated ID
    */
   async createThread(publicKey, title) {
@@ -2595,7 +2604,7 @@ function ThreadContextProvider({
     () => /* @__PURE__ */ new Map([[generateThreadId, []]])
   );
   const [threadMetadata, setThreadMetadata] = useState6(
-    () => /* @__PURE__ */ new Map([[generateThreadId, { title: "Chat 1", status: "regular" }]])
+    () => /* @__PURE__ */ new Map([[generateThreadId, { title: "New Chat", status: "regular" }]])
   );
   const ensureThreadExists = useCallback2(
     (threadId) => {
@@ -2674,6 +2683,10 @@ function ThreadContextProvider({
     updateThreadMetadata
   };
   return /* @__PURE__ */ jsx18(ThreadContext.Provider, { value, children });
+}
+function useCurrentThreadMetadata() {
+  const { currentThreadId, getThreadMetadata } = useThreadContext();
+  return getThreadMetadata(currentThreadId);
 }
 
 // src/components/assistant-ui/runtime.tsx
@@ -2823,21 +2836,41 @@ function AomiRuntimeProvider({
       archivedThreads: archivedThreadsArray,
       // Create new thread
       onSwitchToNewThread: async () => {
-        try {
-          const nextCount = threadCnt + 1;
-          const chatTitle = `Chat ${nextCount}`;
-          const newThread = await backendApiRef.current.createThread(publicKey, chatTitle);
+        const tempId = `temp-${crypto.randomUUID()}`;
+        setThreadMetadata(
+          (prev) => new Map(prev).set(tempId, { title: "New Chat", status: "regular" })
+        );
+        setThreadMessages(tempId, []);
+        setCurrentThreadId(tempId);
+        backendApiRef.current.createThread(publicKey, void 0).then((newThread) => {
           const backendId = newThread.session_id;
-          const backendTitle = newThread.title || chatTitle;
-          setThreadMetadata(
-            (prev) => new Map(prev).set(backendId, { title: backendTitle, status: "regular" })
-          );
-          setThreadMessages(backendId, []);
+          setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(tempId);
+            next.set(backendId, { title: "New Chat", status: "regular" });
+            return next;
+          });
+          setThreads((prev) => {
+            const next = new Map(prev);
+            const tempMessages = next.get(tempId) || [];
+            next.delete(tempId);
+            next.set(backendId, tempMessages);
+            return next;
+          });
           setCurrentThreadId(backendId);
-          setThreadCnt(nextCount);
-        } catch (error) {
+        }).catch((error) => {
           console.error("Failed to create new thread:", error);
-        }
+          setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(tempId);
+            return next;
+          });
+          setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(tempId);
+            return next;
+          });
+        });
       },
       // Switch to existing thread
       onSwitchToThread: (threadId) => {
@@ -3110,8 +3143,32 @@ var AomiFrame = ({
   }, []);
   return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(AomiRuntimeProvider, { backendUrl, publicKey: wallet.address, children: [
     /* @__PURE__ */ jsx20(WalletSystemMessageEmitter, { wallet }),
+    /* @__PURE__ */ jsx20(
+      FrameShell,
+      {
+        className,
+        frameStyle,
+        walletFooter,
+        wallet,
+        setWallet,
+        children
+      }
+    )
+  ] }) });
+};
+var FrameShell = ({
+  className,
+  frameStyle,
+  walletFooter,
+  wallet,
+  setWallet,
+  children
+}) => {
+  var _a, _b;
+  const currentTitle = (_b = (_a = useCurrentThreadMetadata()) == null ? void 0 : _a.title) != null ? _b : "New Chat";
+  return /* @__PURE__ */ jsxs13(SidebarProvider, { children: [
     children,
-    /* @__PURE__ */ jsx20(SidebarProvider, { children: /* @__PURE__ */ jsxs13(
+    /* @__PURE__ */ jsxs13(
       "div",
       {
         className: cn(
@@ -3126,7 +3183,7 @@ var AomiFrame = ({
               /* @__PURE__ */ jsx20(SidebarTrigger, {}),
               /* @__PURE__ */ jsx20(Separator, { orientation: "vertical", className: "mr-2 h-4" }),
               /* @__PURE__ */ jsx20(Breadcrumb, { children: /* @__PURE__ */ jsxs13(BreadcrumbList, { children: [
-                /* @__PURE__ */ jsx20(BreadcrumbItem, { className: "hidden md:block", children: "Your First Conversation" }),
+                /* @__PURE__ */ jsx20(BreadcrumbItem, { className: "hidden md:block", children: currentTitle }),
                 /* @__PURE__ */ jsx20(BreadcrumbSeparator, { className: "hidden md:block" })
               ] }) })
             ] }),
@@ -3134,8 +3191,8 @@ var AomiFrame = ({
           ] })
         ]
       }
-    ) })
-  ] }) });
+    )
+  ] });
 };
 
 // src/components/assistant-ui/base-sidebar.tsx

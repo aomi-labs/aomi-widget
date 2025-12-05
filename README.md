@@ -26,6 +26,7 @@ export function Assistant() {
 pnpm install
 pnpm run build:lib        # build the published bundle
 pnpm --filter example dev # run the landing/demo (http://localhost:3000)
+pnpm run dev:example:live # watch the library and run the example together
 pnpm lint                 # lint library + example source
 ```
 

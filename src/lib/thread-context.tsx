@@ -128,7 +128,7 @@ export function ThreadContextProvider({
 
   // Thread metadata storage
   const [threadMetadata, setThreadMetadata] = useState<Map<string, ThreadMetadata>>(
-    () => new Map([[generateThreadId, { title: "Chat 1", status: "regular" }]])
+    () => new Map([[generateThreadId, { title: "New Chat", status: "regular" }]])
   );
 
   // Ensure a thread has placeholder metadata/messages before use

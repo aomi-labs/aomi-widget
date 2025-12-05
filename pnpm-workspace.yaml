@@ -1,3 +1,13 @@
 packages:
-  - "."
-  - "example"
+  - .
+  - example
+
+onlyBuiltDependencies:
+  - '@reown/appkit'
+  - '@tailwindcss/oxide'
+  - bufferutil
+  - esbuild
+  - keccak
+  - sharp
+  - unrs-resolver
+  - utf-8-validate

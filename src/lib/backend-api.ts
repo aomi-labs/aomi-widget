@@ -252,7 +252,7 @@ export class BackendApi {
   /**
    * Create a new thread/session
    * @param publicKey - Optional user's wallet address
-   * @param title - Thread title (e.g., "Chat 1", "Chat 2")
+   * @param title - Thread title (keep empty for backend to own the title)
    * @returns Created thread information with backend-generated ID
    */
   async createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse> {
