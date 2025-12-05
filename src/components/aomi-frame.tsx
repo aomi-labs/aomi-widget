@@ -29,6 +29,8 @@ type AomiFrameProps = {
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
+  /** Whether to show the border around the frame. Defaults to true. */
+  showBorder?: boolean;
   /** Render prop for wallet footer - receives wallet state and setter from lib */
   walletFooter?: (props: WalletFooterProps) => ReactNode;
   /** Additional content to render inside the frame */
@@ -40,6 +42,7 @@ export const AomiFrame = ({
   height = "80vh",
   className,
   style,
+  showBorder = true,
   walletFooter,
   children,
 }: AomiFrameProps) => {
@@ -66,6 +69,7 @@ export const AomiFrame = ({
         <FrameShell
           className={className}
           frameStyle={frameStyle}
+          showBorder={showBorder}
           walletFooter={walletFooter}
           wallet={wallet}
           setWallet={setWallet}
@@ -80,6 +84,7 @@ export const AomiFrame = ({
 type FrameShellProps = {
   className?: string;
   frameStyle: CSSProperties;
+  showBorder?: boolean;
   walletFooter?: (props: WalletFooterProps) => ReactNode;
   wallet: WalletButtonState;
   setWallet: (data: Partial<WalletButtonState>) => void;
@@ -89,6 +94,7 @@ type FrameShellProps = {
 const FrameShell = ({
   className,
   frameStyle,
+  showBorder = true,
   walletFooter,
   wallet,
   setWallet,
@@ -101,7 +107,8 @@ const FrameShell = ({
       {children}
       <div
         className={cn(
-          "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
+          "flex h-full w-full overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950",
+          showBorder && "border border-neutral-800",
           className
         )}
         style={frameStyle}
