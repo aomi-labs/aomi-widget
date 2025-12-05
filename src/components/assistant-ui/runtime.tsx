@@ -12,13 +12,18 @@ import {
 } from "@assistant-ui/react";
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
 import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
-import { useThreadContext } from "@/lib/thread-context";
+import { useThreadContext, type ThreadMetadata } from "@/lib/thread-context";
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;
 };
 const RuntimeActionsContext = createContext<RuntimeActions | undefined>(undefined);
 
 const isTempThreadId = (id: string) => id.startsWith("temp-");
+const parseTimestamp = (value?: string) => {
+  if (!value) return 0;
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+};
 
 export const useRuntimeActions = () => {
   const context = useContext(RuntimeActionsContext);
@@ -51,7 +56,6 @@ export function AomiRuntimeProvider({
     setThreadMessages,
     updateThreadMetadata,
   } = useThreadContext();
-
 
   // ==================== State ====================
   const [isRunning, setIsRunning] = useState(false);
@@ -227,9 +231,16 @@ export function AomiRuntimeProvider({
 
         for (const thread of threadList) {
           const title = thread.title || "New Chat";
+          const lastActive =
+            thread.last_active_at ||
+            thread.updated_at ||
+            thread.created_at ||
+            newMetadata.get(thread.session_id)?.lastActiveAt ||
+            new Date().toISOString();
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
+            lastActiveAt: lastActive,
           });
 
           // Extract chat number if title follows "Chat N" format
@@ -257,24 +268,32 @@ export function AomiRuntimeProvider({
 
   // ==================== Thread List Adapter ====================
   const threadListAdapter: ExternalStoreThreadListAdapter = (() => {
-    // Build thread arrays from metadata (newest first)
+    const sortByLastActiveDesc = (
+      [, metaA]: [string, ThreadMetadata],
+      [, metaB]: [string, ThreadMetadata]
+    ) => {
+      const tsA = parseTimestamp(metaA.lastActiveAt);
+      const tsB = parseTimestamp(metaB.lastActiveAt);
+      return tsB - tsA;
+    };
+
     const regularThreads = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "regular")
+      .sort(sortByLastActiveDesc)
       .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
         id,
         title: meta.title,
         status: "regular",
-      }))
-      .reverse(); // Show newest threads first
+      }));
 
     const archivedThreadsArray = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "archived")
-      .map(([id]): ExternalStoreThreadData<"archived"> => ({
+      .sort(sortByLastActiveDesc)
+      .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
         id,
-        title: id, // Display session_id as title for now
+        title: meta.title,
         status: "archived",
-      }))
-      .reverse(); // Show newest archived threads first
+      }));
 
     return {
       threadId: currentThreadId,
@@ -288,7 +307,11 @@ export function AomiRuntimeProvider({
         
         // Immediately show the new chat in UI (non-blocking)
         setThreadMetadata((prev) =>
-          new Map(prev).set(tempId, { title: "New Chat", status: "regular" })
+          new Map(prev).set(tempId, {
+            title: "New Chat",
+            status: "regular",
+            lastActiveAt: new Date().toISOString(),
+          })
         );
         setThreadMessages(tempId, []);
         setCurrentThreadId(tempId);
@@ -418,7 +441,11 @@ export function AomiRuntimeProvider({
                 // No threads left, create a default one
                 const defaultId = "default-session";
                 setThreadMetadata((prev) =>
-                  new Map(prev).set(defaultId, { title: "New Chat", status: "regular" })
+                  new Map(prev).set(defaultId, {
+                    title: "New Chat",
+                    status: "regular",
+                    lastActiveAt: new Date().toISOString(),
+                  })
                 );
                 setThreadMessages(defaultId, []);
                 setCurrentThreadId(defaultId);
@@ -512,6 +539,7 @@ export function AomiRuntimeProvider({
 
       // Add message to current thread (show immediately in UI)
       setThreadMessages(currentThreadId, [...currentMessages, userMessage]);
+      updateThreadMetadata(currentThreadId, { lastActiveAt: new Date().toISOString() });
 
       // If thread isn't ready (backend ID not available yet), queue the message
       if (!isThreadReady(currentThreadId)) {
@@ -534,7 +562,16 @@ export function AomiRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [currentThreadId, currentMessages, flushPendingSystemMessages, setThreadMessages, startPolling, isThreadReady, resolveThreadId]
+    [
+      currentThreadId,
+      currentMessages,
+      flushPendingSystemMessages,
+      setThreadMessages,
+      startPolling,
+      isThreadReady,
+      resolveThreadId,
+      updateThreadMetadata,
+    ]
   );
 
   const sendSystemMessage = useCallback(
@@ -604,7 +641,11 @@ export function AomiRuntimeProvider({
         setThreadMetadata((prev) => {
           const next = new Map(prev);
           const existing = next.get(threadIdToUpdate);
-          next.set(threadIdToUpdate, { title: newTitle, status: existing?.status ?? "regular" });
+          next.set(threadIdToUpdate, {
+            title: newTitle,
+            status: existing?.status ?? "regular",
+            lastActiveAt: existing?.lastActiveAt,
+          });
           return next;
         });
       },

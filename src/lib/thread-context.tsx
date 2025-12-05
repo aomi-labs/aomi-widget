@@ -45,6 +45,7 @@ export type ThreadContextValue = {
 export type ThreadMetadata = {
   title: string;
   status: "regular" | "archived";
+  lastActiveAt?: string;
 };
 
 /**
@@ -128,7 +129,13 @@ export function ThreadContextProvider({
 
   // Thread metadata storage
   const [threadMetadata, setThreadMetadata] = useState<Map<string, ThreadMetadata>>(
-    () => new Map([[generateThreadId, { title: "New Chat", status: "regular" }]])
+    () =>
+      new Map([
+        [
+          generateThreadId,
+          { title: "New Chat", status: "regular", lastActiveAt: new Date().toISOString() },
+        ],
+      ])
   );
 
   // Ensure a thread has placeholder metadata/messages before use
@@ -137,7 +144,7 @@ export function ThreadContextProvider({
       setThreadMetadata((prev) => {
         if (prev.has(threadId)) return prev;
         const next = new Map(prev);
-        next.set(threadId, { title: "New Chat", status: "regular" });
+        next.set(threadId, { title: "New Chat", status: "regular", lastActiveAt: new Date().toISOString() });
         return next;
       });
 

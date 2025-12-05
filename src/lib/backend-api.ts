@@ -27,6 +27,7 @@ export interface ThreadMetadata {
   is_archived?: boolean;
   created_at?: string;
   updated_at?: string;
+  last_active_at?: string;
 }
 
 export interface CreateThreadResponse {

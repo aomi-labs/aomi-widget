@@ -2687,14 +2687,19 @@ function ThreadContextProvider({
     () => /* @__PURE__ */ new Map([[generateThreadId, []]])
   );
   const [threadMetadata, setThreadMetadata] = (0, import_react9.useState)(
-    () => /* @__PURE__ */ new Map([[generateThreadId, { title: "New Chat", status: "regular" }]])
+    () => /* @__PURE__ */ new Map([
+      [
+        generateThreadId,
+        { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() }
+      ]
+    ])
   );
   const ensureThreadExists = (0, import_react9.useCallback)(
     (threadId) => {
       setThreadMetadata((prev) => {
         if (prev.has(threadId)) return prev;
         const next = new Map(prev);
-        next.set(threadId, { title: "New Chat", status: "regular" });
+        next.set(threadId, { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
         return next;
       });
       setThreads((prev) => {
@@ -2776,6 +2781,11 @@ function useCurrentThreadMetadata() {
 var import_jsx_runtime19 = require("react/jsx-runtime");
 var RuntimeActionsContext = (0, import_react10.createContext)(void 0);
 var isTempThreadId = (id) => id.startsWith("temp-");
+var parseTimestamp2 = (value) => {
+  if (!value) return 0;
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+};
 var useRuntimeActions = () => {
   const context = (0, import_react10.useContext)(RuntimeActionsContext);
   if (!context) {
@@ -2921,15 +2931,18 @@ function AomiRuntimeProvider({
   (0, import_react10.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
+      var _a;
       try {
         const threadList = await backendApiRef.current.fetchThreads(publicKey);
         const newMetadata = new Map(threadMetadata);
         let maxChatNum = threadCnt;
         for (const thread of threadList) {
           const title = thread.title || "New Chat";
+          const lastActive = thread.last_active_at || thread.updated_at || thread.created_at || ((_a = newMetadata.get(thread.session_id)) == null ? void 0 : _a.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
           newMetadata.set(thread.session_id, {
             title,
-            status: thread.is_archived ? "archived" : "regular"
+            status: thread.is_archived ? "archived" : "regular",
+            lastActiveAt: lastActive
           });
           const match = title.match(/^Chat (\d+)$/);
           if (match) {
@@ -2950,17 +2963,21 @@ function AomiRuntimeProvider({
     void fetchThreadList();
   }, [publicKey]);
   const threadListAdapter = (() => {
-    const regularThreads = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "regular").map(([id, meta]) => ({
+    const sortByLastActiveDesc = ([, metaA], [, metaB]) => {
+      const tsA = parseTimestamp2(metaA.lastActiveAt);
+      const tsB = parseTimestamp2(metaB.lastActiveAt);
+      return tsB - tsA;
+    };
+    const regularThreads = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(([id, meta]) => ({
       id,
       title: meta.title,
       status: "regular"
-    })).reverse();
-    const archivedThreadsArray = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "archived").map(([id]) => ({
+    }));
+    const archivedThreadsArray = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(([id, meta]) => ({
       id,
-      title: id,
-      // Display session_id as title for now
+      title: meta.title,
       status: "archived"
-    })).reverse();
+    }));
     return {
       threadId: currentThreadId,
       threads: regularThreads,
@@ -2969,7 +2986,11 @@ function AomiRuntimeProvider({
       onSwitchToNewThread: async () => {
         const tempId = `temp-${crypto.randomUUID()}`;
         setThreadMetadata(
-          (prev) => new Map(prev).set(tempId, { title: "New Chat", status: "regular" })
+          (prev) => new Map(prev).set(tempId, {
+            title: "New Chat",
+            status: "regular",
+            lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+          })
         );
         setThreadMessages(tempId, []);
         setCurrentThreadId(tempId);
@@ -3059,7 +3080,11 @@ function AomiRuntimeProvider({
             } else {
               const defaultId = "default-session";
               setThreadMetadata(
-                (prev) => new Map(prev).set(defaultId, { title: "New Chat", status: "regular" })
+                (prev) => new Map(prev).set(defaultId, {
+                  title: "New Chat",
+                  status: "regular",
+                  lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+                })
               );
               setThreadMessages(defaultId, []);
               setCurrentThreadId(defaultId);
@@ -3131,6 +3156,7 @@ function AomiRuntimeProvider({
         createdAt: /* @__PURE__ */ new Date()
       };
       setThreadMessages(currentThreadId, [...currentMessages, userMessage]);
+      updateThreadMetadata(currentThreadId, { lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
       if (!isThreadReady(currentThreadId)) {
         console.log("Thread not ready yet; queuing message for later delivery.");
         setIsRunning(true);
@@ -3149,7 +3175,16 @@ function AomiRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [currentThreadId, currentMessages, flushPendingSystemMessages, setThreadMessages, startPolling, isThreadReady, resolveThreadId]
+    [
+      currentThreadId,
+      currentMessages,
+      flushPendingSystemMessages,
+      setThreadMessages,
+      startPolling,
+      isThreadReady,
+      resolveThreadId,
+      updateThreadMetadata
+    ]
   );
   const sendSystemMessage = (0, import_react10.useCallback)(
     async (message) => {
@@ -3207,7 +3242,11 @@ function AomiRuntimeProvider({
           var _a;
           const next = new Map(prev);
           const existing = next.get(threadIdToUpdate);
-          next.set(threadIdToUpdate, { title: newTitle, status: (_a = existing == null ? void 0 : existing.status) != null ? _a : "regular" });
+          next.set(threadIdToUpdate, {
+            title: newTitle,
+            status: (_a = existing == null ? void 0 : existing.status) != null ? _a : "regular",
+            lastActiveAt: existing == null ? void 0 : existing.lastActiveAt
+          });
           return next;
         });
       },
@@ -3291,6 +3330,7 @@ var AomiFrame = ({
   height = "80vh",
   className,
   style,
+  showBorder = true,
   walletFooter,
   children
 }) => {
@@ -3313,6 +3353,7 @@ var AomiFrame = ({
       {
         className,
         frameStyle,
+        showBorder,
         walletFooter,
         wallet,
         setWallet,
@@ -3324,6 +3365,7 @@ var AomiFrame = ({
 var FrameShell = ({
   className,
   frameStyle,
+  showBorder = true,
   walletFooter,
   wallet,
   setWallet,
@@ -3337,7 +3379,8 @@ var FrameShell = ({
       "div",
       {
         className: cn(
-          "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
+          "flex h-full w-full overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950",
+          showBorder && "border border-neutral-800",
           className
         ),
         style: frameStyle,
