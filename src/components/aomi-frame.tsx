@@ -101,7 +101,7 @@ const FrameShell = ({
       {children}
       <div
         className={cn(
-          "flex h-full w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white shadow-2xl dark:bg-neutral-950",
+          "flex h-full w-full overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950",
           className
         )}
         style={frameStyle}

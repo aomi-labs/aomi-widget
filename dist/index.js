@@ -3253,7 +3253,6 @@ var AomiFrame = ({
   height = "80vh",
   className,
   style,
-  showBorder = true,
   walletFooter,
   children
 }) => {
@@ -3276,7 +3275,6 @@ var AomiFrame = ({
       {
         className,
         frameStyle,
-        showBorder,
         walletFooter,
         wallet,
         setWallet,
@@ -3288,7 +3286,6 @@ var AomiFrame = ({
 var FrameShell = ({
   className,
   frameStyle,
-  showBorder = true,
   walletFooter,
   wallet,
   setWallet,
@@ -3303,7 +3300,6 @@ var FrameShell = ({
       {
         className: cn(
           "flex h-full w-full overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950",
-          showBorder && "border border-neutral-800",
           className
         ),
         style: frameStyle,

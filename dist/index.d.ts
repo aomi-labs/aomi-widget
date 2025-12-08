@@ -34,14 +34,12 @@ type AomiFrameProps = {
     height?: CSSProperties["height"];
     className?: string;
     style?: CSSProperties;
-    /** Whether to show the border around the frame. Defaults to true. */
-    showBorder?: boolean;
     /** Render prop for wallet footer - receives wallet state and setter from lib */
     walletFooter?: (props: WalletFooterProps) => ReactNode;
     /** Additional content to render inside the frame */
     children?: ReactNode;
 };
-declare const AomiFrame: ({ width, height, className, style, showBorder, walletFooter, children, }: AomiFrameProps) => react_jsx_runtime.JSX.Element;
+declare const AomiFrame: ({ width, height, className, style, walletFooter, children, }: AomiFrameProps) => react_jsx_runtime.JSX.Element;
 
 type RuntimeActions = {
     sendSystemMessage: (message: string) => Promise<void>;
