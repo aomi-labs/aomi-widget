@@ -62,6 +62,8 @@ declare function AomiRuntimeProvider({ children, backendUrl, publicKey, }: Reado
 type ThreadContextValue = {
     currentThreadId: string;
     setCurrentThreadId: (id: string) => void;
+    threadViewKey: number;
+    bumpThreadViewKey: () => void;
     threads: Map<string, ThreadMessageLike[]>;
     setThreads: React.Dispatch<React.SetStateAction<Map<string, ThreadMessageLike[]>>>;
     threadMetadata: Map<string, ThreadMetadata>;
@@ -75,8 +77,8 @@ type ThreadContextValue = {
 };
 type ThreadMetadata = {
     title: string;
-    status: "regular" | "archived";
-    lastActiveAt?: string;
+    status: "regular" | "archived" | "pending";
+    lastActiveAt?: string | number;
 };
 /**
  * Hook to access Thread Context

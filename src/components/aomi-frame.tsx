@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
 import { AomiRuntimeProvider } from "@/components/assistant-ui/runtime";
-import { ThreadContextProvider, useCurrentThreadMetadata } from "@/lib/thread-context";
+import { ThreadContextProvider, useCurrentThreadMetadata, useThreadContext } from "@/lib/thread-context";
 import {
   WalletSystemMessageEmitter,
   type WalletButtonState,
@@ -95,6 +95,7 @@ const FrameShell = ({
   children,
 }: FrameShellProps) => {
   const currentTitle = useCurrentThreadMetadata()?.title ?? "New Chat";
+  const { currentThreadId, threadViewKey } = useThreadContext();
 
   return (
     <SidebarProvider>
@@ -121,7 +122,7 @@ const FrameShell = ({
             </Breadcrumb>
           </header>
           <div className="flex-1 overflow-hidden">
-            <Thread />
+            <Thread key={`${currentThreadId}-${threadViewKey}`} />
           </div>
         </SidebarInset>
       </div>

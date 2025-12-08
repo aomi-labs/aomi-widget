@@ -55,6 +55,7 @@ import {
   MessagePrimitive as MessagePrimitive2,
   ThreadPrimitive
 } from "@assistant-ui/react";
+import { useEffect as useEffect2 } from "react";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
 
@@ -852,10 +853,149 @@ var ComposerAddAttachment = () => {
   ) });
 };
 
+// src/lib/thread-context.tsx
+import { createContext, useContext, useState as useState4, useCallback } from "react";
+import { jsx as jsx9 } from "react/jsx-runtime";
+function generateSessionId() {
+  return crypto.randomUUID();
+}
+var ThreadContext = createContext(null);
+function useThreadContext() {
+  const context = useContext(ThreadContext);
+  if (!context) {
+    throw new Error(
+      "useThreadContext must be used within ThreadContextProvider. Wrap your app with <ThreadContextProvider>...</ThreadContextProvider>"
+    );
+  }
+  return context;
+}
+function ThreadContextProvider({
+  children,
+  initialThreadId
+}) {
+  const [generateThreadId] = useState4(() => {
+    const id = initialThreadId || generateSessionId();
+    console.log("\u{1F535} [ThreadContext] Initialized with thread ID:", id);
+    return id;
+  });
+  const [threadCnt, setThreadCnt] = useState4(1);
+  const [threads, setThreads] = useState4(
+    () => /* @__PURE__ */ new Map([[generateThreadId, []]])
+  );
+  const [threadMetadata, setThreadMetadata] = useState4(
+    () => /* @__PURE__ */ new Map([
+      [
+        generateThreadId,
+        { title: "New Chat", status: "pending", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() }
+      ]
+    ])
+  );
+  const ensureThreadExists = useCallback(
+    (threadId) => {
+      setThreadMetadata((prev) => {
+        if (prev.has(threadId)) return prev;
+        const next = new Map(prev);
+        next.set(threadId, { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
+        return next;
+      });
+      setThreads((prev) => {
+        if (prev.has(threadId)) return prev;
+        const next = new Map(prev);
+        next.set(threadId, []);
+        return next;
+      });
+    },
+    []
+  );
+  const [currentThreadId, _setCurrentThreadId] = useState4(generateThreadId);
+  const [threadViewKey, setThreadViewKey] = useState4(0);
+  const bumpThreadViewKey = useCallback(() => {
+    setThreadViewKey((prev) => prev + 1);
+  }, []);
+  const setCurrentThreadId = useCallback(
+    (threadId) => {
+      ensureThreadExists(threadId);
+      _setCurrentThreadId(threadId);
+    },
+    [ensureThreadExists]
+  );
+  const getThreadMessages = useCallback(
+    (threadId) => {
+      return threads.get(threadId) || [];
+    },
+    [threads]
+  );
+  const setThreadMessages = useCallback(
+    (threadId, messages) => {
+      setThreads((prev) => {
+        const next = new Map(prev);
+        next.set(threadId, messages);
+        return next;
+      });
+    },
+    []
+  );
+  const getThreadMetadata = useCallback(
+    (threadId) => {
+      return threadMetadata.get(threadId);
+    },
+    [threadMetadata]
+  );
+  const updateThreadMetadata = useCallback(
+    (threadId, updates) => {
+      setThreadMetadata((prev) => {
+        const existing = prev.get(threadId);
+        if (!existing) {
+          console.warn(`Thread metadata not found for threadId: ${threadId}`);
+          return prev;
+        }
+        const next = new Map(prev);
+        next.set(threadId, __spreadValues(__spreadValues({}, existing), updates));
+        return next;
+      });
+    },
+    []
+  );
+  const value = {
+    currentThreadId,
+    setCurrentThreadId,
+    threadViewKey,
+    bumpThreadViewKey,
+    threads,
+    setThreads,
+    threadMetadata,
+    setThreadMetadata,
+    threadCnt,
+    setThreadCnt,
+    getThreadMessages,
+    setThreadMessages,
+    getThreadMetadata,
+    updateThreadMetadata
+  };
+  return /* @__PURE__ */ jsx9(ThreadContext.Provider, { value, children });
+}
+function useCurrentThreadMetadata() {
+  const { currentThreadId, getThreadMetadata } = useThreadContext();
+  return getThreadMetadata(currentThreadId);
+}
+
 // src/components/assistant-ui/thread.tsx
-import { jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
+import { useAssistantApi as useAssistantApi2 } from "@assistant-ui/react";
+import { jsx as jsx10, jsxs as jsxs7 } from "react/jsx-runtime";
 var Thread = () => {
-  return /* @__PURE__ */ jsx9(LazyMotion, { features: domAnimation, children: /* @__PURE__ */ jsx9(MotionConfig, { reducedMotion: "user", children: /* @__PURE__ */ jsx9(
+  const api = useAssistantApi2();
+  const { threadViewKey } = useThreadContext();
+  useEffect2(() => {
+    var _a;
+    try {
+      const composer = api.composer();
+      composer.setText("");
+      void ((_a = composer.clearAttachments) == null ? void 0 : _a.call(composer));
+    } catch (error) {
+      console.error("Failed to reset composer input:", error);
+    }
+  }, [api, threadViewKey]);
+  return /* @__PURE__ */ jsx10(LazyMotion, { features: domAnimation, children: /* @__PURE__ */ jsx10(MotionConfig, { reducedMotion: "user", children: /* @__PURE__ */ jsx10(
     ThreadPrimitive.Root,
     {
       className: "aui-root aui-thread-root @container flex h-full flex-col bg-background",
@@ -863,8 +1003,8 @@ var Thread = () => {
         ["--thread-max-width"]: "44rem"
       },
       children: /* @__PURE__ */ jsxs7(ThreadPrimitive.Viewport, { className: "aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-4", children: [
-        /* @__PURE__ */ jsx9(ThreadPrimitive.If, { empty: true, children: /* @__PURE__ */ jsx9(ThreadWelcome, {}) }),
-        /* @__PURE__ */ jsx9(
+        /* @__PURE__ */ jsx10(ThreadPrimitive.If, { empty: true, children: /* @__PURE__ */ jsx10(ThreadWelcome, {}) }),
+        /* @__PURE__ */ jsx10(
           ThreadPrimitive.Messages,
           {
             components: {
@@ -875,27 +1015,27 @@ var Thread = () => {
             }
           }
         ),
-        /* @__PURE__ */ jsx9(ThreadPrimitive.If, { empty: false, children: /* @__PURE__ */ jsx9("div", { className: "aui-thread-viewport-spacer min-h-8 grow" }) }),
-        /* @__PURE__ */ jsx9(Composer, {})
+        /* @__PURE__ */ jsx10(ThreadPrimitive.If, { empty: false, children: /* @__PURE__ */ jsx10("div", { className: "aui-thread-viewport-spacer min-h-8 grow" }) }),
+        /* @__PURE__ */ jsx10(Composer, {})
       ] })
     }
   ) }) });
 };
 var ThreadScrollToBottom = () => {
-  return /* @__PURE__ */ jsx9(ThreadPrimitive.ScrollToBottom, { asChild: true, children: /* @__PURE__ */ jsx9(
+  return /* @__PURE__ */ jsx10(ThreadPrimitive.ScrollToBottom, { asChild: true, children: /* @__PURE__ */ jsx10(
     TooltipIconButton,
     {
       tooltip: "Scroll to bottom",
       variant: "outline",
       className: "aui-thread-scroll-to-bottom absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible dark:bg-background dark:hover:bg-accent",
-      children: /* @__PURE__ */ jsx9(ArrowDownIcon, {})
+      children: /* @__PURE__ */ jsx10(ArrowDownIcon, {})
     }
   ) });
 };
 var ThreadWelcome = () => {
   return /* @__PURE__ */ jsxs7("div", { className: "aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col", children: [
-    /* @__PURE__ */ jsx9("div", { className: "aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center", children: /* @__PURE__ */ jsxs7("div", { className: "aui-thread-welcome-message flex size-full flex-col justify-center px-8", children: [
-      /* @__PURE__ */ jsx9(
+    /* @__PURE__ */ jsx10("div", { className: "aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center", children: /* @__PURE__ */ jsxs7("div", { className: "aui-thread-welcome-message flex size-full flex-col justify-center px-8", children: [
+      /* @__PURE__ */ jsx10(
         m.div,
         {
           initial: { opacity: 0, y: 10 },
@@ -905,7 +1045,7 @@ var ThreadWelcome = () => {
           children: "Hello there!"
         }
       ),
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         m.div,
         {
           initial: { opacity: 0, y: 10 },
@@ -917,11 +1057,11 @@ var ThreadWelcome = () => {
         }
       )
     ] }) }),
-    /* @__PURE__ */ jsx9(ThreadSuggestions, {})
+    /* @__PURE__ */ jsx10(ThreadSuggestions, {})
   ] });
 };
 var ThreadSuggestions = () => {
-  return /* @__PURE__ */ jsx9("div", { className: "aui-thread-welcome-suggestions grid w-full gap-2 pb-4 @md:grid-cols-2", children: [
+  return /* @__PURE__ */ jsx10("div", { className: "aui-thread-welcome-suggestions grid w-full gap-2 pb-4 @md:grid-cols-2", children: [
     {
       title: "Show my wallet balances",
       label: "and positions",
@@ -942,7 +1082,7 @@ var ThreadSuggestions = () => {
       label: "from Ethereum to Arbitrum",
       action: "Bridge 100 USDC from Ethereum to Arbitrum"
     }
-  ].map((suggestedAction, index) => /* @__PURE__ */ jsx9(
+  ].map((suggestedAction, index) => /* @__PURE__ */ jsx10(
     m.div,
     {
       initial: { opacity: 0, y: 20 },
@@ -950,7 +1090,7 @@ var ThreadSuggestions = () => {
       exit: { opacity: 0, y: 20 },
       transition: { delay: 0.05 * index },
       className: "aui-thread-welcome-suggestion-display [&:nth-child(n+3)]:hidden @md:[&:nth-child(n+3)]:block",
-      children: /* @__PURE__ */ jsx9(
+      children: /* @__PURE__ */ jsx10(
         ThreadPrimitive.Suggestion,
         {
           prompt: suggestedAction.action,
@@ -963,8 +1103,8 @@ var ThreadSuggestions = () => {
               className: "aui-thread-welcome-suggestion h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm @md:flex-col dark:hover:bg-accent/60",
               "aria-label": suggestedAction.action,
               children: [
-                /* @__PURE__ */ jsx9("span", { className: "aui-thread-welcome-suggestion-text-1 font-medium", children: suggestedAction.title }),
-                /* @__PURE__ */ jsx9("span", { className: "aui-thread-welcome-suggestion-text-2 text-muted-foreground", children: suggestedAction.label })
+                /* @__PURE__ */ jsx10("span", { className: "aui-thread-welcome-suggestion-text-1 font-medium", children: suggestedAction.title }),
+                /* @__PURE__ */ jsx10("span", { className: "aui-thread-welcome-suggestion-text-2 text-muted-foreground", children: suggestedAction.label })
               ]
             }
           )
@@ -976,10 +1116,10 @@ var ThreadSuggestions = () => {
 };
 var Composer = () => {
   return /* @__PURE__ */ jsxs7("div", { className: "aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6", children: [
-    /* @__PURE__ */ jsx9(ThreadScrollToBottom, {}),
+    /* @__PURE__ */ jsx10(ThreadScrollToBottom, {}),
     /* @__PURE__ */ jsxs7(ComposerPrimitive2.Root, { className: "aui-composer-root relative flex w-full flex-col rounded-4xl border bg-white px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15", children: [
-      /* @__PURE__ */ jsx9(ComposerAttachments, {}),
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(ComposerAttachments, {}),
+      /* @__PURE__ */ jsx10(
         ComposerPrimitive2.Input,
         {
           placeholder: "Send a message...",
@@ -989,14 +1129,14 @@ var Composer = () => {
           "aria-label": "Message input"
         }
       ),
-      /* @__PURE__ */ jsx9(ComposerAction, {})
+      /* @__PURE__ */ jsx10(ComposerAction, {})
     ] })
   ] });
 };
 var ComposerAction = () => {
   return /* @__PURE__ */ jsxs7("div", { className: "aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-between", children: [
-    /* @__PURE__ */ jsx9(ComposerAddAttachment, {}),
-    /* @__PURE__ */ jsx9(ThreadPrimitive.If, { running: false, children: /* @__PURE__ */ jsx9(ComposerPrimitive2.Send, { asChild: true, children: /* @__PURE__ */ jsx9(
+    /* @__PURE__ */ jsx10(ComposerAddAttachment, {}),
+    /* @__PURE__ */ jsx10(ThreadPrimitive.If, { running: false, children: /* @__PURE__ */ jsx10(ComposerPrimitive2.Send, { asChild: true, children: /* @__PURE__ */ jsx10(
       TooltipIconButton,
       {
         tooltip: "Send message",
@@ -1006,10 +1146,10 @@ var ComposerAction = () => {
         size: "icon",
         className: "aui-composer-send mr-3 mb-3 size-[34px] rounded-full p-1",
         "aria-label": "Send message",
-        children: /* @__PURE__ */ jsx9(ArrowUpIcon, { className: "aui-composer-send-icon size-5" })
+        children: /* @__PURE__ */ jsx10(ArrowUpIcon, { className: "aui-composer-send-icon size-5" })
       }
     ) }) }),
-    /* @__PURE__ */ jsx9(ThreadPrimitive.If, { running: true, children: /* @__PURE__ */ jsx9(ComposerPrimitive2.Cancel, { asChild: true, children: /* @__PURE__ */ jsx9(
+    /* @__PURE__ */ jsx10(ThreadPrimitive.If, { running: true, children: /* @__PURE__ */ jsx10(ComposerPrimitive2.Cancel, { asChild: true, children: /* @__PURE__ */ jsx10(
       Button,
       {
         type: "button",
@@ -1017,23 +1157,23 @@ var ComposerAction = () => {
         size: "icon",
         className: "aui-composer-cancel size-[34px] rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90",
         "aria-label": "Stop generating",
-        children: /* @__PURE__ */ jsx9(Square, { className: "aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" })
+        children: /* @__PURE__ */ jsx10(Square, { className: "aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" })
       }
     ) }) })
   ] });
 };
 var MessageError = () => {
-  return /* @__PURE__ */ jsx9(MessagePrimitive2.Error, { children: /* @__PURE__ */ jsx9(ErrorPrimitive.Root, { className: "aui-message-error-root mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive dark:bg-destructive/5 dark:text-red-200", children: /* @__PURE__ */ jsx9(ErrorPrimitive.Message, { className: "aui-message-error-message line-clamp-2" }) }) });
+  return /* @__PURE__ */ jsx10(MessagePrimitive2.Error, { children: /* @__PURE__ */ jsx10(ErrorPrimitive.Root, { className: "aui-message-error-root mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive dark:bg-destructive/5 dark:text-red-200", children: /* @__PURE__ */ jsx10(ErrorPrimitive.Message, { className: "aui-message-error-message line-clamp-2" }) }) });
 };
 var AssistantMessage = () => {
-  return /* @__PURE__ */ jsx9(MessagePrimitive2.Root, { asChild: true, children: /* @__PURE__ */ jsxs7(
+  return /* @__PURE__ */ jsx10(MessagePrimitive2.Root, { asChild: true, children: /* @__PURE__ */ jsxs7(
     "div",
     {
       className: "aui-assistant-message-root relative mx-auto w-full max-w-[var(--thread-max-width)] animate-in py-4 duration-150 ease-out fade-in slide-in-from-bottom-1 last:mb-24",
       "data-role": "assistant",
       children: [
         /* @__PURE__ */ jsxs7("div", { className: "aui-assistant-message-content text-sm mx-2 leading-5 break-words text-foreground", children: [
-          /* @__PURE__ */ jsx9(
+          /* @__PURE__ */ jsx10(
             MessagePrimitive2.Parts,
             {
               components: {
@@ -1042,11 +1182,11 @@ var AssistantMessage = () => {
               }
             }
           ),
-          /* @__PURE__ */ jsx9(MessageError, {})
+          /* @__PURE__ */ jsx10(MessageError, {})
         ] }),
         /* @__PURE__ */ jsxs7("div", { className: "aui-assistant-message-footer mt-2 ml-2 flex", children: [
-          /* @__PURE__ */ jsx9(BranchPicker, {}),
-          /* @__PURE__ */ jsx9(AssistantActionBar, {})
+          /* @__PURE__ */ jsx10(BranchPicker, {}),
+          /* @__PURE__ */ jsx10(AssistantActionBar, {})
         ] })
       ]
     }
@@ -1061,46 +1201,46 @@ var AssistantActionBar = () => {
       autohideFloat: "single-branch",
       className: "aui-assistant-action-bar-root col-start-3 row-start-2 -ml-1 flex gap-1 text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm",
       children: [
-        /* @__PURE__ */ jsx9(ActionBarPrimitive.Copy, { asChild: true, children: /* @__PURE__ */ jsxs7(TooltipIconButton, { tooltip: "Copy", children: [
-          /* @__PURE__ */ jsx9(MessagePrimitive2.If, { copied: true, children: /* @__PURE__ */ jsx9(CheckIcon3, {}) }),
-          /* @__PURE__ */ jsx9(MessagePrimitive2.If, { copied: false, children: /* @__PURE__ */ jsx9(CopyIcon2, {}) })
+        /* @__PURE__ */ jsx10(ActionBarPrimitive.Copy, { asChild: true, children: /* @__PURE__ */ jsxs7(TooltipIconButton, { tooltip: "Copy", children: [
+          /* @__PURE__ */ jsx10(MessagePrimitive2.If, { copied: true, children: /* @__PURE__ */ jsx10(CheckIcon3, {}) }),
+          /* @__PURE__ */ jsx10(MessagePrimitive2.If, { copied: false, children: /* @__PURE__ */ jsx10(CopyIcon2, {}) })
         ] }) }),
-        /* @__PURE__ */ jsx9(ActionBarPrimitive.Reload, { asChild: true, children: /* @__PURE__ */ jsx9(TooltipIconButton, { tooltip: "Refresh", children: /* @__PURE__ */ jsx9(RefreshCwIcon, {}) }) })
+        /* @__PURE__ */ jsx10(ActionBarPrimitive.Reload, { asChild: true, children: /* @__PURE__ */ jsx10(TooltipIconButton, { tooltip: "Refresh", children: /* @__PURE__ */ jsx10(RefreshCwIcon, {}) }) })
       ]
     }
   );
 };
 var UserMessage = () => {
-  return /* @__PURE__ */ jsx9(MessagePrimitive2.Root, { asChild: true, children: /* @__PURE__ */ jsxs7(
+  return /* @__PURE__ */ jsx10(MessagePrimitive2.Root, { asChild: true, children: /* @__PURE__ */ jsxs7(
     "div",
     {
       className: "aui-user-message-root mx-auto grid w-full max-w-[var(--thread-max-width)] animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] gap-y-2 px-2 py-4 duration-150 ease-out fade-in slide-in-from-bottom-1 first:mt-3 last:mb-5 [&:where(>*)]:col-start-2",
       "data-role": "user",
       children: [
-        /* @__PURE__ */ jsx9(UserMessageAttachments, {}),
+        /* @__PURE__ */ jsx10(UserMessageAttachments, {}),
         /* @__PURE__ */ jsxs7("div", { className: "aui-user-message-content-wrapper relative col-start-2 min-w-0", children: [
-          /* @__PURE__ */ jsx9("div", { className: "aui-user-message-content text-sm rounded-3xl bg-muted px-5 py-2.5 break-words text-foreground", children: /* @__PURE__ */ jsx9(MessagePrimitive2.Parts, {}) }),
-          /* @__PURE__ */ jsx9("div", { className: "aui-user-action-bar-wrapper absolute top-1/2 left-0 -translate-x-full -translate-y-1/2 pr-2", children: /* @__PURE__ */ jsx9(UserActionBar, {}) })
+          /* @__PURE__ */ jsx10("div", { className: "aui-user-message-content text-sm rounded-3xl bg-muted px-5 py-2.5 break-words text-foreground", children: /* @__PURE__ */ jsx10(MessagePrimitive2.Parts, {}) }),
+          /* @__PURE__ */ jsx10("div", { className: "aui-user-action-bar-wrapper absolute top-1/2 left-0 -translate-x-full -translate-y-1/2 pr-2", children: /* @__PURE__ */ jsx10(UserActionBar, {}) })
         ] }),
-        /* @__PURE__ */ jsx9(BranchPicker, { className: "aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" })
+        /* @__PURE__ */ jsx10(BranchPicker, { className: "aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" })
       ]
     }
   ) });
 };
 var UserActionBar = () => {
-  return /* @__PURE__ */ jsx9(
+  return /* @__PURE__ */ jsx10(
     ActionBarPrimitive.Root,
     {
       hideWhenRunning: true,
       autohide: "not-last",
       className: "aui-user-action-bar-root flex flex-col items-end",
-      children: /* @__PURE__ */ jsx9(ActionBarPrimitive.Edit, { asChild: true, children: /* @__PURE__ */ jsx9(TooltipIconButton, { tooltip: "Edit", className: "aui-user-action-edit p-4", children: /* @__PURE__ */ jsx9(PencilIcon, {}) }) })
+      children: /* @__PURE__ */ jsx10(ActionBarPrimitive.Edit, { asChild: true, children: /* @__PURE__ */ jsx10(TooltipIconButton, { tooltip: "Edit", className: "aui-user-action-edit p-4", children: /* @__PURE__ */ jsx10(PencilIcon, {}) }) })
     }
   );
 };
 var EditComposer = () => {
-  return /* @__PURE__ */ jsx9("div", { className: "aui-edit-composer-wrapper mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 px-2 first:mt-4", children: /* @__PURE__ */ jsxs7(ComposerPrimitive2.Root, { className: "aui-edit-composer-root ml-auto flex w-full max-w-7/8 flex-col rounded-xl bg-muted", children: [
-    /* @__PURE__ */ jsx9(
+  return /* @__PURE__ */ jsx10("div", { className: "aui-edit-composer-wrapper mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 px-2 first:mt-4", children: /* @__PURE__ */ jsxs7(ComposerPrimitive2.Root, { className: "aui-edit-composer-root ml-auto flex w-full max-w-7/8 flex-col rounded-xl bg-muted", children: [
+    /* @__PURE__ */ jsx10(
       ComposerPrimitive2.Input,
       {
         className: "aui-edit-composer-input flex min-h-[60px] w-full resize-none bg-transparent p-4 text-foreground outline-none",
@@ -1108,8 +1248,8 @@ var EditComposer = () => {
       }
     ),
     /* @__PURE__ */ jsxs7("div", { className: "aui-edit-composer-footer mx-3 mb-3 flex items-center justify-center gap-2 self-end", children: [
-      /* @__PURE__ */ jsx9(ComposerPrimitive2.Cancel, { asChild: true, children: /* @__PURE__ */ jsx9(Button, { variant: "ghost", size: "sm", "aria-label": "Cancel edit", children: "Cancel" }) }),
-      /* @__PURE__ */ jsx9(ComposerPrimitive2.Send, { asChild: true, children: /* @__PURE__ */ jsx9(Button, { size: "sm", "aria-label": "Update message", children: "Update" }) })
+      /* @__PURE__ */ jsx10(ComposerPrimitive2.Cancel, { asChild: true, children: /* @__PURE__ */ jsx10(Button, { variant: "ghost", size: "sm", "aria-label": "Cancel edit", children: "Cancel" }) }),
+      /* @__PURE__ */ jsx10(ComposerPrimitive2.Send, { asChild: true, children: /* @__PURE__ */ jsx10(Button, { size: "sm", "aria-label": "Update message", children: "Update" }) })
     ] })
   ] }) });
 };
@@ -1129,28 +1269,28 @@ var BranchPicker = (_a) => {
       )
     }, rest), {
       children: [
-        /* @__PURE__ */ jsx9(BranchPickerPrimitive.Previous, { asChild: true, children: /* @__PURE__ */ jsx9(TooltipIconButton, { tooltip: "Previous", children: /* @__PURE__ */ jsx9(ChevronLeftIcon, {}) }) }),
+        /* @__PURE__ */ jsx10(BranchPickerPrimitive.Previous, { asChild: true, children: /* @__PURE__ */ jsx10(TooltipIconButton, { tooltip: "Previous", children: /* @__PURE__ */ jsx10(ChevronLeftIcon, {}) }) }),
         /* @__PURE__ */ jsxs7("span", { className: "aui-branch-picker-state font-medium", children: [
-          /* @__PURE__ */ jsx9(BranchPickerPrimitive.Number, {}),
+          /* @__PURE__ */ jsx10(BranchPickerPrimitive.Number, {}),
           " / ",
-          /* @__PURE__ */ jsx9(BranchPickerPrimitive.Count, {})
+          /* @__PURE__ */ jsx10(BranchPickerPrimitive.Count, {})
         ] }),
-        /* @__PURE__ */ jsx9(BranchPickerPrimitive.Next, { asChild: true, children: /* @__PURE__ */ jsx9(TooltipIconButton, { tooltip: "Next", children: /* @__PURE__ */ jsx9(ChevronRightIcon, {}) }) })
+        /* @__PURE__ */ jsx10(BranchPickerPrimitive.Next, { asChild: true, children: /* @__PURE__ */ jsx10(TooltipIconButton, { tooltip: "Next", children: /* @__PURE__ */ jsx10(ChevronRightIcon, {}) }) })
       ]
     })
   );
 };
 var SystemMessage = () => {
-  return /* @__PURE__ */ jsx9(MessagePrimitive2.Root, { asChild: true, children: /* @__PURE__ */ jsx9(
+  return /* @__PURE__ */ jsx10(MessagePrimitive2.Root, { asChild: true, children: /* @__PURE__ */ jsx10(
     "div",
     {
       className: "aui-system-message-root mx-auto w-full max-w-[var(--thread-max-width)] px-2 py-4 animate-in fade-in slide-in-from-bottom-1",
       "data-role": "system",
       children: /* @__PURE__ */ jsxs7("div", { className: "aui-system-message-card flex w-full flex-wrap items-start gap-3 rounded-3xl border px-5 py-4 text-left text-sm bg-background/70 dark:bg-muted/30", children: [
-        /* @__PURE__ */ jsx9(AlertCircleIcon, { className: "aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" }),
+        /* @__PURE__ */ jsx10(AlertCircleIcon, { className: "aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" }),
         /* @__PURE__ */ jsxs7("div", { className: "aui-system-message-body flex flex-col gap-1", children: [
-          /* @__PURE__ */ jsx9("span", { className: "aui-system-message-title font-medium text-foreground", children: "System notice" }),
-          /* @__PURE__ */ jsx9("div", { className: "aui-system-message-content leading-relaxed text-muted-foreground", children: /* @__PURE__ */ jsx9(MessagePrimitive2.Parts, { components: { Text: MarkdownText } }) })
+          /* @__PURE__ */ jsx10("span", { className: "aui-system-message-title font-medium text-foreground", children: "System notice" }),
+          /* @__PURE__ */ jsx10("div", { className: "aui-system-message-content leading-relaxed text-muted-foreground", children: /* @__PURE__ */ jsx10(MessagePrimitive2.Parts, { components: { Text: MarkdownText } }) })
         ] })
       ] })
     }
@@ -1187,10 +1327,10 @@ function useIsMobile() {
 }
 
 // src/components/ui/input.tsx
-import { jsx as jsx10 } from "react/jsx-runtime";
+import { jsx as jsx11 } from "react/jsx-runtime";
 function Input(_a) {
   var _b = _a, { className, type } = _b, props = __objRest(_b, ["className", "type"]);
-  return /* @__PURE__ */ jsx10(
+  return /* @__PURE__ */ jsx11(
     "input",
     __spreadValues({
       type,
@@ -1207,7 +1347,7 @@ function Input(_a) {
 
 // src/components/ui/separator.tsx
 import * as SeparatorPrimitive from "@radix-ui/react-separator";
-import { jsx as jsx11 } from "react/jsx-runtime";
+import { jsx as jsx12 } from "react/jsx-runtime";
 function Separator(_a) {
   var _b = _a, {
     className,
@@ -1218,7 +1358,7 @@ function Separator(_a) {
     "orientation",
     "decorative"
   ]);
-  return /* @__PURE__ */ jsx11(
+  return /* @__PURE__ */ jsx12(
     SeparatorPrimitive.Root,
     __spreadValues({
       "data-slot": "separator",
@@ -1235,22 +1375,22 @@ function Separator(_a) {
 // src/components/ui/sheet.tsx
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon as XIcon3 } from "lucide-react";
-import { jsx as jsx12, jsxs as jsxs8 } from "react/jsx-runtime";
+import { jsx as jsx13, jsxs as jsxs8 } from "react/jsx-runtime";
 function Sheet(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ jsx12(SheetPrimitive.Root, __spreadValues({ "data-slot": "sheet" }, props));
+  return /* @__PURE__ */ jsx13(SheetPrimitive.Root, __spreadValues({ "data-slot": "sheet" }, props));
 }
 function SheetTrigger(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ jsx12(SheetPrimitive.Trigger, __spreadValues({ "data-slot": "sheet-trigger" }, props));
+  return /* @__PURE__ */ jsx13(SheetPrimitive.Trigger, __spreadValues({ "data-slot": "sheet-trigger" }, props));
 }
 function SheetClose(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ jsx12(SheetPrimitive.Close, __spreadValues({ "data-slot": "sheet-close" }, props));
+  return /* @__PURE__ */ jsx13(SheetPrimitive.Close, __spreadValues({ "data-slot": "sheet-close" }, props));
 }
 function SheetPortal(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ jsx12(SheetPrimitive.Portal, __spreadValues({ "data-slot": "sheet-portal" }, props));
+  return /* @__PURE__ */ jsx13(SheetPrimitive.Portal, __spreadValues({ "data-slot": "sheet-portal" }, props));
 }
 function SheetOverlay(_a) {
   var _b = _a, {
@@ -1258,7 +1398,7 @@ function SheetOverlay(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ jsx12(
+  return /* @__PURE__ */ jsx13(
     SheetPrimitive.Overlay,
     __spreadValues({
       "data-slot": "sheet-overlay",
@@ -1280,7 +1420,7 @@ function SheetContent(_a) {
     "side"
   ]);
   return /* @__PURE__ */ jsxs8(SheetPortal, { children: [
-    /* @__PURE__ */ jsx12(SheetOverlay, {}),
+    /* @__PURE__ */ jsx13(SheetOverlay, {}),
     /* @__PURE__ */ jsxs8(
       SheetPrimitive.Content,
       __spreadProps(__spreadValues({
@@ -1297,8 +1437,8 @@ function SheetContent(_a) {
         children: [
           children,
           /* @__PURE__ */ jsxs8(SheetPrimitive.Close, { className: "absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary", children: [
-            /* @__PURE__ */ jsx12(XIcon3, { className: "size-4" }),
-            /* @__PURE__ */ jsx12("span", { className: "sr-only", children: "Close" })
+            /* @__PURE__ */ jsx13(XIcon3, { className: "size-4" }),
+            /* @__PURE__ */ jsx13("span", { className: "sr-only", children: "Close" })
           ] })
         ]
       })
@@ -1307,7 +1447,7 @@ function SheetContent(_a) {
 }
 function SheetHeader(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx12(
+  return /* @__PURE__ */ jsx13(
     "div",
     __spreadValues({
       "data-slot": "sheet-header",
@@ -1317,7 +1457,7 @@ function SheetHeader(_a) {
 }
 function SheetFooter(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx12(
+  return /* @__PURE__ */ jsx13(
     "div",
     __spreadValues({
       "data-slot": "sheet-footer",
@@ -1331,7 +1471,7 @@ function SheetTitle(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ jsx12(
+  return /* @__PURE__ */ jsx13(
     SheetPrimitive.Title,
     __spreadValues({
       "data-slot": "sheet-title",
@@ -1345,7 +1485,7 @@ function SheetDescription(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ jsx12(
+  return /* @__PURE__ */ jsx13(
     SheetPrimitive.Description,
     __spreadValues({
       "data-slot": "sheet-description",
@@ -1355,10 +1495,10 @@ function SheetDescription(_a) {
 }
 
 // src/components/ui/skeleton.tsx
-import { jsx as jsx13 } from "react/jsx-runtime";
+import { jsx as jsx14 } from "react/jsx-runtime";
 function Skeleton(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx13(
+  return /* @__PURE__ */ jsx14(
     "div",
     __spreadValues({
       "data-slot": "skeleton",
@@ -1368,7 +1508,7 @@ function Skeleton(_a) {
 }
 
 // src/components/ui/sidebar.tsx
-import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
+import { jsx as jsx15, jsxs as jsxs9 } from "react/jsx-runtime";
 var SIDEBAR_COOKIE_NAME = "sidebar_state";
 var SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 var SIDEBAR_WIDTH_MOBILE = "18rem";
@@ -1445,7 +1585,7 @@ function SidebarProvider(_a) {
     }),
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarWidth]
   );
-  return /* @__PURE__ */ jsx14(SidebarContext.Provider, { value: contextValue, children: /* @__PURE__ */ jsx14(TooltipProvider, { delayDuration: 0, children: /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(SidebarContext.Provider, { value: contextValue, children: /* @__PURE__ */ jsx15(TooltipProvider, { delayDuration: 0, children: /* @__PURE__ */ jsx15(
     "div",
     __spreadProps(__spreadValues({
       "data-slot": "sidebar-wrapper",
@@ -1478,7 +1618,7 @@ function Sidebar(_a) {
   ]);
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
   if (collapsible === "none") {
-    return /* @__PURE__ */ jsx14(
+    return /* @__PURE__ */ jsx15(
       "div",
       __spreadProps(__spreadValues({
         "data-slot": "sidebar",
@@ -1492,7 +1632,7 @@ function Sidebar(_a) {
     );
   }
   if (isMobile) {
-    return /* @__PURE__ */ jsx14(Sheet, __spreadProps(__spreadValues({ open: openMobile, onOpenChange: setOpenMobile }, props), { children: /* @__PURE__ */ jsxs9(
+    return /* @__PURE__ */ jsx15(Sheet, __spreadProps(__spreadValues({ open: openMobile, onOpenChange: setOpenMobile }, props), { children: /* @__PURE__ */ jsxs9(
       SheetContent,
       {
         "data-sidebar": "sidebar",
@@ -1505,10 +1645,10 @@ function Sidebar(_a) {
         side,
         children: [
           /* @__PURE__ */ jsxs9(SheetHeader, { className: "sr-only", children: [
-            /* @__PURE__ */ jsx14(SheetTitle, { children: "Sidebar" }),
-            /* @__PURE__ */ jsx14(SheetDescription, { children: "Displays the mobile sidebar." })
+            /* @__PURE__ */ jsx15(SheetTitle, { children: "Sidebar" }),
+            /* @__PURE__ */ jsx15(SheetDescription, { children: "Displays the mobile sidebar." })
           ] }),
-          /* @__PURE__ */ jsx14("div", { className: "flex h-full w-full flex-col", children })
+          /* @__PURE__ */ jsx15("div", { className: "flex h-full w-full flex-col", children })
         ]
       }
     ) }));
@@ -1528,7 +1668,7 @@ function Sidebar(_a) {
       "data-side": side,
       "data-slot": "sidebar",
       children: [
-        /* @__PURE__ */ jsx14(
+        /* @__PURE__ */ jsx15(
           "div",
           {
             "data-slot": "sidebar-gap",
@@ -1540,7 +1680,7 @@ function Sidebar(_a) {
             )
           }
         ),
-        /* @__PURE__ */ jsx14(
+        /* @__PURE__ */ jsx15(
           "div",
           __spreadProps(__spreadValues({
             "data-slot": "sidebar-container",
@@ -1552,7 +1692,7 @@ function Sidebar(_a) {
               className
             )
           }, props), {
-            children: /* @__PURE__ */ jsx14(
+            children: /* @__PURE__ */ jsx15(
               "div",
               {
                 "data-sidebar": "sidebar",
@@ -1590,8 +1730,8 @@ function SidebarTrigger(_a) {
       }
     }, props), {
       children: [
-        /* @__PURE__ */ jsx14(PanelLeftIcon, {}),
-        /* @__PURE__ */ jsx14("span", { className: "sr-only", children: "Toggle Sidebar" })
+        /* @__PURE__ */ jsx15(PanelLeftIcon, {}),
+        /* @__PURE__ */ jsx15("span", { className: "sr-only", children: "Toggle Sidebar" })
       ]
     })
   );
@@ -1657,7 +1797,7 @@ function SidebarRail(_a) {
       toggleSidebar();
     }
   }, [toggleSidebar]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "button",
     __spreadValues({
       "data-sidebar": "rail",
@@ -1680,7 +1820,7 @@ function SidebarRail(_a) {
 }
 function SidebarInset(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "main",
     __spreadValues({
       "data-slot": "sidebar-inset",
@@ -1690,7 +1830,7 @@ function SidebarInset(_a) {
 }
 function SidebarHeader(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "div",
     __spreadValues({
       "data-slot": "sidebar-header",
@@ -1701,7 +1841,7 @@ function SidebarHeader(_a) {
 }
 function SidebarFooter(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "div",
     __spreadValues({
       "data-slot": "sidebar-footer",
@@ -1716,7 +1856,7 @@ function SidebarSeparator(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     Separator,
     __spreadValues({
       "data-slot": "sidebar-separator",
@@ -1727,7 +1867,7 @@ function SidebarSeparator(_a) {
 }
 function SidebarContent(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "div",
     __spreadValues({
       "data-slot": "sidebar-content",
@@ -1741,7 +1881,7 @@ function SidebarContent(_a) {
 }
 function SidebarGroup(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "div",
     __spreadValues({
       "data-slot": "sidebar-group",
@@ -1759,7 +1899,7 @@ function SidebarGroupLabel(_a) {
     "asChild"
   ]);
   const Comp = asChild ? Slot2 : "div";
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-group-label",
@@ -1781,7 +1921,7 @@ function SidebarGroupAction(_a) {
     "asChild"
   ]);
   const Comp = asChild ? Slot2 : "button";
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-group-action",
@@ -1802,7 +1942,7 @@ function SidebarGroupContent(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "div",
     __spreadValues({
       "data-slot": "sidebar-group-content",
@@ -1813,7 +1953,7 @@ function SidebarGroupContent(_a) {
 }
 function SidebarMenu(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "ul",
     __spreadValues({
       "data-slot": "sidebar-menu",
@@ -1824,7 +1964,7 @@ function SidebarMenu(_a) {
 }
 function SidebarMenuItem(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "li",
     __spreadValues({
       "data-slot": "sidebar-menu-item",
@@ -1871,7 +2011,7 @@ function SidebarMenuButton(_a) {
   ]);
   const Comp = asChild ? Slot2 : "button";
   const { isMobile, state } = useSidebar();
-  const button = /* @__PURE__ */ jsx14(
+  const button = /* @__PURE__ */ jsx15(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-menu-button",
@@ -1890,8 +2030,8 @@ function SidebarMenuButton(_a) {
     };
   }
   return /* @__PURE__ */ jsxs9(Tooltip, { children: [
-    /* @__PURE__ */ jsx14(TooltipTrigger, { asChild: true, children: button }),
-    /* @__PURE__ */ jsx14(
+    /* @__PURE__ */ jsx15(TooltipTrigger, { asChild: true, children: button }),
+    /* @__PURE__ */ jsx15(
       TooltipContent,
       __spreadValues({
         side: "right",
@@ -1912,7 +2052,7 @@ function SidebarMenuAction(_a) {
     "showOnHover"
   ]);
   const Comp = asChild ? Slot2 : "button";
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-menu-action",
@@ -1937,7 +2077,7 @@ function SidebarMenuBadge(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "div",
     __spreadValues({
       "data-slot": "sidebar-menu-badge",
@@ -1956,7 +2096,7 @@ function SidebarMenuBadge(_a) {
 }
 function SidebarMenuSub(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "ul",
     __spreadValues({
       "data-slot": "sidebar-menu-sub",
@@ -1975,7 +2115,7 @@ function SidebarMenuSubItem(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     "li",
     __spreadValues({
       "data-slot": "sidebar-menu-sub-item",
@@ -1997,7 +2137,7 @@ function SidebarMenuSubButton(_a) {
     "className"
   ]);
   const Comp = asChild ? Slot2 : "a";
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-menu-sub-button",
@@ -2023,21 +2163,21 @@ import {
   useAssistantState as useAssistantState2
 } from "@assistant-ui/react";
 import { PlusIcon as PlusIcon2, TrashIcon } from "lucide-react";
-import { Fragment, jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
+import { Fragment, jsx as jsx16, jsxs as jsxs10 } from "react/jsx-runtime";
 var ThreadList = () => {
   return /* @__PURE__ */ jsxs10(ThreadListPrimitive.Root, { className: "aui-root aui-thread-list-root flex flex-col items-stretch gap-1.5", children: [
-    /* @__PURE__ */ jsx15(ThreadListNew, {}),
-    /* @__PURE__ */ jsx15(ThreadListItems, {})
+    /* @__PURE__ */ jsx16(ThreadListNew, {}),
+    /* @__PURE__ */ jsx16(ThreadListItems, {})
   ] });
 };
 var ThreadListNew = () => {
-  return /* @__PURE__ */ jsx15(ThreadListPrimitive.New, { asChild: true, children: /* @__PURE__ */ jsxs10(
+  return /* @__PURE__ */ jsx16(ThreadListPrimitive.New, { asChild: true, children: /* @__PURE__ */ jsxs10(
     Button,
     {
       className: "aui-thread-list-new flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start hover:bg-muted data-active:bg-muted",
       variant: "ghost",
       children: [
-        /* @__PURE__ */ jsx15(PlusIcon2, {}),
+        /* @__PURE__ */ jsx16(PlusIcon2, {}),
         "New Chat"
       ]
     }
@@ -2046,34 +2186,34 @@ var ThreadListNew = () => {
 var ThreadListItems = () => {
   const isLoading = useAssistantState2(({ threads }) => threads.isLoading);
   if (isLoading) {
-    return /* @__PURE__ */ jsx15(ThreadListSkeleton, {});
+    return /* @__PURE__ */ jsx16(ThreadListSkeleton, {});
   }
-  return /* @__PURE__ */ jsx15(ThreadListPrimitive.Items, { components: { ThreadListItem } });
+  return /* @__PURE__ */ jsx16(ThreadListPrimitive.Items, { components: { ThreadListItem } });
 };
 var ThreadListSkeleton = () => {
-  return /* @__PURE__ */ jsx15(Fragment, { children: Array.from({ length: 5 }, (_, i) => /* @__PURE__ */ jsx15(
+  return /* @__PURE__ */ jsx16(Fragment, { children: Array.from({ length: 5 }, (_, i) => /* @__PURE__ */ jsx16(
     "div",
     {
       role: "status",
       "aria-label": "Loading threads",
       "aria-live": "polite",
       className: "aui-thread-list-skeleton-wrapper flex items-center gap-2 rounded-md px-3 py-2",
-      children: /* @__PURE__ */ jsx15(Skeleton, { className: "aui-thread-list-skeleton h-[22px] flex-grow" })
+      children: /* @__PURE__ */ jsx16(Skeleton, { className: "aui-thread-list-skeleton h-[22px] flex-grow" })
     },
     i
   )) });
 };
 var ThreadListItem = () => {
   return /* @__PURE__ */ jsxs10(ThreadListItemPrimitive.Root, { className: "aui-thread-list-item flex items-center gap-2 rounded-lg transition-all hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-muted", children: [
-    /* @__PURE__ */ jsx15(ThreadListItemPrimitive.Trigger, { className: "aui-thread-list-item-trigger flex-grow px-3 py-2 text-start", children: /* @__PURE__ */ jsx15(ThreadListItemTitle, {}) }),
-    /* @__PURE__ */ jsx15(ThreadListItemDelete, {})
+    /* @__PURE__ */ jsx16(ThreadListItemPrimitive.Trigger, { className: "aui-thread-list-item-trigger flex-grow px-3 py-2 text-start", children: /* @__PURE__ */ jsx16(ThreadListItemTitle, {}) }),
+    /* @__PURE__ */ jsx16(ThreadListItemDelete, {})
   ] });
 };
 var ThreadListItemTitle = () => {
-  return /* @__PURE__ */ jsx15("span", { className: "aui-thread-list-item-title text-sm", children: /* @__PURE__ */ jsx15(ThreadListItemPrimitive.Title, { fallback: "New Chat" }) });
+  return /* @__PURE__ */ jsx16("span", { className: "aui-thread-list-item-title text-sm", children: /* @__PURE__ */ jsx16(ThreadListItemPrimitive.Title, { fallback: "New Chat" }) });
 };
 var ThreadListItemDelete = () => {
-  return /* @__PURE__ */ jsx15(ThreadListItemPrimitive.Delete, { asChild: true, children: /* @__PURE__ */ jsx15(
+  return /* @__PURE__ */ jsx16(ThreadListItemPrimitive.Delete, { asChild: true, children: /* @__PURE__ */ jsx16(
     TooltipIconButton,
     {
       className: "aui-thread-list-item-delete mr-3 ml-auto size-4 p-0 text-foreground hover:text-primary",
@@ -2088,13 +2228,13 @@ var ThreadListItemDelete = () => {
           event.stopPropagation();
         }
       },
-      children: /* @__PURE__ */ jsx15(TrashIcon, {})
+      children: /* @__PURE__ */ jsx16(TrashIcon, {})
     }
   ) });
 };
 
 // src/components/assistant-ui/threadlist-sidebar.tsx
-import { jsx as jsx16, jsxs as jsxs11 } from "react/jsx-runtime";
+import { jsx as jsx17, jsxs as jsxs11 } from "react/jsx-runtime";
 function ThreadListSidebar(_a) {
   var _b = _a, {
     footer
@@ -2109,13 +2249,13 @@ function ThreadListSidebar(_a) {
       className: "relative"
     }, props), {
       children: [
-        /* @__PURE__ */ jsx16(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ jsx16("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ jsx16(SidebarMenu, { children: /* @__PURE__ */ jsx16(SidebarMenuItem, { children: /* @__PURE__ */ jsx16(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx16(
+        /* @__PURE__ */ jsx17(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ jsx17("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ jsx17(SidebarMenu, { children: /* @__PURE__ */ jsx17(SidebarMenuItem, { children: /* @__PURE__ */ jsx17(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ jsx17(
           Link,
           {
             href: "https://aomi.dev",
             target: "_blank",
             rel: "noopener noreferrer",
-            children: /* @__PURE__ */ jsx16("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ jsx16(
+            children: /* @__PURE__ */ jsx17("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ jsx17(
               Image3,
               {
                 src: "/assets/images/a.svg",
@@ -2128,9 +2268,9 @@ function ThreadListSidebar(_a) {
             ) })
           }
         ) }) }) }) }) }),
-        /* @__PURE__ */ jsx16(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ jsx16(ThreadList, {}) }),
-        /* @__PURE__ */ jsx16(SidebarRail, {}),
-        footer && /* @__PURE__ */ jsx16(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: footer })
+        /* @__PURE__ */ jsx17(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ jsx17(ThreadList, {}) }),
+        /* @__PURE__ */ jsx17(SidebarRail, {}),
+        footer && /* @__PURE__ */ jsx17(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: footer })
       ]
     })
   );
@@ -2139,14 +2279,14 @@ function ThreadListSidebar(_a) {
 // src/components/ui/breadcrumb.tsx
 import { Slot as Slot3 } from "@radix-ui/react-slot";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
-import { jsx as jsx17, jsxs as jsxs12 } from "react/jsx-runtime";
+import { jsx as jsx18, jsxs as jsxs12 } from "react/jsx-runtime";
 function Breadcrumb(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ jsx17("nav", __spreadValues({ "aria-label": "breadcrumb", "data-slot": "breadcrumb" }, props));
+  return /* @__PURE__ */ jsx18("nav", __spreadValues({ "aria-label": "breadcrumb", "data-slot": "breadcrumb" }, props));
 }
 function BreadcrumbList(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsx18(
     "ol",
     __spreadValues({
       "data-slot": "breadcrumb-list",
@@ -2159,7 +2299,7 @@ function BreadcrumbList(_a) {
 }
 function BreadcrumbItem(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsx18(
     "li",
     __spreadValues({
       "data-slot": "breadcrumb-item",
@@ -2176,7 +2316,7 @@ function BreadcrumbLink(_a) {
     "className"
   ]);
   const Comp = asChild ? Slot3 : "a";
-  return /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsx18(
     Comp,
     __spreadValues({
       "data-slot": "breadcrumb-link",
@@ -2186,7 +2326,7 @@ function BreadcrumbLink(_a) {
 }
 function BreadcrumbPage(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsx18(
     "span",
     __spreadValues({
       "data-slot": "breadcrumb-page",
@@ -2205,7 +2345,7 @@ function BreadcrumbSeparator(_a) {
     "children",
     "className"
   ]);
-  return /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsx18(
     "li",
     __spreadProps(__spreadValues({
       "data-slot": "breadcrumb-separator",
@@ -2213,7 +2353,7 @@ function BreadcrumbSeparator(_a) {
       "aria-hidden": "true",
       className: cn("[&>svg]:size-3.5", className)
     }, props), {
-      children: children != null ? children : /* @__PURE__ */ jsx17(ChevronRight, {})
+      children: children != null ? children : /* @__PURE__ */ jsx18(ChevronRight, {})
     })
   );
 }
@@ -2232,15 +2372,15 @@ function BreadcrumbEllipsis(_a) {
       className: cn("flex size-9 items-center justify-center", className)
     }, props), {
       children: [
-        /* @__PURE__ */ jsx17(MoreHorizontal, { className: "size-4" }),
-        /* @__PURE__ */ jsx17("span", { className: "sr-only", children: "More" })
+        /* @__PURE__ */ jsx18(MoreHorizontal, { className: "size-4" }),
+        /* @__PURE__ */ jsx18("span", { className: "sr-only", children: "More" })
       ]
     })
   );
 }
 
 // src/components/assistant-ui/runtime.tsx
-import { createContext as createContext3, useCallback as useCallback3, useContext as useContext3, useEffect as useEffect4, useRef as useRef2, useState as useState7 } from "react";
+import { createContext as createContext3, useCallback as useCallback3, useContext as useContext3, useEffect as useEffect5, useRef as useRef2, useState as useState7 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -2574,132 +2714,19 @@ function parseToolStream(toolStream) {
   return null;
 }
 
-// src/lib/thread-context.tsx
-import { createContext as createContext2, useContext as useContext2, useState as useState6, useCallback as useCallback2 } from "react";
-import { jsx as jsx18 } from "react/jsx-runtime";
-function generateSessionId() {
-  return crypto.randomUUID();
-}
-var ThreadContext = createContext2(null);
-function useThreadContext() {
-  const context = useContext2(ThreadContext);
-  if (!context) {
-    throw new Error(
-      "useThreadContext must be used within ThreadContextProvider. Wrap your app with <ThreadContextProvider>...</ThreadContextProvider>"
-    );
-  }
-  return context;
-}
-function ThreadContextProvider({
-  children,
-  initialThreadId
-}) {
-  const [generateThreadId] = useState6(() => {
-    const id = initialThreadId || generateSessionId();
-    console.log("\u{1F535} [ThreadContext] Initialized with thread ID:", id);
-    return id;
-  });
-  const [threadCnt, setThreadCnt] = useState6(1);
-  const [threads, setThreads] = useState6(
-    () => /* @__PURE__ */ new Map([[generateThreadId, []]])
-  );
-  const [threadMetadata, setThreadMetadata] = useState6(
-    () => /* @__PURE__ */ new Map([
-      [
-        generateThreadId,
-        { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() }
-      ]
-    ])
-  );
-  const ensureThreadExists = useCallback2(
-    (threadId) => {
-      setThreadMetadata((prev) => {
-        if (prev.has(threadId)) return prev;
-        const next = new Map(prev);
-        next.set(threadId, { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
-        return next;
-      });
-      setThreads((prev) => {
-        if (prev.has(threadId)) return prev;
-        const next = new Map(prev);
-        next.set(threadId, []);
-        return next;
-      });
-    },
-    []
-  );
-  const [currentThreadId, _setCurrentThreadId] = useState6(generateThreadId);
-  const setCurrentThreadId = useCallback2(
-    (threadId) => {
-      ensureThreadExists(threadId);
-      _setCurrentThreadId(threadId);
-    },
-    [ensureThreadExists]
-  );
-  const getThreadMessages = useCallback2(
-    (threadId) => {
-      return threads.get(threadId) || [];
-    },
-    [threads]
-  );
-  const setThreadMessages = useCallback2(
-    (threadId, messages) => {
-      setThreads((prev) => {
-        const next = new Map(prev);
-        next.set(threadId, messages);
-        return next;
-      });
-    },
-    []
-  );
-  const getThreadMetadata = useCallback2(
-    (threadId) => {
-      return threadMetadata.get(threadId);
-    },
-    [threadMetadata]
-  );
-  const updateThreadMetadata = useCallback2(
-    (threadId, updates) => {
-      setThreadMetadata((prev) => {
-        const existing = prev.get(threadId);
-        if (!existing) {
-          console.warn(`Thread metadata not found for threadId: ${threadId}`);
-          return prev;
-        }
-        const next = new Map(prev);
-        next.set(threadId, __spreadValues(__spreadValues({}, existing), updates));
-        return next;
-      });
-    },
-    []
-  );
-  const value = {
-    currentThreadId,
-    setCurrentThreadId,
-    threads,
-    setThreads,
-    threadMetadata,
-    setThreadMetadata,
-    threadCnt,
-    setThreadCnt,
-    getThreadMessages,
-    setThreadMessages,
-    getThreadMetadata,
-    updateThreadMetadata
-  };
-  return /* @__PURE__ */ jsx18(ThreadContext.Provider, { value, children });
-}
-function useCurrentThreadMetadata() {
-  const { currentThreadId, getThreadMetadata } = useThreadContext();
-  return getThreadMetadata(currentThreadId);
-}
-
 // src/components/assistant-ui/runtime.tsx
 import { jsx as jsx19 } from "react/jsx-runtime";
 var RuntimeActionsContext = createContext3(void 0);
 var isTempThreadId = (id) => id.startsWith("temp-");
 var parseTimestamp2 = (value) => {
-  if (!value) return 0;
+  if (value === void 0 || value === null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
+  }
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric)) {
+    return numeric < 1e12 ? numeric * 1e3 : numeric;
+  }
   const ts = Date.parse(value);
   return Number.isNaN(ts) ? 0 : ts;
 };
@@ -2723,6 +2750,7 @@ function AomiRuntimeProvider({
   const {
     currentThreadId,
     setCurrentThreadId,
+    bumpThreadViewKey,
     threads,
     setThreads,
     threadMetadata,
@@ -2738,9 +2766,18 @@ function AomiRuntimeProvider({
   const pollingIntervalRef = useRef2(null);
   const pendingSystemMessagesRef = useRef2(/* @__PURE__ */ new Map());
   const pendingChatMessagesRef = useRef2(/* @__PURE__ */ new Map());
+  const creatingThreadIdRef = useRef2(null);
+  const createThreadPromiseRef = useRef2(null);
+  const findPendingThreadId = useCallback3(() => {
+    if (creatingThreadIdRef.current) return creatingThreadIdRef.current;
+    for (const [id, meta] of threadMetadata.entries()) {
+      if (meta.status === "pending") return id;
+    }
+    return null;
+  }, [threadMetadata]);
   const currentMessages = getThreadMessages(currentThreadId);
   const currentThreadIdRef = useRef2(currentThreadId);
-  useEffect4(() => {
+  useEffect5(() => {
     currentThreadIdRef.current = currentThreadId;
   }, [currentThreadId]);
   const skipInitialFetchRef = useRef2(/* @__PURE__ */ new Set());
@@ -2782,7 +2819,7 @@ function AomiRuntimeProvider({
     }
     setThreadMessages(currentThreadId, threadMessages);
   }, [currentThreadId, setThreadMessages]);
-  useEffect4(() => {
+  useEffect5(() => {
     backendApiRef.current = new BackendApi(backendUrl);
   }, [backendUrl]);
   const stopPolling = useCallback3(() => {
@@ -2816,7 +2853,7 @@ function AomiRuntimeProvider({
       }
     }, 500);
   }, [currentThreadId, applyMessages, stopPolling, isThreadReady, resolveThreadId]);
-  useEffect4(() => {
+  useEffect5(() => {
     const fetchInitialState = async () => {
       if (isTempThreadId(currentThreadId) && !tempToBackendIdRef.current.has(currentThreadId)) {
         setIsRunning(false);
@@ -2850,7 +2887,7 @@ function AomiRuntimeProvider({
       stopPolling();
     };
   }, [currentThreadId, applyMessages, startPolling, stopPolling, resolveThreadId]);
-  useEffect4(() => {
+  useEffect5(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -2907,23 +2944,78 @@ function AomiRuntimeProvider({
       archivedThreads: archivedThreadsArray,
       // Create new thread
       onSwitchToNewThread: async () => {
+        var _a;
+        const preparePendingThread = (newId) => {
+          const previousPendingId = creatingThreadIdRef.current;
+          if (previousPendingId && previousPendingId !== newId) {
+            setThreadMetadata((prev) => {
+              const next = new Map(prev);
+              next.delete(previousPendingId);
+              return next;
+            });
+            setThreads((prev) => {
+              const next = new Map(prev);
+              next.delete(previousPendingId);
+              return next;
+            });
+            pendingChatMessagesRef.current.delete(previousPendingId);
+            pendingSystemMessagesRef.current.delete(previousPendingId);
+            tempToBackendIdRef.current.delete(previousPendingId);
+            skipInitialFetchRef.current.delete(previousPendingId);
+          }
+          creatingThreadIdRef.current = newId;
+          pendingChatMessagesRef.current.delete(newId);
+          pendingSystemMessagesRef.current.delete(newId);
+          setThreadMetadata(
+            (prev) => new Map(prev).set(newId, {
+              title: "New Chat",
+              status: "pending",
+              lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+            })
+          );
+          setThreadMessages(newId, []);
+          setCurrentThreadId(newId);
+          setIsRunning(false);
+          bumpThreadViewKey();
+        };
+        const existingPendingId = findPendingThreadId();
+        if (existingPendingId) {
+          preparePendingThread(existingPendingId);
+          return;
+        }
+        if (createThreadPromiseRef.current) {
+          preparePendingThread((_a = creatingThreadIdRef.current) != null ? _a : `temp-${crypto.randomUUID()}`);
+          return;
+        }
         const tempId = `temp-${crypto.randomUUID()}`;
-        setThreadMetadata(
-          (prev) => new Map(prev).set(tempId, {
-            title: "New Chat",
-            status: "regular",
-            lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-          })
-        );
-        setThreadMessages(tempId, []);
-        setCurrentThreadId(tempId);
-        backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
+        preparePendingThread(tempId);
+        const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
+          var _a2;
+          const uiThreadId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
           const backendId = newThread.session_id;
-          tempToBackendIdRef.current.set(tempId, backendId);
-          skipInitialFetchRef.current.add(tempId);
-          const pendingMessages = pendingChatMessagesRef.current.get(tempId);
+          tempToBackendIdRef.current.set(uiThreadId, backendId);
+          skipInitialFetchRef.current.add(uiThreadId);
+          const backendTitle = newThread.title;
+          if (backendTitle && !isPlaceholderTitle(backendTitle)) {
+            setThreadMetadata((prev) => {
+              var _a3;
+              const next = new Map(prev);
+              const existing = next.get(uiThreadId);
+              const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+              next.set(uiThreadId, {
+                title: backendTitle,
+                status: nextStatus,
+                lastActiveAt: (_a3 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a3 : (/* @__PURE__ */ new Date()).toISOString()
+              });
+              return next;
+            });
+            if (creatingThreadIdRef.current === uiThreadId) {
+              creatingThreadIdRef.current = null;
+            }
+          }
+          const pendingMessages = pendingChatMessagesRef.current.get(uiThreadId);
           if (pendingMessages == null ? void 0 : pendingMessages.length) {
-            pendingChatMessagesRef.current.delete(tempId);
+            pendingChatMessagesRef.current.delete(uiThreadId);
             for (const text of pendingMessages) {
               try {
                 await backendApiRef.current.postChatMessage(backendId, text);
@@ -2931,23 +3023,31 @@ function AomiRuntimeProvider({
                 console.error("Failed to send queued message:", error);
               }
             }
-            if (currentThreadIdRef.current === tempId) {
+            if (currentThreadIdRef.current === uiThreadId) {
               startPolling();
             }
           }
         }).catch((error) => {
+          var _a2;
           console.error("Failed to create new thread:", error);
+          const failedId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
           setThreadMetadata((prev) => {
             const next = new Map(prev);
-            next.delete(tempId);
+            next.delete(failedId);
             return next;
           });
           setThreads((prev) => {
             const next = new Map(prev);
-            next.delete(tempId);
+            next.delete(failedId);
             return next;
           });
+          if (creatingThreadIdRef.current === failedId) {
+            creatingThreadIdRef.current = null;
+          }
+        }).finally(() => {
+          createThreadPromiseRef.current = null;
         });
+        createThreadPromiseRef.current = createPromise;
       },
       // Switch to existing thread
       onSwitchToThread: (threadId) => {
@@ -3146,14 +3246,14 @@ function AomiRuntimeProvider({
       // 🎯 Thread list adapter enabled!
     }
   });
-  useEffect4(() => {
+  useEffect5(() => {
     if (isTempThreadId(currentThreadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
     if (hasUserMessages) {
       void flushPendingSystemMessages(currentThreadId);
     }
   }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
-  useEffect4(() => {
+  useEffect5(() => {
     const unsubscribe = backendApiRef.current.subscribeToUpdates(
       (update) => {
         if (update.type !== "TitleChanged") return;
@@ -3165,13 +3265,18 @@ function AomiRuntimeProvider({
           var _a;
           const next = new Map(prev);
           const existing = next.get(threadIdToUpdate);
+          const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+          const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
           next.set(threadIdToUpdate, {
-            title: isPlaceholderTitle(newTitle) ? "" : newTitle,
-            status: (_a = existing == null ? void 0 : existing.status) != null ? _a : "regular",
-            lastActiveAt: existing == null ? void 0 : existing.lastActiveAt
+            title: normalizedTitle,
+            status: nextStatus,
+            lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
           });
           return next;
         });
+        if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
+          creatingThreadIdRef.current = null;
+        }
       },
       (error) => {
         console.error("Failed to handle system update SSE:", error);
@@ -3185,7 +3290,7 @@ function AomiRuntimeProvider({
 }
 
 // src/utils/wallet.ts
-import { useEffect as useEffect5, useRef as useRef3 } from "react";
+import { useEffect as useEffect6, useRef as useRef3 } from "react";
 var getNetworkName = (chainId) => {
   if (chainId === void 0) return "";
   const id = typeof chainId === "string" ? Number(chainId) : chainId;
@@ -3217,7 +3322,7 @@ var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` :
 function WalletSystemMessageEmitter({ wallet }) {
   const { sendSystemMessage } = useRuntimeActions();
   const lastWalletRef = useRef3({ isConnected: false });
-  useEffect5(() => {
+  useEffect6(() => {
     const prev = lastWalletRef.current;
     const { address, chainId, isConnected } = wallet;
     const normalizedAddress = address == null ? void 0 : address.toLowerCase();
@@ -3293,6 +3398,7 @@ var FrameShell = ({
 }) => {
   var _a, _b;
   const currentTitle = (_b = (_a = useCurrentThreadMetadata()) == null ? void 0 : _a.title) != null ? _b : "New Chat";
+  const { currentThreadId, threadViewKey } = useThreadContext();
   return /* @__PURE__ */ jsxs13(SidebarProvider, { children: [
     children,
     /* @__PURE__ */ jsxs13(
@@ -3314,7 +3420,7 @@ var FrameShell = ({
                 /* @__PURE__ */ jsx20(BreadcrumbSeparator, { className: "hidden md:block" })
               ] }) })
             ] }),
-            /* @__PURE__ */ jsx20("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ jsx20(Thread, {}) })
+            /* @__PURE__ */ jsx20("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ jsx20(Thread, {}, `${currentThreadId}-${threadViewKey}`) })
           ] })
         ]
       }

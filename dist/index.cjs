@@ -150,12 +150,13 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // src/components/aomi-frame.tsx
-var import_react13 = require("react");
+var import_react15 = require("react");
 
 // src/components/assistant-ui/thread.tsx
 var import_lucide_react5 = require("lucide-react");
-var import_react6 = require("@assistant-ui/react");
-var import_react7 = require("motion/react");
+var import_react7 = require("@assistant-ui/react");
+var import_react8 = require("react");
+var import_react9 = require("motion/react");
 var m = __toESM(require("motion/react-m"), 1);
 
 // src/components/ui/button.tsx
@@ -942,20 +943,159 @@ var ComposerAddAttachment = () => {
   ) });
 };
 
-// src/components/assistant-ui/thread.tsx
+// src/lib/thread-context.tsx
+var import_react6 = require("react");
 var import_jsx_runtime9 = require("react/jsx-runtime");
+function generateSessionId() {
+  return crypto.randomUUID();
+}
+var ThreadContext = (0, import_react6.createContext)(null);
+function useThreadContext() {
+  const context = (0, import_react6.useContext)(ThreadContext);
+  if (!context) {
+    throw new Error(
+      "useThreadContext must be used within ThreadContextProvider. Wrap your app with <ThreadContextProvider>...</ThreadContextProvider>"
+    );
+  }
+  return context;
+}
+function ThreadContextProvider({
+  children,
+  initialThreadId
+}) {
+  const [generateThreadId] = (0, import_react6.useState)(() => {
+    const id = initialThreadId || generateSessionId();
+    console.log("\u{1F535} [ThreadContext] Initialized with thread ID:", id);
+    return id;
+  });
+  const [threadCnt, setThreadCnt] = (0, import_react6.useState)(1);
+  const [threads, setThreads] = (0, import_react6.useState)(
+    () => /* @__PURE__ */ new Map([[generateThreadId, []]])
+  );
+  const [threadMetadata, setThreadMetadata] = (0, import_react6.useState)(
+    () => /* @__PURE__ */ new Map([
+      [
+        generateThreadId,
+        { title: "New Chat", status: "pending", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() }
+      ]
+    ])
+  );
+  const ensureThreadExists = (0, import_react6.useCallback)(
+    (threadId) => {
+      setThreadMetadata((prev) => {
+        if (prev.has(threadId)) return prev;
+        const next = new Map(prev);
+        next.set(threadId, { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
+        return next;
+      });
+      setThreads((prev) => {
+        if (prev.has(threadId)) return prev;
+        const next = new Map(prev);
+        next.set(threadId, []);
+        return next;
+      });
+    },
+    []
+  );
+  const [currentThreadId, _setCurrentThreadId] = (0, import_react6.useState)(generateThreadId);
+  const [threadViewKey, setThreadViewKey] = (0, import_react6.useState)(0);
+  const bumpThreadViewKey = (0, import_react6.useCallback)(() => {
+    setThreadViewKey((prev) => prev + 1);
+  }, []);
+  const setCurrentThreadId = (0, import_react6.useCallback)(
+    (threadId) => {
+      ensureThreadExists(threadId);
+      _setCurrentThreadId(threadId);
+    },
+    [ensureThreadExists]
+  );
+  const getThreadMessages = (0, import_react6.useCallback)(
+    (threadId) => {
+      return threads.get(threadId) || [];
+    },
+    [threads]
+  );
+  const setThreadMessages = (0, import_react6.useCallback)(
+    (threadId, messages) => {
+      setThreads((prev) => {
+        const next = new Map(prev);
+        next.set(threadId, messages);
+        return next;
+      });
+    },
+    []
+  );
+  const getThreadMetadata = (0, import_react6.useCallback)(
+    (threadId) => {
+      return threadMetadata.get(threadId);
+    },
+    [threadMetadata]
+  );
+  const updateThreadMetadata = (0, import_react6.useCallback)(
+    (threadId, updates) => {
+      setThreadMetadata((prev) => {
+        const existing = prev.get(threadId);
+        if (!existing) {
+          console.warn(`Thread metadata not found for threadId: ${threadId}`);
+          return prev;
+        }
+        const next = new Map(prev);
+        next.set(threadId, __spreadValues(__spreadValues({}, existing), updates));
+        return next;
+      });
+    },
+    []
+  );
+  const value = {
+    currentThreadId,
+    setCurrentThreadId,
+    threadViewKey,
+    bumpThreadViewKey,
+    threads,
+    setThreads,
+    threadMetadata,
+    setThreadMetadata,
+    threadCnt,
+    setThreadCnt,
+    getThreadMessages,
+    setThreadMessages,
+    getThreadMetadata,
+    updateThreadMetadata
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ThreadContext.Provider, { value, children });
+}
+function useCurrentThreadMetadata() {
+  const { currentThreadId, getThreadMetadata } = useThreadContext();
+  return getThreadMetadata(currentThreadId);
+}
+
+// src/components/assistant-ui/thread.tsx
+var import_react10 = require("@assistant-ui/react");
+var import_jsx_runtime10 = require("react/jsx-runtime");
 var Thread = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react7.LazyMotion, { features: import_react7.domAnimation, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react7.MotionConfig, { reducedMotion: "user", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-    import_react6.ThreadPrimitive.Root,
+  const api = (0, import_react10.useAssistantApi)();
+  const { threadViewKey } = useThreadContext();
+  (0, import_react8.useEffect)(() => {
+    var _a;
+    try {
+      const composer = api.composer();
+      composer.setText("");
+      void ((_a = composer.clearAttachments) == null ? void 0 : _a.call(composer));
+    } catch (error) {
+      console.error("Failed to reset composer input:", error);
+    }
+  }, [api, threadViewKey]);
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react9.LazyMotion, { features: import_react9.domAnimation, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react9.MotionConfig, { reducedMotion: "user", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+    import_react7.ThreadPrimitive.Root,
     {
       className: "aui-root aui-thread-root @container flex h-full flex-col bg-background",
       style: {
         ["--thread-max-width"]: "44rem"
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_react6.ThreadPrimitive.Viewport, { className: "aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-4", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ThreadPrimitive.If, { empty: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ThreadWelcome, {}) }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          import_react6.ThreadPrimitive.Messages,
+      children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_react7.ThreadPrimitive.Viewport, { className: "aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-4", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ThreadPrimitive.If, { empty: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ThreadWelcome, {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          import_react7.ThreadPrimitive.Messages,
           {
             components: {
               UserMessage,
@@ -965,27 +1105,27 @@ var Thread = () => {
             }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ThreadPrimitive.If, { empty: false, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "aui-thread-viewport-spacer min-h-8 grow" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Composer, {})
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ThreadPrimitive.If, { empty: false, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "aui-thread-viewport-spacer min-h-8 grow" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Composer, {})
       ] })
     }
   ) }) });
 };
 var ThreadScrollToBottom = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ThreadPrimitive.ScrollToBottom, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ThreadPrimitive.ScrollToBottom, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
     TooltipIconButton,
     {
       tooltip: "Scroll to bottom",
       variant: "outline",
       className: "aui-thread-scroll-to-bottom absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible dark:bg-background dark:hover:bg-accent",
-      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.ArrowDownIcon, {})
+      children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.ArrowDownIcon, {})
     }
   ) });
 };
 var ThreadWelcome = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-thread-welcome-message flex size-full flex-col justify-center px-8", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-thread-welcome-message flex size-full flex-col justify-center px-8", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         m.div,
         {
           initial: { opacity: 0, y: 10 },
@@ -995,7 +1135,7 @@ var ThreadWelcome = () => {
           children: "Hello there!"
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         m.div,
         {
           initial: { opacity: 0, y: 10 },
@@ -1007,11 +1147,11 @@ var ThreadWelcome = () => {
         }
       )
     ] }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ThreadSuggestions, {})
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ThreadSuggestions, {})
   ] });
 };
 var ThreadSuggestions = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "aui-thread-welcome-suggestions grid w-full gap-2 pb-4 @md:grid-cols-2", children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "aui-thread-welcome-suggestions grid w-full gap-2 pb-4 @md:grid-cols-2", children: [
     {
       title: "Show my wallet balances",
       label: "and positions",
@@ -1032,7 +1172,7 @@ var ThreadSuggestions = () => {
       label: "from Ethereum to Arbitrum",
       action: "Bridge 100 USDC from Ethereum to Arbitrum"
     }
-  ].map((suggestedAction, index) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  ].map((suggestedAction, index) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
     m.div,
     {
       initial: { opacity: 0, y: 20 },
@@ -1040,21 +1180,21 @@ var ThreadSuggestions = () => {
       exit: { opacity: 0, y: 20 },
       transition: { delay: 0.05 * index },
       className: "aui-thread-welcome-suggestion-display [&:nth-child(n+3)]:hidden @md:[&:nth-child(n+3)]:block",
-      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-        import_react6.ThreadPrimitive.Suggestion,
+      children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        import_react7.ThreadPrimitive.Suggestion,
         {
           prompt: suggestedAction.action,
           send: true,
           asChild: true,
-          children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+          children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
             Button,
             {
               variant: "ghost",
               className: "aui-thread-welcome-suggestion h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm @md:flex-col dark:hover:bg-accent/60",
               "aria-label": suggestedAction.action,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "aui-thread-welcome-suggestion-text-1 font-medium", children: suggestedAction.title }),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "aui-thread-welcome-suggestion-text-2 text-muted-foreground", children: suggestedAction.label })
+                /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "aui-thread-welcome-suggestion-text-1 font-medium", children: suggestedAction.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "aui-thread-welcome-suggestion-text-2 text-muted-foreground", children: suggestedAction.label })
               ]
             }
           )
@@ -1065,12 +1205,12 @@ var ThreadSuggestions = () => {
   )) });
 };
 var Composer = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ThreadScrollToBottom, {}),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_react6.ComposerPrimitive.Root, { className: "aui-composer-root relative flex w-full flex-col rounded-4xl border bg-white px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ComposerAttachments, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-        import_react6.ComposerPrimitive.Input,
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ThreadScrollToBottom, {}),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_react7.ComposerPrimitive.Root, { className: "aui-composer-root relative flex w-full flex-col rounded-4xl border bg-white px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ComposerAttachments, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        import_react7.ComposerPrimitive.Input,
         {
           placeholder: "Send a message...",
           className: "aui-composer-input ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-sm outline-none placeholder:text-muted-foreground focus:outline-primary",
@@ -1079,14 +1219,14 @@ var Composer = () => {
           "aria-label": "Message input"
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ComposerAction, {})
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ComposerAction, {})
     ] })
   ] });
 };
 var ComposerAction = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-between", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ComposerAddAttachment, {}),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ThreadPrimitive.If, { running: false, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ComposerPrimitive.Send, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-between", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ComposerAddAttachment, {}),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ThreadPrimitive.If, { running: false, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ComposerPrimitive.Send, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       TooltipIconButton,
       {
         tooltip: "Send message",
@@ -1096,10 +1236,10 @@ var ComposerAction = () => {
         size: "icon",
         className: "aui-composer-send mr-3 mb-3 size-[34px] rounded-full p-1",
         "aria-label": "Send message",
-        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.ArrowUpIcon, { className: "aui-composer-send-icon size-5" })
+        children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.ArrowUpIcon, { className: "aui-composer-send-icon size-5" })
       }
     ) }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ThreadPrimitive.If, { running: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ComposerPrimitive.Cancel, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ThreadPrimitive.If, { running: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ComposerPrimitive.Cancel, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       Button,
       {
         type: "button",
@@ -1107,24 +1247,24 @@ var ComposerAction = () => {
         size: "icon",
         className: "aui-composer-cancel size-[34px] rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90",
         "aria-label": "Stop generating",
-        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.Square, { className: "aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" })
+        children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.Square, { className: "aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" })
       }
     ) }) })
   ] });
 };
 var MessageError = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.Error, { children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ErrorPrimitive.Root, { className: "aui-message-error-root mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive dark:bg-destructive/5 dark:text-red-200", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ErrorPrimitive.Message, { className: "aui-message-error-message line-clamp-2" }) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.Error, { children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ErrorPrimitive.Root, { className: "aui-message-error-root mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive dark:bg-destructive/5 dark:text-red-200", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ErrorPrimitive.Message, { className: "aui-message-error-message line-clamp-2" }) }) });
 };
 var AssistantMessage = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.Root, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.Root, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
     "div",
     {
       className: "aui-assistant-message-root relative mx-auto w-full max-w-[var(--thread-max-width)] animate-in py-4 duration-150 ease-out fade-in slide-in-from-bottom-1 last:mb-24",
       "data-role": "assistant",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-assistant-message-content text-sm mx-2 leading-5 break-words text-foreground", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            import_react6.MessagePrimitive.Parts,
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-assistant-message-content text-sm mx-2 leading-5 break-words text-foreground", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+            import_react7.MessagePrimitive.Parts,
             {
               components: {
                 Text: MarkdownText,
@@ -1132,74 +1272,74 @@ var AssistantMessage = () => {
               }
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(MessageError, {})
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MessageError, {})
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-assistant-message-footer mt-2 ml-2 flex", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(BranchPicker, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(AssistantActionBar, {})
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-assistant-message-footer mt-2 ml-2 flex", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(BranchPicker, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(AssistantActionBar, {})
         ] })
       ]
     }
   ) });
 };
 var AssistantActionBar = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-    import_react6.ActionBarPrimitive.Root,
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+    import_react7.ActionBarPrimitive.Root,
     {
       hideWhenRunning: true,
       autohide: "not-last",
       autohideFloat: "single-branch",
       className: "aui-assistant-action-bar-root col-start-3 row-start-2 -ml-1 flex gap-1 text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ActionBarPrimitive.Copy, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(TooltipIconButton, { tooltip: "Copy", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.If, { copied: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.CheckIcon, {}) }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.If, { copied: false, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.CopyIcon, {}) })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ActionBarPrimitive.Copy, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(TooltipIconButton, { tooltip: "Copy", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.If, { copied: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.CheckIcon, {}) }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.If, { copied: false, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.CopyIcon, {}) })
         ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ActionBarPrimitive.Reload, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(TooltipIconButton, { tooltip: "Refresh", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.RefreshCwIcon, {}) }) })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ActionBarPrimitive.Reload, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(TooltipIconButton, { tooltip: "Refresh", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.RefreshCwIcon, {}) }) })
       ]
     }
   );
 };
 var UserMessage = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.Root, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.Root, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
     "div",
     {
       className: "aui-user-message-root mx-auto grid w-full max-w-[var(--thread-max-width)] animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] gap-y-2 px-2 py-4 duration-150 ease-out fade-in slide-in-from-bottom-1 first:mt-3 last:mb-5 [&:where(>*)]:col-start-2",
       "data-role": "user",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(UserMessageAttachments, {}),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-user-message-content-wrapper relative col-start-2 min-w-0", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "aui-user-message-content text-sm rounded-3xl bg-muted px-5 py-2.5 break-words text-foreground", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.Parts, {}) }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "aui-user-action-bar-wrapper absolute top-1/2 left-0 -translate-x-full -translate-y-1/2 pr-2", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(UserActionBar, {}) })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(UserMessageAttachments, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-user-message-content-wrapper relative col-start-2 min-w-0", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "aui-user-message-content text-sm rounded-3xl bg-muted px-5 py-2.5 break-words text-foreground", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.Parts, {}) }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "aui-user-action-bar-wrapper absolute top-1/2 left-0 -translate-x-full -translate-y-1/2 pr-2", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(UserActionBar, {}) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(BranchPicker, { className: "aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(BranchPicker, { className: "aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" })
       ]
     }
   ) });
 };
 var UserActionBar = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-    import_react6.ActionBarPrimitive.Root,
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+    import_react7.ActionBarPrimitive.Root,
     {
       hideWhenRunning: true,
       autohide: "not-last",
       className: "aui-user-action-bar-root flex flex-col items-end",
-      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ActionBarPrimitive.Edit, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(TooltipIconButton, { tooltip: "Edit", className: "aui-user-action-edit p-4", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.PencilIcon, {}) }) })
+      children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ActionBarPrimitive.Edit, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(TooltipIconButton, { tooltip: "Edit", className: "aui-user-action-edit p-4", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.PencilIcon, {}) }) })
     }
   );
 };
 var EditComposer = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "aui-edit-composer-wrapper mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 px-2 first:mt-4", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_react6.ComposerPrimitive.Root, { className: "aui-edit-composer-root ml-auto flex w-full max-w-7/8 flex-col rounded-xl bg-muted", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-      import_react6.ComposerPrimitive.Input,
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "aui-edit-composer-wrapper mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 px-2 first:mt-4", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_react7.ComposerPrimitive.Root, { className: "aui-edit-composer-root ml-auto flex w-full max-w-7/8 flex-col rounded-xl bg-muted", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+      import_react7.ComposerPrimitive.Input,
       {
         className: "aui-edit-composer-input flex min-h-[60px] w-full resize-none bg-transparent p-4 text-foreground outline-none",
         autoFocus: true
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-edit-composer-footer mx-3 mb-3 flex items-center justify-center gap-2 self-end", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ComposerPrimitive.Cancel, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Button, { variant: "ghost", size: "sm", "aria-label": "Cancel edit", children: "Cancel" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.ComposerPrimitive.Send, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Button, { size: "sm", "aria-label": "Update message", children: "Update" }) })
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-edit-composer-footer mx-3 mb-3 flex items-center justify-center gap-2 self-end", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ComposerPrimitive.Cancel, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Button, { variant: "ghost", size: "sm", "aria-label": "Cancel edit", children: "Cancel" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.ComposerPrimitive.Send, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Button, { size: "sm", "aria-label": "Update message", children: "Update" }) })
     ] })
   ] }) });
 };
@@ -1209,8 +1349,8 @@ var BranchPicker = (_a) => {
   } = _b, rest = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-    import_react6.BranchPickerPrimitive.Root,
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+    import_react7.BranchPickerPrimitive.Root,
     __spreadProps(__spreadValues({
       hideWhenSingleBranch: true,
       className: cn(
@@ -1219,28 +1359,28 @@ var BranchPicker = (_a) => {
       )
     }, rest), {
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.BranchPickerPrimitive.Previous, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(TooltipIconButton, { tooltip: "Previous", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.ChevronLeftIcon, {}) }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { className: "aui-branch-picker-state font-medium", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.BranchPickerPrimitive.Number, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.BranchPickerPrimitive.Previous, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(TooltipIconButton, { tooltip: "Previous", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.ChevronLeftIcon, {}) }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { className: "aui-branch-picker-state font-medium", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.BranchPickerPrimitive.Number, {}),
           " / ",
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.BranchPickerPrimitive.Count, {})
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.BranchPickerPrimitive.Count, {})
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.BranchPickerPrimitive.Next, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(TooltipIconButton, { tooltip: "Next", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.ChevronRightIcon, {}) }) })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.BranchPickerPrimitive.Next, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(TooltipIconButton, { tooltip: "Next", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.ChevronRightIcon, {}) }) })
       ]
     })
   );
 };
 var SystemMessage = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.Root, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.Root, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
     "div",
     {
       className: "aui-system-message-root mx-auto w-full max-w-[var(--thread-max-width)] px-2 py-4 animate-in fade-in slide-in-from-bottom-1",
       "data-role": "system",
-      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-system-message-card flex w-full flex-wrap items-start gap-3 rounded-3xl border px-5 py-4 text-left text-sm bg-background/70 dark:bg-muted/30", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_lucide_react5.AlertCircleIcon, { className: "aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "aui-system-message-body flex flex-col gap-1", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "aui-system-message-title font-medium text-foreground", children: "System notice" }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "aui-system-message-content leading-relaxed text-muted-foreground", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_react6.MessagePrimitive.Parts, { components: { Text: MarkdownText } }) })
+      children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-system-message-card flex w-full flex-wrap items-start gap-3 rounded-3xl border px-5 py-4 text-left text-sm bg-background/70 dark:bg-muted/30", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_lucide_react5.AlertCircleIcon, { className: "aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "aui-system-message-body flex flex-col gap-1", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "aui-system-message-title font-medium text-foreground", children: "System notice" }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "aui-system-message-content leading-relaxed text-muted-foreground", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react7.MessagePrimitive.Parts, { components: { Text: MarkdownText } }) })
         ] })
       ] })
     }
@@ -1277,10 +1417,10 @@ function useIsMobile() {
 }
 
 // src/components/ui/input.tsx
-var import_jsx_runtime10 = require("react/jsx-runtime");
+var import_jsx_runtime11 = require("react/jsx-runtime");
 function Input(_a) {
   var _b = _a, { className, type } = _b, props = __objRest(_b, ["className", "type"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
     "input",
     __spreadValues({
       type,
@@ -1297,7 +1437,7 @@ function Input(_a) {
 
 // src/components/ui/separator.tsx
 var SeparatorPrimitive = __toESM(require("@radix-ui/react-separator"), 1);
-var import_jsx_runtime11 = require("react/jsx-runtime");
+var import_jsx_runtime12 = require("react/jsx-runtime");
 function Separator(_a) {
   var _b = _a, {
     className,
@@ -1308,7 +1448,7 @@ function Separator(_a) {
     "orientation",
     "decorative"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
     SeparatorPrimitive.Root,
     __spreadValues({
       "data-slot": "separator",
@@ -1325,22 +1465,22 @@ function Separator(_a) {
 // src/components/ui/sheet.tsx
 var SheetPrimitive = __toESM(require("@radix-ui/react-dialog"), 1);
 var import_lucide_react6 = require("lucide-react");
-var import_jsx_runtime12 = require("react/jsx-runtime");
+var import_jsx_runtime13 = require("react/jsx-runtime");
 function Sheet(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SheetPrimitive.Root, __spreadValues({ "data-slot": "sheet" }, props));
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SheetPrimitive.Root, __spreadValues({ "data-slot": "sheet" }, props));
 }
 function SheetTrigger(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SheetPrimitive.Trigger, __spreadValues({ "data-slot": "sheet-trigger" }, props));
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SheetPrimitive.Trigger, __spreadValues({ "data-slot": "sheet-trigger" }, props));
 }
 function SheetClose(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SheetPrimitive.Close, __spreadValues({ "data-slot": "sheet-close" }, props));
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SheetPrimitive.Close, __spreadValues({ "data-slot": "sheet-close" }, props));
 }
 function SheetPortal(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SheetPrimitive.Portal, __spreadValues({ "data-slot": "sheet-portal" }, props));
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SheetPrimitive.Portal, __spreadValues({ "data-slot": "sheet-portal" }, props));
 }
 function SheetOverlay(_a) {
   var _b = _a, {
@@ -1348,7 +1488,7 @@ function SheetOverlay(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     SheetPrimitive.Overlay,
     __spreadValues({
       "data-slot": "sheet-overlay",
@@ -1369,9 +1509,9 @@ function SheetContent(_a) {
     "children",
     "side"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(SheetPortal, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SheetOverlay, {}),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(SheetPortal, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SheetOverlay, {}),
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
       SheetPrimitive.Content,
       __spreadProps(__spreadValues({
         "data-slot": "sheet-content",
@@ -1386,9 +1526,9 @@ function SheetContent(_a) {
       }, props), {
         children: [
           children,
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(SheetPrimitive.Close, { className: "absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(import_lucide_react6.XIcon, { className: "size-4" }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "sr-only", children: "Close" })
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(SheetPrimitive.Close, { className: "absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(import_lucide_react6.XIcon, { className: "size-4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "sr-only", children: "Close" })
           ] })
         ]
       })
@@ -1397,7 +1537,7 @@ function SheetContent(_a) {
 }
 function SheetHeader(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sheet-header",
@@ -1407,7 +1547,7 @@ function SheetHeader(_a) {
 }
 function SheetFooter(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sheet-footer",
@@ -1421,7 +1561,7 @@ function SheetTitle(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     SheetPrimitive.Title,
     __spreadValues({
       "data-slot": "sheet-title",
@@ -1435,7 +1575,7 @@ function SheetDescription(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     SheetPrimitive.Description,
     __spreadValues({
       "data-slot": "sheet-description",
@@ -1445,10 +1585,10 @@ function SheetDescription(_a) {
 }
 
 // src/components/ui/skeleton.tsx
-var import_jsx_runtime13 = require("react/jsx-runtime");
+var import_jsx_runtime14 = require("react/jsx-runtime");
 function Skeleton(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
     "div",
     __spreadValues({
       "data-slot": "skeleton",
@@ -1458,7 +1598,7 @@ function Skeleton(_a) {
 }
 
 // src/components/ui/sidebar.tsx
-var import_jsx_runtime14 = require("react/jsx-runtime");
+var import_jsx_runtime15 = require("react/jsx-runtime");
 var SIDEBAR_COOKIE_NAME = "sidebar_state";
 var SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 var SIDEBAR_WIDTH_MOBILE = "18rem";
@@ -1535,7 +1675,7 @@ function SidebarProvider(_a) {
     }),
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarWidth]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SidebarContext.Provider, { value: contextValue, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(TooltipProvider, { delayDuration: 0, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SidebarContext.Provider, { value: contextValue, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(TooltipProvider, { delayDuration: 0, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "div",
     __spreadProps(__spreadValues({
       "data-slot": "sidebar-wrapper",
@@ -1568,7 +1708,7 @@ function Sidebar(_a) {
   ]);
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
   if (collapsible === "none") {
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       "div",
       __spreadProps(__spreadValues({
         "data-slot": "sidebar",
@@ -1582,7 +1722,7 @@ function Sidebar(_a) {
     );
   }
   if (isMobile) {
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Sheet, __spreadProps(__spreadValues({ open: openMobile, onOpenChange: setOpenMobile }, props), { children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Sheet, __spreadProps(__spreadValues({ open: openMobile, onOpenChange: setOpenMobile }, props), { children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
       SheetContent,
       {
         "data-sidebar": "sidebar",
@@ -1594,16 +1734,16 @@ function Sidebar(_a) {
         },
         side,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(SheetHeader, { className: "sr-only", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SheetTitle, { children: "Sidebar" }),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SheetDescription, { children: "Displays the mobile sidebar." })
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(SheetHeader, { className: "sr-only", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SheetTitle, { children: "Sidebar" }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SheetDescription, { children: "Displays the mobile sidebar." })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "flex h-full w-full flex-col", children })
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "flex h-full w-full flex-col", children })
         ]
       }
     ) }));
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
     "div",
     {
       className: cn(
@@ -1618,7 +1758,7 @@ function Sidebar(_a) {
       "data-side": side,
       "data-slot": "sidebar",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "div",
           {
             "data-slot": "sidebar-gap",
@@ -1630,7 +1770,7 @@ function Sidebar(_a) {
             )
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "div",
           __spreadProps(__spreadValues({
             "data-slot": "sidebar-container",
@@ -1642,7 +1782,7 @@ function Sidebar(_a) {
               className
             )
           }, props), {
-            children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
               "div",
               {
                 "data-sidebar": "sidebar",
@@ -1666,7 +1806,7 @@ function SidebarTrigger(_a) {
     "onClick"
   ]);
   const { toggleSidebar } = useSidebar();
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
     Button,
     __spreadProps(__spreadValues({
       "data-sidebar": "trigger",
@@ -1680,8 +1820,8 @@ function SidebarTrigger(_a) {
       }
     }, props), {
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(import_lucide_react7.PanelLeftIcon, {}),
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "sr-only", children: "Toggle Sidebar" })
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_lucide_react7.PanelLeftIcon, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "sr-only", children: "Toggle Sidebar" })
       ]
     })
   );
@@ -1747,7 +1887,7 @@ function SidebarRail(_a) {
       toggleSidebar();
     }
   }, [toggleSidebar]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "button",
     __spreadValues({
       "data-sidebar": "rail",
@@ -1770,7 +1910,7 @@ function SidebarRail(_a) {
 }
 function SidebarInset(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "main",
     __spreadValues({
       "data-slot": "sidebar-inset",
@@ -1780,7 +1920,7 @@ function SidebarInset(_a) {
 }
 function SidebarHeader(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sidebar-header",
@@ -1791,7 +1931,7 @@ function SidebarHeader(_a) {
 }
 function SidebarFooter(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sidebar-footer",
@@ -1806,7 +1946,7 @@ function SidebarSeparator(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     Separator,
     __spreadValues({
       "data-slot": "sidebar-separator",
@@ -1817,7 +1957,7 @@ function SidebarSeparator(_a) {
 }
 function SidebarContent(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sidebar-content",
@@ -1831,7 +1971,7 @@ function SidebarContent(_a) {
 }
 function SidebarGroup(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sidebar-group",
@@ -1849,7 +1989,7 @@ function SidebarGroupLabel(_a) {
     "asChild"
   ]);
   const Comp = asChild ? import_react_slot3.Slot : "div";
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-group-label",
@@ -1871,7 +2011,7 @@ function SidebarGroupAction(_a) {
     "asChild"
   ]);
   const Comp = asChild ? import_react_slot3.Slot : "button";
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-group-action",
@@ -1892,7 +2032,7 @@ function SidebarGroupContent(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sidebar-group-content",
@@ -1903,7 +2043,7 @@ function SidebarGroupContent(_a) {
 }
 function SidebarMenu(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "ul",
     __spreadValues({
       "data-slot": "sidebar-menu",
@@ -1914,7 +2054,7 @@ function SidebarMenu(_a) {
 }
 function SidebarMenuItem(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "li",
     __spreadValues({
       "data-slot": "sidebar-menu-item",
@@ -1961,7 +2101,7 @@ function SidebarMenuButton(_a) {
   ]);
   const Comp = asChild ? import_react_slot3.Slot : "button";
   const { isMobile, state } = useSidebar();
-  const button = /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  const button = /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-menu-button",
@@ -1979,9 +2119,9 @@ function SidebarMenuButton(_a) {
       children: tooltip
     };
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(Tooltip, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(TooltipTrigger, { asChild: true, children: button }),
-    /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(Tooltip, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(TooltipTrigger, { asChild: true, children: button }),
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       TooltipContent,
       __spreadValues({
         side: "right",
@@ -2002,7 +2142,7 @@ function SidebarMenuAction(_a) {
     "showOnHover"
   ]);
   const Comp = asChild ? import_react_slot3.Slot : "button";
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-menu-action",
@@ -2027,7 +2167,7 @@ function SidebarMenuBadge(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "div",
     __spreadValues({
       "data-slot": "sidebar-menu-badge",
@@ -2046,7 +2186,7 @@ function SidebarMenuBadge(_a) {
 }
 function SidebarMenuSub(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "ul",
     __spreadValues({
       "data-slot": "sidebar-menu-sub",
@@ -2065,7 +2205,7 @@ function SidebarMenuSubItem(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     "li",
     __spreadValues({
       "data-slot": "sidebar-menu-sub-item",
@@ -2087,7 +2227,7 @@ function SidebarMenuSubButton(_a) {
     "className"
   ]);
   const Comp = asChild ? import_react_slot3.Slot : "a";
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
     Comp,
     __spreadValues({
       "data-slot": "sidebar-menu-sub-button",
@@ -2107,59 +2247,59 @@ function SidebarMenuSubButton(_a) {
 }
 
 // src/components/assistant-ui/thread-list.tsx
-var import_react8 = require("@assistant-ui/react");
+var import_react11 = require("@assistant-ui/react");
 var import_lucide_react8 = require("lucide-react");
-var import_jsx_runtime15 = require("react/jsx-runtime");
+var import_jsx_runtime16 = require("react/jsx-runtime");
 var ThreadList = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_react8.ThreadListPrimitive.Root, { className: "aui-root aui-thread-list-root flex flex-col items-stretch gap-1.5", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ThreadListNew, {}),
-    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ThreadListItems, {})
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_react11.ThreadListPrimitive.Root, { className: "aui-root aui-thread-list-root flex flex-col items-stretch gap-1.5", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ThreadListNew, {}),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ThreadListItems, {})
   ] });
 };
 var ThreadListNew = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react8.ThreadListPrimitive.New, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_react11.ThreadListPrimitive.New, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
     Button,
     {
       className: "aui-thread-list-new flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start hover:bg-muted data-active:bg-muted",
       variant: "ghost",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_lucide_react8.PlusIcon, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_lucide_react8.PlusIcon, {}),
         "New Chat"
       ]
     }
   ) });
 };
 var ThreadListItems = () => {
-  const isLoading = (0, import_react8.useAssistantState)(({ threads }) => threads.isLoading);
+  const isLoading = (0, import_react11.useAssistantState)(({ threads }) => threads.isLoading);
   if (isLoading) {
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ThreadListSkeleton, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ThreadListSkeleton, {});
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react8.ThreadListPrimitive.Items, { components: { ThreadListItem } });
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_react11.ThreadListPrimitive.Items, { components: { ThreadListItem } });
 };
 var ThreadListSkeleton = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_jsx_runtime15.Fragment, { children: Array.from({ length: 5 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_jsx_runtime16.Fragment, { children: Array.from({ length: 5 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
     "div",
     {
       role: "status",
       "aria-label": "Loading threads",
       "aria-live": "polite",
       className: "aui-thread-list-skeleton-wrapper flex items-center gap-2 rounded-md px-3 py-2",
-      children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Skeleton, { className: "aui-thread-list-skeleton h-[22px] flex-grow" })
+      children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Skeleton, { className: "aui-thread-list-skeleton h-[22px] flex-grow" })
     },
     i
   )) });
 };
 var ThreadListItem = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_react8.ThreadListItemPrimitive.Root, { className: "aui-thread-list-item flex items-center gap-2 rounded-lg transition-all hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-muted", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react8.ThreadListItemPrimitive.Trigger, { className: "aui-thread-list-item-trigger flex-grow px-3 py-2 text-start", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ThreadListItemTitle, {}) }),
-    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ThreadListItemDelete, {})
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_react11.ThreadListItemPrimitive.Root, { className: "aui-thread-list-item flex items-center gap-2 rounded-lg transition-all hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-muted", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_react11.ThreadListItemPrimitive.Trigger, { className: "aui-thread-list-item-trigger flex-grow px-3 py-2 text-start", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ThreadListItemTitle, {}) }),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ThreadListItemDelete, {})
   ] });
 };
 var ThreadListItemTitle = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "aui-thread-list-item-title text-sm", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react8.ThreadListItemPrimitive.Title, { fallback: "New Chat" }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "aui-thread-list-item-title text-sm", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_react11.ThreadListItemPrimitive.Title, { fallback: "New Chat" }) });
 };
 var ThreadListItemDelete = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react8.ThreadListItemPrimitive.Delete, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_react11.ThreadListItemPrimitive.Delete, { asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
     TooltipIconButton,
     {
       className: "aui-thread-list-item-delete mr-3 ml-auto size-4 p-0 text-foreground hover:text-primary",
@@ -2174,20 +2314,20 @@ var ThreadListItemDelete = () => {
           event.stopPropagation();
         }
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_lucide_react8.TrashIcon, {})
+      children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_lucide_react8.TrashIcon, {})
     }
   ) });
 };
 
 // src/components/assistant-ui/threadlist-sidebar.tsx
-var import_jsx_runtime16 = require("react/jsx-runtime");
+var import_jsx_runtime17 = require("react/jsx-runtime");
 function ThreadListSidebar(_a) {
   var _b = _a, {
     footer
   } = _b, props = __objRest(_b, [
     "footer"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
     Sidebar,
     __spreadProps(__spreadValues({
       collapsible: "offcanvas",
@@ -2195,13 +2335,13 @@ function ThreadListSidebar(_a) {
       className: "relative"
     }, props), {
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SidebarMenu, { children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SidebarMenuItem, { children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SidebarMenu, { children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SidebarMenuItem, { children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
           import_link.default,
           {
             href: "https://aomi.dev",
             target: "_blank",
             rel: "noopener noreferrer",
-            children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
               import_image2.default,
               {
                 src: "/assets/images/a.svg",
@@ -2214,9 +2354,9 @@ function ThreadListSidebar(_a) {
             ) })
           }
         ) }) }) }) }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ThreadList, {}) }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SidebarRail, {}),
-        footer && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: footer })
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ThreadList, {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SidebarRail, {}),
+        footer && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: footer })
       ]
     })
   );
@@ -2225,14 +2365,14 @@ function ThreadListSidebar(_a) {
 // src/components/ui/breadcrumb.tsx
 var import_react_slot4 = require("@radix-ui/react-slot");
 var import_lucide_react9 = require("lucide-react");
-var import_jsx_runtime17 = require("react/jsx-runtime");
+var import_jsx_runtime18 = require("react/jsx-runtime");
 function Breadcrumb(_a) {
   var props = __objRest(_a, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("nav", __spreadValues({ "aria-label": "breadcrumb", "data-slot": "breadcrumb" }, props));
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("nav", __spreadValues({ "aria-label": "breadcrumb", "data-slot": "breadcrumb" }, props));
 }
 function BreadcrumbList(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "ol",
     __spreadValues({
       "data-slot": "breadcrumb-list",
@@ -2245,7 +2385,7 @@ function BreadcrumbList(_a) {
 }
 function BreadcrumbItem(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "li",
     __spreadValues({
       "data-slot": "breadcrumb-item",
@@ -2262,7 +2402,7 @@ function BreadcrumbLink(_a) {
     "className"
   ]);
   const Comp = asChild ? import_react_slot4.Slot : "a";
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     Comp,
     __spreadValues({
       "data-slot": "breadcrumb-link",
@@ -2272,7 +2412,7 @@ function BreadcrumbLink(_a) {
 }
 function BreadcrumbPage(_a) {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "span",
     __spreadValues({
       "data-slot": "breadcrumb-page",
@@ -2291,7 +2431,7 @@ function BreadcrumbSeparator(_a) {
     "children",
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "li",
     __spreadProps(__spreadValues({
       "data-slot": "breadcrumb-separator",
@@ -2299,7 +2439,7 @@ function BreadcrumbSeparator(_a) {
       "aria-hidden": "true",
       className: cn("[&>svg]:size-3.5", className)
     }, props), {
-      children: children != null ? children : /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(import_lucide_react9.ChevronRight, {})
+      children: children != null ? children : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_lucide_react9.ChevronRight, {})
     })
   );
 }
@@ -2309,7 +2449,7 @@ function BreadcrumbEllipsis(_a) {
   } = _b, props = __objRest(_b, [
     "className"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
     "span",
     __spreadProps(__spreadValues({
       "data-slot": "breadcrumb-ellipsis",
@@ -2318,16 +2458,16 @@ function BreadcrumbEllipsis(_a) {
       className: cn("flex size-9 items-center justify-center", className)
     }, props), {
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(import_lucide_react9.MoreHorizontal, { className: "size-4" }),
-        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "sr-only", children: "More" })
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_lucide_react9.MoreHorizontal, { className: "size-4" }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "sr-only", children: "More" })
       ]
     })
   );
 }
 
 // src/components/assistant-ui/runtime.tsx
-var import_react10 = require("react");
-var import_react11 = require("@assistant-ui/react");
+var import_react12 = require("react");
+var import_react13 = require("@assistant-ui/react");
 
 // src/lib/backend-api.ts
 function toQueryString(payload) {
@@ -2657,132 +2797,19 @@ function parseToolStream(toolStream) {
   return null;
 }
 
-// src/lib/thread-context.tsx
-var import_react9 = require("react");
-var import_jsx_runtime18 = require("react/jsx-runtime");
-function generateSessionId() {
-  return crypto.randomUUID();
-}
-var ThreadContext = (0, import_react9.createContext)(null);
-function useThreadContext() {
-  const context = (0, import_react9.useContext)(ThreadContext);
-  if (!context) {
-    throw new Error(
-      "useThreadContext must be used within ThreadContextProvider. Wrap your app with <ThreadContextProvider>...</ThreadContextProvider>"
-    );
-  }
-  return context;
-}
-function ThreadContextProvider({
-  children,
-  initialThreadId
-}) {
-  const [generateThreadId] = (0, import_react9.useState)(() => {
-    const id = initialThreadId || generateSessionId();
-    console.log("\u{1F535} [ThreadContext] Initialized with thread ID:", id);
-    return id;
-  });
-  const [threadCnt, setThreadCnt] = (0, import_react9.useState)(1);
-  const [threads, setThreads] = (0, import_react9.useState)(
-    () => /* @__PURE__ */ new Map([[generateThreadId, []]])
-  );
-  const [threadMetadata, setThreadMetadata] = (0, import_react9.useState)(
-    () => /* @__PURE__ */ new Map([
-      [
-        generateThreadId,
-        { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() }
-      ]
-    ])
-  );
-  const ensureThreadExists = (0, import_react9.useCallback)(
-    (threadId) => {
-      setThreadMetadata((prev) => {
-        if (prev.has(threadId)) return prev;
-        const next = new Map(prev);
-        next.set(threadId, { title: "New Chat", status: "regular", lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
-        return next;
-      });
-      setThreads((prev) => {
-        if (prev.has(threadId)) return prev;
-        const next = new Map(prev);
-        next.set(threadId, []);
-        return next;
-      });
-    },
-    []
-  );
-  const [currentThreadId, _setCurrentThreadId] = (0, import_react9.useState)(generateThreadId);
-  const setCurrentThreadId = (0, import_react9.useCallback)(
-    (threadId) => {
-      ensureThreadExists(threadId);
-      _setCurrentThreadId(threadId);
-    },
-    [ensureThreadExists]
-  );
-  const getThreadMessages = (0, import_react9.useCallback)(
-    (threadId) => {
-      return threads.get(threadId) || [];
-    },
-    [threads]
-  );
-  const setThreadMessages = (0, import_react9.useCallback)(
-    (threadId, messages) => {
-      setThreads((prev) => {
-        const next = new Map(prev);
-        next.set(threadId, messages);
-        return next;
-      });
-    },
-    []
-  );
-  const getThreadMetadata = (0, import_react9.useCallback)(
-    (threadId) => {
-      return threadMetadata.get(threadId);
-    },
-    [threadMetadata]
-  );
-  const updateThreadMetadata = (0, import_react9.useCallback)(
-    (threadId, updates) => {
-      setThreadMetadata((prev) => {
-        const existing = prev.get(threadId);
-        if (!existing) {
-          console.warn(`Thread metadata not found for threadId: ${threadId}`);
-          return prev;
-        }
-        const next = new Map(prev);
-        next.set(threadId, __spreadValues(__spreadValues({}, existing), updates));
-        return next;
-      });
-    },
-    []
-  );
-  const value = {
-    currentThreadId,
-    setCurrentThreadId,
-    threads,
-    setThreads,
-    threadMetadata,
-    setThreadMetadata,
-    threadCnt,
-    setThreadCnt,
-    getThreadMessages,
-    setThreadMessages,
-    getThreadMetadata,
-    updateThreadMetadata
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ThreadContext.Provider, { value, children });
-}
-function useCurrentThreadMetadata() {
-  const { currentThreadId, getThreadMetadata } = useThreadContext();
-  return getThreadMetadata(currentThreadId);
-}
-
 // src/components/assistant-ui/runtime.tsx
 var import_jsx_runtime19 = require("react/jsx-runtime");
-var RuntimeActionsContext = (0, import_react10.createContext)(void 0);
+var RuntimeActionsContext = (0, import_react12.createContext)(void 0);
 var isTempThreadId = (id) => id.startsWith("temp-");
 var parseTimestamp2 = (value) => {
-  if (!value) return 0;
+  if (value === void 0 || value === null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
+  }
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric)) {
+    return numeric < 1e12 ? numeric * 1e3 : numeric;
+  }
   const ts = Date.parse(value);
   return Number.isNaN(ts) ? 0 : ts;
 };
@@ -2792,7 +2819,7 @@ var isPlaceholderTitle = (title) => {
   return !normalized || normalized.startsWith("#[");
 };
 var useRuntimeActions = () => {
-  const context = (0, import_react10.useContext)(RuntimeActionsContext);
+  const context = (0, import_react12.useContext)(RuntimeActionsContext);
   if (!context) {
     throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
   }
@@ -2806,6 +2833,7 @@ function AomiRuntimeProvider({
   const {
     currentThreadId,
     setCurrentThreadId,
+    bumpThreadViewKey,
     threads,
     setThreads,
     threadMetadata,
@@ -2816,32 +2844,41 @@ function AomiRuntimeProvider({
     setThreadMessages,
     updateThreadMetadata
   } = useThreadContext();
-  const [isRunning, setIsRunning] = (0, import_react10.useState)(false);
-  const backendApiRef = (0, import_react10.useRef)(new BackendApi(backendUrl));
-  const pollingIntervalRef = (0, import_react10.useRef)(null);
-  const pendingSystemMessagesRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
-  const pendingChatMessagesRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const [isRunning, setIsRunning] = (0, import_react12.useState)(false);
+  const backendApiRef = (0, import_react12.useRef)(new BackendApi(backendUrl));
+  const pollingIntervalRef = (0, import_react12.useRef)(null);
+  const pendingSystemMessagesRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
+  const pendingChatMessagesRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
+  const creatingThreadIdRef = (0, import_react12.useRef)(null);
+  const createThreadPromiseRef = (0, import_react12.useRef)(null);
+  const findPendingThreadId = (0, import_react12.useCallback)(() => {
+    if (creatingThreadIdRef.current) return creatingThreadIdRef.current;
+    for (const [id, meta] of threadMetadata.entries()) {
+      if (meta.status === "pending") return id;
+    }
+    return null;
+  }, [threadMetadata]);
   const currentMessages = getThreadMessages(currentThreadId);
-  const currentThreadIdRef = (0, import_react10.useRef)(currentThreadId);
-  (0, import_react10.useEffect)(() => {
+  const currentThreadIdRef = (0, import_react12.useRef)(currentThreadId);
+  (0, import_react12.useEffect)(() => {
     currentThreadIdRef.current = currentThreadId;
   }, [currentThreadId]);
-  const skipInitialFetchRef = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
-  const tempToBackendIdRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
-  const resolveThreadId = (0, import_react10.useCallback)((threadId) => {
+  const skipInitialFetchRef = (0, import_react12.useRef)(/* @__PURE__ */ new Set());
+  const tempToBackendIdRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
+  const resolveThreadId = (0, import_react12.useCallback)((threadId) => {
     return tempToBackendIdRef.current.get(threadId) || threadId;
   }, []);
-  const findTempIdForBackendId = (0, import_react10.useCallback)((backendId) => {
+  const findTempIdForBackendId = (0, import_react12.useCallback)((backendId) => {
     for (const [tempId, bId] of tempToBackendIdRef.current.entries()) {
       if (bId === backendId) return tempId;
     }
     return void 0;
   }, []);
-  const isThreadReady = (0, import_react10.useCallback)((threadId) => {
+  const isThreadReady = (0, import_react12.useCallback)((threadId) => {
     if (!isTempThreadId(threadId)) return true;
     return tempToBackendIdRef.current.has(threadId);
   }, []);
-  const applyMessages = (0, import_react10.useCallback)((msgs) => {
+  const applyMessages = (0, import_react12.useCallback)((msgs) => {
     var _a, _b;
     if (!msgs) return;
     const hasPendingMessages = pendingChatMessagesRef.current.has(currentThreadId) && ((_b = (_a = pendingChatMessagesRef.current.get(currentThreadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
@@ -2865,16 +2902,16 @@ function AomiRuntimeProvider({
     }
     setThreadMessages(currentThreadId, threadMessages);
   }, [currentThreadId, setThreadMessages]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     backendApiRef.current = new BackendApi(backendUrl);
   }, [backendUrl]);
-  const stopPolling = (0, import_react10.useCallback)(() => {
+  const stopPolling = (0, import_react12.useCallback)(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
   }, []);
-  const startPolling = (0, import_react10.useCallback)(() => {
+  const startPolling = (0, import_react12.useCallback)(() => {
     if (!isThreadReady(currentThreadId)) return;
     if (pollingIntervalRef.current) return;
     const backendThreadId = resolveThreadId(currentThreadId);
@@ -2899,7 +2936,7 @@ function AomiRuntimeProvider({
       }
     }, 500);
   }, [currentThreadId, applyMessages, stopPolling, isThreadReady, resolveThreadId]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     const fetchInitialState = async () => {
       if (isTempThreadId(currentThreadId) && !tempToBackendIdRef.current.has(currentThreadId)) {
         setIsRunning(false);
@@ -2933,7 +2970,7 @@ function AomiRuntimeProvider({
       stopPolling();
     };
   }, [currentThreadId, applyMessages, startPolling, stopPolling, resolveThreadId]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -2990,23 +3027,78 @@ function AomiRuntimeProvider({
       archivedThreads: archivedThreadsArray,
       // Create new thread
       onSwitchToNewThread: async () => {
+        var _a;
+        const preparePendingThread = (newId) => {
+          const previousPendingId = creatingThreadIdRef.current;
+          if (previousPendingId && previousPendingId !== newId) {
+            setThreadMetadata((prev) => {
+              const next = new Map(prev);
+              next.delete(previousPendingId);
+              return next;
+            });
+            setThreads((prev) => {
+              const next = new Map(prev);
+              next.delete(previousPendingId);
+              return next;
+            });
+            pendingChatMessagesRef.current.delete(previousPendingId);
+            pendingSystemMessagesRef.current.delete(previousPendingId);
+            tempToBackendIdRef.current.delete(previousPendingId);
+            skipInitialFetchRef.current.delete(previousPendingId);
+          }
+          creatingThreadIdRef.current = newId;
+          pendingChatMessagesRef.current.delete(newId);
+          pendingSystemMessagesRef.current.delete(newId);
+          setThreadMetadata(
+            (prev) => new Map(prev).set(newId, {
+              title: "New Chat",
+              status: "pending",
+              lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+            })
+          );
+          setThreadMessages(newId, []);
+          setCurrentThreadId(newId);
+          setIsRunning(false);
+          bumpThreadViewKey();
+        };
+        const existingPendingId = findPendingThreadId();
+        if (existingPendingId) {
+          preparePendingThread(existingPendingId);
+          return;
+        }
+        if (createThreadPromiseRef.current) {
+          preparePendingThread((_a = creatingThreadIdRef.current) != null ? _a : `temp-${crypto.randomUUID()}`);
+          return;
+        }
         const tempId = `temp-${crypto.randomUUID()}`;
-        setThreadMetadata(
-          (prev) => new Map(prev).set(tempId, {
-            title: "New Chat",
-            status: "regular",
-            lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-          })
-        );
-        setThreadMessages(tempId, []);
-        setCurrentThreadId(tempId);
-        backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
+        preparePendingThread(tempId);
+        const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
+          var _a2;
+          const uiThreadId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
           const backendId = newThread.session_id;
-          tempToBackendIdRef.current.set(tempId, backendId);
-          skipInitialFetchRef.current.add(tempId);
-          const pendingMessages = pendingChatMessagesRef.current.get(tempId);
+          tempToBackendIdRef.current.set(uiThreadId, backendId);
+          skipInitialFetchRef.current.add(uiThreadId);
+          const backendTitle = newThread.title;
+          if (backendTitle && !isPlaceholderTitle(backendTitle)) {
+            setThreadMetadata((prev) => {
+              var _a3;
+              const next = new Map(prev);
+              const existing = next.get(uiThreadId);
+              const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+              next.set(uiThreadId, {
+                title: backendTitle,
+                status: nextStatus,
+                lastActiveAt: (_a3 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a3 : (/* @__PURE__ */ new Date()).toISOString()
+              });
+              return next;
+            });
+            if (creatingThreadIdRef.current === uiThreadId) {
+              creatingThreadIdRef.current = null;
+            }
+          }
+          const pendingMessages = pendingChatMessagesRef.current.get(uiThreadId);
           if (pendingMessages == null ? void 0 : pendingMessages.length) {
-            pendingChatMessagesRef.current.delete(tempId);
+            pendingChatMessagesRef.current.delete(uiThreadId);
             for (const text of pendingMessages) {
               try {
                 await backendApiRef.current.postChatMessage(backendId, text);
@@ -3014,23 +3106,31 @@ function AomiRuntimeProvider({
                 console.error("Failed to send queued message:", error);
               }
             }
-            if (currentThreadIdRef.current === tempId) {
+            if (currentThreadIdRef.current === uiThreadId) {
               startPolling();
             }
           }
         }).catch((error) => {
+          var _a2;
           console.error("Failed to create new thread:", error);
+          const failedId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
           setThreadMetadata((prev) => {
             const next = new Map(prev);
-            next.delete(tempId);
+            next.delete(failedId);
             return next;
           });
           setThreads((prev) => {
             const next = new Map(prev);
-            next.delete(tempId);
+            next.delete(failedId);
             return next;
           });
+          if (creatingThreadIdRef.current === failedId) {
+            creatingThreadIdRef.current = null;
+          }
+        }).finally(() => {
+          createThreadPromiseRef.current = null;
         });
+        createThreadPromiseRef.current = createPromise;
       },
       // Switch to existing thread
       onSwitchToThread: (threadId) => {
@@ -3103,7 +3203,7 @@ function AomiRuntimeProvider({
       }
     };
   })();
-  const sendSystemMessageNow = (0, import_react10.useCallback)(
+  const sendSystemMessageNow = (0, import_react12.useCallback)(
     async (threadId, message) => {
       const backendThreadId = resolveThreadId(threadId);
       setIsRunning(true);
@@ -3124,7 +3224,7 @@ function AomiRuntimeProvider({
     },
     [getThreadMessages, setThreadMessages, startPolling, resolveThreadId]
   );
-  const flushPendingSystemMessages = (0, import_react10.useCallback)(
+  const flushPendingSystemMessages = (0, import_react12.useCallback)(
     async (threadId) => {
       const pending = pendingSystemMessagesRef.current.get(threadId);
       if (!(pending == null ? void 0 : pending.length)) return;
@@ -3135,7 +3235,7 @@ function AomiRuntimeProvider({
     },
     [sendSystemMessageNow]
   );
-  const flushPendingChatMessages = (0, import_react10.useCallback)(
+  const flushPendingChatMessages = (0, import_react12.useCallback)(
     async (threadId) => {
       const pending = pendingChatMessagesRef.current.get(threadId);
       if (!(pending == null ? void 0 : pending.length)) return;
@@ -3152,7 +3252,7 @@ function AomiRuntimeProvider({
     },
     [resolveThreadId, startPolling]
   );
-  const onNew = (0, import_react10.useCallback)(
+  const onNew = (0, import_react12.useCallback)(
     async (message) => {
       const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
       if (!text) return;
@@ -3192,7 +3292,7 @@ function AomiRuntimeProvider({
       updateThreadMetadata
     ]
   );
-  const sendSystemMessage = (0, import_react10.useCallback)(
+  const sendSystemMessage = (0, import_react12.useCallback)(
     async (message) => {
       if (!isThreadReady(currentThreadId)) return;
       const threadMessages = getThreadMessages(currentThreadId);
@@ -3206,7 +3306,7 @@ function AomiRuntimeProvider({
     },
     [currentThreadId, getThreadMessages, sendSystemMessageNow, isThreadReady]
   );
-  const onCancel = (0, import_react10.useCallback)(async () => {
+  const onCancel = (0, import_react12.useCallback)(async () => {
     if (!isThreadReady(currentThreadId)) return;
     stopPolling();
     const backendThreadId = resolveThreadId(currentThreadId);
@@ -3217,7 +3317,7 @@ function AomiRuntimeProvider({
       console.error("Failed to cancel:", error);
     }
   }, [currentThreadId, stopPolling, isThreadReady, resolveThreadId]);
-  const runtime = (0, import_react11.useExternalStoreRuntime)({
+  const runtime = (0, import_react13.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => setThreadMessages(currentThreadId, [...msgs]),
     isRunning,
@@ -3229,14 +3329,14 @@ function AomiRuntimeProvider({
       // 🎯 Thread list adapter enabled!
     }
   });
-  (0, import_react10.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     if (isTempThreadId(currentThreadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
     if (hasUserMessages) {
       void flushPendingSystemMessages(currentThreadId);
     }
   }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     const unsubscribe = backendApiRef.current.subscribeToUpdates(
       (update) => {
         if (update.type !== "TitleChanged") return;
@@ -3248,13 +3348,18 @@ function AomiRuntimeProvider({
           var _a;
           const next = new Map(prev);
           const existing = next.get(threadIdToUpdate);
+          const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+          const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
           next.set(threadIdToUpdate, {
-            title: isPlaceholderTitle(newTitle) ? "" : newTitle,
-            status: (_a = existing == null ? void 0 : existing.status) != null ? _a : "regular",
-            lastActiveAt: existing == null ? void 0 : existing.lastActiveAt
+            title: normalizedTitle,
+            status: nextStatus,
+            lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
           });
           return next;
         });
+        if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
+          creatingThreadIdRef.current = null;
+        }
       },
       (error) => {
         console.error("Failed to handle system update SSE:", error);
@@ -3264,11 +3369,11 @@ function AomiRuntimeProvider({
       unsubscribe();
     };
   }, [backendUrl, setThreadMetadata, findTempIdForBackendId]);
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react11.AssistantRuntimeProvider, { runtime, children }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react13.AssistantRuntimeProvider, { runtime, children }) });
 }
 
 // src/utils/wallet.ts
-var import_react12 = require("react");
+var import_react14 = require("react");
 var getNetworkName = (chainId) => {
   if (chainId === void 0) return "";
   const id = typeof chainId === "string" ? Number(chainId) : chainId;
@@ -3299,8 +3404,8 @@ var getNetworkName = (chainId) => {
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
 function WalletSystemMessageEmitter({ wallet }) {
   const { sendSystemMessage } = useRuntimeActions();
-  const lastWalletRef = (0, import_react12.useRef)({ isConnected: false });
-  (0, import_react12.useEffect)(() => {
+  const lastWalletRef = (0, import_react14.useRef)({ isConnected: false });
+  (0, import_react14.useEffect)(() => {
     const prev = lastWalletRef.current;
     const { address, chainId, isConnected } = wallet;
     const normalizedAddress = address == null ? void 0 : address.toLowerCase();
@@ -3342,13 +3447,13 @@ var AomiFrame = ({
   var _a;
   const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
   const frameStyle = __spreadValues({ width, height }, style);
-  const [wallet, setWalletState] = (0, import_react13.useState)({
+  const [wallet, setWalletState] = (0, import_react15.useState)({
     isConnected: false,
     address: void 0,
     chainId: void 0,
     ensName: void 0
   });
-  const setWallet = (0, import_react13.useCallback)((data) => {
+  const setWallet = (0, import_react15.useCallback)((data) => {
     setWalletState((prev) => __spreadValues(__spreadValues({}, prev), data));
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(AomiRuntimeProvider, { backendUrl, publicKey: wallet.address, children: [
@@ -3376,6 +3481,7 @@ var FrameShell = ({
 }) => {
   var _a, _b;
   const currentTitle = (_b = (_a = useCurrentThreadMetadata()) == null ? void 0 : _a.title) != null ? _b : "New Chat";
+  const { currentThreadId, threadViewKey } = useThreadContext();
   return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(SidebarProvider, { children: [
     children,
     /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
@@ -3397,7 +3503,7 @@ var FrameShell = ({
                 /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(BreadcrumbSeparator, { className: "hidden md:block" })
               ] }) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Thread, {}) })
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Thread, {}, `${currentThreadId}-${threadViewKey}`) })
           ] })
         ]
       }

@@ -21,6 +21,7 @@ import {
 } from "@assistant-ui/react";
 
 import type { FC } from "react";
+import { useEffect } from "react";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
 
@@ -35,8 +36,23 @@ import {
 } from "@/components/assistant-ui/attachment";
 
 import { cn } from "@/lib/utils";
+import { useThreadContext } from "@/lib/thread-context";
+import { useAssistantApi } from "@assistant-ui/react";
 
 export const Thread: FC = () => {
+  const api = useAssistantApi();
+  const { threadViewKey } = useThreadContext();
+
+  useEffect(() => {
+    try {
+      const composer = api.composer();
+      composer.setText("");
+      void composer.clearAttachments?.();
+    } catch (error) {
+      console.error("Failed to reset composer input:", error);
+    }
+  }, [api, threadViewKey]);
+
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">

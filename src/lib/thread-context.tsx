@@ -22,6 +22,8 @@ export type ThreadContextValue = {
   // Current thread
   currentThreadId: string;
   setCurrentThreadId: (id: string) => void;
+  threadViewKey: number;
+  bumpThreadViewKey: () => void;
 
   // Thread messages (Map: threadId -> messages)
   threads: Map<string, ThreadMessageLike[]>;
@@ -44,8 +46,8 @@ export type ThreadContextValue = {
 
 export type ThreadMetadata = {
   title: string;
-  status: "regular" | "archived";
-  lastActiveAt?: string;
+  status: "regular" | "archived" | "pending";
+  lastActiveAt?: string | number;
 };
 
 /**
@@ -133,7 +135,7 @@ export function ThreadContextProvider({
       new Map([
         [
           generateThreadId,
-          { title: "New Chat", status: "regular", lastActiveAt: new Date().toISOString() },
+          { title: "New Chat", status: "pending", lastActiveAt: new Date().toISOString() },
         ],
       ])
   );
@@ -160,6 +162,11 @@ export function ThreadContextProvider({
 
   // Current thread ID
   const [currentThreadId, _setCurrentThreadId] = useState(generateThreadId);
+  const [threadViewKey, setThreadViewKey] = useState(0);
+
+  const bumpThreadViewKey = useCallback(() => {
+    setThreadViewKey((prev) => prev + 1);
+  }, []);
 
   const setCurrentThreadId = useCallback(
     (threadId: string) => {
@@ -218,6 +225,8 @@ export function ThreadContextProvider({
   const value: ThreadContextValue = {
     currentThreadId,
     setCurrentThreadId,
+    threadViewKey,
+    bumpThreadViewKey,
     threads,
     setThreads,
     threadMetadata,

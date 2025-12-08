@@ -19,8 +19,19 @@ type RuntimeActions = {
 const RuntimeActionsContext = createContext<RuntimeActions | undefined>(undefined);
 
 const isTempThreadId = (id: string) => id.startsWith("temp-");
-const parseTimestamp = (value?: string) => {
-  if (!value) return 0;
+const parseTimestamp = (value?: string | number) => {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === "number") {
+    // Accept both ms and seconds since backend may send either
+    return Number.isFinite(value) ? (value < 1e12 ? value * 1000 : value) : 0;
+  }
+
+  // Numeric strings like "1725654321" are not parsed by Date.parse, so coerce first
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric)) {
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+
   const ts = Date.parse(value);
   return Number.isNaN(ts) ? 0 : ts;
 };
@@ -50,6 +61,7 @@ export function AomiRuntimeProvider({
   const {
     currentThreadId,
     setCurrentThreadId,
+    bumpThreadViewKey,
     threads,
     setThreads,
     threadMetadata,
@@ -68,6 +80,16 @@ export function AomiRuntimeProvider({
   const pendingSystemMessagesRef = useRef<Map<string, string[]>>(new Map());
   // Queue for chat messages sent before backend ID is available
   const pendingChatMessagesRef = useRef<Map<string, string[]>>(new Map());
+  // Track in-flight creation to avoid duplicate backend requests
+  const creatingThreadIdRef = useRef<string | null>(null);
+  const createThreadPromiseRef = useRef<Promise<void> | null>(null);
+  const findPendingThreadId = useCallback(() => {
+    if (creatingThreadIdRef.current) return creatingThreadIdRef.current;
+    for (const [id, meta] of threadMetadata.entries()) {
+      if (meta.status === "pending") return id;
+    }
+    return null;
+  }, [threadMetadata]);
 
   // Get messages for current thread
   const currentMessages = getThreadMessages(currentThreadId);
@@ -309,41 +331,96 @@ export function AomiRuntimeProvider({
 
       // Create new thread
       onSwitchToNewThread: async () => {
+        const preparePendingThread = (newId: string) => {
+          const previousPendingId = creatingThreadIdRef.current;
+          if (previousPendingId && previousPendingId !== newId) {
+            setThreadMetadata((prev) => {
+              const next = new Map(prev);
+              next.delete(previousPendingId);
+              return next;
+            });
+            setThreads((prev) => {
+              const next = new Map(prev);
+              next.delete(previousPendingId);
+              return next;
+            });
+            pendingChatMessagesRef.current.delete(previousPendingId);
+            pendingSystemMessagesRef.current.delete(previousPendingId);
+            tempToBackendIdRef.current.delete(previousPendingId);
+            skipInitialFetchRef.current.delete(previousPendingId);
+          }
+
+          creatingThreadIdRef.current = newId;
+          pendingChatMessagesRef.current.delete(newId);
+          pendingSystemMessagesRef.current.delete(newId);
+          setThreadMetadata((prev) =>
+            new Map(prev).set(newId, {
+              title: "New Chat",
+              status: "pending",
+              lastActiveAt: new Date().toISOString(),
+            })
+          );
+          setThreadMessages(newId, []);
+          setCurrentThreadId(newId);
+          setIsRunning(false);
+          bumpThreadViewKey();
+        };
+
+        // If any pending thread exists (either in-flight or awaiting title), reuse it without new request
+        const existingPendingId = findPendingThreadId();
+        if (existingPendingId) {
+          preparePendingThread(existingPendingId);
+          return;
+        }
+
+        // If a creation request is already in flight, just reset UI with a fresh pending thread
+        if (createThreadPromiseRef.current) {
+          preparePendingThread(creatingThreadIdRef.current ?? `temp-${crypto.randomUUID()}`);
+          return;
+        }
+
         // Generate a temporary ID for immediate UI update
         const tempId = `temp-${crypto.randomUUID()}`;
-        
-        // Immediately show the new chat in UI (non-blocking)
-        setThreadMetadata((prev) =>
-          new Map(prev).set(tempId, {
-            title: "New Chat",
-            status: "regular",
-            lastActiveAt: new Date().toISOString(),
-          })
-        );
-        setThreadMessages(tempId, []);
-        setCurrentThreadId(tempId);
+        preparePendingThread(tempId);
 
         // Create thread on backend in background (with null title)
-        backendApiRef.current.createThread(publicKey, undefined)
+        const createPromise = backendApiRef.current
+          .createThread(publicKey, undefined)
           .then(async (newThread) => {
+            const uiThreadId = creatingThreadIdRef.current ?? tempId;
             const backendId = newThread.session_id;
-            
+
             // Store the mapping from tempId to backendId
             // This allows API calls to use the real backendId while UI stays on tempId
-            tempToBackendIdRef.current.set(tempId, backendId);
-            
+            tempToBackendIdRef.current.set(uiThreadId, backendId);
+
             // Mark this temp thread to skip initial fetch - we just created it,
             // and fetching would overwrite any messages the user has typed
-            skipInitialFetchRef.current.add(tempId);
-            
-            // Note: We intentionally do NOT switch currentThreadId here
-            // Switching would cause a re-render that clears the input field
-            // The tempId remains as the UI thread ID, but API calls use backendId via resolveThreadId
+            skipInitialFetchRef.current.add(uiThreadId);
+
+            const backendTitle = newThread.title;
+            if (backendTitle && !isPlaceholderTitle(backendTitle)) {
+              setThreadMetadata((prev) => {
+                const next = new Map(prev);
+                const existing = next.get(uiThreadId);
+                const nextStatus =
+                  existing?.status === "archived" ? "archived" : "regular";
+                next.set(uiThreadId, {
+                  title: backendTitle,
+                  status: nextStatus,
+                  lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+                });
+                return next;
+              });
+              if (creatingThreadIdRef.current === uiThreadId) {
+                creatingThreadIdRef.current = null;
+              }
+            }
 
             // Flush any pending chat messages that were queued while waiting for backend ID
-            const pendingMessages = pendingChatMessagesRef.current.get(tempId);
+            const pendingMessages = pendingChatMessagesRef.current.get(uiThreadId);
             if (pendingMessages?.length) {
-              pendingChatMessagesRef.current.delete(tempId);
+              pendingChatMessagesRef.current.delete(uiThreadId);
               for (const text of pendingMessages) {
                 try {
                   // eslint-disable-next-line no-await-in-loop
@@ -353,25 +430,34 @@ export function AomiRuntimeProvider({
                 }
               }
               // Start polling after messages are sent (only if user is still on this thread)
-              if (currentThreadIdRef.current === tempId) {
+              if (currentThreadIdRef.current === uiThreadId) {
                 startPolling();
               }
             }
           })
           .catch((error) => {
             console.error("Failed to create new thread:", error);
+            const failedId = creatingThreadIdRef.current ?? tempId;
             // On error, remove the temp thread from UI
             setThreadMetadata((prev) => {
               const next = new Map(prev);
-              next.delete(tempId);
+              next.delete(failedId);
               return next;
             });
             setThreads((prev) => {
               const next = new Map(prev);
-              next.delete(tempId);
+              next.delete(failedId);
               return next;
             });
+            if (creatingThreadIdRef.current === failedId) {
+              creatingThreadIdRef.current = null;
+            }
+          })
+          .finally(() => {
+            createThreadPromiseRef.current = null;
           });
+
+        createThreadPromiseRef.current = createPromise;
       },
 
       // Switch to existing thread
@@ -648,13 +734,19 @@ export function AomiRuntimeProvider({
         setThreadMetadata((prev) => {
           const next = new Map(prev);
           const existing = next.get(threadIdToUpdate);
+          const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+          const nextStatus =
+            existing?.status === "archived" ? "archived" : "regular";
           next.set(threadIdToUpdate, {
-            title: isPlaceholderTitle(newTitle) ? "" : newTitle,
-            status: existing?.status ?? "regular",
-            lastActiveAt: existing?.lastActiveAt,
+            title: normalizedTitle,
+            status: nextStatus,
+            lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
           });
           return next;
         });
+        if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
+          creatingThreadIdRef.current = null;
+        }
       },
       (error) => {
         console.error("Failed to handle system update SSE:", error);
