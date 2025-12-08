@@ -423,7 +423,6 @@ export function AomiRuntimeProvider({
               pendingChatMessagesRef.current.delete(uiThreadId);
               for (const text of pendingMessages) {
                 try {
-                  // eslint-disable-next-line no-await-in-loop
                   await backendApiRef.current.postChatMessage(backendId, text);
                 } catch (error) {
                   console.error("Failed to send queued message:", error);
@@ -585,7 +584,6 @@ export function AomiRuntimeProvider({
       pendingSystemMessagesRef.current.delete(threadId);
       for (const pendingMessage of pending) {
         // Send sequentially to preserve order
-        // eslint-disable-next-line no-await-in-loop
         await sendSystemMessageNow(threadId, pendingMessage);
       }
     },
@@ -603,7 +601,6 @@ export function AomiRuntimeProvider({
 
       for (const text of pending) {
         try {
-          // eslint-disable-next-line no-await-in-loop
           await backendApiRef.current.postChatMessage(backendThreadId, text);
         } catch (error) {
           console.error("Failed to send queued message:", error);

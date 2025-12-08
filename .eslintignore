@@ -1,8 +1,0 @@
-.next
-example/.next
-node_modules
-dist
-build
-.turbo
-**/.next/**
-**/node_modules/**

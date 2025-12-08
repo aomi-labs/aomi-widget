@@ -29,7 +29,7 @@
     "build:lib": "tsup",
     "vercel-build": "pnpm run build:lib && pnpm --filter example build",
     "start": "next start",
-    "lint": "eslint . --ext ts,tsx",
+    "lint": "eslint .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
     "prepublishOnly": "pnpm run build:lib"
