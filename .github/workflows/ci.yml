@@ -38,3 +38,5 @@ jobs:
 
       - name: Build example app
         run: pnpm --filter example build
+        env:
+          NEXT_PUBLIC_PROJECT_ID: 000000000000000000000000000000000000000000
