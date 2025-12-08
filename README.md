@@ -1,25 +1,41 @@
-This is the [assistant-ui](https://github.com/Yonom/assistant-ui) starter project.
+AI assistant + onchain widget library and demo landing page for `@aomi-labs/widget-lib`.
 
-## Getting Started
-
-First, add your OpenAI API key to `.env.local` file:
-
-```
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Then, run the development server:
+## Library usage
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install @aomi-labs/widget-lib
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Drop the frame into your app:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```tsx
+import { AomiFrame } from "@aomi-labs/widget-lib";
+
+export function Assistant() {
+  return (
+    <AomiFrame height="640px" width="100%">
+      {/* optional slots like WalletSystemMessenger */}
+    </AomiFrame>
+  );
+}
+```
+
+## Develop this repo
+
+```bash
+pnpm install
+pnpm run build:lib        # build the published bundle
+pnpm --filter example dev # run the landing/demo (http://localhost:3000)
+pnpm run dev:example:live # watch the library and run the example together
+pnpm lint                 # lint library + example source
+```
+
+The example app lives in `example/` and imports the built library. Re-run `pnpm run build:lib` after changing code in `src/`.
+
+## Env
+
+Create `.env` with your Web3 Project ID from https://docs.reown.com/ and URL endpoint of your backend:
+```
+NEXT_PUBLIC_PROJECT_ID=000000000000000000000000
+NEXT_PUBLIC_BACKEND_URL=http://example.app.com
+```

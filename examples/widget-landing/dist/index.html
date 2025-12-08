@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aomi Widget Showcase</title>
+    <script type="module" crossorigin src="/assets/index-CWpYuQyF.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-G-8yQhUx.css">
+  </head>
+  <body>
+    <div id="app">
+      <header class="hero">
+        <div class="hero-glow"></div>
+        <div class="hero-content">
+          <span class="badge">AI + Web3 Copilot</span>
+          <h1>Drop the Aomi Widget into your product</h1>
+          <p>
+            Spin up a conversational agent with wallet superpowers in minutes. Customise the palette,
+            connect wallets, and embed the widget anywhere your users need guided assistance.
+          </p>
+          <ul class="hero-highlights">
+            <li>⚡ Install with <code>npm i @aomi/widget-lib</code></li>
+            <li>🎨 Theme it live with brand colours or presets</li>
+            <li>🔌 Point to any backend via environment variables</li>
+          </ul>
+          <div class="hero-actions">
+            <a class="action" href="#demo">Preview the widget</a>
+            <a class="action secondary" href="#overview">Why teams love it</a>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section id="demo" class="section demo-section">
+          <div class="section-head">
+            <h2>Experience the widget</h2>
+            <span class="caption">Interactive themes powered by @aomi/widget-lib</span>
+          </div>
+          <div class="demo-layout">
+            <div class="demo-card">
+              <div class="demo-head">
+                <span class="caption">Live preview</span>
+                <span class="demo-meta">Switch themes to see the widget adapt</span>
+              </div>
+              <div class="demo-main">
+                <aside class="theme-picker">
+                  <h3>Theme presets</h3>
+                  <p>Select a vibe to preview the widget in real time.</p>
+                  <div id="theme-grid" class="theme-grid"></div>
+                </aside>
+                <div class="widget-shell">
+                  <div class="widget-toolbar">
+                    <div class="toolbar-status">
+                      <span id="active-theme">—</span>
+                      <span id="widget-status">Select a theme to load the widget.</span>
+                    </div>
+                    <button id="reset-widget" type="button">Reset</button>
+                  </div>
+                  <div id="widget-host" class="widget-host">
+                    <p>Choose a theme to embed the widget.</p>
+                  </div>
+                </div>
+              </div>
+              <p class="demo-footnote">
+                Environment-aware: the widget reads <code>VITE_AOMI_BACKEND_URL</code>. Override locally with
+                <code>?backend=&lt;url&gt;</code>.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="overview" class="section">
+          <div class="section-head">
+            <h2>Why teams choose the Aomi Widget</h2>
+            <span class="caption">Own the experience, skip the infrastructure</span>
+          </div>
+          <div class="overview-grid">
+            <article class="overview-card">
+              <h3>Plug &amp; play</h3>
+              <p>Drop one container into any site, from static landing pages to complex apps.</p>
+              <ul>
+                <li>Auto-initialises with your app code</li>
+                <li>Responsive layouts for desktop &amp; mobile</li>
+              </ul>
+            </article>
+            <article class="overview-card">
+              <h3>Brand perfectly</h3>
+              <p>Pick from curated presets or pass a custom palette to match your product language.</p>
+              <ul>
+                <li>Real-time theme switching</li>
+                <li>Fine-grained typography and spacing control</li>
+              </ul>
+            </article>
+            <article class="overview-card">
+              <h3>Wallet savvy</h3>
+              <p>Connect to any EIP-1193 provider to authorise actions, sign payloads, and read balances inline.</p>
+              <ul>
+                <li>Graceful fallbacks &amp; mocked provider for demos</li>
+                <li>Events for custom analytics or workflows</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section id="integration" class="section">
+          <div class="section-head">
+            <h2>Install &amp; integrate</h2>
+            <span class="caption">Ship an AI copilot with TypeScript tooling</span>
+          </div>
+          <div class="integration-layout">
+            <div class="integration-code">
+              <p>Install the package from npm:</p>
+              <pre><code class="language-bash">npm install @aomi/widget-lib</code></pre>
+              <p>Add the widget to your page or framework component:</p>
+              <pre><code class="language-ts">import { createChatWidget } from '@aomi/widget-lib';
+
+const widget = createChatWidget('#support-chat', {
+  appCode: 'docs-demo',
+  baseUrl: import.meta.env.VITE_AOMI_BACKEND_URL,
+  theme: 'light',
+  onReady: () => console.log('Aomi ready'),
+});</code></pre>
+            </div>
+            <div class="integration-copy">
+              <ol class="integration-steps">
+                <li><strong>Configure</strong> <code>VITE_AOMI_BACKEND_URL</code> in your build environment (Vercel → Project Settings).</li>
+                <li><strong>Bundle</strong> with your preferred toolchain; Rollup, Vite, and Next.js work out of the box.</li>
+                <li><strong>Extend</strong> via callbacks such as <code>onMessage</code>, <code>onError</code>, and the wallet helpers.</li>
+              </ol>
+              <div class="note">
+                Need a quick preview? Deploy this folder on Vercel with build command <code>npm run build</code> and output <code>dist</code>.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section cta-section">
+          <div class="cta-panel">
+            <h2>Ready to launch your AI companion?</h2>
+            <p>
+              Grab the widget, point it at your backend, and delight users with a branded conversational experience.
+            </p>
+            <div class="hero-actions">
+              <a class="action" href="#demo">Preview again</a>
+              <a class="action secondary" href="https://github.com/aomi-labs/aomi-widget" target="_blank" rel="noreferrer">View source</a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Crafted with ❤️ for the Aomi chat platform</span>
+        <a href="https://github.com/aomi-labs/aomi-widget" target="_blank" rel="noreferrer">
+          View source
+        </a>
+      </footer>
+    </div>
+
+  </body>
+</html>
