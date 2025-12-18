@@ -1,4 +1,21 @@
+import { copyFileSync, mkdirSync } from "node:fs";
+import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
+
+const copyStylesPlugin: Plugin = {
+  name: "copy-styles",
+  setup(build) {
+    build.onEnd(() => {
+      try {
+        mkdirSync("dist", { recursive: true });
+        copyFileSync("src/styles.css", "dist/styles.css");
+      } catch (error) {
+        console.error("Failed to copy styles.css into dist/", error);
+        throw error;
+      }
+    });
+  },
+};
 
 export default defineConfig({
   entry: ["src/index.ts"],
@@ -12,9 +29,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   tsconfig: "tsconfig.lib.json",
-  banner: {
-    js: '"use client";',
-  },
   external: [
     // React
     "react",
@@ -54,6 +68,5 @@ export default defineConfig({
     "@ai-sdk/openai",
     "ai",
   ],
-  // Copy CSS file to dist
-  onSuccess: "cp src/styles.css dist/styles.css",
+  esbuildPlugins: [copyStylesPlugin],
 });
