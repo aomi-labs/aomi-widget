@@ -1,9 +1,6 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AppKitProvider, createAppKit } from '@reown/appkit/react'
 import type { AppKitNetwork } from '@reown/appkit-common'
 import { mainnet, arbitrum, optimism, base, polygon } from '@reown/appkit/networks'
-import React, { type ReactNode } from 'react'
-import { cookieStorage, cookieToInitialState, createStorage, WagmiProvider, type Config } from 'wagmi'
+import { cookieStorage, createStorage } from 'wagmi'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 
 // Get projectId from https://dashboard.reown.com
@@ -41,7 +38,3 @@ export const appKitProviderConfig = {
     },
   features: { analytics: true }
 }
-
-console.log("createAppKit(appKitProviderConfig)")
-
-createAppKit(appKitProviderConfig)
