@@ -1,6 +1,7 @@
 packages:
   - .
   - example
+  - apps/*
 
 onlyBuiltDependencies:
   - '@reown/appkit'
