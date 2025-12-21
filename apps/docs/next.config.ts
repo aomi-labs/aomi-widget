@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
+      "@": path.resolve(__dirname, "../../src"),
+      "@docs": path.resolve(__dirname, "./src"),
       "@aomi-labs/widget-lib": path.resolve(__dirname, "../../src"),
       "@aomi-labs/widget-lib/styles.css": path.resolve(__dirname, "../../src/styles.css"),
     };

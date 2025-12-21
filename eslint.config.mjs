@@ -15,6 +15,15 @@ const [nextConfig] = compat.extends("next/core-web-vitals", "next/typescript");
 
 const eslintConfig = [
   {
+    ignores: [
+      "**/.next/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.turbo/**",
+      "**/node_modules/**",
+    ],
+  },
+  {
     ...nextConfig,
     files: ["**/*.ts", "**/*.tsx"],
     ignores: [
