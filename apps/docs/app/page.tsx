@@ -12,7 +12,7 @@ import {
   Separator,
   Skeleton,
 } from "@aomi-labs/widget-lib";
-import { Preview } from "@/components/playground/Preview";
+import { Preview } from "@docs/components/playground/Preview";
 
 const installSnippet = `pnpm add @aomi-labs/widget-lib @assistant-ui/react @assistant-ui/react-markdown @tanstack/react-query @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-avatar @radix-ui/react-separator @radix-ui/react-tooltip framer-motion motion lucide-react react-shiki remark-gfm tailwindcss zustand`;
 
@@ -187,9 +187,9 @@ export default function HomePage() {
               <pre className="overflow-x-auto whitespace-pre-wrap leading-relaxed">{installSnippet}</pre>
             </div>
             <div className="rounded-2xl border border-dashed border-primary/50 bg-primary/5 px-4 py-3 text-sm text-primary">
-              Import <code className="font-mono text-primary">"@aomi-labs/widget-lib/styles.css"</code> inside your
-              docs app entrypoint so theme tokens and base styles apply.
-            </div>
+            Import <code className="font-mono text-primary">&quot;@aomi-labs/widget-lib/styles.css&quot;</code> inside your
+            docs app entrypoint so theme tokens and base styles apply.
+          </div>
           </div>
         </section>
 
@@ -243,8 +243,8 @@ export default function HomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 font-mono text-xs text-muted-foreground">
-                <p>@import "@aomi-labs/widget-lib/styles.css";</p>
-                <p>/* or @import "../../../src/styles.css"; while developing locally */</p>
+                <p>@import &quot;@aomi-labs/widget-lib/styles.css&quot;;</p>
+                <p>{`/* or @import "../../../src/styles.css"; while developing locally */`}</p>
               </CardContent>
             </Card>
             <Card className="border-border/60 bg-card/70">
