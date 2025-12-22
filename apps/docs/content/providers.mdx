@@ -2,42 +2,77 @@
 
 # Providers & runtime
 
-`AomiFrame` relies on two providers from the library so thread state, wallet footer data, and tool calls stay in sync across the UI.
+`AomiFrame` bundles the provider stack for you, but you can compose the pieces directly when you need a custom shell or want to colocate assistant state with the rest of your app.
 
-## Thread context
+## Provider stack inside `AomiFrame`
 
-Wrap surfaces that read or mutate a thread with `ThreadContextProvider`. It tracks the active thread ID, metadata, and message list.
+- `ThreadContextProvider` keeps the active thread ID, metadata, and messages for each thread.
+- `AomiRuntimeProvider` talks to your backend (polling + optional SSE) and pushes new messages into the thread context.
+- Wallet state is tracked internally and piped into the runtime as `publicKey`; a wallet footer slot lets you render your own controls.
 
-```tsx
-import { ThreadContextProvider } from "@aomi-labs/widget-lib";
+## Compose your own shell
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  return <ThreadContextProvider>{children}</ThreadContextProvider>;
-}
-```
-
-## Runtime provider
-
-`AomiRuntimeProvider` wires the chat surface to your backend. When you do not have a backend ready, pass `mock={true}` to render with demo data.
+Use the exported providers and UI primitives to wrap `ThreadListSidebar` + `Thread` in your layout. Pass your backend URL (defaults to `http://localhost:8080`) and optionally a wallet address to `publicKey`.
 
 ```tsx
-import { AomiRuntimeProvider } from "@aomi-labs/widget-lib";
+import "@aomi-labs/widget-lib/styles.css";
+import {
+  AomiRuntimeProvider,
+  ThreadContextProvider,
+  Thread,
+  ThreadListSidebar,
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+  Separator,
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbSeparator,
+} from "@aomi-labs/widget-lib";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function CustomAssistant({
+  backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL,
+}: {
+  backendUrl?: string;
+}) {
   return (
-    <AomiRuntimeProvider
-      backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}
-      projectId={process.env.NEXT_PUBLIC_PROJECT_ID}
-      mock={!process.env.NEXT_PUBLIC_BACKEND_URL}
-    >
-      {children}
-    </AomiRuntimeProvider>
+    <ThreadContextProvider>
+      <AomiRuntimeProvider backendUrl={backendUrl}>
+        <SidebarProvider>
+          <div className="flex h-[640px] overflow-hidden rounded-2xl border bg-card shadow-2xl">
+            <ThreadListSidebar />
+            <SidebarInset className="relative">
+              <header className="flex h-14 items-center gap-2 border-b px-3">
+                <SidebarTrigger />
+                <Separator orientation="vertical" className="mr-2 h-4" />
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>Active thread</BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                  </BreadcrumbList>
+                </Breadcrumb>
+              </header>
+              <Thread />
+            </SidebarInset>
+          </div>
+        </SidebarProvider>
+      </AomiRuntimeProvider>
+    </ThreadContextProvider>
   );
 }
 ```
 
-If you supply `backendUrl`, make sure the endpoints in `src/lib/backend-api.ts` resolve (thread list, create, send message, tool execution). Mock mode keeps the docs playground interactive without hitting a server.
+If you need the wallet footer, prefer `<AomiFrame walletFooter={...} />` so wallet system messages are wired automatically.
 
-## Wallet footer
+## Runtime contract
 
-Use `WalletSystemMessageEmitter` to broadcast wallet actions from your footer slot back into the chat stream. The default footer is exported from `@aomi-labs/widget-lib`, or you can pass your own component to `<AomiFrame walletFooter={...} />`.
+`AomiRuntimeProvider` calls the backend defined in `backend-api.ts`:
+
+- `GET /api/state?session_id=` → `{ messages, is_processing, session_exists, pending_wallet_tx }`
+- `POST /api/chat` with `{ session_id, message }` to send user text.
+- `POST /api/system` with `{ session_id, message }` for tool/system events (wallet actions).
+- `POST /api/interrupt` to stop generation.
+- Optional SSE: `/api/chat/stream?session_id={id}&public_key={wallet}` to stream updates.
+
+Shape responses to `SessionMessage` in `backend-api.ts`; the runtime converts them into `@assistant-ui/react` message objects and updates the current thread.

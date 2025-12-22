@@ -11,20 +11,20 @@
 | `src/utils/` | Wallet helpers/state. | Stay. | Should receive dedicated docs + template integration. |
 | `src/styles.css` | Single Tailwind/token sheet shipping with package. | Becomes `src/themes/<theme>.css` + legacy alias. | Current build copies this exact file (see section 2). |
 | `src/public/` | SVGs/images (currently unused by code). | Decide: remove or move into docs/static packs. | Not shipped (`files` only include `dist`), so safe to prune or relocate. |
-| `example/` | Next.js demo/landing page. | Will morph into `apps/docs`. | Houses wallet providers, marketing copy, fonts. |
-| `example/app/*` | App Router pages/layout. | Become docs routes (component pages, guides). | Contains global import of `@aomi-labs/widget-lib/styles.css`. |
-| `example/src/components/` | Wallet footer + providers. | Move into docs/examples + templates. | Provide as snippets in docs. |
-| `example/public/` | Fonts/images for landing page. | Move under `apps/docs/public` or template assets. | Inventory fonts before moving. |
+| `apps/landing/` | Next.js demo/landing page. | Will morph into `apps/docs`. | Houses wallet providers, marketing copy, fonts. |
+| `apps/landing/app/*` | App Router pages/layout. | Become docs routes (component pages, guides). | Contains global import of `@aomi-labs/widget-lib/styles.css`. |
+| `apps/landing/src/components/` | Wallet footer + providers. | Move into docs/examples + templates. | Provide as snippets in docs. |
+| `apps/landing/public/` | Fonts/images for landing page. | Move under `apps/docs/public` or template assets. | Inventory fonts before moving. |
 | `public/` | Static assets for root Next app (if deployed). | Move to `apps/docs/public` (or keep if still needed). | Mirror across docs + template. |
 | `specs/` | Planning + product docs. | Stay. | Add future theme/template specs here. |
 | `dist/` | Built artifacts. | Generated; no change. | Keep `.gitignore` enforcement. |
 | `components.json` | Next.js registry config. | Update after docs migration. | Ensure new docs app references correct registry. |
 
-## 2. Commands & References to `example/` or `styles.css`
-- `package.json` scripts (`dev:example:live`, `vercel-build`) run `pnpm --filter example ...` and must be updated once docs app exists. (`package.json:18-34`)
-- README quickstart mentions `example/` workflows and URLs. (`README.md:28-34`)
-- `pnpm-workspace.yaml` lists `example` workspace (line 2); replace with `apps/docs` later.
-- `example/app/globals.css` imports `@aomi-labs/widget-lib/styles.css`; templates/docs must continue to do so until theme packs land.
+## 2. Commands & References to `apps/landing/` or `styles.css`
+- `package.json` scripts (`dev:landing:live`, `vercel-build`) run `pnpm --filter landing ...`; keep aligned with the `apps/landing` package name or rename when docs fully replace it. (`package.json:18-34`)
+- README quickstart mentions `apps/landing/` workflows and URLs. (`README.md:28-34`)
+- `pnpm-workspace.yaml` lists `apps/*` so the landing now lives under that glob.
+- `apps/landing/app/globals.css` imports `@aomi-labs/widget-lib/styles.css`; templates/docs must continue to do so until theme packs land.
 - `tsup.config.ts` uses an esbuild plugin to copy `src/styles.css` verbatim into `dist/styles.css` (lines 1-17). Build logic must change once themes split.
 - Package export `./styles.css` points to `dist/styles.css` (package.json:18-24). Maintain compatibility alias.
 - `example` fonts/assets referenced via `next.config.ts`, `public/` images—need relocation plan.

@@ -1,14 +1,14 @@
 # Docs Playground (Phase 2) Plan
 
 ## Objectives
-- Replace `example/` with a production-quality docs/playground app under `apps/docs` (keep `example/` as a smoke-test workspace until docs cover all demos + a new regression gate exists).
+- Replace `apps/landing/` with a production-quality docs/playground app under `apps/docs` (keep `apps/landing/` as a smoke-test workspace until docs cover all demos + a new regression gate exists).
 - Provide live previews + copyable code for every export from `src/index.ts` (frame, assistant UI, UI primitives, wallet utils).
 - Host conceptual guides (environment setup, theming, templates) and marketing landing content in the same app.
 - Keep the docs app tightly coupled to source (hot reloads use local `src/`) so regressions surface immediately.
 
 ## Information Architecture
 1. **Landing / Overview**
-   - Hero section (reuse content from `example/app/page.tsx`).
+   - Hero section (reuse content from `apps/landing/app/page.tsx`).
    - CTA buttons (npm install, GitHub) and video/screenshot slots.
 
 2. **Docs Sections**
@@ -50,13 +50,13 @@
   - Provide guidance on running docs + library concurrently (Turbopack or `pnpm run build:lib -- --watch`).
 
 ## Migration Checklist
-- [x] Scaffold `apps/docs` workspace (fonts/assets still to migrate from `example/public`).
-- [x] Port landing page layout from `example/app/page.tsx` into React components.
+- [x] Scaffold `apps/docs` workspace (fonts/assets still to migrate from `apps/landing/public`).
+- [x] Port landing page layout from `apps/landing/app/page.tsx` into React components.
 - [x] Create docs sidebar/nav structure (Getting Started, Guides, Theming).
 - [x] Implement preview infrastructure + copy button.
 - [ ] Write initial pages: Overview, Install, Providers, Wallet Footer, Theme Packs. (Getting started, Providers, and Theming drafted.)
-- [ ] Point README to docs site, deprecate `example/` instructions.
-- [ ] Eventually remove `example/` workspace once docs cover demo needs and a replacement smoke-test (docs previews or CI build) is in place.
+- [ ] Point README to docs site, deprecate `apps/landing/` instructions.
+- [ ] Eventually remove `apps/landing/` workspace once docs cover demo needs and a replacement smoke-test (docs previews or CI build) is in place.
 
 ## Open Questions
 - Should docs host interactive sandboxes (iframe vs in-page) for embedding third-party tools? (Default: in-page previews only.)

@@ -24,13 +24,13 @@ export function Assistant() {
 
 ```bash
 pnpm install
-pnpm run build:lib        # build the published bundle
-pnpm --filter example dev # run the landing/demo (http://localhost:3000)
-pnpm run dev:example:live # watch the library and run the example together
-pnpm lint                 # lint library + example source
+pnpm run build:lib            # build the published bundle
+pnpm --filter landing dev     # run the landing/demo (http://localhost:3000)
+pnpm run dev:landing:live     # watch the library and run the landing together
+pnpm lint                     # lint library + example source
 ```
 
-The example app lives in `example/` and imports the built library. Re-run `pnpm run build:lib` after changing code in `src/`.
+The landing/demo app lives in `apps/landing/` and imports the built library. Re-run `pnpm run build:lib` after changing code in `src/`.
 
 ## Env
 

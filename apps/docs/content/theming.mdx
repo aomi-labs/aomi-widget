@@ -2,41 +2,56 @@
 
 # Theming
 
-The widget uses CSS variables declared in `src/themes/default.css` and bundled via `@aomi-labs/widget-lib/styles.css`. You can override them in your host app or extend with additional palettes.
+The widget uses CSS variables declared in `src/themes/default.css` and bundled via `@aomi-labs/widget-lib/styles.css`. Override the tokens to align with your brand; all primitives and the assistant shell read from the same set.
 
-## Override tokens
+## Token map
 
-Drop overrides into your global stylesheet:
+Key variables you can override:
+
+- Base: `--background`, `--foreground`, `--card`, `--card-foreground`, `--border`, `--input`, `--ring`.
+- Brand: `--primary`, `--primary-foreground`, `--secondary`, `--secondary-foreground`, `--accent`, `--accent-foreground`, `--destructive`.
+- Sidebar-specific: `--sidebar`, `--sidebar-foreground`, `--sidebar-primary`, `--sidebar-primary-foreground`, `--sidebar-accent`, `--sidebar-accent-foreground`, `--sidebar-border`, `--sidebar-ring`.
+- Radius + fonts: `--radius`, `--font-geist-sans`, `--font-geist-mono` (used as `--font-sans` / `--font-mono` via `@theme inline` for Tailwind v4).
+
+## Brand override example
+
+Drop overrides in your global stylesheet or layout:
 
 ```css
 :root {
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --radius-sm: 10px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --background: 250 12% 6%;
-  --foreground: 210 40% 98%;
+  --font-geist-sans: "Satoshi", "Inter", system-ui, -apple-system, sans-serif;
+  --font-geist-mono: "DM Mono", "JetBrains Mono", ui-monospace, monospace;
+  --radius: 12px;
+  --background: oklch(0.99 0.02 200);
+  --foreground: oklch(0.18 0.04 250);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --primary: oklch(0.6 0.16 200);
+  --primary-foreground: oklch(0.99 0.02 200);
+  --accent: oklch(0.92 0.08 150);
+  --accent-foreground: oklch(0.18 0.04 250);
+  --border: oklch(0.9 0.02 200);
+  --ring: oklch(0.6 0.16 200);
+}
+
+:root.dark {
+  --background: oklch(0.18 0.04 250);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.22 0.04 250);
+  --card-foreground: var(--foreground);
+  --primary: oklch(0.75 0.1 210);
+  --primary-foreground: oklch(0.1 0 0);
+  --border: oklch(0.35 0.02 250);
+  --ring: oklch(0.75 0.1 210);
 }
 ```
+
+Toggle `.dark` (or `data-theme="dark"`) on your root element to switch palettes. `Button`, `Card`, `Sidebar`, `Tooltip`, and the assistant surfaces all respond automatically.
 
 ## Tailwind source
 
 The docs app sets Tailwind v4 `@source` to `../../src` in `app/globals.css`, so any new classes added to the library are available to the docs playground without rebuilding the package.
 
-## Light and dark
+## Wallet/AppKit notes
 
-Define light/dark pairs by scoping variables:
-
-```css
-:root[data-theme="light"] {
-  --background: 0 0% 100%;
-  --foreground: 224 71.4% 4.1%;
-}
-
-:root[data-theme="dark"] {
-  --background: 246 15% 7%;
-  --foreground: 210 40% 98%;
-}
-```
-
-Toggle `data-theme` on `<html>` or `<body>` to swap palettes. The Aomi primitives (Badge, Button, Card, Tooltip, etc.) read these variables so your branding flows through the assistant surfaces automatically.
+`styles.css` also forwards a few `--apkt-*` variables so third-party wallet widgets inherit your background/foreground choices. If you drop in AppKit, it will pick up the same colors without extra overrides.
