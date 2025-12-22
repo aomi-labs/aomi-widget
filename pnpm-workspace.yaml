@@ -1,6 +1,5 @@
 packages:
   - .
-  - example
   - apps/*
 
 onlyBuiltDependencies:

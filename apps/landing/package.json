@@ -1,8 +1,8 @@
 {
-  "name": "example",
+  "name": "landing",
   "version": "1.0.0",
   "private": true,
-  "description": "Example app consuming @aomi-labs/widget-lib",
+  "description": "Landing/demo app consuming @aomi-labs/widget-lib",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
