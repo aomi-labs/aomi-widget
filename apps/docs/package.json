@@ -10,13 +10,17 @@
     "lint": "next lint"
   },
   "prettier": {
-    "plugins": ["prettier-plugin-tailwindcss"],
+    "plugins": [
+      "prettier-plugin-tailwindcss"
+    ],
     "tailwindStylesheet": "app/globals.css"
   },
   "dependencies": {
     "@aomi-labs/widget-lib": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
+    "@mdx-js/react": "^3.1.1",
+    "@next/mdx": "15.5.7",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-separator": "^1.1.7",
@@ -36,6 +40,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@mdx-js/loader": "^3.1.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",

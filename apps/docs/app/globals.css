@@ -21,3 +21,34 @@ body {
   background-size: 36px 36px;
   mask-image: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.95), transparent 70%);
 }
+
+.docs-prose {
+  line-height: 1.7;
+}
+
+.docs-prose :where(h1, h2, h3) {
+  letter-spacing: -0.01em;
+}
+
+.docs-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.docs-prose table th,
+.docs-prose table td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.65rem 0.8rem;
+}
+
+.docs-prose table th {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  text-align: left;
+}
+
+.docs-prose code:not(pre code) {
+  font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+}

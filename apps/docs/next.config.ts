@@ -1,10 +1,21 @@
+import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
 import path from "node:path";
+import remarkGfm from "remark-gfm";
+
+const withMDX = createMDX({
+  extension: /\.mdx?$/,
+  options: {
+    remarkPlugins: [remarkGfm],
+    providerImportSource: "@docs/mdx-provider",
+  },
+});
 
 const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
   },
+  pageExtensions: ["ts", "tsx", "mdx"],
   transpilePackages: ["@aomi-labs/widget-lib"],
   webpack: (config) => {
     config.resolve.alias = {
@@ -18,4 +29,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withMDX(nextConfig);

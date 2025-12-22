@@ -1,0 +1,43 @@
+"use client";
+
+# Providers & runtime
+
+`AomiFrame` relies on two providers from the library so thread state, wallet footer data, and tool calls stay in sync across the UI.
+
+## Thread context
+
+Wrap surfaces that read or mutate a thread with `ThreadContextProvider`. It tracks the active thread ID, metadata, and message list.
+
+```tsx
+import { ThreadContextProvider } from "@aomi-labs/widget-lib";
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  return <ThreadContextProvider>{children}</ThreadContextProvider>;
+}
+```
+
+## Runtime provider
+
+`AomiRuntimeProvider` wires the chat surface to your backend. When you do not have a backend ready, pass `mock={true}` to render with demo data.
+
+```tsx
+import { AomiRuntimeProvider } from "@aomi-labs/widget-lib";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <AomiRuntimeProvider
+      backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}
+      projectId={process.env.NEXT_PUBLIC_PROJECT_ID}
+      mock={!process.env.NEXT_PUBLIC_BACKEND_URL}
+    >
+      {children}
+    </AomiRuntimeProvider>
+  );
+}
+```
+
+If you supply `backendUrl`, make sure the endpoints in `src/lib/backend-api.ts` resolve (thread list, create, send message, tool execution). Mock mode keeps the docs playground interactive without hitting a server.
+
+## Wallet footer
+
+Use `WalletSystemMessageEmitter` to broadcast wallet actions from your footer slot back into the chat stream. The default footer is exported from `@aomi-labs/widget-lib`, or you can pass your own component to `<AomiFrame walletFooter={...} />`.
