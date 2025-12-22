@@ -37,6 +37,7 @@ import { useState as useState8, useCallback as useCallback4 } from "react";
 // src/components/assistant-ui/thread.tsx
 import {
   AlertCircleIcon,
+  AlertTriangleIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon as CheckIcon3,
@@ -45,7 +46,8 @@ import {
   CopyIcon as CopyIcon2,
   PencilIcon,
   RefreshCwIcon,
-  Square
+  Square,
+  WalletIcon
 } from "lucide-react";
 import {
   ActionBarPrimitive,
@@ -53,7 +55,8 @@ import {
   ComposerPrimitive as ComposerPrimitive2,
   ErrorPrimitive,
   MessagePrimitive as MessagePrimitive2,
-  ThreadPrimitive
+  ThreadPrimitive,
+  useMessage
 } from "@assistant-ui/react";
 import { useEffect as useEffect2 } from "react";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
@@ -1281,15 +1284,26 @@ var BranchPicker = (_a) => {
   );
 };
 var SystemMessage = () => {
+  var _a, _b, _c, _d;
+  const custom = useMessage((state) => {
+    var _a2;
+    return (_a2 = state.metadata) == null ? void 0 : _a2.custom;
+  });
+  const content = useMessage((state) => state.content);
+  const text = ((_a = content == null ? void 0 : content[0]) == null ? void 0 : _a.type) === "text" ? (_b = content[0].text) != null ? _b : "" : "";
+  const inferredKind = (_c = custom == null ? void 0 : custom.kind) != null ? _c : text.startsWith("Wallet transaction request:") ? "wallet_tx_request" : "system_notice";
+  const title = (_d = custom == null ? void 0 : custom.title) != null ? _d : inferredKind === "wallet_tx_request" ? "Wallet transaction request" : "System notice";
+  const Icon = inferredKind === "wallet_tx_request" ? WalletIcon : inferredKind === "system_error" ? AlertTriangleIcon : AlertCircleIcon;
+  const iconClassName = inferredKind === "wallet_tx_request" ? "text-emerald-600 dark:text-emerald-300" : inferredKind === "system_error" ? "text-red-500 dark:text-red-300" : "text-blue-500 dark:text-blue-300";
   return /* @__PURE__ */ jsx10(MessagePrimitive2.Root, { asChild: true, children: /* @__PURE__ */ jsx10(
     "div",
     {
       className: "aui-system-message-root mx-auto w-full max-w-[var(--thread-max-width)] px-2 py-4 animate-in fade-in slide-in-from-bottom-1",
       "data-role": "system",
       children: /* @__PURE__ */ jsxs7("div", { className: "aui-system-message-card flex w-full flex-wrap items-start gap-3 rounded-3xl border px-5 py-4 text-left text-sm bg-background/70 dark:bg-muted/30", children: [
-        /* @__PURE__ */ jsx10(AlertCircleIcon, { className: "aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" }),
+        /* @__PURE__ */ jsx10(Icon, { className: `aui-system-message-icon mt-0.5 size-4 shrink-0 ${iconClassName}` }),
         /* @__PURE__ */ jsxs7("div", { className: "aui-system-message-body flex flex-col gap-1", children: [
-          /* @__PURE__ */ jsx10("span", { className: "aui-system-message-title font-medium text-foreground", children: "System notice" }),
+          /* @__PURE__ */ jsx10("span", { className: "aui-system-message-title font-medium text-foreground", children: title }),
           /* @__PURE__ */ jsx10("div", { className: "aui-system-message-content leading-relaxed text-muted-foreground", children: /* @__PURE__ */ jsx10(MessagePrimitive2.Parts, { components: { Text: MarkdownText } }) })
         ] })
       ] })
@@ -3012,15 +3026,23 @@ function AomiRuntimeProvider({
       if (currentThreadIdRef.current !== threadId) return;
       const description = request.description || request.topic || "Wallet transaction requested";
       appendExtraMessages(threadId, [
-        __spreadValues({
+        __spreadProps(__spreadValues({
           role: "system",
           content: [
             {
               type: "text",
-              text: `Wallet transaction request: ${description}`
+              text: `${description}`
             }
           ]
-        }, request.timestamp ? { createdAt: new Date(request.timestamp) } : {})
+        }, request.timestamp ? { createdAt: new Date(request.timestamp) } : {}), {
+          metadata: {
+            custom: {
+              kind: "wallet_tx_request",
+              title: "Wallet transaction request",
+              request
+            }
+          }
+        })
       ]);
       enqueueWalletTxRequest(sessionId, threadId, request);
       void drainWalletTxQueue();
@@ -3051,7 +3073,13 @@ function AomiRuntimeProvider({
             {
               role: "system",
               content: [{ type: "text", text: `System error: ${parsed.SystemError}` }],
-              createdAt: /* @__PURE__ */ new Date()
+              createdAt: /* @__PURE__ */ new Date(),
+              metadata: {
+                custom: {
+                  kind: "system_error",
+                  title: "System error"
+                }
+              }
             }
           ]);
         }

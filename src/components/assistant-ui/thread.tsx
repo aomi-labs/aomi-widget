@@ -1,5 +1,6 @@
 import {
   AlertCircleIcon,
+  AlertTriangleIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
@@ -9,6 +10,7 @@ import {
   PencilIcon,
   RefreshCwIcon,
   Square,
+  WalletIcon,
 } from "lucide-react";
 
 import {
@@ -18,6 +20,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useMessage,
 } from "@assistant-ui/react";
 
 import type { FC } from "react";
@@ -405,6 +408,34 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
 };
 
 const SystemMessage: FC = () => {
+  const custom = useMessage((state) => state.metadata?.custom) as
+    | { kind?: string; title?: string }
+    | undefined;
+  const content = useMessage((state) => state.content) as Array<{ type: string; text?: string }>;
+  const text = content?.[0]?.type === "text" ? (content[0].text ?? "") : "";
+
+  const inferredKind =
+    custom?.kind ??
+    (text.startsWith("Wallet transaction request:") ? "wallet_tx_request" : "system_notice");
+
+  const title =
+    custom?.title ??
+    (inferredKind === "wallet_tx_request" ? "Wallet transaction request" : "System notice");
+
+  const Icon =
+    inferredKind === "wallet_tx_request"
+      ? WalletIcon
+      : inferredKind === "system_error"
+        ? AlertTriangleIcon
+        : AlertCircleIcon;
+
+  const iconClassName =
+    inferredKind === "wallet_tx_request"
+      ? "text-emerald-600 dark:text-emerald-300"
+      : inferredKind === "system_error"
+        ? "text-red-500 dark:text-red-300"
+        : "text-blue-500 dark:text-blue-300";
+
   return (
     <MessagePrimitive.Root asChild>
       <div
@@ -412,10 +443,10 @@ const SystemMessage: FC = () => {
         data-role="system"
       >
         <div className="aui-system-message-card flex w-full flex-wrap items-start gap-3 rounded-3xl border px-5 py-4 text-left text-sm bg-background/70 dark:bg-muted/30">
-          <AlertCircleIcon className="aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" />
+          <Icon className={`aui-system-message-icon mt-0.5 size-4 shrink-0 ${iconClassName}`} />
           <div className="aui-system-message-body flex flex-col gap-1">
             <span className="aui-system-message-title font-medium text-foreground">
-              System notice
+              {title}
             </span>
             <div className="aui-system-message-content leading-relaxed text-muted-foreground">
               <MessagePrimitive.Parts components={{ Text: MarkdownText }} />

@@ -405,10 +405,17 @@ export function AomiRuntimeProvider({
           content: [
             {
               type: "text",
-              text: `Wallet transaction request: ${description}`,
+              text: `${description}`,
             },
           ],
           ...(request.timestamp ? { createdAt: new Date(request.timestamp) } : {}),
+          metadata: {
+            custom: {
+              kind: "wallet_tx_request",
+              title: "Wallet transaction request",
+              request,
+            },
+          },
         },
       ]);
 
@@ -446,6 +453,12 @@ export function AomiRuntimeProvider({
               role: "system",
               content: [{ type: "text", text: `System error: ${parsed.SystemError}` }],
               createdAt: new Date(),
+              metadata: {
+                custom: {
+                  kind: "system_error",
+                  title: "System error",
+                },
+              },
             },
           ]);
         }
