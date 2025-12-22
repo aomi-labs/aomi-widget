@@ -1,0 +1,42 @@
+"use client";
+
+# Theming
+
+The widget uses CSS variables declared in `src/themes/default.css` and bundled via `@aomi-labs/widget-lib/styles.css`. You can override them in your host app or extend with additional palettes.
+
+## Override tokens
+
+Drop overrides into your global stylesheet:
+
+```css
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --background: 250 12% 6%;
+  --foreground: 210 40% 98%;
+}
+```
+
+## Tailwind source
+
+The docs app sets Tailwind v4 `@source` to `../../src` in `app/globals.css`, so any new classes added to the library are available to the docs playground without rebuilding the package.
+
+## Light and dark
+
+Define light/dark pairs by scoping variables:
+
+```css
+:root[data-theme="light"] {
+  --background: 0 0% 100%;
+  --foreground: 224 71.4% 4.1%;
+}
+
+:root[data-theme="dark"] {
+  --background: 246 15% 7%;
+  --foreground: 210 40% 98%;
+}
+```
+
+Toggle `data-theme` on `<html>` or `<body>` to swap palettes. The Aomi primitives (Badge, Button, Card, Tooltip, etc.) read these variables so your branding flows through the assistant surfaces automatically.

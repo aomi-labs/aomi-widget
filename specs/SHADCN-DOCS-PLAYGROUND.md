@@ -51,10 +51,10 @@
 
 ## Migration Checklist
 - [x] Scaffold `apps/docs` workspace (fonts/assets still to migrate from `example/public`).
-- [ ] Port landing page layout from `example/app/page.tsx` into MDX/React components.
-- [ ] Create docs sidebar/nav structure (Getting Started, Components, Guides, Templates).
+- [x] Port landing page layout from `example/app/page.tsx` into React components.
+- [x] Create docs sidebar/nav structure (Getting Started, Guides, Theming).
 - [x] Implement preview infrastructure + copy button.
-- [ ] Write initial pages: Overview, Install, Providers, Wallet Footer, Theme Packs.
+- [ ] Write initial pages: Overview, Install, Providers, Wallet Footer, Theme Packs. (Getting started, Providers, and Theming drafted.)
 - [ ] Point README to docs site, deprecate `example/` instructions.
 - [ ] Eventually remove `example/` workspace once docs cover demo needs and a replacement smoke-test (docs previews or CI build) is in place.
 
