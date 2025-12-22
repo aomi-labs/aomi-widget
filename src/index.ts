@@ -4,6 +4,7 @@
 // Main Frame Component
 // ============================================
 export { AomiFrame } from "./components/aomi-frame";
+export type { WalletTxRequestHandler, WalletTxRequestPayload, WalletTxRequestContext } from "./lib/wallet-tx";
 
 // ============================================
 // Runtime & Context Providers

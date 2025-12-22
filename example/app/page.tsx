@@ -1,8 +1,9 @@
  "use client";
 
-import { useState } from "react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { useCallback, useState } from "react";
+import { AomiFrame, type WalletTxRequestHandler } from "@aomi-labs/widget-lib";
 import { WalletFooter } from "@/components/wallet";
+import { useWalletClient } from "wagmi";
 
 const highlights = [
   "Ship a full-stack, LLM-ready onchain assistant in one import.",
@@ -35,6 +36,26 @@ export default function Home() {
   const [isExpanded, setIsExpanded] = useState(false);
   const frameHeight = "640px";
   const containerWidthClass = isExpanded ? "max-w-8xl" : "max-w-7xl";
+  const { data: walletClient } = useWalletClient();
+
+  const onWalletTxRequest = useCallback<WalletTxRequestHandler>(
+    async (request) => {
+      if (!walletClient) {
+        throw new Error("Wallet not connected");
+      }
+
+      const gas = request.gas ?? request.gas_limit ?? undefined;
+      const txHash = await walletClient.sendTransaction({
+        to: request.to as `0x${string}`,
+        data: request.data as `0x${string}`,
+        value: BigInt(request.value),
+        ...(gas ? { gas: BigInt(gas) } : {}),
+      });
+
+      return txHash;
+    },
+    [walletClient]
+  );
 
   return (
     <main className="relative min-h-screen bg-[#05060f] text-slate-50">
@@ -116,6 +137,7 @@ export default function Home() {
                     height={frameHeight} 
                     width="100%"
                     walletFooter={(props) => <WalletFooter {...props} />}
+                    onWalletTxRequest={onWalletTxRequest}
                   />
                 </div>
               </div>

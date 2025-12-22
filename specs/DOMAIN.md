@@ -62,7 +62,8 @@ AomiFrame (shell)
 | `GET /api/state` | `session_id` | `SessionResponse` |
 | `POST /api/interrupt` | `session_id` | `SessionResponse` |
 | `POST /api/system` | `session_id`, `message` | `SystemResponse` |
-| `GET /api/updates` | `session_id` | SSE stream (`SystemUpdate`) |
+| `GET /api/updates` | `session_id` | SSE stream (`SystemUpdateNotification`) |
+| `GET /api/events` | `session_id`, `after_id?`, `limit?` | `SystemEvent[]` |
 | `POST /api/sessions` | — | `{ session_id, title? }` |
 | `GET /api/sessions` | — | `ThreadMetadata[]` |
 | `GET /api/sessions/:id` | — | `ThreadMetadata` |

@@ -10,6 +10,10 @@ function generateSessionId(): string {
   return crypto.randomUUID();
 }
 
+function generateTempThreadId(): string {
+  return `temp-${crypto.randomUUID()}`;
+}
+
 /**
  * Thread Context Value
  *
@@ -85,7 +89,7 @@ export type ThreadContextProviderProps = {
   children: ReactNode;
   /**
    * Initial thread ID to set as current
-   * @default Generated UUID v4 (matches backend's generate_session_id)
+   * @default A temporary UI thread ID (backend session is created lazily)
    */
   initialThreadId?: string;
 };
@@ -117,7 +121,7 @@ export function ThreadContextProvider({
 
   // Generate UUID v4 on initialization if no initialThreadId provided
   const [generateThreadId] = useState(() => {
-    const id = initialThreadId || generateSessionId();
+    const id = initialThreadId || generateTempThreadId();
     console.log('🔵 [ThreadContext] Initialized with thread ID:', id);
     return id;
   });

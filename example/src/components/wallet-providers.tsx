@@ -4,7 +4,7 @@ import { createAppKit, AppKitProvider } from "@reown/appkit/react"
 import { Config, WagmiProvider, cookieToInitialState } from "wagmi"
 import React, { type ReactNode } from 'react'
 
-import { appKitProviderConfig, wagmiAdapter } from "./config"
+import { appKitProviderConfig, hasProjectId, wagmiAdapter } from "./config"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 const queryClient = new QueryClient()
@@ -18,7 +18,13 @@ const initializeAppKit = (config: Parameters<typeof createAppKit>[0]) => {
   appKitInitialized = true
 }
 
-initializeAppKit(appKitProviderConfig)
+if (!hasProjectId) {
+  console.warn(
+    "[example] NEXT_PUBLIC_PROJECT_ID is not set; Reown AppKit will not be able to connect wallets."
+  )
+} else {
+  initializeAppKit(appKitProviderConfig)
+}
 
 function ContextProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {
   const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig as Config, cookies)

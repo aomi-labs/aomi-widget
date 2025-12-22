@@ -29,26 +29,50 @@ declare const getNetworkName: (chainId: number | string | undefined) => string;
  */
 declare const formatAddress: (addr?: string) => string;
 
+type WalletTxRequestPayload = {
+    to: string;
+    value: string;
+    data: string;
+    gas?: string | null;
+    gas_limit?: string | null;
+    description?: string;
+    topic?: string;
+    timestamp?: string;
+};
+type WalletTxRequestContext = {
+    sessionId: string;
+    threadId: string;
+    publicKey?: string;
+};
+type WalletTxRequestHandler = (request: WalletTxRequestPayload, context: WalletTxRequestContext) => Promise<string>;
+
 type AomiFrameProps = {
     width?: CSSProperties["width"];
     height?: CSSProperties["height"];
     className?: string;
     style?: CSSProperties;
+    /**
+     * Optional wallet transaction handler (recommended for Reown/Wagmi/WalletConnect).
+     * When provided, the widget will call this instead of `window.ethereum` so the tx
+     * is signed by the wallet that your app connected.
+     */
+    onWalletTxRequest?: WalletTxRequestHandler;
     /** Render prop for wallet footer - receives wallet state and setter from lib */
     walletFooter?: (props: WalletFooterProps) => ReactNode;
     /** Additional content to render inside the frame */
     children?: ReactNode;
 };
-declare const AomiFrame: ({ width, height, className, style, walletFooter, children, }: AomiFrameProps) => react_jsx_runtime.JSX.Element;
+declare const AomiFrame: ({ width, height, className, style, onWalletTxRequest, walletFooter, children, }: AomiFrameProps) => react_jsx_runtime.JSX.Element;
 
 type RuntimeActions = {
     sendSystemMessage: (message: string) => Promise<void>;
 };
 declare const useRuntimeActions: () => RuntimeActions;
-declare function AomiRuntimeProvider({ children, backendUrl, publicKey, }: Readonly<{
+declare function AomiRuntimeProvider({ children, backendUrl, publicKey, onWalletTxRequest, }: Readonly<{
     children: ReactNode;
     backendUrl?: string;
     publicKey?: string;
+    onWalletTxRequest?: WalletTxRequestHandler;
 }>): react_jsx_runtime.JSX.Element;
 
 /**
@@ -98,7 +122,7 @@ type ThreadContextProviderProps = {
     children: ReactNode;
     /**
      * Initial thread ID to set as current
-     * @default Generated UUID v4 (matches backend's generate_session_id)
+     * @default A temporary UI thread ID (backend session is created lazily)
      */
     initialThreadId?: string;
 };
@@ -299,4 +323,4 @@ declare function useIsMobile(): boolean;
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, type WalletButtonState, type WalletFooterProps, badgeVariants, buttonVariants, cn, formatAddress, getNetworkName, useIsMobile, useRuntimeActions, useSidebar, useThreadContext };
+export { AomiFrame, AomiRuntimeProvider, Avatar, AvatarFallback, AvatarImage, Badge, BaseSidebar, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, ComposerAttachments, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger, Input, Label, MarkdownText, Separator, Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, Skeleton, Thread, ThreadContextProvider, ThreadList, ThreadListSidebar, ToolFallback, Tooltip, TooltipContent, TooltipIconButton, TooltipProvider, TooltipTrigger, UserMessageAttachments, type WalletButtonState, type WalletFooterProps, type WalletTxRequestContext, type WalletTxRequestHandler, type WalletTxRequestPayload, badgeVariants, buttonVariants, cn, formatAddress, getNetworkName, useIsMobile, useRuntimeActions, useSidebar, useThreadContext };

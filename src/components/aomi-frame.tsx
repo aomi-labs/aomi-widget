@@ -23,12 +23,19 @@ import {
   type WalletButtonState,
   type WalletFooterProps,
 } from "@/utils/wallet";
+import type { WalletTxRequestHandler } from "@/lib/wallet-tx";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
+  /**
+   * Optional wallet transaction handler (recommended for Reown/Wagmi/WalletConnect).
+   * When provided, the widget will call this instead of `window.ethereum` so the tx
+   * is signed by the wallet that your app connected.
+   */
+  onWalletTxRequest?: WalletTxRequestHandler;
   /** Render prop for wallet footer - receives wallet state and setter from lib */
   walletFooter?: (props: WalletFooterProps) => ReactNode;
   /** Additional content to render inside the frame */
@@ -40,6 +47,7 @@ export const AomiFrame = ({
   height = "80vh",
   className,
   style,
+  onWalletTxRequest,
   walletFooter,
   children,
 }: AomiFrameProps) => {
@@ -60,7 +68,11 @@ export const AomiFrame = ({
 
   return (
     <ThreadContextProvider>
-      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={wallet.address}>
+      <AomiRuntimeProvider
+        backendUrl={backendUrl}
+        publicKey={wallet.address}
+        onWalletTxRequest={onWalletTxRequest}
+      >
         {/* Internal: watches wallet state and sends system messages */}
         <WalletSystemMessageEmitter wallet={wallet} />
         <FrameShell

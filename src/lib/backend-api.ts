@@ -8,6 +8,8 @@ export interface SessionMessage {
 
 export interface SessionResponsePayload {
   messages?: SessionMessage[] | null;
+  system_events?: unknown[] | null;
+  title?: string | null;
   is_processing?: boolean;
   session_exists?: boolean;
   session_id?: string;
@@ -35,14 +37,18 @@ export interface CreateThreadResponse {
   title?: string;
 }
 
-export type SystemUpdate =
-  | {
-    type: "TitleChanged";
-    data: {
-      session_id: string;
-      new_title: string;
-    };
-  };
+export type SystemUpdateNotification = {
+  type: "event_available";
+  session_id: string;
+  event_id: number;
+  event_type: string;
+};
+
+export type SystemEvent = Record<string, unknown> & {
+  type: string;
+  session_id: string;
+  event_id: number;
+};
 
 function toQueryString(payload: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -193,7 +199,8 @@ export class BackendApi {
   }
 
   subscribeToUpdates(
-    onUpdate: (update: SystemUpdate) => void,
+    sessionId: string,
+    onUpdate: (update: SystemUpdateNotification) => void,
     onError?: (error: unknown) => void
   ): () => void {
     // Close any existing connection before opening a new one
@@ -201,12 +208,15 @@ export class BackendApi {
       this.updatesEventSource.close();
     }
 
-    const updatesUrl = new URL("/api/updates", this.backendUrl).toString();
-    this.updatesEventSource = new EventSource(updatesUrl);
+    const updatesUrl = new URL("/api/updates", this.backendUrl);
+    updatesUrl.searchParams.set("session_id", sessionId);
+    this.updatesEventSource = new EventSource(updatesUrl.toString());
+
+    console.log('🔵 [subscribeToUpdates] URL:', updatesUrl.toString());
 
     this.updatesEventSource.onmessage = (event) => {
       try {
-        const parsed = JSON.parse(event.data) as SystemUpdate;
+        const parsed = JSON.parse(event.data) as SystemUpdateNotification;
         onUpdate(parsed);
       } catch (error) {
         console.error("Failed to parse system update SSE:", error);
@@ -225,6 +235,25 @@ export class BackendApi {
         this.updatesEventSource = null;
       }
     };
+  }
+
+  async fetchEventsAfter(
+    sessionId: string,
+    afterId = 0,
+    limit = 100
+  ): Promise<SystemEvent[]> {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
+    if (limit) url.searchParams.set("limit", String(limit));
+
+    console.log('🔵 [fetchEventsAfter] URL:', url.toString());
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
+    }
+    return (await response.json()) as SystemEvent[];
   }
 
   // ==================== Thread Management API ====================

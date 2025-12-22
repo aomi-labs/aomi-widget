@@ -856,8 +856,8 @@ var ComposerAddAttachment = () => {
 // src/lib/thread-context.tsx
 import { createContext, useContext, useState as useState4, useCallback } from "react";
 import { jsx as jsx9 } from "react/jsx-runtime";
-function generateSessionId() {
-  return crypto.randomUUID();
+function generateTempThreadId() {
+  return `temp-${crypto.randomUUID()}`;
 }
 var ThreadContext = createContext(null);
 function useThreadContext() {
@@ -874,7 +874,7 @@ function ThreadContextProvider({
   initialThreadId
 }) {
   const [generateThreadId] = useState4(() => {
-    const id = initialThreadId || generateSessionId();
+    const id = initialThreadId || generateTempThreadId();
     console.log("\u{1F535} [ThreadContext] Initialized with thread ID:", id);
     return id;
   });
@@ -2505,12 +2505,14 @@ var BackendApi = class {
       this.setConnectionStatus(false);
     }
   }
-  subscribeToUpdates(onUpdate, onError) {
+  subscribeToUpdates(sessionId, onUpdate, onError) {
     if (this.updatesEventSource) {
       this.updatesEventSource.close();
     }
-    const updatesUrl = new URL("/api/updates", this.backendUrl).toString();
-    this.updatesEventSource = new EventSource(updatesUrl);
+    const updatesUrl = new URL("/api/updates", this.backendUrl);
+    updatesUrl.searchParams.set("session_id", sessionId);
+    this.updatesEventSource = new EventSource(updatesUrl.toString());
+    console.log("\u{1F535} [subscribeToUpdates] URL:", updatesUrl.toString());
     this.updatesEventSource.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
@@ -2530,6 +2532,18 @@ var BackendApi = class {
         this.updatesEventSource = null;
       }
     };
+  }
+  async fetchEventsAfter(sessionId, afterId = 0, limit = 100) {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
+    if (limit) url.searchParams.set("limit", String(limit));
+    console.log("\u{1F535} [fetchEventsAfter] URL:", url.toString());
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
+    }
+    return await response.json();
   }
   // ==================== Thread Management API ====================
   /**
@@ -2718,6 +2732,56 @@ function parseToolStream(toolStream) {
 import { jsx as jsx19 } from "react/jsx-runtime";
 var RuntimeActionsContext = createContext3(void 0);
 var isTempThreadId = (id) => id.startsWith("temp-");
+async function pickInjectedProvider(publicKey) {
+  const ethereum = globalThis.ethereum;
+  if (!(ethereum == null ? void 0 : ethereum.request)) return void 0;
+  const candidates = Array.isArray(ethereum.providers) ? ethereum.providers.filter((p) => !!(p == null ? void 0 : p.request)) : [ethereum];
+  const target = publicKey == null ? void 0 : publicKey.toLowerCase();
+  if (target) {
+    for (const candidate of candidates) {
+      try {
+        const accounts = await candidate.request({ method: "eth_accounts" });
+        const list = Array.isArray(accounts) ? accounts.map((a) => String(a).toLowerCase()) : [];
+        if (list.includes(target)) return candidate;
+      } catch (e) {
+      }
+    }
+  }
+  return candidates[0];
+}
+function normalizeWalletError(error) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const e = error;
+  const cause = (_a = e == null ? void 0 : e.cause) != null ? _a : null;
+  const code = (_b = typeof (e == null ? void 0 : e.code) === "number" ? e.code : void 0) != null ? _b : typeof (cause == null ? void 0 : cause.code) === "number" ? cause.code : void 0;
+  const name = (_c = typeof (e == null ? void 0 : e.name) === "string" ? e.name : void 0) != null ? _c : typeof (cause == null ? void 0 : cause.name) === "string" ? cause.name : void 0;
+  const msg = (_g = (_f = (_e = (_d = typeof (e == null ? void 0 : e.shortMessage) === "string" ? e.shortMessage : void 0) != null ? _d : typeof (cause == null ? void 0 : cause.shortMessage) === "string" ? cause.shortMessage : void 0) != null ? _e : typeof (e == null ? void 0 : e.message) === "string" ? e.message : void 0) != null ? _f : typeof (cause == null ? void 0 : cause.message) === "string" ? cause.message : void 0) != null ? _g : "Unknown wallet error";
+  const rejected = code === 4001 || name === "UserRejectedRequestError" || name === "RejectedRequestError" || /user rejected|rejected the request|denied|request rejected|canceled|cancelled/i.test(msg);
+  return { rejected, message: msg };
+}
+function parseBackendSystemEvent(value) {
+  if (!value || typeof value !== "object") return null;
+  const entries = Object.entries(value);
+  if (entries.length !== 1) return null;
+  const [key, payload] = entries[0];
+  switch (key) {
+    case "InlineDisplay":
+      return { InlineDisplay: payload };
+    case "SystemNotice":
+      return { SystemNotice: typeof payload === "string" ? payload : String(payload) };
+    case "SystemError":
+      return { SystemError: typeof payload === "string" ? payload : String(payload) };
+    case "AsyncUpdate":
+      return { AsyncUpdate: payload };
+    default:
+      return null;
+  }
+}
+function toHexQuantity(value) {
+  const trimmed = value.trim();
+  const asBigInt = BigInt(trimmed);
+  return `0x${asBigInt.toString(16)}`;
+}
 var parseTimestamp2 = (value) => {
   if (value === void 0 || value === null) return 0;
   if (typeof value === "number") {
@@ -2745,7 +2809,8 @@ var useRuntimeActions = () => {
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
-  publicKey
+  publicKey,
+  onWalletTxRequest
 }) {
   const {
     currentThreadId,
@@ -2762,9 +2827,16 @@ function AomiRuntimeProvider({
     updateThreadMetadata
   } = useThreadContext();
   const [isRunning, setIsRunning] = useState7(false);
+  const [subscribableSessionId, setSubscribableSessionId] = useState7(null);
   const backendApiRef = useRef2(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef2(null);
   const pendingSystemMessagesRef = useRef2(/* @__PURE__ */ new Map());
+  const lastEventIdBySessionRef = useRef2(/* @__PURE__ */ new Map());
+  const eventsInFlightRef = useRef2(/* @__PURE__ */ new Set());
+  const extraMessagesByThreadRef = useRef2(/* @__PURE__ */ new Map());
+  const handledWalletTxRequestsRef = useRef2(/* @__PURE__ */ new Set());
+  const walletTxQueueRef = useRef2([]);
+  const walletTxInFlightRef = useRef2(false);
   const pendingChatMessagesRef = useRef2(/* @__PURE__ */ new Map());
   const creatingThreadIdRef = useRef2(null);
   const createThreadPromiseRef = useRef2(null);
@@ -2795,30 +2867,201 @@ function AomiRuntimeProvider({
     if (!isTempThreadId(threadId)) return true;
     return tempToBackendIdRef.current.has(threadId);
   }, []);
-  const applyMessages = useCallback3((msgs) => {
-    var _a, _b;
-    if (!msgs) return;
-    const hasPendingMessages = pendingChatMessagesRef.current.has(currentThreadId) && ((_b = (_a = pendingChatMessagesRef.current.get(currentThreadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
-    if (hasPendingMessages) {
-      console.log("Skipping applyMessages - pending messages exist for thread:", currentThreadId);
-      return;
-    }
-    const threadMessages = [];
-    for (const msg of msgs) {
-      if (msg.sender === "system") {
-        const systemMessage = constructSystemMessage(msg);
-        if (systemMessage) {
-          threadMessages.push(systemMessage);
+  const applySessionMessagesToThread = useCallback3(
+    (threadId, msgs) => {
+      var _a, _b, _c;
+      if (!msgs) return;
+      const hasPendingMessages = pendingChatMessagesRef.current.has(threadId) && ((_b = (_a = pendingChatMessagesRef.current.get(threadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
+      if (hasPendingMessages) return;
+      const threadMessages = [];
+      for (const msg of msgs) {
+        if (msg.sender === "system") {
+          const systemMessage = constructSystemMessage(msg);
+          if (systemMessage) threadMessages.push(systemMessage);
+          continue;
         }
-        continue;
+        const threadMessage = constructThreadMessage(msg);
+        if (threadMessage) threadMessages.push(threadMessage);
       }
-      const threadMessage = constructThreadMessage(msg);
-      if (threadMessage) {
-        threadMessages.push(threadMessage);
+      const extras = (_c = extraMessagesByThreadRef.current.get(threadId)) != null ? _c : [];
+      setThreadMessages(threadId, [...threadMessages, ...extras]);
+    },
+    [setThreadMessages]
+  );
+  const appendExtraMessages = useCallback3(
+    (threadId, messages) => {
+      var _a;
+      if (!messages.length) return;
+      const existing = (_a = extraMessagesByThreadRef.current.get(threadId)) != null ? _a : [];
+      extraMessagesByThreadRef.current.set(threadId, [...existing, ...messages]);
+    },
+    []
+  );
+  const enqueueWalletTxRequest = useCallback3(
+    (sessionId, threadId, request) => {
+      var _a;
+      const key = `${sessionId}:${(_a = request.timestamp) != null ? _a : JSON.stringify(request)}`;
+      if (handledWalletTxRequestsRef.current.has(key)) return;
+      handledWalletTxRequestsRef.current.add(key);
+      walletTxQueueRef.current.push({ sessionId, threadId, request });
+    },
+    []
+  );
+  const drainWalletTxQueue = useCallback3(async () => {
+    var _a, _b, _c;
+    if (walletTxInFlightRef.current) return;
+    const next = walletTxQueueRef.current.shift();
+    if (!next) return;
+    walletTxInFlightRef.current = true;
+    try {
+      if (onWalletTxRequest) {
+        const txHash2 = await onWalletTxRequest(next.request, {
+          sessionId: next.sessionId,
+          threadId: next.threadId,
+          publicKey
+        });
+        await backendApiRef.current.postSystemMessage(next.sessionId, `Transaction sent: ${txHash2}`);
+        if (currentThreadIdRef.current === next.threadId) {
+          try {
+            const state = await backendApiRef.current.fetchState(next.sessionId);
+            applySessionMessagesToThread(next.threadId, state.messages);
+          } catch (refreshError) {
+            console.error("Failed to refresh state after wallet tx:", refreshError);
+          }
+        }
+        return;
       }
+      const activeProvider = await pickInjectedProvider(publicKey);
+      if (!(activeProvider == null ? void 0 : activeProvider.request)) {
+        await backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          "No wallet provider found (window.ethereum missing)."
+        );
+        return;
+      }
+      const accounts = await activeProvider.request({ method: "eth_accounts" });
+      const addresses = Array.isArray(accounts) ? accounts.map(String) : [];
+      const from = publicKey || addresses[0];
+      if (!from) {
+        await activeProvider.request({ method: "eth_requestAccounts" });
+      }
+      const fromAddress = publicKey || await activeProvider.request({ method: "eth_accounts" });
+      const resolvedFrom = publicKey || (Array.isArray(fromAddress) ? String((_a = fromAddress[0]) != null ? _a : "") : "");
+      if (!resolvedFrom) {
+        await backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          "Wallet is not connected; please connect a wallet to sign the requested transaction."
+        );
+        return;
+      }
+      const gas = (_c = (_b = next.request.gas) != null ? _b : next.request.gas_limit) != null ? _c : void 0;
+      let valueHex;
+      let gasHex;
+      try {
+        valueHex = toHexQuantity(next.request.value);
+        if (gas) gasHex = toHexQuantity(gas);
+      } catch (error) {
+        await backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          `Invalid wallet transaction request payload: ${error.message}`
+        );
+        return;
+      }
+      const txParams = __spreadValues({
+        from: resolvedFrom,
+        to: next.request.to,
+        value: valueHex,
+        data: next.request.data
+      }, gasHex ? { gas: gasHex } : {});
+      const txHash = await activeProvider.request({
+        method: "eth_sendTransaction",
+        params: [txParams]
+      });
+      await backendApiRef.current.postSystemMessage(next.sessionId, `Transaction sent: ${txHash}`);
+      if (currentThreadIdRef.current === next.threadId) {
+        try {
+          const state = await backendApiRef.current.fetchState(next.sessionId);
+          applySessionMessagesToThread(next.threadId, state.messages);
+        } catch (refreshError) {
+          console.error("Failed to refresh state after wallet tx:", refreshError);
+        }
+      }
+    } catch (error) {
+      const normalized = normalizeWalletError(error);
+      const final = normalized.rejected ? "Transaction rejected by user." : `Transaction failed: ${normalized.message}`;
+      try {
+        await backendApiRef.current.postSystemMessage(next.sessionId, final);
+        if (currentThreadIdRef.current === next.threadId) {
+          try {
+            const state = await backendApiRef.current.fetchState(next.sessionId);
+            applySessionMessagesToThread(next.threadId, state.messages);
+          } catch (refreshError) {
+            console.error("Failed to refresh state after wallet tx:", refreshError);
+          }
+        }
+      } catch (postError) {
+        console.error("Failed to report wallet tx result to backend:", postError);
+      }
+    } finally {
+      walletTxInFlightRef.current = false;
+      void drainWalletTxQueue();
     }
-    setThreadMessages(currentThreadId, threadMessages);
-  }, [currentThreadId, setThreadMessages]);
+  }, [applySessionMessagesToThread, onWalletTxRequest, publicKey]);
+  const handleWalletTxRequest = useCallback3(
+    (sessionId, threadId, request) => {
+      if (currentThreadIdRef.current !== threadId) return;
+      const description = request.description || request.topic || "Wallet transaction requested";
+      appendExtraMessages(threadId, [
+        __spreadValues({
+          role: "system",
+          content: [
+            {
+              type: "text",
+              text: `Wallet transaction request: ${description}`
+            }
+          ]
+        }, request.timestamp ? { createdAt: new Date(request.timestamp) } : {})
+      ]);
+      enqueueWalletTxRequest(sessionId, threadId, request);
+      void drainWalletTxQueue();
+    },
+    [appendExtraMessages, drainWalletTxQueue, enqueueWalletTxRequest]
+  );
+  const handleBackendSystemEvents = useCallback3(
+    (sessionId, threadId, rawEvents) => {
+      if (!(rawEvents == null ? void 0 : rawEvents.length)) return;
+      for (const raw of rawEvents) {
+        const parsed = parseBackendSystemEvent(raw);
+        if (!parsed) continue;
+        if ("InlineDisplay" in parsed) {
+          const payload = parsed.InlineDisplay;
+          if (!payload || typeof payload !== "object") continue;
+          const type = payload.type;
+          if (type !== "wallet_tx_request") continue;
+          const requestValue = payload.payload;
+          if (!requestValue || typeof requestValue !== "object") continue;
+          const req = requestValue;
+          if (typeof req.to !== "string" || typeof req.value !== "string" || typeof req.data !== "string") {
+            continue;
+          }
+          handleWalletTxRequest(sessionId, threadId, req);
+        }
+        if ("SystemError" in parsed) {
+          appendExtraMessages(threadId, [
+            {
+              role: "system",
+              content: [{ type: "text", text: `System error: ${parsed.SystemError}` }],
+              createdAt: /* @__PURE__ */ new Date()
+            }
+          ]);
+        }
+      }
+    },
+    [appendExtraMessages, handleWalletTxRequest]
+  );
+  const applyMessages = useCallback3((msgs) => {
+    applySessionMessagesToThread(currentThreadId, msgs);
+  }, [applySessionMessagesToThread, currentThreadId]);
   useEffect5(() => {
     backendApiRef.current = new BackendApi(backendUrl);
   }, [backendUrl]);
@@ -2831,16 +3074,19 @@ function AomiRuntimeProvider({
   const startPolling = useCallback3(() => {
     if (!isThreadReady(currentThreadId)) return;
     if (pollingIntervalRef.current) return;
+    const threadIdForPolling = currentThreadId;
     const backendThreadId = resolveThreadId(currentThreadId);
     setIsRunning(true);
     pollingIntervalRef.current = setInterval(async () => {
       try {
+        if (currentThreadIdRef.current !== threadIdForPolling) return;
         const state = await backendApiRef.current.fetchState(backendThreadId);
         if (state.session_exists === false) {
           setIsRunning(false);
           stopPolling();
           return;
         }
+        handleBackendSystemEvents(backendThreadId, threadIdForPolling, state.system_events);
         applyMessages(state.messages);
         if (!state.is_processing) {
           setIsRunning(false);
@@ -2852,15 +3098,26 @@ function AomiRuntimeProvider({
         setIsRunning(false);
       }
     }, 500);
-  }, [currentThreadId, applyMessages, stopPolling, isThreadReady, resolveThreadId]);
+  }, [
+    currentThreadId,
+    applyMessages,
+    handleBackendSystemEvents,
+    stopPolling,
+    isThreadReady,
+    resolveThreadId
+  ]);
   useEffect5(() => {
     const fetchInitialState = async () => {
       if (isTempThreadId(currentThreadId) && !tempToBackendIdRef.current.has(currentThreadId)) {
+        setSubscribableSessionId(null);
         setIsRunning(false);
         return;
       }
       if (skipInitialFetchRef.current.has(currentThreadId)) {
         skipInitialFetchRef.current.delete(currentThreadId);
+        if (isThreadReady(currentThreadId)) {
+          setSubscribableSessionId(resolveThreadId(currentThreadId));
+        }
         setIsRunning(false);
         return;
       }
@@ -2868,9 +3125,12 @@ function AomiRuntimeProvider({
       try {
         const state = await backendApiRef.current.fetchState(backendThreadId);
         if (state.session_exists === false) {
+          setSubscribableSessionId(null);
           setIsRunning(false);
           return;
         }
+        setSubscribableSessionId(backendThreadId);
+        handleBackendSystemEvents(backendThreadId, currentThreadId, state.system_events);
         applyMessages(state.messages);
         if (state.is_processing) {
           setIsRunning(true);
@@ -2886,7 +3146,14 @@ function AomiRuntimeProvider({
     return () => {
       stopPolling();
     };
-  }, [currentThreadId, applyMessages, startPolling, stopPolling, resolveThreadId]);
+  }, [
+    currentThreadId,
+    applyMessages,
+    startPolling,
+    stopPolling,
+    resolveThreadId,
+    isThreadReady
+  ]);
   useEffect5(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
@@ -2994,6 +3261,9 @@ function AomiRuntimeProvider({
           const uiThreadId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
           const backendId = newThread.session_id;
           tempToBackendIdRef.current.set(uiThreadId, backendId);
+          if (currentThreadIdRef.current === uiThreadId) {
+            setSubscribableSessionId(backendId);
+          }
           skipInitialFetchRef.current.add(uiThreadId);
           const backendTitle = newThread.title;
           if (backendTitle && !isPlaceholderTitle(backendTitle)) {
@@ -3126,6 +3396,9 @@ function AomiRuntimeProvider({
       setIsRunning(true);
       try {
         const response = await backendApiRef.current.postSystemMessage(backendThreadId, message);
+        if (currentThreadIdRef.current === threadId) {
+          setSubscribableSessionId(backendThreadId);
+        }
         if (response.res) {
           const systemMessage = constructSystemMessage(response.res);
           if (systemMessage) {
@@ -3152,22 +3425,74 @@ function AomiRuntimeProvider({
     },
     [sendSystemMessageNow]
   );
-  const flushPendingChatMessages = useCallback3(
-    async (threadId) => {
-      const pending = pendingChatMessagesRef.current.get(threadId);
-      if (!(pending == null ? void 0 : pending.length)) return;
-      pendingChatMessagesRef.current.delete(threadId);
-      const backendThreadId = resolveThreadId(threadId);
-      for (const text of pending) {
-        try {
-          await backendApiRef.current.postChatMessage(backendThreadId, text);
-        } catch (error) {
-          console.error("Failed to send queued message:", error);
+  const ensureBackendSessionForThread = useCallback3(
+    (threadId) => {
+      if (isThreadReady(threadId)) return;
+      if (createThreadPromiseRef.current) return;
+      creatingThreadIdRef.current = threadId;
+      setThreadMetadata((prev) => {
+        var _a, _b;
+        const next = new Map(prev);
+        const existing = next.get(threadId);
+        next.set(threadId, {
+          title: (_a = existing == null ? void 0 : existing.title) != null ? _a : "New Chat",
+          status: "pending",
+          lastActiveAt: (_b = existing == null ? void 0 : existing.lastActiveAt) != null ? _b : (/* @__PURE__ */ new Date()).toISOString()
+        });
+        return next;
+      });
+      skipInitialFetchRef.current.add(threadId);
+      const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
+        const backendId = newThread.session_id;
+        tempToBackendIdRef.current.set(threadId, backendId);
+        if (currentThreadIdRef.current === threadId) {
+          setSubscribableSessionId(backendId);
         }
-      }
-      startPolling();
+        const backendTitle = newThread.title;
+        if (backendTitle && !isPlaceholderTitle(backendTitle)) {
+          setThreadMetadata((prev) => {
+            var _a;
+            const next = new Map(prev);
+            const existing = next.get(threadId);
+            const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+            next.set(threadId, {
+              title: backendTitle,
+              status: nextStatus,
+              lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
+            });
+            return next;
+          });
+        }
+        const pendingMessages = pendingChatMessagesRef.current.get(threadId);
+        if (pendingMessages == null ? void 0 : pendingMessages.length) {
+          pendingChatMessagesRef.current.delete(threadId);
+          for (const text of pendingMessages) {
+            try {
+              await backendApiRef.current.postChatMessage(backendId, text);
+            } catch (error) {
+              console.error("Failed to send queued message:", error);
+            }
+          }
+          await flushPendingSystemMessages(threadId);
+          if (currentThreadIdRef.current === threadId) {
+            startPolling();
+          }
+        }
+      }).catch((error) => {
+        console.error("Failed to create backend session:", error);
+        createThreadPromiseRef.current = null;
+      }).finally(() => {
+        createThreadPromiseRef.current = null;
+      });
+      createThreadPromiseRef.current = createPromise;
     },
-    [resolveThreadId, startPolling]
+    [
+      flushPendingSystemMessages,
+      isThreadReady,
+      publicKey,
+      setThreadMetadata,
+      startPolling
+    ]
   );
   const onNew = useCallback3(
     async (message) => {
@@ -3185,12 +3510,14 @@ function AomiRuntimeProvider({
         setIsRunning(true);
         const pending = pendingChatMessagesRef.current.get(currentThreadId) || [];
         pendingChatMessagesRef.current.set(currentThreadId, [...pending, text]);
+        ensureBackendSessionForThread(currentThreadId);
         return;
       }
       const backendThreadId = resolveThreadId(currentThreadId);
       try {
         setIsRunning(true);
         await backendApiRef.current.postChatMessage(backendThreadId, text);
+        setSubscribableSessionId(backendThreadId);
         await flushPendingSystemMessages(currentThreadId);
         startPolling();
       } catch (error) {
@@ -3201,6 +3528,7 @@ function AomiRuntimeProvider({
     [
       currentThreadId,
       currentMessages,
+      ensureBackendSessionForThread,
       flushPendingSystemMessages,
       setThreadMessages,
       startPolling,
@@ -3211,7 +3539,12 @@ function AomiRuntimeProvider({
   );
   const sendSystemMessage = useCallback3(
     async (message) => {
-      if (!isThreadReady(currentThreadId)) return;
+      if (!isThreadReady(currentThreadId)) {
+        const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
+        pendingSystemMessagesRef.current.set(currentThreadId, [...pending, message]);
+        ensureBackendSessionForThread(currentThreadId);
+        return;
+      }
       const threadMessages = getThreadMessages(currentThreadId);
       const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
       if (!hasUserMessages) {
@@ -3221,7 +3554,13 @@ function AomiRuntimeProvider({
       }
       await sendSystemMessageNow(currentThreadId, message);
     },
-    [currentThreadId, getThreadMessages, sendSystemMessageNow, isThreadReady]
+    [
+      currentThreadId,
+      ensureBackendSessionForThread,
+      getThreadMessages,
+      isThreadReady,
+      sendSystemMessageNow
+    ]
   );
   const onCancel = useCallback3(async () => {
     if (!isThreadReady(currentThreadId)) return;
@@ -3254,29 +3593,69 @@ function AomiRuntimeProvider({
     }
   }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
   useEffect5(() => {
-    const unsubscribe = backendApiRef.current.subscribeToUpdates(
-      (update) => {
-        if (update.type !== "TitleChanged") return;
-        const sessionId = update.data.session_id;
-        const newTitle = update.data.new_title;
-        const tempId = findTempIdForBackendId(sessionId);
-        const threadIdToUpdate = tempId || sessionId;
-        setThreadMetadata((prev) => {
-          var _a;
-          const next = new Map(prev);
-          const existing = next.get(threadIdToUpdate);
-          const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-          const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-          next.set(threadIdToUpdate, {
-            title: normalizedTitle,
-            status: nextStatus,
-            lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
-          });
-          return next;
+    if (!subscribableSessionId) return;
+    const backendSessionId = subscribableSessionId;
+    const applyTitleChanged = (sessionId, newTitle) => {
+      const tempId = findTempIdForBackendId(sessionId);
+      const threadIdToUpdate = tempId || sessionId;
+      setThreadMetadata((prev) => {
+        var _a;
+        const next = new Map(prev);
+        const existing = next.get(threadIdToUpdate);
+        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+        const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+        next.set(threadIdToUpdate, {
+          title: normalizedTitle,
+          status: nextStatus,
+          lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
         });
-        if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
-          creatingThreadIdRef.current = null;
+        return next;
+      });
+      if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
+        creatingThreadIdRef.current = null;
+      }
+    };
+    const drainEvents = async (sessionId) => {
+      var _a;
+      if (eventsInFlightRef.current.has(sessionId)) return;
+      eventsInFlightRef.current.add(sessionId);
+      try {
+        let afterId = (_a = lastEventIdBySessionRef.current.get(sessionId)) != null ? _a : 0;
+        for (; ; ) {
+          const events = await backendApiRef.current.fetchEventsAfter(sessionId, afterId, 200);
+          if (!events.length) break;
+          for (const event of events) {
+            const eventId = typeof event.event_id === "number" ? event.event_id : Number(event.event_id);
+            if (Number.isFinite(eventId)) afterId = Math.max(afterId, eventId);
+            if (event.type === "title_changed" && typeof event.new_title === "string") {
+              applyTitleChanged(sessionId, event.new_title);
+            }
+            if (event.type === "wallet_tx_request") {
+              const payload = event.payload;
+              if (payload && typeof payload === "object") {
+                const req = payload;
+                if (typeof req.to === "string" && typeof req.value === "string" && typeof req.data === "string") {
+                  const threadId = findTempIdForBackendId(sessionId) || sessionId;
+                  handleWalletTxRequest(sessionId, threadId, req);
+                }
+              }
+            }
+          }
+          if (events.length < 200) break;
         }
+        lastEventIdBySessionRef.current.set(sessionId, afterId);
+      } catch (error) {
+        console.error("Failed to fetch async events:", error);
+      } finally {
+        eventsInFlightRef.current.delete(sessionId);
+      }
+    };
+    void drainEvents(backendSessionId);
+    const unsubscribe = backendApiRef.current.subscribeToUpdates(
+      backendSessionId,
+      (update) => {
+        if (update.type !== "event_available") return;
+        void drainEvents(update.session_id);
       },
       (error) => {
         console.error("Failed to handle system update SSE:", error);
@@ -3285,7 +3664,7 @@ function AomiRuntimeProvider({
     return () => {
       unsubscribe();
     };
-  }, [backendUrl, setThreadMetadata, findTempIdForBackendId]);
+  }, [findTempIdForBackendId, handleWalletTxRequest, setThreadMetadata, subscribableSessionId]);
   return /* @__PURE__ */ jsx19(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ jsx19(AssistantRuntimeProvider, { runtime, children }) });
 }
 
@@ -3358,6 +3737,7 @@ var AomiFrame = ({
   height = "80vh",
   className,
   style,
+  onWalletTxRequest,
   walletFooter,
   children
 }) => {
@@ -3373,20 +3753,28 @@ var AomiFrame = ({
   const setWallet = useCallback4((data) => {
     setWalletState((prev) => __spreadValues(__spreadValues({}, prev), data));
   }, []);
-  return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(AomiRuntimeProvider, { backendUrl, publicKey: wallet.address, children: [
-    /* @__PURE__ */ jsx20(WalletSystemMessageEmitter, { wallet }),
-    /* @__PURE__ */ jsx20(
-      FrameShell,
-      {
-        className,
-        frameStyle,
-        walletFooter,
-        wallet,
-        setWallet,
-        children
-      }
-    )
-  ] }) });
+  return /* @__PURE__ */ jsx20(ThreadContextProvider, { children: /* @__PURE__ */ jsxs13(
+    AomiRuntimeProvider,
+    {
+      backendUrl,
+      publicKey: wallet.address,
+      onWalletTxRequest,
+      children: [
+        /* @__PURE__ */ jsx20(WalletSystemMessageEmitter, { wallet }),
+        /* @__PURE__ */ jsx20(
+          FrameShell,
+          {
+            className,
+            frameStyle,
+            walletFooter,
+            wallet,
+            setWallet,
+            children
+          }
+        )
+      ]
+    }
+  ) });
 };
 var FrameShell = ({
   className,
