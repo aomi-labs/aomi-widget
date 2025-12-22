@@ -1,8 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Example app has no special configuration needed
-  // It consumes @aomi-labs/widget-lib as a normal npm package
+  // Stub optional native-only deps pulled in by wallet connectors so builds don't fail.
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@react-native-async-storage/async-storage": false,
+      "pino-pretty": false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
