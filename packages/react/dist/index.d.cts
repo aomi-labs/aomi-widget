@@ -1,6 +1,6 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
-import { ReactNode } from 'react';
+import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
 import { ClassValue } from 'clsx';
 
@@ -94,16 +94,17 @@ type ThreadContextValue = {
     threadViewKey: number;
     bumpThreadViewKey: () => void;
     threads: Map<string, ThreadMessageLike[]>;
-    setThreads: React.Dispatch<React.SetStateAction<Map<string, ThreadMessageLike[]>>>;
+    setThreads: (updater: SetStateAction<Map<string, ThreadMessageLike[]>>) => void;
     threadMetadata: Map<string, ThreadMetadata>;
-    setThreadMetadata: React.Dispatch<React.SetStateAction<Map<string, ThreadMetadata>>>;
+    setThreadMetadata: (updater: SetStateAction<Map<string, ThreadMetadata>>) => void;
     threadCnt: number;
-    setThreadCnt: React.Dispatch<React.SetStateAction<number>>;
+    setThreadCnt: (updater: SetStateAction<number>) => void;
     getThreadMessages: (threadId: string) => ThreadMessageLike[];
     setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
 };
+
 type ThreadContextProviderProps = {
     children: ReactNode;
     initialThreadId?: string;
