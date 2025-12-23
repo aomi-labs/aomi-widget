@@ -4,22 +4,40 @@ import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 import type { BackendApi } from "../api/client";
 import type { SessionMessage } from "../api/types";
 import { constructSystemMessage, constructThreadMessage } from "../utils/conversion";
-import type { ThreadRegistry } from "./thread-registry";
+import type { ThreadContextValue } from "../state/thread-context";
 import type { PollingController } from "./polling-controller";
+import {
+  dequeuePendingChat,
+  dequeuePendingSystem,
+  enqueuePendingChat,
+  enqueuePendingSystem,
+  hasPendingChat,
+  isThreadReady,
+  resolveThreadId,
+  setThreadRunning,
+  type ThreadRuntimeState,
+} from "./runtime-state";
 
 type MessageControllerConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
-  registry: ThreadRegistry;
+  runtimeStateRef: MutableRefObject<ThreadRuntimeState>;
+  threadContextRef: MutableRefObject<ThreadContextValue>;
   polling: PollingController;
   setGlobalIsRunning?: (running: boolean) => void;
 };
+
+type ThreadStateApi = Pick<
+  ThreadContextValue,
+  "getThreadMessages" | "setThreadMessages" | "updateThreadMetadata"
+>;
 
 export class MessageController {
   constructor(private readonly config: MessageControllerConfig) {}
 
   applyBackendMessages(threadId: string, msgs?: SessionMessage[] | null) {
+    const runtimeState = this.config.runtimeStateRef.current;
     if (!msgs) return;
-    if (this.config.registry.hasPendingChat(threadId)) {
+    if (hasPendingChat(runtimeState, threadId)) {
       // Avoid overwriting optimistic UI when pending user messages exist.
       return;
     }
@@ -39,10 +57,11 @@ export class MessageController {
       }
     }
 
-    this.config.registry.setThreadMessages(threadId, threadMessages);
+    this.getThreadStateApi().setThreadMessages(threadId, threadMessages);
   }
 
   async sendChat(message: AppendMessage, threadId: string) {
+    const runtimeState = this.config.runtimeStateRef.current;
     const text = message.content
       .filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
       .map((part: Extract<typeof message.content[number], { type: "text" }>) => part.text)
@@ -50,23 +69,24 @@ export class MessageController {
 
     if (!text) return;
 
-    const existingMessages = this.config.registry.getThreadMessages(threadId);
+    const threadState = this.getThreadStateApi();
+    const existingMessages = threadState.getThreadMessages(threadId);
     const userMessage: ThreadMessageLike = {
       role: "user",
       content: [{ type: "text", text }],
       createdAt: new Date(),
     };
 
-    this.config.registry.setThreadMessages(threadId, [...existingMessages, userMessage]);
-    this.config.registry.updateThreadMetadata(threadId, { lastActiveAt: new Date().toISOString() });
+    threadState.setThreadMessages(threadId, [...existingMessages, userMessage]);
+    threadState.updateThreadMetadata(threadId, { lastActiveAt: new Date().toISOString() });
 
-    if (!this.config.registry.isThreadReady(threadId)) {
+    if (!isThreadReady(runtimeState, threadId)) {
       this.markRunning(threadId, true);
-      this.config.registry.enqueuePendingChat(threadId, text);
+      enqueuePendingChat(runtimeState, threadId, text);
       return;
     }
 
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const backendThreadId = resolveThreadId(runtimeState, threadId);
 
     try {
       this.markRunning(threadId, true);
@@ -80,12 +100,13 @@ export class MessageController {
   }
 
   async sendSystemMessage(threadId: string, text: string) {
-    if (!this.config.registry.isThreadReady(threadId)) return;
-    const threadMessages = this.config.registry.getThreadMessages(threadId);
+    const runtimeState = this.config.runtimeStateRef.current;
+    if (!isThreadReady(runtimeState, threadId)) return;
+    const threadMessages = this.getThreadStateApi().getThreadMessages(threadId);
     const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
 
     if (!hasUserMessages) {
-      this.config.registry.enqueuePendingSystem(threadId, text);
+      enqueuePendingSystem(runtimeState, threadId, text);
       return;
     }
 
@@ -93,15 +114,17 @@ export class MessageController {
   }
 
   async sendSystemMessageNow(threadId: string, text: string) {
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const runtimeState = this.config.runtimeStateRef.current;
+    const threadState = this.getThreadStateApi();
+    const backendThreadId = resolveThreadId(runtimeState, threadId);
     this.markRunning(threadId, true);
     try {
       const response = await this.config.backendApiRef.current.postSystemMessage(backendThreadId, text);
       if (response.res) {
         const systemMessage = constructSystemMessage(response.res);
         if (systemMessage) {
-          const updatedMessages = [...this.config.registry.getThreadMessages(threadId), systemMessage];
-          this.config.registry.setThreadMessages(threadId, updatedMessages);
+          const updatedMessages = [...threadState.getThreadMessages(threadId), systemMessage];
+          threadState.setThreadMessages(threadId, updatedMessages);
         }
       }
       await this.flushPendingSystem(threadId);
@@ -113,7 +136,8 @@ export class MessageController {
   }
 
   async flushPendingSystem(threadId: string) {
-    const pending = this.config.registry.dequeuePendingSystem(threadId);
+    const runtimeState = this.config.runtimeStateRef.current;
+    const pending = dequeuePendingSystem(runtimeState, threadId);
     if (!pending.length) return;
     for (const pendingMessage of pending) {
       await this.sendSystemMessageNow(threadId, pendingMessage);
@@ -121,9 +145,10 @@ export class MessageController {
   }
 
   async flushPendingChat(threadId: string) {
-    const pending = this.config.registry.dequeuePendingChat(threadId);
+    const runtimeState = this.config.runtimeStateRef.current;
+    const pending = dequeuePendingChat(runtimeState, threadId);
     if (!pending.length) return;
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const backendThreadId = resolveThreadId(runtimeState, threadId);
     for (const text of pending) {
       try {
         await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
@@ -135,9 +160,10 @@ export class MessageController {
   }
 
   async cancel(threadId: string) {
-    if (!this.config.registry.isThreadReady(threadId)) return;
+    const runtimeState = this.config.runtimeStateRef.current;
+    if (!isThreadReady(runtimeState, threadId)) return;
     this.config.polling.stop(threadId);
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const backendThreadId = resolveThreadId(runtimeState, threadId);
     try {
       await this.config.backendApiRef.current.postInterrupt(backendThreadId);
       this.markRunning(threadId, false);
@@ -147,7 +173,13 @@ export class MessageController {
   }
 
   private markRunning(threadId: string, running: boolean) {
-    this.config.registry.setIsRunning(threadId, running);
+    setThreadRunning(this.config.runtimeStateRef.current, threadId, running);
     this.config.setGlobalIsRunning?.(running);
+  }
+
+  private getThreadStateApi(): ThreadStateApi {
+    const { getThreadMessages, setThreadMessages, updateThreadMetadata } =
+      this.config.threadContextRef.current;
+    return { getThreadMessages, setThreadMessages, updateThreadMetadata };
   }
 }
