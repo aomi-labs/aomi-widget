@@ -8,8 +8,8 @@ const copyStylesPlugin: Plugin = {
     build.onEnd(() => {
       try {
         mkdirSync("dist", { recursive: true });
-        copyFileSync("src/styles.css", "dist/styles.css");
-        cpSync("src/themes", "dist/themes", { recursive: true });
+        copyFileSync("packages/react/src/styles.css", "dist/styles.css");
+        cpSync("packages/react/src/themes", "dist/themes", { recursive: true });
       } catch (error) {
         console.error("Failed to copy theme assets into dist/", error);
         throw error;
@@ -19,7 +19,7 @@ const copyStylesPlugin: Plugin = {
 };
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["packages/react/src/index.ts"],
   format: ["esm", "cjs"],
   dts: {
     compilerOptions: {
