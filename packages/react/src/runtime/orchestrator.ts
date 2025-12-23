@@ -1,94 +1,74 @@
 import type { MutableRefObject } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { BackendApi } from "../api/client";
 import type { SessionMessage } from "../api/types";
 import { useThreadContext, type ThreadContextValue } from "../state/thread-context";
-import type { ThreadMetadata } from "../state/types";
 import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
-import { ThreadRegistry } from "./thread-registry";
+import {
+  clearSkipInitialFetch,
+  createThreadRuntimeState,
+  isThreadReady,
+  resolveThreadId,
+  shouldSkipInitialFetch,
+  type ThreadRuntimeState,
+} from "./runtime-state";
 
 export function useRuntimeOrchestrator(backendUrl: string) {
   const threadContext = useThreadContext();
+  const threadContextRef = useRef<ThreadContextValue>(threadContext);
+  threadContextRef.current = threadContext;
   const backendApiRef = useRef(new BackendApi(backendUrl));
+  const runtimeStateRef = useRef<ThreadRuntimeState>(createThreadRuntimeState());
 
   const [isRunning, setIsRunning] = useState(false);
 
-  const registry = useMemo(
-    () =>
-      new ThreadRegistry({
-        getThreadMessages: threadContext.getThreadMessages,
-        setThreadMessages: threadContext.setThreadMessages,
-        updateThreadMetadata: threadContext.updateThreadMetadata,
-        setThreadMetadata: threadContext.setThreadMetadata,
-        setThreadCnt: threadContext.setThreadCnt,
-        setThreads: threadContext.setThreads,
-        threadCnt: threadContext.threadCnt,
-        threadMetadata: threadContext.threadMetadata,
-        getCurrentThreadId: () => threadContext.currentThreadId,
-        setCurrentThreadId: threadContext.setCurrentThreadId,
-      }),
-    [
-      threadContext.getThreadMessages,
-      threadContext.setThreadMessages,
-      threadContext.updateThreadMetadata,
-      threadContext.setThreadMetadata,
-      threadContext.setThreadCnt,
-      threadContext.setThreads,
-      threadContext.threadCnt,
-      threadContext.threadMetadata,
-      threadContext.currentThreadId,
-      threadContext.setCurrentThreadId,
-    ]
-  );
-
-  const polling = useMemo(
-    () =>
-      new PollingController({
-        backendApiRef,
-        registry,
-        applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
-          messageControllerRef.current?.applyBackendMessages(threadId, msgs);
-        },
-        onStop: () => setIsRunning(false),
-      }),
-    [registry]
-  );
-
   const messageControllerRef: MutableRefObject<MessageController | null> = useRef(null);
+  const pollingRef: MutableRefObject<PollingController | null> = useRef(null);
 
-  const messageController = useMemo(() => {
-    const controller = new MessageController({
+  if (!pollingRef.current) {
+    pollingRef.current = new PollingController({
       backendApiRef,
-      registry,
-      polling,
+      runtimeStateRef,
+      applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
+        messageControllerRef.current?.applyBackendMessages(threadId, msgs);
+      },
+      onStop: () => setIsRunning(false),
+    });
+  }
+
+  if (!messageControllerRef.current) {
+    messageControllerRef.current = new MessageController({
+      backendApiRef,
+      runtimeStateRef,
+      threadContextRef,
+      polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
     });
-    messageControllerRef.current = controller;
-    return controller;
-  }, [polling, registry]);
+  }
 
-  const ensureInitialState = useMemo(
-    () => async (threadId: string) => {
-      if (registry.shouldSkipInitialFetch(threadId)) {
-        registry.clearSkipInitialFetch(threadId);
+  const ensureInitialState = useCallback(
+    async (threadId: string) => {
+      const runtimeState = runtimeStateRef.current;
+      if (shouldSkipInitialFetch(runtimeState, threadId)) {
+        clearSkipInitialFetch(runtimeState, threadId);
         setIsRunning(false);
         return;
       }
 
-      if (!registry.isThreadReady(threadId)) {
+      if (!isThreadReady(runtimeState, threadId)) {
         setIsRunning(false);
         return;
       }
 
-      const backendThreadId = registry.resolveThreadId(threadId);
+      const backendThreadId = resolveThreadId(runtimeState, threadId);
       try {
         const state = await backendApiRef.current.fetchState(backendThreadId);
-        messageController.applyBackendMessages(threadId, state.messages);
+        messageControllerRef.current?.applyBackendMessages(threadId, state.messages);
         if (state.is_processing) {
           setIsRunning(true);
-          polling.start(threadId);
+          pollingRef.current?.start(threadId);
         } else {
           setIsRunning(false);
         }
@@ -97,13 +77,13 @@ export function useRuntimeOrchestrator(backendUrl: string) {
         setIsRunning(false);
       }
     },
-    [backendApiRef, messageController, polling, registry]
+    [backendApiRef, runtimeStateRef, pollingRef, messageControllerRef, setIsRunning]
   );
 
   return {
-    registry,
-    polling,
-    messageController,
+    runtimeStateRef,
+    polling: pollingRef.current!,
+    messageController: messageControllerRef.current!,
     isRunning,
     setIsRunning,
     ensureInitialState,
