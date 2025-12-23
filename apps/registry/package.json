@@ -1,0 +1,12 @@
+{
+  "name": "@aomi-labs/registry",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-registry.js"
+  },
+  "dependencies": {
+    "@aomi-labs/react": "workspace:*"
+  }
+}
