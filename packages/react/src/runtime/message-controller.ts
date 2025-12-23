@@ -174,7 +174,9 @@ export class MessageController {
 
   private markRunning(threadId: string, running: boolean) {
     setThreadRunning(this.config.backendStateRef.current, threadId, running);
-    this.config.setGlobalIsRunning?.(running);
+    if (this.config.threadContextRef.current.currentThreadId === threadId) {
+      this.config.setGlobalIsRunning?.(running);
+    }
   }
 
   private getThreadContextApi(): ThreadContextApi {

@@ -14,6 +14,7 @@ import { useRuntimeOrchestrator } from "./orchestrator";
 import {
   findTempIdForBackendId,
   isThreadReady,
+  isThreadRunning,
   markSkipInitialFetch,
   resolveThreadId,
   setBackendMapping,
@@ -90,6 +91,11 @@ export function AomiRuntimeProvider({
   useEffect(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
+
+  useEffect(() => {
+    const threadId = threadContext.currentThreadId;
+    setIsRunning(isThreadRunning(backendStateRef.current, threadId));
+  }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
 
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
 
@@ -429,6 +435,12 @@ export function AomiRuntimeProvider({
       void messageController.flushPendingSystem(threadId);
     }
   }, [currentMessages, messageController, threadContext.currentThreadId]);
+
+  useEffect(() => {
+    return () => {
+      polling.stopAll();
+    };
+  }, [polling]);
 
   return (
     <RuntimeActionsProvider
