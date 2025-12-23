@@ -28,13 +28,17 @@ export function useRuntimeOrchestrator(backendUrl: string) {
   const pollingRef: MutableRefObject<PollingController | null> = useRef(null);
 
   if (!pollingRef.current) {
-    pollingRef.current = new PollingController({
-      backendApiRef,
-      backendStateRef,
-      applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
-        messageControllerRef.current?.inbound(threadId, msgs);
+      pollingRef.current = new PollingController({
+        backendApiRef,
+        backendStateRef,
+        applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
+          messageControllerRef.current?.inbound(threadId, msgs);
+        },
+      onStop: (threadId: string) => {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(false);
+        }
       },
-      onStop: () => setIsRunning(false),
     });
   }
 
@@ -51,14 +55,19 @@ export function useRuntimeOrchestrator(backendUrl: string) {
   const ensureInitialState = useCallback(
     async (threadId: string) => {
       const backendState = backendStateRef.current;
+      const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
       if (shouldSkipInitialFetch(backendState, threadId)) {
         clearSkipInitialFetch(backendState, threadId);
-        setIsRunning(false);
+        if (isCurrentThread) {
+          setIsRunning(false);
+        }
         return;
       }
 
       if (!isThreadReady(backendState, threadId)) {
-        setIsRunning(false);
+        if (isCurrentThread) {
+          setIsRunning(false);
+        }
         return;
       }
 
@@ -67,14 +76,20 @@ export function useRuntimeOrchestrator(backendUrl: string) {
         const state = await backendApiRef.current.fetchState(backendThreadId);
         messageControllerRef.current?.inbound(threadId, state.messages);
         if (state.is_processing) {
-          setIsRunning(true);
+          if (isCurrentThread) {
+            setIsRunning(true);
+          }
           pollingRef.current?.start(threadId);
         } else {
-          setIsRunning(false);
+          if (isCurrentThread) {
+            setIsRunning(false);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch initial state:", error);
-        setIsRunning(false);
+        if (isCurrentThread) {
+          setIsRunning(false);
+        }
       }
     },
     [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]

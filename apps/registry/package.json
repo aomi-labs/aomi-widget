@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build-registry.js"
+    "build": "tsx scripts/build-registry.js"
   },
   "dependencies": {
     "@aomi-labs/react": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
   }
 }
