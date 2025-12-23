@@ -1,4 +1,4 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { MutableRefObject } from "react";
 import type {
   ExternalStoreThreadData,
   ExternalStoreThreadListAdapter,
@@ -8,16 +8,12 @@ import type {
 import type { BackendApi } from "../api/client";
 import type { BackendThreadMetadata } from "../api/types";
 import type { ThreadMetadata } from "../state/types";
+import type { ThreadListAdapterApi } from "./thread-registry";
 import { isPlaceholderTitle, isTempThreadId, parseTimestamp } from "./utils";
 
-export type ThreadListAdapterDependencies = {
+export type ThreadListAdapterDependencies = ThreadListAdapterApi & {
   currentThreadId: string;
   currentThreadIdRef: MutableRefObject<string>;
-  threadMetadata: Map<string, ThreadMetadata>;
-  setThreadMetadata: Dispatch<SetStateAction<Map<string, ThreadMetadata>>>;
-  setThreads: Dispatch<SetStateAction<Map<string, ThreadMessageLike[]>>>;
-  setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
-  setCurrentThreadId: (id: string) => void;
   setIsRunning: (running: boolean) => void;
   bumpThreadViewKey: () => void;
   findPendingThreadId: () => string | null;
@@ -29,11 +25,8 @@ export type ThreadListAdapterDependencies = {
   skipInitialFetchRef: MutableRefObject<Set<string>>;
   backendApiRef: MutableRefObject<BackendApi>;
   publicKey?: string;
-  threadCnt: number;
-  setThreadCnt: Dispatch<SetStateAction<number>>;
   resolveThreadId: (threadId: string) => string;
   startPolling: () => void;
-  updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
 };
 
 export function normalizeBackendThreads(
@@ -91,7 +84,6 @@ export function createThreadListAdapter({
   backendApiRef,
   publicKey,
   threadCnt,
-  setThreadCnt,
   resolveThreadId,
   startPolling,
   updateThreadMetadata,
