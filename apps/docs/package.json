@@ -16,6 +16,7 @@
     "tailwindStylesheet": "app/globals.css"
   },
   "dependencies": {
+    "@aomi-labs/react": "workspace:*",
     "@aomi-labs/widget-lib": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",

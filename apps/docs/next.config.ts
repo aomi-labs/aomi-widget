@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
     externalDir: true,
   },
   pageExtensions: ["ts", "tsx", "mdx"],
-  transpilePackages: ["@aomi-labs/widget-lib"],
+  transpilePackages: ["@aomi-labs/react", "@aomi-labs/widget-lib"],
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       "@docs": path.resolve(__dirname, "./src"),
       "@aomi-labs/widget-lib": path.resolve(__dirname, "../../src"),
       "@aomi-labs/widget-lib/styles.css": path.resolve(__dirname, "../../src/styles.css"),
+      "@aomi-labs/react": path.resolve(__dirname, "../../packages/react/src"),
+      "@aomi-labs/react/styles.css": path.resolve(__dirname, "../../packages/react/src/styles.css"),
     };
     return config;
   },

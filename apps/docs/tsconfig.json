@@ -18,7 +18,9 @@
       "@/*": ["../../src/*"],
       "@docs/*": ["./src/*"],
       "@aomi-labs/widget-lib": ["../../src"],
-      "@aomi-labs/widget-lib/*": ["../../src/*"]
+      "@aomi-labs/widget-lib/*": ["../../src/*"],
+      "@aomi-labs/react": ["../../packages/react/src"],
+      "@aomi-labs/react/*": ["../../packages/react/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.mdx", ".next/types/**/*.ts"],
