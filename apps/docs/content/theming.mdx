@@ -2,7 +2,7 @@
 
 # Theming
 
-The widget uses CSS variables declared in `src/themes/default.css` and bundled via `@aomi-labs/widget-lib/styles.css`. Override the tokens to align with your brand; all primitives and the assistant shell read from the same set.
+The widget uses CSS variables declared in `packages/react/src/themes/default.css` and bundled via `@aomi-labs/react/styles.css`. Override the tokens to align with your brand; all primitives and the assistant shell read from the same set.
 
 ## Token map
 
@@ -50,7 +50,7 @@ Toggle `.dark` (or `data-theme="dark"`) on your root element to switch palettes.
 
 ## Tailwind source
 
-The docs app sets Tailwind v4 `@source` to `../../src` in `app/globals.css`, so any new classes added to the library are available to the docs playground without rebuilding the package.
+The docs app sets Tailwind v4 `@source` to `../../packages/react/src` in `app/globals.css`, so any new classes added to the library are available to the docs playground without rebuilding the package.
 
 ## Wallet/AppKit notes
 

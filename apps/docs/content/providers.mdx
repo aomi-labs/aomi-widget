@@ -15,10 +15,9 @@
 Use the exported providers and UI primitives to wrap `ThreadListSidebar` + `Thread` in your layout. Pass your backend URL (defaults to `http://localhost:8080`) and optionally a wallet address to `publicKey`.
 
 ```tsx
-import "@aomi-labs/widget-lib/styles.css";
+import "@aomi-labs/react/styles.css";
+import { AomiRuntimeProvider, ThreadContextProvider } from "@aomi-labs/react";
 import {
-  AomiRuntimeProvider,
-  ThreadContextProvider,
   Thread,
   ThreadListSidebar,
   SidebarProvider,
@@ -29,7 +28,7 @@ import {
   BreadcrumbList,
   BreadcrumbItem,
   BreadcrumbSeparator,
-} from "@aomi-labs/widget-lib";
+} from "@aomi-labs/registry";
 
 export function CustomAssistant({
   backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL,
@@ -67,7 +66,7 @@ If you need the wallet footer, prefer `<AomiFrame walletFooter={...} />` so wall
 
 ## Runtime contract
 
-`AomiRuntimeProvider` calls the backend defined in `backend-api.ts`:
+`AomiRuntimeProvider` calls the backend defined in `packages/react/src/api/client.ts`:
 
 - `GET /api/state?session_id=` → `{ messages, is_processing, session_exists, pending_wallet_tx }`
 - `POST /api/chat` with `{ session_id, message }` to send user text.
@@ -75,4 +74,4 @@ If you need the wallet footer, prefer `<AomiFrame walletFooter={...} />` so wall
 - `POST /api/interrupt` to stop generation.
 - Optional SSE: `/api/chat/stream?session_id={id}&public_key={wallet}` to stream updates.
 
-Shape responses to `SessionMessage` in `backend-api.ts`; the runtime converts them into `@assistant-ui/react` message objects and updates the current thread.
+Shape responses to `SessionMessage` in `packages/react/src/api/types.ts`; the runtime converts them into `@assistant-ui/react` message objects and updates the current thread.

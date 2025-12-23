@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<DocPagePara
   const doc = getDocBySlug(resolvedParams.slug);
   return {
     title: doc ? `${doc.title} · Aomi Widget Docs` : "Docs · Aomi Widget",
-    description: doc?.description ?? "Docs and playground for @aomi-labs/widget-lib.",
+    description: doc?.description ?? "Docs and playground for @aomi-labs/react.",
   };
 }
 

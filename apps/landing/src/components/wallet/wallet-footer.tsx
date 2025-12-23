@@ -9,10 +9,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  formatAddress,
-  getNetworkName,
   type WalletFooterProps,
-} from "@aomi-labs/widget-lib";
+} from "@aomi-labs/registry";
+import { formatAddress, getNetworkName } from "@aomi-labs/react";
 
 export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   const { address, isConnected } = useAppKitAccount();

@@ -2,7 +2,7 @@
   "name": "@aomi-labs/widget-docs",
   "version": "0.0.0",
   "private": true,
-  "description": "Docs and playground for @aomi-labs/widget-lib",
+  "description": "Docs and playground for @aomi-labs/react",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,7 +16,8 @@
     "tailwindStylesheet": "app/globals.css"
   },
   "dependencies": {
-    "@aomi-labs/widget-lib": "workspace:*",
+    "@aomi-labs/react": "workspace:*",
+    "@aomi-labs/registry": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
     "@mdx-js/react": "^3.1.1",

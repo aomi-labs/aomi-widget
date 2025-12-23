@@ -2,7 +2,7 @@
 
 # Getting started
 
-The widget library ships with this docs/playground so you can test UI and data flow without publishing. Everything resolves to `../../src`, meaning changes in the library instantly show up in the docs and previews.
+The widget library ships with this docs/playground so you can test UI and data flow without publishing. Everything resolves to `../../packages/react/src`, meaning changes in the library instantly show up in the docs and previews.
 
 ## What you get
 
@@ -14,7 +14,7 @@ The widget library ships with this docs/playground so you can test UI and data f
 ## Install the package
 
 ```bash
-pnpm add @aomi-labs/widget-lib @assistant-ui/react @assistant-ui/react-markdown @tanstack/react-query @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-avatar @radix-ui/react-separator @radix-ui/react-tooltip framer-motion motion lucide-react react-shiki remark-gfm tailwindcss zustand
+pnpm add @aomi-labs/react @aomi-labs/registry @assistant-ui/react @assistant-ui/react-markdown @tanstack/react-query @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-avatar @radix-ui/react-separator @radix-ui/react-tooltip framer-motion motion lucide-react react-shiki remark-gfm tailwindcss zustand
 ```
 
 ## Import styles
@@ -22,18 +22,18 @@ pnpm add @aomi-labs/widget-lib @assistant-ui/react @assistant-ui/react-markdown 
 Load the bundled theme and base styles once in your app (or in `apps/docs/app/globals.css` while developing locally):
 
 ```ts
-import "@aomi-labs/widget-lib/styles.css";
+import "@aomi-labs/react/styles.css";
 ```
 
-Tokens live in `src/themes/default.css`. Override `--font-*`, `--radius-*`, or the palette values in your host app to rebrand.
+Tokens live in `packages/react/src/themes/default.css`. Override `--font-*`, `--radius-*`, or the palette values in your host app to rebrand.
 
 ## Quick embed
 
 `AomiFrame` already wraps the required providers and wallet wiring. Pass a custom footer if you want to render wallet controls from your app:
 
 ```tsx
-import "@aomi-labs/widget-lib/styles.css";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import "@aomi-labs/react/styles.css";
+import { AomiFrame } from "@aomi-labs/registry";
 import { WalletFooter } from "./wallet-footer"; // your component
 
 export default function Assistant() {
@@ -55,4 +55,4 @@ Set `NEXT_PUBLIC_BACKEND_URL` to point at your backend (defaults to `http://loca
 - Landing app (consumes the built library): `pnpm --filter landing dev`.
 - Live-edit library + landing together: `pnpm run dev:landing:live` (tsup watch plus landing dev server).
 
-The docs use Tailwind v4 with `@source ../../src`, so new classes in the library are available without rebuilding the package.
+The docs use Tailwind v4 with `@source ../../packages/react/src`, so new classes in the library are available without rebuilding the package.

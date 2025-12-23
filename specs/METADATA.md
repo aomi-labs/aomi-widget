@@ -1,8 +1,8 @@
 # Project Metadata
 
 ## Package
-- Name: `@aomi-labs/widget-lib`
-- Purpose: AI assistant widget for onchain apps (React component wrapping Assistant UI)
+- Name: `@aomi-labs/react`
+- Purpose: Runtime/state package for the AI assistant widget (paired with shadcn registry components)
 
 ## Stack
 - React 19.2 / Next.js 15.5 / TypeScript
@@ -12,28 +12,25 @@
 
 ## Directory Structure
 ```
-src/
-├── index.ts                     # Public exports
-├── styles.css                   # Widget styles
-├── components/
-│   ├── aomi-frame.tsx          # Main widget shell
-│   ├── assistant-ui/           # Chat UI (runtime, thread, attachments)
-│   └── ui/                     # Primitives (button, dialog, sidebar)
-├── lib/
-│   ├── backend-api.ts          # HTTP client
-│   ├── thread-context.tsx      # State management
-│   └── conversion.ts           # Message transforms
-├── utils/wallet.ts             # Wallet helpers
-└── hooks/use-mobile.ts         # Mobile detection
+packages/react/
+└── src/
+    ├── api/                    # HTTP client + types
+    ├── runtime/                # Aomi runtime, polling, thread list adapter
+    ├── state/                  # Thread context + types
+    ├── utils/                  # Conversion + wallet helpers
+    ├── themes/                 # Default theme tokens
+    └── index.ts                # Public exports
 
-apps/landing/                    # Demo Next.js app
-dist/                           # Build output
+apps/registry/                  # Shadcn registry (UI components + build script)
+apps/landing/                   # Demo Next.js app
+apps/docs/                      # Docs + playground
 ```
 
 ## Commands
 ```bash
 pnpm install              # Install deps
-pnpm run build:lib        # Build → dist/
+pnpm run build:react      # Build → packages/react/dist
+pnpm --filter registry build # Generate registry dist JSON
 pnpm --filter landing dev # Demo at :3000
 pnpm lint                 # Lint check
 ```

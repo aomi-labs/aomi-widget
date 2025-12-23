@@ -15,7 +15,11 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@aomi-labs/react": ["../../packages/react/src"],
+      "@aomi-labs/react/*": ["../../packages/react/src/*"],
+      "@aomi-labs/registry": ["../registry/src"],
+      "@aomi-labs/registry/*": ["../registry/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

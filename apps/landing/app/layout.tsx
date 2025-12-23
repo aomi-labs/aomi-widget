@@ -3,8 +3,8 @@ import "./globals.css";
 import ContextProvider from "../src/components/wallet-providers";
 
 export const metadata: Metadata = {
-  title: "Example App - @aomi-labs/widget-lib",
-  description: "Example app consuming @aomi-labs/widget-lib",
+  title: "Example App - @aomi-labs/react",
+  description: "Example app consuming @aomi-labs/react and the registry components",
 };
 
 export default function RootLayout({

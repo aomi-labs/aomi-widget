@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
-const themesDir = path.join(repoRoot, "src", "themes");
+const themesDir = path.join(repoRoot, "packages", "react", "src", "themes");
 const defaultThemePath = path.join(themesDir, "default.css");
 
 const args = process.argv.slice(2);
@@ -45,7 +45,7 @@ if (existsSync(outputPath)) {
 }
 
 if (!existsSync(defaultThemePath)) {
-  console.error("Default theme template missing at src/themes/default.css");
+  console.error("Default theme template missing at packages/react/src/themes/default.css");
   process.exit(1);
 }
 
@@ -54,7 +54,7 @@ const stampedBanner = [
   `/* ${label} Theme (generated ${new Date().toISOString()}) */`,
   "/* Duplicate of default.css — update tokens, colors, and AppKit overrides as needed. */",
 ].join("\n");
-const normalized = defaultCss.replace("/* @aomi-labs/widget-lib - Theme Styles */", stampedBanner);
+const normalized = defaultCss.replace("/* @aomi-labs/react - Theme Styles */", stampedBanner);
 
 mkdirSync(themesDir, { recursive: true });
 writeFileSync(outputPath, normalized, "utf8");

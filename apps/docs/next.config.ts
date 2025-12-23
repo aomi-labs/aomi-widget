@@ -16,14 +16,18 @@ const nextConfig: NextConfig = {
     externalDir: true,
   },
   pageExtensions: ["ts", "tsx", "mdx"],
-  transpilePackages: ["@aomi-labs/widget-lib"],
+  transpilePackages: ["@aomi-labs/react", "@aomi-labs/registry"],
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
-      "@": path.resolve(__dirname, "../../src"),
+      "@": path.resolve(__dirname, "../../packages/react/src"),
       "@docs": path.resolve(__dirname, "./src"),
-      "@aomi-labs/widget-lib": path.resolve(__dirname, "../../src"),
-      "@aomi-labs/widget-lib/styles.css": path.resolve(__dirname, "../../src/styles.css"),
+      "@aomi-labs/react": path.resolve(__dirname, "../../packages/react/src"),
+      "@aomi-labs/registry": path.resolve(__dirname, "../registry/src"),
+      "@aomi-labs/react/styles.css": path.resolve(
+        __dirname,
+        "../../packages/react/src/styles.css"
+      ),
     };
     return config;
   },

@@ -1,68 +1,27 @@
 {
-  "name": "@aomi-labs/widget-lib",
+  "name": "aomi-widget",
   "version": "1.0.0",
-  "description": "AI-powered assistant UI widget library",
+  "private": true,
+  "description": "Monorepo for the Aomi React runtime, registry, and documentation.",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
-    },
-    "./styles.css": "./dist/styles.css"
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "dev": "next dev --turbopack",
-    "dev:landing:live": "pnpm run build:lib -- --watch & pnpm --filter landing dev",
+    "dev": "pnpm --filter landing dev",
+    "dev:landing:live": "pnpm run build:react -- --watch & pnpm --filter landing dev",
     "dev:docs": "pnpm --filter @aomi-labs/widget-docs dev",
-    "build": "next build",
-    "build:lib": "tsup",
+    "build": "pnpm run build:react && pnpm --filter registry run build",
+    "build:react": "pnpm --filter @aomi-labs/react run build",
     "build:docs": "pnpm --filter @aomi-labs/widget-docs build",
-    "vercel-build": "pnpm run build:lib && pnpm --filter landing build",
-    "start": "next start",
     "lint": "eslint .",
     "lint:docs": "pnpm --filter @aomi-labs/widget-docs lint",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
-    "generate:theme": "node ./scripts/generate-theme.mjs",
-    "prepublishOnly": "pnpm run build:lib"
+    "generate:theme": "node ./scripts/generate-theme.mjs"
   },
   "prettier": {
     "plugins": [
       "prettier-plugin-tailwindcss"
     ],
     "tailwindStylesheet": "app/globals.css"
-  },
-  "peerDependencies": {
-    "@assistant-ui/react": "^0.11.0",
-    "@assistant-ui/react-markdown": "^0.11.0",
-    "@radix-ui/react-avatar": "^1.0.0",
-    "@radix-ui/react-dialog": "^1.0.0",
-    "@radix-ui/react-separator": "^1.0.0",
-    "@radix-ui/react-slot": "^1.0.0",
-    "@radix-ui/react-tooltip": "^1.0.0",
-    "@tanstack/react-query": "^5.0.0",
-    "framer-motion": "^12.0.0",
-    "lucide-react": "^0.500.0",
-    "motion": "^12.0.0",
-    "next": ">=14.0.0",
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
-    "react-shiki": "^0.9.0",
-    "remark-gfm": "^4.0.0",
-    "tailwindcss": "^4.0.0",
-    "zustand": "^5.0.0"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
