@@ -88,7 +88,7 @@ async function postState<T>(
 export class BackendApi {
   private connectionStatus = false;
   private eventSource: EventSource | null = null;
-  private updatesEventSource: EventSource | null = null;
+  private updatesEventSources = new Map<string, EventSource>();
 
   constructor(private readonly backendUrl: string) {}
 
@@ -203,18 +203,19 @@ export class BackendApi {
     onUpdate: (update: SystemUpdateNotification) => void,
     onError?: (error: unknown) => void
   ): () => void {
-    // Close any existing connection before opening a new one
-    if (this.updatesEventSource) {
-      this.updatesEventSource.close();
-    }
-
     const updatesUrl = new URL("/api/updates", this.backendUrl);
     updatesUrl.searchParams.set("session_id", sessionId);
-    this.updatesEventSource = new EventSource(updatesUrl.toString());
+    const existing = this.updatesEventSources.get(sessionId);
+    if (existing) {
+      existing.close();
+    }
+
+    const updatesEventSource = new EventSource(updatesUrl.toString());
+    this.updatesEventSources.set(sessionId, updatesEventSource);
 
     console.log('🔵 [subscribeToUpdates] URL:', updatesUrl.toString());
 
-    this.updatesEventSource.onmessage = (event) => {
+    updatesEventSource.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data) as SystemUpdateNotification;
         onUpdate(parsed);
@@ -224,15 +225,18 @@ export class BackendApi {
       }
     };
 
-    this.updatesEventSource.onerror = (error) => {
+    updatesEventSource.onerror = (error) => {
       console.error("System updates SSE error:", error);
       onError?.(error);
     };
 
     return () => {
-      if (this.updatesEventSource) {
-        this.updatesEventSource.close();
-        this.updatesEventSource = null;
+      const current = this.updatesEventSources.get(sessionId);
+      if (current === updatesEventSource) {
+        current.close();
+        this.updatesEventSources.delete(sessionId);
+      } else {
+        updatesEventSource.close();
       }
     };
   }

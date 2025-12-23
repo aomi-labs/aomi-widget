@@ -176,11 +176,14 @@ export function AomiRuntimeProvider({
   // ==================== State ====================
   const [isRunning, setIsRunning] = useState(false);
   const [subscribableSessionId, setSubscribableSessionId] = useState<string | null>(null);
+  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = useState(0);
   const backendApiRef = useRef(new BackendApi(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingThreadIdRef = useRef<string | null>(null);
   const pendingSystemMessagesRef = useRef<Map<string, string[]>>(new Map());
   const lastEventIdBySessionRef = useRef<Map<string, number>>(new Map());
   const eventsInFlightRef = useRef<Set<string>>(new Set());
+  const updateSubscriptionsRef = useRef<Map<string, () => void>>(new Map());
   const extraMessagesByThreadRef = useRef<Map<string, ThreadMessageLike[]>>(new Map());
   const handledWalletTxRequestsRef = useRef<Set<string>>(new Set());
   const walletTxQueueRef = useRef<Array<{ sessionId: string; threadId: string; request: WalletTxRequest }>>([]);
@@ -190,13 +193,9 @@ export function AomiRuntimeProvider({
   // Track in-flight creation to avoid duplicate backend requests
   const creatingThreadIdRef = useRef<string | null>(null);
   const createThreadPromiseRef = useRef<Promise<void> | null>(null);
-  const findPendingThreadId = useCallback(() => {
-    if (creatingThreadIdRef.current) return creatingThreadIdRef.current;
-    for (const [id, meta] of threadMetadata.entries()) {
-      if (meta.status === "pending") return id;
-    }
-    return null;
-  }, [threadMetadata]);
+  const bumpUpdateSubscriptions = useCallback(() => {
+    setUpdateSubscriptionsTick((prev) => prev + 1);
+  }, []);
 
   // Get messages for current thread
   const currentMessages = getThreadMessages(currentThreadId);
@@ -468,9 +467,12 @@ export function AomiRuntimeProvider({
   );
 
   // ==================== Message Processing ====================
-  const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
-    applySessionMessagesToThread(currentThreadId, msgs);
-  }, [applySessionMessagesToThread, currentThreadId]);
+  const applyMessagesForThread = useCallback(
+    (threadId: string, msgs?: SessionMessage[] | null) => {
+      applySessionMessagesToThread(threadId, msgs);
+    },
+    [applySessionMessagesToThread]
+  );
 
   // ==================== Backend API ====================
   useEffect(() => {
@@ -483,14 +485,19 @@ export function AomiRuntimeProvider({
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
+    pollingThreadIdRef.current = null;
   }, []);
 
   const startPolling = useCallback(() => {
     if (!isThreadReady(currentThreadId)) return;
-    if (pollingIntervalRef.current) return;
+    if (pollingIntervalRef.current) {
+      if (pollingThreadIdRef.current === currentThreadId) return;
+      stopPolling();
+    }
     const threadIdForPolling = currentThreadId;
     const backendThreadId = resolveThreadId(currentThreadId);
     setIsRunning(true);
+    pollingThreadIdRef.current = threadIdForPolling;
     pollingIntervalRef.current = setInterval(async () => {
       try {
         if (currentThreadIdRef.current !== threadIdForPolling) return;
@@ -501,7 +508,7 @@ export function AomiRuntimeProvider({
           return;
         }
         handleBackendSystemEvents(backendThreadId, threadIdForPolling, state.system_events);
-        applyMessages(state.messages);
+        applyMessagesForThread(threadIdForPolling, state.messages);
 
         if (!state.is_processing) {
           setIsRunning(false);
@@ -515,52 +522,77 @@ export function AomiRuntimeProvider({
     }, 500);
   }, [
     currentThreadId,
-    applyMessages,
+    applyMessagesForThread,
     handleBackendSystemEvents,
     stopPolling,
     isThreadReady,
     resolveThreadId,
   ]);
 
+  const interruptThread = useCallback(
+    async (threadId: string) => {
+      if (!isThreadReady(threadId)) return;
+      const backendThreadId = resolveThreadId(threadId);
+      try {
+        await backendApiRef.current.postInterrupt(backendThreadId);
+      } catch (error) {
+        console.error("Failed to interrupt thread:", error);
+      }
+    },
+    [isThreadReady, resolveThreadId]
+  );
+
   // ==================== Load Initial Thread State ====================
   useEffect(() => {
     const fetchInitialState = async () => {
+      const threadIdForFetch = currentThreadId;
+
       // For temp threads without a backend ID yet, skip fetching
-      if (isTempThreadId(currentThreadId) && !tempToBackendIdRef.current.has(currentThreadId)) {
-        setSubscribableSessionId(null);
-        setIsRunning(false);
+      if (isTempThreadId(threadIdForFetch) && !tempToBackendIdRef.current.has(threadIdForFetch)) {
+        if (currentThreadIdRef.current === threadIdForFetch) {
+          setSubscribableSessionId(null);
+          setIsRunning(false);
+        }
         return;
       }
 
       // Skip initial fetch for newly created threads (switched from temp to real)
       // This prevents fetchState from clearing input when the thread was just created
-      if (skipInitialFetchRef.current.has(currentThreadId)) {
-        skipInitialFetchRef.current.delete(currentThreadId);
-        if (isThreadReady(currentThreadId)) {
-          setSubscribableSessionId(resolveThreadId(currentThreadId));
+      if (skipInitialFetchRef.current.has(threadIdForFetch)) {
+        skipInitialFetchRef.current.delete(threadIdForFetch);
+        if (creatingThreadIdRef.current === threadIdForFetch) {
+          if (isThreadReady(threadIdForFetch) && currentThreadIdRef.current === threadIdForFetch) {
+            setSubscribableSessionId(resolveThreadId(threadIdForFetch));
+          }
+          if (currentThreadIdRef.current === threadIdForFetch) {
+            setIsRunning(false);
+          }
+          return;
         }
-        setIsRunning(false);
-        return;
       }
 
-      const backendThreadId = resolveThreadId(currentThreadId);
+      const backendThreadId = resolveThreadId(threadIdForFetch);
 
       try {
         const state = await backendApiRef.current.fetchState(backendThreadId);
         if (state.session_exists === false) {
-          setSubscribableSessionId(null);
-          setIsRunning(false);
+          if (currentThreadIdRef.current === threadIdForFetch) {
+            setSubscribableSessionId(null);
+            setIsRunning(false);
+          }
           return;
         }
-        setSubscribableSessionId(backendThreadId);
-        handleBackendSystemEvents(backendThreadId, currentThreadId, state.system_events);
-        applyMessages(state.messages);
+        handleBackendSystemEvents(backendThreadId, threadIdForFetch, state.system_events);
+        applyMessagesForThread(threadIdForFetch, state.messages);
 
-        if (state.is_processing) {
-          setIsRunning(true);
-          startPolling();
-        } else {
-          setIsRunning(false);
+        if (currentThreadIdRef.current === threadIdForFetch) {
+          setSubscribableSessionId(backendThreadId);
+          if (state.is_processing) {
+            setIsRunning(true);
+            startPolling();
+          } else {
+            setIsRunning(false);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch initial state:", error);
@@ -573,7 +605,7 @@ export function AomiRuntimeProvider({
     };
   }, [
     currentThreadId,
-    applyMessages,
+    applyMessagesForThread,
     startPolling,
     stopPolling,
     resolveThreadId,
@@ -668,25 +700,13 @@ export function AomiRuntimeProvider({
 
       // Create new thread
       onSwitchToNewThread: async () => {
-        const preparePendingThread = (newId: string) => {
-          const previousPendingId = creatingThreadIdRef.current;
-          if (previousPendingId && previousPendingId !== newId) {
-            setThreadMetadata((prev) => {
-              const next = new Map(prev);
-              next.delete(previousPendingId);
-              return next;
-            });
-            setThreads((prev) => {
-              const next = new Map(prev);
-              next.delete(previousPendingId);
-              return next;
-            });
-            pendingChatMessagesRef.current.delete(previousPendingId);
-            pendingSystemMessagesRef.current.delete(previousPendingId);
-            tempToBackendIdRef.current.delete(previousPendingId);
-            skipInitialFetchRef.current.delete(previousPendingId);
-          }
+        const previousThreadId = currentThreadIdRef.current;
+        stopPolling();
+        if (isRunning) {
+          void interruptThread(previousThreadId);
+        }
 
+        const preparePendingThread = (newId: string) => {
           creatingThreadIdRef.current = newId;
           pendingChatMessagesRef.current.delete(newId);
           pendingSystemMessagesRef.current.delete(newId);
@@ -702,13 +722,6 @@ export function AomiRuntimeProvider({
           setIsRunning(false);
           bumpThreadViewKey();
         };
-
-        // If any pending thread exists (either in-flight or awaiting title), reuse it without new request
-        const existingPendingId = findPendingThreadId();
-        if (existingPendingId) {
-          preparePendingThread(existingPendingId);
-          return;
-        }
 
         // If a creation request is already in flight, just reset UI with a fresh pending thread
         if (createThreadPromiseRef.current) {
@@ -730,6 +743,7 @@ export function AomiRuntimeProvider({
             // Store the mapping from tempId to backendId
             // This allows API calls to use the real backendId while UI stays on tempId
             tempToBackendIdRef.current.set(uiThreadId, backendId);
+            bumpUpdateSubscriptions();
             if (currentThreadIdRef.current === uiThreadId) {
               setSubscribableSessionId(backendId);
             }
@@ -958,6 +972,7 @@ export function AomiRuntimeProvider({
         .then(async (newThread) => {
           const backendId = newThread.session_id;
           tempToBackendIdRef.current.set(threadId, backendId);
+          bumpUpdateSubscriptions();
           if (currentThreadIdRef.current === threadId) {
             setSubscribableSessionId(backendId);
           }
@@ -1004,6 +1019,7 @@ export function AomiRuntimeProvider({
       createThreadPromiseRef.current = createPromise;
     },
     [
+      bumpUpdateSubscriptions,
       flushPendingSystemMessages,
       isThreadReady,
       publicKey,
@@ -1130,12 +1146,8 @@ export function AomiRuntimeProvider({
     }
   }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
 
-  useEffect(() => {
-    if (!subscribableSessionId) return;
-
-    const backendSessionId = subscribableSessionId;
-
-    const applyTitleChanged = (sessionId: string, newTitle: string) => {
+  const applyTitleChanged = useCallback(
+    (sessionId: string, newTitle: string) => {
       const tempId = findTempIdForBackendId(sessionId);
       const threadIdToUpdate = tempId || sessionId;
 
@@ -1154,9 +1166,12 @@ export function AomiRuntimeProvider({
       if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
         creatingThreadIdRef.current = null;
       }
-    };
+    },
+    [findTempIdForBackendId, setThreadMetadata]
+  );
 
-    const drainEvents = async (sessionId: string) => {
+  const drainEvents = useCallback(
+    async (sessionId: string) => {
       if (eventsInFlightRef.current.has(sessionId)) return;
       eventsInFlightRef.current.add(sessionId);
 
@@ -1196,26 +1211,75 @@ export function AomiRuntimeProvider({
       } finally {
         eventsInFlightRef.current.delete(sessionId);
       }
-    };
+    },
+    [applyTitleChanged, findTempIdForBackendId, handleWalletTxRequest]
+  );
 
-    // Catch up on any events already in the store (e.g. title changes that happened before subscribing).
-    void drainEvents(backendSessionId);
+  const ensureUpdateSubscription = useCallback(
+    (sessionId: string) => {
+      if (updateSubscriptionsRef.current.has(sessionId)) return;
+      const unsubscribe = backendApiRef.current.subscribeToUpdates(
+        sessionId,
+        (update) => {
+          if (update.type !== "event_available") return;
+          void drainEvents(update.session_id);
+        },
+        (error) => {
+          console.error("Failed to handle system update SSE:", error);
+        }
+      );
+      updateSubscriptionsRef.current.set(sessionId, unsubscribe);
+      void drainEvents(sessionId);
+    },
+    [drainEvents]
+  );
 
-    const unsubscribe = backendApiRef.current.subscribeToUpdates(
-      backendSessionId,
-      (update) => {
-        if (update.type !== "event_available") return;
-        void drainEvents(update.session_id);
-      },
-      (error) => {
-        console.error("Failed to handle system update SSE:", error);
+  const removeUpdateSubscription = useCallback((sessionId: string) => {
+    const unsubscribe = updateSubscriptionsRef.current.get(sessionId);
+    if (!unsubscribe) return;
+    unsubscribe();
+    updateSubscriptionsRef.current.delete(sessionId);
+  }, []);
+
+  useEffect(() => {
+    const nextSessions = new Set<string>();
+    if (subscribableSessionId) {
+      nextSessions.add(subscribableSessionId);
+    }
+
+    for (const [threadId, meta] of threadMetadata.entries()) {
+      if (meta.status !== "pending" && !isPlaceholderTitle(meta.title)) continue;
+      if (!isThreadReady(threadId)) continue;
+      nextSessions.add(resolveThreadId(threadId));
+    }
+
+    for (const sessionId of updateSubscriptionsRef.current.keys()) {
+      if (!nextSessions.has(sessionId)) {
+        removeUpdateSubscription(sessionId);
       }
-    );
+    }
 
+    for (const sessionId of nextSessions) {
+      ensureUpdateSubscription(sessionId);
+    }
+  }, [
+    ensureUpdateSubscription,
+    isThreadReady,
+    removeUpdateSubscription,
+    resolveThreadId,
+    subscribableSessionId,
+    threadMetadata,
+    updateSubscriptionsTick,
+  ]);
+
+  useEffect(() => {
     return () => {
-      unsubscribe();
+      for (const unsubscribe of updateSubscriptionsRef.current.values()) {
+        unsubscribe();
+      }
+      updateSubscriptionsRef.current.clear();
     };
-  }, [findTempIdForBackendId, handleWalletTxRequest, setThreadMetadata, subscribableSessionId]);
+  }, []);
 
   return (
     <RuntimeActionsContext.Provider value={{ sendSystemMessage }}>
