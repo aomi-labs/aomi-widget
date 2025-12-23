@@ -79,6 +79,9 @@ export function AomiRuntimeProvider({
     backendApiRef,
   } = useRuntimeOrchestrator(backendUrl);
 
+  const threadContextRef = useRef(threadContext);
+  threadContextRef.current = threadContext;
+
   const currentThreadIdRef = useRef(threadContext.currentThreadId);
   useEffect(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
@@ -88,15 +91,79 @@ export function AomiRuntimeProvider({
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
 
+  const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
+
+  useEffect(() => {
+    if (!publicKey) return;
+
+    const fetchThreadList = async () => {
+      try {
+        const threadList = await backendApiRef.current.fetchThreads(publicKey);
+        const currentContext = threadContextRef.current;
+        const newMetadata = new Map(currentContext.threadMetadata);
+        let maxChatNum = currentContext.threadCnt;
+
+        for (const thread of threadList) {
+          const rawTitle = thread.title ?? "";
+          const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
+          const lastActive =
+            thread.last_active_at ||
+            thread.updated_at ||
+            thread.created_at ||
+            newMetadata.get(thread.session_id)?.lastActiveAt ||
+            new Date().toISOString();
+          newMetadata.set(thread.session_id, {
+            title,
+            status: thread.is_archived ? "archived" : "regular",
+            lastActiveAt: lastActive,
+          });
+
+          const match = title.match(/^Chat (\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxChatNum) {
+              maxChatNum = num;
+            }
+          }
+        }
+
+        currentContext.setThreadMetadata(newMetadata);
+        if (maxChatNum > currentContext.threadCnt) {
+          currentContext.setThreadCnt(maxChatNum);
+        }
+      } catch (error) {
+        console.error("Failed to fetch thread list:", error);
+      }
+    };
+
+    void fetchThreadList();
+  }, [publicKey]);
+
   const threadListAdapter = useMemo(() => {
     const backendState = backendStateRef.current;
     const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
 
-    const preparePendingThread = (threadId: string, resetQueues: boolean) => {
-      if (resetQueues) {
-        backendState.pendingChat.delete(threadId);
-        backendState.pendingSystem.delete(threadId);
+    const preparePendingThread = (threadId: string) => {
+      const previousPendingId = backendState.creatingThreadId;
+      if (previousPendingId && previousPendingId !== threadId) {
+        threadContext.setThreadMetadata((prev) => {
+          const next = new Map(prev);
+          next.delete(previousPendingId);
+          return next;
+        });
+        threadContext.setThreads((prev) => {
+          const next = new Map(prev);
+          next.delete(previousPendingId);
+          return next;
+        });
+        backendState.pendingChat.delete(previousPendingId);
+        backendState.pendingSystem.delete(previousPendingId);
+        backendState.tempToBackendId.delete(previousPendingId);
+        backendState.skipInitialFetch.delete(previousPendingId);
       }
+      backendState.creatingThreadId = threadId;
+      backendState.pendingChat.delete(threadId);
+      backendState.pendingSystem.delete(threadId);
       threadContext.setThreadMetadata((prev) =>
         new Map(prev).set(threadId, {
           title: "New Chat",
@@ -104,9 +171,7 @@ export function AomiRuntimeProvider({
           lastActiveAt: new Date().toISOString(),
         })
       );
-      if (resetQueues) {
-        threadContext.setThreadMessages(threadId, []);
-      }
+      threadContext.setThreadMessages(threadId, []);
       threadContext.setCurrentThreadId(threadId);
       setIsRunning(false);
       threadContext.bumpThreadViewKey();
@@ -128,14 +193,18 @@ export function AomiRuntimeProvider({
       onSwitchToNewThread: async () => {
         const pendingId = findPendingThreadId();
         if (pendingId) {
-          preparePendingThread(pendingId, false);
+          preparePendingThread(pendingId);
+          return;
+        }
+
+        if (backendState.createThreadPromise) {
+          preparePendingThread(backendState.creatingThreadId ?? `temp-${crypto.randomUUID()}`);
           return;
         }
 
         const tempId = `temp-${crypto.randomUUID()}`;
-        preparePendingThread(tempId, true);
+        preparePendingThread(tempId);
 
-        backendState.creatingThreadId = tempId;
         const createPromise = backendApiRef.current
           .createThread(publicKey, undefined)
           .then(async (newThread) => {
@@ -312,8 +381,16 @@ export function AomiRuntimeProvider({
         findTempIdForBackendId(backendState, sessionId) ??
         resolveThreadId(backendState, sessionId);
       const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-      threadContext.updateThreadMetadata(targetThreadId, {
-        title: normalizedTitle,
+      threadContext.setThreadMetadata((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(targetThreadId);
+        const nextStatus = existing?.status === "archived" ? "archived" : "regular";
+        next.set(targetThreadId, {
+          title: normalizedTitle,
+          status: nextStatus,
+          lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+        });
+        return next;
       });
       if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
         backendState.creatingThreadId = null;
@@ -329,12 +406,13 @@ export function AomiRuntimeProvider({
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
-    void messageController.flushPendingSystem(threadId);
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);
 
   const runtime = useExternalStoreRuntime({
-    messages: threadContext.getThreadMessages(threadContext.currentThreadId),
+    messages: currentMessages,
+    setMessages: (msgs) =>
+      threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
     onNew: (message: AppendMessage) =>
       messageController.outbound(message, threadContext.currentThreadId),
@@ -342,6 +420,15 @@ export function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter },
   });
+
+  useEffect(() => {
+    const threadId = threadContext.currentThreadId;
+    if (isTempThreadId(threadId)) return;
+    const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
+    if (hasUserMessages) {
+      void messageController.flushPendingSystem(threadId);
+    }
+  }, [currentMessages, messageController, threadContext.currentThreadId]);
 
   return (
     <RuntimeActionsProvider
