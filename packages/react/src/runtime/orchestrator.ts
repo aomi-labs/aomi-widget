@@ -3,24 +3,24 @@ import { useCallback, useRef, useState } from "react";
 
 import { BackendApi } from "../api/client";
 import type { SessionMessage } from "../api/types";
-import { useThreadContext, type ThreadContextValue } from "../state/thread-context";
+import { useThreadContext, type ThreadContext } from "../state/thread-context";
 import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
 import {
   clearSkipInitialFetch,
-  createThreadRuntimeState,
+  createBakendState,
   isThreadReady,
   resolveThreadId,
   shouldSkipInitialFetch,
-  type ThreadRuntimeState,
-} from "./runtime-state";
+  type BakendState,
+} from "./backend-state";
 
 export function useRuntimeOrchestrator(backendUrl: string) {
   const threadContext = useThreadContext();
-  const threadContextRef = useRef<ThreadContextValue>(threadContext);
+  const threadContextRef = useRef<ThreadContext>(threadContext);
   threadContextRef.current = threadContext;
   const backendApiRef = useRef(new BackendApi(backendUrl));
-  const runtimeStateRef = useRef<ThreadRuntimeState>(createThreadRuntimeState());
+  const backendStateRef = useRef<BakendState>(createBakendState());
 
   const [isRunning, setIsRunning] = useState(false);
 
@@ -30,9 +30,9 @@ export function useRuntimeOrchestrator(backendUrl: string) {
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
       backendApiRef,
-      runtimeStateRef,
+      backendStateRef,
       applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
-        messageControllerRef.current?.applyBackendMessages(threadId, msgs);
+        messageControllerRef.current?.inbound(threadId, msgs);
       },
       onStop: () => setIsRunning(false),
     });
@@ -41,7 +41,7 @@ export function useRuntimeOrchestrator(backendUrl: string) {
   if (!messageControllerRef.current) {
     messageControllerRef.current = new MessageController({
       backendApiRef,
-      runtimeStateRef,
+      backendStateRef,
       threadContextRef,
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
@@ -50,22 +50,22 @@ export function useRuntimeOrchestrator(backendUrl: string) {
 
   const ensureInitialState = useCallback(
     async (threadId: string) => {
-      const runtimeState = runtimeStateRef.current;
-      if (shouldSkipInitialFetch(runtimeState, threadId)) {
-        clearSkipInitialFetch(runtimeState, threadId);
+      const backendState = backendStateRef.current;
+      if (shouldSkipInitialFetch(backendState, threadId)) {
+        clearSkipInitialFetch(backendState, threadId);
         setIsRunning(false);
         return;
       }
 
-      if (!isThreadReady(runtimeState, threadId)) {
+      if (!isThreadReady(backendState, threadId)) {
         setIsRunning(false);
         return;
       }
 
-      const backendThreadId = resolveThreadId(runtimeState, threadId);
+      const backendThreadId = resolveThreadId(backendState, threadId);
       try {
         const state = await backendApiRef.current.fetchState(backendThreadId);
-        messageControllerRef.current?.applyBackendMessages(threadId, state.messages);
+        messageControllerRef.current?.inbound(threadId, state.messages);
         if (state.is_processing) {
           setIsRunning(true);
           pollingRef.current?.start(threadId);
@@ -77,11 +77,11 @@ export function useRuntimeOrchestrator(backendUrl: string) {
         setIsRunning(false);
       }
     },
-    [backendApiRef, runtimeStateRef, pollingRef, messageControllerRef, setIsRunning]
+    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
   );
 
   return {
-    runtimeStateRef,
+    backendStateRef,
     polling: pollingRef.current!,
     messageController: messageControllerRef.current!,
     isRunning,

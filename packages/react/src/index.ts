@@ -20,7 +20,7 @@ export {
 } from "./state/thread-context";
 export type { ThreadMetadata, ThreadStatus } from "./state/types";
 
-export { constructSystemMessage, constructThreadMessage } from "./utils/conversion";
+export { toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage } from "./utils/conversion";
 export { WalletSystemMessageEmitter, formatAddress, getNetworkName } from "./utils/wallet";
 export type { WalletButtonState, WalletFooterProps } from "./utils/wallet";
 

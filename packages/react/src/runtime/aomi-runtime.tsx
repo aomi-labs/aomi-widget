@@ -17,7 +17,7 @@ import {
   markSkipInitialFetch,
   resolveThreadId,
   setBackendMapping,
-} from "./runtime-state";
+} from "./backend-state";
 import { isPlaceholderTitle, isTempThreadId, parseTimestamp } from "./utils";
 import { useThreadContext } from "../state/thread-context";
 import type { ThreadMetadata } from "../state/types";
@@ -70,7 +70,7 @@ export function AomiRuntimeProvider({
 }: Readonly<AomiRuntimeProviderProps>) {
   const threadContext = useThreadContext();
   const {
-    runtimeStateRef,
+    backendStateRef,
     polling,
     messageController,
     isRunning,
@@ -89,13 +89,13 @@ export function AomiRuntimeProvider({
   }, [ensureInitialState, threadContext.currentThreadId]);
 
   const threadListAdapter = useMemo(() => {
-    const runtimeState = runtimeStateRef.current;
+    const backendState = backendStateRef.current;
     const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
 
     const preparePendingThread = (threadId: string, resetQueues: boolean) => {
       if (resetQueues) {
-        runtimeState.pendingChat.delete(threadId);
-        runtimeState.pendingSystem.delete(threadId);
+        backendState.pendingChat.delete(threadId);
+        backendState.pendingSystem.delete(threadId);
       }
       threadContext.setThreadMetadata((prev) =>
         new Map(prev).set(threadId, {
@@ -113,7 +113,7 @@ export function AomiRuntimeProvider({
     };
 
     const findPendingThreadId = () => {
-      if (runtimeState.creatingThreadId) return runtimeState.creatingThreadId;
+      if (backendState.creatingThreadId) return backendState.creatingThreadId;
       for (const [id, meta] of threadContext.threadMetadata.entries()) {
         if (meta.status === "pending") return id;
       }
@@ -135,15 +135,15 @@ export function AomiRuntimeProvider({
         const tempId = `temp-${crypto.randomUUID()}`;
         preparePendingThread(tempId, true);
 
-        runtimeState.creatingThreadId = tempId;
+        backendState.creatingThreadId = tempId;
         const createPromise = backendApiRef.current
           .createThread(publicKey, undefined)
           .then(async (newThread) => {
-            const uiThreadId = runtimeState.creatingThreadId ?? tempId;
+            const uiThreadId = backendState.creatingThreadId ?? tempId;
             const backendId = newThread.session_id;
 
-            setBackendMapping(runtimeState, uiThreadId, backendId);
-            markSkipInitialFetch(runtimeState, uiThreadId);
+            setBackendMapping(backendState, uiThreadId, backendId);
+            markSkipInitialFetch(backendState, uiThreadId);
 
             const backendTitle = newThread.title;
             if (backendTitle && !isPlaceholderTitle(backendTitle)) {
@@ -160,13 +160,13 @@ export function AomiRuntimeProvider({
               });
             }
 
-            if (runtimeState.creatingThreadId === uiThreadId) {
-              runtimeState.creatingThreadId = null;
+            if (backendState.creatingThreadId === uiThreadId) {
+              backendState.creatingThreadId = null;
             }
 
-            const pendingMessages = runtimeState.pendingChat.get(uiThreadId);
+            const pendingMessages = backendState.pendingChat.get(uiThreadId);
             if (pendingMessages?.length) {
-              runtimeState.pendingChat.delete(uiThreadId);
+              backendState.pendingChat.delete(uiThreadId);
               for (const text of pendingMessages) {
                 try {
                   await backendApiRef.current.postChatMessage(backendId, text);
@@ -181,7 +181,7 @@ export function AomiRuntimeProvider({
           })
           .catch((error) => {
             console.error("Failed to create new thread:", error);
-            const failedId = runtimeState.creatingThreadId ?? tempId;
+            const failedId = backendState.creatingThreadId ?? tempId;
             threadContext.setThreadMetadata((prev) => {
               const next = new Map(prev);
               next.delete(failedId);
@@ -192,15 +192,15 @@ export function AomiRuntimeProvider({
               next.delete(failedId);
               return next;
             });
-            if (runtimeState.creatingThreadId === failedId) {
-              runtimeState.creatingThreadId = null;
+            if (backendState.creatingThreadId === failedId) {
+              backendState.creatingThreadId = null;
             }
           })
           .finally(() => {
-            runtimeState.createThreadPromise = null;
+            backendState.createThreadPromise = null;
           });
 
-        runtimeState.createThreadPromise = createPromise;
+        backendState.createThreadPromise = createPromise;
       },
 
       onSwitchToThread: (threadId: string) => {
@@ -255,13 +255,13 @@ export function AomiRuntimeProvider({
             next.delete(threadId);
             return next;
           });
-          runtimeState.pendingChat.delete(threadId);
-          runtimeState.pendingSystem.delete(threadId);
-          runtimeState.tempToBackendId.delete(threadId);
-          runtimeState.skipInitialFetch.delete(threadId);
-          runtimeState.runningThreads.delete(threadId);
-          if (runtimeState.creatingThreadId === threadId) {
-            runtimeState.creatingThreadId = null;
+          backendState.pendingChat.delete(threadId);
+          backendState.pendingSystem.delete(threadId);
+          backendState.tempToBackendId.delete(threadId);
+          backendState.skipInitialFetch.delete(threadId);
+          backendState.runningThreads.delete(threadId);
+          if (backendState.creatingThreadId === threadId) {
+            backendState.creatingThreadId = null;
           }
 
           if (threadContext.currentThreadId === threadId) {
@@ -294,7 +294,7 @@ export function AomiRuntimeProvider({
     backendApiRef,
     polling,
     publicKey,
-    runtimeStateRef,
+    backendStateRef,
     setIsRunning,
     threadContext,
     threadContext.currentThreadId,
@@ -307,37 +307,37 @@ export function AomiRuntimeProvider({
       const sessionId = update.data.session_id;
       const newTitle = update.data.new_title;
 
-      const runtimeState = runtimeStateRef.current;
+      const backendState = backendStateRef.current;
       const targetThreadId =
-        findTempIdForBackendId(runtimeState, sessionId) ??
-        resolveThreadId(runtimeState, sessionId);
+        findTempIdForBackendId(backendState, sessionId) ??
+        resolveThreadId(backendState, sessionId);
       const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
       threadContext.updateThreadMetadata(targetThreadId, {
         title: normalizedTitle,
       });
-      if (!isPlaceholderTitle(newTitle) && runtimeState.creatingThreadId === targetThreadId) {
-        runtimeState.creatingThreadId = null;
+      if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
+        backendState.creatingThreadId = null;
       }
     });
 
     return () => {
       unsubscribe?.();
     };
-  }, [backendApiRef, runtimeStateRef, threadContext]);
+  }, [backendApiRef, backendStateRef, threadContext]);
 
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
-    if (!isThreadReady(runtimeStateRef.current, threadId)) return;
+    if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingSystem(threadId);
     void messageController.flushPendingChat(threadId);
-  }, [messageController, runtimeStateRef, threadContext.currentThreadId]);
+  }, [messageController, backendStateRef, threadContext.currentThreadId]);
 
   const runtime = useExternalStoreRuntime({
     messages: threadContext.getThreadMessages(threadContext.currentThreadId),
     isRunning,
     onNew: (message: AppendMessage) =>
-      messageController.sendChat(message, threadContext.currentThreadId),
+      messageController.outbound(message, threadContext.currentThreadId),
     onCancel: () => messageController.cancel(threadContext.currentThreadId),
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter },
@@ -347,7 +347,7 @@ export function AomiRuntimeProvider({
     <RuntimeActionsProvider
       value={{
         sendSystemMessage: (message: string) =>
-          messageController.sendSystemMessage(threadContext.currentThreadId, message),
+          messageController.outboundSystem(threadContext.currentThreadId, message),
       }}
     >
       <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>

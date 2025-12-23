@@ -88,7 +88,7 @@ type ThreadMetadata = {
     lastActiveAt?: string | number;
 };
 
-type ThreadContextValue = {
+type ThreadContext = {
     currentThreadId: string;
     setCurrentThreadId: (id: string) => void;
     threadViewKey: number;
@@ -109,7 +109,7 @@ type ThreadContextProviderProps = {
     children: ReactNode;
     initialThreadId?: string;
 };
-declare function useThreadContext(): ThreadContextValue;
+declare function useThreadContext(): ThreadContext;
 declare function ThreadContextProvider({ children, initialThreadId, }: ThreadContextProviderProps): react_jsx_runtime.JSX.Element;
 declare function useCurrentThreadMessages(): ThreadMessageLike[];
 declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;

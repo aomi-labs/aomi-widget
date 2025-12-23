@@ -6,12 +6,12 @@ import {
   isThreadReady,
   resolveThreadId,
   setThreadRunning,
-  type ThreadRuntimeState,
-} from "./runtime-state";
+  type BakendState,
+} from "./backend-state";
 
 type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
-  runtimeStateRef: MutableRefObject<ThreadRuntimeState>;
+  backendStateRef: MutableRefObject<BakendState>;
   applyMessages: (threadId: string, messages?: SessionMessage[] | null) => void;
   onStop?: (threadId: string) => void;
   intervalMs?: number;
@@ -26,12 +26,12 @@ export class PollingController {
   }
 
   start(threadId: string) {
-    const runtimeState = this.config.runtimeStateRef.current;
-    if (!isThreadReady(runtimeState, threadId)) return;
+    const backendState = this.config.backendStateRef.current;
+    if (!isThreadReady(backendState, threadId)) return;
     if (this.intervals.has(threadId)) return;
 
-    const backendThreadId = resolveThreadId(runtimeState, threadId);
-    setThreadRunning(runtimeState, threadId, true);
+    const backendThreadId = resolveThreadId(backendState, threadId);
+    setThreadRunning(backendState, threadId, true);
 
     const tick = async () => {
       try {
@@ -53,7 +53,7 @@ export class PollingController {
       clearInterval(intervalId);
       this.intervals.delete(threadId);
     }
-    setThreadRunning(this.config.runtimeStateRef.current, threadId, false);
+    setThreadRunning(this.config.backendStateRef.current, threadId, false);
     this.config.onStop?.(threadId);
   }
 

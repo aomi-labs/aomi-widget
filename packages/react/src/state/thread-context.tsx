@@ -11,18 +11,18 @@ import {
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type { ThreadMetadata } from "./types";
-import { ThreadStore, type ThreadContextValue } from "./thread-store";
+import { ThreadStore, type ThreadContext } from "./thread-store";
 
-export type { ThreadContextValue };
+export type { ThreadContext };
 
 export type ThreadContextProviderProps = {
   children: ReactNode;
   initialThreadId?: string;
 };
 
-const ThreadContext = createContext<ThreadContextValue | null>(null);
+const ThreadContext = createContext<ThreadContext | null>(null);
 
-export function useThreadContext(): ThreadContextValue {
+export function useThreadContext(): ThreadContext {
   const context = useContext(ThreadContext);
   if (!context) {
     throw new Error(
@@ -47,12 +47,12 @@ export function ThreadContextProvider({
   return <ThreadContext.Provider value={value}>{children}</ThreadContext.Provider>;
 }
 
-export function useCurrentThreadMessages(): ThreadMessageLike[] {
-  const { currentThreadId, getThreadMessages } = useThreadContext();
-  return useMemo(() => getThreadMessages(currentThreadId), [currentThreadId, getThreadMessages]);
-}
+// export function useCurrentThreadMessages(): ThreadMessageLike[] {
+//   const { currentThreadId, getThreadMessages } = useThreadContext();
+//   return useMemo(() => getThreadMessages(currentThreadId), [currentThreadId, getThreadMessages]);
+// }
 
-export function useCurrentThreadMetadata(): ThreadMetadata | undefined {
-  const { currentThreadId, getThreadMetadata } = useThreadContext();
-  return useMemo(() => getThreadMetadata(currentThreadId), [currentThreadId, getThreadMetadata]);
-}
+// export function useCurrentThreadMetadata(): ThreadMetadata | undefined {
+//   const { currentThreadId, getThreadMetadata } = useThreadContext();
+//   return useMemo(() => getThreadMetadata(currentThreadId), [currentThreadId, getThreadMetadata]);
+// }

@@ -59,7 +59,7 @@ declare function AomiRuntimeProvider({ children, backendUrl, publicKey, }: Reado
  * - Message history for all threads
  * - Thread metadata (title, archived status)
  */
-type ThreadContextValue = {
+type ThreadContext = {
     currentThreadId: string;
     setCurrentThreadId: (id: string) => void;
     threadViewKey: number;
@@ -90,7 +90,7 @@ type ThreadMetadata = {
  * const { currentThreadId, setCurrentThreadId } = useThreadContext();
  * ```
  */
-declare function useThreadContext(): ThreadContextValue;
+declare function useThreadContext(): ThreadContext;
 /**
  * Thread Context Provider Props
  */
