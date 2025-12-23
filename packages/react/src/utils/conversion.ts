@@ -4,7 +4,7 @@ import type { SessionMessage } from "../api/types";
 
 type MessageContentPart = Exclude<ThreadMessageLike["content"], string> extends readonly (infer U)[] ? U : never;
 
-export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike | null {
+export function toInboundMessage(msg: SessionMessage): ThreadMessageLike | null {
   if (msg.sender === "system") return null;
 
   const content: MessageContentPart[] = [];
@@ -40,7 +40,7 @@ export function constructThreadMessage(msg: SessionMessage): ThreadMessageLike |
   return threadMessage;
 }
 
-export function constructSystemMessage(msg: SessionMessage): ThreadMessageLike | null {
+export function toInboundSystem(msg: SessionMessage): ThreadMessageLike | null {
   const [topic] = parseToolStream(msg.tool_stream) ?? [];
   const messageText = topic || msg.content || "";
   const timestamp = parseTimestamp(msg.timestamp);

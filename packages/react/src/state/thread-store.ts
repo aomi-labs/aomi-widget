@@ -3,7 +3,7 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type { ThreadMetadata } from "./types";
 
-export type ThreadContextValue = {
+export type ThreadContext = {
   currentThreadId: string;
   setCurrentThreadId: (id: string) => void;
   threadViewKey: number;
@@ -63,7 +63,7 @@ export class ThreadStore {
     };
   };
 
-  getSnapshot = (): ThreadContextValue => ({
+  getSnapshot = (): ThreadContext => ({
     currentThreadId: this.state.currentThreadId,
     setCurrentThreadId: this.setCurrentThreadId,
     threadViewKey: this.state.threadViewKey,

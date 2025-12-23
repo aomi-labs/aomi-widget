@@ -1,4 +1,0 @@
-/* @aomi-labs/widget-lib - Theme Styles */
-/* This legacy entry point now re-exports the default theme bundle. */
-
-@import "./themes/default.css";
