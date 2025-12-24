@@ -17,10 +17,9 @@
     "paths": {
       "@/*": ["../../src/*"],
       "@docs/*": ["./src/*"],
-      "@aomi-labs/react": ["../../src"],
-      "@aomi-labs/react/*": ["../../src/*"],
       "@aomi-labs/react": ["../../packages/react/src"],
-      "@aomi-labs/react/*": ["../../packages/react/src/*"]
+      "@aomi-labs/react/*": ["../../packages/react/src/*"],
+      "@aomi-labs/wiget-lib/*": ["../../apps/registry/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.mdx", ".next/types/**/*.ts"],

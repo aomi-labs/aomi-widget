@@ -141,6 +141,9 @@ importers:
       '@aomi-labs/react':
         specifier: workspace:*
         version: link:../..
+      '@aomi-labs/wiget-lib':
+        specifier: workspace:*
+        version: link:../registry
       '@assistant-ui/react':
         specifier: ^0.11.28
         version: 0.11.28(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(use-sync-external-store@1.5.0(react@19.2.0))
@@ -247,6 +250,9 @@ importers:
       '@aomi-labs/react':
         specifier: workspace:*
         version: link:../..
+      '@aomi-labs/wiget-lib':
+        specifier: workspace:*
+        version: link:../registry
       '@assistant-ui/react':
         specifier: ^0.11.28
         version: 0.11.28(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(use-sync-external-store@1.5.0(react@19.2.0))

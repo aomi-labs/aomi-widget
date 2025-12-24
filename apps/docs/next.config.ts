@@ -16,7 +16,11 @@ const nextConfig: NextConfig = {
     externalDir: true,
   },
   pageExtensions: ["ts", "tsx", "mdx"],
-  transpilePackages: ["@aomi-labs/react", "@aomi-labs/widget-lib"],
+  transpilePackages: [
+    "@aomi-labs/react",
+    "@aomi-labs/widget-lib",
+    "@aomi-labs/wiget-lib",
+  ],
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),

@@ -252,7 +252,7 @@ export { formatAddress, getNetworkName } from "./utils/wallet";
 #### `apps/registry/package.json`
 \```json
 {
-  "name": "@aomi-labs/registry",
+  "name": "@aomi-labs/wiget-lib",
   "version": "0.1.0",
   "private": true,
   "scripts": {

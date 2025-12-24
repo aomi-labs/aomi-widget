@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@aomi-labs/react": "workspace:*",
-    "@aomi-labs/react": "workspace:*",
+    "@aomi-labs/wiget-lib": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
     "@mdx-js/react": "^3.1.1",
