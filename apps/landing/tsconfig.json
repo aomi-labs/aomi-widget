@@ -17,7 +17,8 @@
     "paths": {
       "@/*": ["./src/*", "../registry/src/*"],
       "@aomi-labs/widget-lib/*": ["../registry/src/*"],
-      "@aomi-labs/react": ["../../packages/react/src"]
+      "@aomi-labs/react": ["../../packages/react/src/index.ts"],
+      "@aomi-labs/react/*": ["../../packages/react/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

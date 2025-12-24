@@ -17,6 +17,7 @@
     "paths": {
       "@/*": ["./src/*", "../registry/src/*"],
       "@docs/*": ["./src/*"],
+      "@aomi-labs/react": ["../../packages/react/src/index.ts"],
       "@aomi-labs/react/*": ["../../packages/react/src/*"],
       "@aomi-labs/widget-lib/*": ["../registry/src/*"]
     }
