@@ -283,14 +283,17 @@ export function AomiRuntimeProvider({
       },
 
       onRename: async (threadId: string, newTitle: string) => {
+        const previousTitle = threadContext.getThreadMetadata(threadId)?.title ?? "";
+        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
         threadContext.updateThreadMetadata(threadId, {
-          title: isPlaceholderTitle(newTitle) ? "" : newTitle,
+          title: normalizedTitle,
         });
 
         try {
           await backendApiRef.current.renameThread(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
+          threadContext.updateThreadMetadata(threadId, { title: previousTitle });
         }
       },
 
