@@ -141,7 +141,7 @@ importers:
       '@aomi-labs/react':
         specifier: workspace:*
         version: link:../..
-      '@aomi-labs/wiget-lib':
+      '@aomi-labs/widget-lib':
         specifier: workspace:*
         version: link:../registry
       '@assistant-ui/react':
@@ -250,7 +250,7 @@ importers:
       '@aomi-labs/react':
         specifier: workspace:*
         version: link:../..
-      '@aomi-labs/wiget-lib':
+      '@aomi-labs/widget-lib':
         specifier: workspace:*
         version: link:../registry
       '@assistant-ui/react':
@@ -371,6 +371,42 @@ importers:
       '@aomi-labs/react':
         specifier: workspace:*
         version: link:../..
+      '@assistant-ui/react':
+        specifier: ^0.11.28
+        version: 0.11.28(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(use-sync-external-store@1.5.0(react@19.2.0))
+      '@assistant-ui/react-markdown':
+        specifier: ^0.11.1
+        version: 0.11.1(@assistant-ui/react@0.11.28(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(use-sync-external-store@1.5.0(react@19.2.0)))(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@radix-ui/react-avatar':
+        specifier: ^1.1.10
+        version: 1.1.10(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@radix-ui/react-dialog':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@radix-ui/react-separator':
+        specifier: ^1.1.7
+        version: 1.1.7(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@radix-ui/react-slot':
+        specifier: ^1.2.3
+        version: 1.2.3(@types/react@19.1.9)(react@19.2.0)
+      '@radix-ui/react-tooltip':
+        specifier: ^1.2.8
+        version: 1.2.8(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      lucide-react:
+        specifier: ^0.545.0
+        version: 0.545.0(react@19.2.0)
+      motion:
+        specifier: ^12.23.22
+        version: 12.23.22(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      zustand:
+        specifier: ^5.0.8
+        version: 5.0.8(@types/react@19.1.9)(react@19.2.0)(use-sync-external-store@1.5.0(react@19.2.0))
     devDependencies:
       tsx:
         specifier: ^4.21.0

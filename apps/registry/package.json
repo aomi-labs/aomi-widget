@@ -1,13 +1,33 @@
 {
-  "name": "@aomi-labs/wiget-lib",
+  "name": "@aomi-labs/widget-lib",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./aomi-frame": "./src/components/aomi-frame.tsx",
+    "./components/ui/*": "./src/components/ui/*.tsx",
+    "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
+    "./hooks/*": "./src/hooks/*.ts"
+  },
   "scripts": {
     "build": "tsx scripts/build-registry.js"
   },
   "dependencies": {
-    "@aomi-labs/react": "workspace:*"
+    "@aomi-labs/react": "workspace:*",
+    "@assistant-ui/react": "^0.11.28",
+    "@assistant-ui/react-markdown": "^0.11.1",
+    "@radix-ui/react-avatar": "^1.1.10",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-separator": "^1.1.7",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "class-variance-authority": "^0.7.1",
+    "lucide-react": "^0.545.0",
+    "motion": "^12.23.22",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

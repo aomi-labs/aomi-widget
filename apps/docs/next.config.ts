@@ -20,18 +20,17 @@ const nextConfig: NextConfig = {
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
   ],
-  // webpack: (config) => {
-  //   config.resolve.alias = {
-  //     ...(config.resolve.alias || {}),
-  //     "@": path.resolve(__dirname, "../../src"),
-  //     "@docs": path.resolve(__dirname, "./src"),
-  //     "@aomi-labs/widget-lib": path.resolve(__dirname, "../../src"),
-  //     "@aomi-labs/widget-lib/styles.css": path.resolve(__dirname, "../../src/styles.css"),
-  //     "@aomi-labs/react": path.resolve(__dirname, "../../packages/react/src"),
-  //     "@aomi-labs/react/styles.css": path.resolve(__dirname, "../../packages/react/src/styles.css"),
-  //   };
-  //   return config;
-  // },
+  webpack: (config) => {
+    // Resolve @/ imports from registry to its src folder
+    const registrySrc = path.resolve(__dirname, "../registry/src");
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@/components": path.join(registrySrc, "components"),
+      "@/hooks": path.join(registrySrc, "hooks"),
+      "@/lib": path.join(registrySrc, "lib"),
+    };
+    return config;
+  },
 };
 
 export default withMDX(nextConfig);
