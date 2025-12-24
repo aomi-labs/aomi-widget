@@ -1,9 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@aomi-labs/widget-lib/styles.css";
+@import "@aomi-labs/react/styles.css";
 
-/* Tell Tailwind v4 to scan library components for classes */
-@source "../node_modules/@aomi-labs/widget-lib/dist";
+/* Tell Tailwind v4 to scan library and registry components for classes */
+@source "../node_modules/@aomi-labs/react/dist";
+@source "../../registry/src";
 
 /*
  * Example app can add custom styles below.
