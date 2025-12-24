@@ -7,6 +7,7 @@
 - Split runtime logic into focused hooks under `hooks/runtime/`
 - Added `lib/runtime-utils.ts` for shared runtime helpers
 - Updated domain + metadata docs to reflect new runtime structure
+- Added `specs/RUNTIME.md` with runtime flow diagrams and hook overview
 
 ## Pending
 - Run build/lint to validate the runtime refactor
