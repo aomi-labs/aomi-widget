@@ -31,7 +31,7 @@
 - **Workspace Setup**
   - Create `apps/docs` Next.js (App Router) workspace managed via plain pnpm (no Turborepo yet); update `pnpm-workspace.yaml`, root scripts, and TS path aliases accordingly.
   - Shared ESLint/TS config extends root settings.
-  - Tailwind v4: add a docs entry stylesheet that imports `@aomi-labs/widget-lib/styles.css` (or `../../src/styles.css` in dev). Avoid parallel Tailwind pipelines; share tokens via the existing `src/themes/` files.
+  - Tailwind v4: add a docs entry stylesheet that imports `@aomi-labs/react/styles.css` (or `../../src/styles.css` in dev). Avoid parallel Tailwind pipelines; share tokens via the existing `src/themes/` files.
 
 - **MDX & Content Layer**
   - Use Next 15 MDX (app router) or Contentlayer with RSC-safe config; avoid `next-mdx-remote` (pages-only defaults).

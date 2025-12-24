@@ -1,5 +1,5 @@
 {
-  "name": "@aomi-labs/widget-lib",
+  "name": "@aomi-labs/react",
   "version": "1.0.0",
   "description": "AI-powered assistant UI widget library",
   "type": "module",

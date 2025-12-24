@@ -565,6 +565,9 @@ function setThreadRunning(state, threadId, running) {
     state.runningThreads.delete(threadId);
   }
 }
+function isThreadRunning(state, threadId) {
+  return state.runningThreads.has(threadId);
+}
 function enqueuePendingChat(state, threadId, text) {
   var _a;
   const existing = (_a = state.pendingChat.get(threadId)) != null ? _a : [];
@@ -717,7 +720,9 @@ var MessageController = class {
   markRunning(threadId, running) {
     var _a, _b;
     setThreadRunning(this.config.backendStateRef.current, threadId, running);
-    (_b = (_a = this.config).setGlobalIsRunning) == null ? void 0 : _b.call(_a, running);
+    if (this.config.threadContextRef.current.currentThreadId === threadId) {
+      (_b = (_a = this.config).setGlobalIsRunning) == null ? void 0 : _b.call(_a, running);
+    }
   }
   getThreadContextApi() {
     const { getThreadMessages, setThreadMessages, updateThreadMetadata } = this.config.threadContextRef.current;
@@ -796,7 +801,11 @@ function useRuntimeOrchestrator(backendUrl) {
         var _a;
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
       },
-      onStop: () => setIsRunning(false)
+      onStop: (threadId) => {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(false);
+        }
+      }
     });
   }
   if (!messageControllerRef.current) {
@@ -812,13 +821,18 @@ function useRuntimeOrchestrator(backendUrl) {
     async (threadId) => {
       var _a, _b;
       const backendState = backendStateRef.current;
+      const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
       if (shouldSkipInitialFetch(backendState, threadId)) {
         clearSkipInitialFetch(backendState, threadId);
-        setIsRunning(false);
+        if (isCurrentThread) {
+          setIsRunning(false);
+        }
         return;
       }
       if (!isThreadReady(backendState, threadId)) {
-        setIsRunning(false);
+        if (isCurrentThread) {
+          setIsRunning(false);
+        }
         return;
       }
       const backendThreadId = resolveThreadId(backendState, threadId);
@@ -826,14 +840,20 @@ function useRuntimeOrchestrator(backendUrl) {
         const state = await backendApiRef.current.fetchState(backendThreadId);
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
         if (state.is_processing) {
-          setIsRunning(true);
+          if (isCurrentThread) {
+            setIsRunning(true);
+          }
           (_b = pollingRef.current) == null ? void 0 : _b.start(threadId);
         } else {
-          setIsRunning(false);
+          if (isCurrentThread) {
+            setIsRunning(false);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch initial state:", error);
-        setIsRunning(false);
+        if (isCurrentThread) {
+          setIsRunning(false);
+        }
       }
     },
     [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
@@ -896,6 +916,10 @@ function AomiRuntimeProvider({
   useEffect(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
+  useEffect(() => {
+    const threadId = threadContext.currentThreadId;
+    setIsRunning(isThreadRunning(backendStateRef.current, threadId));
+  }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
   useEffect(() => {
     if (!publicKey) return;
@@ -1192,6 +1216,11 @@ function AomiRuntimeProvider({
       void messageController.flushPendingSystem(threadId);
     }
   }, [currentMessages, messageController, threadContext.currentThreadId]);
+  useEffect(() => {
+    return () => {
+      polling.stopAll();
+    };
+  }, [polling]);
   return /* @__PURE__ */ jsx2(
     RuntimeActionsProvider,
     {

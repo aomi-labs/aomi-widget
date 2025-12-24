@@ -9,11 +9,15 @@ export type RegistryComponent = {
 const sharedDependencies = [
   "@aomi-labs/react",
   "@assistant-ui/react",
+  "@assistant-ui/react-markdown",
   "motion",
   "lucide-react",
+  "remark-gfm",
+  "zustand",
 ];
 
 const sharedRegistryDependencies = [
+  // shadcn primitives (by name)
   "button",
   "sidebar",
   "sheet",
@@ -24,9 +28,10 @@ const sharedRegistryDependencies = [
   "input",
   "skeleton",
   "breadcrumb",
-  "tooltip-icon-button",
-  "attachment",
-  "markdown-text",
+  // assistant-ui components (by URL)
+  "https://r.assistant-ui.com/tooltip-icon-button",
+  "https://r.assistant-ui.com/attachment",
+  "https://r.assistant-ui.com/markdown-text",
 ];
 
 export const registry: RegistryComponent[] = [

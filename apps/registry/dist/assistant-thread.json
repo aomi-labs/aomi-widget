@@ -11,8 +11,11 @@
   "dependencies": [
     "@aomi-labs/react",
     "@assistant-ui/react",
+    "@assistant-ui/react-markdown",
     "motion",
-    "lucide-react"
+    "lucide-react",
+    "remark-gfm",
+    "zustand"
   ],
   "registryDependencies": [
     "button",
@@ -25,8 +28,8 @@
     "input",
     "skeleton",
     "breadcrumb",
-    "tooltip-icon-button",
-    "attachment",
-    "markdown-text"
+    "https://r.assistant-ui.com/tooltip-icon-button",
+    "https://r.assistant-ui.com/attachment",
+    "https://r.assistant-ui.com/markdown-text"
   ]
 }

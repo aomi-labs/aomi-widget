@@ -4,15 +4,17 @@ import { useEffect } from "react";
 import { useAppKit } from "@reown/appkit/react";
 import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
+import { Button } from "@/components/ui/button";
 import {
-  Button,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+} from "@/components/ui/sidebar";
+import {
   formatAddress,
   getNetworkName,
   type WalletFooterProps,
-} from "@aomi-labs/widget-lib";
+} from "@aomi-labs/react";
 
 export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   const { address, isConnected } = useAppKitAccount();

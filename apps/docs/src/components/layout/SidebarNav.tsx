@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cn } from "@aomi-labs/widget-lib";
+import { cn } from "@aomi-labs/react";
 
 import type { DocSection } from "@docs/content/docs-map";
 
