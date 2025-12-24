@@ -3441,69 +3441,6 @@ function AomiRuntimeProvider({
         }
         const tempId = `temp-${crypto.randomUUID()}`;
         preparePendingThread(tempId);
-        const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
-          var _a2;
-          const uiThreadId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
-          const backendId = newThread.session_id;
-          tempToBackendIdRef.current.set(uiThreadId, backendId);
-          bumpUpdateSubscriptions();
-          if (currentThreadIdRef.current === uiThreadId) {
-            setSubscribableSessionId(backendId);
-          }
-          skipInitialFetchRef.current.add(uiThreadId);
-          const backendTitle = newThread.title;
-          if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-            setThreadMetadata((prev) => {
-              var _a3;
-              const next = new Map(prev);
-              const existing = next.get(uiThreadId);
-              const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-              next.set(uiThreadId, {
-                title: backendTitle,
-                status: nextStatus,
-                lastActiveAt: (_a3 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a3 : (/* @__PURE__ */ new Date()).toISOString()
-              });
-              return next;
-            });
-            if (creatingThreadIdRef.current === uiThreadId) {
-              creatingThreadIdRef.current = null;
-            }
-          }
-          const pendingMessages = pendingChatMessagesRef.current.get(uiThreadId);
-          if (pendingMessages == null ? void 0 : pendingMessages.length) {
-            pendingChatMessagesRef.current.delete(uiThreadId);
-            for (const text of pendingMessages) {
-              try {
-                await backendApiRef.current.postChatMessage(backendId, text);
-              } catch (error) {
-                console.error("Failed to send queued message:", error);
-              }
-            }
-            if (currentThreadIdRef.current === uiThreadId) {
-              startPolling();
-            }
-          }
-        }).catch((error) => {
-          var _a2;
-          console.error("Failed to create new thread:", error);
-          const failedId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
-          setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            next.delete(failedId);
-            return next;
-          });
-          setThreads((prev) => {
-            const next = new Map(prev);
-            next.delete(failedId);
-            return next;
-          });
-          if (creatingThreadIdRef.current === failedId) {
-            creatingThreadIdRef.current = null;
-          }
-        }).finally(() => {
-          createThreadPromiseRef.current = null;
-        });
-        createThreadPromiseRef.current = createPromise;
       },
       // Switch to existing thread
       onSwitchToThread: (threadId) => {
@@ -3855,7 +3792,6 @@ function AomiRuntimeProvider({
         }
       );
       updateSubscriptionsRef.current.set(sessionId, unsubscribe);
-      void drainEvents(sessionId);
     },
     [drainEvents]
   );
@@ -3870,11 +3806,6 @@ function AomiRuntimeProvider({
     if (subscribableSessionId) {
       nextSessions.add(subscribableSessionId);
     }
-    for (const [threadId, meta] of threadMetadata.entries()) {
-      if (meta.status !== "pending" && !isPlaceholderTitle(meta.title)) continue;
-      if (!isThreadReady(threadId)) continue;
-      nextSessions.add(resolveThreadId(threadId));
-    }
     for (const sessionId of updateSubscriptionsRef.current.keys()) {
       if (!nextSessions.has(sessionId)) {
         removeUpdateSubscription(sessionId);
@@ -3885,11 +3816,8 @@ function AomiRuntimeProvider({
     }
   }, [
     ensureUpdateSubscription,
-    isThreadReady,
     removeUpdateSubscription,
-    resolveThreadId,
     subscribableSessionId,
-    threadMetadata,
     updateSubscriptionsTick
   ]);
   (0, import_react13.useEffect)(() => {
