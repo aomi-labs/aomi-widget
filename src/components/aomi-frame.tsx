@@ -24,6 +24,8 @@ import {
   type WalletFooterProps,
 } from "@/utils/wallet";
 import type { WalletTxRequestHandler } from "@/lib/wallet-tx";
+import { NotificationProvider } from "@/lib/notification-context";
+import { NotificationContainer } from "@/components/assistant-ui/notification";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
@@ -68,23 +70,26 @@ export const AomiFrame = ({
 
   return (
     <ThreadContextProvider>
-      <AomiRuntimeProvider
-        backendUrl={backendUrl}
-        publicKey={wallet.address}
-        onWalletTxRequest={onWalletTxRequest}
-      >
-        {/* Internal: watches wallet state and sends system messages */}
-        <WalletSystemMessageEmitter wallet={wallet} />
-        <FrameShell
-          className={className}
-          frameStyle={frameStyle}
-          walletFooter={walletFooter}
-          wallet={wallet}
-          setWallet={setWallet}
+      <NotificationProvider>
+        <AomiRuntimeProvider
+          backendUrl={backendUrl}
+          publicKey={wallet.address}
+          onWalletTxRequest={onWalletTxRequest}
         >
-          {children}
-        </FrameShell>
-      </AomiRuntimeProvider>
+          {/* Internal: watches wallet state and sends system messages */}
+          <WalletSystemMessageEmitter wallet={wallet} />
+          <NotificationContainer />
+          <FrameShell
+            className={className}
+            frameStyle={frameStyle}
+            walletFooter={walletFooter}
+            wallet={wallet}
+            setWallet={setWallet}
+          >
+            {children}
+          </FrameShell>
+        </AomiRuntimeProvider>
+      </NotificationProvider>
     </ThreadContextProvider>
   );
 };

@@ -14,6 +14,7 @@ import { BackendApi, type SessionMessage } from "@/lib/backend-api";
 import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
 import { useThreadContext, type ThreadMetadata } from "@/lib/thread-context";
 import type { WalletTxRequestHandler, WalletTxRequestPayload } from "@/lib/wallet-tx";
+import { useNotification } from "@/lib/notification-context";
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;
 };
@@ -173,6 +174,9 @@ export function AomiRuntimeProvider({
     updateThreadMetadata,
   } = useThreadContext();
 
+  // ==================== Notification Context ====================
+  const { showNotification } = useNotification();
+
   // ==================== State ====================
   const [isRunning, setIsRunning] = useState(false);
   const [subscribableSessionId, setSubscribableSessionId] = useState<string | null>(null);
@@ -291,6 +295,12 @@ export function AomiRuntimeProvider({
           threadId: next.threadId,
           publicKey,
         });
+        showNotification({
+          type: "success",
+          iconType: "transaction",
+          title: "Transaction Sent",
+          message: `Hash: ${txHash}`,
+        });
         await backendApiRef.current.postSystemMessage(next.sessionId, `Transaction sent: ${txHash}`);
         if (currentThreadIdRef.current === next.threadId) {
           try {
@@ -305,6 +315,12 @@ export function AomiRuntimeProvider({
 
       const activeProvider = await pickInjectedProvider(publicKey);
       if (!activeProvider?.request) {
+        showNotification({
+          type: "error",
+          iconType: "wallet",
+          title: "Wallet Not Found",
+          message: "No wallet provider found (window.ethereum missing).",
+        });
         await backendApiRef.current.postSystemMessage(
           next.sessionId,
           "No wallet provider found (window.ethereum missing)."
@@ -325,6 +341,12 @@ export function AomiRuntimeProvider({
       const resolvedFrom = publicKey || (Array.isArray(fromAddress) ? String((fromAddress as unknown[])[0] ?? "") : "");
 
       if (!resolvedFrom) {
+        showNotification({
+          type: "error",
+          iconType: "wallet",
+          title: "Wallet Not Connected",
+          message: "Please connect a wallet to sign the requested transaction.",
+        });
         await backendApiRef.current.postSystemMessage(
           next.sessionId,
           "Wallet is not connected; please connect a wallet to sign the requested transaction."
@@ -339,6 +361,12 @@ export function AomiRuntimeProvider({
         valueHex = toHexQuantity(next.request.value);
         if (gas) gasHex = toHexQuantity(gas);
       } catch (error) {
+        showNotification({
+          type: "error",
+          iconType: "transaction",
+          title: "Invalid Transaction",
+          message: (error as Error).message,
+        });
         await backendApiRef.current.postSystemMessage(
           next.sessionId,
           `Invalid wallet transaction request payload: ${(error as Error).message}`
@@ -359,6 +387,11 @@ export function AomiRuntimeProvider({
         params: [txParams],
       })) as string;
 
+      showNotification({
+        type: "success",
+        title: "Transaction sent",
+        message: `Transaction hash: ${txHash}`,
+      });
       await backendApiRef.current.postSystemMessage(next.sessionId, `Transaction sent: ${txHash}`);
       if (currentThreadIdRef.current === next.threadId) {
         try {
@@ -373,6 +406,14 @@ export function AomiRuntimeProvider({
       const final = normalized.rejected
         ? "Transaction rejected by user."
         : `Transaction failed: ${normalized.message}`;
+      
+      showNotification({
+        type: normalized.rejected ? "notice" : "error",
+        iconType: normalized.rejected ? "transaction" : "error",
+        title: normalized.rejected ? "Transaction Rejected" : "Transaction Failed",
+        message: normalized.rejected ? "Transaction was rejected by user." : normalized.message,
+      });
+      
       try {
         await backendApiRef.current.postSystemMessage(next.sessionId, final);
         if (currentThreadIdRef.current === next.threadId) {
@@ -390,7 +431,7 @@ export function AomiRuntimeProvider({
       walletTxInFlightRef.current = false;
       void drainWalletTxQueue();
     }
-  }, [applySessionMessagesToThread, onWalletTxRequest, publicKey]);
+  }, [applySessionMessagesToThread, onWalletTxRequest, publicKey, showNotification]);
 
   const handleWalletTxRequest = useCallback(
     (sessionId: string, threadId: string, request: WalletTxRequest) => {
@@ -398,30 +439,17 @@ export function AomiRuntimeProvider({
       if (currentThreadIdRef.current !== threadId) return;
 
       const description = request.description || request.topic || "Wallet transaction requested";
-      appendExtraMessages(threadId, [
-        {
-          role: "system",
-          content: [
-            {
-              type: "text",
-              text: `${description}`,
-            },
-          ],
-          ...(request.timestamp ? { createdAt: new Date(request.timestamp) } : {}),
-          metadata: {
-            custom: {
-              kind: "wallet_tx_request",
-              title: "Wallet transaction request",
-              request,
-            },
-          },
-        },
-      ]);
+      showNotification({
+        type: "notice",
+        iconType: "wallet",
+        title: "Transaction Request",
+        message: description,
+      });
 
       enqueueWalletTxRequest(sessionId, threadId, request);
       void drainWalletTxQueue();
     },
-    [appendExtraMessages, drainWalletTxQueue, enqueueWalletTxRequest]
+    [drainWalletTxQueue, enqueueWalletTxRequest, showNotification]
   );
 
   const handleBackendSystemEvents = useCallback(
@@ -447,23 +475,25 @@ export function AomiRuntimeProvider({
         }
 
         if ("SystemError" in parsed) {
-          appendExtraMessages(threadId, [
-            {
-              role: "system",
-              content: [{ type: "text", text: `System error: ${parsed.SystemError}` }],
-              createdAt: new Date(),
-              metadata: {
-                custom: {
-                  kind: "system_error",
-                  title: "System error",
-                },
-              },
-            },
-          ]);
+          showNotification({
+            type: "error",
+            iconType: "error",
+            title: "Error",
+            message: parsed.SystemError,
+          });
+        }
+
+        if ("SystemNotice" in parsed) {
+          showNotification({
+            type: "notice",
+            iconType: "notice",
+            title: "Notice",
+            message: parsed.SystemNotice,
+          });
         }
       }
     },
-    [appendExtraMessages, handleWalletTxRequest]
+    [handleWalletTxRequest, showNotification]
   );
 
   // ==================== Message Processing ====================

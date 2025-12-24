@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRuntimeActions } from "@/components/assistant-ui/runtime";
+import { useNotification } from "@/lib/notification-context";
 
 // ============================================
 // Types
@@ -74,6 +75,7 @@ type WalletSystemMessageEmitterProps = {
  */
 export function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitterProps) {
   const { sendSystemMessage } = useRuntimeActions();
+  const { showNotification } = useNotification();
   const lastWalletRef = useRef<{
     isConnected: boolean;
     address?: string;
@@ -95,6 +97,16 @@ export function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitte
       const networkName = getNetworkName(chainId);
       const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
       console.log(message);
+      
+      // Show notification
+      showNotification({
+        type: "success",
+        iconType: "wallet",
+        title: "Wallet Connected",
+        message: `Connected to ${networkName} network (Chain ID: ${chainId})`,
+      });
+      
+      // Still send to backend for state tracking
       void sendSystemMessage(message);
       lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
       return;
@@ -102,8 +114,19 @@ export function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitte
 
     // Handle disconnect
     if (!isConnected && prev.isConnected) {
-      void sendSystemMessage("Wallet disconnected by user.");
-      console.log("Wallet disconnected by user.");
+      const message = "Wallet disconnected by user.";
+      console.log(message);
+      
+      // Show notification
+      showNotification({
+        type: "notice",
+        iconType: "wallet",
+        title: "Wallet Disconnected",
+        message: "Wallet disconnected by user.",
+      });
+      
+      // Still send to backend for state tracking
+      void sendSystemMessage(message);
       lastWalletRef.current = { isConnected: false };
       return;
     }
@@ -120,10 +143,20 @@ export function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitte
       const networkName = getNetworkName(chainId);
       const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
       console.log(message);
+      
+      // Show notification
+      showNotification({
+        type: "notice",
+        iconType: "network",
+        title: "Network Switched",
+        message: `Switched to ${networkName} network (Chain ID: ${chainId})`,
+      });
+      
+      // Still send to backend for state tracking
       void sendSystemMessage(message);
       lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
     }
-  }, [wallet, sendSystemMessage]);
+  }, [wallet, sendSystemMessage, showNotification]);
 
   return null;
 }

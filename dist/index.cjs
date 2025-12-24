@@ -150,7 +150,7 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // src/components/aomi-frame.tsx
-var import_react15 = require("react");
+var import_react17 = require("react");
 
 // src/components/assistant-ui/thread.tsx
 var import_lucide_react5 = require("lucide-react");
@@ -1379,6 +1379,7 @@ var SystemMessage = () => {
   const content = (0, import_react7.useMessage)((state) => state.content);
   const text = ((_a = content == null ? void 0 : content[0]) == null ? void 0 : _a.type) === "text" ? (_b = content[0].text) != null ? _b : "" : "";
   const inferredKind = (_c = custom == null ? void 0 : custom.kind) != null ? _c : text.startsWith("Wallet transaction request:") ? "wallet_tx_request" : "system_notice";
+  return null;
   const title = (_d = custom == null ? void 0 : custom.title) != null ? _d : inferredKind === "wallet_tx_request" ? "Wallet transaction request" : "System notice";
   const Icon = inferredKind === "wallet_tx_request" ? import_lucide_react5.WalletIcon : inferredKind === "system_error" ? import_lucide_react5.AlertTriangleIcon : import_lucide_react5.AlertCircleIcon;
   const iconClassName = inferredKind === "wallet_tx_request" ? "text-emerald-600 dark:text-emerald-300" : inferredKind === "system_error" ? "text-red-500 dark:text-red-300" : "text-blue-500 dark:text-blue-300";
@@ -2477,8 +2478,8 @@ function BreadcrumbEllipsis(_a) {
 }
 
 // src/components/assistant-ui/runtime.tsx
-var import_react12 = require("react");
-var import_react13 = require("@assistant-ui/react");
+var import_react13 = require("react");
+var import_react14 = require("@assistant-ui/react");
 
 // src/lib/backend-api.ts
 function toQueryString(payload) {
@@ -2827,9 +2828,43 @@ function parseToolStream(toolStream) {
   return null;
 }
 
-// src/components/assistant-ui/runtime.tsx
+// src/lib/notification-context.tsx
+var import_react12 = require("react");
 var import_jsx_runtime19 = require("react/jsx-runtime");
-var RuntimeActionsContext = (0, import_react12.createContext)(void 0);
+var NotificationContext = (0, import_react12.createContext)(void 0);
+function useNotification() {
+  const context = (0, import_react12.useContext)(NotificationContext);
+  if (!context) {
+    throw new Error("useNotification must be used within NotificationProvider");
+  }
+  return context;
+}
+function NotificationProvider({ children }) {
+  const [notifications, setNotifications] = (0, import_react12.useState)([]);
+  const showNotification = (0, import_react12.useCallback)((notification) => {
+    var _a, _b;
+    const id = `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newNotification = __spreadProps(__spreadValues({}, notification), {
+      id,
+      duration: (_a = notification.duration) != null ? _a : 5e3
+    });
+    setNotifications((prev) => [newNotification, ...prev]);
+    const duration = (_b = newNotification.duration) != null ? _b : 5e3;
+    if (duration > 0) {
+      setTimeout(() => {
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      }, duration);
+    }
+  }, []);
+  const dismissNotification = (0, import_react12.useCallback)((id) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(NotificationContext.Provider, { value: { showNotification, notifications, dismissNotification }, children });
+}
+
+// src/components/assistant-ui/runtime.tsx
+var import_jsx_runtime20 = require("react/jsx-runtime");
+var RuntimeActionsContext = (0, import_react13.createContext)(void 0);
 var isTempThreadId = (id) => id.startsWith("temp-");
 async function pickInjectedProvider(publicKey) {
   const ethereum = globalThis.ethereum;
@@ -2899,7 +2934,7 @@ var isPlaceholderTitle = (title) => {
   return !normalized || normalized.startsWith("#[");
 };
 var useRuntimeActions = () => {
-  const context = (0, import_react12.useContext)(RuntimeActionsContext);
+  const context = (0, import_react13.useContext)(RuntimeActionsContext);
   if (!context) {
     throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
   }
@@ -2925,47 +2960,48 @@ function AomiRuntimeProvider({
     setThreadMessages,
     updateThreadMetadata
   } = useThreadContext();
-  const [isRunning, setIsRunning] = (0, import_react12.useState)(false);
-  const [subscribableSessionId, setSubscribableSessionId] = (0, import_react12.useState)(null);
-  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = (0, import_react12.useState)(0);
-  const backendApiRef = (0, import_react12.useRef)(new BackendApi(backendUrl));
-  const pollingIntervalRef = (0, import_react12.useRef)(null);
-  const pollingThreadIdRef = (0, import_react12.useRef)(null);
-  const pendingSystemMessagesRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
-  const lastEventIdBySessionRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
-  const eventsInFlightRef = (0, import_react12.useRef)(/* @__PURE__ */ new Set());
-  const updateSubscriptionsRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
-  const extraMessagesByThreadRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
-  const handledWalletTxRequestsRef = (0, import_react12.useRef)(/* @__PURE__ */ new Set());
-  const walletTxQueueRef = (0, import_react12.useRef)([]);
-  const walletTxInFlightRef = (0, import_react12.useRef)(false);
-  const pendingChatMessagesRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
-  const creatingThreadIdRef = (0, import_react12.useRef)(null);
-  const createThreadPromiseRef = (0, import_react12.useRef)(null);
-  const bumpUpdateSubscriptions = (0, import_react12.useCallback)(() => {
+  const { showNotification } = useNotification();
+  const [isRunning, setIsRunning] = (0, import_react13.useState)(false);
+  const [subscribableSessionId, setSubscribableSessionId] = (0, import_react13.useState)(null);
+  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = (0, import_react13.useState)(0);
+  const backendApiRef = (0, import_react13.useRef)(new BackendApi(backendUrl));
+  const pollingIntervalRef = (0, import_react13.useRef)(null);
+  const pollingThreadIdRef = (0, import_react13.useRef)(null);
+  const pendingSystemMessagesRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
+  const lastEventIdBySessionRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
+  const eventsInFlightRef = (0, import_react13.useRef)(/* @__PURE__ */ new Set());
+  const updateSubscriptionsRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
+  const extraMessagesByThreadRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
+  const handledWalletTxRequestsRef = (0, import_react13.useRef)(/* @__PURE__ */ new Set());
+  const walletTxQueueRef = (0, import_react13.useRef)([]);
+  const walletTxInFlightRef = (0, import_react13.useRef)(false);
+  const pendingChatMessagesRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
+  const creatingThreadIdRef = (0, import_react13.useRef)(null);
+  const createThreadPromiseRef = (0, import_react13.useRef)(null);
+  const bumpUpdateSubscriptions = (0, import_react13.useCallback)(() => {
     setUpdateSubscriptionsTick((prev) => prev + 1);
   }, []);
   const currentMessages = getThreadMessages(currentThreadId);
-  const currentThreadIdRef = (0, import_react12.useRef)(currentThreadId);
-  (0, import_react12.useEffect)(() => {
+  const currentThreadIdRef = (0, import_react13.useRef)(currentThreadId);
+  (0, import_react13.useEffect)(() => {
     currentThreadIdRef.current = currentThreadId;
   }, [currentThreadId]);
-  const skipInitialFetchRef = (0, import_react12.useRef)(/* @__PURE__ */ new Set());
-  const tempToBackendIdRef = (0, import_react12.useRef)(/* @__PURE__ */ new Map());
-  const resolveThreadId = (0, import_react12.useCallback)((threadId) => {
+  const skipInitialFetchRef = (0, import_react13.useRef)(/* @__PURE__ */ new Set());
+  const tempToBackendIdRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
+  const resolveThreadId = (0, import_react13.useCallback)((threadId) => {
     return tempToBackendIdRef.current.get(threadId) || threadId;
   }, []);
-  const findTempIdForBackendId = (0, import_react12.useCallback)((backendId) => {
+  const findTempIdForBackendId = (0, import_react13.useCallback)((backendId) => {
     for (const [tempId, bId] of tempToBackendIdRef.current.entries()) {
       if (bId === backendId) return tempId;
     }
     return void 0;
   }, []);
-  const isThreadReady = (0, import_react12.useCallback)((threadId) => {
+  const isThreadReady = (0, import_react13.useCallback)((threadId) => {
     if (!isTempThreadId(threadId)) return true;
     return tempToBackendIdRef.current.has(threadId);
   }, []);
-  const applySessionMessagesToThread = (0, import_react12.useCallback)(
+  const applySessionMessagesToThread = (0, import_react13.useCallback)(
     (threadId, msgs) => {
       var _a, _b, _c;
       if (!msgs) return;
@@ -2986,7 +3022,7 @@ function AomiRuntimeProvider({
     },
     [setThreadMessages]
   );
-  const appendExtraMessages = (0, import_react12.useCallback)(
+  const appendExtraMessages = (0, import_react13.useCallback)(
     (threadId, messages) => {
       var _a;
       if (!messages.length) return;
@@ -2995,7 +3031,7 @@ function AomiRuntimeProvider({
     },
     []
   );
-  const enqueueWalletTxRequest = (0, import_react12.useCallback)(
+  const enqueueWalletTxRequest = (0, import_react13.useCallback)(
     (sessionId, threadId, request) => {
       var _a;
       const key = `${sessionId}:${(_a = request.timestamp) != null ? _a : JSON.stringify(request)}`;
@@ -3005,7 +3041,7 @@ function AomiRuntimeProvider({
     },
     []
   );
-  const drainWalletTxQueue = (0, import_react12.useCallback)(async () => {
+  const drainWalletTxQueue = (0, import_react13.useCallback)(async () => {
     var _a, _b, _c;
     if (walletTxInFlightRef.current) return;
     const next = walletTxQueueRef.current.shift();
@@ -3017,6 +3053,12 @@ function AomiRuntimeProvider({
           sessionId: next.sessionId,
           threadId: next.threadId,
           publicKey
+        });
+        showNotification({
+          type: "success",
+          iconType: "transaction",
+          title: "Transaction Sent",
+          message: `Hash: ${txHash2}`
         });
         await backendApiRef.current.postSystemMessage(next.sessionId, `Transaction sent: ${txHash2}`);
         if (currentThreadIdRef.current === next.threadId) {
@@ -3031,6 +3073,12 @@ function AomiRuntimeProvider({
       }
       const activeProvider = await pickInjectedProvider(publicKey);
       if (!(activeProvider == null ? void 0 : activeProvider.request)) {
+        showNotification({
+          type: "error",
+          iconType: "wallet",
+          title: "Wallet Not Found",
+          message: "No wallet provider found (window.ethereum missing)."
+        });
         await backendApiRef.current.postSystemMessage(
           next.sessionId,
           "No wallet provider found (window.ethereum missing)."
@@ -3046,6 +3094,12 @@ function AomiRuntimeProvider({
       const fromAddress = publicKey || await activeProvider.request({ method: "eth_accounts" });
       const resolvedFrom = publicKey || (Array.isArray(fromAddress) ? String((_a = fromAddress[0]) != null ? _a : "") : "");
       if (!resolvedFrom) {
+        showNotification({
+          type: "error",
+          iconType: "wallet",
+          title: "Wallet Not Connected",
+          message: "Please connect a wallet to sign the requested transaction."
+        });
         await backendApiRef.current.postSystemMessage(
           next.sessionId,
           "Wallet is not connected; please connect a wallet to sign the requested transaction."
@@ -3059,6 +3113,12 @@ function AomiRuntimeProvider({
         valueHex = toHexQuantity(next.request.value);
         if (gas) gasHex = toHexQuantity(gas);
       } catch (error) {
+        showNotification({
+          type: "error",
+          iconType: "transaction",
+          title: "Invalid Transaction",
+          message: error.message
+        });
         await backendApiRef.current.postSystemMessage(
           next.sessionId,
           `Invalid wallet transaction request payload: ${error.message}`
@@ -3075,6 +3135,11 @@ function AomiRuntimeProvider({
         method: "eth_sendTransaction",
         params: [txParams]
       });
+      showNotification({
+        type: "success",
+        title: "Transaction sent",
+        message: `Transaction hash: ${txHash}`
+      });
       await backendApiRef.current.postSystemMessage(next.sessionId, `Transaction sent: ${txHash}`);
       if (currentThreadIdRef.current === next.threadId) {
         try {
@@ -3087,6 +3152,12 @@ function AomiRuntimeProvider({
     } catch (error) {
       const normalized = normalizeWalletError(error);
       const final = normalized.rejected ? "Transaction rejected by user." : `Transaction failed: ${normalized.message}`;
+      showNotification({
+        type: normalized.rejected ? "notice" : "error",
+        iconType: normalized.rejected ? "transaction" : "error",
+        title: normalized.rejected ? "Transaction Rejected" : "Transaction Failed",
+        message: normalized.rejected ? "Transaction was rejected by user." : normalized.message
+      });
       try {
         await backendApiRef.current.postSystemMessage(next.sessionId, final);
         if (currentThreadIdRef.current === next.threadId) {
@@ -3104,36 +3175,23 @@ function AomiRuntimeProvider({
       walletTxInFlightRef.current = false;
       void drainWalletTxQueue();
     }
-  }, [applySessionMessagesToThread, onWalletTxRequest, publicKey]);
-  const handleWalletTxRequest = (0, import_react12.useCallback)(
+  }, [applySessionMessagesToThread, onWalletTxRequest, publicKey, showNotification]);
+  const handleWalletTxRequest = (0, import_react13.useCallback)(
     (sessionId, threadId, request) => {
       if (currentThreadIdRef.current !== threadId) return;
       const description = request.description || request.topic || "Wallet transaction requested";
-      appendExtraMessages(threadId, [
-        __spreadProps(__spreadValues({
-          role: "system",
-          content: [
-            {
-              type: "text",
-              text: `${description}`
-            }
-          ]
-        }, request.timestamp ? { createdAt: new Date(request.timestamp) } : {}), {
-          metadata: {
-            custom: {
-              kind: "wallet_tx_request",
-              title: "Wallet transaction request",
-              request
-            }
-          }
-        })
-      ]);
+      showNotification({
+        type: "notice",
+        iconType: "wallet",
+        title: "Transaction Request",
+        message: description
+      });
       enqueueWalletTxRequest(sessionId, threadId, request);
       void drainWalletTxQueue();
     },
-    [appendExtraMessages, drainWalletTxQueue, enqueueWalletTxRequest]
+    [drainWalletTxQueue, enqueueWalletTxRequest, showNotification]
   );
-  const handleBackendSystemEvents = (0, import_react12.useCallback)(
+  const handleBackendSystemEvents = (0, import_react13.useCallback)(
     (sessionId, threadId, rawEvents) => {
       if (!(rawEvents == null ? void 0 : rawEvents.length)) return;
       for (const raw of rawEvents) {
@@ -3153,41 +3211,42 @@ function AomiRuntimeProvider({
           handleWalletTxRequest(sessionId, threadId, req);
         }
         if ("SystemError" in parsed) {
-          appendExtraMessages(threadId, [
-            {
-              role: "system",
-              content: [{ type: "text", text: `System error: ${parsed.SystemError}` }],
-              createdAt: /* @__PURE__ */ new Date(),
-              metadata: {
-                custom: {
-                  kind: "system_error",
-                  title: "System error"
-                }
-              }
-            }
-          ]);
+          showNotification({
+            type: "error",
+            iconType: "error",
+            title: "Error",
+            message: parsed.SystemError
+          });
+        }
+        if ("SystemNotice" in parsed) {
+          showNotification({
+            type: "notice",
+            iconType: "notice",
+            title: "Notice",
+            message: parsed.SystemNotice
+          });
         }
       }
     },
-    [appendExtraMessages, handleWalletTxRequest]
+    [handleWalletTxRequest, showNotification]
   );
-  const applyMessagesForThread = (0, import_react12.useCallback)(
+  const applyMessagesForThread = (0, import_react13.useCallback)(
     (threadId, msgs) => {
       applySessionMessagesToThread(threadId, msgs);
     },
     [applySessionMessagesToThread]
   );
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     backendApiRef.current = new BackendApi(backendUrl);
   }, [backendUrl]);
-  const stopPolling = (0, import_react12.useCallback)(() => {
+  const stopPolling = (0, import_react13.useCallback)(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
     pollingThreadIdRef.current = null;
   }, []);
-  const startPolling = (0, import_react12.useCallback)(() => {
+  const startPolling = (0, import_react13.useCallback)(() => {
     if (!isThreadReady(currentThreadId)) return;
     if (pollingIntervalRef.current) {
       if (pollingThreadIdRef.current === currentThreadId) return;
@@ -3226,7 +3285,7 @@ function AomiRuntimeProvider({
     isThreadReady,
     resolveThreadId
   ]);
-  const interruptThread = (0, import_react12.useCallback)(
+  const interruptThread = (0, import_react13.useCallback)(
     async (threadId) => {
       if (!isThreadReady(threadId)) return;
       const backendThreadId = resolveThreadId(threadId);
@@ -3238,7 +3297,7 @@ function AomiRuntimeProvider({
     },
     [isThreadReady, resolveThreadId]
   );
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const fetchInitialState = async () => {
       const threadIdForFetch = currentThreadId;
       if (isTempThreadId(threadIdForFetch) && !tempToBackendIdRef.current.has(threadIdForFetch)) {
@@ -3297,7 +3356,7 @@ function AomiRuntimeProvider({
     resolveThreadId,
     isThreadReady
   ]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -3517,7 +3576,7 @@ function AomiRuntimeProvider({
       }
     };
   })();
-  const sendSystemMessageNow = (0, import_react12.useCallback)(
+  const sendSystemMessageNow = (0, import_react13.useCallback)(
     async (threadId, message) => {
       const backendThreadId = resolveThreadId(threadId);
       setIsRunning(true);
@@ -3541,7 +3600,7 @@ function AomiRuntimeProvider({
     },
     [getThreadMessages, setThreadMessages, startPolling, resolveThreadId]
   );
-  const flushPendingSystemMessages = (0, import_react12.useCallback)(
+  const flushPendingSystemMessages = (0, import_react13.useCallback)(
     async (threadId) => {
       const pending = pendingSystemMessagesRef.current.get(threadId);
       if (!(pending == null ? void 0 : pending.length)) return;
@@ -3552,7 +3611,7 @@ function AomiRuntimeProvider({
     },
     [sendSystemMessageNow]
   );
-  const ensureBackendSessionForThread = (0, import_react12.useCallback)(
+  const ensureBackendSessionForThread = (0, import_react13.useCallback)(
     (threadId) => {
       if (isThreadReady(threadId)) return;
       if (createThreadPromiseRef.current) return;
@@ -3623,7 +3682,7 @@ function AomiRuntimeProvider({
       startPolling
     ]
   );
-  const onNew = (0, import_react12.useCallback)(
+  const onNew = (0, import_react13.useCallback)(
     async (message) => {
       const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
       if (!text) return;
@@ -3666,7 +3725,7 @@ function AomiRuntimeProvider({
       updateThreadMetadata
     ]
   );
-  const sendSystemMessage = (0, import_react12.useCallback)(
+  const sendSystemMessage = (0, import_react13.useCallback)(
     async (message) => {
       if (!isThreadReady(currentThreadId)) {
         const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
@@ -3691,7 +3750,7 @@ function AomiRuntimeProvider({
       sendSystemMessageNow
     ]
   );
-  const onCancel = (0, import_react12.useCallback)(async () => {
+  const onCancel = (0, import_react13.useCallback)(async () => {
     if (!isThreadReady(currentThreadId)) return;
     stopPolling();
     const backendThreadId = resolveThreadId(currentThreadId);
@@ -3702,7 +3761,7 @@ function AomiRuntimeProvider({
       console.error("Failed to cancel:", error);
     }
   }, [currentThreadId, stopPolling, isThreadReady, resolveThreadId]);
-  const runtime = (0, import_react13.useExternalStoreRuntime)({
+  const runtime = (0, import_react14.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => setThreadMessages(currentThreadId, [...msgs]),
     isRunning,
@@ -3714,14 +3773,14 @@ function AomiRuntimeProvider({
       // 🎯 Thread list adapter enabled!
     }
   });
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     if (isTempThreadId(currentThreadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
     if (hasUserMessages) {
       void flushPendingSystemMessages(currentThreadId);
     }
   }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
-  const applyTitleChanged = (0, import_react12.useCallback)(
+  const applyTitleChanged = (0, import_react13.useCallback)(
     (sessionId, newTitle) => {
       const tempId = findTempIdForBackendId(sessionId);
       const threadIdToUpdate = tempId || sessionId;
@@ -3744,7 +3803,7 @@ function AomiRuntimeProvider({
     },
     [findTempIdForBackendId, setThreadMetadata]
   );
-  const drainEvents = (0, import_react12.useCallback)(
+  const drainEvents = (0, import_react13.useCallback)(
     async (sessionId) => {
       var _a;
       if (eventsInFlightRef.current.has(sessionId)) return;
@@ -3782,7 +3841,7 @@ function AomiRuntimeProvider({
     },
     [applyTitleChanged, findTempIdForBackendId, handleWalletTxRequest]
   );
-  const ensureUpdateSubscription = (0, import_react12.useCallback)(
+  const ensureUpdateSubscription = (0, import_react13.useCallback)(
     (sessionId) => {
       if (updateSubscriptionsRef.current.has(sessionId)) return;
       const unsubscribe = backendApiRef.current.subscribeToUpdates(
@@ -3800,13 +3859,13 @@ function AomiRuntimeProvider({
     },
     [drainEvents]
   );
-  const removeUpdateSubscription = (0, import_react12.useCallback)((sessionId) => {
+  const removeUpdateSubscription = (0, import_react13.useCallback)((sessionId) => {
     const unsubscribe = updateSubscriptionsRef.current.get(sessionId);
     if (!unsubscribe) return;
     unsubscribe();
     updateSubscriptionsRef.current.delete(sessionId);
   }, []);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const nextSessions = /* @__PURE__ */ new Set();
     if (subscribableSessionId) {
       nextSessions.add(subscribableSessionId);
@@ -3833,7 +3892,7 @@ function AomiRuntimeProvider({
     threadMetadata,
     updateSubscriptionsTick
   ]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     return () => {
       for (const unsubscribe of updateSubscriptionsRef.current.values()) {
         unsubscribe();
@@ -3841,11 +3900,11 @@ function AomiRuntimeProvider({
       updateSubscriptionsRef.current.clear();
     };
   }, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react13.AssistantRuntimeProvider, { runtime, children }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react14.AssistantRuntimeProvider, { runtime, children }) });
 }
 
 // src/utils/wallet.ts
-var import_react14 = require("react");
+var import_react15 = require("react");
 var getNetworkName = (chainId) => {
   if (chainId === void 0) return "";
   const id = typeof chainId === "string" ? Number(chainId) : chainId;
@@ -3876,8 +3935,9 @@ var getNetworkName = (chainId) => {
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
 function WalletSystemMessageEmitter({ wallet }) {
   const { sendSystemMessage } = useRuntimeActions();
-  const lastWalletRef = (0, import_react14.useRef)({ isConnected: false });
-  (0, import_react14.useEffect)(() => {
+  const { showNotification } = useNotification();
+  const lastWalletRef = (0, import_react15.useRef)({ isConnected: false });
+  (0, import_react15.useEffect)(() => {
     const prev = lastWalletRef.current;
     const { address, chainId, isConnected } = wallet;
     const normalizedAddress = address == null ? void 0 : address.toLowerCase();
@@ -3885,13 +3945,26 @@ function WalletSystemMessageEmitter({ wallet }) {
       const networkName = getNetworkName(chainId);
       const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
       console.log(message);
+      showNotification({
+        type: "success",
+        iconType: "wallet",
+        title: "Wallet Connected",
+        message: `Connected to ${networkName} network (Chain ID: ${chainId})`
+      });
       void sendSystemMessage(message);
       lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
       return;
     }
     if (!isConnected && prev.isConnected) {
-      void sendSystemMessage("Wallet disconnected by user.");
-      console.log("Wallet disconnected by user.");
+      const message = "Wallet disconnected by user.";
+      console.log(message);
+      showNotification({
+        type: "notice",
+        iconType: "wallet",
+        title: "Wallet Disconnected",
+        message: "Wallet disconnected by user."
+      });
+      void sendSystemMessage(message);
       lastWalletRef.current = { isConnected: false };
       return;
     }
@@ -3899,15 +3972,121 @@ function WalletSystemMessageEmitter({ wallet }) {
       const networkName = getNetworkName(chainId);
       const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
       console.log(message);
+      showNotification({
+        type: "notice",
+        iconType: "network",
+        title: "Network Switched",
+        message: `Switched to ${networkName} network (Chain ID: ${chainId})`
+      });
       void sendSystemMessage(message);
       lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
     }
-  }, [wallet, sendSystemMessage]);
+  }, [wallet, sendSystemMessage, showNotification]);
   return null;
 }
 
+// src/components/assistant-ui/notification.tsx
+var import_lucide_react10 = require("lucide-react");
+var import_react16 = require("react");
+var import_jsx_runtime21 = require("react/jsx-runtime");
+function NotificationContainer() {
+  const { notifications, dismissNotification } = useNotification();
+  if (notifications.length === 0) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none", children: notifications.map((notification) => /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+    NotificationItem,
+    {
+      notification,
+      onDismiss: dismissNotification
+    },
+    notification.id
+  )) });
+}
+function NotificationItem({ notification, onDismiss }) {
+  const timeoutRef = (0, import_react16.useRef)(null);
+  (0, import_react16.useEffect)(() => {
+    if (notification.duration && notification.duration > 0) {
+      timeoutRef.current = setTimeout(() => {
+        onDismiss(notification.id);
+      }, notification.duration);
+    }
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [notification.id, notification.duration, onDismiss]);
+  const getIcon = () => {
+    const iconType = notification.iconType || notification.type;
+    switch (iconType) {
+      case "wallet":
+        return import_lucide_react10.WalletIcon;
+      case "transaction":
+        return import_lucide_react10.SendIcon;
+      case "network":
+        return import_lucide_react10.Network;
+      case "error":
+        return import_lucide_react10.AlertTriangleIcon;
+      case "success":
+        return import_lucide_react10.CheckCircleIcon;
+      case "warning":
+        return import_lucide_react10.AlertTriangleIcon;
+      case "notice":
+      default:
+        return import_lucide_react10.Info;
+    }
+  };
+  const Icon = getIcon();
+  const getIconClassName = () => {
+    const iconType = notification.iconType || notification.type;
+    switch (iconType) {
+      case "wallet":
+        return "text-emerald-600 dark:text-emerald-300";
+      case "transaction":
+        return "text-blue-600 dark:text-blue-300";
+      case "network":
+        return "text-purple-600 dark:text-purple-300";
+      case "error":
+      case "warning":
+        return "text-red-500 dark:text-red-300";
+      case "success":
+        return "text-emerald-600 dark:text-emerald-300";
+      case "notice":
+      default:
+        return "text-blue-500 dark:text-blue-300";
+    }
+  };
+  const iconClassName = getIconClassName();
+  const bgClassName = notification.type === "error" ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" : notification.type === "success" ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800" : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800";
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+    "div",
+    {
+      className: cn(
+        "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border px-4 py-3 text-left text-sm shadow-lg animate-in slide-in-from-right fade-in",
+        bgClassName
+      ),
+      role: "alert",
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Icon, { className: cn("mt-0.5 size-4 shrink-0", iconClassName) }),
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "flex flex-1 flex-col gap-1 min-w-0", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "font-medium text-foreground", children: notification.title }),
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "leading-relaxed text-muted-foreground", children: notification.message })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+          "button",
+          {
+            onClick: () => onDismiss(notification.id),
+            className: "mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-offset-2",
+            "aria-label": "Dismiss notification",
+            children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(import_lucide_react10.XIcon, { className: "size-4" })
+          }
+        )
+      ]
+    }
+  );
+}
+
 // src/components/aomi-frame.tsx
-var import_jsx_runtime20 = require("react/jsx-runtime");
+var import_jsx_runtime22 = require("react/jsx-runtime");
 var AomiFrame = ({
   width = "100%",
   height = "80vh",
@@ -3920,24 +4099,25 @@ var AomiFrame = ({
   var _a;
   const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
   const frameStyle = __spreadValues({ width, height }, style);
-  const [wallet, setWalletState] = (0, import_react15.useState)({
+  const [wallet, setWalletState] = (0, import_react17.useState)({
     isConnected: false,
     address: void 0,
     chainId: void 0,
     ensName: void 0
   });
-  const setWallet = (0, import_react15.useCallback)((data) => {
+  const setWallet = (0, import_react17.useCallback)((data) => {
     setWalletState((prev) => __spreadValues(__spreadValues({}, prev), data));
   }, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NotificationProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
     AomiRuntimeProvider,
     {
       backendUrl,
       publicKey: wallet.address,
       onWalletTxRequest,
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(WalletSystemMessageEmitter, { wallet }),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(WalletSystemMessageEmitter, { wallet }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NotificationContainer, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           FrameShell,
           {
             className,
@@ -3950,7 +4130,7 @@ var AomiFrame = ({
         )
       ]
     }
-  ) });
+  ) }) });
 };
 var FrameShell = ({
   className,
@@ -3963,9 +4143,9 @@ var FrameShell = ({
   var _a, _b;
   const currentTitle = (_b = (_a = useCurrentThreadMetadata()) == null ? void 0 : _a.title) != null ? _b : "New Chat";
   const { currentThreadId, threadViewKey } = useThreadContext();
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(SidebarProvider, { children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(SidebarProvider, { children: [
     children,
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
       "div",
       {
         className: cn(
@@ -3974,17 +4154,17 @@ var FrameShell = ({
         ),
         style: frameStyle,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThreadListSidebar, { footer: walletFooter == null ? void 0 : walletFooter({ wallet, setWallet }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(SidebarInset, { className: "relative", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("header", { className: "flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(SidebarTrigger, {}),
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Separator, { orientation: "vertical", className: "mr-2 h-4" }),
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Breadcrumb, { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(BreadcrumbList, { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(BreadcrumbItem, { className: "hidden md:block", children: currentTitle }),
-                /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(BreadcrumbSeparator, { className: "hidden md:block" })
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(ThreadListSidebar, { footer: walletFooter == null ? void 0 : walletFooter({ wallet, setWallet }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(SidebarInset, { className: "relative", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("header", { className: "flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(SidebarTrigger, {}),
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Separator, { orientation: "vertical", className: "mr-2 h-4" }),
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Breadcrumb, { children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(BreadcrumbList, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(BreadcrumbItem, { className: "hidden md:block", children: currentTitle }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(BreadcrumbSeparator, { className: "hidden md:block" })
               ] }) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Thread, {}, `${currentThreadId}-${threadViewKey}`) })
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Thread, {}, `${currentThreadId}-${threadViewKey}`) })
           ] })
         ]
       }
@@ -3995,7 +4175,7 @@ var FrameShell = ({
 // src/components/assistant-ui/base-sidebar.tsx
 var import_link2 = __toESM(require("next/link"), 1);
 var import_image3 = __toESM(require("next/image"), 1);
-var import_jsx_runtime21 = require("react/jsx-runtime");
+var import_jsx_runtime23 = require("react/jsx-runtime");
 function BaseSidebar(_a) {
   var _b = _a, {
     footerLabel = "Connect Wallet",
@@ -4010,7 +4190,7 @@ function BaseSidebar(_a) {
     "logoUrl",
     "logoHref"
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
     Sidebar,
     __spreadProps(__spreadValues({
       collapsible: "offcanvas",
@@ -4018,13 +4198,13 @@ function BaseSidebar(_a) {
       className: "relative"
     }, props), {
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarMenu, { children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarMenuItem, { children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarHeader, { className: "aomi-sidebar-header", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "aomi-sidebar-header-content flex items-center justify-between", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarMenu, { children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarMenuItem, { children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
           import_link2.default,
           {
             href: logoHref,
             target: "_blank",
             rel: "noopener noreferrer",
-            children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
               import_image3.default,
               {
                 src: logoUrl,
@@ -4037,16 +4217,16 @@ function BaseSidebar(_a) {
             ) })
           }
         ) }) }) }) }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ThreadList, {}) }),
-        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarRail, {}),
-        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarMenu, { children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarMenuItem, { children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarContent, { className: "aomi-sidebar-content", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(ThreadList, {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarRail, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarFooter, { className: "aomi-sidebar-footer border-t border-sm py-4", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarMenu, { children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarMenuItem, { children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SidebarMenuButton, { size: "lg", asChild: true, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
           Button,
           {
             className: "w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white",
             onClick: onFooterClick,
-            children: /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "flex items-center gap-2", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "text-sm", children: footerLabel }),
-              footerSecondaryLabel ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("span", { className: "text-[11px] text-white/80", children: [
+            children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "text-sm", children: footerLabel }),
+              footerSecondaryLabel ? /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("span", { className: "text-[11px] text-white/80", children: [
                 "\u2022 ",
                 footerSecondaryLabel
               ] }) : null
@@ -4060,10 +4240,10 @@ function BaseSidebar(_a) {
 
 // src/components/ui/card.tsx
 var React3 = __toESM(require("react"), 1);
-var import_jsx_runtime22 = require("react/jsx-runtime");
+var import_jsx_runtime24 = require("react/jsx-runtime");
 var Card = React3.forwardRef((_a, ref) => {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     "div",
     __spreadValues({
       ref,
@@ -4077,7 +4257,7 @@ var Card = React3.forwardRef((_a, ref) => {
 Card.displayName = "Card";
 var CardHeader = React3.forwardRef((_a, ref) => {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     "div",
     __spreadValues({
       ref,
@@ -4088,7 +4268,7 @@ var CardHeader = React3.forwardRef((_a, ref) => {
 CardHeader.displayName = "CardHeader";
 var CardTitle = React3.forwardRef((_a, ref) => {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     "h3",
     __spreadValues({
       ref,
@@ -4102,7 +4282,7 @@ var CardTitle = React3.forwardRef((_a, ref) => {
 CardTitle.displayName = "CardTitle";
 var CardDescription = React3.forwardRef((_a, ref) => {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     "p",
     __spreadValues({
       ref,
@@ -4113,12 +4293,12 @@ var CardDescription = React3.forwardRef((_a, ref) => {
 CardDescription.displayName = "CardDescription";
 var CardContent = React3.forwardRef((_a, ref) => {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", __spreadValues({ ref, className: cn("p-6 pt-0", className) }, props));
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", __spreadValues({ ref, className: cn("p-6 pt-0", className) }, props));
 });
 CardContent.displayName = "CardContent";
 var CardFooter = React3.forwardRef((_a, ref) => {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     "div",
     __spreadValues({
       ref,
@@ -4130,7 +4310,7 @@ CardFooter.displayName = "CardFooter";
 
 // src/components/ui/badge.tsx
 var import_class_variance_authority3 = require("class-variance-authority");
-var import_jsx_runtime23 = require("react/jsx-runtime");
+var import_jsx_runtime25 = require("react/jsx-runtime");
 var badgeVariants = (0, import_class_variance_authority3.cva)(
   "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
@@ -4149,15 +4329,15 @@ var badgeVariants = (0, import_class_variance_authority3.cva)(
 );
 function Badge(_a) {
   var _b = _a, { className, variant } = _b, props = __objRest(_b, ["className", "variant"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", __spreadValues({ className: cn(badgeVariants({ variant }), className) }, props));
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", __spreadValues({ className: cn(badgeVariants({ variant }), className) }, props));
 }
 
 // src/components/ui/label.tsx
 var React4 = __toESM(require("react"), 1);
-var import_jsx_runtime24 = require("react/jsx-runtime");
+var import_jsx_runtime26 = require("react/jsx-runtime");
 var Label = React4.forwardRef((_a, ref) => {
   var _b = _a, { className } = _b, props = __objRest(_b, ["className"]);
-  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
     "label",
     __spreadValues({
       ref,

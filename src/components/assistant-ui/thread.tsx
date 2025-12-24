@@ -418,6 +418,16 @@ const SystemMessage: FC = () => {
     custom?.kind ??
     (text.startsWith("Wallet transaction request:") ? "wallet_tx_request" : "system_notice");
 
+  // Filter out ALL system messages - they are shown as notifications instead
+  // This includes:
+  // - system_error messages
+  // - wallet_tx_request messages
+  // - Transaction-related messages (sent, rejected, failed)
+  // - Wallet connection/disconnection messages
+  // - All other system notices
+  return null;
+
+  // TODO: Remove this if we no longer need to show system messages in the thread
   const title =
     custom?.title ??
     (inferredKind === "wallet_tx_request" ? "Wallet transaction request" : "System notice");
