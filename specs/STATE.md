@@ -1,16 +1,15 @@
 # Current State
 
 ## Last Updated
-2024-11-30 - Restructured specs for agent workflow
+2025-12-24 - Modularized runtime hooks and docs
 
 ## Recent Changes
-- Created `CLAUDE.md` as agent entry point
-- Rewrote `specs/DOMAIN.md` with do/don't tables and concise rules
-- Streamlined `specs/METADATA.md` to essential facts only
-- Restructured `specs/STATE.md` for clearer task tracking
+- Split runtime logic into focused hooks under `hooks/runtime/`
+- Added `lib/runtime-utils.ts` for shared runtime helpers
+- Updated domain + metadata docs to reflect new runtime structure
 
 ## Pending
-- None currently
+- Run build/lint to validate the runtime refactor
 
 ## Notes
 - Specs are designed for new agents to quickly understand the codebase

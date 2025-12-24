@@ -150,7 +150,7 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // src/components/aomi-frame.tsx
-var import_react17 = require("react");
+var import_react29 = require("react");
 
 // src/components/assistant-ui/thread.tsx
 var import_lucide_react5 = require("lucide-react");
@@ -2478,8 +2478,115 @@ function BreadcrumbEllipsis(_a) {
 }
 
 // src/components/assistant-ui/runtime.tsx
+var import_react25 = require("react");
+var import_react26 = require("@assistant-ui/react");
+
+// src/lib/notification-context.tsx
+var import_react12 = require("react");
+var import_jsx_runtime19 = require("react/jsx-runtime");
+var NotificationContext = (0, import_react12.createContext)(void 0);
+function useNotification() {
+  const context = (0, import_react12.useContext)(NotificationContext);
+  if (!context) {
+    throw new Error("useNotification must be used within NotificationProvider");
+  }
+  return context;
+}
+function NotificationProvider({ children }) {
+  const [notifications, setNotifications] = (0, import_react12.useState)([]);
+  const showNotification = (0, import_react12.useCallback)((notification) => {
+    var _a, _b;
+    const id = `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newNotification = __spreadProps(__spreadValues({}, notification), {
+      id,
+      duration: (_a = notification.duration) != null ? _a : 5e3
+    });
+    setNotifications((prev) => [newNotification, ...prev]);
+    const duration = (_b = newNotification.duration) != null ? _b : 5e3;
+    if (duration > 0) {
+      setTimeout(() => {
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      }, duration);
+    }
+  }, []);
+  const dismissNotification = (0, import_react12.useCallback)((id) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(NotificationContext.Provider, { value: { showNotification, notifications, dismissNotification }, children });
+}
+
+// src/lib/assistant-runtime-utils.ts
+var isTempThreadId = (id) => id.startsWith("temp-");
+var isPlaceholderTitle = (title) => {
+  var _a;
+  const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
+  return !normalized || normalized.startsWith("#[");
+};
+var parseTimestamp = (value) => {
+  if (value === void 0 || value === null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
+  }
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric)) {
+    return numeric < 1e12 ? numeric * 1e3 : numeric;
+  }
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+};
+function normalizeWalletError(error) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const e = error;
+  const cause = (_a = e == null ? void 0 : e.cause) != null ? _a : null;
+  const code = (_b = typeof (e == null ? void 0 : e.code) === "number" ? e.code : void 0) != null ? _b : typeof (cause == null ? void 0 : cause.code) === "number" ? cause.code : void 0;
+  const name = (_c = typeof (e == null ? void 0 : e.name) === "string" ? e.name : void 0) != null ? _c : typeof (cause == null ? void 0 : cause.name) === "string" ? cause.name : void 0;
+  const msg = (_g = (_f = (_e = (_d = typeof (e == null ? void 0 : e.shortMessage) === "string" ? e.shortMessage : void 0) != null ? _d : typeof (cause == null ? void 0 : cause.shortMessage) === "string" ? cause.shortMessage : void 0) != null ? _e : typeof (e == null ? void 0 : e.message) === "string" ? e.message : void 0) != null ? _f : typeof (cause == null ? void 0 : cause.message) === "string" ? cause.message : void 0) != null ? _g : "Unknown wallet error";
+  const rejected = code === 4001 || name === "UserRejectedRequestError" || name === "RejectedRequestError" || /user rejected|rejected the request|denied|request rejected|canceled|cancelled/i.test(msg);
+  return { rejected, message: msg };
+}
+function parseBackendSystemEvent(value) {
+  if (!value || typeof value !== "object") return null;
+  const entries = Object.entries(value);
+  if (entries.length !== 1) return null;
+  const [key, payload] = entries[0];
+  switch (key) {
+    case "InlineDisplay":
+      return { InlineDisplay: payload };
+    case "SystemNotice":
+      return { SystemNotice: typeof payload === "string" ? payload : String(payload) };
+    case "SystemError":
+      return { SystemError: typeof payload === "string" ? payload : String(payload) };
+    case "AsyncUpdate":
+      return { AsyncUpdate: payload };
+    default:
+      return null;
+  }
+}
+function toHexQuantity(value) {
+  const trimmed = value.trim();
+  const asBigInt = BigInt(trimmed);
+  return `0x${asBigInt.toString(16)}`;
+}
+async function pickInjectedProvider(publicKey) {
+  const ethereum = globalThis.ethereum;
+  if (!(ethereum == null ? void 0 : ethereum.request)) return void 0;
+  const candidates = Array.isArray(ethereum.providers) ? ethereum.providers.filter((p) => !!(p == null ? void 0 : p.request)) : [ethereum];
+  const target = publicKey == null ? void 0 : publicKey.toLowerCase();
+  if (target) {
+    for (const candidate of candidates) {
+      try {
+        const accounts = await candidate.request({ method: "eth_accounts" });
+        const list = Array.isArray(accounts) ? accounts.map((a) => String(a).toLowerCase()) : [];
+        if (list.includes(target)) return candidate;
+      } catch (e) {
+      }
+    }
+  }
+  return candidates[0];
+}
+
+// src/hooks/assistant-runtime/use-backend-api.ts
 var import_react13 = require("react");
-var import_react14 = require("@assistant-ui/react");
 
 // src/lib/backend-api.ts
 function toQueryString(payload) {
@@ -2768,6 +2875,372 @@ var BackendApi = class {
   }
 };
 
+// src/hooks/assistant-runtime/use-backend-api.ts
+function useBackendApi(backendUrl) {
+  const backendApiRef = (0, import_react13.useRef)(new BackendApi(backendUrl));
+  (0, import_react13.useEffect)(() => {
+    backendApiRef.current = new BackendApi(backendUrl);
+  }, [backendUrl]);
+  return backendApiRef;
+}
+
+// src/hooks/assistant-runtime/use-backend-system-events.ts
+var import_react14 = require("react");
+function useBackendSystemEvents({
+  showNotification,
+  handleWalletTxRequest
+}) {
+  const handleBackendSystemEvents = (0, import_react14.useCallback)(
+    (sessionId, threadId, rawEvents) => {
+      if (!(rawEvents == null ? void 0 : rawEvents.length)) return;
+      for (const raw of rawEvents) {
+        const parsed = parseBackendSystemEvent(raw);
+        if (!parsed) continue;
+        if ("InlineDisplay" in parsed) {
+          const payload = parsed.InlineDisplay;
+          if (!payload || typeof payload !== "object") continue;
+          const type = payload.type;
+          if (type !== "wallet_tx_request") continue;
+          const requestValue = payload.payload;
+          if (!requestValue || typeof requestValue !== "object") continue;
+          const req = requestValue;
+          if (typeof req.to !== "string" || typeof req.value !== "string" || typeof req.data !== "string") {
+            continue;
+          }
+          handleWalletTxRequest(sessionId, threadId, req);
+        }
+        if ("SystemError" in parsed) {
+          showNotification({
+            type: "error",
+            iconType: "error",
+            title: "Error",
+            message: parsed.SystemError
+          });
+        }
+        if ("SystemNotice" in parsed) {
+          showNotification({
+            type: "notice",
+            iconType: "notice",
+            title: "Notice",
+            message: parsed.SystemNotice
+          });
+        }
+      }
+    },
+    [handleWalletTxRequest, showNotification]
+  );
+  return { handleBackendSystemEvents };
+}
+
+// src/hooks/assistant-runtime/use-thread-id-mapping.ts
+var import_react15 = require("react");
+function useThreadIdMapping() {
+  const tempToBackendIdRef = (0, import_react15.useRef)(/* @__PURE__ */ new Map());
+  const resolveThreadId = (0, import_react15.useCallback)((threadId) => {
+    return tempToBackendIdRef.current.get(threadId) || threadId;
+  }, []);
+  const findTempIdForBackendId = (0, import_react15.useCallback)((backendId) => {
+    for (const [tempId, mappedId] of tempToBackendIdRef.current.entries()) {
+      if (mappedId === backendId) return tempId;
+    }
+    return void 0;
+  }, []);
+  const bindBackendId = (0, import_react15.useCallback)((threadId, backendId) => {
+    tempToBackendIdRef.current.set(threadId, backendId);
+  }, []);
+  const hasBackendId = (0, import_react15.useCallback)((threadId) => {
+    return tempToBackendIdRef.current.has(threadId);
+  }, []);
+  const isThreadReady = (0, import_react15.useCallback)(
+    (threadId) => {
+      if (!isTempThreadId(threadId)) return true;
+      return tempToBackendIdRef.current.has(threadId);
+    },
+    []
+  );
+  return {
+    bindBackendId,
+    findTempIdForBackendId,
+    hasBackendId,
+    isThreadReady,
+    resolveThreadId
+  };
+}
+
+// src/hooks/assistant-runtime/use-thread-lifecycle.ts
+var import_react16 = require("react");
+function useThreadLifecycle({
+  backendApiRef,
+  currentThreadId,
+  currentThreadIdRef,
+  threadMetadata,
+  setThreadMetadata,
+  setThreadMessages,
+  setThreads,
+  setCurrentThreadId,
+  updateThreadMetadata,
+  bumpThreadViewKey,
+  stopPolling,
+  interruptThread,
+  isRunning,
+  setIsRunning,
+  pendingChatMessagesRef,
+  pendingSystemMessagesRef,
+  creatingThreadIdRef,
+  createThreadPromiseRef
+}) {
+  const onSwitchToNewThread = (0, import_react16.useCallback)(async () => {
+    var _a;
+    const previousThreadId = currentThreadIdRef.current;
+    stopPolling();
+    if (isRunning) {
+      void interruptThread(previousThreadId);
+    }
+    const preparePendingThread = (newId) => {
+      creatingThreadIdRef.current = newId;
+      pendingChatMessagesRef.current.delete(newId);
+      pendingSystemMessagesRef.current.delete(newId);
+      setThreadMetadata(
+        (prev) => new Map(prev).set(newId, {
+          title: "New Chat",
+          status: "pending",
+          lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+        })
+      );
+      setThreadMessages(newId, []);
+      setCurrentThreadId(newId);
+      setIsRunning(false);
+      bumpThreadViewKey();
+    };
+    if (createThreadPromiseRef.current) {
+      preparePendingThread((_a = creatingThreadIdRef.current) != null ? _a : `temp-${crypto.randomUUID()}`);
+      return;
+    }
+    const tempId = `temp-${crypto.randomUUID()}`;
+    preparePendingThread(tempId);
+  }, [
+    bumpThreadViewKey,
+    createThreadPromiseRef,
+    creatingThreadIdRef,
+    currentThreadIdRef,
+    interruptThread,
+    isRunning,
+    pendingChatMessagesRef,
+    pendingSystemMessagesRef,
+    setCurrentThreadId,
+    setIsRunning,
+    setThreadMessages,
+    setThreadMetadata,
+    stopPolling
+  ]);
+  const onSwitchToThread = (0, import_react16.useCallback)(
+    (threadId) => {
+      setCurrentThreadId(threadId);
+    },
+    [setCurrentThreadId]
+  );
+  const onRename = (0, import_react16.useCallback)(
+    async (threadId, newTitle) => {
+      updateThreadMetadata(threadId, { title: isPlaceholderTitle(newTitle) ? "" : newTitle });
+      try {
+        await backendApiRef.current.renameThread(threadId, newTitle);
+      } catch (error) {
+        console.error("Failed to rename thread:", error);
+      }
+    },
+    [backendApiRef, updateThreadMetadata]
+  );
+  const onArchive = (0, import_react16.useCallback)(
+    async (threadId) => {
+      updateThreadMetadata(threadId, { status: "archived" });
+      try {
+        await backendApiRef.current.archiveThread(threadId);
+      } catch (error) {
+        console.error("Failed to archive thread:", error);
+        updateThreadMetadata(threadId, { status: "regular" });
+      }
+    },
+    [backendApiRef, updateThreadMetadata]
+  );
+  const onUnarchive = (0, import_react16.useCallback)(
+    async (threadId) => {
+      updateThreadMetadata(threadId, { status: "regular" });
+      try {
+        await backendApiRef.current.unarchiveThread(threadId);
+      } catch (error) {
+        console.error("Failed to unarchive thread:", error);
+        updateThreadMetadata(threadId, { status: "archived" });
+      }
+    },
+    [backendApiRef, updateThreadMetadata]
+  );
+  const onDelete = (0, import_react16.useCallback)(
+    async (threadId) => {
+      try {
+        await backendApiRef.current.deleteThread(threadId);
+        setThreadMetadata((prev) => {
+          const next = new Map(prev);
+          next.delete(threadId);
+          return next;
+        });
+        setThreads((prev) => {
+          const next = new Map(prev);
+          next.delete(threadId);
+          return next;
+        });
+        if (currentThreadId === threadId) {
+          const firstRegularThread = Array.from(threadMetadata.entries()).find(
+            ([id, meta]) => meta.status === "regular" && id !== threadId
+          );
+          if (firstRegularThread) {
+            setCurrentThreadId(firstRegularThread[0]);
+          } else {
+            const defaultId = "default-session";
+            setThreadMetadata(
+              (prev) => new Map(prev).set(defaultId, {
+                title: "New Chat",
+                status: "regular",
+                lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+              })
+            );
+            setThreadMessages(defaultId, []);
+            setCurrentThreadId(defaultId);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to delete thread:", error);
+        throw error;
+      }
+    },
+    [
+      backendApiRef,
+      currentThreadId,
+      setCurrentThreadId,
+      setThreadMessages,
+      setThreadMetadata,
+      setThreads,
+      threadMetadata
+    ]
+  );
+  return {
+    onArchive,
+    onDelete,
+    onRename,
+    onSwitchToNewThread,
+    onSwitchToThread,
+    onUnarchive
+  };
+}
+
+// src/hooks/assistant-runtime/use-thread-list-adapter.ts
+var import_react17 = require("react");
+function useThreadListAdapter({
+  currentThreadId,
+  threadMetadata,
+  onSwitchToNewThread,
+  onSwitchToThread,
+  onRename,
+  onArchive,
+  onUnarchive,
+  onDelete
+}) {
+  return (0, import_react17.useMemo)(() => {
+    const sortByLastActiveDesc = ([, metaA], [, metaB]) => {
+      const tsA = parseTimestamp(metaA.lastActiveAt);
+      const tsB = parseTimestamp(metaB.lastActiveAt);
+      return tsB - tsA;
+    };
+    const regularThreads = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "regular").filter(([_, meta]) => !isPlaceholderTitle(meta.title)).sort(sortByLastActiveDesc).map(([id, meta]) => ({
+      id,
+      title: meta.title || "New Chat",
+      status: "regular"
+    }));
+    const archivedThreadsArray = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "archived").filter(([_, meta]) => !isPlaceholderTitle(meta.title)).sort(sortByLastActiveDesc).map(([id, meta]) => ({
+      id,
+      title: meta.title || "New Chat",
+      status: "archived"
+    }));
+    return {
+      threadId: currentThreadId,
+      threads: regularThreads,
+      archivedThreads: archivedThreadsArray,
+      onSwitchToNewThread,
+      onSwitchToThread,
+      onRename,
+      onArchive,
+      onUnarchive,
+      onDelete
+    };
+  }, [
+    currentThreadId,
+    onArchive,
+    onDelete,
+    onRename,
+    onSwitchToNewThread,
+    onSwitchToThread,
+    onUnarchive,
+    threadMetadata
+  ]);
+}
+
+// src/hooks/assistant-runtime/use-thread-list-sync.ts
+var import_react18 = require("react");
+function useThreadListSync({
+  backendApiRef,
+  publicKey,
+  threadMetadata,
+  threadCnt,
+  setThreadMetadata,
+  setThreadCnt
+}) {
+  const threadMetadataRef = (0, import_react18.useRef)(threadMetadata);
+  const threadCntRef = (0, import_react18.useRef)(threadCnt);
+  (0, import_react18.useEffect)(() => {
+    threadMetadataRef.current = threadMetadata;
+  }, [threadMetadata]);
+  (0, import_react18.useEffect)(() => {
+    threadCntRef.current = threadCnt;
+  }, [threadCnt]);
+  (0, import_react18.useEffect)(() => {
+    if (!publicKey) return;
+    const fetchThreadList = async () => {
+      var _a, _b;
+      try {
+        const threadList = await backendApiRef.current.fetchThreads(publicKey);
+        const newMetadata = new Map(threadMetadataRef.current);
+        let maxChatNum = threadCntRef.current;
+        for (const thread of threadList) {
+          const rawTitle = (_a = thread.title) != null ? _a : "";
+          const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
+          const lastActive = thread.last_active_at || thread.updated_at || thread.created_at || ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
+          newMetadata.set(thread.session_id, {
+            title,
+            status: thread.is_archived ? "archived" : "regular",
+            lastActiveAt: lastActive
+          });
+          const match = title.match(/^Chat (\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxChatNum) {
+              maxChatNum = num;
+            }
+          }
+        }
+        setThreadMetadata(newMetadata);
+        if (maxChatNum > threadCntRef.current) {
+          setThreadCnt(maxChatNum);
+        }
+      } catch (error) {
+        console.error("Failed to fetch thread list:", error);
+      }
+    };
+    void fetchThreadList();
+  }, [backendApiRef, publicKey, setThreadCnt, setThreadMetadata]);
+}
+
+// src/hooks/assistant-runtime/use-thread-message-store.ts
+var import_react19 = require("react");
+
 // src/lib/conversion.ts
 function constructThreadMessage(msg) {
   var _a;
@@ -2803,14 +3276,14 @@ function constructSystemMessage(msg) {
   var _a;
   const [topic] = (_a = parseToolStream(msg.tool_stream)) != null ? _a : [];
   const messageText = topic || msg.content || "";
-  const timestamp = parseTimestamp(msg.timestamp);
+  const timestamp = parseTimestamp2(msg.timestamp);
   if (!messageText.trim()) return null;
   return __spreadValues({
     role: "system",
     content: [{ type: "text", text: messageText }]
   }, timestamp && { createdAt: timestamp });
 }
-function parseTimestamp(timestamp) {
+function parseTimestamp2(timestamp) {
   if (!timestamp) return void 0;
   const parsed = new Date(timestamp);
   return Number.isNaN(parsed.valueOf()) ? void 0 : parsed;
@@ -2828,182 +3301,14 @@ function parseToolStream(toolStream) {
   return null;
 }
 
-// src/lib/notification-context.tsx
-var import_react12 = require("react");
-var import_jsx_runtime19 = require("react/jsx-runtime");
-var NotificationContext = (0, import_react12.createContext)(void 0);
-function useNotification() {
-  const context = (0, import_react12.useContext)(NotificationContext);
-  if (!context) {
-    throw new Error("useNotification must be used within NotificationProvider");
-  }
-  return context;
-}
-function NotificationProvider({ children }) {
-  const [notifications, setNotifications] = (0, import_react12.useState)([]);
-  const showNotification = (0, import_react12.useCallback)((notification) => {
-    var _a, _b;
-    const id = `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const newNotification = __spreadProps(__spreadValues({}, notification), {
-      id,
-      duration: (_a = notification.duration) != null ? _a : 5e3
-    });
-    setNotifications((prev) => [newNotification, ...prev]);
-    const duration = (_b = newNotification.duration) != null ? _b : 5e3;
-    if (duration > 0) {
-      setTimeout(() => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
-      }, duration);
-    }
-  }, []);
-  const dismissNotification = (0, import_react12.useCallback)((id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(NotificationContext.Provider, { value: { showNotification, notifications, dismissNotification }, children });
-}
-
-// src/components/assistant-ui/runtime.tsx
-var import_jsx_runtime20 = require("react/jsx-runtime");
-var RuntimeActionsContext = (0, import_react13.createContext)(void 0);
-var isTempThreadId = (id) => id.startsWith("temp-");
-async function pickInjectedProvider(publicKey) {
-  const ethereum = globalThis.ethereum;
-  if (!(ethereum == null ? void 0 : ethereum.request)) return void 0;
-  const candidates = Array.isArray(ethereum.providers) ? ethereum.providers.filter((p) => !!(p == null ? void 0 : p.request)) : [ethereum];
-  const target = publicKey == null ? void 0 : publicKey.toLowerCase();
-  if (target) {
-    for (const candidate of candidates) {
-      try {
-        const accounts = await candidate.request({ method: "eth_accounts" });
-        const list = Array.isArray(accounts) ? accounts.map((a) => String(a).toLowerCase()) : [];
-        if (list.includes(target)) return candidate;
-      } catch (e) {
-      }
-    }
-  }
-  return candidates[0];
-}
-function normalizeWalletError(error) {
-  var _a, _b, _c, _d, _e, _f, _g;
-  const e = error;
-  const cause = (_a = e == null ? void 0 : e.cause) != null ? _a : null;
-  const code = (_b = typeof (e == null ? void 0 : e.code) === "number" ? e.code : void 0) != null ? _b : typeof (cause == null ? void 0 : cause.code) === "number" ? cause.code : void 0;
-  const name = (_c = typeof (e == null ? void 0 : e.name) === "string" ? e.name : void 0) != null ? _c : typeof (cause == null ? void 0 : cause.name) === "string" ? cause.name : void 0;
-  const msg = (_g = (_f = (_e = (_d = typeof (e == null ? void 0 : e.shortMessage) === "string" ? e.shortMessage : void 0) != null ? _d : typeof (cause == null ? void 0 : cause.shortMessage) === "string" ? cause.shortMessage : void 0) != null ? _e : typeof (e == null ? void 0 : e.message) === "string" ? e.message : void 0) != null ? _f : typeof (cause == null ? void 0 : cause.message) === "string" ? cause.message : void 0) != null ? _g : "Unknown wallet error";
-  const rejected = code === 4001 || name === "UserRejectedRequestError" || name === "RejectedRequestError" || /user rejected|rejected the request|denied|request rejected|canceled|cancelled/i.test(msg);
-  return { rejected, message: msg };
-}
-function parseBackendSystemEvent(value) {
-  if (!value || typeof value !== "object") return null;
-  const entries = Object.entries(value);
-  if (entries.length !== 1) return null;
-  const [key, payload] = entries[0];
-  switch (key) {
-    case "InlineDisplay":
-      return { InlineDisplay: payload };
-    case "SystemNotice":
-      return { SystemNotice: typeof payload === "string" ? payload : String(payload) };
-    case "SystemError":
-      return { SystemError: typeof payload === "string" ? payload : String(payload) };
-    case "AsyncUpdate":
-      return { AsyncUpdate: payload };
-    default:
-      return null;
-  }
-}
-function toHexQuantity(value) {
-  const trimmed = value.trim();
-  const asBigInt = BigInt(trimmed);
-  return `0x${asBigInt.toString(16)}`;
-}
-var parseTimestamp2 = (value) => {
-  if (value === void 0 || value === null) return 0;
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
-  }
-  const numeric = Number(value);
-  if (!Number.isNaN(numeric)) {
-    return numeric < 1e12 ? numeric * 1e3 : numeric;
-  }
-  const ts = Date.parse(value);
-  return Number.isNaN(ts) ? 0 : ts;
-};
-var isPlaceholderTitle = (title) => {
-  var _a;
-  const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
-  return !normalized || normalized.startsWith("#[");
-};
-var useRuntimeActions = () => {
-  const context = (0, import_react13.useContext)(RuntimeActionsContext);
-  if (!context) {
-    throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
-  }
-  return context;
-};
-function AomiRuntimeProvider({
-  children,
-  backendUrl = "http://localhost:8080",
-  publicKey,
-  onWalletTxRequest
+// src/hooks/assistant-runtime/use-thread-message-store.ts
+function useThreadMessageStore({
+  setThreadMessages,
+  pendingChatMessagesRef
 }) {
-  const {
-    currentThreadId,
-    setCurrentThreadId,
-    bumpThreadViewKey,
-    threads,
-    setThreads,
-    threadMetadata,
-    setThreadMetadata,
-    threadCnt,
-    setThreadCnt,
-    getThreadMessages,
-    setThreadMessages,
-    updateThreadMetadata
-  } = useThreadContext();
-  const { showNotification } = useNotification();
-  const [isRunning, setIsRunning] = (0, import_react13.useState)(false);
-  const [subscribableSessionId, setSubscribableSessionId] = (0, import_react13.useState)(null);
-  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = (0, import_react13.useState)(0);
-  const backendApiRef = (0, import_react13.useRef)(new BackendApi(backendUrl));
-  const pollingIntervalRef = (0, import_react13.useRef)(null);
-  const pollingThreadIdRef = (0, import_react13.useRef)(null);
-  const pendingSystemMessagesRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
-  const lastEventIdBySessionRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
-  const eventsInFlightRef = (0, import_react13.useRef)(/* @__PURE__ */ new Set());
-  const updateSubscriptionsRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
-  const extraMessagesByThreadRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
-  const handledWalletTxRequestsRef = (0, import_react13.useRef)(/* @__PURE__ */ new Set());
-  const walletTxQueueRef = (0, import_react13.useRef)([]);
-  const walletTxInFlightRef = (0, import_react13.useRef)(false);
-  const pendingChatMessagesRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
-  const creatingThreadIdRef = (0, import_react13.useRef)(null);
-  const createThreadPromiseRef = (0, import_react13.useRef)(null);
-  const bumpUpdateSubscriptions = (0, import_react13.useCallback)(() => {
-    setUpdateSubscriptionsTick((prev) => prev + 1);
-  }, []);
-  const currentMessages = getThreadMessages(currentThreadId);
-  const currentThreadIdRef = (0, import_react13.useRef)(currentThreadId);
-  (0, import_react13.useEffect)(() => {
-    currentThreadIdRef.current = currentThreadId;
-  }, [currentThreadId]);
-  const skipInitialFetchRef = (0, import_react13.useRef)(/* @__PURE__ */ new Set());
-  const tempToBackendIdRef = (0, import_react13.useRef)(/* @__PURE__ */ new Map());
-  const resolveThreadId = (0, import_react13.useCallback)((threadId) => {
-    return tempToBackendIdRef.current.get(threadId) || threadId;
-  }, []);
-  const findTempIdForBackendId = (0, import_react13.useCallback)((backendId) => {
-    for (const [tempId, bId] of tempToBackendIdRef.current.entries()) {
-      if (bId === backendId) return tempId;
-    }
-    return void 0;
-  }, []);
-  const isThreadReady = (0, import_react13.useCallback)((threadId) => {
-    if (!isTempThreadId(threadId)) return true;
-    return tempToBackendIdRef.current.has(threadId);
-  }, []);
-  const applySessionMessagesToThread = (0, import_react13.useCallback)(
+  const applySessionMessagesToThread = (0, import_react19.useCallback)(
     (threadId, msgs) => {
-      var _a, _b, _c;
+      var _a, _b;
       if (!msgs) return;
       const hasPendingMessages = pendingChatMessagesRef.current.has(threadId) && ((_b = (_a = pendingChatMessagesRef.current.get(threadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
       if (hasPendingMessages) return;
@@ -3017,21 +3322,560 @@ function AomiRuntimeProvider({
         const threadMessage = constructThreadMessage(msg);
         if (threadMessage) threadMessages.push(threadMessage);
       }
-      const extras = (_c = extraMessagesByThreadRef.current.get(threadId)) != null ? _c : [];
-      setThreadMessages(threadId, [...threadMessages, ...extras]);
+      setThreadMessages(threadId, threadMessages);
     },
     [setThreadMessages]
   );
-  const appendExtraMessages = (0, import_react13.useCallback)(
-    (threadId, messages) => {
-      var _a;
-      if (!messages.length) return;
-      const existing = (_a = extraMessagesByThreadRef.current.get(threadId)) != null ? _a : [];
-      extraMessagesByThreadRef.current.set(threadId, [...existing, ...messages]);
+  const applyMessagesForThread = (0, import_react19.useCallback)(
+    (threadId, msgs) => {
+      applySessionMessagesToThread(threadId, msgs);
     },
-    []
+    [applySessionMessagesToThread]
   );
-  const enqueueWalletTxRequest = (0, import_react13.useCallback)(
+  return {
+    applyMessagesForThread,
+    applySessionMessagesToThread
+  };
+}
+
+// src/hooks/assistant-runtime/use-thread-messaging.ts
+var import_react20 = require("react");
+function useThreadMessaging({
+  backendApiRef,
+  publicKey,
+  currentThreadId,
+  currentMessages,
+  currentThreadIdRef,
+  getThreadMessages,
+  setThreadMessages,
+  setThreadMetadata,
+  updateThreadMetadata,
+  setIsRunning,
+  startPolling,
+  resolveThreadId,
+  isThreadReady,
+  bindBackendId,
+  bumpUpdateSubscriptions,
+  setSubscribableSessionId,
+  pendingChatMessagesRef,
+  pendingSystemMessagesRef,
+  skipInitialFetchRef,
+  creatingThreadIdRef,
+  createThreadPromiseRef
+}) {
+  const sendSystemMessageNow = (0, import_react20.useCallback)(
+    async (threadId, message) => {
+      const backendThreadId = resolveThreadId(threadId);
+      setIsRunning(true);
+      try {
+        const response = await backendApiRef.current.postSystemMessage(backendThreadId, message);
+        if (currentThreadIdRef.current === threadId) {
+          setSubscribableSessionId(backendThreadId);
+        }
+        if (response.res) {
+          const systemMessage = constructSystemMessage(response.res);
+          if (systemMessage) {
+            const updatedMessages = [...getThreadMessages(threadId), systemMessage];
+            setThreadMessages(threadId, updatedMessages);
+          }
+        }
+        await startPolling();
+      } catch (error) {
+        console.error("Failed to send system message:", error);
+        setIsRunning(false);
+      }
+    },
+    [
+      backendApiRef,
+      currentThreadIdRef,
+      getThreadMessages,
+      resolveThreadId,
+      setIsRunning,
+      setSubscribableSessionId,
+      setThreadMessages,
+      startPolling
+    ]
+  );
+  const flushPendingSystemMessages = (0, import_react20.useCallback)(
+    async (threadId) => {
+      const pending = pendingSystemMessagesRef.current.get(threadId);
+      if (!(pending == null ? void 0 : pending.length)) return;
+      pendingSystemMessagesRef.current.delete(threadId);
+      for (const pendingMessage of pending) {
+        await sendSystemMessageNow(threadId, pendingMessage);
+      }
+    },
+    [sendSystemMessageNow]
+  );
+  const ensureBackendSessionForThread = (0, import_react20.useCallback)(
+    (threadId) => {
+      if (isThreadReady(threadId)) return;
+      if (createThreadPromiseRef.current) return;
+      creatingThreadIdRef.current = threadId;
+      setThreadMetadata((prev) => {
+        var _a, _b;
+        const next = new Map(prev);
+        const existing = next.get(threadId);
+        next.set(threadId, {
+          title: (_a = existing == null ? void 0 : existing.title) != null ? _a : "New Chat",
+          status: "pending",
+          lastActiveAt: (_b = existing == null ? void 0 : existing.lastActiveAt) != null ? _b : (/* @__PURE__ */ new Date()).toISOString()
+        });
+        return next;
+      });
+      skipInitialFetchRef.current.add(threadId);
+      const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
+        const backendId = newThread.session_id;
+        bindBackendId(threadId, backendId);
+        bumpUpdateSubscriptions();
+        if (currentThreadIdRef.current === threadId) {
+          setSubscribableSessionId(backendId);
+        }
+        const backendTitle = newThread.title;
+        if (backendTitle && !isPlaceholderTitle(backendTitle)) {
+          setThreadMetadata((prev) => {
+            var _a;
+            const next = new Map(prev);
+            const existing = next.get(threadId);
+            const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+            next.set(threadId, {
+              title: backendTitle,
+              status: nextStatus,
+              lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
+            });
+            return next;
+          });
+        }
+        const pendingMessages = pendingChatMessagesRef.current.get(threadId);
+        if (pendingMessages == null ? void 0 : pendingMessages.length) {
+          pendingChatMessagesRef.current.delete(threadId);
+          for (const text of pendingMessages) {
+            try {
+              await backendApiRef.current.postChatMessage(backendId, text);
+            } catch (error) {
+              console.error("Failed to send queued message:", error);
+            }
+          }
+          await flushPendingSystemMessages(threadId);
+          if (currentThreadIdRef.current === threadId) {
+            startPolling();
+          }
+        }
+      }).catch((error) => {
+        console.error("Failed to create backend session:", error);
+        createThreadPromiseRef.current = null;
+      }).finally(() => {
+        createThreadPromiseRef.current = null;
+      });
+      createThreadPromiseRef.current = createPromise;
+    },
+    [
+      backendApiRef,
+      bindBackendId,
+      bumpUpdateSubscriptions,
+      currentThreadIdRef,
+      flushPendingSystemMessages,
+      isThreadReady,
+      pendingChatMessagesRef,
+      publicKey,
+      setSubscribableSessionId,
+      setThreadMetadata,
+      startPolling
+    ]
+  );
+  const onNew = (0, import_react20.useCallback)(
+    async (message) => {
+      const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+      if (!text) return;
+      const userMessage = {
+        role: "user",
+        content: [{ type: "text", text }],
+        createdAt: /* @__PURE__ */ new Date()
+      };
+      setThreadMessages(currentThreadId, [...currentMessages, userMessage]);
+      updateThreadMetadata(currentThreadId, { lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
+      if (!isThreadReady(currentThreadId)) {
+        console.log("Thread not ready yet; queuing message for later delivery.");
+        setIsRunning(true);
+        const pending = pendingChatMessagesRef.current.get(currentThreadId) || [];
+        pendingChatMessagesRef.current.set(currentThreadId, [...pending, text]);
+        ensureBackendSessionForThread(currentThreadId);
+        return;
+      }
+      const backendThreadId = resolveThreadId(currentThreadId);
+      try {
+        setIsRunning(true);
+        await backendApiRef.current.postChatMessage(backendThreadId, text);
+        setSubscribableSessionId(backendThreadId);
+        await flushPendingSystemMessages(currentThreadId);
+        startPolling();
+      } catch (error) {
+        console.error("Failed to send message:", error);
+        setIsRunning(false);
+      }
+    },
+    [
+      backendApiRef,
+      currentMessages,
+      currentThreadId,
+      ensureBackendSessionForThread,
+      flushPendingSystemMessages,
+      isThreadReady,
+      pendingChatMessagesRef,
+      resolveThreadId,
+      setIsRunning,
+      setSubscribableSessionId,
+      setThreadMessages,
+      startPolling,
+      updateThreadMetadata
+    ]
+  );
+  const sendSystemMessage = (0, import_react20.useCallback)(
+    async (message) => {
+      if (!isThreadReady(currentThreadId)) {
+        const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
+        pendingSystemMessagesRef.current.set(currentThreadId, [...pending, message]);
+        ensureBackendSessionForThread(currentThreadId);
+        return;
+      }
+      const threadMessages = getThreadMessages(currentThreadId);
+      const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
+      if (!hasUserMessages) {
+        const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
+        pendingSystemMessagesRef.current.set(currentThreadId, [...pending, message]);
+        return;
+      }
+      await sendSystemMessageNow(currentThreadId, message);
+    },
+    [currentThreadId, ensureBackendSessionForThread, getThreadMessages, isThreadReady, sendSystemMessageNow]
+  );
+  return {
+    flushPendingSystemMessages,
+    onNew,
+    sendSystemMessage
+  };
+}
+
+// src/hooks/assistant-runtime/use-thread-polling.ts
+var import_react21 = require("react");
+function useThreadPolling({
+  backendApiRef,
+  currentThreadId,
+  currentThreadIdRef,
+  isThreadReady,
+  resolveThreadId,
+  applyMessagesForThread,
+  handleBackendSystemEvents
+}) {
+  const [isRunning, setIsRunning] = (0, import_react21.useState)(false);
+  const pollingIntervalRef = (0, import_react21.useRef)(null);
+  const pollingThreadIdRef = (0, import_react21.useRef)(null);
+  const stopPolling = (0, import_react21.useCallback)(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    pollingThreadIdRef.current = null;
+  }, []);
+  const startPolling = (0, import_react21.useCallback)(() => {
+    if (!isThreadReady(currentThreadId)) return;
+    if (pollingIntervalRef.current) {
+      if (pollingThreadIdRef.current === currentThreadId) return;
+      stopPolling();
+    }
+    const threadIdForPolling = currentThreadId;
+    const backendThreadId = resolveThreadId(currentThreadId);
+    setIsRunning(true);
+    pollingThreadIdRef.current = threadIdForPolling;
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        if (currentThreadIdRef.current !== threadIdForPolling) return;
+        const state = await backendApiRef.current.fetchState(backendThreadId);
+        if (state.session_exists === false) {
+          setIsRunning(false);
+          stopPolling();
+          return;
+        }
+        handleBackendSystemEvents(backendThreadId, threadIdForPolling, state.system_events);
+        applyMessagesForThread(threadIdForPolling, state.messages);
+        if (!state.is_processing) {
+          setIsRunning(false);
+          stopPolling();
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+        stopPolling();
+        setIsRunning(false);
+      }
+    }, 500);
+  }, [
+    currentThreadId,
+    currentThreadIdRef,
+    applyMessagesForThread,
+    backendApiRef,
+    handleBackendSystemEvents,
+    isThreadReady,
+    resolveThreadId,
+    stopPolling
+  ]);
+  const interruptThread = (0, import_react21.useCallback)(
+    async (threadId) => {
+      if (!isThreadReady(threadId)) return;
+      const backendThreadId = resolveThreadId(threadId);
+      try {
+        await backendApiRef.current.postInterrupt(backendThreadId);
+      } catch (error) {
+        console.error("Failed to interrupt thread:", error);
+      }
+    },
+    [backendApiRef, isThreadReady, resolveThreadId]
+  );
+  (0, import_react21.useEffect)(() => stopPolling, [stopPolling]);
+  return {
+    interruptThread,
+    isRunning,
+    setIsRunning,
+    startPolling,
+    stopPolling
+  };
+}
+
+// src/hooks/assistant-runtime/use-thread-state-sync.ts
+var import_react22 = require("react");
+function useThreadStateSync({
+  backendApiRef,
+  currentThreadId,
+  currentThreadIdRef,
+  resolveThreadId,
+  isThreadReady,
+  hasBackendId,
+  skipInitialFetchRef,
+  creatingThreadIdRef,
+  setSubscribableSessionId,
+  setIsRunning,
+  startPolling,
+  stopPolling,
+  applyMessagesForThread,
+  handleBackendSystemEvents
+}) {
+  (0, import_react22.useEffect)(() => {
+    const fetchInitialState = async () => {
+      const threadIdForFetch = currentThreadId;
+      if (isTempThreadId(threadIdForFetch) && !hasBackendId(threadIdForFetch)) {
+        if (currentThreadIdRef.current === threadIdForFetch) {
+          setSubscribableSessionId(null);
+          setIsRunning(false);
+        }
+        return;
+      }
+      if (skipInitialFetchRef.current.has(threadIdForFetch)) {
+        skipInitialFetchRef.current.delete(threadIdForFetch);
+        if (creatingThreadIdRef.current === threadIdForFetch) {
+          if (isThreadReady(threadIdForFetch) && currentThreadIdRef.current === threadIdForFetch) {
+            setSubscribableSessionId(resolveThreadId(threadIdForFetch));
+          }
+          if (currentThreadIdRef.current === threadIdForFetch) {
+            setIsRunning(false);
+          }
+          return;
+        }
+      }
+      const backendThreadId = resolveThreadId(threadIdForFetch);
+      try {
+        const state = await backendApiRef.current.fetchState(backendThreadId);
+        if (state.session_exists === false) {
+          if (currentThreadIdRef.current === threadIdForFetch) {
+            setSubscribableSessionId(null);
+            setIsRunning(false);
+          }
+          return;
+        }
+        handleBackendSystemEvents(backendThreadId, threadIdForFetch, state.system_events);
+        applyMessagesForThread(threadIdForFetch, state.messages);
+        if (currentThreadIdRef.current === threadIdForFetch) {
+          setSubscribableSessionId(backendThreadId);
+          if (state.is_processing) {
+            setIsRunning(true);
+            startPolling();
+          } else {
+            setIsRunning(false);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch initial state:", error);
+      }
+    };
+    void fetchInitialState();
+    return () => {
+      stopPolling();
+    };
+  }, [
+    applyMessagesForThread,
+    backendApiRef,
+    creatingThreadIdRef,
+    currentThreadId,
+    currentThreadIdRef,
+    handleBackendSystemEvents,
+    hasBackendId,
+    isThreadReady,
+    resolveThreadId,
+    setIsRunning,
+    setSubscribableSessionId,
+    skipInitialFetchRef,
+    startPolling,
+    stopPolling
+  ]);
+}
+
+// src/hooks/assistant-runtime/use-thread-updates.ts
+var import_react23 = require("react");
+function useThreadUpdates({
+  backendApiRef,
+  findTempIdForBackendId,
+  handleWalletTxRequest,
+  setThreadMetadata,
+  creatingThreadIdRef
+}) {
+  const [subscribableSessionId, setSubscribableSessionId] = (0, import_react23.useState)(null);
+  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = (0, import_react23.useState)(0);
+  const lastEventIdBySessionRef = (0, import_react23.useRef)(/* @__PURE__ */ new Map());
+  const eventsInFlightRef = (0, import_react23.useRef)(/* @__PURE__ */ new Set());
+  const updateSubscriptionsRef = (0, import_react23.useRef)(/* @__PURE__ */ new Map());
+  const bumpUpdateSubscriptions = (0, import_react23.useCallback)(() => {
+    setUpdateSubscriptionsTick((prev) => prev + 1);
+  }, []);
+  const applyTitleChanged = (0, import_react23.useCallback)(
+    (sessionId, newTitle) => {
+      const tempId = findTempIdForBackendId(sessionId);
+      const threadIdToUpdate = tempId || sessionId;
+      setThreadMetadata((prev) => {
+        var _a;
+        const next = new Map(prev);
+        const existing = next.get(threadIdToUpdate);
+        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+        const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+        next.set(threadIdToUpdate, {
+          title: normalizedTitle,
+          status: nextStatus,
+          lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
+        });
+        return next;
+      });
+      if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
+        creatingThreadIdRef.current = null;
+      }
+    },
+    [creatingThreadIdRef, findTempIdForBackendId, setThreadMetadata]
+  );
+  const drainEvents = (0, import_react23.useCallback)(
+    async (sessionId) => {
+      var _a;
+      if (eventsInFlightRef.current.has(sessionId)) return;
+      eventsInFlightRef.current.add(sessionId);
+      try {
+        let afterId = (_a = lastEventIdBySessionRef.current.get(sessionId)) != null ? _a : 0;
+        for (; ; ) {
+          const events = await backendApiRef.current.fetchEventsAfter(sessionId, afterId, 200);
+          if (!events.length) break;
+          for (const event of events) {
+            const eventId = typeof event.event_id === "number" ? event.event_id : Number(event.event_id);
+            if (Number.isFinite(eventId)) afterId = Math.max(afterId, eventId);
+            if (event.type === "title_changed" && typeof event.new_title === "string") {
+              applyTitleChanged(sessionId, event.new_title);
+            }
+            if (event.type === "wallet_tx_request") {
+              const payload = event.payload;
+              if (payload && typeof payload === "object") {
+                const req = payload;
+                if (typeof req.to === "string" && typeof req.value === "string" && typeof req.data === "string") {
+                  const threadId = findTempIdForBackendId(sessionId) || sessionId;
+                  handleWalletTxRequest(sessionId, threadId, req);
+                }
+              }
+            }
+          }
+          if (events.length < 200) break;
+        }
+        lastEventIdBySessionRef.current.set(sessionId, afterId);
+      } catch (error) {
+        console.error("Failed to fetch async events:", error);
+      } finally {
+        eventsInFlightRef.current.delete(sessionId);
+      }
+    },
+    [applyTitleChanged, backendApiRef, findTempIdForBackendId, handleWalletTxRequest]
+  );
+  const ensureUpdateSubscription = (0, import_react23.useCallback)(
+    (sessionId) => {
+      if (updateSubscriptionsRef.current.has(sessionId)) return;
+      const unsubscribe = backendApiRef.current.subscribeToUpdates(
+        sessionId,
+        (update) => {
+          if (update.type !== "event_available") return;
+          void drainEvents(update.session_id);
+        },
+        (error) => {
+          console.error("Failed to handle system update SSE:", error);
+        }
+      );
+      updateSubscriptionsRef.current.set(sessionId, unsubscribe);
+    },
+    [backendApiRef, drainEvents]
+  );
+  const removeUpdateSubscription = (0, import_react23.useCallback)((sessionId) => {
+    const unsubscribe = updateSubscriptionsRef.current.get(sessionId);
+    if (!unsubscribe) return;
+    unsubscribe();
+    updateSubscriptionsRef.current.delete(sessionId);
+  }, []);
+  (0, import_react23.useEffect)(() => {
+    const nextSessions = /* @__PURE__ */ new Set();
+    if (subscribableSessionId) {
+      nextSessions.add(subscribableSessionId);
+    }
+    for (const sessionId of updateSubscriptionsRef.current.keys()) {
+      if (!nextSessions.has(sessionId)) {
+        removeUpdateSubscription(sessionId);
+      }
+    }
+    for (const sessionId of nextSessions) {
+      ensureUpdateSubscription(sessionId);
+    }
+  }, [
+    ensureUpdateSubscription,
+    removeUpdateSubscription,
+    subscribableSessionId,
+    updateSubscriptionsTick
+  ]);
+  (0, import_react23.useEffect)(() => {
+    return () => {
+      for (const unsubscribe of updateSubscriptionsRef.current.values()) {
+        unsubscribe();
+      }
+      updateSubscriptionsRef.current.clear();
+    };
+  }, []);
+  return {
+    bumpUpdateSubscriptions,
+    setSubscribableSessionId,
+    subscribableSessionId
+  };
+}
+
+// src/hooks/assistant-runtime/use-wallet-tx.ts
+var import_react24 = require("react");
+function useWalletTx({
+  backendApiRef,
+  onWalletTxRequest,
+  publicKey,
+  showNotification,
+  applySessionMessagesToThread,
+  currentThreadIdRef
+}) {
+  const handledWalletTxRequestsRef = (0, import_react24.useRef)(/* @__PURE__ */ new Set());
+  const walletTxQueueRef = (0, import_react24.useRef)([]);
+  const walletTxInFlightRef = (0, import_react24.useRef)(false);
+  const enqueueWalletTxRequest = (0, import_react24.useCallback)(
     (sessionId, threadId, request) => {
       var _a;
       const key = `${sessionId}:${(_a = request.timestamp) != null ? _a : JSON.stringify(request)}`;
@@ -3041,7 +3885,7 @@ function AomiRuntimeProvider({
     },
     []
   );
-  const drainWalletTxQueue = (0, import_react13.useCallback)(async () => {
+  const drainWalletTxQueue = (0, import_react24.useCallback)(async () => {
     var _a, _b, _c;
     if (walletTxInFlightRef.current) return;
     const next = walletTxQueueRef.current.shift();
@@ -3175,8 +4019,15 @@ function AomiRuntimeProvider({
       walletTxInFlightRef.current = false;
       void drainWalletTxQueue();
     }
-  }, [applySessionMessagesToThread, onWalletTxRequest, publicKey, showNotification]);
-  const handleWalletTxRequest = (0, import_react13.useCallback)(
+  }, [
+    applySessionMessagesToThread,
+    backendApiRef,
+    currentThreadIdRef,
+    onWalletTxRequest,
+    publicKey,
+    showNotification
+  ]);
+  const handleWalletTxRequest = (0, import_react24.useCallback)(
     (sessionId, threadId, request) => {
       if (currentThreadIdRef.current !== threadId) return;
       const description = request.description || request.topic || "Wallet transaction requested";
@@ -3189,650 +4040,198 @@ function AomiRuntimeProvider({
       enqueueWalletTxRequest(sessionId, threadId, request);
       void drainWalletTxQueue();
     },
-    [drainWalletTxQueue, enqueueWalletTxRequest, showNotification]
+    [currentThreadIdRef, drainWalletTxQueue, enqueueWalletTxRequest, showNotification]
   );
-  const handleBackendSystemEvents = (0, import_react13.useCallback)(
-    (sessionId, threadId, rawEvents) => {
-      if (!(rawEvents == null ? void 0 : rawEvents.length)) return;
-      for (const raw of rawEvents) {
-        const parsed = parseBackendSystemEvent(raw);
-        if (!parsed) continue;
-        if ("InlineDisplay" in parsed) {
-          const payload = parsed.InlineDisplay;
-          if (!payload || typeof payload !== "object") continue;
-          const type = payload.type;
-          if (type !== "wallet_tx_request") continue;
-          const requestValue = payload.payload;
-          if (!requestValue || typeof requestValue !== "object") continue;
-          const req = requestValue;
-          if (typeof req.to !== "string" || typeof req.value !== "string" || typeof req.data !== "string") {
-            continue;
-          }
-          handleWalletTxRequest(sessionId, threadId, req);
-        }
-        if ("SystemError" in parsed) {
-          showNotification({
-            type: "error",
-            iconType: "error",
-            title: "Error",
-            message: parsed.SystemError
-          });
-        }
-        if ("SystemNotice" in parsed) {
-          showNotification({
-            type: "notice",
-            iconType: "notice",
-            title: "Notice",
-            message: parsed.SystemNotice
-          });
-        }
-      }
-    },
-    [handleWalletTxRequest, showNotification]
-  );
-  const applyMessagesForThread = (0, import_react13.useCallback)(
-    (threadId, msgs) => {
-      applySessionMessagesToThread(threadId, msgs);
-    },
-    [applySessionMessagesToThread]
-  );
-  (0, import_react13.useEffect)(() => {
-    backendApiRef.current = new BackendApi(backendUrl);
-  }, [backendUrl]);
-  const stopPolling = (0, import_react13.useCallback)(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    pollingThreadIdRef.current = null;
-  }, []);
-  const startPolling = (0, import_react13.useCallback)(() => {
-    if (!isThreadReady(currentThreadId)) return;
-    if (pollingIntervalRef.current) {
-      if (pollingThreadIdRef.current === currentThreadId) return;
-      stopPolling();
-    }
-    const threadIdForPolling = currentThreadId;
-    const backendThreadId = resolveThreadId(currentThreadId);
-    setIsRunning(true);
-    pollingThreadIdRef.current = threadIdForPolling;
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        if (currentThreadIdRef.current !== threadIdForPolling) return;
-        const state = await backendApiRef.current.fetchState(backendThreadId);
-        if (state.session_exists === false) {
-          setIsRunning(false);
-          stopPolling();
-          return;
-        }
-        handleBackendSystemEvents(backendThreadId, threadIdForPolling, state.system_events);
-        applyMessagesForThread(threadIdForPolling, state.messages);
-        if (!state.is_processing) {
-          setIsRunning(false);
-          stopPolling();
-        }
-      } catch (error) {
-        console.error("Polling error:", error);
-        stopPolling();
-        setIsRunning(false);
-      }
-    }, 500);
-  }, [
+  return {
+    handleWalletTxRequest
+  };
+}
+
+// src/components/assistant-ui/runtime.tsx
+var import_jsx_runtime20 = require("react/jsx-runtime");
+var RuntimeActionsContext = (0, import_react25.createContext)(void 0);
+var useRuntimeActions = () => {
+  const context = (0, import_react25.useContext)(RuntimeActionsContext);
+  if (!context) {
+    throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
+  }
+  return context;
+};
+function AomiRuntimeProvider({
+  children,
+  backendUrl = "http://localhost:8080",
+  publicKey,
+  onWalletTxRequest
+}) {
+  const {
     currentThreadId,
-    applyMessagesForThread,
-    handleBackendSystemEvents,
-    stopPolling,
-    isThreadReady,
-    resolveThreadId
-  ]);
-  const interruptThread = (0, import_react13.useCallback)(
-    async (threadId) => {
-      if (!isThreadReady(threadId)) return;
-      const backendThreadId = resolveThreadId(threadId);
-      try {
-        await backendApiRef.current.postInterrupt(backendThreadId);
-      } catch (error) {
-        console.error("Failed to interrupt thread:", error);
-      }
-    },
-    [isThreadReady, resolveThreadId]
-  );
-  (0, import_react13.useEffect)(() => {
-    const fetchInitialState = async () => {
-      const threadIdForFetch = currentThreadId;
-      if (isTempThreadId(threadIdForFetch) && !tempToBackendIdRef.current.has(threadIdForFetch)) {
-        if (currentThreadIdRef.current === threadIdForFetch) {
-          setSubscribableSessionId(null);
-          setIsRunning(false);
-        }
-        return;
-      }
-      if (skipInitialFetchRef.current.has(threadIdForFetch)) {
-        skipInitialFetchRef.current.delete(threadIdForFetch);
-        if (creatingThreadIdRef.current === threadIdForFetch) {
-          if (isThreadReady(threadIdForFetch) && currentThreadIdRef.current === threadIdForFetch) {
-            setSubscribableSessionId(resolveThreadId(threadIdForFetch));
-          }
-          if (currentThreadIdRef.current === threadIdForFetch) {
-            setIsRunning(false);
-          }
-          return;
-        }
-      }
-      const backendThreadId = resolveThreadId(threadIdForFetch);
-      try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
-        if (state.session_exists === false) {
-          if (currentThreadIdRef.current === threadIdForFetch) {
-            setSubscribableSessionId(null);
-            setIsRunning(false);
-          }
-          return;
-        }
-        handleBackendSystemEvents(backendThreadId, threadIdForFetch, state.system_events);
-        applyMessagesForThread(threadIdForFetch, state.messages);
-        if (currentThreadIdRef.current === threadIdForFetch) {
-          setSubscribableSessionId(backendThreadId);
-          if (state.is_processing) {
-            setIsRunning(true);
-            startPolling();
-          } else {
-            setIsRunning(false);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-      }
-    };
-    void fetchInitialState();
-    return () => {
-      stopPolling();
-    };
-  }, [
+    setCurrentThreadId,
+    bumpThreadViewKey,
+    setThreads,
+    threadMetadata,
+    setThreadMetadata,
+    threadCnt,
+    setThreadCnt,
+    getThreadMessages,
+    setThreadMessages,
+    updateThreadMetadata
+  } = useThreadContext();
+  const { showNotification } = useNotification();
+  const backendApiRef = useBackendApi(backendUrl);
+  const currentThreadIdRef = (0, import_react25.useRef)(currentThreadId);
+  (0, import_react25.useEffect)(() => {
+    currentThreadIdRef.current = currentThreadId;
+  }, [currentThreadId]);
+  const pendingChatMessagesRef = (0, import_react25.useRef)(/* @__PURE__ */ new Map());
+  const pendingSystemMessagesRef = (0, import_react25.useRef)(/* @__PURE__ */ new Map());
+  const skipInitialFetchRef = (0, import_react25.useRef)(/* @__PURE__ */ new Set());
+  const creatingThreadIdRef = (0, import_react25.useRef)(null);
+  const createThreadPromiseRef = (0, import_react25.useRef)(null);
+  const idMapping = useThreadIdMapping();
+  const currentMessages = getThreadMessages(currentThreadId);
+  const messageStore = useThreadMessageStore({
+    setThreadMessages,
+    pendingChatMessagesRef
+  });
+  const { handleWalletTxRequest } = useWalletTx({
+    backendApiRef,
+    onWalletTxRequest,
+    publicKey,
+    showNotification,
+    applySessionMessagesToThread: messageStore.applySessionMessagesToThread,
+    currentThreadIdRef
+  });
+  const { handleBackendSystemEvents } = useBackendSystemEvents({
+    showNotification,
+    handleWalletTxRequest
+  });
+  const polling = useThreadPolling({
+    backendApiRef,
     currentThreadId,
-    applyMessagesForThread,
-    startPolling,
-    stopPolling,
-    resolveThreadId,
-    isThreadReady
-  ]);
-  (0, import_react13.useEffect)(() => {
-    if (!publicKey) return;
-    const fetchThreadList = async () => {
-      var _a, _b;
-      try {
-        const threadList = await backendApiRef.current.fetchThreads(publicKey);
-        const newMetadata = new Map(threadMetadata);
-        let maxChatNum = threadCnt;
-        for (const thread of threadList) {
-          const rawTitle = (_a = thread.title) != null ? _a : "";
-          const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
-          const lastActive = thread.last_active_at || thread.updated_at || thread.created_at || ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
-          newMetadata.set(thread.session_id, {
-            title,
-            status: thread.is_archived ? "archived" : "regular",
-            lastActiveAt: lastActive
-          });
-          const match = title.match(/^Chat (\d+)$/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxChatNum) {
-              maxChatNum = num;
-            }
-          }
-        }
-        setThreadMetadata(newMetadata);
-        if (maxChatNum > threadCnt) {
-          setThreadCnt(maxChatNum);
-        }
-      } catch (error) {
-        console.error("Failed to fetch thread list:", error);
-      }
-    };
-    void fetchThreadList();
-  }, [publicKey]);
-  const threadListAdapter = (() => {
-    const sortByLastActiveDesc = ([, metaA], [, metaB]) => {
-      const tsA = parseTimestamp2(metaA.lastActiveAt);
-      const tsB = parseTimestamp2(metaB.lastActiveAt);
-      return tsB - tsA;
-    };
-    const regularThreads = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "regular").filter(([_, meta]) => !isPlaceholderTitle(meta.title)).sort(sortByLastActiveDesc).map(([id, meta]) => ({
-      id,
-      title: meta.title || "New Chat",
-      status: "regular"
-    }));
-    const archivedThreadsArray = Array.from(threadMetadata.entries()).filter(([_, meta]) => meta.status === "archived").filter(([_, meta]) => !isPlaceholderTitle(meta.title)).sort(sortByLastActiveDesc).map(([id, meta]) => ({
-      id,
-      title: meta.title || "New Chat",
-      status: "archived"
-    }));
-    return {
-      threadId: currentThreadId,
-      threads: regularThreads,
-      archivedThreads: archivedThreadsArray,
-      // Create new thread
-      onSwitchToNewThread: async () => {
-        var _a;
-        const previousThreadId = currentThreadIdRef.current;
-        stopPolling();
-        if (isRunning) {
-          void interruptThread(previousThreadId);
-        }
-        const preparePendingThread = (newId) => {
-          creatingThreadIdRef.current = newId;
-          pendingChatMessagesRef.current.delete(newId);
-          pendingSystemMessagesRef.current.delete(newId);
-          setThreadMetadata(
-            (prev) => new Map(prev).set(newId, {
-              title: "New Chat",
-              status: "pending",
-              lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-            })
-          );
-          setThreadMessages(newId, []);
-          setCurrentThreadId(newId);
-          setIsRunning(false);
-          bumpThreadViewKey();
-        };
-        if (createThreadPromiseRef.current) {
-          preparePendingThread((_a = creatingThreadIdRef.current) != null ? _a : `temp-${crypto.randomUUID()}`);
-          return;
-        }
-        const tempId = `temp-${crypto.randomUUID()}`;
-        preparePendingThread(tempId);
-      },
-      // Switch to existing thread
-      onSwitchToThread: (threadId) => {
-        setCurrentThreadId(threadId);
-      },
-      // Rename thread
-      onRename: async (threadId, newTitle) => {
-        updateThreadMetadata(threadId, { title: isPlaceholderTitle(newTitle) ? "" : newTitle });
-        try {
-          await backendApiRef.current.renameThread(threadId, newTitle);
-        } catch (error) {
-          console.error("Failed to rename thread:", error);
-        }
-      },
-      // Archive thread
-      onArchive: async (threadId) => {
-        updateThreadMetadata(threadId, { status: "archived" });
-        try {
-          await backendApiRef.current.archiveThread(threadId);
-        } catch (error) {
-          console.error("Failed to archive thread:", error);
-          updateThreadMetadata(threadId, { status: "regular" });
-        }
-      },
-      // Unarchive thread
-      onUnarchive: async (threadId) => {
-        updateThreadMetadata(threadId, { status: "regular" });
-        try {
-          await backendApiRef.current.unarchiveThread(threadId);
-        } catch (error) {
-          console.error("Failed to unarchive thread:", error);
-          updateThreadMetadata(threadId, { status: "archived" });
-        }
-      },
-      // Delete thread
-      onDelete: async (threadId) => {
-        try {
-          await backendApiRef.current.deleteThread(threadId);
-          setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            next.delete(threadId);
-            return next;
-          });
-          setThreads((prev) => {
-            const next = new Map(prev);
-            next.delete(threadId);
-            return next;
-          });
-          if (currentThreadId === threadId) {
-            const firstRegularThread = Array.from(threadMetadata.entries()).find(([id, meta]) => meta.status === "regular" && id !== threadId);
-            if (firstRegularThread) {
-              setCurrentThreadId(firstRegularThread[0]);
-            } else {
-              const defaultId = "default-session";
-              setThreadMetadata(
-                (prev) => new Map(prev).set(defaultId, {
-                  title: "New Chat",
-                  status: "regular",
-                  lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-                })
-              );
-              setThreadMessages(defaultId, []);
-              setCurrentThreadId(defaultId);
-            }
-          }
-        } catch (error) {
-          console.error("Failed to delete thread:", error);
-          throw error;
-        }
-      }
-    };
-  })();
-  const sendSystemMessageNow = (0, import_react13.useCallback)(
-    async (threadId, message) => {
-      const backendThreadId = resolveThreadId(threadId);
-      setIsRunning(true);
-      try {
-        const response = await backendApiRef.current.postSystemMessage(backendThreadId, message);
-        if (currentThreadIdRef.current === threadId) {
-          setSubscribableSessionId(backendThreadId);
-        }
-        if (response.res) {
-          const systemMessage = constructSystemMessage(response.res);
-          if (systemMessage) {
-            const updatedMessages = [...getThreadMessages(threadId), systemMessage];
-            setThreadMessages(threadId, updatedMessages);
-          }
-        }
-        await startPolling();
-      } catch (error) {
-        console.error("Failed to send system message:", error);
-        setIsRunning(false);
-      }
-    },
-    [getThreadMessages, setThreadMessages, startPolling, resolveThreadId]
-  );
-  const flushPendingSystemMessages = (0, import_react13.useCallback)(
-    async (threadId) => {
-      const pending = pendingSystemMessagesRef.current.get(threadId);
-      if (!(pending == null ? void 0 : pending.length)) return;
-      pendingSystemMessagesRef.current.delete(threadId);
-      for (const pendingMessage of pending) {
-        await sendSystemMessageNow(threadId, pendingMessage);
-      }
-    },
-    [sendSystemMessageNow]
-  );
-  const ensureBackendSessionForThread = (0, import_react13.useCallback)(
-    (threadId) => {
-      if (isThreadReady(threadId)) return;
-      if (createThreadPromiseRef.current) return;
-      creatingThreadIdRef.current = threadId;
-      setThreadMetadata((prev) => {
-        var _a, _b;
-        const next = new Map(prev);
-        const existing = next.get(threadId);
-        next.set(threadId, {
-          title: (_a = existing == null ? void 0 : existing.title) != null ? _a : "New Chat",
-          status: "pending",
-          lastActiveAt: (_b = existing == null ? void 0 : existing.lastActiveAt) != null ? _b : (/* @__PURE__ */ new Date()).toISOString()
-        });
-        return next;
-      });
-      skipInitialFetchRef.current.add(threadId);
-      const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
-        const backendId = newThread.session_id;
-        tempToBackendIdRef.current.set(threadId, backendId);
-        bumpUpdateSubscriptions();
-        if (currentThreadIdRef.current === threadId) {
-          setSubscribableSessionId(backendId);
-        }
-        const backendTitle = newThread.title;
-        if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-          setThreadMetadata((prev) => {
-            var _a;
-            const next = new Map(prev);
-            const existing = next.get(threadId);
-            const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-            next.set(threadId, {
-              title: backendTitle,
-              status: nextStatus,
-              lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
-            });
-            return next;
-          });
-        }
-        const pendingMessages = pendingChatMessagesRef.current.get(threadId);
-        if (pendingMessages == null ? void 0 : pendingMessages.length) {
-          pendingChatMessagesRef.current.delete(threadId);
-          for (const text of pendingMessages) {
-            try {
-              await backendApiRef.current.postChatMessage(backendId, text);
-            } catch (error) {
-              console.error("Failed to send queued message:", error);
-            }
-          }
-          await flushPendingSystemMessages(threadId);
-          if (currentThreadIdRef.current === threadId) {
-            startPolling();
-          }
-        }
-      }).catch((error) => {
-        console.error("Failed to create backend session:", error);
-        createThreadPromiseRef.current = null;
-      }).finally(() => {
-        createThreadPromiseRef.current = null;
-      });
-      createThreadPromiseRef.current = createPromise;
-    },
-    [
-      bumpUpdateSubscriptions,
-      flushPendingSystemMessages,
-      isThreadReady,
-      publicKey,
-      setThreadMetadata,
-      startPolling
-    ]
-  );
-  const onNew = (0, import_react13.useCallback)(
-    async (message) => {
-      const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
-      if (!text) return;
-      const userMessage = {
-        role: "user",
-        content: [{ type: "text", text }],
-        createdAt: /* @__PURE__ */ new Date()
-      };
-      setThreadMessages(currentThreadId, [...currentMessages, userMessage]);
-      updateThreadMetadata(currentThreadId, { lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (!isThreadReady(currentThreadId)) {
-        console.log("Thread not ready yet; queuing message for later delivery.");
-        setIsRunning(true);
-        const pending = pendingChatMessagesRef.current.get(currentThreadId) || [];
-        pendingChatMessagesRef.current.set(currentThreadId, [...pending, text]);
-        ensureBackendSessionForThread(currentThreadId);
-        return;
-      }
-      const backendThreadId = resolveThreadId(currentThreadId);
-      try {
-        setIsRunning(true);
-        await backendApiRef.current.postChatMessage(backendThreadId, text);
-        setSubscribableSessionId(backendThreadId);
-        await flushPendingSystemMessages(currentThreadId);
-        startPolling();
-      } catch (error) {
-        console.error("Failed to send message:", error);
-        setIsRunning(false);
-      }
-    },
-    [
-      currentThreadId,
-      currentMessages,
-      ensureBackendSessionForThread,
-      flushPendingSystemMessages,
-      setThreadMessages,
-      startPolling,
-      isThreadReady,
-      resolveThreadId,
-      updateThreadMetadata
-    ]
-  );
-  const sendSystemMessage = (0, import_react13.useCallback)(
-    async (message) => {
-      if (!isThreadReady(currentThreadId)) {
-        const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
-        pendingSystemMessagesRef.current.set(currentThreadId, [...pending, message]);
-        ensureBackendSessionForThread(currentThreadId);
-        return;
-      }
-      const threadMessages = getThreadMessages(currentThreadId);
-      const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
-      if (!hasUserMessages) {
-        const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
-        pendingSystemMessagesRef.current.set(currentThreadId, [...pending, message]);
-        return;
-      }
-      await sendSystemMessageNow(currentThreadId, message);
-    },
-    [
-      currentThreadId,
-      ensureBackendSessionForThread,
-      getThreadMessages,
-      isThreadReady,
-      sendSystemMessageNow
-    ]
-  );
-  const onCancel = (0, import_react13.useCallback)(async () => {
-    if (!isThreadReady(currentThreadId)) return;
-    stopPolling();
-    const backendThreadId = resolveThreadId(currentThreadId);
+    currentThreadIdRef,
+    isThreadReady: idMapping.isThreadReady,
+    resolveThreadId: idMapping.resolveThreadId,
+    applyMessagesForThread: messageStore.applyMessagesForThread,
+    handleBackendSystemEvents
+  });
+  const updates = useThreadUpdates({
+    backendApiRef,
+    findTempIdForBackendId: idMapping.findTempIdForBackendId,
+    handleWalletTxRequest,
+    setThreadMetadata,
+    creatingThreadIdRef
+  });
+  const messaging = useThreadMessaging({
+    backendApiRef,
+    publicKey,
+    currentThreadId,
+    currentMessages,
+    currentThreadIdRef,
+    getThreadMessages,
+    setThreadMessages,
+    setThreadMetadata,
+    updateThreadMetadata,
+    setIsRunning: polling.setIsRunning,
+    startPolling: polling.startPolling,
+    resolveThreadId: idMapping.resolveThreadId,
+    isThreadReady: idMapping.isThreadReady,
+    bindBackendId: idMapping.bindBackendId,
+    bumpUpdateSubscriptions: updates.bumpUpdateSubscriptions,
+    setSubscribableSessionId: updates.setSubscribableSessionId,
+    pendingChatMessagesRef,
+    pendingSystemMessagesRef,
+    skipInitialFetchRef,
+    creatingThreadIdRef,
+    createThreadPromiseRef
+  });
+  useThreadStateSync({
+    backendApiRef,
+    currentThreadId,
+    currentThreadIdRef,
+    resolveThreadId: idMapping.resolveThreadId,
+    isThreadReady: idMapping.isThreadReady,
+    hasBackendId: idMapping.hasBackendId,
+    skipInitialFetchRef,
+    creatingThreadIdRef,
+    setSubscribableSessionId: updates.setSubscribableSessionId,
+    setIsRunning: polling.setIsRunning,
+    startPolling: polling.startPolling,
+    stopPolling: polling.stopPolling,
+    applyMessagesForThread: messageStore.applyMessagesForThread,
+    handleBackendSystemEvents
+  });
+  useThreadListSync({
+    backendApiRef,
+    publicKey,
+    threadMetadata,
+    threadCnt,
+    setThreadMetadata,
+    setThreadCnt
+  });
+  const lifecycle = useThreadLifecycle({
+    backendApiRef,
+    currentThreadId,
+    currentThreadIdRef,
+    threadMetadata,
+    setThreadMetadata,
+    setThreadMessages,
+    setThreads,
+    setCurrentThreadId,
+    updateThreadMetadata,
+    bumpThreadViewKey,
+    stopPolling: polling.stopPolling,
+    interruptThread: polling.interruptThread,
+    isRunning: polling.isRunning,
+    setIsRunning: polling.setIsRunning,
+    pendingChatMessagesRef,
+    pendingSystemMessagesRef,
+    creatingThreadIdRef,
+    createThreadPromiseRef
+  });
+  const threadListAdapter = useThreadListAdapter({
+    currentThreadId,
+    threadMetadata,
+    onSwitchToNewThread: lifecycle.onSwitchToNewThread,
+    onSwitchToThread: lifecycle.onSwitchToThread,
+    onRename: lifecycle.onRename,
+    onArchive: lifecycle.onArchive,
+    onUnarchive: lifecycle.onUnarchive,
+    onDelete: lifecycle.onDelete
+  });
+  const onCancel = (0, import_react25.useCallback)(async () => {
+    if (!idMapping.isThreadReady(currentThreadId)) return;
+    polling.stopPolling();
+    const backendThreadId = idMapping.resolveThreadId(currentThreadId);
     try {
       await backendApiRef.current.postInterrupt(backendThreadId);
-      setIsRunning(false);
+      polling.setIsRunning(false);
     } catch (error) {
       console.error("Failed to cancel:", error);
     }
-  }, [currentThreadId, stopPolling, isThreadReady, resolveThreadId]);
-  const runtime = (0, import_react14.useExternalStoreRuntime)({
+  }, [backendApiRef, currentThreadId, idMapping, polling]);
+  const runtime = (0, import_react26.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => setThreadMessages(currentThreadId, [...msgs]),
-    isRunning,
-    onNew,
+    isRunning: polling.isRunning,
+    onNew: messaging.onNew,
     onCancel,
     convertMessage: (msg) => msg,
     adapters: {
       threadList: threadListAdapter
-      // 🎯 Thread list adapter enabled!
     }
   });
-  (0, import_react13.useEffect)(() => {
+  (0, import_react25.useEffect)(() => {
     if (isTempThreadId(currentThreadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
     if (hasUserMessages) {
-      void flushPendingSystemMessages(currentThreadId);
+      void messaging.flushPendingSystemMessages(currentThreadId);
     }
-  }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
-  const applyTitleChanged = (0, import_react13.useCallback)(
-    (sessionId, newTitle) => {
-      const tempId = findTempIdForBackendId(sessionId);
-      const threadIdToUpdate = tempId || sessionId;
-      setThreadMetadata((prev) => {
-        var _a;
-        const next = new Map(prev);
-        const existing = next.get(threadIdToUpdate);
-        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-        const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-        next.set(threadIdToUpdate, {
-          title: normalizedTitle,
-          status: nextStatus,
-          lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
-        });
-        return next;
-      });
-      if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
-        creatingThreadIdRef.current = null;
-      }
-    },
-    [findTempIdForBackendId, setThreadMetadata]
-  );
-  const drainEvents = (0, import_react13.useCallback)(
-    async (sessionId) => {
-      var _a;
-      if (eventsInFlightRef.current.has(sessionId)) return;
-      eventsInFlightRef.current.add(sessionId);
-      try {
-        let afterId = (_a = lastEventIdBySessionRef.current.get(sessionId)) != null ? _a : 0;
-        for (; ; ) {
-          const events = await backendApiRef.current.fetchEventsAfter(sessionId, afterId, 200);
-          if (!events.length) break;
-          for (const event of events) {
-            const eventId = typeof event.event_id === "number" ? event.event_id : Number(event.event_id);
-            if (Number.isFinite(eventId)) afterId = Math.max(afterId, eventId);
-            if (event.type === "title_changed" && typeof event.new_title === "string") {
-              applyTitleChanged(sessionId, event.new_title);
-            }
-            if (event.type === "wallet_tx_request") {
-              const payload = event.payload;
-              if (payload && typeof payload === "object") {
-                const req = payload;
-                if (typeof req.to === "string" && typeof req.value === "string" && typeof req.data === "string") {
-                  const threadId = findTempIdForBackendId(sessionId) || sessionId;
-                  handleWalletTxRequest(sessionId, threadId, req);
-                }
-              }
-            }
-          }
-          if (events.length < 200) break;
-        }
-        lastEventIdBySessionRef.current.set(sessionId, afterId);
-      } catch (error) {
-        console.error("Failed to fetch async events:", error);
-      } finally {
-        eventsInFlightRef.current.delete(sessionId);
-      }
-    },
-    [applyTitleChanged, findTempIdForBackendId, handleWalletTxRequest]
-  );
-  const ensureUpdateSubscription = (0, import_react13.useCallback)(
-    (sessionId) => {
-      if (updateSubscriptionsRef.current.has(sessionId)) return;
-      const unsubscribe = backendApiRef.current.subscribeToUpdates(
-        sessionId,
-        (update) => {
-          if (update.type !== "event_available") return;
-          void drainEvents(update.session_id);
-        },
-        (error) => {
-          console.error("Failed to handle system update SSE:", error);
-        }
-      );
-      updateSubscriptionsRef.current.set(sessionId, unsubscribe);
-    },
-    [drainEvents]
-  );
-  const removeUpdateSubscription = (0, import_react13.useCallback)((sessionId) => {
-    const unsubscribe = updateSubscriptionsRef.current.get(sessionId);
-    if (!unsubscribe) return;
-    unsubscribe();
-    updateSubscriptionsRef.current.delete(sessionId);
-  }, []);
-  (0, import_react13.useEffect)(() => {
-    const nextSessions = /* @__PURE__ */ new Set();
-    if (subscribableSessionId) {
-      nextSessions.add(subscribableSessionId);
-    }
-    for (const sessionId of updateSubscriptionsRef.current.keys()) {
-      if (!nextSessions.has(sessionId)) {
-        removeUpdateSubscription(sessionId);
-      }
-    }
-    for (const sessionId of nextSessions) {
-      ensureUpdateSubscription(sessionId);
-    }
-  }, [
-    ensureUpdateSubscription,
-    removeUpdateSubscription,
-    subscribableSessionId,
-    updateSubscriptionsTick
-  ]);
-  (0, import_react13.useEffect)(() => {
-    return () => {
-      for (const unsubscribe of updateSubscriptionsRef.current.values()) {
-        unsubscribe();
-      }
-      updateSubscriptionsRef.current.clear();
-    };
-  }, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react14.AssistantRuntimeProvider, { runtime, children }) });
+  }, [currentMessages, currentThreadId, messaging.flushPendingSystemMessages]);
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(RuntimeActionsContext.Provider, { value: { sendSystemMessage: messaging.sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react26.AssistantRuntimeProvider, { runtime, children }) });
 }
 
 // src/utils/wallet.ts
-var import_react15 = require("react");
+var import_react27 = require("react");
 var getNetworkName = (chainId) => {
   if (chainId === void 0) return "";
   const id = typeof chainId === "string" ? Number(chainId) : chainId;
@@ -3864,8 +4263,8 @@ var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` :
 function WalletSystemMessageEmitter({ wallet }) {
   const { sendSystemMessage } = useRuntimeActions();
   const { showNotification } = useNotification();
-  const lastWalletRef = (0, import_react15.useRef)({ isConnected: false });
-  (0, import_react15.useEffect)(() => {
+  const lastWalletRef = (0, import_react27.useRef)({ isConnected: false });
+  (0, import_react27.useEffect)(() => {
     const prev = lastWalletRef.current;
     const { address, chainId, isConnected } = wallet;
     const normalizedAddress = address == null ? void 0 : address.toLowerCase();
@@ -3915,7 +4314,7 @@ function WalletSystemMessageEmitter({ wallet }) {
 
 // src/components/assistant-ui/notification.tsx
 var import_lucide_react10 = require("lucide-react");
-var import_react16 = require("react");
+var import_react28 = require("react");
 var import_jsx_runtime21 = require("react/jsx-runtime");
 function NotificationContainer() {
   const { notifications, dismissNotification } = useNotification();
@@ -3930,8 +4329,8 @@ function NotificationContainer() {
   )) });
 }
 function NotificationItem({ notification, onDismiss }) {
-  const timeoutRef = (0, import_react16.useRef)(null);
-  (0, import_react16.useEffect)(() => {
+  const timeoutRef = (0, import_react28.useRef)(null);
+  (0, import_react28.useEffect)(() => {
     if (notification.duration && notification.duration > 0) {
       timeoutRef.current = setTimeout(() => {
         onDismiss(notification.id);
@@ -4027,13 +4426,13 @@ var AomiFrame = ({
   var _a;
   const backendUrl = (_a = process.env.NEXT_PUBLIC_BACKEND_URL) != null ? _a : "http://localhost:8080";
   const frameStyle = __spreadValues({ width, height }, style);
-  const [wallet, setWalletState] = (0, import_react17.useState)({
+  const [wallet, setWalletState] = (0, import_react29.useState)({
     isConnected: false,
     address: void 0,
     chainId: void 0,
     ensName: void 0
   });
-  const setWallet = (0, import_react17.useCallback)((data) => {
+  const setWallet = (0, import_react29.useCallback)((data) => {
     setWalletState((prev) => __spreadValues(__spreadValues({}, prev), data));
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NotificationProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(

@@ -21,10 +21,12 @@ src/
 │   └── ui/                     # Primitives (button, dialog, sidebar)
 ├── lib/
 │   ├── backend-api.ts          # HTTP client
+│   ├── runtime-utils.ts # Runtime helpers
 │   ├── thread-context.tsx      # State management
 │   └── conversion.ts           # Message transforms
 ├── utils/wallet.ts             # Wallet helpers
-└── hooks/use-mobile.ts         # Mobile detection
+├── hooks/use-mobile.ts         # Mobile detection
+└── hooks/runtime/     # Runtime hooks (polling, updates, lifecycle)
 
 example/                         # Demo Next.js app
 dist/                           # Build output

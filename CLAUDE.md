@@ -23,5 +23,6 @@ pnpm lint                 # Lint check
 **Key Files:**
 - `src/components/aomi-frame.tsx` - Main widget component
 - `src/components/assistant-ui/runtime.tsx` - Backend integration
+- `src/hooks/runtime/*` - Runtime orchestration hooks
 - `src/lib/backend-api.ts` - All network calls
 - `src/lib/thread-context.tsx` - Thread state management

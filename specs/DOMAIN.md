@@ -7,6 +7,7 @@
 - Thread state → `lib/thread-context.tsx` only
 - Message conversion → `lib/conversion.ts` only
 - Wallet events → `utils/wallet.ts` → `sendSystemMessage()` only
+- Runtime orchestration → `components/assistant-ui/runtime.tsx` + `hooks/runtime/*`
 
 **Component Hierarchy:**
 ```
@@ -37,6 +38,7 @@ AomiFrame (shell)
 | `lib/*.ts` | Core logic (API, context, conversion, utils) |
 | `utils/*.ts` | Helpers (wallet formatting) |
 | `hooks/*.ts` | Cross-cutting React hooks |
+| `hooks/runtime/*.ts` | Runtime wiring (polling, updates, thread lifecycle, wallet tx) |
 
 ## Key Types
 
