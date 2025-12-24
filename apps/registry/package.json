@@ -9,7 +9,8 @@
     "./aomi-frame": "./src/components/aomi-frame.tsx",
     "./components/ui/*": "./src/components/ui/*.tsx",
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
-    "./hooks/*": "./src/hooks/*.ts"
+    "./hooks/*": "./src/hooks/*.ts",
+    "./styles.css": "./src/styles.css"
   },
   "scripts": {
     "build": "tsx scripts/build-registry.js"
