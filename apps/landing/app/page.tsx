@@ -1,7 +1,7 @@
  "use client";
 
 import { useState } from "react";
-import { AomiFrame } from "@/components/aomi-frame";
+import { AomiFrame } from "@aomi-labs/widget-lib/aomi-frame";
 import { WalletFooter } from "@/components/wallet";
 
 const highlights = [
