@@ -1,18 +1,18 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Code2, ExternalLink, Github, Palette, Plug, Sparkles } from "lucide-react";
-import { Badge } from "@docs/components/ui/badge";
-import { Button } from "@docs/components/ui/button";
+import { Badge } from "@aomi-labs/widget-lib/components/ui/badge";
+import { Button } from "@aomi-labs/widget-lib/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@docs/components/ui/card";
-import { Separator } from "@docs/components/ui/separator";
-import { Skeleton } from "@docs/components/ui/skeleton";
-import { Preview } from "@docs/components/playground/Preview";
+} from "@aomi-labs/widget-lib/components/ui/card";
+import { Separator } from "@aomi-labs/widget-lib/components/ui/separator";
+import { Skeleton } from "@aomi-labs/widget-lib/components/ui/skeleton";
+import { Preview } from "@/components/playground/Preview";
 
 const installSnippet = `pnpm add @aomi-labs/react @assistant-ui/react @assistant-ui/react-markdown @tanstack/react-query @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-avatar @radix-ui/react-separator @radix-ui/react-tooltip framer-motion motion lucide-react react-shiki remark-gfm tailwindcss zustand`;
 
@@ -97,7 +97,7 @@ const previews = [
   },
   {
     title: "Cards & skeletons",
-    description: "Compose docs blocks, templates, and loading states quickly.",
+    description: "Compose  blocks, templates, and loading states quickly.",
     code: cardCode,
     component: <CardSkeletonShowcase />,
   },
@@ -115,7 +115,7 @@ export default function HomePage() {
             </div>
             <div>
               <p className="text-sm font-semibold">Aomi Widget</p>
-              <p className="text-xs text-muted-foreground">Docs & playground (Phase 2)</p>
+              <p className="text-xs text-muted-foreground"> & playground (Phase 2)</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -126,9 +126,9 @@ export default function HomePage() {
               </Link>
             </Button>
             <Button asChild size="sm">
-              <Link href="/docs" className="gap-2">
+              <Link href="/" className="gap-2">
                 <ArrowRight className="size-4" />
-                Docs
+                
               </Link>
             </Button>
           </div>
@@ -169,9 +169,9 @@ export default function HomePage() {
                 </Link>
                 <Link
                   className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/40 hover:text-emerald-100"
-                  href="/docs"
+                  href="/"
                 >
-                  View docs
+                  View 
                 </Link>
               </div>
             </div>
@@ -202,7 +202,7 @@ export default function HomePage() {
             </div>
             <div className="rounded-2xl border border-dashed border-primary/50 bg-primary/5 px-4 py-3 text-sm text-primary">
               Import <code className="font-mono text-primary">&quot;@aomi-labs/react/styles.css&quot;</code> inside your
-              docs app entrypoint so theme tokens and base styles apply.
+               app entrypoint so theme tokens and base styles apply.
             </div>
           </div>
         </section>
@@ -322,7 +322,7 @@ export function AIWallet() {
                   Source-aware Tailwind
                 </CardTitle>
                 <CardDescription>
-                  The docs app points Tailwind&apos;s <code className="font-mono text-sm">@source</code> at{" "}
+                  The  app points Tailwind&apos;s <code className="font-mono text-sm">@source</code> at{" "}
                   <code className="font-mono text-sm">../../src</code> so new classes in the library show up instantly.
                 </CardDescription>
               </CardHeader>
@@ -338,7 +338,7 @@ export function AIWallet() {
           <div className="flex items-center gap-3">
             <BookOpen className="size-5 text-primary" />
             <div>
-              <p className="text-sm font-semibold text-muted-foreground">Docs map</p>
+              <p className="text-sm font-semibold text-muted-foreground"> map</p>
               <h3 className="text-xl font-semibold">What&apos;s coming in this workspace</h3>
             </div>
           </div>
@@ -347,13 +347,13 @@ export function AIWallet() {
               icon={<ExternalLink className="size-4 text-primary" />}
               title="Getting started"
               body="Environment variables, providers, and peer deps to keep the assistant online."
-              href="/docs/getting-started"
+              href="//getting-started"
             />
             <GuideCard
               icon={<Palette className="size-4 text-primary" />}
               title="Theme packs"
               body="Swap palettes via CSS variables, extend tokens, and preview light/dark pairs."
-              href="/docs/theming"
+              href="//theming"
             />
             <GuideCard
               icon={<Code2 className="size-4 text-primary" />}

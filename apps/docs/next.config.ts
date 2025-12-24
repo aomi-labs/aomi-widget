@@ -7,7 +7,7 @@ const withMDX = createMDX({
   extension: /\.mdx?$/,
   options: {
     remarkPlugins: [remarkGfm],
-    providerImportSource: "@docs/mdx-provider",
+    providerImportSource: "@/mdx-provider",
   },
 });
 
@@ -19,20 +19,19 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
-    "@aomi-labs/wiget-lib",
   ],
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...(config.resolve.alias || {}),
-      "@": path.resolve(__dirname, "../../src"),
-      "@docs": path.resolve(__dirname, "./src"),
-      "@aomi-labs/widget-lib": path.resolve(__dirname, "../../src"),
-      "@aomi-labs/widget-lib/styles.css": path.resolve(__dirname, "../../src/styles.css"),
-      "@aomi-labs/react": path.resolve(__dirname, "../../packages/react/src"),
-      "@aomi-labs/react/styles.css": path.resolve(__dirname, "../../packages/react/src/styles.css"),
-    };
-    return config;
-  },
+  // webpack: (config) => {
+  //   config.resolve.alias = {
+  //     ...(config.resolve.alias || {}),
+  //     "@": path.resolve(__dirname, "../../src"),
+  //     "@docs": path.resolve(__dirname, "./src"),
+  //     "@aomi-labs/widget-lib": path.resolve(__dirname, "../../src"),
+  //     "@aomi-labs/widget-lib/styles.css": path.resolve(__dirname, "../../src/styles.css"),
+  //     "@aomi-labs/react": path.resolve(__dirname, "../../packages/react/src"),
+  //     "@aomi-labs/react/styles.css": path.resolve(__dirname, "../../packages/react/src/styles.css"),
+  //   };
+  //   return config;
+  // },
 };
 
 export default withMDX(nextConfig);
