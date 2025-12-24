@@ -1,17 +1,17 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Code2, ExternalLink, Github, Palette, Plug, Sparkles } from "lucide-react";
+import { Badge } from "@docs/components/ui/badge";
+import { Button } from "@docs/components/ui/button";
 import {
-  Badge,
-  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  Separator,
-  Skeleton,
-} from "@aomi-labs/react";
+} from "@docs/components/ui/card";
+import { Separator } from "@docs/components/ui/separator";
+import { Skeleton } from "@docs/components/ui/skeleton";
 import { Preview } from "@docs/components/playground/Preview";
 
 const installSnippet = `pnpm add @aomi-labs/react @assistant-ui/react @assistant-ui/react-markdown @tanstack/react-query @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-avatar @radix-ui/react-separator @radix-ui/react-tooltip framer-motion motion lucide-react react-shiki remark-gfm tailwindcss zustand`;

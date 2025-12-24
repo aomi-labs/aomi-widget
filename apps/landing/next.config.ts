@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    externalDir: true,
+  },
+  transpilePackages: ["@aomi-labs/wiget-lib"],
   // Stub optional native-only deps pulled in by wallet connectors so builds don't fail.
   webpack: (config) => {
     config.resolve.alias = {
