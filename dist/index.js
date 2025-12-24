@@ -2432,7 +2432,7 @@ function NotificationProvider({ children }) {
   return /* @__PURE__ */ jsx19(NotificationContext.Provider, { value: { showNotification, notifications, dismissNotification }, children });
 }
 
-// src/lib/assistant-runtime-utils.ts
+// src/lib/runtime-utils.ts
 var isTempThreadId = (id) => id.startsWith("temp-");
 var isPlaceholderTitle = (title) => {
   var _a;
@@ -2502,7 +2502,7 @@ async function pickInjectedProvider(publicKey) {
   return candidates[0];
 }
 
-// src/hooks/assistant-runtime/use-backend-api.ts
+// src/hooks/runtime/use-backend-api.ts
 import { useEffect as useEffect5, useRef as useRef2 } from "react";
 
 // src/lib/backend-api.ts
@@ -2792,7 +2792,7 @@ var BackendApi = class {
   }
 };
 
-// src/hooks/assistant-runtime/use-backend-api.ts
+// src/hooks/runtime/use-backend-api.ts
 function useBackendApi(backendUrl) {
   const backendApiRef = useRef2(new BackendApi(backendUrl));
   useEffect5(() => {
@@ -2801,7 +2801,7 @@ function useBackendApi(backendUrl) {
   return backendApiRef;
 }
 
-// src/hooks/assistant-runtime/use-backend-system-events.ts
+// src/hooks/runtime/use-backend-system-events.ts
 import { useCallback as useCallback4 } from "react";
 function useBackendSystemEvents({
   showNotification,
@@ -2849,7 +2849,7 @@ function useBackendSystemEvents({
   return { handleBackendSystemEvents };
 }
 
-// src/hooks/assistant-runtime/use-thread-id-mapping.ts
+// src/hooks/runtime/use-thread-id-mapping.ts
 import { useCallback as useCallback5, useRef as useRef3 } from "react";
 function useThreadIdMapping() {
   const tempToBackendIdRef = useRef3(/* @__PURE__ */ new Map());
@@ -2884,7 +2884,7 @@ function useThreadIdMapping() {
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-lifecycle.ts
+// src/hooks/runtime/use-thread-lifecycle.ts
 import { useCallback as useCallback6 } from "react";
 function useThreadLifecycle({
   backendApiRef,
@@ -3049,7 +3049,7 @@ function useThreadLifecycle({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-list-adapter.ts
+// src/hooks/runtime/use-thread-list-adapter.ts
 import { useMemo as useMemo2 } from "react";
 function useThreadListAdapter({
   currentThreadId,
@@ -3100,7 +3100,7 @@ function useThreadListAdapter({
   ]);
 }
 
-// src/hooks/assistant-runtime/use-thread-list-sync.ts
+// src/hooks/runtime/use-thread-list-sync.ts
 import { useEffect as useEffect6, useRef as useRef4 } from "react";
 function useThreadListSync({
   backendApiRef,
@@ -3155,7 +3155,7 @@ function useThreadListSync({
   }, [backendApiRef, publicKey, setThreadCnt, setThreadMetadata]);
 }
 
-// src/hooks/assistant-runtime/use-thread-message-store.ts
+// src/hooks/runtime/use-thread-message-store.ts
 import { useCallback as useCallback7 } from "react";
 
 // src/lib/conversion.ts
@@ -3218,7 +3218,7 @@ function parseToolStream(toolStream) {
   return null;
 }
 
-// src/hooks/assistant-runtime/use-thread-message-store.ts
+// src/hooks/runtime/use-thread-message-store.ts
 function useThreadMessageStore({
   setThreadMessages,
   pendingChatMessagesRef
@@ -3255,7 +3255,7 @@ function useThreadMessageStore({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-messaging.ts
+// src/hooks/runtime/use-thread-messaging.ts
 import { useCallback as useCallback8 } from "react";
 function useThreadMessaging({
   backendApiRef,
@@ -3473,7 +3473,7 @@ function useThreadMessaging({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-polling.ts
+// src/hooks/runtime/use-thread-polling.ts
 import { useCallback as useCallback9, useEffect as useEffect7, useRef as useRef5, useState as useState8 } from "react";
 function useThreadPolling({
   backendApiRef,
@@ -3557,7 +3557,7 @@ function useThreadPolling({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-state-sync.ts
+// src/hooks/runtime/use-thread-state-sync.ts
 import { useEffect as useEffect8 } from "react";
 function useThreadStateSync({
   backendApiRef,
@@ -3644,8 +3644,13 @@ function useThreadStateSync({
   ]);
 }
 
-// src/hooks/assistant-runtime/use-thread-updates.ts
-import { useCallback as useCallback10, useEffect as useEffect9, useRef as useRef6, useState as useState9 } from "react";
+// src/hooks/runtime/use-thread-updates.ts
+import {
+  useCallback as useCallback10,
+  useEffect as useEffect9,
+  useRef as useRef6,
+  useState as useState9
+} from "react";
 function useThreadUpdates({
   backendApiRef,
   findTempIdForBackendId,
@@ -3779,7 +3784,7 @@ function useThreadUpdates({
   };
 }
 
-// src/hooks/assistant-runtime/use-wallet-tx.ts
+// src/hooks/runtime/use-wallet-tx.ts
 import { useCallback as useCallback11, useRef as useRef7 } from "react";
 function useWalletTx({
   backendApiRef,

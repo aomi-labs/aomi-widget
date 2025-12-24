@@ -2515,7 +2515,7 @@ function NotificationProvider({ children }) {
   return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(NotificationContext.Provider, { value: { showNotification, notifications, dismissNotification }, children });
 }
 
-// src/lib/assistant-runtime-utils.ts
+// src/lib/runtime-utils.ts
 var isTempThreadId = (id) => id.startsWith("temp-");
 var isPlaceholderTitle = (title) => {
   var _a;
@@ -2585,7 +2585,7 @@ async function pickInjectedProvider(publicKey) {
   return candidates[0];
 }
 
-// src/hooks/assistant-runtime/use-backend-api.ts
+// src/hooks/runtime/use-backend-api.ts
 var import_react13 = require("react");
 
 // src/lib/backend-api.ts
@@ -2875,7 +2875,7 @@ var BackendApi = class {
   }
 };
 
-// src/hooks/assistant-runtime/use-backend-api.ts
+// src/hooks/runtime/use-backend-api.ts
 function useBackendApi(backendUrl) {
   const backendApiRef = (0, import_react13.useRef)(new BackendApi(backendUrl));
   (0, import_react13.useEffect)(() => {
@@ -2884,7 +2884,7 @@ function useBackendApi(backendUrl) {
   return backendApiRef;
 }
 
-// src/hooks/assistant-runtime/use-backend-system-events.ts
+// src/hooks/runtime/use-backend-system-events.ts
 var import_react14 = require("react");
 function useBackendSystemEvents({
   showNotification,
@@ -2932,7 +2932,7 @@ function useBackendSystemEvents({
   return { handleBackendSystemEvents };
 }
 
-// src/hooks/assistant-runtime/use-thread-id-mapping.ts
+// src/hooks/runtime/use-thread-id-mapping.ts
 var import_react15 = require("react");
 function useThreadIdMapping() {
   const tempToBackendIdRef = (0, import_react15.useRef)(/* @__PURE__ */ new Map());
@@ -2967,7 +2967,7 @@ function useThreadIdMapping() {
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-lifecycle.ts
+// src/hooks/runtime/use-thread-lifecycle.ts
 var import_react16 = require("react");
 function useThreadLifecycle({
   backendApiRef,
@@ -3132,7 +3132,7 @@ function useThreadLifecycle({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-list-adapter.ts
+// src/hooks/runtime/use-thread-list-adapter.ts
 var import_react17 = require("react");
 function useThreadListAdapter({
   currentThreadId,
@@ -3183,7 +3183,7 @@ function useThreadListAdapter({
   ]);
 }
 
-// src/hooks/assistant-runtime/use-thread-list-sync.ts
+// src/hooks/runtime/use-thread-list-sync.ts
 var import_react18 = require("react");
 function useThreadListSync({
   backendApiRef,
@@ -3238,7 +3238,7 @@ function useThreadListSync({
   }, [backendApiRef, publicKey, setThreadCnt, setThreadMetadata]);
 }
 
-// src/hooks/assistant-runtime/use-thread-message-store.ts
+// src/hooks/runtime/use-thread-message-store.ts
 var import_react19 = require("react");
 
 // src/lib/conversion.ts
@@ -3301,7 +3301,7 @@ function parseToolStream(toolStream) {
   return null;
 }
 
-// src/hooks/assistant-runtime/use-thread-message-store.ts
+// src/hooks/runtime/use-thread-message-store.ts
 function useThreadMessageStore({
   setThreadMessages,
   pendingChatMessagesRef
@@ -3338,7 +3338,7 @@ function useThreadMessageStore({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-messaging.ts
+// src/hooks/runtime/use-thread-messaging.ts
 var import_react20 = require("react");
 function useThreadMessaging({
   backendApiRef,
@@ -3556,7 +3556,7 @@ function useThreadMessaging({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-polling.ts
+// src/hooks/runtime/use-thread-polling.ts
 var import_react21 = require("react");
 function useThreadPolling({
   backendApiRef,
@@ -3640,7 +3640,7 @@ function useThreadPolling({
   };
 }
 
-// src/hooks/assistant-runtime/use-thread-state-sync.ts
+// src/hooks/runtime/use-thread-state-sync.ts
 var import_react22 = require("react");
 function useThreadStateSync({
   backendApiRef,
@@ -3727,7 +3727,7 @@ function useThreadStateSync({
   ]);
 }
 
-// src/hooks/assistant-runtime/use-thread-updates.ts
+// src/hooks/runtime/use-thread-updates.ts
 var import_react23 = require("react");
 function useThreadUpdates({
   backendApiRef,
@@ -3862,7 +3862,7 @@ function useThreadUpdates({
   };
 }
 
-// src/hooks/assistant-runtime/use-wallet-tx.ts
+// src/hooks/runtime/use-wallet-tx.ts
 var import_react24 = require("react");
 function useWalletTx({
   backendApiRef,

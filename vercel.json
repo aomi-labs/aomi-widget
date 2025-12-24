@@ -2,3 +2,4 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm run vercel-build"
 }
+
