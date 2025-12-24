@@ -140,9 +140,6 @@ importers:
     dependencies:
       '@aomi-labs/react':
         specifier: workspace:*
-        version: link:../../packages/react
-      '@aomi-labs/widget-lib':
-        specifier: workspace:*
         version: link:../..
       '@assistant-ui/react':
         specifier: ^0.11.28
@@ -247,7 +244,7 @@ importers:
       '@ai-sdk/openai':
         specifier: ^2.0.73
         version: 2.0.73(zod@4.1.13)
-      '@aomi-labs/widget-lib':
+      '@aomi-labs/react':
         specifier: workspace:*
         version: link:../..
       '@assistant-ui/react':
@@ -367,7 +364,7 @@ importers:
     dependencies:
       '@aomi-labs/react':
         specifier: workspace:*
-        version: link:../../packages/react
+        version: link:../..
     devDependencies:
       tsx:
         specifier: ^4.21.0

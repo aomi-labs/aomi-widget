@@ -2,7 +2,7 @@
   "name": "landing",
   "version": "1.0.0",
   "private": true,
-  "description": "Landing/demo app consuming @aomi-labs/widget-lib",
+  "description": "Landing/demo app consuming @aomi-labs/react",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -16,7 +16,7 @@
     "tailwindStylesheet": "app/globals.css"
   },
   "dependencies": {
-    "@aomi-labs/widget-lib": "workspace:*",
+    "@aomi-labs/react": "workspace:*",
     "@ai-sdk/openai": "^2.0.73",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-ai-sdk": "^1.1.13",
