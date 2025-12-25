@@ -29,7 +29,6 @@ export function AomiRuntimeProvider({
   backendUrl = "http://localhost:8080",
   publicKey,
 }: Readonly<AomiRuntimeProviderProps>) {
-
   // Get contextual state from ThreadContextProvider
   const threadContext = useThreadContext();
   const threadContextRef = useRef(threadContext);
@@ -112,6 +111,7 @@ export function AomiRuntimeProvider({
   }, [backendApiRef, backendStateRef, threadContext]);
 
   useEffect(() => {
+    // Once a temp thread is mapped, flush any queued chat messages.
     if (!isTempThreadId(currentThreadId)) return;
     if (!isThreadReady(backendStateRef.current, currentThreadId)) return;
     void messageController.flushPendingChat(currentThreadId);
@@ -134,6 +134,7 @@ export function AomiRuntimeProvider({
   });
 
   useEffect(() => {
+    // After a user message lands, flush any queued system message.
     if (isTempThreadId(currentThreadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
     if (hasUserMessages) {
@@ -142,6 +143,7 @@ export function AomiRuntimeProvider({
   }, [currentMessages, messageController, currentThreadId]);
 
   useEffect(() => {
+    // Clean up polling when the provider unmounts.
     return () => {
       polling.stopAll();
     };
