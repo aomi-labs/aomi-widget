@@ -14,8 +14,6 @@ import { Separator } from "@aomi-labs/widget-lib/components/ui/separator";
 import { Skeleton } from "@aomi-labs/widget-lib/components/ui/skeleton";
 import { Preview } from "@/components/playground/Preview";
 
-export const dynamic = "force-dynamic";
-
 const installSnippet = `pnpm add @aomi-labs/react @assistant-ui/react @assistant-ui/react-markdown @tanstack/react-query @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-avatar @radix-ui/react-separator @radix-ui/react-tooltip framer-motion motion lucide-react react-shiki remark-gfm tailwindcss zustand`;
 
 const highlights = [
