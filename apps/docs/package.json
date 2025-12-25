@@ -4,6 +4,7 @@
   "private": true,
   "description": "Docs and playground for @aomi-labs/react",
   "scripts": {
+    "postinstall": "fumadocs-mdx",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -48,6 +49,10 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
+    "fumadocs-core": "^16.4.0",
+    "fumadocs-mdx": "^14.2.2",
+    "fumadocs-twoslash": "^3.1.10",
+    "fumadocs-ui": "^16.4.0",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
     "tailwindcss": "^4",
