@@ -1,6 +1,7 @@
 import {
   defineConfig,
   defineDocs,
+  defineCollections,
   frontmatterSchema,
   metaSchema,
 } from "fumadocs-mdx/config";
@@ -23,6 +24,12 @@ export const docs = defineDocs({
       description: z.string().optional(),
     }),
   },
+});
+
+export const examples = defineCollections({
+  type: "doc",
+  dir: "content/examples",
+  schema: frontmatterSchema,
 });
 
 export default defineConfig({
