@@ -1,0 +1,18 @@
+---
+title: Evals
+description: How to evaluate prompts, tools, and wallet flows safely.
+---
+
+# Evals
+
+Build small evaluation suites to keep regressions out of production.
+
+## What to cover
+
+- Prompt changes that affect core intents (portfolio, transfers).
+- Tool argument validation, especially around amounts and destinations.
+- Wallet edge cases like network mismatches and rejected signatures.
+
+## Running checks
+
+Use lightweight scripts or Playwright snippets to replay conversations against staging before deploying.

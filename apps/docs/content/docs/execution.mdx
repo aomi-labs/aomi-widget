@@ -1,0 +1,18 @@
+---
+title: Execution
+description: Guide to running transactions and tool calls through the widget.
+---
+
+# Execution
+
+Execution flows keep the user in control while the assistant guides the steps.
+
+## Flow
+
+1. User describes an intent in chat.
+2. Assistant proposes actions and gathers confirmations.
+3. Wallet prompts appear via AppKit; signed payloads return to your backend to finalize.
+
+## Safeguards
+
+Validate every step server-side, enforce chain allowlists, and surface clear status messages in the UI.

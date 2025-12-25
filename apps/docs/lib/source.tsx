@@ -4,7 +4,7 @@ import { toFumadocsSource } from "fumadocs-mdx/runtime/server";
 import {
   docs,
   examples as examplePages,
-} from "fumadocs-mdx:collections/server";
+} from "@/.source/server";
 
 export const source = loader({
   baseUrl: "/docs",

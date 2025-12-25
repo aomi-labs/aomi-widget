@@ -16,6 +16,7 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*", "../registry/src/*"],
+      "@/.source/*": ["./.source/*"],
       "@/app/*": ["./app/*"],
       "@/lib/*": ["./lib/*"],
       "@docs/*": ["./src/*"],
