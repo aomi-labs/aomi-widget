@@ -13,7 +13,16 @@ export function SidebarNav({ sections, currentSlug }: SidebarNavProps) {
     <nav className="space-y-6 text-sm">
       {sections.map((section) => (
         <div key={section.title} className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{section.title}</p>
+          {section.items[0] ? (
+            <Link
+              href={`/docs/${section.items[0].slug}`}
+              className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground transition hover:text-foreground"
+            >
+              {section.title}
+            </Link>
+          ) : (
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{section.title}</p>
+          )}
           <div className="space-y-1">
             {section.items.map((item) => {
               const isActive = item.slug === currentSlug;

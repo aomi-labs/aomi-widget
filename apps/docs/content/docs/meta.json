@@ -1,0 +1,29 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "about-aomi",
+    "---Getting Started---",
+    "components",
+    "customization",
+    "styling",
+    "---Guides---",
+    "architecture",
+    "examples",
+    "---API Reference---",
+    "api",
+    "api-endpoints",
+    "---Advanced---",
+    "runtime",
+    "execution",
+    "sdk",
+    "cli",
+    "---Platform---",
+    "aomi-apps",
+    "platform-support",
+    "evals",
+    "npm-package",
+    "script-generation"
+  ],
+  "root": true
+}
