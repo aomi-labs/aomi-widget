@@ -6,7 +6,7 @@ import { useAssistantRuntime } from "@assistant-ui/react";
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useRuntimeActions } from "../hooks";
-import { useRuntimeOrchestration } from "../orchestrator";
+import { useRuntimeOrchestration } from "../orchestration";
 import { PollingController } from "../polling-controller";
 import type { BackendThreadMetadata, CreateThreadResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";

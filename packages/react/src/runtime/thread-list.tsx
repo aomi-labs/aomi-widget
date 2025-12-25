@@ -24,6 +24,9 @@ const sortByLastActiveDesc = (
   return tsB - tsA;
 };
 
+const DEFAULT_THREAD_TITLE = "New Chat";
+const DEFAULT_SESSION_ID = "default-session";
+
 function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
   const entries = Array.from(threadMetadata.entries()).filter(
     ([, meta]) => !isPlaceholderTitle(meta.title)
@@ -34,7 +37,7 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
     .sort(sortByLastActiveDesc)
     .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
       id,
-      title: meta.title || "New Chat",
+      title: meta.title || DEFAULT_THREAD_TITLE,
       status: "regular",
     }));
 
@@ -43,11 +46,78 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
     .sort(sortByLastActiveDesc)
     .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
       id,
-      title: meta.title || "New Chat",
+      title: meta.title || DEFAULT_THREAD_TITLE,
       status: "archived",
     }));
 
   return { regularThreads, archivedThreads };
+}
+
+function deleteThreadFromContext(context: ThreadContext, threadId: string) {
+  context.setThreadMetadata((prev) => {
+    const next = new Map(prev);
+    next.delete(threadId);
+    return next;
+  });
+  context.setThreads((prev) => {
+    const next = new Map(prev);
+    next.delete(threadId);
+    return next;
+  });
+}
+
+function clearPendingQueues(backendState: BakendState, threadId: string) {
+  backendState.pendingChat.delete(threadId);
+  backendState.pendingSystem.delete(threadId);
+}
+
+function clearPendingThreadState(backendState: BakendState, threadId: string) {
+  clearPendingQueues(backendState, threadId);
+  backendState.tempToBackendId.delete(threadId);
+  backendState.skipInitialFetch.delete(threadId);
+}
+
+function updateTitleFromBackend(
+  context: ThreadContext,
+  threadId: string,
+  backendTitle?: string | null
+) {
+  if (!backendTitle || isPlaceholderTitle(backendTitle)) return;
+
+  context.setThreadMetadata((prev) => {
+    const next = new Map(prev);
+    const existing = next.get(threadId);
+    const nextStatus = existing?.status === "archived" ? "archived" : "regular";
+    next.set(threadId, {
+      title: backendTitle,
+      status: nextStatus,
+      lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+    });
+    return next;
+  });
+}
+
+function ensureFallbackThread(context: ThreadContext, removedId: string) {
+  if (context.currentThreadId !== removedId) return;
+
+  const firstRegularThread = Array.from(context.threadMetadata.entries()).find(
+    ([id, meta]) => meta.status === "regular" && id !== removedId
+  );
+
+  if (firstRegularThread) {
+    context.setCurrentThreadId(firstRegularThread[0]);
+    return;
+  }
+
+  context.setThreadMetadata((prev) =>
+    new Map(prev).set(DEFAULT_SESSION_ID, {
+      title: DEFAULT_THREAD_TITLE,
+      status: "regular",
+      lastActiveAt: new Date().toISOString(),
+    })
+  );
+  context.setThreadMessages(DEFAULT_SESSION_ID, []);
+  context.setCurrentThreadId(DEFAULT_SESSION_ID);
 }
 
 type ThreadListAdapterParams = {
@@ -79,21 +149,8 @@ export function useThreadListAdapter({
   const removePendingThread = useCallback(
     (threadId: string) => {
       const currentContext = threadContextRef.current;
-      currentContext.setThreadMetadata((prev) => {
-        const next = new Map(prev);
-        next.delete(threadId);
-        return next;
-      });
-      currentContext.setThreads((prev) => {
-        const next = new Map(prev);
-        next.delete(threadId);
-        return next;
-      });
-      const backendState = backendStateRef.current;
-      backendState.pendingChat.delete(threadId);
-      backendState.pendingSystem.delete(threadId);
-      backendState.tempToBackendId.delete(threadId);
-      backendState.skipInitialFetch.delete(threadId);
+      deleteThreadFromContext(currentContext, threadId);
+      clearPendingThreadState(backendStateRef.current, threadId);
     },
     [backendStateRef, threadContextRef]
   );
@@ -106,12 +163,11 @@ export function useThreadListAdapter({
         removePendingThread(previousPendingId);
       }
       backendState.creatingThreadId = threadId;
-      backendState.pendingChat.delete(threadId);
-      backendState.pendingSystem.delete(threadId);
+      clearPendingQueues(backendState, threadId);
       const currentContext = threadContextRef.current;
       currentContext.setThreadMetadata((prev) =>
         new Map(prev).set(threadId, {
-          title: "New Chat",
+          title: DEFAULT_THREAD_TITLE,
           status: "pending",
           lastActiveAt: new Date().toISOString(),
         })
@@ -158,21 +214,7 @@ export function useThreadListAdapter({
         setBackendMapping(backendState, uiThreadId, backendId);
         markSkipInitialFetch(backendState, uiThreadId);
 
-        const backendTitle = newThread.title;
-        if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-          const currentContext = threadContextRef.current;
-          currentContext.setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(uiThreadId);
-            const nextStatus = existing?.status === "archived" ? "archived" : "regular";
-            next.set(uiThreadId, {
-              title: backendTitle,
-              status: nextStatus,
-              lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
-            });
-            return next;
-          });
-        }
+        updateTitleFromBackend(threadContextRef.current, uiThreadId, newThread.title);
 
         if (backendState.creatingThreadId === uiThreadId) {
           backendState.creatingThreadId = null;
@@ -196,17 +238,7 @@ export function useThreadListAdapter({
       .catch((error) => {
         console.error("Failed to create new thread:", error);
         const failedId = backendState.creatingThreadId ?? tempId;
-        const currentContext = threadContextRef.current;
-        currentContext.setThreadMetadata((prev) => {
-          const next = new Map(prev);
-          next.delete(failedId);
-          return next;
-        });
-        currentContext.setThreads((prev) => {
-          const next = new Map(prev);
-          next.delete(failedId);
-          return next;
-        });
+        deleteThreadFromContext(threadContextRef.current, failedId);
         if (backendState.creatingThreadId === failedId) {
           backendState.creatingThreadId = null;
         }
@@ -289,46 +321,15 @@ export function useThreadListAdapter({
         await backendApiRef.current.deleteThread(threadId);
 
         const currentContext = threadContextRef.current;
-        currentContext.setThreadMetadata((prev) => {
-          const next = new Map(prev);
-          next.delete(threadId);
-          return next;
-        });
-        currentContext.setThreads((prev) => {
-          const next = new Map(prev);
-          next.delete(threadId);
-          return next;
-        });
+        deleteThreadFromContext(currentContext, threadId);
         const backendState = backendStateRef.current;
-        backendState.pendingChat.delete(threadId);
-        backendState.pendingSystem.delete(threadId);
-        backendState.tempToBackendId.delete(threadId);
-        backendState.skipInitialFetch.delete(threadId);
+        clearPendingThreadState(backendState, threadId);
         backendState.runningThreads.delete(threadId);
         if (backendState.creatingThreadId === threadId) {
           backendState.creatingThreadId = null;
         }
 
-        if (currentContext.currentThreadId === threadId) {
-          const firstRegularThread = Array.from(currentContext.threadMetadata.entries()).find(
-            ([id, meta]) => meta.status === "regular" && id !== threadId
-          );
-
-          if (firstRegularThread) {
-            currentContext.setCurrentThreadId(firstRegularThread[0]);
-          } else {
-            const defaultId = "default-session";
-            currentContext.setThreadMetadata((prev) =>
-              new Map(prev).set(defaultId, {
-                title: "New Chat",
-                status: "regular",
-                lastActiveAt: new Date().toISOString(),
-              })
-            );
-            currentContext.setThreadMessages(defaultId, []);
-            currentContext.setCurrentThreadId(defaultId);
-          }
-        }
+        ensureFallbackThread(currentContext, threadId);
       } catch (error) {
         console.error("Failed to delete thread:", error);
         throw error;

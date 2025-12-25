@@ -10,7 +10,7 @@ import {
 } from "@assistant-ui/react";
 
 import { RuntimeActionsProvider } from "./hooks";
-import { useRuntimeOrchestration } from "./orchestrator";
+import { useRuntimeOrchestration } from "./orchestration";
 import { findTempIdForBackendId, isThreadReady, isThreadRunning, resolveThreadId } from "./backend-state";
 import { isPlaceholderTitle, isTempThreadId } from "./utils";
 import type { MessageController } from "./message-controller";

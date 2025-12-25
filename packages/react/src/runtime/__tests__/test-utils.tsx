@@ -6,7 +6,7 @@ import { vi } from "vitest";
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useRuntimeActions } from "../hooks";
-import { useRuntimeOrchestration } from "../orchestrator";
+import { useRuntimeOrchestration } from "../orchestration";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
 import type { ThreadContext } from "../../state/thread-store";
 import type { BackendThreadMetadata, CreateThreadResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
