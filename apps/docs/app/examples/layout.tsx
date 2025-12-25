@@ -1,6 +1,6 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import type { ReactNode } from "react";
-import { source } from "@/lib/source";
+import { examples } from "@/lib/source";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 
 // Shared configuration
@@ -14,11 +14,11 @@ const baseOptions: BaseLayoutProps = {
     {
       text: "Documentation",
       url: "/docs",
-      active: "nested-url",
     },
     {
       text: "Examples",
       url: "/examples",
+      active: "nested-url",
     },
     {
       text: "API Reference",
@@ -31,7 +31,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <DocsLayout
       {...baseOptions}
-      tree={source.pageTree}
+      tree={examples.pageTree}
       sidebar={{
         defaultOpenLevel: 0,
       }}

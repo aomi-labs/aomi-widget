@@ -1,10 +1,20 @@
 import type { InferPageType } from "fumadocs-core/source";
 import { loader } from "fumadocs-core/source";
-import { docs } from "fumadocs-mdx:collections/server";
+import { toFumadocsSource } from "fumadocs-mdx/runtime/server";
+import {
+  docs,
+  examples as examplePages,
+} from "fumadocs-mdx:collections/server";
 
 export const source = loader({
   baseUrl: "/docs",
   source: docs.toFumadocsSource(),
 });
 
+export const examples = loader({
+  baseUrl: "/examples",
+  source: toFumadocsSource(examplePages, []),
+});
+
 export type Page = InferPageType<typeof source>;
+export type ExamplePage = InferPageType<typeof examples>;
