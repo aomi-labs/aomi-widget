@@ -4,11 +4,11 @@
   "private": true,
   "description": "Docs and playground for @aomi-labs/react",
   "scripts": {
-    "postinstall": "fumadocs-mdx",
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "postinstall": "node scripts/patch-fumadocs-ui.mjs && fumadocs-mdx",
+    "dev": "NEXT_PREBUNDLED_REACT=disabled next dev",
+    "build": "NEXT_PREBUNDLED_REACT=disabled next build",
+    "start": "NEXT_PREBUNDLED_REACT=disabled next start",
+    "lint": "NEXT_PREBUNDLED_REACT=disabled next lint"
   },
   "prettier": {
     "plugins": [
@@ -32,7 +32,6 @@
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.545.0",
     "motion": "^12.23.22",
-    "next": "15.5.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-shiki": "^0.9.0",
@@ -44,6 +43,7 @@
   "devDependencies": {
     "@mdx-js/loader": "^3.1.1",
     "@tailwindcss/postcss": "^4",
+    "@types/mdx": "^2.0.13",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -53,6 +53,7 @@
     "fumadocs-mdx": "^14.2.2",
     "fumadocs-twoslash": "^3.1.10",
     "fumadocs-ui": "^16.4.0",
+    "next": "15.5.7",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
     "tailwindcss": "^4",

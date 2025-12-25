@@ -1,0 +1,18 @@
+---
+title: Script Generation
+description: Generate automation scripts and guardrail them with your backend.
+---
+
+# Script Generation
+
+Let the assistant draft scripts while keeping execution behind server checks.
+
+## Flow
+
+- Collect user intent and context in chat.
+- Generate scripts or transaction payloads server-side.
+- Return previews to the client; require explicit confirmation before running anything on-chain.
+
+## Tips
+
+Log generated scripts for auditability and attach trace ids to conversation updates.

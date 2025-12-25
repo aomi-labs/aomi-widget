@@ -1,0 +1,21 @@
+---
+title: Aomi Apps
+description: Overview of the hosted Aomi app surfaces and how to integrate them alongside the widget.
+---
+
+# Aomi Apps
+
+Aomi Apps bundle curated task flows on top of the widget runtime so teams can ship guided experiences fast.
+- Use them when you want opinionated flows (portfolio views, execution checklists) without building UI from scratch.
+- They reuse the same backend policies and wallet wiring that power your embedded widget.
+
+## Connecting an app
+
+1. Start your backend with the assistant endpoints available.
+2. Provide `NEXT_PUBLIC_PROJECT_ID` and `NEXT_PUBLIC_BACKEND_URL` so the docs site can talk to your services locally.
+3. Run `pnpm --filter @aomi-labs/widget-docs dev` and walk through the flow before shipping.
+
+## Custom notes
+
+- Apps inherit the theme tokens defined for the widget and respect your CSS variables.
+- Fork an app page if you need to tweak copy, steps, or guardrails for a specific customer.

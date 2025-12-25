@@ -1,0 +1,18 @@
+---
+title: Architecture
+description: How the widget, backend, and wallets fit together.
+---
+
+# Architecture
+
+Aomi Widget couples a React shell with a backend that handles AI orchestration and wallet safety.
+
+## Layers
+
+- **UI shell** — `@aomi-labs/react` renders chat, thread list, and wallet footer.
+- **Backend** — runs the assistant, routes tool calls, and enforces policy.
+- **Wallets** — connected via Reown AppKit; transactions never leave the user's control.
+
+## Data flow
+
+User input flows to your backend, which streams assistant tokens and tool calls back through SSE. Wallet prompts stay client-side, but signed payloads are sent to your backend for execution.
