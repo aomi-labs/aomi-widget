@@ -3,7 +3,8 @@ import { useCallback, useRef, useState } from "react";
 
 import { BackendApi } from "../api/client";
 import type { SessionMessage } from "../api/types";
-import { useThreadContext, type ThreadContext } from "../state/thread-context";
+import { useThreadContext } from "../state/thread-context";
+import type { ThreadContext } from "../state/thread-store";
 import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
 import {

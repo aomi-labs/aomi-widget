@@ -18,6 +18,7 @@ afterEach(() => {
 
 describe("Aomi runtime thread mutations", () => {
   it("rolls back archive and rename mutations on error", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const renameThread = vi.fn(async () => {
       throw new Error("rename failed");
     });
@@ -28,48 +29,55 @@ describe("Aomi runtime thread mutations", () => {
       throw new Error("unarchive failed");
     });
 
-    setBackendApiConfig({ renameThread, archiveThread, unarchiveThread });
+    try {
+      setBackendApiConfig({ renameThread, archiveThread, unarchiveThread });
 
-    const ref = await renderRuntime({ publicKey: "pk_mutations", initialThreadId: "thread-1" });
+      const ref = await renderRuntime({
+        publicKey: "pk_mutations",
+        initialThreadId: "thread-1",
+      });
 
-    ref.current.threadContext.setThreadMetadata((prev) =>
-      new Map(prev).set("thread-1", {
-        title: "Original",
-        status: "regular",
-        lastActiveAt: new Date().toISOString(),
-      })
-    );
-    await waitFor(() => {
-      expect(ref.current.runtime.threads.getState().threads).toContain("thread-1");
-    });
-
-    await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").rename("Next");
-    });
-
-    await waitFor(() => {
-      expect(ref.current.threadContext.getThreadMetadata("thread-1")?.title).toBe(
-        "Original"
+      ref.current.threadContext.setThreadMetadata((prev) =>
+        new Map(prev).set("thread-1", {
+          title: "Original",
+          status: "regular",
+          lastActiveAt: new Date().toISOString(),
+        })
       );
-    });
+      await waitFor(() => {
+        expect(ref.current.runtime.threads.getState().threads).toContain("thread-1");
+      });
 
-    await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").archive();
-    });
+      await act(async () => {
+        await ref.current.runtime.threads.getItemById("thread-1").rename("Next");
+      });
 
-    expect(ref.current.threadContext.getThreadMetadata("thread-1")?.status).toBe(
-      "regular"
-    );
+      await waitFor(() => {
+        expect(ref.current.threadContext.getThreadMetadata("thread-1")?.title).toBe(
+          "Original"
+        );
+      });
 
-    ref.current.threadContext.updateThreadMetadata("thread-1", { status: "archived" });
+      await act(async () => {
+        await ref.current.runtime.threads.getItemById("thread-1").archive();
+      });
 
-    await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").unarchive();
-    });
+      expect(ref.current.threadContext.getThreadMetadata("thread-1")?.status).toBe(
+        "regular"
+      );
 
-    expect(ref.current.threadContext.getThreadMetadata("thread-1")?.status).toBe(
-      "archived"
-    );
+      ref.current.threadContext.updateThreadMetadata("thread-1", { status: "archived" });
+
+      await act(async () => {
+        await ref.current.runtime.threads.getItemById("thread-1").unarchive();
+      });
+
+      expect(ref.current.threadContext.getThreadMetadata("thread-1")?.status).toBe(
+        "archived"
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("deletes threads and switches to the next regular thread", async () => {

@@ -5,16 +5,14 @@ import type { ReactNode } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type { ThreadMetadata } from "./types";
-import { ThreadStore, type ThreadContext as ThreadContextValue } from "./thread-store";
-
-export type ThreadContext = ThreadContextValue;
+import { ThreadStore, type ThreadContext } from "./thread-store";
 
 export type ThreadContextProviderProps = {
   children: ReactNode;
   initialThreadId?: string;
 };
 
-const ThreadContextState = createContext<ThreadContextValue | null>(null);
+const ThreadContextState = createContext<ThreadContext | null>(null);
 
 export function useThreadContext(): ThreadContext {
   const context = useContext(ThreadContextState);

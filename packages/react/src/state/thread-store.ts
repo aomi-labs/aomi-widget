@@ -3,6 +3,7 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type { ThreadMetadata } from "./types";
 
+// Contextural state of the UI thread (what user sees)
 export type ThreadContext = {
   currentThreadId: string;
   setCurrentThreadId: (id: string) => void;
