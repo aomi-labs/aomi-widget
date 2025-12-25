@@ -34,6 +34,7 @@ type ThreadStoreOptions = {
 
 export class ThreadStore {
   private state: ThreadStoreState;
+  private snapshot: ThreadContext;
   private listeners = new Set<() => void>();
 
   constructor(options?: ThreadStoreOptions) {
@@ -54,6 +55,7 @@ export class ThreadStore {
         ],
       ]),
     };
+    this.snapshot = this.createSnapshot();
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -63,22 +65,26 @@ export class ThreadStore {
     };
   };
 
-  getSnapshot = (): ThreadContext => ({
-    currentThreadId: this.state.currentThreadId,
-    setCurrentThreadId: this.setCurrentThreadId,
-    threadViewKey: this.state.threadViewKey,
-    bumpThreadViewKey: this.bumpThreadViewKey,
-    threads: this.state.threads,
-    setThreads: this.setThreads,
-    threadMetadata: this.state.threadMetadata,
-    setThreadMetadata: this.setThreadMetadata,
-    threadCnt: this.state.threadCnt,
-    setThreadCnt: this.setThreadCnt,
-    getThreadMessages: this.getThreadMessages,
-    setThreadMessages: this.setThreadMessages,
-    getThreadMetadata: this.getThreadMetadata,
-    updateThreadMetadata: this.updateThreadMetadata,
-  });
+  getSnapshot = (): ThreadContext => this.snapshot;
+
+  private createSnapshot(): ThreadContext {
+    return {
+      currentThreadId: this.state.currentThreadId,
+      setCurrentThreadId: this.setCurrentThreadId,
+      threadViewKey: this.state.threadViewKey,
+      bumpThreadViewKey: this.bumpThreadViewKey,
+      threads: this.state.threads,
+      setThreads: this.setThreads,
+      threadMetadata: this.state.threadMetadata,
+      setThreadMetadata: this.setThreadMetadata,
+      threadCnt: this.state.threadCnt,
+      setThreadCnt: this.setThreadCnt,
+      getThreadMessages: this.getThreadMessages,
+      setThreadMessages: this.setThreadMessages,
+      getThreadMetadata: this.getThreadMetadata,
+      updateThreadMetadata: this.updateThreadMetadata,
+    };
+  }
 
   private emit() {
     for (const listener of this.listeners) {
@@ -110,6 +116,7 @@ export class ThreadStore {
 
   private updateState(partial: Partial<ThreadStoreState>) {
     this.state = { ...this.state, ...partial };
+    this.snapshot = this.createSnapshot();
     this.emit();
   }
 

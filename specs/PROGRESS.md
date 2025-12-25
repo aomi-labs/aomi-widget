@@ -1,59 +1,107 @@
 # Progress Tracker
 
 ## Current Sprint Goal
-Address Codex code quality issues and technical debt
+Migrate aomi-widget into monorepo: logic as npm package (`@aomi-labs/react`), UI as shadcn registry (`@aomi-labs/widget-lib`)
 
 ## Branch Status
-- **Current Branch:** `system-notification`
+- **Current Branch:** `codex/implement-migration-plan-claude`
 - **Recent Commits:**
-  - 71db183 rename landing
-  - d5f8ecc mdx
-  - 3956de4 fix linting + running
-  - 0524c79 new docs page
-  - df61f47 styling migrated
+  - 208acbe Merge pull request #11 (runtime compatibility tests)
+  - e284338 Add runtime compatibility tests
+  - e159be9 move css from react to widget
+  - 1c49f43 next.config.ts resolves
+  - 97158ca most thing compiles
+  - b439e0c fix imports
+  - 9457112 remove repetition
+  - 369ab28 @aomi-labs/widget-lib → @aomi-labs/react
+
+## Migration Phase Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Workspace + skeleton | ✅ Complete |
+| Phase 2 | Extract logic to `packages/react` | ✅ Complete |
+| Phase 3 | Isolate registry UI | ✅ Complete |
+| Phase 4 | Docs integration | ✅ Complete |
+| Phase 5 | Tooling, release, verification | ⏳ Pending |
 
 ## Recently Completed Work
 
-| Task | Description | Files |
-|------|-------------|-------|
-| Fix CSS copy command | Replaced platform-specific `cp` command with cross-platform Node fs API using esbuild plugin | `tsup.config.ts:1-19,57` |
-| Update build docs | Updated example package name from `example` to `landing` in CLAUDE.md | `CLAUDE.md:19` |
+| Task | Description | Key Files |
+|------|-------------|-----------|
+| Monorepo setup | Created pnpm workspace with packages/react and apps/registry | `pnpm-workspace.yaml` |
+| Logic extraction | Moved runtime, API, state, utils to @aomi-labs/react | `packages/react/src/` |
+| UI isolation | Moved components to apps/registry with shadcn structure | `apps/registry/src/components/` |
+| Registry build | JSON files generated for shadcn consumption | `apps/registry/dist/*.json` |
+| Path alias config | Configured @/ imports across landing/docs | `next.config.ts`, `tsconfig.json` |
+| Style separation | Moved styles.css + themes from react to widget-lib | `apps/registry/src/styles.css` |
+| Runtime tests | Added compatibility tests for runtime behavior | `packages/react/src/runtime/__tests__/` |
+
+## Current Architecture
+
+```
+aomi/
+├─ packages/react/                # @aomi-labs/react (npm package)
+│  └─ src/
+│     ├─ api/ (client.ts, types.ts)
+│     ├─ runtime/ (aomi-runtime, polling, message-controller, hooks)
+│     ├─ state/ (thread-context, thread-store, types)
+│     └─ utils/ (conversion, wallet)
+├─ apps/registry/                 # @aomi-labs/widget-lib (shadcn registry)
+│  ├─ src/
+│  │  ├─ components/ (aomi-frame, assistant-ui/*, ui/*)
+│  │  ├─ themes/ (default.css, tokens.config.ts)
+│  │  └─ styles.css
+│  └─ dist/*.json                 # Built registry files
+├─ apps/landing/                  # Demo app
+├─ apps/docs/                     # Documentation site
+└─ pnpm-workspace.yaml
+```
 
 ## Files Modified This Sprint
 
-### Build Configuration
-- `tsup.config.ts` - NEW: Added `copyStylesPlugin` using Node's `fs` module for cross-platform CSS/theme copying
-- `CLAUDE.md` - Updated example dev command to use correct package name
+### packages/react
+- `package.json` - npm package config with peer deps
+- `tsup.config.ts` - Build config (esm/cjs/dts)
+- `src/index.ts` - Public exports
+- `src/api/` - Backend API client
+- `src/runtime/` - AomiRuntimeProvider, polling, message handling
+- `src/state/` - Thread context and store
+- `src/utils/` - Conversion and wallet utilities
+
+### apps/registry
+- `package.json` - @aomi-labs/widget-lib with exports
+- `src/registry.ts` - Registry definition
+- `scripts/build-registry.js` - JSON generator
+- `src/components/` - All UI components
+- `src/styles.css` - Theme imports
+- `src/themes/` - CSS variables and tokens
+
+### apps/landing & apps/docs
+- `package.json` - Updated dependencies
+- `next.config.ts` - Webpack aliases for @/, @aomi-labs/react
+- `tsconfig.json` - Path aliases
+- `app/globals.css` - Import from @aomi-labs/widget-lib/styles.css
 
 ## Pending Tasks
 
-### High Priority - Codex Issues
-- [ ] Remove bundle-level `"use client"` directive - Move to individual component files
-- [ ] Add debug flag for production logging - Gate console.logs in `backend-api.ts`
-- [ ] Fix SSE reconnection logic - Persist attempt counter as class property
-- [ ] Fix double AppKit initialization - Remove side effect from `config.tsx`
+### Phase 5 - Release
+- [ ] Configure changesets for versioning
+- [ ] Publish @aomi-labs/react to npm
+- [ ] Deploy registry dist/ to hosting
+- [ ] Fresh consumer install test
 
-### Low Priority
-- [ ] Consider adding TypeScript strict mode checks
-- [ ] Review error handling patterns across API methods
+### Optional Improvements
+- [ ] Add more comprehensive tests
+- [ ] Document public API
+- [ ] Set up CI/CD for publishing
 
 ## Known Issues
-
-### From Codex Review
-1. **Bundle-level "use client"** (tsup.config.ts) - Forces entire library to client-side, prevents server component usage
-2. **Excessive production logging** (backend-api.ts:64-252) - Logs sensitive data (chat messages, wallet IDs) to production console
-3. **Broken SSE reconnection** (backend-api.ts:178-193) - Attempt counter resets to 0 on each call, loops forever
-4. **Double AppKit init** (example/src/components/) - `config.tsx` and `wallet-providers.tsx` both call `createAppKit()`
+None blocking. Both landing and docs compile successfully.
 
 ## Notes for Next Agent
-- ✅ CSS copy issue (#2) is FIXED - now uses Node fs API via esbuild plugin
-- ❌ "use client" banner still at bundle level - needs to be moved to individual files
-- ❌ All API methods still log extensively - needs debug flag implementation
-- ❌ SSE reconnection will loop forever - `attempt` variable is re-declared each time
-- ❌ AppKit initialized twice in example app - config.tsx has side effect
-
-### Implementation Notes
-- When fixing "use client": Add directive to files using hooks/browser APIs only (e.g., components using useState, useEffect, window)
-- When fixing logging: Consider environment variable `AOMI_DEBUG` or build-time flag
-- When fixing SSE: Make `reconnectAttempt` a class property, add exponential backoff
-- When fixing AppKit: Remove `createAppKit()` call from config.tsx:47, keep only in wallet-providers.tsx
+- **Styles are in widget-lib**: `@aomi-labs/react` is purely logic, no CSS
+- **Path aliases**: Both `./src/*` and `../registry/src/*` are mapped to `@/*` in apps
+- **Webpack aliases required**: Next.js needs explicit aliases in `next.config.ts` for @/ and @aomi-labs/react
+- **Registry builds 6 JSON files**: aomi-frame, assistant-thread, assistant-thread-list, assistant-threadlist-sidebar, assistant-tool-fallback, index
+- **Runtime tested**: Compatibility tests exist in `packages/react/src/runtime/__tests__/`
