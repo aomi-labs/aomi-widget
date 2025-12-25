@@ -1,7 +1,7 @@
 # Project Metadata
 
 ## Package
-- Name: `@aomi-labs/widget-lib`
+- Name: `@aomi-labs/react`
 - Purpose: AI assistant widget for onchain apps (React component wrapping Assistant UI)
 
 ## Stack
@@ -26,7 +26,7 @@ src/
 ├── utils/wallet.ts             # Wallet helpers
 └── hooks/use-mobile.ts         # Mobile detection
 
-example/                         # Demo Next.js app
+apps/landing/                    # Demo Next.js app
 dist/                           # Build output
 ```
 
@@ -34,7 +34,7 @@ dist/                           # Build output
 ```bash
 pnpm install              # Install deps
 pnpm run build:lib        # Build → dist/
-pnpm --filter example dev # Demo at :3000
+pnpm --filter landing dev # Demo at :3000
 pnpm lint                 # Lint check
 ```
 

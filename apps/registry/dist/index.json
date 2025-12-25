@@ -1,0 +1,22 @@
+[
+  {
+    "name": "aomi-frame",
+    "path": "/Users/ceciliazhang/Code/aomi-widget.worktrees/codex/implement-migration-plan-claude/apps/registry/dist/aomi-frame.json"
+  },
+  {
+    "name": "assistant-thread",
+    "path": "/Users/ceciliazhang/Code/aomi-widget.worktrees/codex/implement-migration-plan-claude/apps/registry/dist/assistant-thread.json"
+  },
+  {
+    "name": "assistant-thread-list",
+    "path": "/Users/ceciliazhang/Code/aomi-widget.worktrees/codex/implement-migration-plan-claude/apps/registry/dist/assistant-thread-list.json"
+  },
+  {
+    "name": "assistant-threadlist-sidebar",
+    "path": "/Users/ceciliazhang/Code/aomi-widget.worktrees/codex/implement-migration-plan-claude/apps/registry/dist/assistant-threadlist-sidebar.json"
+  },
+  {
+    "name": "assistant-tool-fallback",
+    "path": "/Users/ceciliazhang/Code/aomi-widget.worktrees/codex/implement-migration-plan-claude/apps/registry/dist/assistant-tool-fallback.json"
+  }
+]
