@@ -1,7 +1,7 @@
  "use client";
 
 import { useState } from "react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiFrame } from "@aomi-labs/widget-lib/aomi-frame";
 import { WalletFooter } from "@/components/wallet";
 
 const highlights = [
@@ -70,11 +70,11 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <a
                 className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)]"
-                href="https://www.npmjs.com/package/@aomi-labs/widget-lib"
+                href="https://www.npmjs.com/package/@aomi-labs/react"
                 target="_blank"
                 rel="noreferrer"
               >
-                npm i @aomi-labs/widget-lib
+                npm i @aomi-labs/react
               </a>
               <a
                 className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/40 hover:text-emerald-100"
@@ -165,7 +165,7 @@ export default function Home() {
               <div className="flex items-center justify-between pb-2 text-[0.78rem] uppercase tracking-[0.16em] text-slate-300">
               </div>
               <pre className="overflow-x-auto whitespace-pre-wrap leading-relaxed">
-{`import { AomiFrame } from "@aomi-labs/widget-lib";
+{`import { AomiFrame } from "@aomi-labs/react";
 
 export function AIWallet() {
   return (

@@ -1,15 +1,15 @@
-AI assistant + onchain widget library and demo landing page for `@aomi-labs/widget-lib`.
+AI assistant + onchain widget library and demo landing page for `@aomi-labs/react`.
 
 ## Library usage
 
 ```bash
-pnpm install @aomi-labs/widget-lib
+pnpm install @aomi-labs/react
 ```
 
 Drop the frame into your app:
 
 ```tsx
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiFrame } from "@aomi-labs/react";
 
 export function Assistant() {
   return (

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Aomi Widget · Docs & Playground",
-  description: "Docs, guides, and live previews for @aomi-labs/widget-lib.",
+  description: "Docs, guides, and live previews for @aomi-labs/react.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

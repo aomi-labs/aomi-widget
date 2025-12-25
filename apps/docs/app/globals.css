@@ -2,8 +2,8 @@
 @import "tw-animate-css";
 @import "@aomi-labs/widget-lib/styles.css";
 
-/* Scan the library source during docs dev so Tailwind picks up component classes */
-@source "../../../src";
+/* Scan the registry source during docs dev so Tailwind picks up component classes */
+@source "../../registry/src";
 
 :root {
   --grid-bg: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.08) 1px, transparent 0);
