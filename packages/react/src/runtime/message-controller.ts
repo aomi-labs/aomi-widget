@@ -4,7 +4,7 @@ import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 import type { BackendApi } from "../api/client";
 import type { SessionMessage } from "../api/types";
 import { toInboundSystem, toInboundMessage } from "../utils/conversion";
-import type { ThreadContext } from "../state/thread-context";
+import type { ThreadContext } from "../state/thread-store";
 import type { PollingController } from "./polling-controller";
 import {
   dequeuePendingChat,

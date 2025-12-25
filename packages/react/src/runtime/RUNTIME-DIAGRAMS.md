@@ -69,7 +69,7 @@ classDiagram
     +messageController : MessageController
     +isRunning : boolean
     +setIsRunning(running)
-    +ensureInitialState(threadId)
+    +syncThreadState(threadId)
     +backendApiRef : MutableRef~BackendApi~
   }
 
@@ -372,4 +372,3 @@ graph TB
    - `markRunning` now checks if thread is current before updating global `isRunning`
    - `onStop` callback in PollingController checks current thread before stopping
    - Better cleanup of previous pending threads when creating new ones
-

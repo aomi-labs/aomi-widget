@@ -40,7 +40,7 @@ describe("Aomi runtime polling", () => {
       const ref = await renderOrchestrator({ initialThreadId: "thread-1" });
 
       await act(async () => {
-        await ref.current.ensureInitialState("thread-1");
+        await ref.current.syncThreadState("thread-1");
       });
 
       await act(async () => {

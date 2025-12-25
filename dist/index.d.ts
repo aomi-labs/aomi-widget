@@ -88,7 +88,7 @@ type ThreadMetadata = {
     lastActiveAt?: string | number;
 };
 
-type ThreadContext$1 = {
+type ThreadContext = {
     currentThreadId: string;
     setCurrentThreadId: (id: string) => void;
     threadViewKey: number;
@@ -105,7 +105,6 @@ type ThreadContext$1 = {
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
 };
 
-type ThreadContext = ThreadContext$1;
 type ThreadContextProviderProps = {
     children: ReactNode;
     initialThreadId?: string;

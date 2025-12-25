@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle } from "react";
+import React, { forwardRef, useImperativeHandle, useRef } from "react";
 import type { AssistantRuntime } from "@assistant-ui/react";
 import { useAssistantRuntime } from "@assistant-ui/react";
 import { act, render } from "@testing-library/react";
@@ -6,9 +6,9 @@ import { vi } from "vitest";
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useRuntimeActions } from "../hooks";
-import { useRuntimeOrchestrator } from "../orchestrator";
+import { useRuntimeOrchestration } from "../orchestrator";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
-import type { ThreadContext } from "../../state/thread-context";
+import type { ThreadContext } from "../../state/thread-store";
 import type { BackendThreadMetadata, CreateThreadResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
 import type { RuntimeActions } from "../hooks";
 
@@ -134,10 +134,10 @@ export type HarnessHandle = {
 
 export type OrchestratorHandle = {
   threadContext: ThreadContext;
-  ensureInitialState: (threadId: string) => Promise<void>;
-  backendStateRef: ReturnType<typeof useRuntimeOrchestrator>["backendStateRef"];
-  messageController: ReturnType<typeof useRuntimeOrchestrator>["messageController"];
-  polling: ReturnType<typeof useRuntimeOrchestrator>["polling"];
+  syncThreadState: (threadId: string) => Promise<void>;
+  backendStateRef: ReturnType<typeof useRuntimeOrchestration>["backendStateRef"];
+  messageController: ReturnType<typeof useRuntimeOrchestration>["messageController"];
+  polling: ReturnType<typeof useRuntimeOrchestration>["polling"];
 };
 
 const RuntimeHarness = forwardRef<HarnessHandle>((_, ref) => {
@@ -162,14 +162,16 @@ RuntimeHarness.displayName = "RuntimeHarness";
 
 const OrchestratorHarness = forwardRef<OrchestratorHandle, { backendUrl: string }>(
   ({ backendUrl }, ref) => {
-    const orchestrator = useRuntimeOrchestrator(backendUrl);
     const threadContext = useThreadContext();
+    const threadContextRef = useRef(threadContext);
+    threadContextRef.current = threadContext;
+    const orchestrator = useRuntimeOrchestration(backendUrl, threadContextRef);
 
     useImperativeHandle(
       ref,
       () => ({
         threadContext,
-        ensureInitialState: orchestrator.ensureInitialState,
+        syncThreadState: orchestrator.syncThreadState,
         backendStateRef: orchestrator.backendStateRef,
         messageController: orchestrator.messageController,
         polling: orchestrator.polling,

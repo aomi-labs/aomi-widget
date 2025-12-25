@@ -1,62 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
-  type ExternalStoreThreadData,
-  useExternalStoreRuntime,
   type AppendMessage,
+  type ThreadMessageLike,
+  useExternalStoreRuntime,
 } from "@assistant-ui/react";
 
 import { RuntimeActionsProvider } from "./hooks";
-import { useRuntimeOrchestrator } from "./orchestrator";
-import {
-  findTempIdForBackendId,
-  isThreadReady,
-  isThreadRunning,
-  markSkipInitialFetch,
-  resolveThreadId,
-  setBackendMapping,
-} from "./backend-state";
-import { isPlaceholderTitle, isTempThreadId, parseTimestamp } from "./utils";
+import { useRuntimeOrchestration } from "./orchestrator";
+import { findTempIdForBackendId, isThreadReady, isThreadRunning, resolveThreadId } from "./backend-state";
+import { isPlaceholderTitle, isTempThreadId } from "./utils";
+import type { MessageController } from "./message-controller";
+import { fetchThreadListWithPk, useThreadListAdapter } from "./thread-list";
 import { useThreadContext } from "../state/thread-context";
-import type { ThreadMetadata } from "../state/types";
-
-const sortByLastActiveDesc = (
-  [, metaA]: [string, ThreadMetadata],
-  [, metaB]: [string, ThreadMetadata]
-) => {
-  const tsA = parseTimestamp(metaA.lastActiveAt);
-  const tsB = parseTimestamp(metaB.lastActiveAt);
-  return tsB - tsA;
-};
-
-function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
-  const entries = Array.from(threadMetadata.entries()).filter(
-    ([, meta]) => !isPlaceholderTitle(meta.title)
-  );
-
-  const regularThreads = entries
-    .filter(([, meta]) => meta.status === "regular")
-    .sort(sortByLastActiveDesc)
-    .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
-      id,
-      title: meta.title || "New Chat",
-      status: "regular",
-    }));
-
-  const archivedThreads = entries
-    .filter(([, meta]) => meta.status === "archived")
-    .sort(sortByLastActiveDesc)
-    .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
-      id,
-      title: meta.title || "New Chat",
-      status: "archived",
-    }));
-
-  return { regularThreads, archivedThreads };
-}
+import type { ThreadContext } from "../state/thread-store";
 
 export type AomiRuntimeProviderProps = {
   children: ReactNode;
@@ -69,315 +29,55 @@ export function AomiRuntimeProvider({
   backendUrl = "http://localhost:8080",
   publicKey,
 }: Readonly<AomiRuntimeProviderProps>) {
+
+  // Get contextual state from ThreadContextProvider
   const threadContext = useThreadContext();
+  const threadContextRef = useRef(threadContext);
+  threadContextRef.current = threadContext;
+  const currentThreadId = threadContext.currentThreadId;
+
+  // hook to BackendApi, PollingController, and MessageController
+  // in one render cycle, init them if needed
+  // apply changes to ThreadContext based on BE state & polling interval
   const {
     backendStateRef,
     polling,
     messageController,
     isRunning,
     setIsRunning,
-    ensureInitialState,
+    syncThreadState,
     backendApiRef,
-  } = useRuntimeOrchestrator(backendUrl);
+  } = useRuntimeOrchestration(backendUrl, threadContextRef);
 
-  const threadContextRef = useRef(threadContext);
-  threadContextRef.current = threadContext;
-
-  const currentThreadIdRef = useRef(threadContext.currentThreadId);
+  // Concurrency checkpoint 🤝
+  // make a thread-safe smart pointer for other hooks that useEffect
+  const currentThreadIdRef = useRef(currentThreadId);
+  currentThreadIdRef.current = currentThreadId;
   useEffect(() => {
-    currentThreadIdRef.current = threadContext.currentThreadId;
-  }, [threadContext.currentThreadId]);
-
-  useEffect(() => {
-    void ensureInitialState(threadContext.currentThreadId);
-  }, [ensureInitialState, threadContext.currentThreadId]);
+    void syncThreadState(currentThreadId);
+  }, [syncThreadState, currentThreadId]);
 
   useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    setIsRunning(isThreadRunning(backendStateRef.current, threadId));
-  }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
+    setIsRunning(isThreadRunning(backendStateRef.current, currentThreadId));
+  }, [backendStateRef, setIsRunning, currentThreadId]);
 
-  const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
+  const currentMessages = threadContext.getThreadMessages(currentThreadId);
 
   useEffect(() => {
     if (!publicKey) return;
+    void fetchThreadListWithPk(publicKey, backendApiRef, threadContextRef);
+  }, [backendApiRef, publicKey, threadContextRef]);
 
-    const fetchThreadList = async () => {
-      try {
-        const threadList = await backendApiRef.current.fetchThreads(publicKey);
-        const currentContext = threadContextRef.current;
-        const newMetadata = new Map(currentContext.threadMetadata);
-        let maxChatNum = currentContext.threadCnt;
-
-        for (const thread of threadList) {
-          const rawTitle = thread.title ?? "";
-          const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
-          const lastActive =
-            thread.last_active_at ||
-            thread.updated_at ||
-            thread.created_at ||
-            newMetadata.get(thread.session_id)?.lastActiveAt ||
-            new Date().toISOString();
-          newMetadata.set(thread.session_id, {
-            title,
-            status: thread.is_archived ? "archived" : "regular",
-            lastActiveAt: lastActive,
-          });
-
-          const match = title.match(/^Chat (\d+)$/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxChatNum) {
-              maxChatNum = num;
-            }
-          }
-        }
-
-        currentContext.setThreadMetadata(newMetadata);
-        if (maxChatNum > currentContext.threadCnt) {
-          currentContext.setThreadCnt(maxChatNum);
-        }
-      } catch (error) {
-        console.error("Failed to fetch thread list:", error);
-      }
-    };
-
-    void fetchThreadList();
-  }, [publicKey]);
-
-  const threadListAdapter = useMemo(() => {
-    const backendState = backendStateRef.current;
-    const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
-
-    const preparePendingThread = (threadId: string) => {
-      const previousPendingId = backendState.creatingThreadId;
-      if (previousPendingId && previousPendingId !== threadId) {
-        threadContext.setThreadMetadata((prev) => {
-          const next = new Map(prev);
-          next.delete(previousPendingId);
-          return next;
-        });
-        threadContext.setThreads((prev) => {
-          const next = new Map(prev);
-          next.delete(previousPendingId);
-          return next;
-        });
-        backendState.pendingChat.delete(previousPendingId);
-        backendState.pendingSystem.delete(previousPendingId);
-        backendState.tempToBackendId.delete(previousPendingId);
-        backendState.skipInitialFetch.delete(previousPendingId);
-      }
-      backendState.creatingThreadId = threadId;
-      backendState.pendingChat.delete(threadId);
-      backendState.pendingSystem.delete(threadId);
-      threadContext.setThreadMetadata((prev) =>
-        new Map(prev).set(threadId, {
-          title: "New Chat",
-          status: "pending",
-          lastActiveAt: new Date().toISOString(),
-        })
-      );
-      threadContext.setThreadMessages(threadId, []);
-      threadContext.setCurrentThreadId(threadId);
-      setIsRunning(false);
-      threadContext.bumpThreadViewKey();
-    };
-
-    const findPendingThreadId = () => {
-      if (backendState.creatingThreadId) return backendState.creatingThreadId;
-      for (const [id, meta] of threadContext.threadMetadata.entries()) {
-        if (meta.status === "pending") return id;
-      }
-      return null;
-    };
-
-    return {
-      threadId: threadContext.currentThreadId,
-      threads: regularThreads,
-      archivedThreads,
-
-      onSwitchToNewThread: async () => {
-        const pendingId = findPendingThreadId();
-        if (pendingId) {
-          preparePendingThread(pendingId);
-          return;
-        }
-
-        if (backendState.createThreadPromise) {
-          preparePendingThread(backendState.creatingThreadId ?? `temp-${crypto.randomUUID()}`);
-          return;
-        }
-
-        const tempId = `temp-${crypto.randomUUID()}`;
-        preparePendingThread(tempId);
-
-        const createPromise = backendApiRef.current
-          .createThread(publicKey, undefined)
-          .then(async (newThread) => {
-            const uiThreadId = backendState.creatingThreadId ?? tempId;
-            const backendId = newThread.session_id;
-
-            setBackendMapping(backendState, uiThreadId, backendId);
-            markSkipInitialFetch(backendState, uiThreadId);
-
-            const backendTitle = newThread.title;
-            if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-              threadContext.setThreadMetadata((prev) => {
-                const next = new Map(prev);
-                const existing = next.get(uiThreadId);
-                const nextStatus = existing?.status === "archived" ? "archived" : "regular";
-                next.set(uiThreadId, {
-                  title: backendTitle,
-                  status: nextStatus,
-                  lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
-                });
-                return next;
-              });
-            }
-
-            if (backendState.creatingThreadId === uiThreadId) {
-              backendState.creatingThreadId = null;
-            }
-
-            const pendingMessages = backendState.pendingChat.get(uiThreadId);
-            if (pendingMessages?.length) {
-              backendState.pendingChat.delete(uiThreadId);
-              for (const text of pendingMessages) {
-                try {
-                  await backendApiRef.current.postChatMessage(backendId, text);
-                } catch (error) {
-                  console.error("Failed to send queued message:", error);
-                }
-              }
-              if (currentThreadIdRef.current === uiThreadId) {
-                polling?.start(uiThreadId);
-              }
-            }
-          })
-          .catch((error) => {
-            console.error("Failed to create new thread:", error);
-            const failedId = backendState.creatingThreadId ?? tempId;
-            threadContext.setThreadMetadata((prev) => {
-              const next = new Map(prev);
-              next.delete(failedId);
-              return next;
-            });
-            threadContext.setThreads((prev) => {
-              const next = new Map(prev);
-              next.delete(failedId);
-              return next;
-            });
-            if (backendState.creatingThreadId === failedId) {
-              backendState.creatingThreadId = null;
-            }
-          })
-          .finally(() => {
-            backendState.createThreadPromise = null;
-          });
-
-        backendState.createThreadPromise = createPromise;
-      },
-
-      onSwitchToThread: (threadId: string) => {
-        threadContext.setCurrentThreadId(threadId);
-      },
-
-      onRename: async (threadId: string, newTitle: string) => {
-        const previousTitle = threadContext.getThreadMetadata(threadId)?.title ?? "";
-        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-        threadContext.updateThreadMetadata(threadId, {
-          title: normalizedTitle,
-        });
-
-        try {
-          await backendApiRef.current.renameThread(threadId, newTitle);
-        } catch (error) {
-          console.error("Failed to rename thread:", error);
-          threadContext.updateThreadMetadata(threadId, { title: previousTitle });
-        }
-      },
-
-      onArchive: async (threadId: string) => {
-        threadContext.updateThreadMetadata(threadId, { status: "archived" });
-
-        try {
-          await backendApiRef.current.archiveThread(threadId);
-        } catch (error) {
-          console.error("Failed to archive thread:", error);
-          threadContext.updateThreadMetadata(threadId, { status: "regular" });
-        }
-      },
-
-      onUnarchive: async (threadId: string) => {
-        threadContext.updateThreadMetadata(threadId, { status: "regular" });
-
-        try {
-          await backendApiRef.current.unarchiveThread(threadId);
-        } catch (error) {
-          console.error("Failed to unarchive thread:", error);
-          threadContext.updateThreadMetadata(threadId, { status: "archived" });
-        }
-      },
-
-      onDelete: async (threadId: string) => {
-        try {
-          await backendApiRef.current.deleteThread(threadId);
-
-          threadContext.setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            next.delete(threadId);
-            return next;
-          });
-          threadContext.setThreads((prev) => {
-            const next = new Map(prev);
-            next.delete(threadId);
-            return next;
-          });
-          backendState.pendingChat.delete(threadId);
-          backendState.pendingSystem.delete(threadId);
-          backendState.tempToBackendId.delete(threadId);
-          backendState.skipInitialFetch.delete(threadId);
-          backendState.runningThreads.delete(threadId);
-          if (backendState.creatingThreadId === threadId) {
-            backendState.creatingThreadId = null;
-          }
-
-          if (threadContext.currentThreadId === threadId) {
-            const firstRegularThread = Array.from(threadContext.threadMetadata.entries()).find(
-              ([id, meta]) => meta.status === "regular" && id !== threadId
-            );
-
-            if (firstRegularThread) {
-              threadContext.setCurrentThreadId(firstRegularThread[0]);
-            } else {
-              const defaultId = "default-session";
-              threadContext.setThreadMetadata((prev) =>
-                new Map(prev).set(defaultId, {
-                  title: "New Chat",
-                  status: "regular",
-                  lastActiveAt: new Date().toISOString(),
-                })
-              );
-              threadContext.setThreadMessages(defaultId, []);
-              threadContext.setCurrentThreadId(defaultId);
-            }
-          }
-        } catch (error) {
-          console.error("Failed to delete thread:", error);
-          throw error;
-        }
-      },
-    };
-  }, [
+  const threadListAdapter = useThreadListAdapter({
     backendApiRef,
+    backendStateRef,
+    currentThreadIdRef,
     polling,
     publicKey,
-    backendStateRef,
     setIsRunning,
     threadContext,
-    threadContext.currentThreadId,
-    threadContext.threadMetadata,
-  ]);
+    threadContextRef,
+  });
 
   useEffect(() => {
     const unsubscribe = backendApiRef.current.subscribeToUpdates((update) => {
@@ -412,32 +112,34 @@ export function AomiRuntimeProvider({
   }, [backendApiRef, backendStateRef, threadContext]);
 
   useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    if (!isTempThreadId(threadId)) return;
-    if (!isThreadReady(backendStateRef.current, threadId)) return;
-    void messageController.flushPendingChat(threadId);
-  }, [messageController, backendStateRef, threadContext.currentThreadId]);
+    if (!isTempThreadId(currentThreadId)) return;
+    if (!isThreadReady(backendStateRef.current, currentThreadId)) return;
+    void messageController.flushPendingChat(currentThreadId);
+  }, [messageController, backendStateRef, currentThreadId]);
+
+  const { setMessages, onNew, onCancel, sendSystemMessage } = useRuntimeCallbacks({
+    currentThreadIdRef,
+    messageController,
+    threadContextRef,
+  });
 
   const runtime = useExternalStoreRuntime({
     messages: currentMessages,
-    setMessages: (msgs) =>
-      threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
+    setMessages,
     isRunning,
-    onNew: (message: AppendMessage) =>
-      messageController.outbound(message, threadContext.currentThreadId),
-    onCancel: () => messageController.cancel(threadContext.currentThreadId),
+    onNew,
+    onCancel,
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter },
   });
 
   useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    if (isTempThreadId(threadId)) return;
+    if (isTempThreadId(currentThreadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
     if (hasUserMessages) {
-      void messageController.flushPendingSystem(threadId);
+      void messageController.flushPendingSystem(currentThreadId);
     }
-  }, [currentMessages, messageController, threadContext.currentThreadId]);
+  }, [currentMessages, messageController, currentThreadId]);
 
   useEffect(() => {
     return () => {
@@ -446,13 +148,46 @@ export function AomiRuntimeProvider({
   }, [polling]);
 
   return (
-    <RuntimeActionsProvider
-      value={{
-        sendSystemMessage: (message: string) =>
-          messageController.outboundSystem(threadContext.currentThreadId, message),
-      }}
-    >
+    <RuntimeActionsProvider value={{ sendSystemMessage }}>
       <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
     </RuntimeActionsProvider>
   );
+}
+
+type RuntimeCallbacksParams = {
+  currentThreadIdRef: MutableRefObject<string>;
+  messageController: MessageController;
+  threadContextRef: MutableRefObject<ThreadContext>;
+};
+
+function useRuntimeCallbacks({
+  currentThreadIdRef,
+  messageController,
+  threadContextRef,
+}: RuntimeCallbacksParams) {
+  const setMessages = useCallback(
+    (messages: readonly ThreadMessageLike[]) => {
+      threadContextRef.current.setThreadMessages(currentThreadIdRef.current, [...messages]);
+    },
+    [currentThreadIdRef, threadContextRef]
+  );
+
+  const onNew = useCallback(
+    (message: AppendMessage) =>
+      messageController.outbound(message, currentThreadIdRef.current),
+    [currentThreadIdRef, messageController]
+  );
+
+  const onCancel = useCallback(
+    () => messageController.cancel(currentThreadIdRef.current),
+    [currentThreadIdRef, messageController]
+  );
+
+  const sendSystemMessage = useCallback(
+    (message: string) =>
+      messageController.outboundSystem(currentThreadIdRef.current, message),
+    [currentThreadIdRef, messageController]
+  );
+
+  return { setMessages, onNew, onCancel, sendSystemMessage };
 }
