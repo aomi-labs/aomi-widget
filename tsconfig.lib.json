@@ -15,10 +15,10 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./packages/react/src/*", "./src/*"]
     },
     "baseUrl": "."
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["packages/react/src/**/*.ts", "packages/react/src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "example", "app"]
 }

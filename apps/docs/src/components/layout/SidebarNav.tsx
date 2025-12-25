@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { cn } from "@aomi-labs/widget-lib";
+import { cn } from "@aomi-labs/react";
 
-import type { DocSection } from "@docs/content/docs-map";
+import type { DocSection } from "@/content/docs-map";
 
 type SidebarNavProps = {
   sections: DocSection[];

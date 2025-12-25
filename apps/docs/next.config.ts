@@ -7,7 +7,7 @@ const withMDX = createMDX({
   extension: /\.mdx?$/,
   options: {
     remarkPlugins: [remarkGfm],
-    providerImportSource: "@docs/mdx-provider",
+    providerImportSource: "@/mdx-provider",
   },
 });
 
@@ -16,14 +16,20 @@ const nextConfig: NextConfig = {
     externalDir: true,
   },
   pageExtensions: ["ts", "tsx", "mdx"],
-  transpilePackages: ["@aomi-labs/widget-lib"],
+  transpilePackages: [
+    "@aomi-labs/react",
+    "@aomi-labs/widget-lib",
+  ],
   webpack: (config) => {
+    // Resolve @/ imports from registry to its src folder
+    const registrySrc = path.resolve(__dirname, "../registry/src");
+    const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
-      "@": path.resolve(__dirname, "../../src"),
-      "@docs": path.resolve(__dirname, "./src"),
-      "@aomi-labs/widget-lib": path.resolve(__dirname, "../../src"),
-      "@aomi-labs/widget-lib/styles.css": path.resolve(__dirname, "../../src/styles.css"),
+      "@/components": path.join(registrySrc, "components"),
+      "@/hooks": path.join(registrySrc, "hooks"),
+      "@/lib": path.join(registrySrc, "lib"),
+      "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
     };
     return config;
   },

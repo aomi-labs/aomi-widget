@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, Github } from "lucide-react";
 
-import { SidebarNav } from "@docs/components/layout/SidebarNav";
-import { docSections } from "@docs/content/docs-map";
+import { SidebarNav } from "@/components/layout/SidebarNav";
+import { docSections } from "@/content/docs-map";
 
 export default async function DocsLayout({
   children,

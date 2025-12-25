@@ -1,7 +1,7 @@
 # Project Metadata
 
 ## Package
-- Name: `@aomi-labs/widget-lib`
+- Name: `@aomi-labs/react`
 - Purpose: AI assistant widget for onchain apps (React component wrapping Assistant UI)
 
 ## Stack
