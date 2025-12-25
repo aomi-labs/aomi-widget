@@ -16,6 +16,8 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*", "../registry/src/*"],
+      "@/app/*": ["./app/*"],
+      "@/lib/*": ["./lib/*"],
       "@docs/*": ["./src/*"],
       "@aomi-labs/react": ["../../packages/react/src/index.ts"],
       "@aomi-labs/react/*": ["../../packages/react/src/*"],

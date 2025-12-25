@@ -18,11 +18,13 @@ const nextConfig: NextConfig = {
     // Resolve @/ imports from registry to its src folder
     const registrySrc = path.resolve(__dirname, "../registry/src");
     const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
+    const docsSrc = path.resolve(__dirname);
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
+      "@/app": path.join(docsSrc, "app"),
+      "@/lib": path.join(docsSrc, "lib"),
       "@/components": path.join(registrySrc, "components"),
       "@/hooks": path.join(registrySrc, "hooks"),
-      "@/lib": path.join(registrySrc, "lib"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
     };
     return config;
