@@ -26,16 +26,24 @@ export const docs = defineDocs({
   },
 });
 
-export const examples = defineCollections({
-  type: "doc",
+export const examples = defineDocs({
   dir: "content/examples",
-  schema: frontmatterSchema,
+  docs: {
+    schema: frontmatterSchema,
+  },
+  meta: {
+    schema: metaSchema,
+  },
 });
 
-export const api = defineCollections({
-  type: "doc",
+export const api = defineDocs({
   dir: "content/api",
-  schema: frontmatterSchema,
+  docs: {
+    schema: frontmatterSchema,
+  },
+  meta: {
+    schema: metaSchema,
+  },
 });
 
 export default defineConfig({

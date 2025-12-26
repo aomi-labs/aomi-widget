@@ -14,12 +14,12 @@ export const source = loader({
 
 export const examples = loader({
   baseUrl: "/examples",
-  source: toFumadocsSource(examplePages, []),
+  source: examplePages.toFumadocsSource(),
 });
 
 export const api = loader({
   baseUrl: "/api",
-  source: toFumadocsSource(apiPages, []),
+  source: apiPages.toFumadocsSource(),
 });
 
 export type Page = InferPageType<typeof source>;
