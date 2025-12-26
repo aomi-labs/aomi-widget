@@ -1,20 +1,25 @@
 ---
 title: npm Package
-description: Install and manage the @aomi-labs/react package.
+description: Install the widget package and shadcn presets.
 ---
 
-# npm Package
+# NPM Package
 
-Install the widget from npm to embed it in your app.
+Install the widget and pull in the shadcn preset:
 
 ```bash
-pnpm add @aomi-labs/react
+npm install @aomi-labs/react
+npx shadcn add @aomi-labs
 ```
 
-## Peer dependencies
+For full preset variants:
 
-Include the listed peer deps (assistant-ui, Radix primitives, Tailwind utilities) to match the versions used in this repo.
+```bash
+# Full install (frame)
+npx shadcn add https://your-domain.com/r/aomi-frame.json
 
-## Updates
+# Just the wallet sidebar
+npx shadcn add https://your-domain.com/r/aomi-wallet-sidebar.json
+```
 
-Follow semver; pin versions in apps that ship to customers and refresh after verifying in the docs site.
+Include the listed peer deps (assistant-ui, Radix primitives, Tailwind utilities) to match the versions used in this repo. Follow semver; pin versions in apps that ship to customers and refresh after verifying in the docs site.

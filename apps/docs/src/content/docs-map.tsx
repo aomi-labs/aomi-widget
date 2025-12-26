@@ -1,22 +1,20 @@
 import type { ComponentType } from "react";
 
-import AboutAomi from "../../content/about-aomi.mdx";
-import Architecture from "../../content/architecture.mdx";
-import NpmPackage from "../../content/npm-package.mdx";
-import Cli from "../../content/cli.mdx";
-import Sdk from "../../content/sdk.mdx";
-import Api from "../../content/api.mdx";
-import Components from "../../content/components.mdx";
-import Styling from "../../content/styling.mdx";
-import Customization from "../../content/customization.mdx";
-import Examples from "../../content/examples.mdx";
-import Runtime from "../../content/runtime.mdx";
-import AomiApps from "../../content/aomi-apps.mdx";
-import ScriptGeneration from "../../content/script-generation.mdx";
-import Execution from "../../content/execution.mdx";
-import Evals from "../../content/evals.mdx";
-import ApiEndpoints from "../../content/api-endpoints.mdx";
-import PlatformSupport from "../../content/platform-support.mdx";
+import AboutAomi from "../../content/docs/about-aomi.mdx";
+import Architecture from "../../content/docs/architecture.mdx";
+import NpmPackage from "../../content/docs/npm-package.mdx";
+import Cli from "../../content/docs/cli.mdx";
+import Sdk from "../../content/docs/sdk.mdx";
+import Components from "../../content/docs/components.mdx";
+import Styling from "../../content/docs/styling.mdx";
+import Customization from "../../content/docs/customization.mdx";
+import Examples from "../../content/docs/examples.mdx";
+import Runtime from "../../content/docs/runtime.mdx";
+import AomiApps from "../../content/docs/aomi-apps.mdx";
+import ScriptGeneration from "../../content/docs/script-generation.mdx";
+import Execution from "../../content/docs/execution.mdx";
+import Evals from "../../content/docs/evals.mdx";
+import PlatformSupport from "../../content/docs/platform-support.mdx";
 
 export type DocEntry = {
   slug: string;
@@ -61,13 +59,6 @@ export const docsEntries: DocEntry[] = [
     description: "",
     section: "Quickstart",
     Component: Sdk,
-  },
-  {
-    slug: "api",
-    title: "API",
-    description: "",
-    section: "Quickstart",
-    Component: Api,
   },
   {
     slug: "components",
@@ -131,13 +122,6 @@ export const docsEntries: DocEntry[] = [
     description: "",
     section: "Guides",
     Component: Evals,
-  },
-  {
-    slug: "api-endpoints",
-    title: "API Endpoints",
-    description: "",
-    section: "Integration",
-    Component: ApiEndpoints,
   },
   {
     slug: "platform-support",

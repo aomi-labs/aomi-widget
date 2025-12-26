@@ -1,6 +1,6 @@
 ---
 title: Customization
-description: Ways to tailor the widget experience to your product.
+description: Swap in your own shadcn-styled components alongside the widget.
 ---
 
 # Customization
@@ -11,6 +11,23 @@ Adjust copy, behaviors, and visible surfaces without forking the library.
 
 - Toggle thread list visibility, message limits, and attachment support through component props.
 - Provide a `config` object to control assistant ids, backend URLs, and wallet requirements.
+
+## Drop in your own component (shadcn style)
+
+```tsx
+import { Card, CardContent } from "@/components/ui/card";
+import { AomiFrame } from "@aomi-labs/react";
+
+export function CustomShell() {
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <AomiFrame config={{ backendUrl: "/api/chat" }} />
+      </CardContent>
+    </Card>
+  );
+}
+```
 
 ## Product fit
 

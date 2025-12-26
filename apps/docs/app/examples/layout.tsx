@@ -13,7 +13,7 @@ const baseOptions: BaseLayoutProps = {
   links: [
     {
       text: "Documentation",
-      url: "/docs",
+      url: "/docs/about-aomi",
     },
     {
       text: "Examples",
@@ -22,7 +22,8 @@ const baseOptions: BaseLayoutProps = {
     },
     {
       text: "API Reference",
-      url: "/docs/api",
+      url: "/api",
+      active: "nested-url",
     },
   ],
 };

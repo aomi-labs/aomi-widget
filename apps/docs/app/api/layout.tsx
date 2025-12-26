@@ -1,9 +1,8 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import type { ReactNode } from "react";
-import { source } from "@/lib/source";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
+import { api } from "@/lib/source";
 
-// Shared configuration
 const baseOptions: BaseLayoutProps = {
   githubUrl: "https://github.com/aomi-labs/aomi-widget",
   nav: {
@@ -14,7 +13,6 @@ const baseOptions: BaseLayoutProps = {
     {
       text: "Documentation",
       url: "/docs/about-aomi",
-      active: "nested-url",
     },
     {
       text: "Examples",
@@ -32,7 +30,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <DocsLayout
       {...baseOptions}
-      tree={source.pageTree}
+      tree={api.pageTree}
       sidebar={{
         defaultOpenLevel: 0,
       }}

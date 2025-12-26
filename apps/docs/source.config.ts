@@ -32,6 +32,12 @@ export const examples = defineCollections({
   schema: frontmatterSchema,
 });
 
+export const api = defineCollections({
+  type: "doc",
+  dir: "content/api",
+  schema: frontmatterSchema,
+});
+
 export default defineConfig({
   mdxOptions: {
     remarkPlugins: [remarkMermaid],

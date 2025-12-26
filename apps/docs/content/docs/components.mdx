@@ -1,18 +1,18 @@
 ---
 title: Components
-description: Overview of the React components exported by @aomi-labs/react.
+description: shadcn-ready components shipped with @aomi-labs/react.
 ---
 
 # Components
 
-The widget ships composable pieces you can mix and match.
+Add components via shadcn presets, then import from `@aomi-labs/react`.
 
 ## Core exports
 
-- `AomiFrame` — full assistant shell with chat surface and thread list.
-- `AomiChat` — chat-only experience when you want to control layout yourself.
-- UI primitives — buttons, cards, badges, and form controls reused across docs and demos.
+- `AomiFrame` — full assistant shell with chat surface and thread list
+- `AomiChat` — chat-only experience when you want to control layout yourself
+- Wallet sidebar surfaces — add RPC + session config before enabling
 
 ## Usage
 
-Import components from `@aomi-labs/react`, wrap your app with the provided providers, and include `@aomi-labs/react/styles.css` for tokens.
+Use `npx shadcn add` with the provided preset URLs for frame or wallet-only installs. Import components from `@aomi-labs/react`, wrap your app with the provided providers, and include `@aomi-labs/react/styles.css` for tokens.

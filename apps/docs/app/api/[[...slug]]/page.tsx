@@ -1,22 +1,14 @@
 import type { Metadata } from "next";
 import { DocsPage, DocsBody } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
-import { redirect } from "next/navigation";
-import { source } from "@/lib/source";
+import { api } from "@/lib/source";
 import { getMDXComponents } from "@/app/mdx-components";
 
 export default async function Page(props: {
   params: Promise<{ slug?: string[] }>;
 }) {
   const params = await props.params;
-  const slug = params.slug ?? [];
-
-  // Route /docs to About Aomi now that the introduction lives there.
-  if (slug.length === 0) {
-    redirect("/docs/about-aomi");
-  }
-
-  const page = source.getPage(slug);
+  const page = api.getPage(params.slug ?? []);
 
   if (page == null) {
     notFound();
@@ -41,7 +33,7 @@ export default async function Page(props: {
 }
 
 export function generateStaticParams() {
-  return source.generateParams();
+  return api.generateParams();
 }
 
 export async function generateMetadata(
@@ -50,7 +42,7 @@ export async function generateMetadata(
   },
 ): Promise<Metadata> {
   const { slug = [] } = await props.params;
-  const page = source.getPage(slug);
+  const page = api.getPage(slug);
 
   if (!page) {
     return {
