@@ -406,14 +406,14 @@ function createBakendState() {
   return {
     tempToSessionId: /* @__PURE__ */ new Map(),
     skipInitialFetch: /* @__PURE__ */ new Set(),
-    pendingChat: /* @__PURE__ */ new Map(),
+    pendingSession: /* @__PURE__ */ new Map(),
     pendingSystem: /* @__PURE__ */ new Map(),
-    runningThreads: /* @__PURE__ */ new Set(),
+    runningSessions: /* @__PURE__ */ new Set(),
     creatingThreadId: null,
     createThreadPromise: null
   };
 }
-function resolveThreadId(state, threadId) {
+function resolveSessionId(state, threadId) {
   var _a;
   return (_a = state.tempToSessionId.get(threadId)) != null ? _a : threadId;
 }
@@ -441,28 +441,28 @@ function clearSkipInitialFetch(state, threadId) {
 }
 function setSessionRunning(state, threadId, running) {
   if (running) {
-    state.runningThreads.add(threadId);
+    state.runningSessions.add(threadId);
   } else {
-    state.runningThreads.delete(threadId);
+    state.runningSessions.delete(threadId);
   }
 }
 function isSessionRunning(state, threadId) {
-  return state.runningThreads.has(threadId);
+  return state.runningSessions.has(threadId);
 }
 function enqueuePendingSession(state, threadId, text) {
   var _a;
-  const existing = (_a = state.pendingChat.get(threadId)) != null ? _a : [];
-  state.pendingChat.set(threadId, [...existing, text]);
+  const existing = (_a = state.pendingSession.get(threadId)) != null ? _a : [];
+  state.pendingSession.set(threadId, [...existing, text]);
 }
 function dequeuePendingSession(state, threadId) {
   var _a;
-  const pending = (_a = state.pendingChat.get(threadId)) != null ? _a : [];
-  state.pendingChat.delete(threadId);
+  const pending = (_a = state.pendingSession.get(threadId)) != null ? _a : [];
+  state.pendingSession.delete(threadId);
   return pending;
 }
 function hasPendingSession(state, threadId) {
   var _a, _b;
-  return ((_b = (_a = state.pendingChat.get(threadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
+  return ((_b = (_a = state.pendingSession.get(threadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
 }
 function enqueuePendingSystem(state, threadId, text) {
   var _a;
@@ -476,8 +476,8 @@ function dequeuePendingSystem(state, threadId) {
   return pending;
 }
 
-// packages/react/src/runtime/message-controller.ts
-var MessageController = class {
+// packages/react/src/runtime/message-converter.ts
+var MessageConverter = class {
   constructor(config) {
     this.config = config;
   }
@@ -501,27 +501,27 @@ var MessageController = class {
         threadMessages.push(threadMessage);
       }
     }
-    this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
+    this.config.threadContextRef.current.setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
     if (!text) return;
-    const threadState = this.getThreadContextApi();
-    const existingMessages = threadState.getThreadMessages(threadId);
+    const threadContext = this.config.threadContextRef.current;
+    const existingMessages = threadContext.getThreadMessages(threadId);
     const userMessage = {
       role: "user",
       content: [{ type: "text", text }],
       createdAt: /* @__PURE__ */ new Date()
     };
-    threadState.setThreadMessages(threadId, [...existingMessages, userMessage]);
-    threadState.updateThreadMetadata(threadId, { lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
+    threadContext.setThreadMessages(threadId, [...existingMessages, userMessage]);
+    threadContext.updateThreadMetadata(threadId, { lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
     if (!isSessionReady(backendState, threadId)) {
       this.markRunning(threadId, true);
       enqueuePendingSession(backendState, threadId, text);
       return;
     }
-    const sessionId = resolveThreadId(backendState, threadId);
+    const sessionId = resolveSessionId(backendState, threadId);
     try {
       this.markRunning(threadId, true);
       await this.config.backendApiRef.current.postChatMessage(sessionId, text);
@@ -535,7 +535,7 @@ var MessageController = class {
   async outboundSystem(threadId, text) {
     const backendState = this.config.backendStateRef.current;
     if (!isSessionReady(backendState, threadId)) return;
-    const threadMessages = this.getThreadContextApi().getThreadMessages(threadId);
+    const threadMessages = this.config.threadContextRef.current.getThreadMessages(threadId);
     const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
     if (!hasUserMessages) {
       enqueuePendingSystem(backendState, threadId, text);
@@ -545,16 +545,16 @@ var MessageController = class {
   }
   async outboundSystemInner(threadId, text) {
     const backendState = this.config.backendStateRef.current;
-    const threadState = this.getThreadContextApi();
-    const sessionId = resolveThreadId(backendState, threadId);
+    const threadContext = this.config.threadContextRef.current;
+    const sessionId = resolveSessionId(backendState, threadId);
     this.markRunning(threadId, true);
     try {
       const response = await this.config.backendApiRef.current.postSystemMessage(sessionId, text);
       if (response.res) {
         const systemMessage = toInboundSystem(response.res);
         if (systemMessage) {
-          const updatedMessages = [...threadState.getThreadMessages(threadId), systemMessage];
-          threadState.setThreadMessages(threadId, updatedMessages);
+          const updatedMessages = [...threadContext.getThreadMessages(threadId), systemMessage];
+          threadContext.setThreadMessages(threadId, updatedMessages);
         }
       }
       await this.flushPendingSystem(threadId);
@@ -576,7 +576,7 @@ var MessageController = class {
     const backendState = this.config.backendStateRef.current;
     const pending = dequeuePendingSession(backendState, threadId);
     if (!pending.length) return;
-    const sessionId = resolveThreadId(backendState, threadId);
+    const sessionId = resolveSessionId(backendState, threadId);
     for (const text of pending) {
       try {
         await this.config.backendApiRef.current.postChatMessage(sessionId, text);
@@ -590,7 +590,7 @@ var MessageController = class {
     const backendState = this.config.backendStateRef.current;
     if (!isSessionReady(backendState, threadId)) return;
     this.config.polling.stop(threadId);
-    const sessionId = resolveThreadId(backendState, threadId);
+    const sessionId = resolveSessionId(backendState, threadId);
     try {
       await this.config.backendApiRef.current.postInterrupt(sessionId);
       this.markRunning(threadId, false);
@@ -604,10 +604,6 @@ var MessageController = class {
     if (this.config.threadContextRef.current.currentThreadId === threadId) {
       (_b = (_a = this.config).setGlobalIsRunning) == null ? void 0 : _b.call(_a, running);
     }
-  }
-  getThreadContextApi() {
-    const { getThreadMessages, setThreadMessages, updateThreadMetadata } = this.config.threadContextRef.current;
-    return { getThreadMessages, setThreadMessages, updateThreadMetadata };
   }
 };
 
@@ -623,7 +619,7 @@ var PollingController = class {
     const backendState = this.config.backendStateRef.current;
     if (!isSessionReady(backendState, threadId)) return;
     if (this.intervals.has(threadId)) return;
-    const sessionId = resolveThreadId(backendState, threadId);
+    const sessionId = resolveSessionId(backendState, threadId);
     setSessionRunning(backendState, threadId, true);
     const tick = async () => {
       try {
@@ -673,7 +669,7 @@ function useRuntimeOrchestration(backendUrl, threadContextRef) {
   const backendApi = backendApiRef;
   const backendStateRef = (0, import_react2.useRef)(createBakendState());
   const [isRunning, setIsRunning] = (0, import_react2.useState)(false);
-  const messageControllerRef = (0, import_react2.useRef)(null);
+  const messageConverterRef = (0, import_react2.useRef)(null);
   const pollingRef = (0, import_react2.useRef)(null);
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
@@ -682,7 +678,7 @@ function useRuntimeOrchestration(backendUrl, threadContextRef) {
       // find the right time to run applyMessages
       applyMessages: (threadId, msgs) => {
         var _a;
-        (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
+        (_a = messageConverterRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
       },
       onStop: (threadId) => {
         if (threadContextRef.current.currentThreadId === threadId) {
@@ -691,8 +687,8 @@ function useRuntimeOrchestration(backendUrl, threadContextRef) {
       }
     });
   }
-  if (!messageControllerRef.current) {
-    messageControllerRef.current = new MessageController({
+  if (!messageConverterRef.current) {
+    messageConverterRef.current = new MessageConverter({
       backendApiRef: backendApi,
       backendStateRef,
       threadContextRef,
@@ -718,10 +714,10 @@ function useRuntimeOrchestration(backendUrl, threadContextRef) {
         }
         return;
       }
-      const sessionId = resolveThreadId(backendState, threadId);
+      const sessionId = resolveSessionId(backendState, threadId);
       try {
         const state = await backendApi.current.fetchState(sessionId);
-        (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
+        (_a = messageConverterRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
         if (state.is_processing) {
           if (isCurrentThread) {
             setIsRunning(true);
@@ -743,7 +739,7 @@ function useRuntimeOrchestration(backendUrl, threadContextRef) {
       backendApi,
       backendStateRef,
       pollingRef,
-      messageControllerRef,
+      messageConverterRef,
       setIsRunning,
       threadContextRef
     ]
@@ -751,7 +747,7 @@ function useRuntimeOrchestration(backendUrl, threadContextRef) {
   return {
     backendStateRef,
     polling: pollingRef.current,
-    messageController: messageControllerRef.current,
+    messageConverter: messageConverterRef.current,
     isRunning,
     setIsRunning,
     syncThreadState,
@@ -772,17 +768,17 @@ function buildThreadLists(threadMetadata) {
   const entries = Array.from(threadMetadata.entries()).filter(
     ([, meta]) => !isPlaceholderTitle(meta.title)
   );
-  const regularThreads = entries.filter(([, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(([id, meta]) => ({
+  const auiRegularThreads = entries.filter(([, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(([id, meta]) => ({
     id,
     title: meta.title || DEFAULT_THREAD_TITLE,
     status: "regular"
   }));
-  const archivedThreads = entries.filter(([, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(([id, meta]) => ({
+  const auiArchivedThreads = entries.filter(([, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(([id, meta]) => ({
     id,
     title: meta.title || DEFAULT_THREAD_TITLE,
     status: "archived"
   }));
-  return { regularThreads, archivedThreads };
+  return { auiThreads: auiRegularThreads, auiArchivedThreads };
 }
 function deleteThreadFromContext(context, threadId) {
   context.setThreadMetadata((prev) => {
@@ -797,7 +793,7 @@ function deleteThreadFromContext(context, threadId) {
   });
 }
 function clearPendingQueues(backendState, threadId) {
-  backendState.pendingChat.delete(threadId);
+  backendState.pendingSession.delete(threadId);
   backendState.pendingSystem.delete(threadId);
 }
 function clearPendingThreadState(backendState, threadId) {
@@ -849,7 +845,10 @@ function useThreadListAdapter({
   threadContext,
   threadContextRef
 }) {
-  const { regularThreads, archivedThreads } = (0, import_react3.useMemo)(
+  const { auiThreads, auiArchivedThreads } = (0, import_react3.useMemo)(
+    // UI action → updateThreadMetadata → updateState → new snapshot created → emit() 
+    // → useSyncExternalStore detects change → getSnapshot() returns new ThreadContext 
+    // → component re-renders → [threadContext.threadMetadata] dependency changes 
     () => buildThreadLists(threadContext.threadMetadata),
     [threadContext.threadMetadata]
   );
@@ -917,9 +916,9 @@ function useThreadListAdapter({
       if (backendState.creatingThreadId === uiThreadId) {
         backendState.creatingThreadId = null;
       }
-      const pendingMessages = backendState.pendingChat.get(uiThreadId);
+      const pendingMessages = backendState.pendingSession.get(uiThreadId);
       if (pendingMessages == null ? void 0 : pendingMessages.length) {
-        backendState.pendingChat.delete(uiThreadId);
+        backendState.pendingSession.delete(uiThreadId);
         for (const text of pendingMessages) {
           try {
             await backendApiRef.current.postChatMessage(backendId, text);
@@ -1011,7 +1010,7 @@ function useThreadListAdapter({
         deleteThreadFromContext(currentContext, threadId);
         const backendState = backendStateRef.current;
         clearPendingThreadState(backendState, threadId);
-        backendState.runningThreads.delete(threadId);
+        backendState.runningSessions.delete(threadId);
         if (backendState.creatingThreadId === threadId) {
           backendState.creatingThreadId = null;
         }
@@ -1026,8 +1025,8 @@ function useThreadListAdapter({
   return (0, import_react3.useMemo)(
     () => ({
       threadId: threadContext.currentThreadId,
-      threads: regularThreads,
-      archivedThreads,
+      auiThreads,
+      auiArchivedThreads,
       onSwitchToNewThread,
       onSwitchToThread,
       onRename,
@@ -1036,19 +1035,19 @@ function useThreadListAdapter({
       onDelete
     }),
     [
-      archivedThreads,
+      auiArchivedThreads,
       onArchive,
       onDelete,
       onRename,
       onSwitchToNewThread,
       onSwitchToThread,
       onUnarchive,
-      regularThreads,
+      auiThreads,
       threadContext.currentThreadId
     ]
   );
 }
-async function fetchThreadListWithPk(publicKey, backendApiRef, threadContextRef) {
+async function fetchPubkeyThreads(publicKey, backendApiRef, threadContextRef) {
   var _a, _b;
   try {
     const threadList = await backendApiRef.current.fetchThreads(publicKey);
@@ -1126,6 +1125,12 @@ var ThreadStore = class {
     };
     this.getThreadMetadata = (threadId) => {
       return this.state.threadMetadata.get(threadId);
+    };
+    this.getAllMetadatas = () => {
+      return Array.from(this.state.threadMetadata.values());
+    };
+    this.getAllThreads = () => {
+      return this.state.threads;
     };
     this.updateThreadMetadata = (threadId, updates) => {
       const existing = this.state.threadMetadata.get(threadId);
@@ -1255,7 +1260,7 @@ function AomiRuntimeProvider({
   const {
     backendStateRef,
     polling,
-    messageController,
+    messageConverter,
     isRunning,
     setIsRunning,
     syncThreadState,
@@ -1272,18 +1277,8 @@ function AomiRuntimeProvider({
   const currentMessages = threadContext.getThreadMessages(currentThreadId);
   (0, import_react5.useEffect)(() => {
     if (!publicKey) return;
-    void fetchThreadListWithPk(publicKey, backendApiRef, threadContextRef);
+    void fetchPubkeyThreads(publicKey, backendApiRef, threadContextRef);
   }, [backendApiRef, publicKey, threadContextRef]);
-  const threadListAdapter = useThreadListAdapter({
-    backendApiRef,
-    backendStateRef,
-    currentThreadIdRef,
-    polling,
-    publicKey,
-    setIsRunning,
-    threadContext,
-    threadContextRef
-  });
   (0, import_react5.useEffect)(() => {
     const unsubscribe = backendApiRef.current.subscribeToUpdates((update) => {
       var _a;
@@ -1291,7 +1286,7 @@ function AomiRuntimeProvider({
       const sessionId = update.data.session_id;
       const newTitle = update.data.new_title;
       const backendState = backendStateRef.current;
-      const targetThreadId = (_a = getTempIdForSession(backendState, sessionId)) != null ? _a : resolveThreadId(backendState, sessionId);
+      const targetThreadId = (_a = getTempIdForSession(backendState, sessionId)) != null ? _a : resolveSessionId(backendState, sessionId);
       const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
       threadContext.setThreadMetadata((prev) => {
         var _a2;
@@ -1316,11 +1311,33 @@ function AomiRuntimeProvider({
   (0, import_react5.useEffect)(() => {
     if (!isTempThreadId(currentThreadId)) return;
     if (!isSessionReady(backendStateRef.current, currentThreadId)) return;
-    void messageController.flushPendingSession(currentThreadId);
-  }, [messageController, backendStateRef, currentThreadId]);
+    void messageConverter.flushPendingSession(currentThreadId);
+  }, [messageConverter, backendStateRef, currentThreadId]);
+  (0, import_react5.useEffect)(() => {
+    if (isTempThreadId(currentThreadId)) return;
+    const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
+    if (hasUserMessages) {
+      void messageConverter.flushPendingSystem(currentThreadId);
+    }
+  }, [currentMessages, messageConverter, currentThreadId]);
+  (0, import_react5.useEffect)(() => {
+    return () => {
+      polling.stopAll();
+    };
+  }, [polling]);
   const { setMessages, onNew, onCancel, sendSystemMessage } = useRuntimeCallbacks({
     currentThreadIdRef,
-    messageController,
+    messageConverter,
+    threadContextRef
+  });
+  const threadListAdapter = useThreadListAdapter({
+    backendApiRef,
+    backendStateRef,
+    currentThreadIdRef,
+    polling,
+    publicKey,
+    setIsRunning,
+    threadContext,
     threadContextRef
   });
   const runtime = (0, import_react6.useExternalStoreRuntime)({
@@ -1332,23 +1349,11 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  (0, import_react5.useEffect)(() => {
-    if (isTempThreadId(currentThreadId)) return;
-    const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
-    if (hasUserMessages) {
-      void messageController.flushPendingSystem(currentThreadId);
-    }
-  }, [currentMessages, messageController, currentThreadId]);
-  (0, import_react5.useEffect)(() => {
-    return () => {
-      polling.stopAll();
-    };
-  }, [polling]);
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RuntimeActionsProvider, { value: { sendSystemMessage }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react6.AssistantRuntimeProvider, { runtime, children }) });
 }
 function useRuntimeCallbacks({
   currentThreadIdRef,
-  messageController,
+  messageConverter,
   threadContextRef
 }) {
   const setMessages = (0, import_react5.useCallback)(
@@ -1358,16 +1363,16 @@ function useRuntimeCallbacks({
     [currentThreadIdRef, threadContextRef]
   );
   const onNew = (0, import_react5.useCallback)(
-    (message) => messageController.outbound(message, currentThreadIdRef.current),
-    [currentThreadIdRef, messageController]
+    (message) => messageConverter.outbound(message, currentThreadIdRef.current),
+    [currentThreadIdRef, messageConverter]
   );
   const onCancel = (0, import_react5.useCallback)(
-    () => messageController.cancel(currentThreadIdRef.current),
-    [currentThreadIdRef, messageController]
+    () => messageConverter.cancel(currentThreadIdRef.current),
+    [currentThreadIdRef, messageConverter]
   );
   const sendSystemMessage = (0, import_react5.useCallback)(
-    (message) => messageController.outboundSystem(currentThreadIdRef.current, message),
-    [currentThreadIdRef, messageController]
+    (message) => messageConverter.outboundSystem(currentThreadIdRef.current, message),
+    [currentThreadIdRef, messageConverter]
   );
   return { setMessages, onNew, onCancel, sendSystemMessage };
 }
