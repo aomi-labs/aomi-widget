@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { cn } from "@aomi-labs/react";
 
-import type { DocSection } from "@/content/docs-map";
-
 type SidebarNavProps = {
-  sections: DocSection[];
+  sections: {
+    title: string;
+    items: {
+      slug: string;
+      title: string;
+      description: string;
+    }[];
+  }[];
   currentSlug?: string;
 };
 

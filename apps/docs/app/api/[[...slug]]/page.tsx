@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DocsPage, DocsBody } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { api } from "@/lib/source";
 import { getMDXComponents } from "@/app/mdx-components";
 
@@ -8,7 +9,14 @@ export default async function Page(props: {
   params: Promise<{ slug?: string[] }>;
 }) {
   const params = await props.params;
-  const page = api.getPage(params.slug ?? []);
+  const slug = params.slug ?? [];
+
+  // Route /api to sessions by default.
+  if (slug.length === 0) {
+    redirect("/api/sessions");
+  }
+
+  const page = api.getPage(slug);
 
   if (page == null) {
     notFound();
