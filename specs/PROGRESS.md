@@ -1,59 +1,101 @@
 # Progress Tracker
 
 ## Current Sprint Goal
-Address Codex code quality issues and technical debt
+Set up Fumadocs documentation site for aomi-widget
 
 ## Branch Status
-- **Current Branch:** `system-notification`
+- **Current Branch:** `new-docs`
 - **Recent Commits:**
-  - 71db183 rename landing
-  - d5f8ecc mdx
-  - 3956de4 fix linting + running
-  - 0524c79 new docs page
-  - df61f47 styling migrated
+  - 0a000e8 Upgrade to Node 20 + Next.js 16 and remove all workarounds
+  - 813d46b Add force-dynamic to all pages for fumadocs compatibility
+  - e7998cb Fix fumadocs build issues and import paths
+  - 560298e @ path
+  - 62eca53 add example page
+  - 91af70b fumadocs-mdx
+  - 29bb224 mdx setup with fumadocs-mdx
 
 ## Recently Completed Work
 
-| Task | Description | Files |
-|------|-------------|-------|
-| Fix CSS copy command | Replaced platform-specific `cp` command with cross-platform Node fs API using esbuild plugin | `tsup.config.ts:1-19,57` |
-| Update build docs | Updated example package name from `example` to `landing` in CLAUDE.md | `CLAUDE.md:19` |
+| Task | Description | Key Changes |
+|------|-------------|-------------|
+| Fumadocs setup | Set up fumadocs-mdx documentation framework | source.config.ts, lib/source.tsx, app/docs layout |
+| Node 20 upgrade | Upgraded from Node 18 to Node 20 | Required for Next.js 16 + fumadocs 16.x |
+| Next.js 16 upgrade | Upgraded from Next.js 15.5.7 to 16.1.0 | Proper fumadocs compatibility |
+| Examples collection | Added separate /examples route with MetaMask fork example | content/examples/, app/examples/ |
+| Remove workarounds | Removed all hacks (force-dynamic, patch scripts, React aliases) | Clean SSG build |
 
 ## Files Modified This Sprint
 
-### Build Configuration
-- `tsup.config.ts` - NEW: Added `copyStylesPlugin` using Node's `fs` module for cross-platform CSS/theme copying
-- `CLAUDE.md` - Updated example dev command to use correct package name
+### Documentation Setup
+- `apps/docs/source.config.ts` - Fumadocs MDX configuration with shiki, twoslash
+- `apps/docs/lib/source.tsx` - Docs and examples loaders
+- `apps/docs/app/provider.tsx` - NEW: RootProvider wrapper for fumadocs
+- `apps/docs/app/layout.tsx` - Added Provider wrapper
+- `apps/docs/app/docs/layout.tsx` - DocsLayout with sidebar config
+- `apps/docs/app/docs/[[...slug]]/page.tsx` - Dynamic docs pages
+- `apps/docs/app/examples/layout.tsx` - Examples layout
+- `apps/docs/app/examples/[[...slug]]/page.tsx` - Dynamic examples pages
+
+### Content
+- `apps/docs/content/docs/*.mdx` - 17 documentation pages
+- `apps/docs/content/examples/metamask-fork.mdx` - MetaMask wallet example
+- `apps/docs/content/docs/meta.json` - Sidebar navigation structure
+- `apps/docs/content/examples/meta.json` - Examples navigation
+
+### Configuration
+- `apps/docs/package.json` - Next 16, fumadocs deps, removed workaround scripts
+- `apps/docs/next.config.ts` - Simplified webpack config
+- `apps/docs/tsconfig.json` - Added @/.source/* path mapping
+
+### Deleted
+- `apps/docs/scripts/patch-fumadocs-ui.mjs` - No longer needed
 
 ## Pending Tasks
 
-### High Priority - Codex Issues
-- [ ] Remove bundle-level `"use client"` directive - Move to individual component files
-- [ ] Add debug flag for production logging - Gate console.logs in `backend-api.ts`
-- [ ] Fix SSE reconnection logic - Persist attempt counter as class property
-- [ ] Fix double AppKit initialization - Remove side effect from `config.tsx`
+### Documentation Content
+- [ ] Fill in actual content for placeholder MDX pages
+- [ ] Add API reference documentation
+- [ ] Add component examples with live previews
+- [ ] Add getting started guide
 
 ### Low Priority
-- [ ] Consider adding TypeScript strict mode checks
-- [ ] Review error handling patterns across API methods
+- [ ] Add search functionality
+- [ ] Add dark/light theme toggle
+- [ ] Consider adding Algolia DocSearch
 
 ## Known Issues
 
-### From Codex Review
-1. **Bundle-level "use client"** (tsup.config.ts) - Forces entire library to client-side, prevents server component usage
-2. **Excessive production logging** (backend-api.ts:64-252) - Logs sensitive data (chat messages, wallet IDs) to production console
-3. **Broken SSE reconnection** (backend-api.ts:178-193) - Attempt counter resets to 0 on each call, loops forever
-4. **Double AppKit init** (example/src/components/) - `config.tsx` and `wallet-providers.tsx` both call `createAppKit()`
+None currently - build and dev server working correctly.
 
 ## Notes for Next Agent
-- ✅ CSS copy issue (#2) is FIXED - now uses Node fs API via esbuild plugin
-- ❌ "use client" banner still at bundle level - needs to be moved to individual files
-- ❌ All API methods still log extensively - needs debug flag implementation
-- ❌ SSE reconnection will loop forever - `attempt` variable is re-declared each time
-- ❌ AppKit initialized twice in example app - config.tsx has side effect
 
-### Implementation Notes
-- When fixing "use client": Add directive to files using hooks/browser APIs only (e.g., components using useState, useEffect, window)
-- When fixing logging: Consider environment variable `AOMI_DEBUG` or build-time flag
-- When fixing SSE: Make `reconnectAttempt` a class property, add exponential backoff
-- When fixing AppKit: Remove `createAppKit()` call from config.tsx:47, keep only in wallet-providers.tsx
+### Environment Requirements
+- **Node 20+ required** - fumadocs 16.x + Next.js 16 need Node 20
+- Run `nvm use 20` before any commands
+
+### Key Commands
+```bash
+pnpm --filter @aomi-labs/widget-docs dev    # Dev server
+pnpm --filter @aomi-labs/widget-docs build  # Production build
+```
+
+### Architecture
+- fumadocs-mdx generates `.source/` files at install time (postinstall script)
+- Two collections: `docs` (main docs) and `examples` (code examples)
+- RootProvider from fumadocs-ui/provider/next wraps the app
+- All pages use SSG (Static Site Generation) - no force-dynamic
+
+### File Structure
+```
+apps/docs/
+├── content/
+│   ├── docs/         # Documentation MDX files
+│   └── examples/     # Example MDX files
+├── app/
+│   ├── docs/         # /docs routes
+│   ├── examples/     # /examples routes
+│   └── provider.tsx  # fumadocs RootProvider
+├── lib/
+│   └── source.tsx    # Loaders for docs + examples
+└── source.config.ts  # fumadocs-mdx config
+```
