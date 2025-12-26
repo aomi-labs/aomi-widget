@@ -7,7 +7,7 @@ import {
   resolveSessionId,
   setSessionRunning,
   type BakendState,
-} from "./backend-state";
+} from "../state/backend";
 
 type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;

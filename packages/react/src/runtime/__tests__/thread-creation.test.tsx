@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, waitFor } from "@testing-library/react";
 import type { CreateSessionResponse, SessionResponsePayload } from "../../api/types";
 
-import { PollingController } from "../polling-controller";
+import { PollingController } from "../polling";
 import {
   ensureCurrentThreadRegular,
   flushPromises,

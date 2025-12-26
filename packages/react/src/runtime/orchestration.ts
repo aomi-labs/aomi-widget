@@ -4,8 +4,8 @@ import { useCallback, useRef, useState } from "react";
 import { BackendApi } from "../api/client";
 import type { SessionMessage } from "../api/types";
 import type { ThreadContext } from "../state/thread-store";
-import { MessageConverter } from "./message-converter";
-import { PollingController } from "./polling-controller";
+import { MessageConverter } from "../api/message";
+import { PollingController } from "./polling";
 import {
   clearSkipInitialFetch,
   createBakendState,
@@ -13,7 +13,7 @@ import {
   resolveSessionId,
   shouldSkipInitialFetch,
   type BakendState,
-} from "./backend-state";
+} from "../state/backend";
 
 export function useRuntimeOrchestration(
   backendUrl: string,

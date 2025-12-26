@@ -1,11 +1,11 @@
 import type { MutableRefObject } from "react";
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 
-import type { BackendApi } from "../api/client";
-import type { SessionMessage } from "../api/types";
+import type { BackendApi } from "./client";
+import type { SessionMessage } from "./types";
 import { toInboundSystem, toInboundMessage } from "../utils/conversion";
 import type { ThreadContext } from "../state/thread-store";
-import type { PollingController } from "./polling-controller";
+import type { PollingController } from "../runtime/polling";
 import {
   dequeuePendingSession,
   dequeuePendingSystem,
@@ -16,7 +16,7 @@ import {
   resolveSessionId,
   setSessionRunning,
   type BakendState,
-} from "./backend-state";
+} from "../state/backend";
 
 type MessageConverterConfig = {
   backendApiRef: MutableRefObject<BackendApi>;

@@ -75,18 +75,23 @@ type AomiRuntimeProviderProps = {
 };
 declare function AomiRuntimeProvider({ children, backendUrl, publicKey, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
-type RuntimeActions = {
-    sendSystemMessage: (message: string) => Promise<void>;
-};
-declare const RuntimeActionsProvider: react.Provider<RuntimeActions | undefined>;
-declare function useRuntimeActions(): RuntimeActions;
-
 type ThreadStatus = "regular" | "archived" | "pending";
 type ThreadMetadata = {
     title: string;
     status: ThreadStatus;
     lastActiveAt?: string | number;
 };
+
+type AomiRuntimeApi = {
+    sendSystemMessage: (message: string) => Promise<void>;
+    sendChatMessage: (message: string) => Promise<void>;
+    getThreadMessages: (threadId: string) => ThreadMessageLike[];
+    getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
+    getAllMetadatas: () => ThreadMetadata[];
+    getAllThreads: () => Map<string, ThreadMessageLike[]>;
+};
+declare const AomiRuntimeApiProvider: react.Provider<AomiRuntimeApi | undefined>;
+declare function useRuntimeActions(): AomiRuntimeApi;
 
 type ThreadContext = {
     currentThreadId: string;
@@ -103,6 +108,8 @@ type ThreadContext = {
     setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+    getAllMetadatas: () => ThreadMetadata[];
+    getAllThreads: () => Map<string, ThreadMessageLike[]>;
 };
 
 type ThreadContextProviderProps = {
@@ -136,4 +143,4 @@ declare function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitt
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiRuntimeProvider, BackendApi, type BackendSessionResponse, type CreateSessionResponse, RuntimeActionsProvider, type SessionMessage, type SessionMetadata, type SessionResponsePayload, type SystemResponsePayload, type SystemUpdate, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, cn, toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage, formatAddress, getNetworkName, useCurrentThreadMessages, useCurrentThreadMetadata, useRuntimeActions, useThreadContext };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, BackendApi, type BackendSessionResponse, type CreateSessionResponse, type SessionMessage, type SessionMetadata, type SessionResponsePayload, type SystemResponsePayload, type SystemUpdate, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, cn, toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage, formatAddress, getNetworkName, useCurrentThreadMessages, useCurrentThreadMetadata, useRuntimeActions, useThreadContext };

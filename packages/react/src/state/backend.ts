@@ -1,4 +1,4 @@
-import { isTempThreadId } from "./utils";
+import { isTempThreadId } from "../utils/conversion";
 
 export type BakendState = {
   tempToSessionId: Map<string, string>;

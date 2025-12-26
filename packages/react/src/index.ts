@@ -10,7 +10,8 @@ export type {
 } from "./api/types";
 
 export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
-export { useRuntimeActions, RuntimeActionsProvider } from "./runtime/hooks";
+export { useRuntimeActions, AomiRuntimeApiProvider } from "./runtime/interface";
+export type { AomiRuntimeApi } from "./runtime/interface";
 
 export {
   ThreadContextProvider,

@@ -5,13 +5,13 @@ import type { AssistantRuntime } from "@assistant-ui/react";
 import { useAssistantRuntime } from "@assistant-ui/react";
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
-import { useRuntimeActions } from "../hooks";
+import { useRuntimeActions } from "../interface";
 import { useRuntimeOrchestration } from "../orchestration";
-import { PollingController } from "../polling-controller";
+import { PollingController } from "../polling";
 import type { SessionMetadata, CreateSessionResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
 import type { ThreadContext } from "../../state/thread-store";
-import type { RuntimeActions } from "../hooks";
+import type { AomiRuntimeApi } from "../interface";
 
 type BackendApiConfig = {
   fetchThreads?: (publicKey: string) => Promise<SessionMetadata[]>;
@@ -130,7 +130,7 @@ vi.mock("../../api/client", () => {
 type HarnessHandle = {
   runtime: AssistantRuntime;
   threadContext: ThreadContext;
-  runtimeActions: RuntimeActions;
+  runtimeActions: AomiRuntimeApi;
 };
 
 type OrchestratorHandle = {
@@ -498,7 +498,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
     };
 
     ref.current.threadContext.setThreadMessages("thread-1", [optimisticMessage]);
-    ref.current.backendStateRef.current.pendingChat.set("thread-1", ["Draft"]);
+    ref.current.backendStateRef.current.pendingSession.set("thread-1", ["Draft"]);
 
     act(() => {
       ref.current.messageConverter.inbound("thread-1", [

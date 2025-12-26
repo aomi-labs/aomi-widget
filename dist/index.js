@@ -272,12 +272,12 @@ import {
   useExternalStoreRuntime
 } from "@assistant-ui/react";
 
-// packages/react/src/runtime/hooks.ts
+// packages/react/src/runtime/runtime-api.ts
 import { createContext, useContext } from "react";
-var RuntimeActionsContext = createContext(void 0);
-var RuntimeActionsProvider = RuntimeActionsContext.Provider;
+var AomiRuntimeApiContext = createContext(void 0);
+var AomiRuntimeApiProvider = AomiRuntimeApiContext.Provider;
 function useRuntimeActions() {
-  const context = useContext(RuntimeActionsContext);
+  const context = useContext(AomiRuntimeApiContext);
   if (!context) {
     throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
   }
@@ -763,7 +763,7 @@ function clearPendingQueues(backendState, threadId) {
   backendState.pendingSession.delete(threadId);
   backendState.pendingSystem.delete(threadId);
 }
-function clearPendingThreadState(backendState, threadId) {
+function clearPendingSession(backendState, threadId) {
   clearPendingQueues(backendState, threadId);
   backendState.tempToSessionId.delete(threadId);
   backendState.skipInitialFetch.delete(threadId);
@@ -783,7 +783,7 @@ function updateTitleFromBackend(context, threadId, backendTitle) {
     return next;
   });
 }
-function ensureFallbackThread(context, removedId) {
+function ensureThreadFallback(context, removedId) {
   if (context.currentThreadId !== removedId) return;
   const firstRegularThread = Array.from(context.threadMetadata.entries()).find(
     ([id, meta]) => meta.status === "regular" && id !== removedId
@@ -823,7 +823,7 @@ function useThreadListAdapter({
     (threadId) => {
       const currentContext = threadContextRef.current;
       deleteThreadFromContext(currentContext, threadId);
-      clearPendingThreadState(backendStateRef.current, threadId);
+      clearPendingSession(backendStateRef.current, threadId);
     },
     [backendStateRef, threadContextRef]
   );
@@ -976,12 +976,12 @@ function useThreadListAdapter({
         const currentContext = threadContextRef.current;
         deleteThreadFromContext(currentContext, threadId);
         const backendState = backendStateRef.current;
-        clearPendingThreadState(backendState, threadId);
+        clearPendingSession(backendState, threadId);
         backendState.runningSessions.delete(threadId);
         if (backendState.creatingThreadId === threadId) {
           backendState.creatingThreadId = null;
         }
-        ensureFallbackThread(currentContext, threadId);
+        ensureThreadFallback(currentContext, threadId);
       } catch (error) {
         console.error("Failed to delete thread:", error);
         throw error;
@@ -1143,7 +1143,9 @@ var ThreadStore = class {
       getThreadMessages: this.getThreadMessages,
       setThreadMessages: this.setThreadMessages,
       getThreadMetadata: this.getThreadMetadata,
-      updateThreadMetadata: this.updateThreadMetadata
+      updateThreadMetadata: this.updateThreadMetadata,
+      getAllMetadatas: this.getAllMetadatas,
+      getAllThreads: this.getAllThreads
     };
   }
   emit() {
@@ -1292,7 +1294,7 @@ function AomiRuntimeProvider({
       polling.stopAll();
     };
   }, [polling]);
-  const { setMessages, onNew, onCancel, sendSystemMessage } = useRuntimeCallbacks({
+  const { setMessages, onNew, onCancel, sendSystemMessage, sendChatMessage } = useRuntimeCallbacks({
     currentThreadIdRef,
     messageConverter,
     threadContextRef
@@ -1316,7 +1318,15 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  return /* @__PURE__ */ jsx2(RuntimeActionsProvider, { value: { sendSystemMessage }, children: /* @__PURE__ */ jsx2(AssistantRuntimeProvider, { runtime, children }) });
+  const runtimeApi = {
+    sendSystemMessage,
+    sendChatMessage,
+    getThreadMessages: (threadId) => threadContext.getThreadMessages(threadId),
+    getThreadMetadata: (threadId) => threadContext.getThreadMetadata(threadId),
+    getAllMetadatas: () => threadContext.getAllMetadatas(),
+    getAllThreads: () => threadContext.getAllThreads()
+  };
+  return /* @__PURE__ */ jsx2(AomiRuntimeApiProvider, { value: runtimeApi, children: /* @__PURE__ */ jsx2(AssistantRuntimeProvider, { runtime, children }) });
 }
 function useRuntimeCallbacks({
   currentThreadIdRef,
@@ -1341,7 +1351,16 @@ function useRuntimeCallbacks({
     (message) => messageConverter.outboundSystem(currentThreadIdRef.current, message),
     [currentThreadIdRef, messageConverter]
   );
-  return { setMessages, onNew, onCancel, sendSystemMessage };
+  const sendChatMessage = useCallback3(
+    (message) => {
+      const appendMessage = {
+        content: [{ type: "text", text: message }]
+      };
+      return messageConverter.outbound(appendMessage, currentThreadIdRef.current);
+    },
+    [currentThreadIdRef, messageConverter]
+  );
+  return { setMessages, onNew, onCancel, sendSystemMessage, sendChatMessage };
 }
 
 // packages/react/src/utils/wallet.ts
@@ -1413,9 +1432,9 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 export {
+  AomiRuntimeApiProvider,
   AomiRuntimeProvider,
   BackendApi,
-  RuntimeActionsProvider,
   ThreadContextProvider,
   WalletSystemMessageEmitter,
   cn,

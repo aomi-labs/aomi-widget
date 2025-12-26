@@ -10,12 +10,17 @@ import {
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
 
-import { RuntimeActionsProvider } from "./hooks";
+import { AomiRuntimeApiProvider } from "./interface";
 import { useRuntimeOrchestration } from "./orchestration";
-import { getTempIdForSession, isSessionReady, isSessionRunning, resolveSessionId } from "./backend-state";
-import { isPlaceholderTitle, isTempThreadId } from "./utils";
-import type { MessageConverter } from "./message-converter";
-import { fetchPubkeyThreads, useThreadListAdapter, type ThreadListAdapter } from "./thread-list";
+import {
+  getTempIdForSession,
+  isSessionReady,
+  isSessionRunning,
+  resolveSessionId,
+} from "../state/backend";
+import { isPlaceholderTitle, isTempThreadId } from "../utils/conversion";
+import type { MessageConverter } from "../api/message";
+import { fetchPubkeyThreads, useThreadListAdapter, type ThreadListAdapter } from "./adapter";
 import { useThreadContext } from "../state/thread-context";
 import type { ThreadContext } from "../state/thread-store";
 
@@ -127,7 +132,7 @@ export function AomiRuntimeProvider({
     };
   }, [polling]);
 
-  const { setMessages, onNew, onCancel, sendSystemMessage } = useRuntimeCallbacks({
+  const { setMessages, onNew, onCancel, sendSystemMessage, sendChatMessage } = useRuntimeCallbacks({
     currentThreadIdRef,
     messageConverter,
     threadContextRef,
@@ -154,24 +159,31 @@ export function AomiRuntimeProvider({
     adapters: { threadList: threadListAdapter },
   });
 
+  const runtimeApi = {
+    sendSystemMessage,
+    sendChatMessage,
+    getThreadMessages: (threadId: string) => threadContext.getThreadMessages(threadId),
+    getThreadMetadata: (threadId: string) => threadContext.getThreadMetadata(threadId),
+    getAllMetadatas: () => threadContext.getAllMetadatas(),
+    getAllThreads: () => threadContext.getAllThreads(),
+  };
+
   return (
-    <RuntimeActionsProvider value={{ sendSystemMessage }}>
+    <AomiRuntimeApiProvider value={runtimeApi}>
       <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
-    </RuntimeActionsProvider>
+    </AomiRuntimeApiProvider>
   );
 }
-
-type RuntimeCallbacksParams = {
-  currentThreadIdRef: MutableRefObject<string>;
-  messageConverter: MessageConverter;
-  threadContextRef: MutableRefObject<ThreadContext>;
-};
 
 function useRuntimeCallbacks({
   currentThreadIdRef,
   messageConverter,
   threadContextRef,
-}: RuntimeCallbacksParams) {
+}: {
+  currentThreadIdRef: MutableRefObject<string>;
+  messageConverter: MessageConverter;
+  threadContextRef: MutableRefObject<ThreadContext>;
+}) {
   const setMessages = useCallback(
     (messages: readonly ThreadMessageLike[]) => {
       threadContextRef.current.setThreadMessages(currentThreadIdRef.current, [...messages]);
@@ -196,5 +208,15 @@ function useRuntimeCallbacks({
     [currentThreadIdRef, messageConverter]
   );
 
-  return { setMessages, onNew, onCancel, sendSystemMessage };
+  const sendChatMessage = useCallback(
+    (message: string) => {
+      const appendMessage = {
+        content: [{ type: "text" as const, text: message }],
+      } as unknown as AppendMessage;
+      return messageConverter.outbound(appendMessage, currentThreadIdRef.current);
+    },
+    [currentThreadIdRef, messageConverter]
+  );
+
+  return { setMessages, onNew, onCancel, sendSystemMessage, sendChatMessage };
 }

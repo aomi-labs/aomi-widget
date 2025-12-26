@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { useRuntimeActions } from "../runtime/hooks";
+import { useRuntimeActions } from "../runtime/interface";
 
 export type WalletButtonState = {
   address?: string;

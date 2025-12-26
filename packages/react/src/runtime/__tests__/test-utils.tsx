@@ -5,12 +5,12 @@ import { act, render } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
-import { useRuntimeActions } from "../hooks";
+import { useRuntimeActions } from "../interface";
 import { useRuntimeOrchestration } from "../orchestration";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
 import type { ThreadContext } from "../../state/thread-store";
 import type { SessionMetadata, CreateSessionResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
-import type { RuntimeActions } from "../hooks";
+import type { AomiRuntimeApi } from "../interface";
 
 export type BackendApiConfig = {
   fetchThreads?: (publicKey: string) => Promise<SessionMetadata[]>;
@@ -129,7 +129,7 @@ vi.mock("../../api/client", () => {
 export type HarnessHandle = {
   runtime: AssistantRuntime;
   threadContext: ThreadContext;
-  runtimeActions: RuntimeActions;
+  runtimeActions: AomiRuntimeApi;
 };
 
 export type OrchestratorHandle = {

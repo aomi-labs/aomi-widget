@@ -41,6 +41,8 @@ classDiagram
     +setThreadMessages(id, msgs)
     +getThreadMetadata(id) ThreadMetadata
     +updateThreadMetadata(id, updates)
+    +getAllMetadatas() ThreadMetadata[]
+    +getAllThreads() Map~string,ThreadMessageLike[]~
   }
 
   class ThreadMetadata {
@@ -52,9 +54,9 @@ classDiagram
   class BakendState {
     +Map~string,string~ tempToSessionId
     +Set~string~ skipInitialFetch
-    +Map~string,string[]~ pendingChat
+    +Map~string,string[]~ pendingSession
     +Map~string,string[]~ pendingSystem
-    +Set~string~ runningThreads
+    +Set~string~ runningSessions
     +string|null creatingThreadId
     +Promise~void~|null createThreadPromise
   }
@@ -110,8 +112,13 @@ classDiagram
     +disconnectSSE()
   }
 
-  class RuntimeActions {
-    +sendSystemMessage(message)
+  class AomiRuntimeApi {
+    +sendSystemMessage(message) Promise~void~
+    +sendChatMessage(message) Promise~void~
+    +getThreadMessages(threadId) ThreadMessageLike[]
+    +getThreadMetadata(threadId) ThreadMetadata|undefined
+    +getAllMetadatas() ThreadMetadata[]
+    +getAllThreads() Map~string,ThreadMessageLike[]~
   }
 
   class AssistantRuntimeProvider {
@@ -138,7 +145,7 @@ classDiagram
 
   ThreadStore --> ThreadContext : creates snapshot
   ThreadContext --> ThreadMetadata
-  AomiRuntimeProvider --> RuntimeActions : provides via context
+  AomiRuntimeProvider --> AomiRuntimeApi : provides via AomiRuntimeApiProvider
   AomiRuntimeProvider --> AssistantRuntimeProvider : wraps
 ```
 
@@ -221,7 +228,7 @@ sequenceDiagram
   participant API as BackendApi
   participant PC as PollingController
 
-  U->>AR: RuntimeActions.sendSystemMessage(text)
+  U->>AR: AomiRuntimeApi.sendSystemMessage(text)
   AR->>MC: outboundSystem(currentThreadId, text)
   
   MC->>BS: isSessionReady(threadId)?
@@ -268,7 +275,7 @@ sequenceDiagram
   
   Note over AR,BS: Cleanup previous pending if exists
   AR->>BS: creatingThreadId = tempId
-  AR->>BS: pendingChat.delete(tempId)
+  AR->>BS: pendingSession.delete(tempId)
   AR->>BS: pendingSystem.delete(tempId)
   
   AR->>TC: setThreadMetadata(tempId, {status: "pending", title: "New Chat"})
@@ -287,12 +294,12 @@ sequenceDiagram
     AR->>TC: updateThreadMetadata(tempId, {title, status: "regular"})
   end
   
-  alt has pendingChat messages
-    AR->>BS: pendingChat.get(tempId)
+  alt has pendingSession messages
+    AR->>BS: pendingSession.get(tempId)
     loop for each pending text
       AR->>API: postChatMessage(session_id, text)
     end
-    AR->>BS: pendingChat.delete(tempId)
+    AR->>BS: pendingSession.delete(tempId)
     AR->>PC: start(tempId)
   end
 ```
@@ -312,9 +319,9 @@ graph TB
 
   subgraph "BakendState (Runtime State)"
     BS1[tempToSessionId: Map~tempId, backendId~]
-    BS2[pendingChat: Map~id, Array~]
+    BS2[pendingSession: Map~id, Array~]
     BS3[pendingSystem: Map~id, Array~]
-    BS4[runningThreads: Set~id~]
+    BS4[runningSessions: Set~id~]
     BS5[skipInitialFetch: Set~id~]
     BS6[creatingThreadId]
   end
@@ -360,6 +367,9 @@ graph TB
    - `ThreadRuntimeState` → `BakendState` (note: typo in codebase)
    - `ThreadContextValue` → `ThreadContext`
    - `runtimeStateRef` → `backendStateRef`
+   - `RuntimeActions` → `AomiRuntimeApi`
+   - `pendingChat` → `pendingSession` (in BakendState)
+   - `runningThreads` → `runningSessions` (in BakendState)
 
 2. **MessageConverter Method Renames:**
    - `applyBackendMessages` → `inbound`
@@ -371,13 +381,25 @@ graph TB
    - `constructSystemMessage` → `toInboundSystem`
    - `constructThreadMessage` → `toInboundMessage`
 
-4. **New Features:**
+4. **AomiRuntimeApi Enhancements:**
+   - Added `sendChatMessage(message)` - sends chat messages programmatically
+   - Added `getThreadMessages(threadId)` - retrieves messages for a thread
+   - Added `getThreadMetadata(threadId)` - retrieves metadata for a thread
+   - Added `getAllMetadatas()` - retrieves all thread metadata
+   - Added `getAllThreads()` - retrieves all threads with messages
+   - Exposed via `AomiRuntimeApiProvider` context (replaces `RuntimeActionsProvider`)
+
+5. **ThreadContext Enhancements:**
+   - Added `getAllMetadatas()` - returns array of all thread metadata
+   - Added `getAllThreads()` - returns map of all threads with messages
+
+6. **New Features:**
    - `fetchThreads(publicKey)` - syncs thread list from backend
    - `setMessages` callback in runtime config for direct message updates
    - `isRunning` derived from `isSessionRunning(backendState, threadId)` per-thread
    - `ThreadStore` maintains a `snapshot` property updated on state changes
 
-5. **Improved State Management:**
+7. **Improved State Management:**
    - `markRunning` now checks if thread is current before updating global `isRunning`
    - `onStop` callback in PollingController checks current thread before stopping
    - Better cleanup of previous pending threads when creating new ones

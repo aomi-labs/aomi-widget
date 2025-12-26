@@ -6,14 +6,16 @@ Migrate aomi-widget into monorepo: logic as npm package (`@aomi-labs/react`), UI
 ## Branch Status
 - **Current Branch:** `codex/implement-migration-plan-claude`
 - **Recent Commits:**
+  - d4ab261 renames
+  - 2f76217 thread-list.tsx
+  - bb4d7c9 comments
+  - 0a18162 refactored
+  - 7591fc0 diagrahms
+  - c8cd91b renames
+  - d5acc3f modularized tests
+  - 92c1f41 vitest.setup + sync progress
   - 208acbe Merge pull request #11 (runtime compatibility tests)
   - e284338 Add runtime compatibility tests
-  - e159be9 move css from react to widget
-  - 1c49f43 next.config.ts resolves
-  - 97158ca most thing compiles
-  - b439e0c fix imports
-  - 9457112 remove repetition
-  - 369ab28 @aomi-labs/widget-lib → @aomi-labs/react
 
 ## Migration Phase Status
 
@@ -36,6 +38,9 @@ Migrate aomi-widget into monorepo: logic as npm package (`@aomi-labs/react`), UI
 | Path alias config | Configured @/ imports across landing/docs | `next.config.ts`, `tsconfig.json` |
 | Style separation | Moved styles.css + themes from react to widget-lib | `apps/registry/src/styles.css` |
 | Runtime tests | Added compatibility tests for runtime behavior | `packages/react/src/runtime/__tests__/` |
+| Test modularization | Split and organized vitest tests with proper setup | `vitest.setup.ts`, `__tests__/` |
+| Code refactoring | Renamed and refactored thread-list components | `thread-list.tsx`, component renames |
+| Code comments | Added documentation comments throughout codebase | Various files |
 
 ## Current Architecture
 

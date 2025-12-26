@@ -19,6 +19,8 @@ export type ThreadContext = {
   setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
   getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
   updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+  getAllMetadatas: () => ThreadMetadata[];
+  getAllThreads: () => Map<string, ThreadMessageLike[]>;
 };
 
 type ThreadStoreState = {
@@ -84,6 +86,8 @@ export class ThreadStore {
       setThreadMessages: this.setThreadMessages,
       getThreadMetadata: this.getThreadMetadata,
       updateThreadMetadata: this.updateThreadMetadata,
+      getAllMetadatas: this.getAllMetadatas,
+      getAllThreads: this.getAllThreads,
     };
   }
 

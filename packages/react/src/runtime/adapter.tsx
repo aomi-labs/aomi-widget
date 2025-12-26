@@ -8,9 +8,9 @@ import {
   skipFirstFetch,
   setBackendMapping,
   type BakendState,
-} from "./backend-state";
-import { isPlaceholderTitle, parseTimestamp } from "./utils";
-import type { PollingController } from "./polling-controller";
+} from "../state/backend";
+import { isPlaceholderTitle, parseTimestamp } from "../utils/conversion";
+import type { PollingController } from "./polling";
 import type { BackendApi } from "../api/client";
 import type { ThreadContext } from "../state/thread-store";
 import type { ThreadMetadata } from "../state/types";
@@ -32,7 +32,7 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
     ([, meta]) => !isPlaceholderTitle(meta.title)
   );
 
-  const auiRegularThreads = entries
+  const regularThreads = entries
     .filter(([, meta]) => meta.status === "regular")
     .sort(sortByLastActiveDesc)
     .map(([id, meta]): AuiThreadData<"regular"> => ({
@@ -41,7 +41,7 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
       status: "regular",
     }));
 
-  const auiArchivedThreads = entries
+  const archivedThreads = entries
     .filter(([, meta]) => meta.status === "archived")
     .sort(sortByLastActiveDesc)
     .map(([id, meta]): AuiThreadData<"archived"> => ({
@@ -50,7 +50,7 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
       status: "archived",
     }));
 
-  return { auiThreads: auiRegularThreads, auiArchivedThreads };
+  return { threads: regularThreads, archivedThreads };
 }
 
 function deleteThreadFromContext(context: ThreadContext, threadId: string) {
@@ -71,7 +71,7 @@ function clearPendingQueues(backendState: BakendState, threadId: string) {
   backendState.pendingSystem.delete(threadId);
 }
 
-function clearPendingThreadState(backendState: BakendState, threadId: string) {
+function clearPendingSession(backendState: BakendState, threadId: string) {
   clearPendingQueues(backendState, threadId);
   backendState.tempToSessionId.delete(threadId);
   backendState.skipInitialFetch.delete(threadId);
@@ -97,7 +97,7 @@ function updateTitleFromBackend(
   });
 }
 
-function ensureFallbackThread(context: ThreadContext, removedId: string) {
+function ensureThreadFallback(context: ThreadContext, removedId: string) {
   if (context.currentThreadId !== removedId) return;
 
   const firstRegularThread = Array.from(context.threadMetadata.entries()).find(
@@ -137,8 +137,8 @@ type ThreadListAdapterParams = {
 //     builds callbacks that coordinate threadContext and backendState
 export type ThreadListAdapter = {
   threadId: string;
-  auiThreads: AuiThreadData<"regular">[];
-  auiArchivedThreads: AuiThreadData<"archived">[];
+  threads: AuiThreadData<"regular">[];
+  archivedThreads: AuiThreadData<"archived">[];
   onSwitchToNewThread: () => Promise<void>;
   onSwitchToThread: (threadId: string) => void;
   onRename: (threadId: string, newTitle: string) => Promise<void>;
@@ -162,7 +162,7 @@ export function useThreadListAdapter({
   // auiRegularThreads [{id, title, 'regular'}, ...]
   // auiArchivedThreads [{id, title, 'archived'}, ...]
 
-  const { auiThreads, auiArchivedThreads } = useMemo(
+  const { threads, archivedThreads } = useMemo(
     // UI action → updateThreadMetadata → updateState → new snapshot created → emit() 
     // → useSyncExternalStore detects change → getSnapshot() returns new ThreadContext 
     // → component re-renders → [threadContext.threadMetadata] dependency changes 
@@ -174,7 +174,7 @@ export function useThreadListAdapter({
     (threadId: string) => {
       const currentContext = threadContextRef.current;
       deleteThreadFromContext(currentContext, threadId);
-      clearPendingThreadState(backendStateRef.current, threadId);
+      clearPendingSession(backendStateRef.current, threadId);
     },
     [backendStateRef, threadContextRef]
   );
@@ -347,13 +347,13 @@ export function useThreadListAdapter({
         const currentContext = threadContextRef.current;
         deleteThreadFromContext(currentContext, threadId);
         const backendState = backendStateRef.current;
-        clearPendingThreadState(backendState, threadId);
+        clearPendingSession(backendState, threadId);
         backendState.runningSessions.delete(threadId);
         if (backendState.creatingThreadId === threadId) {
           backendState.creatingThreadId = null;
         }
 
-        ensureFallbackThread(currentContext, threadId);
+        ensureThreadFallback(currentContext, threadId);
       } catch (error) {
         console.error("Failed to delete thread:", error);
         throw error;
@@ -362,30 +362,17 @@ export function useThreadListAdapter({
     [backendApiRef, backendStateRef, threadContextRef]
   );
 
-  return useMemo<ThreadListAdapter>(
-    () => ({
-      threadId: threadContext.currentThreadId,
-      auiThreads,
-      auiArchivedThreads,
-      onSwitchToNewThread,
-      onSwitchToThread,
-      onRename,
-      onArchive,
-      onUnarchive,
-      onDelete,
-    }),
-    [
-      auiArchivedThreads,
-      onArchive,
-      onDelete,
-      onRename,
-      onSwitchToNewThread,
-      onSwitchToThread,
-      onUnarchive,
-      auiThreads,
-      threadContext.currentThreadId,
-    ]
-  );
+  return {
+    threadId: threadContext.currentThreadId,
+    threads,
+    archivedThreads,
+    onSwitchToNewThread,
+    onSwitchToThread,
+    onRename,
+    onArchive,
+    onUnarchive,
+    onDelete,
+  };
 }
 
 export async function fetchPubkeyThreads(

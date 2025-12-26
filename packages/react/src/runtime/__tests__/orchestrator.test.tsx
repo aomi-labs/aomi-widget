@@ -21,7 +21,7 @@ describe("Aomi runtime orchestrator", () => {
     };
 
     ref.current.threadContext.setThreadMessages("thread-1", [optimisticMessage]);
-    ref.current.backendStateRef.current.pendingChat.set("thread-1", ["Draft"]);
+    ref.current.backendStateRef.current.pendingSession.set("thread-1", ["Draft"]);
 
     act(() => {
       ref.current.messageConverter.inbound("thread-1", [
