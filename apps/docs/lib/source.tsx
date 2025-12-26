@@ -4,6 +4,7 @@ import { toFumadocsSource } from "fumadocs-mdx/runtime/server";
 import {
   docs,
   examples as examplePages,
+  api as apiPages,
 } from "@/.source/server";
 
 export const source = loader({
@@ -16,5 +17,11 @@ export const examples = loader({
   source: toFumadocsSource(examplePages, []),
 });
 
+export const api = loader({
+  baseUrl: "/api",
+  source: toFumadocsSource(apiPages, []),
+});
+
 export type Page = InferPageType<typeof source>;
 export type ExamplePage = InferPageType<typeof examples>;
+export type ApiPage = InferPageType<typeof api>;

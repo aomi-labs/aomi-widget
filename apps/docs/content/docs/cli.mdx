@@ -1,18 +1,20 @@
 ---
 title: CLI
-description: Command-line helpers for scaffolding and validating widget projects.
+description: Install and run the CLI for EVM scripts and local workflows.
 ---
 
 # CLI
 
-Use the CLI to bootstrap new integrations, run checks, and inspect local configs.
+_(TODO: extract out the CLI and depending crates and open-source; CLI + session + app abstraction; no backend or DB crates)_
 
-## Common tasks
+Install:
 
-- `pnpm dlx aomi-cli init` to scaffold a project.
-- `pnpm dlx aomi-cli doctor` to verify environment variables and wallet providers.
-- `pnpm dlx aomi-cli lint` to surface config mistakes early.
+```bash
+brew install aomi
+```
 
-## Tips
+Usage:
 
-Run CLI commands from the workspace root so shared configs (tsconfig, eslint) are discovered automatically.
+```bash
+aomi --no-docs --rpc-url http://ethereum.rpc
+```
