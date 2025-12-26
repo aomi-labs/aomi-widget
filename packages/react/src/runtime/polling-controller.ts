@@ -3,9 +3,9 @@ import type { MutableRefObject } from "react";
 import type { BackendApi } from "../api/client";
 import type { SessionMessage, SessionResponsePayload } from "../api/types";
 import {
-  isThreadReady,
-  resolveThreadId,
-  setThreadRunning,
+  isSessionReady,
+  resolveSessionId,
+  setSessionRunning,
   type BakendState,
 } from "./backend-state";
 
@@ -17,6 +17,7 @@ type PollingConfig = {
   intervalMs?: number;
 };
 
+// Singleton stateful poller, keep a map of threadId -> intervalId
 export class PollingController {
   private intervals = new Map<string, ReturnType<typeof setInterval>>();
   private intervalMs: number;
@@ -27,15 +28,15 @@ export class PollingController {
 
   start(threadId: string) {
     const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
+    if (!isSessionReady(backendState, threadId)) return;
     if (this.intervals.has(threadId)) return;
 
-    const backendThreadId = resolveThreadId(backendState, threadId);
-    setThreadRunning(backendState, threadId, true);
+    const sessionId = resolveSessionId(backendState, threadId);
+    setSessionRunning(backendState, threadId, true);
 
     const tick = async () => {
       try {
-        const state = await this.config.backendApiRef.current.fetchState(backendThreadId);
+        const state = await this.config.backendApiRef.current.fetchState(sessionId);
         this.handleState(threadId, state);
       } catch (error) {
         console.error("Polling error:", error);
@@ -53,7 +54,7 @@ export class PollingController {
       clearInterval(intervalId);
       this.intervals.delete(threadId);
     }
-    setThreadRunning(this.config.backendStateRef.current, threadId, false);
+    setSessionRunning(this.config.backendStateRef.current, threadId, false);
     this.config.onStop?.(threadId);
   }
 

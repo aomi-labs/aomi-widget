@@ -49,7 +49,7 @@ describe("Aomi runtime polling", () => {
 
       expect(fetchState).toHaveBeenCalledTimes(2);
 
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(
         false
       );
     } finally {
@@ -80,7 +80,7 @@ describe("Aomi runtime polling", () => {
 
       expect(fetchState).toHaveBeenCalled();
 
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(
         false
       );
     } finally {
@@ -114,7 +114,7 @@ describe("Aomi runtime polling", () => {
       });
 
       expect(fetchState).toHaveBeenCalled();
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(
         true
       );
     } finally {
@@ -151,7 +151,7 @@ describe("Aomi runtime polling", () => {
       const messageCount = ref.current.threadContext.getThreadMessages("thread-1").length;
 
       await act(async () => {
-        await ref.current.messageController.cancel("thread-1");
+        await ref.current.messageConverter.cancel("thread-1");
       });
 
       await act(async () => {
@@ -159,7 +159,7 @@ describe("Aomi runtime polling", () => {
       });
 
       expect(postInterrupt).toHaveBeenCalled();
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(
         false
       );
       expect(ref.current.threadContext.getThreadMessages("thread-1")).toHaveLength(

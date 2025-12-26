@@ -160,6 +160,14 @@ export class ThreadStore {
     return this.state.threadMetadata.get(threadId);
   };
 
+  getAllMetadatas = (): ThreadMetadata[] => {
+    return Array.from(this.state.threadMetadata.values());
+  };
+
+  getAllThreads = (): Map<string, ThreadMessageLike[]> => {
+    return this.state.threads;
+  };
+
   updateThreadMetadata = (threadId: string, updates: Partial<ThreadMetadata>) => {
     const existing = this.state.threadMetadata.get(threadId);
     if (!existing) {

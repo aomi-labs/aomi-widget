@@ -2,10 +2,10 @@
 
 import { useCallback, useMemo } from "react";
 import type { MutableRefObject } from "react";
-import type { ExternalStoreThreadData } from "@assistant-ui/react";
+import type { ExternalStoreThreadData as AuiThreadData } from "@assistant-ui/react";
 
 import {
-  markSkipInitialFetch,
+  skipFirstFetch,
   setBackendMapping,
   type BakendState,
 } from "./backend-state";
@@ -32,25 +32,25 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
     ([, meta]) => !isPlaceholderTitle(meta.title)
   );
 
-  const regularThreads = entries
+  const auiRegularThreads = entries
     .filter(([, meta]) => meta.status === "regular")
     .sort(sortByLastActiveDesc)
-    .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
+    .map(([id, meta]): AuiThreadData<"regular"> => ({
       id,
       title: meta.title || DEFAULT_THREAD_TITLE,
       status: "regular",
     }));
 
-  const archivedThreads = entries
+  const auiArchivedThreads = entries
     .filter(([, meta]) => meta.status === "archived")
     .sort(sortByLastActiveDesc)
-    .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
+    .map(([id, meta]): AuiThreadData<"archived"> => ({
       id,
       title: meta.title || DEFAULT_THREAD_TITLE,
       status: "archived",
     }));
 
-  return { regularThreads, archivedThreads };
+  return { auiThreads: auiRegularThreads, auiArchivedThreads };
 }
 
 function deleteThreadFromContext(context: ThreadContext, threadId: string) {
@@ -67,13 +67,13 @@ function deleteThreadFromContext(context: ThreadContext, threadId: string) {
 }
 
 function clearPendingQueues(backendState: BakendState, threadId: string) {
-  backendState.pendingChat.delete(threadId);
+  backendState.pendingSession.delete(threadId);
   backendState.pendingSystem.delete(threadId);
 }
 
 function clearPendingThreadState(backendState: BakendState, threadId: string) {
   clearPendingQueues(backendState, threadId);
-  backendState.tempToBackendId.delete(threadId);
+  backendState.tempToSessionId.delete(threadId);
   backendState.skipInitialFetch.delete(threadId);
 }
 
@@ -131,6 +131,22 @@ type ThreadListAdapterParams = {
   threadContextRef: MutableRefObject<ThreadContext>;
 };
 
+// Data transformation (for rendering):
+//     Uses buildThreadLists to convert internal state → AUI format
+// Action handlers (for user interactions):
+//     builds callbacks that coordinate threadContext and backendState
+export type ThreadListAdapter = {
+  threadId: string;
+  auiThreads: AuiThreadData<"regular">[];
+  auiArchivedThreads: AuiThreadData<"archived">[];
+  onSwitchToNewThread: () => Promise<void>;
+  onSwitchToThread: (threadId: string) => void;
+  onRename: (threadId: string, newTitle: string) => Promise<void>;
+  onArchive: (threadId: string) => Promise<void>;
+  onUnarchive: (threadId: string) => Promise<void>;
+  onDelete: (threadId: string) => Promise<void>;
+};
+
 export function useThreadListAdapter({
   backendApiRef,
   backendStateRef,
@@ -140,8 +156,16 @@ export function useThreadListAdapter({
   setIsRunning,
   threadContext,
   threadContextRef,
-}: ThreadListAdapterParams) {
-  const { regularThreads, archivedThreads } = useMemo(
+}: ThreadListAdapterParams): ThreadListAdapter {
+
+  // adapt to AUI data format and cache it with useMemo
+  // auiRegularThreads [{id, title, 'regular'}, ...]
+  // auiArchivedThreads [{id, title, 'archived'}, ...]
+
+  const { auiThreads, auiArchivedThreads } = useMemo(
+    // UI action → updateThreadMetadata → updateState → new snapshot created → emit() 
+    // → useSyncExternalStore detects change → getSnapshot() returns new ThreadContext 
+    // → component re-renders → [threadContext.threadMetadata] dependency changes 
     () => buildThreadLists(threadContext.threadMetadata),
     [threadContext.threadMetadata]
   );
@@ -212,7 +236,7 @@ export function useThreadListAdapter({
         const backendId = newThread.session_id;
 
         setBackendMapping(backendState, uiThreadId, backendId);
-        markSkipInitialFetch(backendState, uiThreadId);
+        skipFirstFetch(backendState, uiThreadId);
 
         updateTitleFromBackend(threadContextRef.current, uiThreadId, newThread.title);
 
@@ -220,9 +244,9 @@ export function useThreadListAdapter({
           backendState.creatingThreadId = null;
         }
 
-        const pendingMessages = backendState.pendingChat.get(uiThreadId);
+        const pendingMessages = backendState.pendingSession.get(uiThreadId);
         if (pendingMessages?.length) {
-          backendState.pendingChat.delete(uiThreadId);
+          backendState.pendingSession.delete(uiThreadId);
           for (const text of pendingMessages) {
             try {
               await backendApiRef.current.postChatMessage(backendId, text);
@@ -324,7 +348,7 @@ export function useThreadListAdapter({
         deleteThreadFromContext(currentContext, threadId);
         const backendState = backendStateRef.current;
         clearPendingThreadState(backendState, threadId);
-        backendState.runningThreads.delete(threadId);
+        backendState.runningSessions.delete(threadId);
         if (backendState.creatingThreadId === threadId) {
           backendState.creatingThreadId = null;
         }
@@ -338,11 +362,11 @@ export function useThreadListAdapter({
     [backendApiRef, backendStateRef, threadContextRef]
   );
 
-  return useMemo(
+  return useMemo<ThreadListAdapter>(
     () => ({
       threadId: threadContext.currentThreadId,
-      threads: regularThreads,
-      archivedThreads,
+      auiThreads,
+      auiArchivedThreads,
       onSwitchToNewThread,
       onSwitchToThread,
       onRename,
@@ -351,20 +375,20 @@ export function useThreadListAdapter({
       onDelete,
     }),
     [
-      archivedThreads,
+      auiArchivedThreads,
       onArchive,
       onDelete,
       onRename,
       onSwitchToNewThread,
       onSwitchToThread,
       onUnarchive,
-      regularThreads,
+      auiThreads,
       threadContext.currentThreadId,
     ]
   );
 }
 
-export async function fetchThreadListWithPk(
+export async function fetchPubkeyThreads(
   publicKey: string,
   backendApiRef: MutableRefObject<BackendApi>,
   threadContextRef: MutableRefObject<ThreadContext>

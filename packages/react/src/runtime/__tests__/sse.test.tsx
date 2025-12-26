@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, waitFor } from "@testing-library/react";
-import type { CreateThreadResponse, SystemUpdate } from "../../api/types";
+import type { CreateSessionResponse, SystemUpdate } from "../../api/types";
 
 import {
   backendApiInstances,
@@ -21,10 +21,10 @@ afterEach(() => {
 
 describe("Aomi runtime SSE updates", () => {
   it("updates titles for backend and temp threads", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<CreateSessionResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );

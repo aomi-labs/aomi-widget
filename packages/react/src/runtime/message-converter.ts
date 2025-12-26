@@ -7,18 +7,18 @@ import { toInboundSystem, toInboundMessage } from "../utils/conversion";
 import type { ThreadContext } from "../state/thread-store";
 import type { PollingController } from "./polling-controller";
 import {
-  dequeuePendingChat,
+  dequeuePendingSession,
   dequeuePendingSystem,
-  enqueuePendingChat,
+  enqueuePendingSession,
   enqueuePendingSystem,
-  hasPendingChat,
-  isThreadReady,
-  resolveThreadId,
-  setThreadRunning,
+  hasPendingSession,
+  isSessionReady,
+  resolveSessionId,
+  setSessionRunning,
   type BakendState,
 } from "./backend-state";
 
-type MessageControllerConfig = {
+type MessageConverterConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
   backendStateRef: MutableRefObject<BakendState>;
   threadContextRef: MutableRefObject<ThreadContext>;
@@ -26,18 +26,14 @@ type MessageControllerConfig = {
   setGlobalIsRunning?: (running: boolean) => void;
 };
 
-type ThreadContextApi = Pick<
-  ThreadContext,
-  "getThreadMessages" | "setThreadMessages" | "updateThreadMetadata"
->;
-
-export class MessageController {
-  constructor(private readonly config: MessageControllerConfig) {}
+// Singleton processor interface, stateless
+export class MessageConverter {
+  constructor(private readonly config: MessageConverterConfig) {}
 
   inbound(threadId: string, msgs?: SessionMessage[] | null) {
     const backendState = this.config.backendStateRef.current;
     if (!msgs) return;
-    if (hasPendingChat(backendState, threadId)) {
+    if (hasPendingSession(backendState, threadId)) {
       // Avoid overwriting optimistic UI when pending user messages exist.
       return;
     }
@@ -57,7 +53,7 @@ export class MessageController {
       }
     }
 
-    this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
+    this.config.threadContextRef.current.setThreadMessages(threadId, threadMessages);
   }
 
   async outbound(message: AppendMessage, threadId: string) {
@@ -69,28 +65,28 @@ export class MessageController {
 
     if (!text) return;
 
-    const threadState = this.getThreadContextApi();
-    const existingMessages = threadState.getThreadMessages(threadId);
+    const threadContext = this.config.threadContextRef.current;
+    const existingMessages = threadContext.getThreadMessages(threadId);
     const userMessage: ThreadMessageLike = {
       role: "user",
       content: [{ type: "text", text }],
       createdAt: new Date(),
     };
 
-    threadState.setThreadMessages(threadId, [...existingMessages, userMessage]);
-    threadState.updateThreadMetadata(threadId, { lastActiveAt: new Date().toISOString() });
+    threadContext.setThreadMessages(threadId, [...existingMessages, userMessage]);
+    threadContext.updateThreadMetadata(threadId, { lastActiveAt: new Date().toISOString() });
 
-    if (!isThreadReady(backendState, threadId)) {
+    if (!isSessionReady(backendState, threadId)) {
       this.markRunning(threadId, true);
-      enqueuePendingChat(backendState, threadId, text);
+      enqueuePendingSession(backendState, threadId, text);
       return;
     }
 
-    const backendThreadId = resolveThreadId(backendState, threadId);
+    const sessionId = resolveSessionId(backendState, threadId);
 
     try {
       this.markRunning(threadId, true);
-      await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      await this.config.backendApiRef.current.postChatMessage(sessionId, text);
       await this.flushPendingSystem(threadId);
       this.config.polling.start(threadId);
     } catch (error) {
@@ -101,8 +97,8 @@ export class MessageController {
 
   async outboundSystem(threadId: string, text: string) {
     const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
-    const threadMessages = this.getThreadContextApi().getThreadMessages(threadId);
+    if (!isSessionReady(backendState, threadId)) return;
+    const threadMessages = this.config.threadContextRef.current.getThreadMessages(threadId);
     const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
 
     if (!hasUserMessages) {
@@ -115,16 +111,16 @@ export class MessageController {
 
   async outboundSystemInner(threadId: string, text: string) {
     const backendState = this.config.backendStateRef.current;
-    const threadState = this.getThreadContextApi();
-    const backendThreadId = resolveThreadId(backendState, threadId);
+    const threadContext = this.config.threadContextRef.current;
+    const sessionId = resolveSessionId(backendState, threadId);
     this.markRunning(threadId, true);
     try {
-      const response = await this.config.backendApiRef.current.postSystemMessage(backendThreadId, text);
+      const response = await this.config.backendApiRef.current.postSystemMessage(sessionId, text);
       if (response.res) {
         const systemMessage = toInboundSystem(response.res);
         if (systemMessage) {
-          const updatedMessages = [...threadState.getThreadMessages(threadId), systemMessage];
-          threadState.setThreadMessages(threadId, updatedMessages);
+          const updatedMessages = [...threadContext.getThreadMessages(threadId), systemMessage];
+          threadContext.setThreadMessages(threadId, updatedMessages);
         }
       }
       await this.flushPendingSystem(threadId);
@@ -144,14 +140,14 @@ export class MessageController {
     }
   }
 
-  async flushPendingChat(threadId: string) {
+  async flushPendingSession(threadId: string) {
     const backendState = this.config.backendStateRef.current;
-    const pending = dequeuePendingChat(backendState, threadId);
+    const pending = dequeuePendingSession(backendState, threadId);
     if (!pending.length) return;
-    const backendThreadId = resolveThreadId(backendState, threadId);
+    const sessionId = resolveSessionId(backendState, threadId);
     for (const text of pending) {
       try {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        await this.config.backendApiRef.current.postChatMessage(sessionId, text);
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }
@@ -161,11 +157,11 @@ export class MessageController {
 
   async cancel(threadId: string) {
     const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
+    if (!isSessionReady(backendState, threadId)) return;
     this.config.polling.stop(threadId);
-    const backendThreadId = resolveThreadId(backendState, threadId);
+    const sessionId = resolveSessionId(backendState, threadId);
     try {
-      await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      await this.config.backendApiRef.current.postInterrupt(sessionId);
       this.markRunning(threadId, false);
     } catch (error) {
       console.error("Failed to cancel:", error);
@@ -173,15 +169,10 @@ export class MessageController {
   }
 
   private markRunning(threadId: string, running: boolean) {
-    setThreadRunning(this.config.backendStateRef.current, threadId, running);
+    setSessionRunning(this.config.backendStateRef.current, threadId, running);
     if (this.config.threadContextRef.current.currentThreadId === threadId) {
       this.config.setGlobalIsRunning?.(running);
     }
   }
 
-  private getThreadContextApi(): ThreadContextApi {
-    const { getThreadMessages, setThreadMessages, updateThreadMetadata } =
-      this.config.threadContextRef.current;
-    return { getThreadMessages, setThreadMessages, updateThreadMetadata };
-  }
 }

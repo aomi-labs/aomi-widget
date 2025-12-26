@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, waitFor } from "@testing-library/react";
-import type { CreateThreadResponse, SessionResponsePayload } from "../../api/types";
+import type { CreateSessionResponse, SessionResponsePayload } from "../../api/types";
 
 import { PollingController } from "../polling-controller";
 import {
@@ -25,10 +25,10 @@ describe("Aomi runtime thread creation", () => {
       .spyOn(PollingController.prototype, "start")
       .mockImplementation(() => {});
     try {
-      let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+      let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
       const createThread = vi.fn(
         () =>
-          new Promise<CreateThreadResponse>((resolve) => {
+          new Promise<CreateSessionResponse>((resolve) => {
             resolveCreate = resolve;
           })
       );
@@ -102,10 +102,10 @@ describe("Aomi runtime thread creation", () => {
   });
 
   it("reuses the pending temp thread for rapid creates", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<CreateSessionResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );
@@ -138,10 +138,10 @@ describe("Aomi runtime thread creation", () => {
   });
 
   it("queues temp thread messages and flushes in order", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<CreateSessionResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );

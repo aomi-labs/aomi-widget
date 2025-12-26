@@ -9,13 +9,13 @@ import { useRuntimeActions } from "../hooks";
 import { useRuntimeOrchestration } from "../orchestration";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
 import type { ThreadContext } from "../../state/thread-store";
-import type { BackendThreadMetadata, CreateThreadResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
+import type { SessionMetadata, CreateSessionResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
 import type { RuntimeActions } from "../hooks";
 
 export type BackendApiConfig = {
-  fetchThreads?: (publicKey: string) => Promise<BackendThreadMetadata[]>;
+  fetchThreads?: (publicKey: string) => Promise<SessionMetadata[]>;
   fetchState?: (sessionId: string) => Promise<SessionResponsePayload>;
-  createThread?: (publicKey?: string, title?: string) => Promise<CreateThreadResponse>;
+  createThread?: (publicKey?: string, title?: string) => Promise<CreateSessionResponse>;
   postChatMessage?: (sessionId: string, message: string) => Promise<SessionResponsePayload>;
   postSystemMessage?: (sessionId: string, message: string) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<SessionResponsePayload>;
@@ -136,7 +136,7 @@ export type OrchestratorHandle = {
   threadContext: ThreadContext;
   syncThreadState: (threadId: string) => Promise<void>;
   backendStateRef: ReturnType<typeof useRuntimeOrchestration>["backendStateRef"];
-  messageController: ReturnType<typeof useRuntimeOrchestration>["messageController"];
+  messageConverter: ReturnType<typeof useRuntimeOrchestration>["messageConverter"];
   polling: ReturnType<typeof useRuntimeOrchestration>["polling"];
 };
 
@@ -173,7 +173,7 @@ const OrchestratorHarness = forwardRef<OrchestratorHandle, { backendUrl: string 
         threadContext,
         syncThreadState: orchestrator.syncThreadState,
         backendStateRef: orchestrator.backendStateRef,
-        messageController: orchestrator.messageController,
+        messageConverter: orchestrator.messageConverter,
         polling: orchestrator.polling,
       }),
       [orchestrator, threadContext]

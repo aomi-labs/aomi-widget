@@ -25,7 +25,7 @@ type BackendSessionResponse = SessionResponsePayload;
 interface SystemResponsePayload {
     res?: SessionMessage | null;
 }
-interface BackendThreadMetadata {
+interface SessionMetadata {
     session_id: string;
     title: string;
     is_archived?: boolean;
@@ -33,7 +33,7 @@ interface BackendThreadMetadata {
     updated_at?: string;
     last_active_at?: string;
 }
-interface CreateThreadResponse {
+interface CreateSessionResponse {
     session_id: string;
     title?: string;
 }
@@ -60,8 +60,8 @@ declare class BackendApi {
     connectSSE(sessionId: string, publicKey?: string): Promise<void>;
     private handleConnectionError;
     subscribeToUpdates(onUpdate: (update: SystemUpdate) => void, onError?: (error: unknown) => void): () => void;
-    fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]>;
-    createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse>;
+    fetchThreads(publicKey: string): Promise<SessionMetadata[]>;
+    createThread(publicKey?: string, title?: string): Promise<CreateSessionResponse>;
     archiveThread(sessionId: string): Promise<void>;
     unarchiveThread(sessionId: string): Promise<void>;
     deleteThread(sessionId: string): Promise<void>;
@@ -136,4 +136,4 @@ declare function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitt
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiRuntimeProvider, BackendApi, type BackendSessionResponse, type BackendThreadMetadata, type CreateThreadResponse, RuntimeActionsProvider, type SessionMessage, type SessionResponsePayload, type SystemResponsePayload, type SystemUpdate, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, cn, constructSystemMessage, constructThreadMessage, formatAddress, getNetworkName, useCurrentThreadMessages, useCurrentThreadMetadata, useRuntimeActions, useThreadContext };
+export { AomiRuntimeProvider, BackendApi, type BackendSessionResponse, type SessionMetadata, type CreateSessionResponse, RuntimeActionsProvider, type SessionMessage, type SessionResponsePayload, type SystemResponsePayload, type SystemUpdate, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, cn, constructSystemMessage, constructThreadMessage, formatAddress, getNetworkName, useCurrentThreadMessages, useCurrentThreadMetadata, useRuntimeActions, useThreadContext };

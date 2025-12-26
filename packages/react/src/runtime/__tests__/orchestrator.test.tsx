@@ -24,7 +24,7 @@ describe("Aomi runtime orchestrator", () => {
     ref.current.backendStateRef.current.pendingChat.set("thread-1", ["Draft"]);
 
     act(() => {
-      ref.current.messageController.inbound("thread-1", [
+      ref.current.messageConverter.inbound("thread-1", [
         { sender: "assistant", content: "Should not overwrite" },
       ]);
     });

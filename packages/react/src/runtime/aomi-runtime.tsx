@@ -5,16 +5,17 @@ import type { MutableRefObject, ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
   type AppendMessage,
+  type AssistantRuntime,
   type ThreadMessageLike,
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
 
 import { RuntimeActionsProvider } from "./hooks";
 import { useRuntimeOrchestration } from "./orchestration";
-import { findTempIdForBackendId, isThreadReady, isThreadRunning, resolveThreadId } from "./backend-state";
+import { getTempIdForSession, isSessionReady, isSessionRunning, resolveSessionId } from "./backend-state";
 import { isPlaceholderTitle, isTempThreadId } from "./utils";
-import type { MessageController } from "./message-controller";
-import { fetchThreadListWithPk, useThreadListAdapter } from "./thread-list";
+import type { MessageConverter } from "./message-converter";
+import { fetchPubkeyThreads, useThreadListAdapter, type ThreadListAdapter } from "./thread-list";
 import { useThreadContext } from "../state/thread-context";
 import type { ThreadContext } from "../state/thread-store";
 
@@ -35,13 +36,13 @@ export function AomiRuntimeProvider({
   threadContextRef.current = threadContext;
   const currentThreadId = threadContext.currentThreadId;
 
-  // hook to BackendApi, PollingController, and MessageController
+  // hook to BackendApi, PollingController, and MessageConverter
   // in one render cycle, init them if needed
   // apply changes to ThreadContext based on BE state & polling interval
   const {
     backendStateRef,
     polling,
-    messageController,
+    messageConverter,
     isRunning,
     setIsRunning,
     syncThreadState,
@@ -52,32 +53,25 @@ export function AomiRuntimeProvider({
   // make a thread-safe smart pointer for other hooks that useEffect
   const currentThreadIdRef = useRef(currentThreadId);
   currentThreadIdRef.current = currentThreadId;
+  // Syncs thread state with backend when currentThreadId changes
   useEffect(() => {
     void syncThreadState(currentThreadId);
   }, [syncThreadState, currentThreadId]);
 
+  // Updates isRunning state based on whether the current thread is running
   useEffect(() => {
-    setIsRunning(isThreadRunning(backendStateRef.current, currentThreadId));
+    setIsRunning(isSessionRunning(backendStateRef.current, currentThreadId));
   }, [backendStateRef, setIsRunning, currentThreadId]);
 
   const currentMessages = threadContext.getThreadMessages(currentThreadId);
 
+  // Fetches thread list from backend when publicKey is available
   useEffect(() => {
     if (!publicKey) return;
-    void fetchThreadListWithPk(publicKey, backendApiRef, threadContextRef);
+    void fetchPubkeyThreads(publicKey, backendApiRef, threadContextRef);
   }, [backendApiRef, publicKey, threadContextRef]);
 
-  const threadListAdapter = useThreadListAdapter({
-    backendApiRef,
-    backendStateRef,
-    currentThreadIdRef,
-    polling,
-    publicKey,
-    setIsRunning,
-    threadContext,
-    threadContextRef,
-  });
-
+  // Subscribes to backend updates and handles title change events
   useEffect(() => {
     const unsubscribe = backendApiRef.current.subscribeToUpdates((update) => {
       if (update.type !== "TitleChanged") return;
@@ -86,8 +80,8 @@ export function AomiRuntimeProvider({
 
       const backendState = backendStateRef.current;
       const targetThreadId =
-        findTempIdForBackendId(backendState, sessionId) ??
-        resolveThreadId(backendState, sessionId);
+        getTempIdForSession(backendState, sessionId) ??
+        resolveSessionId(backendState, sessionId);
       const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
       threadContext.setThreadMetadata((prev) => {
         const next = new Map(prev);
@@ -110,20 +104,47 @@ export function AomiRuntimeProvider({
     };
   }, [backendApiRef, backendStateRef, threadContext]);
 
+  // Flushes pending chat messages when a temp thread is ready and mapped
   useEffect(() => {
-    // Once a temp thread is mapped, flush any queued chat messages.
     if (!isTempThreadId(currentThreadId)) return;
-    if (!isThreadReady(backendStateRef.current, currentThreadId)) return;
-    void messageController.flushPendingChat(currentThreadId);
-  }, [messageController, backendStateRef, currentThreadId]);
+    if (!isSessionReady(backendStateRef.current, currentThreadId)) return;
+    void messageConverter.flushPendingSession(currentThreadId);
+  }, [messageConverter, backendStateRef, currentThreadId]);
+
+  // Flushes pending system messages after user messages are sent
+  useEffect(() => {
+    if (isTempThreadId(currentThreadId)) return;
+    const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
+    if (hasUserMessages) {
+      void messageConverter.flushPendingSystem(currentThreadId);
+    }
+  }, [currentMessages, messageConverter, currentThreadId]);
+
+  // Stops all polling when the provider unmounts
+  useEffect(() => {
+    return () => {
+      polling.stopAll();
+    };
+  }, [polling]);
 
   const { setMessages, onNew, onCancel, sendSystemMessage } = useRuntimeCallbacks({
     currentThreadIdRef,
-    messageController,
+    messageConverter,
     threadContextRef,
   });
 
-  const runtime = useExternalStoreRuntime({
+  const threadListAdapter: ThreadListAdapter = useThreadListAdapter({
+    backendApiRef,
+    backendStateRef,
+    currentThreadIdRef,
+    polling,
+    publicKey,
+    setIsRunning,
+    threadContext,
+    threadContextRef,
+  });
+
+  const runtime: AssistantRuntime = useExternalStoreRuntime({
     messages: currentMessages,
     setMessages,
     isRunning,
@@ -132,22 +153,6 @@ export function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter },
   });
-
-  useEffect(() => {
-    // After a user message lands, flush any queued system message.
-    if (isTempThreadId(currentThreadId)) return;
-    const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
-    if (hasUserMessages) {
-      void messageController.flushPendingSystem(currentThreadId);
-    }
-  }, [currentMessages, messageController, currentThreadId]);
-
-  useEffect(() => {
-    // Clean up polling when the provider unmounts.
-    return () => {
-      polling.stopAll();
-    };
-  }, [polling]);
 
   return (
     <RuntimeActionsProvider value={{ sendSystemMessage }}>
@@ -158,13 +163,13 @@ export function AomiRuntimeProvider({
 
 type RuntimeCallbacksParams = {
   currentThreadIdRef: MutableRefObject<string>;
-  messageController: MessageController;
+  messageConverter: MessageConverter;
   threadContextRef: MutableRefObject<ThreadContext>;
 };
 
 function useRuntimeCallbacks({
   currentThreadIdRef,
-  messageController,
+  messageConverter,
   threadContextRef,
 }: RuntimeCallbacksParams) {
   const setMessages = useCallback(
@@ -176,19 +181,19 @@ function useRuntimeCallbacks({
 
   const onNew = useCallback(
     (message: AppendMessage) =>
-      messageController.outbound(message, currentThreadIdRef.current),
-    [currentThreadIdRef, messageController]
+      messageConverter.outbound(message, currentThreadIdRef.current),
+    [currentThreadIdRef, messageConverter]
   );
 
   const onCancel = useCallback(
-    () => messageController.cancel(currentThreadIdRef.current),
-    [currentThreadIdRef, messageController]
+    () => messageConverter.cancel(currentThreadIdRef.current),
+    [currentThreadIdRef, messageConverter]
   );
 
   const sendSystemMessage = useCallback(
     (message: string) =>
-      messageController.outboundSystem(currentThreadIdRef.current, message),
-    [currentThreadIdRef, messageController]
+      messageConverter.outboundSystem(currentThreadIdRef.current, message),
+    [currentThreadIdRef, messageConverter]
   );
 
   return { setMessages, onNew, onCancel, sendSystemMessage };

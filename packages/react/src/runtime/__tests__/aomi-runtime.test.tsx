@@ -8,15 +8,15 @@ import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useRuntimeActions } from "../hooks";
 import { useRuntimeOrchestration } from "../orchestration";
 import { PollingController } from "../polling-controller";
-import type { BackendThreadMetadata, CreateThreadResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
+import type { SessionMetadata, CreateSessionResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
 import type { ThreadContext } from "../../state/thread-store";
 import type { RuntimeActions } from "../hooks";
 
 type BackendApiConfig = {
-  fetchThreads?: (publicKey: string) => Promise<BackendThreadMetadata[]>;
+  fetchThreads?: (publicKey: string) => Promise<SessionMetadata[]>;
   fetchState?: (sessionId: string) => Promise<SessionResponsePayload>;
-  createThread?: (publicKey?: string, title?: string) => Promise<CreateThreadResponse>;
+  createThread?: (publicKey?: string, title?: string) => Promise<CreateSessionResponse>;
   postChatMessage?: (sessionId: string, message: string) => Promise<SessionResponsePayload>;
   postSystemMessage?: (sessionId: string, message: string) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<SessionResponsePayload>;
@@ -137,7 +137,7 @@ type OrchestratorHandle = {
   threadContext: ThreadContext;
   syncThreadState: (threadId: string) => Promise<void>;
   backendStateRef: ReturnType<typeof useRuntimeOrchestration>["backendStateRef"];
-  messageController: ReturnType<typeof useRuntimeOrchestration>["messageController"];
+  messageConverter: ReturnType<typeof useRuntimeOrchestration>["messageConverter"];
   polling: ReturnType<typeof useRuntimeOrchestration>["polling"];
 };
 
@@ -174,7 +174,7 @@ const OrchestratorHarness = forwardRef<OrchestratorHandle, { backendUrl: string 
         threadContext,
         syncThreadState: orchestrator.syncThreadState,
         backendStateRef: orchestrator.backendStateRef,
-        messageController: orchestrator.messageController,
+        messageConverter: orchestrator.messageConverter,
         polling: orchestrator.polling,
       }),
       [orchestrator, threadContext]
@@ -248,7 +248,7 @@ afterEach(() => {
 
 describe("Aomi runtime orchestrator compatibility", () => {
   it("fetches and organizes thread lists", async () => {
-    const fetchThreads = vi.fn(async (): Promise<BackendThreadMetadata[]> => [
+    const fetchThreads = vi.fn(async (): Promise<SessionMetadata[]> => [
       {
         session_id: "thread-1",
         title: "Chat 2",
@@ -297,10 +297,10 @@ describe("Aomi runtime orchestrator compatibility", () => {
       .spyOn(PollingController.prototype, "start")
       .mockImplementation(() => {});
     try {
-      let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+      let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
       const createThread = vi.fn(
         () =>
-          new Promise<CreateThreadResponse>((resolve) => {
+          new Promise<CreateSessionResponse>((resolve) => {
             resolveCreate = resolve;
           })
       );
@@ -374,10 +374,10 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("reuses the pending temp thread for rapid creates", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<CreateSessionResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );
@@ -410,10 +410,10 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("queues temp thread messages and flushes in order", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<CreateSessionResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );
@@ -501,7 +501,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
     ref.current.backendStateRef.current.pendingChat.set("thread-1", ["Draft"]);
 
     act(() => {
-      ref.current.messageController.inbound("thread-1", [
+      ref.current.messageConverter.inbound("thread-1", [
         { sender: "assistant", content: "Should not overwrite" },
       ]);
     });
@@ -543,7 +543,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
       expect(fetchState).toHaveBeenCalledTimes(2);
 
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(false);
     } finally {
       vi.useRealTimers();
     }
@@ -572,7 +572,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
       expect(fetchState).toHaveBeenCalled();
 
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(false);
     } finally {
       vi.useRealTimers();
     }
@@ -604,7 +604,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
       });
 
       expect(fetchState).toHaveBeenCalled();
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(true);
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(true);
     } finally {
       vi.useRealTimers();
     }
@@ -639,7 +639,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
       const messageCount = ref.current.threadContext.getThreadMessages("thread-1").length;
 
       await act(async () => {
-        await ref.current.messageController.cancel("thread-1");
+        await ref.current.messageConverter.cancel("thread-1");
       });
 
       await act(async () => {
@@ -647,7 +647,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
       });
 
       expect(postInterrupt).toHaveBeenCalled();
-      expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
+      expect(ref.current.backendStateRef.current.runningSessions.has("thread-1")).toBe(false);
       expect(ref.current.threadContext.getThreadMessages("thread-1")).toHaveLength(
         messageCount
       );
@@ -766,10 +766,10 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("updates titles from SSE for backend and temp threads", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: CreateSessionResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<CreateSessionResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );

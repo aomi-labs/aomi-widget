@@ -540,7 +540,7 @@ var MessageController = class {
   }
   applyBackendMessages(threadId, msgs) {
     if (!msgs) return;
-    if (this.config.registry.hasPendingChat(threadId)) {
+    if (this.config.registry.hasPendingSession(threadId)) {
       return;
     }
     const threadMessages = [];
@@ -570,15 +570,15 @@ var MessageController = class {
     };
     this.config.registry.setThreadMessages(threadId, [...existingMessages, userMessage]);
     this.config.registry.updateThreadMetadata(threadId, { lastActiveAt: (/* @__PURE__ */ new Date()).toISOString() });
-    if (!this.config.registry.isThreadReady(threadId)) {
+    if (!this.config.registry.isSessionReady(threadId)) {
       this.markRunning(threadId, true);
-      this.config.registry.enqueuePendingChat(threadId, text);
+      this.config.registry.enqueuePendingSession(threadId, text);
       return;
     }
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const sessionId = this.config.registry.resolveThreadId(threadId);
     try {
       this.markRunning(threadId, true);
-      await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      await this.config.backendApiRef.current.postChatMessage(sessionId, text);
       await this.flushPendingSystem(threadId);
       this.config.polling.start(threadId);
     } catch (error) {
@@ -587,7 +587,7 @@ var MessageController = class {
     }
   }
   async sendSystemMessage(threadId, text) {
-    if (!this.config.registry.isThreadReady(threadId)) return;
+    if (!this.config.registry.isSessionReady(threadId)) return;
     const threadMessages = this.config.registry.getThreadMessages(threadId);
     const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
     if (!hasUserMessages) {
@@ -597,10 +597,10 @@ var MessageController = class {
     await this.sendSystemMessageNow(threadId, text);
   }
   async sendSystemMessageNow(threadId, text) {
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const sessionId = this.config.registry.resolveThreadId(threadId);
     this.markRunning(threadId, true);
     try {
-      const response = await this.config.backendApiRef.current.postSystemMessage(backendThreadId, text);
+      const response = await this.config.backendApiRef.current.postSystemMessage(sessionId, text);
       if (response.res) {
         const systemMessage = constructSystemMessage(response.res);
         if (systemMessage) {
@@ -622,13 +622,13 @@ var MessageController = class {
       await this.sendSystemMessageNow(threadId, pendingMessage);
     }
   }
-  async flushPendingChat(threadId) {
-    const pending = this.config.registry.dequeuePendingChat(threadId);
+  async flushPendingSession(threadId) {
+    const pending = this.config.registry.dequeuePendingSession(threadId);
     if (!pending.length) return;
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const sessionId = this.config.registry.resolveThreadId(threadId);
     for (const text of pending) {
       try {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        await this.config.backendApiRef.current.postChatMessage(sessionId, text);
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }
@@ -636,11 +636,11 @@ var MessageController = class {
     this.config.polling.start(threadId);
   }
   async cancel(threadId) {
-    if (!this.config.registry.isThreadReady(threadId)) return;
+    if (!this.config.registry.isSessionReady(threadId)) return;
     this.config.polling.stop(threadId);
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const sessionId = this.config.registry.resolveThreadId(threadId);
     try {
-      await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      await this.config.backendApiRef.current.postInterrupt(sessionId);
       this.markRunning(threadId, false);
     } catch (error) {
       console.error("Failed to cancel:", error);
@@ -662,13 +662,13 @@ var PollingController = class {
     this.intervalMs = (_a = config.intervalMs) != null ? _a : 500;
   }
   start(threadId) {
-    if (!this.config.registry.isThreadReady(threadId)) return;
+    if (!this.config.registry.isSessionReady(threadId)) return;
     if (this.intervals.has(threadId)) return;
-    const backendThreadId = this.config.registry.resolveThreadId(threadId);
+    const sessionId = this.config.registry.resolveThreadId(threadId);
     this.config.registry.setIsRunning(threadId, true);
     const tick = async () => {
       try {
-        const state = await this.config.backendApiRef.current.fetchState(backendThreadId);
+        const state = await this.config.backendApiRef.current.fetchState(sessionId);
         this.handleState(threadId, state);
       } catch (error) {
         console.error("Polling error:", error);
@@ -727,7 +727,7 @@ var ThreadRegistry = class {
   constructor(deps) {
     this.deps = deps;
     this.stores = /* @__PURE__ */ new Map();
-    this.tempToBackendId = /* @__PURE__ */ new Map();
+    this.tempToSessionId = /* @__PURE__ */ new Map();
     this.skipInitialFetch = /* @__PURE__ */ new Set();
     this.isRunningByThread = /* @__PURE__ */ new Map();
     this.pendingChat = /* @__PURE__ */ new Map();
@@ -761,25 +761,25 @@ var ThreadRegistry = class {
   }
   resolveThreadId(threadId) {
     var _a;
-    return (_a = this.tempToBackendId.get(threadId)) != null ? _a : threadId;
+    return (_a = this.tempToSessionId.get(threadId)) != null ? _a : threadId;
   }
   setBackendMapping(tempId, backendId) {
-    this.tempToBackendId.set(tempId, backendId);
+    this.tempToSessionId.set(tempId, backendId);
   }
-  findTempIdForBackendId(backendId) {
-    for (const [tempId, id] of this.tempToBackendId.entries()) {
+  getTempIdForSession(backendId) {
+    for (const [tempId, id] of this.tempToSessionId.entries()) {
       if (id === backendId) return tempId;
     }
     return void 0;
   }
   getTempToBackendMap() {
-    return this.tempToBackendId;
+    return this.tempToSessionId;
   }
-  isThreadReady(threadId) {
+  isSessionReady(threadId) {
     if (!threadId.startsWith("temp-")) return true;
-    return this.tempToBackendId.has(threadId);
+    return this.tempToSessionId.has(threadId);
   }
-  markSkipInitialFetch(threadId) {
+  skipFirstFetch(threadId) {
     this.skipInitialFetch.add(threadId);
   }
   shouldSkipInitialFetch(threadId) {
@@ -829,18 +829,18 @@ var ThreadRegistry = class {
     var _a;
     return (_a = this.isRunningByThread.get(threadId)) != null ? _a : false;
   }
-  enqueuePendingChat(threadId, text) {
+  enqueuePendingSession(threadId, text) {
     var _a;
     const existing = (_a = this.pendingChat.get(threadId)) != null ? _a : [];
     this.pendingChat.set(threadId, [...existing, text]);
   }
-  dequeuePendingChat(threadId) {
+  dequeuePendingSession(threadId) {
     var _a;
     const pending = (_a = this.pendingChat.get(threadId)) != null ? _a : [];
     this.pendingChat.delete(threadId);
     return pending;
   }
-  hasPendingChat(threadId) {
+  hasPendingSession(threadId) {
     var _a, _b;
     return ((_b = (_a = this.pendingChat.get(threadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
   }
@@ -928,13 +928,13 @@ function useRuntimeOrchestrator(backendUrl) {
         setIsRunning(false);
         return;
       }
-      if (!registry.isThreadReady(threadId)) {
+      if (!registry.isSessionReady(threadId)) {
         setIsRunning(false);
         return;
       }
-      const backendThreadId = registry.resolveThreadId(threadId);
+      const sessionId = registry.resolveThreadId(threadId);
       try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
+        const state = await backendApiRef.current.fetchState(sessionId);
         messageController.applyBackendMessages(threadId, state.messages);
         if (state.is_processing) {
           setIsRunning(true);
@@ -996,7 +996,7 @@ function createThreadListAdapter({
   createThreadPromiseRef,
   pendingChatMessagesRef,
   pendingSystemMessagesRef,
-  tempToBackendIdRef,
+  tempToSessionIdRef,
   skipInitialFetchRef,
   backendApiRef,
   publicKey,
@@ -1041,7 +1041,7 @@ function createThreadListAdapter({
           });
           pendingChatMessagesRef.current.delete(previousPendingId);
           pendingSystemMessagesRef.current.delete(previousPendingId);
-          tempToBackendIdRef.current.delete(previousPendingId);
+          tempToSessionIdRef.current.delete(previousPendingId);
           skipInitialFetchRef.current.delete(previousPendingId);
         }
         creatingThreadIdRef.current = newId;
@@ -1074,7 +1074,7 @@ function createThreadListAdapter({
         var _a2;
         const uiThreadId = (_a2 = creatingThreadIdRef.current) != null ? _a2 : tempId;
         const backendId = newThread.session_id;
-        tempToBackendIdRef.current.set(uiThreadId, backendId);
+        tempToSessionIdRef.current.set(uiThreadId, backendId);
         skipInitialFetchRef.current.add(uiThreadId);
         const backendTitle = newThread.title;
         if (backendTitle && !isPlaceholderTitle(backendTitle)) {
@@ -1222,7 +1222,7 @@ function AomiRuntimeProvider({
   }, [threadContext.currentThreadId]);
   const pendingChatMessagesRef = (0, import_react4.useRef)(registry.getPendingChatMap());
   const pendingSystemMessagesRef = (0, import_react4.useRef)(registry.getPendingSystemMap());
-  const tempToBackendIdRef = (0, import_react4.useRef)(registry.getTempToBackendMap());
+  const tempToSessionIdRef = (0, import_react4.useRef)(registry.getTempToBackendMap());
   const skipInitialFetchRef = (0, import_react4.useRef)(registry.getSkipInitialFetchSet());
   const creatingThreadIdRef = (0, import_react4.useRef)(null);
   const createThreadPromiseRef = (0, import_react4.useRef)(null);
@@ -1247,7 +1247,7 @@ function AomiRuntimeProvider({
       createThreadPromiseRef,
       pendingChatMessagesRef,
       pendingSystemMessagesRef,
-      tempToBackendIdRef,
+      tempToSessionIdRef,
       skipInitialFetchRef,
       backendApiRef,
       publicKey,
@@ -1270,7 +1270,7 @@ function AomiRuntimeProvider({
       if (update.type !== "TitleChanged") return;
       const sessionId = update.data.session_id;
       const newTitle = update.data.new_title;
-      const targetThreadId = (_a = registry.findTempIdForBackendId(sessionId)) != null ? _a : registry.resolveThreadId(sessionId);
+      const targetThreadId = (_a = registry.getTempIdForSession(sessionId)) != null ? _a : registry.resolveThreadId(sessionId);
       const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
       threadContext.updateThreadMetadata(targetThreadId, {
         title: normalizedTitle
@@ -1286,9 +1286,9 @@ function AomiRuntimeProvider({
   (0, import_react4.useEffect)(() => {
     const threadId = currentThreadIdRef.current;
     if (!isTempThreadId(threadId)) return;
-    if (!registry.isThreadReady(threadId)) return;
+    if (!registry.isSessionReady(threadId)) return;
     void messageController.flushPendingSystem(threadId);
-    void messageController.flushPendingChat(threadId);
+    void messageController.flushPendingSession(threadId);
   }, [messageController, registry]);
   const runtime = (0, import_react5.useExternalStoreRuntime)({
     messages: threadContext.getThreadMessages(threadContext.currentThreadId),

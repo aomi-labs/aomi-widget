@@ -1,7 +1,7 @@
 import type {
   BackendSessionResponse,
-  BackendThreadMetadata,
-  CreateThreadResponse,
+  SessionMetadata,
+  CreateSessionResponse,
   SessionMessage,
   SessionResponsePayload,
   SystemResponsePayload,
@@ -194,7 +194,7 @@ export class BackendApi {
     };
   }
 
-  async fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]> {
+  async fetchThreads(publicKey: string): Promise<SessionMetadata[]> {
     console.log("🔵 [fetchThreads] Called with publicKey:", publicKey);
     const url = `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
     console.log("🔵 [fetchThreads] URL:", url);
@@ -207,12 +207,12 @@ export class BackendApi {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as BackendThreadMetadata[];
+    const data = (await response.json()) as SessionMetadata[];
     console.log("🟢 [fetchThreads] Success:", data);
     return data;
   }
 
-  async createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse> {
+  async createThread(publicKey?: string, title?: string): Promise<CreateSessionResponse> {
     console.log("🔵 [createThread] Called with publicKey:", publicKey, "title:", title);
     const body: Record<string, string> = {};
     if (publicKey) {
@@ -238,7 +238,7 @@ export class BackendApi {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as CreateThreadResponse;
+    const data = (await response.json()) as CreateSessionResponse;
     console.log("🟢 [createThread] Success:", data);
     return data;
   }

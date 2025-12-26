@@ -1,8 +1,8 @@
 export { BackendApi } from "./api/client";
 export type {
   BackendSessionResponse,
-  BackendThreadMetadata,
-  CreateThreadResponse,
+  SessionMetadata,
+  CreateSessionResponse,
   SessionMessage,
   SessionResponsePayload,
   SystemResponsePayload,

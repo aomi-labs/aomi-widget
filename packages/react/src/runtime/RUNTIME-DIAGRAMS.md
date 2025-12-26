@@ -2,6 +2,8 @@
 
 ## Type Structure & Relationships
 
+This diagram shows the class structure and relationships between the core runtime components. `ThreadStore` manages UI state through snapshots exposed as `ThreadContext`, while `BakendState` tracks runtime coordination state like pending messages and thread mappings. `AomiRuntimeProvider` orchestrates `MessageConverter` and `PollingController` to coordinate between the UI state, backend API, and polling mechanisms.
+
 ```mermaid
 classDiagram
   direction TB
@@ -48,7 +50,7 @@ classDiagram
   }
 
   class BakendState {
-    +Map~string,string~ tempToBackendId
+    +Map~string,string~ tempToSessionId
     +Set~string~ skipInitialFetch
     +Map~string,string[]~ pendingChat
     +Map~string,string[]~ pendingSystem
@@ -66,23 +68,22 @@ classDiagram
   class useRuntimeOrchestrator {
     +backendStateRef : MutableRef~BakendState~
     +polling : PollingController
-    +messageController : MessageController
+    +messageConverter : MessageConverter
     +isRunning : boolean
     +setIsRunning(running)
     +syncThreadState(threadId)
     +backendApiRef : MutableRef~BackendApi~
   }
 
-  class MessageController {
+  class MessageConverter {
     +inbound(threadId, msgs)
     +outbound(message, threadId)
     +outboundSystem(threadId, text)
     +outboundSystemInner(threadId, text)
     +flushPendingSystem(threadId)
-    +flushPendingChat(threadId)
+    +flushPendingSession(threadId)
     +cancel(threadId)
     -markRunning(threadId, running)
-    -getThreadContextApi() ThreadContextApi
   }
 
   class PollingController {
@@ -98,8 +99,8 @@ classDiagram
     +postChatMessage(sessionId, text) SessionResponsePayload
     +postSystemMessage(sessionId, text) SystemResponsePayload
     +postInterrupt(sessionId) SessionResponsePayload
-    +createThread(publicKey?, title?) CreateThreadResponse
-    +fetchThreads(publicKey) BackendThreadMetadata[]
+    +createThread(publicKey?, title?) CreateSessionResponse
+    +fetchThreads(publicKey) SessionMetadata[]
     +renameThread(sessionId, title)
     +archiveThread(sessionId)
     +unarchiveThread(sessionId)
@@ -119,7 +120,7 @@ classDiagram
 
   %% Relationships
   AomiRuntimeProvider --> useRuntimeOrchestrator
-  useRuntimeOrchestrator --> MessageController
+  useRuntimeOrchestrator --> MessageConverter
   useRuntimeOrchestrator --> PollingController
   useRuntimeOrchestrator --> BakendState : via backendStateRef
   useRuntimeOrchestrator --> BackendApi : via backendApiRef
@@ -127,10 +128,10 @@ classDiagram
   AomiRuntimeProvider --> ThreadContext : uses via useThreadContext
   AomiRuntimeProvider --> BakendState : uses via backendStateRef
 
-  MessageController --> BakendState
-  MessageController --> ThreadContext : via threadContextRef
-  MessageController --> BackendApi
-  MessageController --> PollingController
+  MessageConverter --> BakendState
+  MessageConverter --> ThreadContext : via threadContextRef
+  MessageConverter --> BackendApi
+  MessageConverter --> PollingController
 
   PollingController --> BakendState
   PollingController --> BackendApi
@@ -143,13 +144,15 @@ classDiagram
 
 ## Data Flow: User Message → Backend → UI Update
 
+This sequence diagram illustrates the complete flow when a user sends a chat message. The message flows from the UI through `AomiRuntimeProvider` to `MessageConverter`, which optimistically updates the UI state. If the thread is ready (has a backend ID), it immediately posts to the backend API and starts polling. If the thread is still pending (temp ID), the message is queued. The `PollingController` then continuously fetches updates from the backend and applies them to the UI state until processing completes.
+
 ```mermaid
 sequenceDiagram
   autonumber
   participant U as User
   participant AU as Assistant-UI
   participant AR as AomiRuntimeProvider
-  participant MC as MessageController
+  participant MC as MessageConverter
   participant PC as PollingController
   participant BS as BakendState
   participant TC as ThreadContext (ThreadStore)
@@ -165,14 +168,14 @@ sequenceDiagram
   MC->>TC: setThreadMessages(threadId, [...existing, userMessage])
   MC->>TC: updateThreadMetadata(threadId, {lastActiveAt})
   
-  MC->>BS: isThreadReady(threadId)?
+  MC->>BS: isSessionReady(threadId)?
   
   alt thread not ready (temp ID)
     MC->>BS: markRunning(threadId, true)
-    MC->>BS: enqueuePendingChat(threadId, text)
+    MC->>BS: enqueuePendingSession(threadId, text)
     Note over MC: Returns early - no backend call
   else thread ready
-    MC->>BS: resolveThreadId(threadId) → backendId
+    MC->>BS: resolveSessionId(threadId) → backendId
     MC->>BS: markRunning(threadId, true)
     MC->>API: postChatMessage(backendId, text)
     MC->>MC: flushPendingSystem(threadId)
@@ -182,12 +185,12 @@ sequenceDiagram
   Note over U,API: Polling loop while processing
 
   loop every 500ms while is_processing
-    PC->>BS: resolveThreadId(threadId)
-    PC->>API: fetchState(backendThreadId)
+    PC->>BS: resolveSessionId(threadId)
+    PC->>API: fetchState(sessionId)
     API-->>PC: SessionResponsePayload{messages,is_processing}
     PC->>MC: inbound(threadId, messages)
     
-    MC->>BS: hasPendingChat(threadId)?
+    MC->>BS: hasPendingSession(threadId)?
     alt has pending chat
       Note over MC: Skip to avoid overwriting optimistic UI
     else no pending chat
@@ -196,7 +199,7 @@ sequenceDiagram
     end
     
     alt !is_processing or !session_exists
-      PC->>BS: setThreadRunning(threadId, false)
+      PC->>BS: setSessionRunning(threadId, false)
       PC->>PC: stop(threadId)
       PC->>AR: onStop(threadId) → setIsRunning(false)
     end
@@ -205,12 +208,14 @@ sequenceDiagram
 
 ## Data Flow: System Message
 
+This sequence diagram shows how system messages (like wallet transactions) are handled. System messages require an existing user message in the thread before they can be sent. If no user messages exist yet, the system message is queued in `BakendState.pendingSystem`. Once a user message is present, the system message is sent to the backend, the response is converted and added to the thread, and any queued system messages are flushed.
+
 ```mermaid
 sequenceDiagram
   autonumber
   participant U as User/Code
   participant AR as AomiRuntimeProvider
-  participant MC as MessageController
+  participant MC as MessageConverter
   participant BS as BakendState
   participant TC as ThreadContext
   participant API as BackendApi
@@ -219,7 +224,7 @@ sequenceDiagram
   U->>AR: RuntimeActions.sendSystemMessage(text)
   AR->>MC: outboundSystem(currentThreadId, text)
   
-  MC->>BS: isThreadReady(threadId)?
+  MC->>BS: isSessionReady(threadId)?
   alt not ready
     Note over MC: Returns early
   else ready
@@ -231,7 +236,7 @@ sequenceDiagram
       Note over MC: Queued until user message exists
     else has user messages
       MC->>MC: outboundSystemInner(threadId, text)
-      MC->>BS: resolveThreadId(threadId)
+      MC->>BS: resolveSessionId(threadId)
       MC->>BS: markRunning(threadId, true)
       MC->>API: postSystemMessage(backendId, text)
       API-->>MC: SystemResponsePayload{res: SessionMessage}
@@ -244,6 +249,8 @@ sequenceDiagram
 ```
 
 ## Data Flow: Thread Creation
+
+This sequence diagram demonstrates the thread creation process when a user starts a new chat. A temporary thread ID is created immediately for optimistic UI updates, and the thread is marked as "pending" in the UI state. The backend API is called to create the actual thread, and once the backend responds with a session ID, the temporary ID is mapped to the backend ID. Any pending messages that were queued during creation are then sent to the backend.
 
 ```mermaid
 sequenceDiagram
@@ -270,10 +277,10 @@ sequenceDiagram
   AR->>TC: bumpThreadViewKey()
   
   AR->>API: createThread(publicKey, undefined)
-  API-->>AR: CreateThreadResponse{session_id, title}
+  API-->>AR: CreateSessionResponse{session_id, title}
   
   AR->>BS: setBackendMapping(tempId, session_id)
-  AR->>BS: markSkipInitialFetch(tempId)
+  AR->>BS: skipFirstFetch(tempId)
   AR->>BS: creatingThreadId = null
   
   alt backend title is valid
@@ -292,6 +299,8 @@ sequenceDiagram
 
 ## ThreadContext ↔ BakendState Interaction Patterns
 
+This graph shows the interaction patterns between `ThreadContext` (UI state) and `BakendState` (runtime coordination state). `ThreadContext` holds the user-facing data like messages and thread metadata, while `BakendState` manages internal coordination like pending message queues, thread ID mappings, and running state. The controllers (`MessageConverter`, `PollingController`, and `AomiRuntimeProvider`) coordinate reads and writes between these two state layers to keep the UI in sync with backend operations.
+
 ```mermaid
 graph TB
   subgraph "ThreadContext (UI State)"
@@ -302,16 +311,16 @@ graph TB
   end
 
   subgraph "BakendState (Runtime State)"
-    BS1[tempToBackendId: Map~tempId, backendId~]
-    BS2[pendingChat: Map~id, string[]~]
-    BS3[pendingSystem: Map~id, string[]~]
+    BS1[tempToSessionId: Map~tempId, backendId~]
+    BS2[pendingChat: Map~id, Array~]
+    BS3[pendingSystem: Map~id, Array~]
     BS4[runningThreads: Set~id~]
     BS5[skipInitialFetch: Set~id~]
     BS6[creatingThreadId]
   end
 
   subgraph "Controllers"
-    MC[MessageController]
+    MC[MessageConverter]
     PC[PollingController]
     AR[AomiRuntimeProvider]
   end
@@ -352,7 +361,7 @@ graph TB
    - `ThreadContextValue` → `ThreadContext`
    - `runtimeStateRef` → `backendStateRef`
 
-2. **MessageController Method Renames:**
+2. **MessageConverter Method Renames:**
    - `applyBackendMessages` → `inbound`
    - `sendChat` → `outbound`
    - `sendSystemMessage` → `outboundSystem`
@@ -365,7 +374,7 @@ graph TB
 4. **New Features:**
    - `fetchThreads(publicKey)` - syncs thread list from backend
    - `setMessages` callback in runtime config for direct message updates
-   - `isRunning` derived from `isThreadRunning(backendState, threadId)` per-thread
+   - `isRunning` derived from `isSessionRunning(backendState, threadId)` per-thread
    - `ThreadStore` maintains a `snapshot` property updated on state changes
 
 5. **Improved State Management:**

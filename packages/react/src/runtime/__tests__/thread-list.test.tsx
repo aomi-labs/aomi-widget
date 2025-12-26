@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, waitFor } from "@testing-library/react";
-import type { BackendThreadMetadata } from "../../api/types";
+import type { SessionMetadata } from "../../api/types";
 
 import { renderRuntime, resetBackendApiMocks, setBackendApiConfig } from "./test-utils";
 
@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe("Aomi runtime thread lists", () => {
   it("fetches and organizes thread lists", async () => {
-    const fetchThreads = vi.fn(async (): Promise<BackendThreadMetadata[]> => [
+    const fetchThreads = vi.fn(async (): Promise<SessionMetadata[]> => [
       {
         session_id: "thread-1",
         title: "Chat 2",

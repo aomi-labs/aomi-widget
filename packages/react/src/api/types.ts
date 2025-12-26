@@ -20,7 +20,7 @@ export interface SystemResponsePayload {
   res?: SessionMessage | null;
 }
 
-export interface BackendThreadMetadata {
+export interface SessionMetadata {
   session_id: string;
   title: string;
   is_archived?: boolean;
@@ -29,7 +29,7 @@ export interface BackendThreadMetadata {
   last_active_at?: string;
 }
 
-export interface CreateThreadResponse {
+export interface CreateSessionResponse {
   session_id: string;
   title?: string;
 }
