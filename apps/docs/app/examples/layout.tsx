@@ -17,12 +17,12 @@ const baseOptions: BaseLayoutProps = {
     },
     {
       text: "Examples",
-      url: "/examples",
+      url: "/examples/metamask",
       active: "nested-url",
     },
     {
       text: "API Reference",
-      url: "/api",
+      url: "/api/sessions",
       active: "nested-url",
     },
   ],
