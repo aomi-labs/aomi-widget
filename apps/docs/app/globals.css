@@ -179,6 +179,11 @@
   animation: shine var(--duration) infinite linear;
 }
 
+#nd-docs-layout .\[grid-area\:main\].bg-fd-background.border-b {
+  align-self: start;
+  height: auto;
+}
+
 @property --angle {
   syntax: "<angle>";
   inherits: false;
