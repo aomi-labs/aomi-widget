@@ -7,7 +7,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <DocsLayout
       {...baseLayoutOptions}
-      nav={{ ...baseLayoutOptions.nav, mode: "top" }}
+      nav={{ ...baseLayoutOptions.nav }}
       tree={api.pageTree}
       tabMode="top"
       sidebar={{ ...sharedSidebarOptions, tabs: navTabs }}
