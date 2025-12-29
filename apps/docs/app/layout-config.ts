@@ -27,7 +27,7 @@ export const navTabs = [
 export const baseLayoutOptions: BaseLayoutProps = {
   githubUrl: "https://github.com/aomi-labs/aomi-widget",
   nav: {
-    title: "Aomi Widget",
+    title: "aomi labs",
     url: "https://aomi.dev",
     transparentMode: "none",
   },
