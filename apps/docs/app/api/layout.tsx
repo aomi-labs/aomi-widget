@@ -1,39 +1,15 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import type { ReactNode } from "react";
-import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { api } from "@/lib/source";
-
-const baseOptions: BaseLayoutProps = {
-  githubUrl: "https://github.com/aomi-labs/aomi-widget",
-  nav: {
-    title: "Aomi Widget",
-    transparentMode: "none",
-  },
-  links: [
-    {
-      text: "Documentation",
-      url: "/docs/about-aomi",
-    },
-    {
-      text: "Examples",
-      url: "/examples/metamask",
-    },
-    {
-      text: "API Reference",
-      url: "/api/sessions",
-      active: "nested-url",
-    },
-  ],
-};
+import { baseLayoutOptions, sharedSidebarOptions } from "../layout-config";
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <DocsLayout
-      {...baseOptions}
+      {...baseLayoutOptions}
       tree={api.pageTree}
-      sidebar={{
-        defaultOpenLevel: 0,
-      }}
+      tabMode="sidebar"
+      sidebar={sharedSidebarOptions}
     >
       {children}
     </DocsLayout>
