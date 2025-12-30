@@ -1,6 +1,7 @@
 {
-  "name": "@aomi-labs/react",
+  "name": "aomi-widget",
   "version": "1.0.0",
+  "private": true,
   "description": "AI-powered assistant UI widget library",
   "type": "module",
   "main": "./dist/index.cjs",
