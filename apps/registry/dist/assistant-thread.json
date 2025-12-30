@@ -18,10 +18,10 @@
     "remark-gfm"
   ],
   "registryDependencies": [
-    "https://r.aomi.dev/assistant-markdown-text.json",
+    "https://r.assistant-ui.com/markdown-text.json",
+    "https://r.assistant-ui.com/tooltip-icon-button.json",
+    "https://r.assistant-ui.com/attachment.json",
     "https://r.aomi.dev/assistant-tool-fallback.json",
-    "https://r.aomi.dev/assistant-tooltip-icon-button.json",
-    "https://r.aomi.dev/assistant-attachment.json",
     "button"
   ]
 }

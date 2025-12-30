@@ -15,7 +15,7 @@
     "lucide-react"
   ],
   "registryDependencies": [
-    "https://r.aomi.dev/assistant-tooltip-icon-button.json",
+    "https://r.assistant-ui.com/tooltip-icon-button.json",
     "button",
     "skeleton"
   ]

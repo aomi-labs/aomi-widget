@@ -8,16 +8,18 @@ export type RegistryComponent = {
 
 const REGISTRY_BASE_URL = "https://r.aomi.dev";
 
-// Helper to create internal registry dependency URLs
+// Helper to create registry dependency URLs
 const aomi = (name: string) => `${REGISTRY_BASE_URL}/${name}.json`;
+const assistantUI = (name: string) => `https://r.assistant-ui.com/${name}.json`;
 
 export const registry: RegistryComponent[] = [
+  // === AOMI CUSTOM COMPONENTS ===
   {
     name: "aomi-frame",
     file: "components/aomi-frame.tsx",
     dependencies: ["@aomi-labs/react"],
     registryDependencies: [
-      // Internal aomi components
+      // Internal aomi components (customized)
       aomi("assistant-thread"),
       aomi("assistant-threadlist-sidebar"),
       // shadcn primitives
@@ -38,11 +40,12 @@ export const registry: RegistryComponent[] = [
       "remark-gfm",
     ],
     registryDependencies: [
-      // Internal aomi components
-      aomi("assistant-markdown-text"),
+      // From assistant-ui (unchanged)
+      assistantUI("markdown-text"),
+      assistantUI("tooltip-icon-button"),
+      assistantUI("attachment"),
+      // Internal aomi components (customized)
       aomi("assistant-tool-fallback"),
-      aomi("assistant-tooltip-icon-button"),
-      aomi("assistant-attachment"),
       // shadcn primitives
       "button",
     ],
@@ -53,7 +56,7 @@ export const registry: RegistryComponent[] = [
     file: "components/assistant-ui/thread-list.tsx",
     dependencies: ["@assistant-ui/react", "lucide-react"],
     registryDependencies: [
-      aomi("assistant-tooltip-icon-button"),
+      assistantUI("tooltip-icon-button"),
       "button",
       "skeleton",
     ],
@@ -75,36 +78,5 @@ export const registry: RegistryComponent[] = [
     dependencies: ["@assistant-ui/react", "lucide-react"],
     registryDependencies: ["button"],
     description: "Fallback renderer for assistant tool calls.",
-  },
-  {
-    name: "assistant-tooltip-icon-button",
-    file: "components/assistant-ui/tooltip-icon-button.tsx",
-    dependencies: [],
-    registryDependencies: ["tooltip", "button"],
-    description: "Icon button with tooltip wrapper.",
-  },
-  {
-    name: "assistant-markdown-text",
-    file: "components/assistant-ui/markdown-text.tsx",
-    dependencies: [
-      "@aomi-labs/react",
-      "@assistant-ui/react-markdown",
-      "lucide-react",
-      "remark-gfm",
-    ],
-    registryDependencies: [aomi("assistant-tooltip-icon-button")],
-    description: "Markdown renderer for assistant messages.",
-  },
-  {
-    name: "assistant-attachment",
-    file: "components/assistant-ui/attachment.tsx",
-    dependencies: ["@assistant-ui/react", "lucide-react", "zustand"],
-    registryDependencies: [
-      aomi("assistant-tooltip-icon-button"),
-      "tooltip",
-      "dialog",
-      "avatar",
-    ],
-    description: "File attachment display component.",
   },
 ];
