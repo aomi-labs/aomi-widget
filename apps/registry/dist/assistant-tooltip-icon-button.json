@@ -1,0 +1,18 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "assistant-tooltip-icon-button",
+  "type": "registry:component",
+  "description": "Icon button with tooltip wrapper.",
+  "files": [
+    {
+      "type": "registry:component",
+      "path": "components/assistant-ui/tooltip-icon-button.tsx",
+      "content": "\"use client\";\n\nimport { ComponentPropsWithRef, forwardRef } from \"react\";\nimport { Slottable } from \"@radix-ui/react-slot\";\n\nimport {\n  Tooltip,\n  TooltipContent,\n  TooltipTrigger,\n} from \"@/components/ui/tooltip\";\nimport { Button } from \"@/components/ui/button\";\nimport { cn } from \"@aomi-labs/react\";\n\nexport type TooltipIconButtonProps = ComponentPropsWithRef<typeof Button> & {\n  tooltip: string;\n  side?: \"top\" | \"bottom\" | \"left\" | \"right\";\n};\n\nexport const TooltipIconButton = forwardRef<\n  HTMLButtonElement,\n  TooltipIconButtonProps\n>(({ children, tooltip, side = \"bottom\", className, ...rest }, ref) => {\n  return (\n    <Tooltip>\n      <TooltipTrigger asChild>\n        <Button\n          variant=\"ghost\"\n          size=\"icon\"\n          {...rest}\n          className={cn(\"aui-button-icon size-6 p-1\", className)}\n          ref={ref}\n        >\n          <Slottable>{children}</Slottable>\n          <span className=\"aui-sr-only sr-only\">{tooltip}</span>\n        </Button>\n      </TooltipTrigger>\n      <TooltipContent side={side}>{tooltip}</TooltipContent>\n    </Tooltip>\n  );\n});\n\nTooltipIconButton.displayName = \"TooltipIconButton\";\n"
+    }
+  ],
+  "dependencies": [],
+  "registryDependencies": [
+    "tooltip",
+    "button"
+  ]
+}
