@@ -333,22 +333,7 @@ var ThreadStore = class {
         this.listeners.delete(listener);
       };
     };
-    this.getSnapshot = () => ({
-      currentThreadId: this.state.currentThreadId,
-      setCurrentThreadId: this.setCurrentThreadId,
-      threadViewKey: this.state.threadViewKey,
-      bumpThreadViewKey: this.bumpThreadViewKey,
-      threads: this.state.threads,
-      setThreads: this.setThreads,
-      threadMetadata: this.state.threadMetadata,
-      setThreadMetadata: this.setThreadMetadata,
-      threadCnt: this.state.threadCnt,
-      setThreadCnt: this.setThreadCnt,
-      getThreadMessages: this.getThreadMessages,
-      setThreadMessages: this.setThreadMessages,
-      getThreadMetadata: this.getThreadMetadata,
-      updateThreadMetadata: this.updateThreadMetadata
-    });
+    this.getSnapshot = () => this.snapshot;
     this.setCurrentThreadId = (threadId) => {
       this.ensureThreadExists(threadId);
       this.updateState({ currentThreadId: threadId });
@@ -408,6 +393,7 @@ var ThreadStore = class {
         ]
       ])
     };
+    this.snapshot = this.buildSnapshot();
   }
   emit() {
     for (const listener of this.listeners) {
@@ -435,7 +421,26 @@ var ThreadStore = class {
   }
   updateState(partial) {
     this.state = __spreadValues(__spreadValues({}, this.state), partial);
+    this.snapshot = this.buildSnapshot();
     this.emit();
+  }
+  buildSnapshot() {
+    return {
+      currentThreadId: this.state.currentThreadId,
+      setCurrentThreadId: this.setCurrentThreadId,
+      threadViewKey: this.state.threadViewKey,
+      bumpThreadViewKey: this.bumpThreadViewKey,
+      threads: this.state.threads,
+      setThreads: this.setThreads,
+      threadMetadata: this.state.threadMetadata,
+      setThreadMetadata: this.setThreadMetadata,
+      threadCnt: this.state.threadCnt,
+      setThreadCnt: this.setThreadCnt,
+      getThreadMessages: this.getThreadMessages,
+      setThreadMessages: this.setThreadMessages,
+      getThreadMetadata: this.getThreadMetadata,
+      updateThreadMetadata: this.updateThreadMetadata
+    };
   }
 };
 
@@ -1114,13 +1119,17 @@ function AomiRuntimeProvider({
         threadContext.setCurrentThreadId(threadId);
       },
       onRename: async (threadId, newTitle) => {
+        var _a, _b;
+        const previousTitle = (_b = (_a = threadContext.getThreadMetadata(threadId)) == null ? void 0 : _a.title) != null ? _b : "";
+        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
         threadContext.updateThreadMetadata(threadId, {
-          title: isPlaceholderTitle(newTitle) ? "" : newTitle
+          title: normalizedTitle
         });
         try {
           await backendApiRef.current.renameThread(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
+          threadContext.updateThreadMetadata(threadId, { title: previousTitle });
         }
       },
       onArchive: async (threadId) => {
