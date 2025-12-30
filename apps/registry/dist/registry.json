@@ -42,10 +42,10 @@
         "remark-gfm"
       ],
       "registryDependencies": [
-        "https://r.aomi.dev/assistant-markdown-text.json",
+        "https://r.assistant-ui.com/markdown-text.json",
+        "https://r.assistant-ui.com/tooltip-icon-button.json",
+        "https://r.assistant-ui.com/attachment.json",
         "https://r.aomi.dev/assistant-tool-fallback.json",
-        "https://r.aomi.dev/assistant-tooltip-icon-button.json",
-        "https://r.aomi.dev/assistant-attachment.json",
         "button"
       ]
     },
@@ -64,7 +64,7 @@
         "lucide-react"
       ],
       "registryDependencies": [
-        "https://r.aomi.dev/assistant-tooltip-icon-button.json",
+        "https://r.assistant-ui.com/tooltip-icon-button.json",
         "button",
         "skeleton"
       ]
@@ -103,64 +103,6 @@
       ],
       "registryDependencies": [
         "button"
-      ]
-    },
-    {
-      "name": "assistant-tooltip-icon-button",
-      "type": "registry:component",
-      "description": "Icon button with tooltip wrapper.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "components/assistant-ui/tooltip-icon-button.tsx"
-        }
-      ],
-      "dependencies": [],
-      "registryDependencies": [
-        "tooltip",
-        "button"
-      ]
-    },
-    {
-      "name": "assistant-markdown-text",
-      "type": "registry:component",
-      "description": "Markdown renderer for assistant messages.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "components/assistant-ui/markdown-text.tsx"
-        }
-      ],
-      "dependencies": [
-        "@aomi-labs/react",
-        "@assistant-ui/react-markdown",
-        "lucide-react",
-        "remark-gfm"
-      ],
-      "registryDependencies": [
-        "https://r.aomi.dev/assistant-tooltip-icon-button.json"
-      ]
-    },
-    {
-      "name": "assistant-attachment",
-      "type": "registry:component",
-      "description": "File attachment display component.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "components/assistant-ui/attachment.tsx"
-        }
-      ],
-      "dependencies": [
-        "@assistant-ui/react",
-        "lucide-react",
-        "zustand"
-      ],
-      "registryDependencies": [
-        "https://r.aomi.dev/assistant-tooltip-icon-button.json",
-        "tooltip",
-        "dialog",
-        "avatar"
       ]
     }
   ]
