@@ -1,16 +1,159 @@
 ---
 title: Styling
-description: Style the widget with shadcn tokens and utilities.
+description: Customize the look and feel using shadcn patterns and Tailwind.
 ---
 
 # Styling
 
-Apply your brand without rewiring the component tree.
+Aomi components follow shadcn conventions, making them easy to theme and customize.
 
-## Tokens
+## The shadcn Approach
 
-Update `src/themes` tokens and import `@aomi-labs/react/styles.css` to apply them across the docs and demos. The shadcn token system is supported out of the box.
+Since components are **copied into your project** (not imported from npm), you have full control:
 
-## Utilities
+```
+your-project/
+└── components/
+    ├── aomi-frame.tsx          ← Your code, edit freely
+    └── ui/
+        └── button.tsx          ← shadcn primitives
+```
 
-Use Tailwind utilities for layout and spacing; reserve custom CSS variables for colors and typography. See the shadcn docs for additional patterns.
+This means:
+- Edit component source directly
+- No fighting with CSS overrides
+- No waiting for upstream releases
+
+## CSS Variables
+
+shadcn uses CSS variables for theming. Define them in your global CSS:
+
+```css
+/* globals.css */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --border: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --border: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+  }
+}
+```
+
+Components reference these variables:
+
+```tsx
+<div className="bg-background text-foreground border-border" />
+```
+
+## Tailwind Utilities
+
+Use standard Tailwind classes for layout and spacing:
+
+```tsx
+<AomiFrame
+  className="rounded-xl shadow-lg"
+  style={{ height: "calc(100vh - 80px)" }}
+/>
+```
+
+## Common Customizations
+
+### Change Border Radius
+
+Update the `--radius` variable:
+
+```css
+:root {
+  --radius: 0.75rem; /* More rounded */
+}
+```
+
+### Custom Colors
+
+Override the color variables:
+
+```css
+:root {
+  --primary: 221.2 83.2% 53.3%;        /* Blue */
+  --primary-foreground: 210 40% 98%;
+}
+```
+
+### Dark Mode
+
+Components use the `.dark` class. Toggle with your preferred method:
+
+```tsx
+// next-themes
+<ThemeProvider attribute="class" defaultTheme="system">
+  <AomiFrame />
+</ThemeProvider>
+```
+
+### Message Bubbles
+
+Edit `components/assistant-ui/thread.tsx`:
+
+```tsx
+// Find the message container and adjust styles
+<div className={cn(
+  "rounded-lg px-4 py-2",
+  isUser ? "bg-primary text-primary-foreground" : "bg-muted"
+)}>
+  {content}
+</div>
+```
+
+### Sidebar Width
+
+Edit `components/assistant-ui/threadlist-sidebar.tsx`:
+
+```tsx
+<Sidebar className="w-64"> {/* Default is w-64 (256px) */}
+```
+
+## The `cn` Utility
+
+Use the `cn` helper to merge classes conditionally:
+
+```tsx
+import { cn } from "@aomi-labs/react";
+
+<div className={cn(
+  "base-styles",
+  isActive && "active-styles",
+  className // Allow overrides from props
+)} />
+```
+
+## Best Practices
+
+| Do | Don't |
+|----|-------|
+| Edit component source directly | Use `!important` overrides |
+| Use CSS variables for colors | Hardcode hex values |
+| Keep Tailwind for layout | Create separate CSS files |
+| Extend the theme in `tailwind.config` | Override everything inline |
+
+## Resources
+
+- [shadcn/ui Theming](https://ui.shadcn.com/docs/theming)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+- [CSS Variables](https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties)

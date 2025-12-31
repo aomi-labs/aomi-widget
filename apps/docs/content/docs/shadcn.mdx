@@ -1,0 +1,213 @@
+---
+title: Shadcn Registry
+description: How the Aomi component registry works with shadcn CLI.
+---
+
+# Shadcn Registry
+
+Aomi distributes UI components via a **shadcn-compatible registry** at `r.aomi.dev`. This page explains how it works.
+
+## Quick Install
+
+```bash
+npx shadcn add https://r.aomi.dev/aomi-frame.json
+```
+
+This single command installs the full chat interface with all dependencies.
+
+## How It Works
+
+### What is a Shadcn Registry?
+
+A shadcn registry is a collection of **static JSON files** that describe components. When you run `npx shadcn add`, the CLI:
+
+1. Fetches the JSON file from the URL
+2. Reads the component source code from the JSON
+3. Installs npm dependencies listed in the JSON
+4. Recursively fetches any registry dependencies
+5. Copies all source files to your project
+
+### Registry Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  npx shadcn add https://r.aomi.dev/aomi-frame.json          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  r.aomi.dev (Aomi Registry)                                 │
+│  ├── registry.json          ← Index of all components       │
+│  ├── aomi-frame.json        ← Main entry point              │
+│  ├── assistant-thread.json  ← Customized chat surface       │
+│  ├── assistant-thread-list.json                             │
+│  └── ...                                                    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+            ┌─────────────────┼─────────────────┐
+            ▼                 ▼                 ▼
+┌───────────────────┐ ┌───────────────┐ ┌───────────────┐
+│ r.assistant-ui.com│ │ ui.shadcn.com │ │     npm       │
+│ ├── markdown-text │ │ ├── button    │ │ @aomi-labs/   │
+│ ├── tooltip-icon  │ │ ├── sidebar   │ │   react       │
+│ └── attachment    │ │ └── tooltip   │ │ @assistant-ui │
+└───────────────────┘ └───────────────┘ └───────────────┘
+```
+
+## Dependency Sources
+
+When you install `aomi-frame`, dependencies come from three sources:
+
+| Source | What | Why |
+|--------|------|-----|
+| **r.aomi.dev** | Customized components | Aomi-specific features (wallet, branding) |
+| **r.assistant-ui.com** | Unchanged components | Upstream maintenance, bug fixes |
+| **ui.shadcn.com** | Primitives | Button, dialog, tooltip, etc. |
+| **npm** | Packages | `@aomi-labs/react`, `@assistant-ui/react` |
+
+### Customized vs Upstream
+
+We maintain a **hybrid approach**:
+
+```ts
+// registry.ts (simplified)
+registryDependencies: [
+  // Customized - we maintain these
+  "https://r.aomi.dev/assistant-thread.json",
+
+  // Upstream - assistant-ui maintains these
+  "https://r.assistant-ui.com/tooltip-icon-button.json",
+
+  // shadcn primitives
+  "button",
+  "sidebar",
+]
+```
+
+**Why hybrid?**
+- Customized components have Aomi-specific features
+- Upstream components get bug fixes automatically
+- You get the best of both worlds
+
+## What Gets Installed
+
+After running the install command, your project structure:
+
+```
+your-project/
+├── components/
+│   ├── aomi-frame.tsx                    ← from r.aomi.dev
+│   ├── assistant-ui/
+│   │   ├── thread.tsx                    ← from r.aomi.dev
+│   │   ├── thread-list.tsx               ← from r.aomi.dev
+│   │   ├── threadlist-sidebar.tsx        ← from r.aomi.dev
+│   │   ├── tool-fallback.tsx             ← from r.aomi.dev
+│   │   ├── markdown-text.tsx             ← from r.assistant-ui.com
+│   │   ├── tooltip-icon-button.tsx       ← from r.assistant-ui.com
+│   │   └── attachment.tsx                ← from r.assistant-ui.com
+│   └── ui/
+│       ├── button.tsx                    ← from shadcn
+│       ├── sidebar.tsx                   ← from shadcn
+│       └── ...
+├── lib/
+│   └── utils.ts                          ← cn() helper
+└── package.json                          ← npm deps added
+```
+
+## Registry JSON Format
+
+Each component is described by a JSON file:
+
+```json
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "aomi-frame",
+  "type": "registry:component",
+  "description": "Full assistant shell with thread list and runtime wiring.",
+  "files": [
+    {
+      "type": "registry:component",
+      "path": "components/aomi-frame.tsx",
+      "content": "\"use client\";\n\nimport { ... } ..."
+    }
+  ],
+  "dependencies": ["@aomi-labs/react"],
+  "registryDependencies": [
+    "https://r.aomi.dev/assistant-thread.json",
+    "sidebar",
+    "breadcrumb"
+  ]
+}
+```
+
+| Field | Purpose |
+|-------|---------|
+| `files` | Component source code and target path |
+| `dependencies` | npm packages to install |
+| `registryDependencies` | Other registry components to fetch |
+
+## Path Resolution
+
+Imports in components use the `@/` alias:
+
+```tsx
+import { Button } from "@/components/ui/button";
+import { Thread } from "@/components/assistant-ui/thread";
+```
+
+shadcn CLI reads your `components.json` to know where `@/` points:
+
+```json
+{
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils"
+  }
+}
+```
+
+## Namespace Configuration (Optional)
+
+Instead of full URLs, you can configure a namespace in your `components.json`:
+
+```json
+{
+  "registries": {
+    "aomi": "https://r.aomi.dev"
+  }
+}
+```
+
+Then install with:
+
+```bash
+npx shadcn add @aomi/aomi-frame
+```
+
+## Updating Components
+
+Since components are **copied to your project**, updates are manual:
+
+```bash
+# Re-run to get latest version (will overwrite your changes!)
+npx shadcn add https://r.aomi.dev/aomi-frame.json --overwrite
+```
+
+**Tip:** Use git to review changes before accepting:
+
+```bash
+git diff components/
+```
+
+## Philosophy
+
+The shadcn approach is about **ownership**:
+
+| Traditional npm | Shadcn Registry |
+|-----------------|-----------------|
+| `import { Button } from "library"` | `import { Button } from "@/components/ui/button"` |
+| Can't edit without forking | Edit directly in your project |
+| Wait for library updates | Update when you want |
+| CSS override battles | Full source control |
+
+This is why Aomi uses a registry — you own the UI code and can customize freely.

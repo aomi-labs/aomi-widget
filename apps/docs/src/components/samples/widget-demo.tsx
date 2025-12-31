@@ -3,15 +3,11 @@
 import dynamic from "next/dynamic";
 import { Preview } from "@/components/playground/Preview";
 
-const widgetCode = `import "@aomi-labs/react/styles.css";
-import { AomiFrame } from "@aomi-labs/widget-lib/components/aomi-frame";
+const widgetCode = `import { AomiFrame } from "@/components/aomi-frame";
 
 export function WidgetDemo() {
   return (
-    <AomiFrame
-      height="560px"
-      config={{ backendUrl: "/api/chat" }}
-    />
+    <AomiFrame height="560px" />
   );
 }`;
 
@@ -28,7 +24,7 @@ export function WidgetDemo() {
       code={widgetCode}
       badge="Live"
     >
-      <ClientFrame height="560px" config={{ backendUrl: "/api/chat" }} />
+      <ClientFrame height="560px" />
     </Preview>
   );
 }
