@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import ContextProvider from "../src/components/wallet-providers";
+import { Provider } from "./provider";
 
 export const metadata: Metadata = {
-  title: "Example App - @aomi-labs/react",
-  description: "Example app consuming @aomi-labs/react",
+  title: "Aomi Widget · Docs & Playground",
+  description: "Docs, guides, and live previews for @aomi-labs/react.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        <ContextProvider cookies={null}>{children}</ContextProvider>
+    <html lang="en" className="bg-background text-foreground" suppressHydrationWarning>
+      <body className="min-h-screen antialiased">
+        <Provider>{children}</Provider>
       </body>
     </html>
   );

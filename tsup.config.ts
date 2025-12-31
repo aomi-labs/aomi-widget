@@ -1,22 +1,4 @@
-import { copyFileSync, cpSync, mkdirSync } from "node:fs";
-import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
-
-const copyStylesPlugin: Plugin = {
-  name: "copy-styles",
-  setup(build) {
-    build.onEnd(() => {
-      try {
-        mkdirSync("dist", { recursive: true });
-        copyFileSync("packages/react/src/styles.css", "dist/styles.css");
-        cpSync("packages/react/src/themes", "dist/themes", { recursive: true });
-      } catch (error) {
-        console.error("Failed to copy theme assets into dist/", error);
-        throw error;
-      }
-    });
-  },
-};
 
 export default defineConfig({
   entry: ["packages/react/src/index.ts"],
@@ -69,5 +51,4 @@ export default defineConfig({
     "@ai-sdk/openai",
     "ai",
   ],
-  esbuildPlugins: [copyStylesPlugin],
 });
