@@ -12,7 +12,7 @@ import { z } from "zod";
 import { remarkMermaid } from "@theguild/remark-mermaid";
 import { createFileSystemTypesCache } from "fumadocs-twoslash/cache-fs";
 
-export const docs = defineDocs({
+export const guides = defineDocs({
   docs: {
     schema: frontmatterSchema,
     postprocess: {
