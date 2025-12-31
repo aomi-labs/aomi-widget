@@ -2,15 +2,18 @@
 
 import dynamic from "next/dynamic";
 import { Preview } from "@/components/playground/Preview";
+import { WalletFooter } from "@/components/wallet/wallet-footer";
 
 const widgetCode = `import "@aomi-labs/react/styles.css";
 import { AomiFrame } from "@aomi-labs/widget-lib/components/aomi-frame";
+import { WalletFooter } from "@/components/wallet/wallet-footer";
 
 export function WidgetDemo() {
   return (
     <AomiFrame
       height="560px"
       config={{ backendUrl: "/api/chat" }}
+      walletFooter={(props) => <WalletFooter {...props} />}
     />
   );
 }`;
@@ -24,11 +27,15 @@ export function WidgetDemo() {
   return (
     <Preview
       title="AomiFrame live demo"
-      description="Chat surface, thread list, and composer running with the default backend."
+      description="Chat surface, thread list, and composer running with the Reown wallet footer."
       code={widgetCode}
       badge="Live"
     >
-      <ClientFrame height="560px" config={{ backendUrl: "/api/chat" }} />
+      <ClientFrame
+        height="560px"
+        config={{ backendUrl: "/api/chat" }}
+        walletFooter={(props) => <WalletFooter {...props} />}
+      />
     </Preview>
   );
 }
