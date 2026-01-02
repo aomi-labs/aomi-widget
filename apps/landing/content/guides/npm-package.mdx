@@ -1,0 +1,105 @@
+---
+title: npm Package
+description: Install @aomi-labs/react for headless runtime logic and state management.
+---
+
+# @aomi-labs/react
+
+The npm package provides **headless logic** — runtime providers, state management, API clients, and utilities. No UI components are included; those come from the [shadcn registry](/docs/shadcn).
+
+## Installation
+
+```bash
+npm install @aomi-labs/react
+```
+
+## What's Included
+
+### Runtime & Providers
+
+| Export | Description |
+|--------|-------------|
+| `AomiRuntimeProvider` | Connects to Aomi backend, manages chat sessions |
+| `ThreadContextProvider` | Thread state management (current thread, messages) |
+| `RuntimeActionsProvider` | Actions for thread operations |
+
+### Hooks
+
+| Hook | Description |
+|------|-------------|
+| `useThreadContext` | Access current thread ID, view key, and actions |
+| `useCurrentThreadMetadata` | Get current thread's title, status, timestamps |
+| `useCurrentThreadMessages` | Access messages in current thread |
+| `useRuntimeActions` | Thread operations (create, delete, switch) |
+
+### API Client
+
+| Export | Description |
+|--------|-------------|
+| `BackendApi` | Direct API client for Aomi backend |
+
+### Types
+
+```ts
+import type {
+  SessionMessage,
+  ThreadMetadata,
+  ThreadStatus,
+  WalletButtonState,
+  WalletFooterProps,
+} from "@aomi-labs/react";
+```
+
+### Utilities
+
+| Export | Description |
+|--------|-------------|
+| `cn` | Class name merger (clsx + tailwind-merge) |
+| `WalletSystemMessageEmitter` | Emits wallet state changes as system messages |
+| `formatAddress` | Truncates wallet addresses for display |
+| `getNetworkName` | Resolves chain ID to network name |
+
+## Basic Usage
+
+```tsx
+import {
+  AomiRuntimeProvider,
+  ThreadContextProvider,
+  useThreadContext,
+} from "@aomi-labs/react";
+
+function App() {
+  return (
+    <ThreadContextProvider>
+      <AomiRuntimeProvider
+        backendUrl="https://api.aomi.dev"
+        publicKey={walletAddress}
+      >
+        <YourChatUI />
+      </AomiRuntimeProvider>
+    </ThreadContextProvider>
+  );
+}
+
+function YourChatUI() {
+  const { currentThreadId } = useThreadContext();
+  // Build your own UI using the state...
+}
+```
+
+## Peer Dependencies
+
+The package requires these peer dependencies:
+
+```json
+{
+  "@assistant-ui/react": "^0.11.0",
+  "react": "^18.0.0 || ^19.0.0",
+  "react-dom": "^18.0.0 || ^19.0.0"
+}
+```
+
+## Next Steps
+
+- [Add UI components via shadcn](/docs/shadcn) — pre-built chat interface
+- [Customize styling](/docs/styling) — theme with shadcn tokens

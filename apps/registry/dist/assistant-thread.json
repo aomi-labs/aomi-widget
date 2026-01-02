@@ -21,7 +21,7 @@
     "https://r.assistant-ui.com/markdown-text.json",
     "https://r.assistant-ui.com/tooltip-icon-button.json",
     "https://r.assistant-ui.com/attachment.json",
-    "https://r.aomi.dev/assistant-tool-fallback.json",
+    "https://widget.aomi.dev/r/assistant-tool-fallback.json",
     "button"
   ]
 }

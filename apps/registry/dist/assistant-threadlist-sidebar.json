@@ -14,7 +14,7 @@
     "lucide-react"
   ],
   "registryDependencies": [
-    "https://r.aomi.dev/assistant-thread-list.json",
+    "https://widget.aomi.dev/r/assistant-thread-list.json",
     "sidebar"
   ]
 }

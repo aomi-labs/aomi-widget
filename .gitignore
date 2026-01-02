@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# generated registry (copied at build time)
+apps/landing/public/r
+apps/registry/dist
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
