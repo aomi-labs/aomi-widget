@@ -13,6 +13,7 @@ import { remarkMermaid } from "@theguild/remark-mermaid";
 import { createFileSystemTypesCache } from "fumadocs-twoslash/cache-fs";
 
 export const guides = defineDocs({
+  dir: "content/guides",
   docs: {
     schema: frontmatterSchema,
     postprocess: {

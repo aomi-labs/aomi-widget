@@ -2,14 +2,14 @@ import type { InferPageType } from "fumadocs-core/source";
 import { loader } from "fumadocs-core/source";
 import { toFumadocsSource } from "fumadocs-mdx/runtime/server";
 import {
-  docs,
+  guides,
   examples as examplePages,
   api as apiPages,
 } from "@/.source/server";
 
 export const source = loader({
   baseUrl: "/docs",
-  source: docs.toFumadocsSource(),
+  source: guides.toFumadocsSource(),
 });
 
 export const examples = loader({
