@@ -13,6 +13,7 @@ import {
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
 import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
 import { useThreadContext, type ThreadMetadata } from "@/lib/thread-context";
+
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;
 };

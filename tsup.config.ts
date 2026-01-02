@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["packages/react/src/index.ts"],
   format: ["esm", "cjs"],
   dts: {
     compilerOptions: {
@@ -12,9 +12,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   tsconfig: "tsconfig.lib.json",
-  banner: {
-    js: '"use client";',
-  },
   external: [
     // React
     "react",
@@ -54,6 +51,4 @@ export default defineConfig({
     "@ai-sdk/openai",
     "ai",
   ],
-  // Copy CSS file to dist
-  onSuccess: "cp src/styles.css dist/styles.css",
 });

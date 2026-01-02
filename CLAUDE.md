@@ -16,7 +16,7 @@ Update `specs/STATE.md` with:
 **Build & Test:**
 ```bash
 pnpm run build:lib        # Build library to dist/
-pnpm --filter example dev # Run demo at localhost:3000
+pnpm --filter landing dev # Run demo at localhost:3000
 pnpm lint                 # Lint check
 ```
 
