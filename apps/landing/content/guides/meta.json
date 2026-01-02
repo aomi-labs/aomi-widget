@@ -1,0 +1,27 @@
+{
+  "title": "Guides",
+  "pages": [
+    "---Introduction---",
+    "about-aomi",
+    "architecture",
+    "---Quickstart---",
+    "npm-package",
+    "shadcn",
+    "cli",
+    "sdk",
+    "---UI---",
+    "components",
+    "styling",
+    "customization",
+    "examples",
+    "---Guides---",
+    "runtime",
+    "aomi-apps",
+    "script-generation",
+    "execution",
+    "evals",
+    "---Integration---",
+    "platform-support"
+  ],
+  "root": true
+}

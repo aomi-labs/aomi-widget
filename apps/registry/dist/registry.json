@@ -17,8 +17,8 @@
         "@aomi-labs/react"
       ],
       "registryDependencies": [
-        "https://r.aomi.dev/assistant-thread.json",
-        "https://r.aomi.dev/assistant-threadlist-sidebar.json",
+        "https://widget.aomi.dev/r/assistant-thread.json",
+        "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
         "sidebar",
         "separator",
         "breadcrumb"
@@ -45,7 +45,7 @@
         "https://r.assistant-ui.com/markdown-text.json",
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "https://r.assistant-ui.com/attachment.json",
-        "https://r.aomi.dev/assistant-tool-fallback.json",
+        "https://widget.aomi.dev/r/assistant-tool-fallback.json",
         "button"
       ]
     },
@@ -83,7 +83,7 @@
         "lucide-react"
       ],
       "registryDependencies": [
-        "https://r.aomi.dev/assistant-thread-list.json",
+        "https://widget.aomi.dev/r/assistant-thread-list.json",
         "sidebar"
       ]
     },

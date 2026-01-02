@@ -17,8 +17,7 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    },
-    "./styles.css": "./dist/styles.css"
+    }
   },
   "files": [
     "dist"
@@ -26,14 +25,15 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "dev:landing:live": "pnpm run build:lib -- --watch & pnpm --filter landing dev",
-    "dev:docs": "pnpm --filter @aomi-labs/widget-docs dev",
+    "dev:landing": "pnpm --filter landing dev",
     "build": "next build",
     "build:lib": "tsup",
-    "build:docs": "pnpm --filter @aomi-labs/widget-docs build",
-    "vercel-build": "pnpm run build:lib && pnpm --filter landing build",
+    "build:landing": "pnpm --filter landing build",
+    "build:registry": "pnpm --filter @aomi-labs/widget-lib build",
+    "vercel-build": "pnpm run build:lib && pnpm run build:registry && cp -r apps/registry/dist apps/landing/public/r && pnpm --filter landing build",
     "start": "next start",
     "lint": "eslint .",
-    "lint:docs": "pnpm --filter @aomi-labs/widget-docs lint",
+    "lint:landing": "pnpm --filter landing lint",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
     "test": "vitest",

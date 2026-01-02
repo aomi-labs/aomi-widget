@@ -1,0 +1,109 @@
+---
+title: Components
+description: Pre-built UI components available via the shadcn registry.
+---
+
+import { WidgetDemo } from "@/components/samples/widget-demo";
+
+# Components
+
+UI components are distributed via our [shadcn registry](/docs/shadcn). Install them with a single command:
+
+```bash
+npx shadcn add https://widget.aomi.dev/r/aomi-frame.json
+```
+
+<WidgetDemo />
+
+## Available Components
+
+### From r.aomi.dev (Customized)
+
+These components are maintained by Aomi with custom functionality:
+
+| Component | Description | Install |
+|-----------|-------------|---------|
+| `aomi-frame` | Full assistant shell with sidebar and chat | `npx shadcn add https://widget.aomi.dev/r/aomi-frame.json` |
+| `assistant-thread` | Chat surface with messages, composer, suggestions | Included with aomi-frame |
+| `assistant-thread-list` | Thread list with create/delete actions | Included with aomi-frame |
+| `assistant-threadlist-sidebar` | Sidebar wrapper with branding slot | Included with aomi-frame |
+| `assistant-tool-fallback` | Fallback UI for tool calls | Included with aomi-frame |
+
+### From r.assistant-ui.com (Upstream)
+
+These components come directly from assistant-ui:
+
+| Component | Description |
+|-----------|-------------|
+| `markdown-text` | Markdown renderer for messages |
+| `tooltip-icon-button` | Icon button with tooltip |
+| `attachment` | File attachment display |
+
+### From shadcn (Primitives)
+
+Standard shadcn components are also installed:
+
+`button`, `sidebar`, `separator`, `breadcrumb`, `skeleton`, `tooltip`, `dialog`, `avatar`, `sheet`, `input`
+
+## Component Tree
+
+```
+AomiFrame
+├── ThreadListSidebar
+│   ├── ThreadList
+│   │   └── TooltipIconButton (assistant-ui)
+│   └── [Wallet Footer Slot]
+└── Thread
+    ├── Messages
+    │   ├── MarkdownText (assistant-ui)
+    │   ├── Attachment (assistant-ui)
+    │   └── ToolFallback
+    └── Composer
+```
+
+## Usage
+
+After installation, import and use:
+
+```tsx
+import { AomiFrame } from "@/components/aomi-frame";
+
+export default function ChatPage() {
+  return (
+    <AomiFrame
+      height="600px"
+      walletFooter={({ wallet, setWallet }) => (
+        <YourWalletButton wallet={wallet} setWallet={setWallet} />
+      )}
+    />
+  );
+}
+```
+
+## Props
+
+### AomiFrame
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `width` | `CSSProperties["width"]` | `"100%"` | Frame width |
+| `height` | `CSSProperties["height"]` | `"80vh"` | Frame height |
+| `className` | `string` | — | Additional CSS classes |
+| `style` | `CSSProperties` | — | Inline styles |
+| `walletFooter` | `(props: WalletFooterProps) => ReactNode` | — | Render prop for wallet UI |
+| `children` | `ReactNode` | — | Additional content |
+
+## Customization
+
+Since components are copied to your project, you can edit them directly:
+
+```
+your-project/
+└── components/
+    ├── aomi-frame.tsx          ← Edit this
+    └── assistant-ui/
+        ├── thread.tsx          ← Or this
+        └── ...
+```
+
+See [Styling](/docs/styling) for theming options.

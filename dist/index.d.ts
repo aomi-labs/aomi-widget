@@ -64,7 +64,9 @@ declare class BackendApi {
     private eventSource;
     private updatesEventSources;
     constructor(backendUrl: string);
-    fetchState(sessionId: string): Promise<SessionResponsePayload>;
+    fetchState(sessionId: string, options?: {
+        signal?: AbortSignal;
+    }): Promise<SessionResponsePayload>;
     postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload>;
     postSystemMessage(sessionId: string, message: string): Promise<SystemResponsePayload>;
     postInterrupt(sessionId: string): Promise<SessionResponsePayload>;

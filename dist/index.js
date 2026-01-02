@@ -52,11 +52,11 @@ var BackendApi = class {
     this.eventSource = null;
     this.updatesEventSources = /* @__PURE__ */ new Map();
   }
-  async fetchState(sessionId) {
+  async fetchState(sessionId, options) {
     console.log("\u{1F535} [fetchState] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
     console.log("\u{1F535} [fetchState] URL:", url);
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: options == null ? void 0 : options.signal });
     console.log("\u{1F535} [fetchState] Response status:", response.status, response.statusText);
     if (!response.ok) {
       console.error("\u{1F534} [fetchState] Error:", response.status, response.statusText);
@@ -317,7 +317,7 @@ var BackendApi = class {
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
-import { useCallback as useCallback3, useEffect as useEffect2, useMemo as useMemo2, useRef as useRef4, useState as useState3 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect3, useMemo as useMemo2, useRef as useRef4, useState as useState3 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -336,7 +336,7 @@ function useRuntimeActions() {
 }
 
 // packages/react/src/runtime/orchestrator.ts
-import { useCallback, useRef as useRef2, useState } from "react";
+import { useCallback, useEffect, useRef as useRef2, useState } from "react";
 
 // packages/react/src/state/thread-context.tsx
 import { createContext as createContext2, useContext as useContext2, useMemo, useRef, useSyncExternalStore } from "react";
@@ -801,12 +801,21 @@ var PollingController = class {
   start(threadId) {
     const backendState = this.config.backendStateRef.current;
     if (!isThreadReady(backendState, threadId)) return;
-    if (this.intervals.has(threadId)) return;
+    if (this.intervals.has(threadId)) {
+      return;
+    }
     const backendThreadId = resolveThreadId(backendState, threadId);
     setThreadRunning(backendState, threadId, true);
     const tick = async () => {
+      if (!this.intervals.has(threadId)) {
+        return;
+      }
       try {
+        console.log("\u{1F535} [PollingController] Fetching state for threadId:", threadId);
         const state = await this.config.backendApiRef.current.fetchState(backendThreadId);
+        if (!this.intervals.has(threadId)) {
+          return;
+        }
         this.handleState(threadId, state);
       } catch (error) {
         console.error("Polling error:", error);
@@ -829,35 +838,33 @@ var PollingController = class {
     setThreadRunning(this.config.backendStateRef.current, threadId, false);
     (_b = (_a = this.config).onStop) == null ? void 0 : _b.call(_a, threadId);
   }
+  isPolling(threadId) {
+    return this.intervals.has(threadId);
+  }
   stopAll() {
     for (const threadId of this.intervals.keys()) {
       this.stop(threadId);
     }
   }
   handleState(threadId, state) {
-    var _a, _b, _c;
     if (state.session_exists === false) {
       this.stop(threadId);
       return;
     }
     const backendState = this.config.backendStateRef.current;
     const backendThreadId = resolveThreadId(backendState, threadId);
-    const hasMessages = ((_b = (_a = state.messages) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
-    const hasStreamingMessages = Boolean(
-      (_c = state.messages) == null ? void 0 : _c.some((message) => message.is_streaming)
-    );
     if (this.handleSystemEvents && state.system_events) {
       this.handleSystemEvents(backendThreadId, threadId, state.system_events);
     }
     this.config.applyMessages(threadId, state.messages);
-    if (state.is_processing === false || state.is_processing == null && hasMessages && !hasStreamingMessages) {
+    if (!state.is_processing) {
       this.stop(threadId);
     }
   }
 };
 
 // packages/react/src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
+function useRuntimeOrchestrator(backendUrl) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef2(threadContext);
   threadContextRef.current = threadContext;
@@ -866,6 +873,8 @@ function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
   const [isRunning, setIsRunning] = useState(false);
   const messageControllerRef = useRef2(null);
   const pollingRef = useRef2(null);
+  const systemEventsHandlerRef = useRef2(null);
+  const inFlightRef = useRef2(/* @__PURE__ */ new Map());
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
       backendApiRef,
@@ -895,52 +904,76 @@ function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
       setGlobalIsRunning: setIsRunning
     });
   }
+  const setSystemEventsHandler = useCallback((handler) => {
+    var _a;
+    systemEventsHandlerRef.current = handler;
+    (_a = pollingRef.current) == null ? void 0 : _a.setSystemEventsHandler(handler != null ? handler : void 0);
+  }, []);
+  useEffect(() => {
+    return () => {
+      for (const controller of inFlightRef.current.values()) {
+        controller.abort();
+      }
+      inFlightRef.current.clear();
+    };
+  }, []);
   const ensureInitialState = useCallback(
     async (threadId) => {
-      var _a, _b, _c;
+      var _a, _b;
       const backendState = backendStateRef.current;
-      const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
       if (shouldSkipInitialFetch(backendState, threadId)) {
         clearSkipInitialFetch(backendState, threadId);
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
         return;
       }
       if (!isThreadReady(backendState, threadId)) {
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
         return;
       }
+      if (inFlightRef.current.has(threadId)) {
+        return;
+      }
       const backendThreadId = resolveThreadId(backendState, threadId);
+      const controller = new AbortController();
+      inFlightRef.current.set(threadId, controller);
       try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
+        console.log("\u{1F535} [Orchestrator] Fetching initial state for threadId:", threadId);
+        const state = await backendApiRef.current.fetchState(backendThreadId, {
+          signal: controller.signal
+        });
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
-        const hasStreamingMessages = Boolean(
-          (_b = state.messages) == null ? void 0 : _b.some((message) => message.is_streaming)
-        );
-        if (handleSystemEvents && state.system_events) {
-          handleSystemEvents(backendThreadId, threadId, state.system_events);
+        if (systemEventsHandlerRef.current && state.system_events) {
+          systemEventsHandlerRef.current(backendThreadId, threadId, state.system_events);
         }
-        if (state.is_processing || hasStreamingMessages) {
-          if (isCurrentThread) {
+        if (state.is_processing) {
+          if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(true);
           }
-          (_c = pollingRef.current) == null ? void 0 : _c.start(threadId);
+          (_b = pollingRef.current) == null ? void 0 : _b.start(threadId);
         } else {
-          if (isCurrentThread) {
+          if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
         }
       } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
         console.error("Failed to fetch initial state:", error);
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
+        }
+      } finally {
+        if (inFlightRef.current.get(threadId) === controller) {
+          inFlightRef.current.delete(threadId);
         }
       }
     },
-    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning, handleSystemEvents]
+    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
   );
   return {
     backendStateRef,
@@ -949,6 +982,7 @@ function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
     isRunning,
     setIsRunning,
     ensureInitialState,
+    setSystemEventsHandler,
     backendApiRef
   };
 }
@@ -1004,7 +1038,7 @@ function NotificationProvider({ children }) {
 }
 
 // packages/react/src/utils/wallet.ts
-import { useEffect, useRef as useRef3 } from "react";
+import { useEffect as useEffect2, useRef as useRef3 } from "react";
 var getNetworkName = (chainId) => {
   if (chainId === void 0) return "";
   const id = typeof chainId === "string" ? Number(chainId) : chainId;
@@ -1076,7 +1110,7 @@ function WalletSystemMessageEmitter({
 }) {
   const { sendSystemMessage } = useRuntimeActions();
   const lastWalletRef = useRef3({ isConnected: false });
-  useEffect(() => {
+  useEffect2(() => {
     const prev = lastWalletRef.current;
     const { address, chainId, isConnected } = wallet;
     const normalizedAddress = address == null ? void 0 : address.toLowerCase();
@@ -1493,7 +1527,7 @@ function AomiRuntimeProvider({
   const threadContextRef = useRef4(threadContext);
   threadContextRef.current = threadContext;
   const currentThreadIdRef = useRef4(threadContext.currentThreadId);
-  useEffect2(() => {
+  useEffect3(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
   const { showNotification } = useNotification();
@@ -1506,11 +1540,9 @@ function AomiRuntimeProvider({
     isRunning,
     setIsRunning,
     ensureInitialState,
+    setSystemEventsHandler,
     backendApiRef
-  } = useRuntimeOrchestrator(backendUrl, (sessionId, threadId, events) => {
-    var _a;
-    (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
-  });
+  } = useRuntimeOrchestrator(backendUrl);
   if (!walletHandlerRef.current) {
     walletHandlerRef.current = new WalletHandler({
       backendApiRef,
@@ -1535,28 +1567,33 @@ function AomiRuntimeProvider({
       setThreadMetadata: threadContext.setThreadMetadata
     });
   }
-  useEffect2(() => {
-    if (polling && eventControllerRef.current) {
-      polling.setSystemEventsHandler((sessionId, threadId, events) => {
-        var _a;
-        (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
-      });
-    }
-  }, [polling]);
+  const handleSystemEvents = useCallback3(
+    (sessionId, threadId, events) => {
+      var _a;
+      (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
+    },
+    []
+  );
+  useEffect3(() => {
+    setSystemEventsHandler(handleSystemEvents);
+    return () => {
+      setSystemEventsHandler(null);
+    };
+  }, [handleSystemEvents, setSystemEventsHandler]);
   const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = useState3(0);
   const bumpUpdateSubscriptions = useCallback3(() => {
     setUpdateSubscriptionsTick((prev) => prev + 1);
   }, []);
-  useEffect2(() => {
+  useEffect3(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-  useEffect2(() => {
+  useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     const isCurrentlyRunning = isThreadRunning(backendStateRef.current, threadId);
     setIsRunning(isCurrentlyRunning);
   }, [threadContext.currentThreadId, setIsRunning]);
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
-  useEffect2(() => {
+  useEffect3(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -1817,7 +1854,7 @@ function AomiRuntimeProvider({
     threadContext.threadMetadata,
     bumpUpdateSubscriptions
   ]);
-  useEffect2(() => {
+  useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
@@ -1832,7 +1869,7 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  useEffect2(() => {
+  useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     if (isTempThreadId(threadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
@@ -1840,14 +1877,14 @@ function AomiRuntimeProvider({
       void messageController.flushPendingSystem(threadId);
     }
   }, [currentMessages, messageController, threadContext.currentThreadId]);
-  useEffect2(() => {
+  useEffect3(() => {
     return () => {
       var _a;
       polling.stopAll();
       (_a = eventControllerRef.current) == null ? void 0 : _a.cleanup();
     };
   }, [polling]);
-  useEffect2(() => {
+  useEffect3(() => {
     var _a, _b;
     const backendState = backendStateRef.current;
     const threadId = threadContext.currentThreadId;
