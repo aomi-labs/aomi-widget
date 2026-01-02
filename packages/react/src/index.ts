@@ -7,9 +7,15 @@ export type {
   SessionResponsePayload,
   SystemResponsePayload,
   SystemUpdate,
+  SystemUpdateNotification,
+  SystemEvent,
 } from "./api/types";
 
-export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
+export {
+  AomiRuntimeProvider,
+  AomiRuntimeProviderWithNotifications,
+} from "./runtime/aomi-runtime";
+export type { AomiRuntimeProviderProps } from "./runtime/aomi-runtime";
 export { useRuntimeActions, RuntimeActionsProvider } from "./runtime/hooks";
 
 export {
@@ -20,8 +26,36 @@ export {
 } from "./state/thread-context";
 export type { ThreadMetadata, ThreadStatus } from "./state/types";
 
-export { toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage } from "./utils/conversion";
-export { WalletSystemMessageEmitter, formatAddress, getNetworkName } from "./utils/wallet";
-export type { WalletButtonState, WalletFooterProps } from "./utils/wallet";
+export {
+  toInboundSystem as constructSystemMessage,
+  toInboundMessage as constructThreadMessage,
+} from "./utils/conversion";
+export {
+  WalletSystemMessageEmitter,
+  formatAddress,
+  getNetworkName,
+  normalizeWalletError,
+  toHexQuantity,
+  pickInjectedProvider,
+} from "./utils/wallet";
+export type {
+  WalletButtonState,
+  WalletFooterProps,
+  WalletTxRequestPayload,
+  WalletTxRequestHandler,
+  WalletTxRequestContext,
+  Eip1193Provider,
+} from "./utils/wallet";
 
 export { cn } from "./lib/utils";
+
+// Notification system (context/logic only - UI component is in registry)
+export {
+  NotificationProvider,
+  useNotification,
+} from "./lib/notification-context";
+export type {
+  Notification,
+  NotificationType,
+  NotificationIconType,
+} from "./lib/notification-context";

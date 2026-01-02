@@ -14,7 +14,10 @@ import type { RuntimeActions } from "../hooks";
 
 type BackendApiConfig = {
   fetchThreads?: (publicKey: string) => Promise<BackendThreadMetadata[]>;
-  fetchState?: (sessionId: string) => Promise<SessionResponsePayload>;
+  fetchState?: (
+    sessionId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<SessionResponsePayload>;
   createThread?: (publicKey?: string, title?: string) => Promise<CreateThreadResponse>;
   postChatMessage?: (sessionId: string, message: string) => Promise<SessionResponsePayload>;
   postSystemMessage?: (sessionId: string, message: string) => Promise<{ res?: unknown }>;
@@ -41,7 +44,7 @@ const resetBackendApiMocks = () => {
 
 vi.mock("../../api/client", () => {
   class MockBackendApi {
-    updatesHandler: ((update: SystemUpdate) => void) | null = null;
+    updatesHandlers = new Map<string, (update: SystemUpdate) => void>();
 
     constructor(public readonly backendUrl: string) {
       backendApiInstances.push(this);
@@ -53,9 +56,9 @@ vi.mock("../../api/client", () => {
         : [];
     });
 
-    fetchState = vi.fn(async (sessionId: string) => {
+    fetchState = vi.fn(async (sessionId: string, options?: { signal?: AbortSignal }) => {
       return backendApiConfig.fetchState
-        ? await backendApiConfig.fetchState(sessionId)
+        ? await backendApiConfig.fetchState(sessionId, options)
         : { session_exists: true, is_processing: false, messages: [] };
     });
 
@@ -107,17 +110,18 @@ vi.mock("../../api/client", () => {
       }
     });
 
-    subscribeToUpdates = (onUpdate: (update: SystemUpdate) => void) => {
-      this.updatesHandler = onUpdate;
+    subscribeToUpdates = (sessionId: string, onUpdate: (update: SystemUpdate) => void) => {
+      this.updatesHandlers.set(sessionId, onUpdate);
       return () => {
-        if (this.updatesHandler === onUpdate) {
-          this.updatesHandler = null;
+        const current = this.updatesHandlers.get(sessionId);
+        if (current === onUpdate) {
+          this.updatesHandlers.delete(sessionId);
         }
       };
     };
 
     emitUpdate(update: SystemUpdate) {
-      this.updatesHandler?.(update);
+      this.updatesHandlers.get(update.data.session_id)?.(update);
     }
   }
 
@@ -516,6 +520,31 @@ describe("Aomi runtime orchestrator compatibility", () => {
       expect(fetchState).toHaveBeenCalledTimes(2);
     });
 
+    expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it("stops polling when processing flag is missing", async () => {
+    vi.useFakeTimers();
+    const fetchState = vi.fn(async (): Promise<SessionResponsePayload> => ({
+      session_exists: true,
+      messages: [{ sender: "assistant", content: "Done" }],
+    }));
+
+    setBackendApiConfig({ fetchState });
+
+    const ref = renderOrchestrator({ initialThreadId: "thread-1" });
+
+    await act(async () => {
+      ref.current.polling.start("thread-1");
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await flushPromises();
+    });
+
+    expect(fetchState).toHaveBeenCalledTimes(1);
     expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
     vi.useRealTimers();
   });

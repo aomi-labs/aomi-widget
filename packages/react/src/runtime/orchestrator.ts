@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BackendApi } from "../api/client";
 import type { SessionMessage } from "../api/types";
@@ -15,6 +15,12 @@ import {
   type BakendState,
 } from "./backend-state";
 
+type SystemEventsHandler = (
+  sessionId: string,
+  threadId: string,
+  events?: unknown[] | null
+) => void;
+
 export function useRuntimeOrchestrator(backendUrl: string) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
@@ -26,14 +32,21 @@ export function useRuntimeOrchestrator(backendUrl: string) {
 
   const messageControllerRef: MutableRefObject<MessageController | null> = useRef(null);
   const pollingRef: MutableRefObject<PollingController | null> = useRef(null);
+  const systemEventsHandlerRef = useRef<SystemEventsHandler | null>(null);
+  const inFlightRef = useRef<Map<string, AbortController>>(new Map());
 
   if (!pollingRef.current) {
-      pollingRef.current = new PollingController({
-        backendApiRef,
-        backendStateRef,
-        applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
-          messageControllerRef.current?.inbound(threadId, msgs);
-        },
+    pollingRef.current = new PollingController({
+      backendApiRef,
+      backendStateRef,
+      applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
+        messageControllerRef.current?.inbound(threadId, msgs);
+      },
+      onStart: (threadId: string) => {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(true);
+        }
+      },
       onStop: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
@@ -52,43 +65,76 @@ export function useRuntimeOrchestrator(backendUrl: string) {
     });
   }
 
+  const setSystemEventsHandler = useCallback((handler: SystemEventsHandler | null) => {
+    systemEventsHandlerRef.current = handler;
+    pollingRef.current?.setSystemEventsHandler(handler ?? undefined);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const controller of inFlightRef.current.values()) {
+        controller.abort();
+      }
+      inFlightRef.current.clear();
+    };
+  }, []);
+
   const ensureInitialState = useCallback(
     async (threadId: string) => {
       const backendState = backendStateRef.current;
-      const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
       if (shouldSkipInitialFetch(backendState, threadId)) {
         clearSkipInitialFetch(backendState, threadId);
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
         return;
       }
 
       if (!isThreadReady(backendState, threadId)) {
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
         return;
       }
 
+      if (inFlightRef.current.has(threadId)) {
+        return;
+      }
+
       const backendThreadId = resolveThreadId(backendState, threadId);
+      const controller = new AbortController();
+      inFlightRef.current.set(threadId, controller);
       try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
+        console.log("🔵 [Orchestrator] Fetching initial state for threadId:", threadId);
+        const state = await backendApiRef.current.fetchState(backendThreadId, {
+          signal: controller.signal,
+        });
         messageControllerRef.current?.inbound(threadId, state.messages);
+        // Handle system events if handler is provided
+        if (systemEventsHandlerRef.current && state.system_events) {
+          systemEventsHandlerRef.current(backendThreadId, threadId, state.system_events);
+        }
         if (state.is_processing) {
-          if (isCurrentThread) {
+          if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(true);
           }
           pollingRef.current?.start(threadId);
         } else {
-          if (isCurrentThread) {
+          if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
         }
       } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
         console.error("Failed to fetch initial state:", error);
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
+        }
+      } finally {
+        if (inFlightRef.current.get(threadId) === controller) {
+          inFlightRef.current.delete(threadId);
         }
       }
     },
@@ -102,6 +148,7 @@ export function useRuntimeOrchestrator(backendUrl: string) {
     isRunning,
     setIsRunning,
     ensureInitialState,
+    setSystemEventsHandler,
     backendApiRef,
   };
 }

@@ -261,11 +261,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className={cn(
-            "flex flex-col overflow-hidden bg-sidebar",
-            variant === "floating" && "h-full w-full rounded-lg border border-sidebar-border shadow-sm",
-            variant === "inset" && "absolute inset-0 group-data-[side=left]:rounded-tl-2xl group-data-[side=left]:rounded-bl-2xl group-data-[side=right]:rounded-tr-2xl group-data-[side=right]:rounded-br-2xl"
-          )}
+          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
         >
           {children}
         </div>

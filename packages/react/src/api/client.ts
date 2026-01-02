@@ -4,8 +4,10 @@ import type {
   CreateThreadResponse,
   SessionMessage,
   SessionResponsePayload,
+  SystemEvent,
   SystemResponsePayload,
   SystemUpdate,
+  SystemUpdateNotification,
 } from "./types";
 
 function toQueryString(payload: Record<string, unknown>): string {
@@ -46,16 +48,19 @@ async function postState<T>(
 export class BackendApi {
   private connectionStatus = false;
   private eventSource: EventSource | null = null;
-  private updatesEventSource: EventSource | null = null;
+  private updatesEventSources = new Map<string, EventSource>();
 
   constructor(private readonly backendUrl: string) {}
 
-  async fetchState(sessionId: string): Promise<SessionResponsePayload> {
+  async fetchState(
+    sessionId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<SessionResponsePayload> {
     console.log("🔵 [fetchState] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
     console.log("🔵 [fetchState] URL:", url);
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: options?.signal });
     console.log("🔵 [fetchState] Response status:", response.status, response.statusText);
 
     if (!response.ok) {
@@ -161,17 +166,21 @@ export class BackendApi {
   }
 
   subscribeToUpdates(
+    sessionId: string,
     onUpdate: (update: SystemUpdate) => void,
     onError?: (error: unknown) => void
   ): () => void {
-    if (this.updatesEventSource) {
-      this.updatesEventSource.close();
+    const updatesUrl = new URL("/api/updates", this.backendUrl);
+    updatesUrl.searchParams.set("session_id", sessionId);
+    const existing = this.updatesEventSources.get(sessionId);
+    if (existing) {
+      existing.close();
     }
 
-    const updatesUrl = new URL("/api/updates", this.backendUrl).toString();
-    this.updatesEventSource = new EventSource(updatesUrl);
+    const updatesEventSource = new EventSource(updatesUrl.toString());
+    this.updatesEventSources.set(sessionId, updatesEventSource);
 
-    this.updatesEventSource.onmessage = (event) => {
+    updatesEventSource.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data) as SystemUpdate;
         onUpdate(parsed);
@@ -181,15 +190,18 @@ export class BackendApi {
       }
     };
 
-    this.updatesEventSource.onerror = (error) => {
+    updatesEventSource.onerror = (error) => {
       console.error("System updates SSE error:", error);
       onError?.(error);
     };
 
     return () => {
-      if (this.updatesEventSource) {
-        this.updatesEventSource.close();
-        this.updatesEventSource = null;
+      const current = this.updatesEventSources.get(sessionId);
+      if (current === updatesEventSource) {
+        current.close();
+        this.updatesEventSources.delete(sessionId);
+      } else {
+        updatesEventSource.close();
       }
     };
   }
@@ -305,5 +317,67 @@ export class BackendApi {
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
     console.log("🟢 [renameThread] Success");
+  }
+
+  async fetchEventsAfter(
+    sessionId: string,
+    afterId = 0,
+    limit = 100
+  ): Promise<SystemEvent[]> {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
+    if (limit) url.searchParams.set("limit", String(limit));
+
+    console.log("🔵 [fetchEventsAfter] URL:", url.toString());
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
+    }
+    return (await response.json()) as SystemEvent[];
+  }
+
+  subscribeToUpdatesWithNotification(
+    sessionId: string,
+    onUpdate: (update: SystemUpdateNotification) => void,
+    onError?: (error: unknown) => void
+  ): () => void {
+    const updatesUrl = new URL("/api/updates", this.backendUrl);
+    updatesUrl.searchParams.set("session_id", sessionId);
+    const existing = this.updatesEventSources.get(sessionId);
+    if (existing) {
+      existing.close();
+    }
+
+    const updatesEventSource = new EventSource(updatesUrl.toString());
+    this.updatesEventSources.set(sessionId, updatesEventSource);
+
+    console.log("🔵 [subscribeToUpdatesWithNotification] URL:", updatesUrl.toString());
+
+    updatesEventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data) as SystemUpdateNotification;
+        onUpdate(parsed);
+      } catch (error) {
+        console.error("Failed to parse system update SSE:", error);
+        onError?.(error);
+      }
+    };
+
+    updatesEventSource.onerror = (error) => {
+      console.error("System updates SSE error:", error);
+      onError?.(error);
+    };
+
+    return () => {
+      const current = this.updatesEventSources.get(sessionId);
+      if (current === updatesEventSource) {
+        current.close();
+        this.updatesEventSources.delete(sessionId);
+      } else {
+        updatesEventSource.close();
+      }
+    };
   }
 }
