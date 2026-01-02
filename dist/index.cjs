@@ -38,7 +38,9 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   AomiRuntimeProvider: () => AomiRuntimeProvider,
+  AomiRuntimeProviderWithNotifications: () => AomiRuntimeProviderWithNotifications,
   BackendApi: () => BackendApi,
+  NotificationProvider: () => NotificationProvider,
   RuntimeActionsProvider: () => RuntimeActionsProvider,
   ThreadContextProvider: () => ThreadContextProvider,
   WalletSystemMessageEmitter: () => WalletSystemMessageEmitter,
@@ -47,8 +49,12 @@ __export(index_exports, {
   constructThreadMessage: () => toInboundMessage,
   formatAddress: () => formatAddress,
   getNetworkName: () => getNetworkName,
+  normalizeWalletError: () => normalizeWalletError,
+  pickInjectedProvider: () => pickInjectedProvider,
+  toHexQuantity: () => toHexQuantity,
   useCurrentThreadMessages: () => useCurrentThreadMessages,
   useCurrentThreadMetadata: () => useCurrentThreadMetadata,
+  useNotification: () => useNotification,
   useRuntimeActions: () => useRuntimeActions,
   useThreadContext: () => useThreadContext
 });
@@ -86,7 +92,7 @@ var BackendApi = class {
     this.backendUrl = backendUrl;
     this.connectionStatus = false;
     this.eventSource = null;
-    this.updatesEventSource = null;
+    this.updatesEventSources = /* @__PURE__ */ new Map();
   }
   async fetchState(sessionId) {
     console.log("\u{1F535} [fetchState] Called with sessionId:", sessionId);
@@ -181,13 +187,16 @@ var BackendApi = class {
       this.setConnectionStatus(false);
     }
   }
-  subscribeToUpdates(onUpdate, onError) {
-    if (this.updatesEventSource) {
-      this.updatesEventSource.close();
+  subscribeToUpdates(sessionId, onUpdate, onError) {
+    const updatesUrl = new URL("/api/updates", this.backendUrl);
+    updatesUrl.searchParams.set("session_id", sessionId);
+    const existing = this.updatesEventSources.get(sessionId);
+    if (existing) {
+      existing.close();
     }
-    const updatesUrl = new URL("/api/updates", this.backendUrl).toString();
-    this.updatesEventSource = new EventSource(updatesUrl);
-    this.updatesEventSource.onmessage = (event) => {
+    const updatesEventSource = new EventSource(updatesUrl.toString());
+    this.updatesEventSources.set(sessionId, updatesEventSource);
+    updatesEventSource.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
         onUpdate(parsed);
@@ -196,14 +205,17 @@ var BackendApi = class {
         onError == null ? void 0 : onError(error);
       }
     };
-    this.updatesEventSource.onerror = (error) => {
+    updatesEventSource.onerror = (error) => {
       console.error("System updates SSE error:", error);
       onError == null ? void 0 : onError(error);
     };
     return () => {
-      if (this.updatesEventSource) {
-        this.updatesEventSource.close();
-        this.updatesEventSource = null;
+      const current = this.updatesEventSources.get(sessionId);
+      if (current === updatesEventSource) {
+        current.close();
+        this.updatesEventSources.delete(sessionId);
+      } else {
+        updatesEventSource.close();
       }
     };
   }
@@ -299,11 +311,56 @@ var BackendApi = class {
     }
     console.log("\u{1F7E2} [renameThread] Success");
   }
+  async fetchEventsAfter(sessionId, afterId = 0, limit = 100) {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
+    if (limit) url.searchParams.set("limit", String(limit));
+    console.log("\u{1F535} [fetchEventsAfter] URL:", url.toString());
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+  subscribeToUpdatesWithNotification(sessionId, onUpdate, onError) {
+    const updatesUrl = new URL("/api/updates", this.backendUrl);
+    updatesUrl.searchParams.set("session_id", sessionId);
+    const existing = this.updatesEventSources.get(sessionId);
+    if (existing) {
+      existing.close();
+    }
+    const updatesEventSource = new EventSource(updatesUrl.toString());
+    this.updatesEventSources.set(sessionId, updatesEventSource);
+    console.log("\u{1F535} [subscribeToUpdatesWithNotification] URL:", updatesUrl.toString());
+    updatesEventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        onUpdate(parsed);
+      } catch (error) {
+        console.error("Failed to parse system update SSE:", error);
+        onError == null ? void 0 : onError(error);
+      }
+    };
+    updatesEventSource.onerror = (error) => {
+      console.error("System updates SSE error:", error);
+      onError == null ? void 0 : onError(error);
+    };
+    return () => {
+      const current = this.updatesEventSources.get(sessionId);
+      if (current === updatesEventSource) {
+        current.close();
+        this.updatesEventSources.delete(sessionId);
+      } else {
+        updatesEventSource.close();
+      }
+    };
+  }
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
-var import_react4 = require("react");
-var import_react5 = require("@assistant-ui/react");
+var import_react6 = require("react");
+var import_react7 = require("@assistant-ui/react");
 
 // packages/react/src/runtime/hooks.ts
 var import_react = require("react");
@@ -775,6 +832,10 @@ var PollingController = class {
     this.intervals = /* @__PURE__ */ new Map();
     var _a;
     this.intervalMs = (_a = config.intervalMs) != null ? _a : 500;
+    this.handleSystemEvents = config.handleSystemEvents;
+  }
+  setSystemEventsHandler(handler) {
+    this.handleSystemEvents = handler;
   }
   start(threadId) {
     const backendState = this.config.backendStateRef.current;
@@ -793,6 +854,9 @@ var PollingController = class {
     };
     const intervalId = setInterval(tick, this.intervalMs);
     this.intervals.set(threadId, intervalId);
+    if (this.config.onStart) {
+      this.config.onStart(threadId);
+    }
   }
   stop(threadId) {
     var _a, _b;
@@ -810,19 +874,29 @@ var PollingController = class {
     }
   }
   handleState(threadId, state) {
+    var _a, _b, _c;
     if (state.session_exists === false) {
       this.stop(threadId);
       return;
     }
+    const backendState = this.config.backendStateRef.current;
+    const backendThreadId = resolveThreadId(backendState, threadId);
+    const hasMessages = ((_b = (_a = state.messages) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
+    const hasStreamingMessages = Boolean(
+      (_c = state.messages) == null ? void 0 : _c.some((message) => message.is_streaming)
+    );
+    if (this.handleSystemEvents && state.system_events) {
+      this.handleSystemEvents(backendThreadId, threadId, state.system_events);
+    }
     this.config.applyMessages(threadId, state.messages);
-    if (!state.is_processing) {
+    if (state.is_processing === false || state.is_processing == null && hasMessages && !hasStreamingMessages) {
       this.stop(threadId);
     }
   }
 };
 
 // packages/react/src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendUrl) {
+function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
   const threadContext = useThreadContext();
   const threadContextRef = (0, import_react3.useRef)(threadContext);
   threadContextRef.current = threadContext;
@@ -838,6 +912,11 @@ function useRuntimeOrchestrator(backendUrl) {
       applyMessages: (threadId, msgs) => {
         var _a;
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
+      },
+      onStart: (threadId) => {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(true);
+        }
       },
       onStop: (threadId) => {
         if (threadContextRef.current.currentThreadId === threadId) {
@@ -857,7 +936,7 @@ function useRuntimeOrchestrator(backendUrl) {
   }
   const ensureInitialState = (0, import_react3.useCallback)(
     async (threadId) => {
-      var _a, _b;
+      var _a, _b, _c;
       const backendState = backendStateRef.current;
       const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
       if (shouldSkipInitialFetch(backendState, threadId)) {
@@ -877,11 +956,17 @@ function useRuntimeOrchestrator(backendUrl) {
       try {
         const state = await backendApiRef.current.fetchState(backendThreadId);
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
-        if (state.is_processing) {
+        const hasStreamingMessages = Boolean(
+          (_b = state.messages) == null ? void 0 : _b.some((message) => message.is_streaming)
+        );
+        if (handleSystemEvents && state.system_events) {
+          handleSystemEvents(backendThreadId, threadId, state.system_events);
+        }
+        if (state.is_processing || hasStreamingMessages) {
           if (isCurrentThread) {
             setIsRunning(true);
           }
-          (_b = pollingRef.current) == null ? void 0 : _b.start(threadId);
+          (_c = pollingRef.current) == null ? void 0 : _c.start(threadId);
         } else {
           if (isCurrentThread) {
             setIsRunning(false);
@@ -894,7 +979,7 @@ function useRuntimeOrchestrator(backendUrl) {
         }
       }
     },
-    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
+    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning, handleSystemEvents]
   );
   return {
     backendStateRef,
@@ -907,8 +992,510 @@ function useRuntimeOrchestrator(backendUrl) {
   };
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// packages/react/src/lib/notification-context.tsx
+var import_react4 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
+var NotificationContext = (0, import_react4.createContext)(
+  void 0
+);
+function useNotification() {
+  const context = (0, import_react4.useContext)(NotificationContext);
+  if (!context) {
+    throw new Error("useNotification must be used within NotificationProvider");
+  }
+  return context;
+}
+function NotificationProvider({ children }) {
+  const [notifications, setNotifications] = (0, import_react4.useState)([]);
+  const showNotification = (0, import_react4.useCallback)(
+    (notification) => {
+      var _a, _b;
+      const id = `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const newNotification = __spreadProps(__spreadValues({}, notification), {
+        id,
+        duration: (_a = notification.duration) != null ? _a : 5e3
+      });
+      setNotifications((prev) => [newNotification, ...prev]);
+      const duration = (_b = newNotification.duration) != null ? _b : 5e3;
+      if (duration > 0) {
+        setTimeout(() => {
+          setNotifications((prev) => prev.filter((n) => n.id !== id));
+        }, duration);
+      }
+    },
+    []
+  );
+  const dismissNotification = (0, import_react4.useCallback)((id) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+    NotificationContext.Provider,
+    {
+      value: { showNotification, notifications, dismissNotification },
+      children
+    }
+  );
+}
+
+// packages/react/src/utils/wallet.ts
+var import_react5 = require("react");
+var getNetworkName = (chainId) => {
+  if (chainId === void 0) return "";
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 42161:
+      return "arbitrum";
+    case 8453:
+      return "base";
+    case 10:
+      return "optimism";
+    case 11155111:
+      return "sepolia";
+    case 1337:
+    case 31337:
+      return "testnet";
+    case 59140:
+      return "linea-sepolia";
+    case 59144:
+      return "linea";
+    default:
+      return "testnet";
+  }
+};
+var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+function normalizeWalletError(error) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const e = error;
+  const cause = (_a = e == null ? void 0 : e.cause) != null ? _a : null;
+  const code = (_b = typeof (e == null ? void 0 : e.code) === "number" ? e.code : void 0) != null ? _b : typeof (cause == null ? void 0 : cause.code) === "number" ? cause.code : void 0;
+  const name = (_c = typeof (e == null ? void 0 : e.name) === "string" ? e.name : void 0) != null ? _c : typeof (cause == null ? void 0 : cause.name) === "string" ? cause.name : void 0;
+  const msg = (_g = (_f = (_e = (_d = typeof (e == null ? void 0 : e.shortMessage) === "string" ? e.shortMessage : void 0) != null ? _d : typeof (cause == null ? void 0 : cause.shortMessage) === "string" ? cause.shortMessage : void 0) != null ? _e : typeof (e == null ? void 0 : e.message) === "string" ? e.message : void 0) != null ? _f : typeof (cause == null ? void 0 : cause.message) === "string" ? cause.message : void 0) != null ? _g : "Unknown wallet error";
+  const rejected = code === 4001 || name === "UserRejectedRequestError" || name === "RejectedRequestError" || /user rejected|rejected the request|denied|request rejected|canceled|cancelled/i.test(
+    msg
+  );
+  return { rejected, message: msg };
+}
+function toHexQuantity(value) {
+  const trimmed = value.trim();
+  const asBigInt = BigInt(trimmed);
+  return `0x${asBigInt.toString(16)}`;
+}
+async function pickInjectedProvider(publicKey) {
+  const ethereum = globalThis.ethereum;
+  if (!(ethereum == null ? void 0 : ethereum.request)) return void 0;
+  const candidates = Array.isArray(ethereum.providers) ? ethereum.providers.filter(
+    (p) => !!(p == null ? void 0 : p.request)
+  ) : [ethereum];
+  const target = publicKey == null ? void 0 : publicKey.toLowerCase();
+  if (target) {
+    for (const candidate of candidates) {
+      try {
+        const accounts = await candidate.request({
+          method: "eth_accounts"
+        });
+        const list = Array.isArray(accounts) ? accounts.map((a) => String(a).toLowerCase()) : [];
+        if (list.includes(target)) return candidate;
+      } catch (e) {
+      }
+    }
+  }
+  return candidates[0];
+}
+function WalletSystemMessageEmitter({
+  wallet
+}) {
+  const { sendSystemMessage } = useRuntimeActions();
+  const lastWalletRef = (0, import_react5.useRef)({ isConnected: false });
+  (0, import_react5.useEffect)(() => {
+    const prev = lastWalletRef.current;
+    const { address, chainId, isConnected } = wallet;
+    const normalizedAddress = address == null ? void 0 : address.toLowerCase();
+    if (isConnected && normalizedAddress && chainId && (!prev.isConnected || prev.address !== normalizedAddress)) {
+      const networkName = getNetworkName(chainId);
+      const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = {
+        isConnected: true,
+        address: normalizedAddress,
+        chainId
+      };
+      return;
+    }
+    if (!isConnected && prev.isConnected) {
+      void sendSystemMessage("Wallet disconnected by user.");
+      console.log("Wallet disconnected by user.");
+      lastWalletRef.current = { isConnected: false };
+      return;
+    }
+    if (isConnected && normalizedAddress && chainId && prev.isConnected && prev.address === normalizedAddress && prev.chainId !== chainId) {
+      const networkName = getNetworkName(chainId);
+      const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
+      console.log(message);
+      void sendSystemMessage(message);
+      lastWalletRef.current = {
+        isConnected: true,
+        address: normalizedAddress,
+        chainId
+      };
+    }
+  }, [wallet, sendSystemMessage]);
+  return null;
+}
+
+// packages/react/src/runtime/wallet-handler.ts
+var WalletHandler = class {
+  constructor(config) {
+    this.config = config;
+    this.handledRequests = /* @__PURE__ */ new Set();
+    this.queue = [];
+    this.inFlight = false;
+  }
+  handleRequest(sessionId, threadId, request) {
+    if (this.config.getCurrentThreadId() !== threadId) return;
+    const description = request.description || request.topic || "Wallet transaction requested";
+    this.config.showNotification({
+      type: "notice",
+      iconType: "wallet",
+      title: "Transaction Request",
+      message: description
+    });
+    this.enqueue(sessionId, threadId, request);
+    void this.drain();
+  }
+  enqueue(sessionId, threadId, request) {
+    var _a;
+    const key = `${sessionId}:${(_a = request.timestamp) != null ? _a : JSON.stringify(request)}`;
+    if (this.handledRequests.has(key)) return;
+    this.handledRequests.add(key);
+    this.queue.push({ sessionId, threadId, request });
+  }
+  async drain() {
+    var _a, _b, _c;
+    if (this.inFlight) return;
+    const next = this.queue.shift();
+    if (!next) return;
+    this.inFlight = true;
+    try {
+      if (this.config.onWalletTxRequest) {
+        const txHash2 = await this.config.onWalletTxRequest(next.request, {
+          sessionId: next.sessionId,
+          threadId: next.threadId,
+          publicKey: this.config.publicKey
+        });
+        this.config.showNotification({
+          type: "success",
+          iconType: "transaction",
+          title: "Transaction Sent",
+          message: `Hash: ${txHash2}`
+        });
+        await this.config.backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          `Transaction sent: ${txHash2}`
+        );
+        await this.refreshThreadIfCurrent(next.sessionId, next.threadId);
+        return;
+      }
+      const activeProvider = await pickInjectedProvider(this.config.publicKey);
+      if (!(activeProvider == null ? void 0 : activeProvider.request)) {
+        this.config.showNotification({
+          type: "error",
+          iconType: "wallet",
+          title: "Wallet Not Found",
+          message: "No wallet provider found (window.ethereum missing)."
+        });
+        await this.config.backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          "No wallet provider found (window.ethereum missing)."
+        );
+        return;
+      }
+      const accounts = await activeProvider.request({
+        method: "eth_accounts"
+      });
+      const addresses = Array.isArray(accounts) ? accounts.map(String) : [];
+      const from = this.config.publicKey || addresses[0];
+      if (!from) {
+        await activeProvider.request({ method: "eth_requestAccounts" });
+      }
+      const fromAddress = this.config.publicKey || await activeProvider.request({ method: "eth_accounts" });
+      const resolvedFrom = this.config.publicKey || (Array.isArray(fromAddress) ? String((_a = fromAddress[0]) != null ? _a : "") : "");
+      if (!resolvedFrom) {
+        this.config.showNotification({
+          type: "error",
+          iconType: "wallet",
+          title: "Wallet Not Connected",
+          message: "Please connect a wallet to sign the requested transaction."
+        });
+        await this.config.backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          "Wallet is not connected; please connect a wallet to sign the requested transaction."
+        );
+        return;
+      }
+      const gas = (_c = (_b = next.request.gas) != null ? _b : next.request.gas_limit) != null ? _c : void 0;
+      let valueHex;
+      let gasHex;
+      try {
+        valueHex = toHexQuantity(next.request.value);
+        if (gas) gasHex = toHexQuantity(gas);
+      } catch (error) {
+        this.config.showNotification({
+          type: "error",
+          iconType: "transaction",
+          title: "Invalid Transaction",
+          message: error.message
+        });
+        await this.config.backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          `Invalid wallet transaction request payload: ${error.message}`
+        );
+        return;
+      }
+      const txParams = __spreadValues({
+        from: resolvedFrom,
+        to: next.request.to,
+        value: valueHex,
+        data: next.request.data
+      }, gasHex ? { gas: gasHex } : {});
+      const txHash = await activeProvider.request({
+        method: "eth_sendTransaction",
+        params: [txParams]
+      });
+      this.config.showNotification({
+        type: "success",
+        title: "Transaction sent",
+        message: `Transaction hash: ${txHash}`
+      });
+      await this.config.backendApiRef.current.postSystemMessage(
+        next.sessionId,
+        `Transaction sent: ${txHash}`
+      );
+      await this.refreshThreadIfCurrent(next.sessionId, next.threadId);
+    } catch (error) {
+      const normalized = normalizeWalletError(error);
+      const final = normalized.rejected ? "Transaction rejected by user." : `Transaction failed: ${normalized.message}`;
+      this.config.showNotification({
+        type: normalized.rejected ? "notice" : "error",
+        iconType: normalized.rejected ? "transaction" : "error",
+        title: normalized.rejected ? "Transaction Rejected" : "Transaction Failed",
+        message: normalized.rejected ? "Transaction was rejected by user." : normalized.message
+      });
+      try {
+        await this.config.backendApiRef.current.postSystemMessage(
+          next.sessionId,
+          final
+        );
+        await this.refreshThreadIfCurrent(next.sessionId, next.threadId);
+      } catch (postError) {
+        console.error("Failed to report wallet tx result to backend:", postError);
+      }
+    } finally {
+      this.inFlight = false;
+      void this.drain();
+    }
+  }
+  async refreshThreadIfCurrent(sessionId, threadId) {
+    if (this.config.getCurrentThreadId() !== threadId) return;
+    try {
+      const state = await this.config.backendApiRef.current.fetchState(sessionId);
+      this.config.applySessionMessagesToThread(threadId, state.messages);
+    } catch (refreshError) {
+      console.error("Failed to refresh state after wallet tx:", refreshError);
+    }
+  }
+};
+
+// packages/react/src/runtime/event-controller.ts
+var EventController = class {
+  constructor(config) {
+    this.config = config;
+    this.lastEventIdBySession = /* @__PURE__ */ new Map();
+    this.eventsInFlight = /* @__PURE__ */ new Set();
+    this.updateSubscriptions = /* @__PURE__ */ new Map();
+    this.subscribableSessionId = null;
+  }
+  setSubscribableSessionId(sessionId) {
+    this.subscribableSessionId = sessionId;
+    this.syncSubscriptions();
+  }
+  syncSubscriptions() {
+    const nextSessions = /* @__PURE__ */ new Set();
+    if (this.subscribableSessionId) {
+      nextSessions.add(this.subscribableSessionId);
+    }
+    for (const sessionId of this.updateSubscriptions.keys()) {
+      if (!nextSessions.has(sessionId)) {
+        this.removeSubscription(sessionId);
+      }
+    }
+    for (const sessionId of nextSessions) {
+      this.ensureSubscription(sessionId);
+    }
+  }
+  ensureSubscription(sessionId) {
+    if (this.updateSubscriptions.has(sessionId)) return;
+    const unsubscribe = this.config.backendApiRef.current.subscribeToUpdatesWithNotification(
+      sessionId,
+      (update) => {
+        if (update.type !== "event_available") return;
+        void this.drainEvents(update.session_id);
+      },
+      (error) => {
+        console.error("Failed to handle system update SSE:", error);
+      }
+    );
+    this.updateSubscriptions.set(sessionId, unsubscribe);
+  }
+  removeSubscription(sessionId) {
+    const unsubscribe = this.updateSubscriptions.get(sessionId);
+    if (!unsubscribe) return;
+    unsubscribe();
+    this.updateSubscriptions.delete(sessionId);
+  }
+  async drainEvents(sessionId) {
+    var _a;
+    if (this.eventsInFlight.has(sessionId)) return;
+    this.eventsInFlight.add(sessionId);
+    try {
+      let afterId = (_a = this.lastEventIdBySession.get(sessionId)) != null ? _a : 0;
+      for (; ; ) {
+        const events = await this.config.backendApiRef.current.fetchEventsAfter(
+          sessionId,
+          afterId,
+          200
+        );
+        if (!events.length) break;
+        for (const event of events) {
+          const eventId = typeof event.event_id === "number" ? event.event_id : Number(event.event_id);
+          if (Number.isFinite(eventId)) afterId = Math.max(afterId, eventId);
+          if (event.type === "title_changed" && typeof event.new_title === "string") {
+            this.applyTitleChanged(sessionId, event.new_title);
+          }
+          if (event.type === "wallet_tx_request") {
+            const payload = event.payload;
+            if (payload && typeof payload === "object") {
+              const req = payload;
+              if (typeof req.to === "string" && typeof req.value === "string" && typeof req.data === "string") {
+                const threadId = findTempIdForBackendId(
+                  this.config.backendStateRef.current,
+                  sessionId
+                ) || sessionId;
+                this.config.handleWalletTxRequest(
+                  sessionId,
+                  threadId,
+                  req
+                );
+              }
+            }
+          }
+        }
+        if (events.length < 200) break;
+      }
+      this.lastEventIdBySession.set(sessionId, afterId);
+    } catch (error) {
+      console.error("Failed to fetch async events:", error);
+    } finally {
+      this.eventsInFlight.delete(sessionId);
+    }
+  }
+  applyTitleChanged(sessionId, newTitle) {
+    const backendState = this.config.backendStateRef.current;
+    const tempId = findTempIdForBackendId(backendState, sessionId);
+    const threadIdToUpdate = tempId || sessionId;
+    this.config.setThreadMetadata((prev) => {
+      var _a;
+      const next = new Map(prev);
+      const existing = next.get(threadIdToUpdate);
+      const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+      const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+      next.set(threadIdToUpdate, {
+        title: normalizedTitle,
+        status: nextStatus,
+        lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
+      });
+      return next;
+    });
+    if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === threadIdToUpdate) {
+      backendState.creatingThreadId = null;
+    }
+  }
+  handleBackendSystemEvents(sessionId, threadId, rawEvents) {
+    if (!(rawEvents == null ? void 0 : rawEvents.length)) return;
+    for (const raw of rawEvents) {
+      const parsed = this.parseBackendSystemEvent(raw);
+      if (!parsed) continue;
+      if ("InlineDisplay" in parsed) {
+        const payload = parsed.InlineDisplay;
+        if (!payload || typeof payload !== "object") continue;
+        const type = payload.type;
+        if (type !== "wallet_tx_request") continue;
+        const requestValue = payload.payload;
+        if (!requestValue || typeof requestValue !== "object") continue;
+        const req = requestValue;
+        if (typeof req.to !== "string" || typeof req.value !== "string" || typeof req.data !== "string") {
+          continue;
+        }
+        this.config.handleWalletTxRequest(
+          sessionId,
+          threadId,
+          req
+        );
+      }
+      if ("SystemError" in parsed) {
+        this.config.showNotification({
+          type: "error",
+          iconType: "error",
+          title: "Error",
+          message: parsed.SystemError
+        });
+      }
+      if ("SystemNotice" in parsed) {
+        this.config.showNotification({
+          type: "notice",
+          iconType: "notice",
+          title: "Notice",
+          message: parsed.SystemNotice
+        });
+      }
+    }
+  }
+  parseBackendSystemEvent(value) {
+    if (!value || typeof value !== "object") return null;
+    const entries = Object.entries(value);
+    if (entries.length !== 1) return null;
+    const [key, payload] = entries[0];
+    switch (key) {
+      case "InlineDisplay":
+        return { InlineDisplay: payload };
+      case "SystemNotice":
+        return {
+          SystemNotice: typeof payload === "string" ? payload : String(payload)
+        };
+      case "SystemError":
+        return {
+          SystemError: typeof payload === "string" ? payload : String(payload)
+        };
+      case "AsyncUpdate":
+        return { AsyncUpdate: payload };
+      default:
+        return null;
+    }
+  }
+  cleanup() {
+    for (const unsubscribe of this.updateSubscriptions.values()) {
+      unsubscribe();
+    }
+    this.updateSubscriptions.clear();
+  }
+};
+
+// packages/react/src/runtime/aomi-runtime.tsx
+var import_jsx_runtime3 = require("react/jsx-runtime");
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp2(metaA.lastActiveAt);
   const tsB = parseTimestamp2(metaB.lastActiveAt);
@@ -933,9 +1520,19 @@ function buildThreadLists(threadMetadata) {
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
-  publicKey
+  publicKey,
+  onWalletTxRequest
 }) {
   const threadContext = useThreadContext();
+  const threadContextRef = (0, import_react6.useRef)(threadContext);
+  threadContextRef.current = threadContext;
+  const currentThreadIdRef = (0, import_react6.useRef)(threadContext.currentThreadId);
+  (0, import_react6.useEffect)(() => {
+    currentThreadIdRef.current = threadContext.currentThreadId;
+  }, [threadContext.currentThreadId]);
+  const { showNotification } = useNotification();
+  const eventControllerRef = (0, import_react6.useRef)(null);
+  const walletHandlerRef = (0, import_react6.useRef)(null);
   const {
     backendStateRef,
     polling,
@@ -944,22 +1541,56 @@ function AomiRuntimeProvider({
     setIsRunning,
     ensureInitialState,
     backendApiRef
-  } = useRuntimeOrchestrator(backendUrl);
-  const threadContextRef = (0, import_react4.useRef)(threadContext);
-  threadContextRef.current = threadContext;
-  const currentThreadIdRef = (0, import_react4.useRef)(threadContext.currentThreadId);
-  (0, import_react4.useEffect)(() => {
-    currentThreadIdRef.current = threadContext.currentThreadId;
-  }, [threadContext.currentThreadId]);
-  (0, import_react4.useEffect)(() => {
+  } = useRuntimeOrchestrator(backendUrl, (sessionId, threadId, events) => {
+    var _a;
+    (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
+  });
+  if (!walletHandlerRef.current) {
+    walletHandlerRef.current = new WalletHandler({
+      backendApiRef,
+      onWalletTxRequest,
+      publicKey,
+      showNotification,
+      applySessionMessagesToThread: (threadId, msgs) => {
+        messageController.inbound(threadId, msgs);
+      },
+      getCurrentThreadId: () => currentThreadIdRef.current
+    });
+  }
+  if (!eventControllerRef.current) {
+    eventControllerRef.current = new EventController({
+      backendApiRef,
+      backendStateRef,
+      showNotification,
+      handleWalletTxRequest: (sessionId, threadId, request) => {
+        var _a;
+        (_a = walletHandlerRef.current) == null ? void 0 : _a.handleRequest(sessionId, threadId, request);
+      },
+      setThreadMetadata: threadContext.setThreadMetadata
+    });
+  }
+  (0, import_react6.useEffect)(() => {
+    if (polling && eventControllerRef.current) {
+      polling.setSystemEventsHandler((sessionId, threadId, events) => {
+        var _a;
+        (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
+      });
+    }
+  }, [polling]);
+  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = (0, import_react6.useState)(0);
+  const bumpUpdateSubscriptions = (0, import_react6.useCallback)(() => {
+    setUpdateSubscriptionsTick((prev) => prev + 1);
+  }, []);
+  (0, import_react6.useEffect)(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
-    setIsRunning(isThreadRunning(backendStateRef.current, threadId));
-  }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
+    const isCurrentlyRunning = isThreadRunning(backendStateRef.current, threadId);
+    setIsRunning(isCurrentlyRunning);
+  }, [threadContext.currentThreadId, setIsRunning]);
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -995,7 +1626,7 @@ function AomiRuntimeProvider({
     };
     void fetchThreadList();
   }, [publicKey]);
-  const threadListAdapter = (0, import_react4.useMemo)(() => {
+  const threadListAdapter = (0, import_react6.useMemo)(() => {
     const backendState = backendStateRef.current;
     const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
     const preparePendingThread = (threadId) => {
@@ -1044,6 +1675,12 @@ function AomiRuntimeProvider({
       archivedThreads,
       onSwitchToNewThread: async () => {
         var _a;
+        const previousThreadId = currentThreadIdRef.current;
+        polling.stopAll();
+        if (isRunning && isThreadReady(backendState, previousThreadId)) {
+          const backendId = resolveThreadId(backendState, previousThreadId);
+          void backendApiRef.current.postInterrupt(backendId);
+        }
         const pendingId = findPendingThreadId();
         if (pendingId) {
           preparePendingThread(pendingId);
@@ -1061,6 +1698,7 @@ function AomiRuntimeProvider({
           const backendId = newThread.session_id;
           setBackendMapping(backendState, uiThreadId, backendId);
           markSkipInitialFetch(backendState, uiThreadId);
+          bumpUpdateSubscriptions();
           const backendTitle = newThread.title;
           if (backendTitle && !isPlaceholderTitle(backendTitle)) {
             threadContext.setThreadMetadata((prev) => {
@@ -1116,6 +1754,12 @@ function AomiRuntimeProvider({
         backendState.createThreadPromise = createPromise;
       },
       onSwitchToThread: (threadId) => {
+        const previousThreadId = currentThreadIdRef.current;
+        polling.stopAll();
+        if (isRunning && isThreadReady(backendState, previousThreadId)) {
+          const backendId = resolveThreadId(backendState, previousThreadId);
+          void backendApiRef.current.postInterrupt(backendId);
+        }
         threadContext.setCurrentThreadId(threadId);
       },
       onRename: async (threadId, newTitle) => {
@@ -1204,44 +1848,16 @@ function AomiRuntimeProvider({
     setIsRunning,
     threadContext,
     threadContext.currentThreadId,
-    threadContext.threadMetadata
+    threadContext.threadMetadata,
+    bumpUpdateSubscriptions
   ]);
-  (0, import_react4.useEffect)(() => {
-    const unsubscribe = backendApiRef.current.subscribeToUpdates((update) => {
-      var _a;
-      if (update.type !== "TitleChanged") return;
-      const sessionId = update.data.session_id;
-      const newTitle = update.data.new_title;
-      const backendState = backendStateRef.current;
-      const targetThreadId = (_a = findTempIdForBackendId(backendState, sessionId)) != null ? _a : resolveThreadId(backendState, sessionId);
-      const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-      threadContext.setThreadMetadata((prev) => {
-        var _a2;
-        const next = new Map(prev);
-        const existing = next.get(targetThreadId);
-        const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-        next.set(targetThreadId, {
-          title: normalizedTitle,
-          status: nextStatus,
-          lastActiveAt: (_a2 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a2 : (/* @__PURE__ */ new Date()).toISOString()
-        });
-        return next;
-      });
-      if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
-        backendState.creatingThreadId = null;
-      }
-    });
-    return () => {
-      unsubscribe == null ? void 0 : unsubscribe();
-    };
-  }, [backendApiRef, backendStateRef, threadContext]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);
-  const runtime = (0, import_react5.useExternalStoreRuntime)({
+  const runtime = (0, import_react7.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
@@ -1250,7 +1866,7 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     if (isTempThreadId(threadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
@@ -1258,82 +1874,36 @@ function AomiRuntimeProvider({
       void messageController.flushPendingSystem(threadId);
     }
   }, [currentMessages, messageController, threadContext.currentThreadId]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     return () => {
+      var _a;
       polling.stopAll();
+      (_a = eventControllerRef.current) == null ? void 0 : _a.cleanup();
     };
   }, [polling]);
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+  (0, import_react6.useEffect)(() => {
+    var _a, _b;
+    const backendState = backendStateRef.current;
+    const threadId = threadContext.currentThreadId;
+    if (isThreadReady(backendState, threadId)) {
+      const sessionId = resolveThreadId(backendState, threadId);
+      (_a = eventControllerRef.current) == null ? void 0 : _a.setSubscribableSessionId(sessionId);
+    } else {
+      (_b = eventControllerRef.current) == null ? void 0 : _b.setSubscribableSessionId(null);
+    }
+  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick]);
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
     RuntimeActionsProvider,
     {
       value: {
         sendSystemMessage: (message) => messageController.outboundSystem(threadContext.currentThreadId, message)
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react5.AssistantRuntimeProvider, { runtime, children })
+      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_react7.AssistantRuntimeProvider, { runtime, children })
     }
   );
 }
-
-// packages/react/src/utils/wallet.ts
-var import_react6 = require("react");
-var getNetworkName = (chainId) => {
-  if (chainId === void 0) return "";
-  const id = typeof chainId === "string" ? Number(chainId) : chainId;
-  switch (id) {
-    case 1:
-      return "ethereum";
-    case 137:
-      return "polygon";
-    case 42161:
-      return "arbitrum";
-    case 8453:
-      return "base";
-    case 10:
-      return "optimism";
-    case 11155111:
-      return "sepolia";
-    case 1337:
-    case 31337:
-      return "testnet";
-    case 59140:
-      return "linea-sepolia";
-    case 59144:
-      return "linea";
-    default:
-      return "testnet";
-  }
-};
-var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-function WalletSystemMessageEmitter({ wallet }) {
-  const { sendSystemMessage } = useRuntimeActions();
-  const lastWalletRef = (0, import_react6.useRef)({ isConnected: false });
-  (0, import_react6.useEffect)(() => {
-    const prev = lastWalletRef.current;
-    const { address, chainId, isConnected } = wallet;
-    const normalizedAddress = address == null ? void 0 : address.toLowerCase();
-    if (isConnected && normalizedAddress && chainId && (!prev.isConnected || prev.address !== normalizedAddress)) {
-      const networkName = getNetworkName(chainId);
-      const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
-      console.log(message);
-      void sendSystemMessage(message);
-      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
-      return;
-    }
-    if (!isConnected && prev.isConnected) {
-      void sendSystemMessage("Wallet disconnected by user.");
-      console.log("Wallet disconnected by user.");
-      lastWalletRef.current = { isConnected: false };
-      return;
-    }
-    if (isConnected && normalizedAddress && chainId && prev.isConnected && prev.address === normalizedAddress && prev.chainId !== chainId) {
-      const networkName = getNetworkName(chainId);
-      const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
-      console.log(message);
-      void sendSystemMessage(message);
-      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
-    }
-  }, [wallet, sendSystemMessage]);
-  return null;
+function AomiRuntimeProviderWithNotifications(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotificationProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(AomiRuntimeProvider, __spreadValues({}, props)) });
 }
 
 // packages/react/src/lib/utils.ts
@@ -1345,7 +1915,9 @@ function cn(...inputs) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AomiRuntimeProvider,
+  AomiRuntimeProviderWithNotifications,
   BackendApi,
+  NotificationProvider,
   RuntimeActionsProvider,
   ThreadContextProvider,
   WalletSystemMessageEmitter,
@@ -1354,8 +1926,12 @@ function cn(...inputs) {
   constructThreadMessage,
   formatAddress,
   getNetworkName,
+  normalizeWalletError,
+  pickInjectedProvider,
+  toHexQuantity,
   useCurrentThreadMessages,
   useCurrentThreadMetadata,
+  useNotification,
   useRuntimeActions,
   useThreadContext
 });

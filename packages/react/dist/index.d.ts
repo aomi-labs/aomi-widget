@@ -16,6 +16,8 @@ interface SessionMessage {
 }
 interface SessionResponsePayload {
     messages?: SessionMessage[] | null;
+    system_events?: unknown[] | null;
+    title?: string | null;
     is_processing?: boolean;
     session_exists?: boolean;
     session_id?: string;
@@ -44,12 +46,23 @@ type SystemUpdate = {
         new_title: string;
     };
 };
+type SystemUpdateNotification = {
+    type: "event_available";
+    session_id: string;
+    event_id: number;
+    event_type: string;
+};
+type SystemEvent = Record<string, unknown> & {
+    type: string;
+    session_id: string;
+    event_id: number;
+};
 
 declare class BackendApi {
     private readonly backendUrl;
     private connectionStatus;
     private eventSource;
-    private updatesEventSource;
+    private updatesEventSources;
     constructor(backendUrl: string);
     fetchState(sessionId: string): Promise<SessionResponsePayload>;
     postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload>;
@@ -59,21 +72,70 @@ declare class BackendApi {
     setConnectionStatus(on: boolean): void;
     connectSSE(sessionId: string, publicKey?: string): Promise<void>;
     private handleConnectionError;
-    subscribeToUpdates(onUpdate: (update: SystemUpdate) => void, onError?: (error: unknown) => void): () => void;
+    subscribeToUpdates(sessionId: string, onUpdate: (update: SystemUpdate) => void, onError?: (error: unknown) => void): () => void;
     fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]>;
     createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse>;
     archiveThread(sessionId: string): Promise<void>;
     unarchiveThread(sessionId: string): Promise<void>;
     deleteThread(sessionId: string): Promise<void>;
     renameThread(sessionId: string, newTitle: string): Promise<void>;
+    fetchEventsAfter(sessionId: string, afterId?: number, limit?: number): Promise<SystemEvent[]>;
+    subscribeToUpdatesWithNotification(sessionId: string, onUpdate: (update: SystemUpdateNotification) => void, onError?: (error: unknown) => void): () => void;
 }
+
+type WalletButtonState = {
+    address?: string;
+    chainId?: number;
+    isConnected: boolean;
+    ensName?: string;
+};
+type WalletFooterProps = {
+    wallet: WalletButtonState;
+    setWallet: (data: Partial<WalletButtonState>) => void;
+};
+type WalletTxRequestPayload = {
+    to: string;
+    value: string;
+    data: string;
+    gas?: string | null;
+    gas_limit?: string | null;
+    description?: string;
+    topic?: string;
+    timestamp?: string;
+};
+type WalletTxRequestContext = {
+    sessionId: string;
+    threadId: string;
+    publicKey?: string;
+};
+type WalletTxRequestHandler = (request: WalletTxRequestPayload, context: WalletTxRequestContext) => Promise<string>;
+type Eip1193Provider = {
+    request: (args: {
+        method: string;
+        params?: unknown[];
+    }) => Promise<unknown>;
+};
+declare const getNetworkName: (chainId: number | string | undefined) => string;
+declare const formatAddress: (addr?: string) => string;
+declare function normalizeWalletError(error: unknown): {
+    rejected: boolean;
+    message: string;
+};
+declare function toHexQuantity(value: string): string;
+declare function pickInjectedProvider(publicKey?: string): Promise<Eip1193Provider | undefined>;
+type WalletSystemMessageEmitterProps = {
+    wallet: WalletButtonState;
+};
+declare function WalletSystemMessageEmitter({ wallet, }: WalletSystemMessageEmitterProps): null;
 
 type AomiRuntimeProviderProps = {
     children: ReactNode;
     backendUrl?: string;
     publicKey?: string;
+    onWalletTxRequest?: WalletTxRequestHandler;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, publicKey, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, publicKey, onWalletTxRequest, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProviderWithNotifications(props: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 type RuntimeActions = {
     sendSystemMessage: (message: string) => Promise<void>;
@@ -88,7 +150,7 @@ type ThreadMetadata = {
     lastActiveAt?: string | number;
 };
 
-type ThreadContext = {
+type ThreadContext$1 = {
     currentThreadId: string;
     setCurrentThreadId: (id: string) => void;
     threadViewKey: number;
@@ -105,6 +167,7 @@ type ThreadContext = {
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
 };
 
+type ThreadContext = ThreadContext$1;
 type ThreadContextProviderProps = {
     children: ReactNode;
     initialThreadId?: string;
@@ -114,26 +177,29 @@ declare function ThreadContextProvider({ children, initialThreadId, }: ThreadCon
 declare function useCurrentThreadMessages(): ThreadMessageLike[];
 declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
 
-declare function constructThreadMessage(msg: SessionMessage): ThreadMessageLike | null;
-declare function constructSystemMessage(msg: SessionMessage): ThreadMessageLike | null;
-
-type WalletButtonState = {
-    address?: string;
-    chainId?: number;
-    isConnected: boolean;
-    ensName?: string;
-};
-type WalletFooterProps = {
-    wallet: WalletButtonState;
-    setWallet: (data: Partial<WalletButtonState>) => void;
-};
-declare const getNetworkName: (chainId: number | string | undefined) => string;
-declare const formatAddress: (addr?: string) => string;
-type WalletSystemMessageEmitterProps = {
-    wallet: WalletButtonState;
-};
-declare function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitterProps): null;
+declare function toInboundMessage(msg: SessionMessage): ThreadMessageLike | null;
+declare function toInboundSystem(msg: SessionMessage): ThreadMessageLike | null;
 
 declare function cn(...inputs: ClassValue[]): string;
 
-export { AomiRuntimeProvider, BackendApi, type BackendSessionResponse, type BackendThreadMetadata, type CreateThreadResponse, RuntimeActionsProvider, type SessionMessage, type SessionResponsePayload, type SystemResponsePayload, type SystemUpdate, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, cn, constructSystemMessage, constructThreadMessage, formatAddress, getNetworkName, useCurrentThreadMessages, useCurrentThreadMetadata, useRuntimeActions, useThreadContext };
+type NotificationType = "error" | "notice" | "success";
+type NotificationIconType = "error" | "success" | "notice" | "wallet" | "transaction" | "network" | "warning";
+type Notification = {
+    id: string;
+    type: NotificationType;
+    title: string;
+    message: string;
+    iconType?: NotificationIconType;
+    duration?: number;
+};
+type NotificationContextValue = {
+    showNotification: (notification: Omit<Notification, "id">) => void;
+    notifications: Notification[];
+    dismissNotification: (id: string) => void;
+};
+declare function useNotification(): NotificationContextValue;
+declare function NotificationProvider({ children }: {
+    children: ReactNode;
+}): react_jsx_runtime.JSX.Element;
+
+export { AomiRuntimeProvider, type AomiRuntimeProviderProps, AomiRuntimeProviderWithNotifications, BackendApi, type BackendSessionResponse, type BackendThreadMetadata, type CreateThreadResponse, type Eip1193Provider, type Notification, type NotificationIconType, NotificationProvider, type NotificationType, RuntimeActionsProvider, type SessionMessage, type SessionResponsePayload, type SystemEvent, type SystemResponsePayload, type SystemUpdate, type SystemUpdateNotification, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, type WalletTxRequestContext, type WalletTxRequestHandler, type WalletTxRequestPayload, cn, toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage, formatAddress, getNetworkName, normalizeWalletError, pickInjectedProvider, toHexQuantity, useCurrentThreadMessages, useCurrentThreadMetadata, useNotification, useRuntimeActions, useThreadContext };

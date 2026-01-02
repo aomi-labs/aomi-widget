@@ -165,12 +165,12 @@ export default function Home() {
               <div className="flex items-center justify-between pb-2 text-[0.78rem] uppercase tracking-[0.16em] text-slate-300">
               </div>
               <pre className="overflow-x-auto whitespace-pre-wrap leading-relaxed">
-{`import { AomiFrame } from "@aomi-labs/react";
+{`import { AomiFrame } from "@aomi-labs/widget-lib/aomi-frame";
 
 export function AIWallet() {
   return (
     <AomiFrame height="640px" width="100%">
-      {/* optional slots like WalletSystemMessenger */}
+      {/* optional slots like wallet footer */}
     </AomiFrame>
   );
 }`}
