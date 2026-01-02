@@ -1,67 +1,75 @@
 # Progress Tracker
 
 ## Current Sprint Goal
-Set up Fumadocs documentation site for aomi-widget
+Landing page with documentation and shadcn component registry
 
 ## Branch Status
 - **Current Branch:** `new-docs`
 - **Recent Commits:**
-  - 0a000e8 Upgrade to Node 20 + Next.js 16 and remove all workarounds
-  - 813d46b Add force-dynamic to all pages for fumadocs compatibility
-  - e7998cb Fix fumadocs build issues and import paths
-  - 560298e @ path
-  - 62eca53 add example page
-  - 91af70b fumadocs-mdx
-  - 29bb224 mdx setup with fumadocs-mdx
+  - 542d995 rename docs to guilds
+  - c6e3b09 remove old landing, change docs to landing
+  - 24ab90d use /widget.aomi.dev/r as component hosting domain
+  - 01740b4 updated docs with shadcn
+  - 5b7260f revert back the unchanged lib with assistantUI("markdown-text")
+  - 2049d28 whole pnpm workspace clear
+  - 8b04b57 updates
+  - a527410 applyied styles
+  - 341969c applyied styles
+  - 30418d4 added actual content
 
 ## Recently Completed Work
 
 | Task | Description | Key Changes |
 |------|-------------|-------------|
-| Fumadocs setup | Set up fumadocs-mdx documentation framework | source.config.ts, lib/source.tsx, app/docs layout |
-| Node 20 upgrade | Upgraded from Node 18 to Node 20 | Required for Next.js 16 + fumadocs 16.x |
-| Next.js 16 upgrade | Upgraded from Next.js 15.5.7 to 16.1.0 | Proper fumadocs compatibility |
-| Examples collection | Added separate /examples route with MetaMask fork example | content/examples/, app/examples/ |
-| Remove workarounds | Removed all hacks (force-dynamic, patch scripts, React aliases) | Clean SSG build |
+| Rename docs to landing | Consolidated docs app as main landing page | apps/docs → apps/landing |
+| Shadcn registry | Created component registry for shadcn-style distribution | apps/registry with build scripts |
+| Documentation restructure | Reorganized content into guides, api, examples | content/guides/, content/api/, content/examples/ |
+| Widget hosting domain | Set up widget.aomi.dev/r as component hosting | Registry outputs to dist/ |
+| Workspace cleanup | Cleaned up pnpm workspace structure | Removed old landing app |
 
 ## Files Modified This Sprint
 
-### Documentation Setup
-- `apps/docs/source.config.ts` - Fumadocs MDX configuration with shiki, twoslash
-- `apps/docs/lib/source.tsx` - Docs and examples loaders
-- `apps/docs/app/provider.tsx` - NEW: RootProvider wrapper for fumadocs
-- `apps/docs/app/layout.tsx` - Added Provider wrapper
-- `apps/docs/app/docs/layout.tsx` - DocsLayout with sidebar config
-- `apps/docs/app/docs/[[...slug]]/page.tsx` - Dynamic docs pages
-- `apps/docs/app/examples/layout.tsx` - Examples layout
-- `apps/docs/app/examples/[[...slug]]/page.tsx` - Dynamic examples pages
+### Landing App (apps/landing/)
+- `source.config.ts` - Fumadocs MDX configuration
+- `lib/source.tsx` - Docs, API, and examples loaders
+- `app/provider.tsx` - RootProvider wrapper
+- `app/layout.tsx` - Main layout with fonts
+- `app/docs/layout.tsx` - Docs layout with sidebar
+- `app/api/layout.tsx` - API reference layout
+- `app/examples/layout.tsx` - Examples layout
 
-### Content
-- `apps/docs/content/docs/*.mdx` - 17 documentation pages
-- `apps/docs/content/examples/metamask-fork.mdx` - MetaMask wallet example
-- `apps/docs/content/docs/meta.json` - Sidebar navigation structure
-- `apps/docs/content/examples/meta.json` - Examples navigation
+### Content (apps/landing/content/)
+- `guides/*.mdx` - 15 guide pages (about-aomi, architecture, cli, components, etc.)
+- `api/*.mdx` - API reference (sessions, system)
+- `examples/*.mdx` - Examples (metamask, polymarket)
+- `*/meta.json` - Navigation structure files
 
-### Configuration
-- `apps/docs/package.json` - Next 16, fumadocs deps, removed workaround scripts
-- `apps/docs/next.config.ts` - Simplified webpack config
-- `apps/docs/tsconfig.json` - Added @/.source/* path mapping
+### Registry App (apps/registry/)
+- `package.json` - @aomi-labs/widget-lib package
+- `scripts/build-registry.js` - Registry build script
+- `src/components/aomi-frame.tsx` - Main widget component
+- `src/components/assistant-ui/*.tsx` - Assistant UI components
+- `src/components/ui/*.tsx` - UI primitives
+- `dist/*.json` - Built registry files
 
-### Deleted
-- `apps/docs/scripts/patch-fumadocs-ui.mjs` - No longer needed
+### Playground Components
+- `apps/landing/src/components/playground/` - Preview, CopyButton
+- `apps/landing/src/components/samples/widget-demo.tsx` - Demo component
 
 ## Pending Tasks
 
 ### Documentation Content
 - [ ] Fill in actual content for placeholder MDX pages
-- [ ] Add API reference documentation
-- [ ] Add component examples with live previews
-- [ ] Add getting started guide
+- [ ] Complete API reference documentation
+- [ ] Add more code examples with live previews
+
+### Registry
+- [ ] Verify all components build correctly
+- [ ] Test shadcn add workflow
 
 ### Low Priority
-- [ ] Add search functionality
+- [ ] Add search functionality (Algolia DocSearch)
 - [ ] Add dark/light theme toggle
-- [ ] Consider adding Algolia DocSearch
 
 ## Known Issues
 
@@ -75,27 +83,34 @@ None currently - build and dev server working correctly.
 
 ### Key Commands
 ```bash
-pnpm --filter @aomi-labs/widget-docs dev    # Dev server
-pnpm --filter @aomi-labs/widget-docs build  # Production build
+pnpm --filter landing dev              # Dev server at :3000
+pnpm --filter landing build            # Production build
+pnpm --filter @aomi-labs/widget-lib build  # Build registry
 ```
 
 ### Architecture
-- fumadocs-mdx generates `.source/` files at install time (postinstall script)
-- Two collections: `docs` (main docs) and `examples` (code examples)
-- RootProvider from fumadocs-ui/provider/next wraps the app
-- All pages use SSG (Static Site Generation) - no force-dynamic
+- **Landing** (`apps/landing/`) - Main site with fumadocs documentation
+- **Registry** (`apps/registry/`) - Shadcn-style component registry
+- fumadocs-mdx generates `.source/` files at install time (postinstall)
+- Three collections: `guides` (docs), `api` (reference), `examples`
+- Components hosted at widget.aomi.dev/r
 
 ### File Structure
 ```
-apps/docs/
-├── content/
-│   ├── docs/         # Documentation MDX files
-│   └── examples/     # Example MDX files
-├── app/
-│   ├── docs/         # /docs routes
-│   ├── examples/     # /examples routes
-│   └── provider.tsx  # fumadocs RootProvider
-├── lib/
-│   └── source.tsx    # Loaders for docs + examples
-└── source.config.ts  # fumadocs-mdx config
+apps/
+├── landing/              # Landing page + docs
+│   ├── content/
+│   │   ├── guides/       # Documentation guides
+│   │   ├── api/          # API reference
+│   │   └── examples/     # Code examples
+│   ├── app/
+│   │   ├── docs/         # /docs routes (guides)
+│   │   ├── api/          # /api routes
+│   │   └── examples/     # /examples routes
+│   ├── lib/source.tsx    # Content loaders
+│   └── source.config.ts  # fumadocs-mdx config
+└── registry/             # Shadcn component registry
+    ├── src/components/   # Source components
+    ├── dist/             # Built registry JSON
+    └── scripts/          # Build scripts
 ```
