@@ -1,0 +1,500 @@
+---
+title: Runtime
+description: Runtime configuration for the widget and backend.
+---
+
+# Agentic Runtime
+
+The agentic runtime is the core execution loop that orchestrates user history, LLM completion calls, and concurrent on-chain execution. This guide covers the key patterns that make AOMI highly concurrent and configurable.
+
+## Overview
+
+```mermaid
+flowchart TB
+    subgraph "Agentic Runtime Loop"
+        RECEIVE[Receive User Input]
+        HISTORY[Load/Update History]
+        LLM[LLM Completion]
+        TOOLS[Tool Execution]
+        STREAM[Stream Response]
+        UPDATE[Update State]
+
+        RECEIVE --> HISTORY
+        HISTORY --> LLM
+        LLM --> TOOLS
+        TOOLS --> LLM
+        LLM --> STREAM
+        STREAM --> UPDATE
+        UPDATE --> RECEIVE
+    end
+```
+
+## Concurrency Model
+
+### OS Thread per Active Conversation
+
+Each active conversation runs on its own OS thread, enabling true parallel execution across sessions with isolated failure domains:
+
+```mermaid
+flowchart TB
+    subgraph "Session Manager"
+        SM[Session Manager<br/>DashMap&lt;SessionId, Session&gt;]
+    end
+
+    subgraph "Active Sessions"
+        S1[Session A<br/>OS Thread 1]
+        S2[Session B<br/>OS Thread 2]
+        S3[Session C<br/>OS Thread 3]
+        SN[Session N<br/>OS Thread N]
+    end
+
+    subgraph "Shared Resources"
+        SCHED[Tool Scheduler<br/>Thread-safe Singleton]
+        CLIENTS[External Clients<br/>Connection Pools]
+    end
+
+    SM --> S1
+    SM --> S2
+    SM --> S3
+    SM --> SN
+
+    S1 --> SCHED
+    S2 --> SCHED
+    S3 --> SCHED
+    SN --> SCHED
+
+    SCHED --> CLIENTS
+```
+
+### Benefits
+
+| Aspect | Benefit |
+|--------|---------|
+| **Isolation** | Session failures don't cascade |
+| **Parallelism** | Multiple LLM calls execute simultaneously |
+| **Responsiveness** | Long tool calls don't block other users |
+| **Scalability** | Linear scaling with CPU cores |
+
+## User History
+
+### Public Key Binding
+
+History is linked to the user's public key (wallet address), enabling cross-session context and wallet-aware conversations:
+
+```mermaid
+flowchart LR
+    subgraph "User"
+        PK[Public Key<br/>0xABC...]
+    end
+
+    subgraph "Sessions"
+        S1[Session 1]
+        S2[Session 2]
+        S3[Session 3]
+    end
+
+    subgraph "History Backend"
+        HB[HistoryBackend]
+        DB[(Database)]
+    end
+
+    PK --> S1
+    PK --> S2
+    PK --> S3
+
+    S1 --> HB
+    S2 --> HB
+    S3 --> HB
+
+    HB --> DB
+```
+
+```rust
+// History loads automatically based on public key
+let session = session_manager
+    .get_or_create_session(
+        &session_id,
+        backend,
+        Some(public_key), // Links history to wallet
+    )
+    .await?;
+```
+
+### Configurable History Loading
+
+The `HistoryBackend` trait allows pluggable persistence strategies:
+
+```mermaid
+flowchart TD
+    HB[HistoryBackend Trait]
+
+    HB --> FULL[Full Rehydration<br/>Load all messages]
+    HB --> WINDOW[Sliding Window<br/>Last N messages]
+    HB --> SUMMARY[Summary-Based<br/>Compressed context]
+    HB --> NOOP[No-Op<br/>Ephemeral sessions]
+```
+
+```rust
+pub trait HistoryBackend: Send + Sync {
+    /// Load history for a public key
+    async fn load_history(&self, public_key: &str) -> Result<Vec<Message>>;
+
+    /// Save messages to history
+    async fn save_history(&self, public_key: &str, messages: &[Message]) -> Result<()>;
+
+    /// Flush pending writes
+    async fn flush(&self) -> Result<()>;
+}
+```
+
+### Persistent History
+
+```rust
+// PostgreSQL/SQLite persistence
+let backend = PersistentHistoryBackend::new(db_pool).await?;
+
+// History is automatically:
+// 1. Loaded on session creation
+// 2. Updated after each message
+// 3. Flushed periodically in background
+```
+
+## Tool Execution
+
+### Concurrent Multi-Tool Calls
+
+When the LLM requests multiple tools, they execute in parallel:
+
+```mermaid
+sequenceDiagram
+    participant LLM
+    participant Scheduler
+    participant Tool1 as GetBalance
+    participant Tool2 as GetGasPrice
+    participant Tool3 as GetBlockNumber
+
+    LLM->>Scheduler: tool_calls: [balance, gas, block]
+
+    par Concurrent Execution
+        Scheduler->>Tool1: execute
+        Scheduler->>Tool2: execute
+        Scheduler->>Tool3: execute
+    end
+
+    Tool1-->>Scheduler: 1234.56 ETH
+    Tool2-->>Scheduler: 25 gwei
+    Tool3-->>Scheduler: 18500000
+
+    Scheduler-->>LLM: aggregated results
+```
+
+### Request Flow
+
+```rust
+// 1. LLM requests tool call
+let tool_call = ToolCall {
+    name: "get_account_info",
+    arguments: json!({"address": "vitalik.eth"}),
+};
+
+// 2. Scheduler routes to handler
+let handler = scheduler.get_handler();
+handler.request(&tool_call.name, tool_call.arguments, call_id)?;
+
+// 3. Handler executes and streams result
+let stream = handler.take_last_stream();
+```
+
+### Multi-Step Async Tools
+
+Long-running tools stream results over time without blocking:
+
+```mermaid
+sequenceDiagram
+    participant LLM
+    participant Scheduler
+    participant Forge as ForgeExecutor
+    participant UI
+
+    LLM->>Scheduler: execute_forge_script
+    Scheduler->>Forge: start execution
+
+    Note over Forge: Background execution
+
+    Forge-->>Scheduler: {step:1, status:"compiling"}
+    Scheduler-->>UI: SystemEvent::InlineDisplay
+
+    Forge-->>Scheduler: {step:2, status:"simulating"}
+    Scheduler-->>UI: SystemEvent::InlineDisplay
+
+    Forge-->>Scheduler: {step:3, status:"complete", tx:"0x..."}
+    Scheduler-->>LLM: AsyncToolResult
+    Scheduler-->>UI: SystemEvent::InlineDisplay
+```
+
+```rust
+impl MultiStepApiTool for ForgeExecutor {
+    async fn call_stream(
+        &self,
+        request: ExecuteParams,
+        sender: Sender<Result<Value>>,
+    ) -> Result<()> {
+        // Stream progress updates
+        sender.send(Ok(json!({"status": "compiling"}))).await?;
+
+        let compiled = self.compile(&request).await?;
+        sender.send(Ok(json!({"status": "simulating"}))).await?;
+
+        let result = self.simulate(compiled).await?;
+        sender.send(Ok(json!({"status": "complete", "result": result}))).await?;
+
+        Ok(())
+    }
+}
+```
+
+## IO Scheduler Architecture
+
+### Centralized Tool Management
+
+The `ToolScheduler` acts as an IO Bus, centralizing all tool execution and routing to appropriate backends:
+
+```mermaid
+flowchart TB
+    subgraph "Tool Scheduler (IO Bus)"
+        REG[Tool Registry<br/>HashMap&lt;name, AnyApiTool&gt;]
+        HANDLER[ToolApiHandler<br/>Per-request State]
+        EXEC[Executor<br/>Async Runtime]
+    end
+
+    subgraph "External Clients"
+        BAML[BAML Client<br/>Structured AI]
+        ETHERSCAN[Etherscan API<br/>Contract Data]
+        SEARCH[Brave Search<br/>Web Search]
+        CAST[Cast Client<br/>RPC Calls]
+    end
+
+    subgraph "Execution Modules"
+        FORGE[Forge Executor<br/>Script Generation]
+        ANVIL[Anvil Manager<br/>Fork Simulation]
+    end
+
+    REG --> HANDLER
+    HANDLER --> EXEC
+
+    EXEC --> BAML
+    EXEC --> ETHERSCAN
+    EXEC --> SEARCH
+    EXEC --> CAST
+    EXEC --> FORGE
+    EXEC --> ANVIL
+```
+
+### Global Singleton Pattern
+
+```rust
+// Get or create the global scheduler
+let scheduler = ToolScheduler::get_or_init().await?;
+
+// The scheduler is thread-safe and shared across all sessions
+// Tools are registered once at startup
+scheduler.register_tool(GetContractABI)?;
+scheduler.register_tool(SimulateTransaction)?;
+```
+
+### External Clients
+
+The IO Bus manages connections to external services:
+
+```mermaid
+flowchart LR
+    subgraph "ExternalClients (Singleton)"
+        BC[baml_client]
+        EC[etherscan_client]
+        BSC[brave_search_client]
+        CC[cast_client]
+    end
+
+    subgraph "Connection Pools"
+        POOL1[HTTP Pool<br/>Etherscan]
+        POOL2[HTTP Pool<br/>Search]
+        POOL3[RPC Pool<br/>Alchemy]
+    end
+
+    EC --> POOL1
+    BSC --> POOL2
+    CC --> POOL3
+```
+
+```rust
+// External clients are initialized once and shared
+let clients = external_clients().await;
+
+// Access specific clients
+let baml = clients.baml_client()?;
+let etherscan = clients.etherscan_client()?;
+let cast = clients.cast_client("ethereum")?;
+```
+
+### IO Bus Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| **Unified Management** | Single source of truth for API clients |
+| **Connection Pooling** | Shared connections reduce overhead |
+| **Rate Limiting** | Centralized throttling prevents abuse |
+| **Error Handling** | Consistent retry and fallback logic |
+| **Observability** | Centralized logging and metrics |
+
+## Stream Processing
+
+### Tool Result Streams
+
+Results flow through typed streams:
+
+```mermaid
+flowchart LR
+    subgraph "ToolReciever"
+        SINGLE_RX[single_rx<br/>oneshot]
+        MULTI_RX[multi_step_rx<br/>mpsc]
+    end
+
+    subgraph "ToolResultStream"
+        SINGLE_S[Single<br/>Shared Future]
+        MULTI_S[Multi<br/>Stream]
+    end
+
+    subgraph "Consumer"
+        UI[UI Display]
+        LLM[LLM History]
+        SYS[System Events]
+    end
+
+    SINGLE_RX --> SINGLE_S
+    MULTI_RX --> MULTI_S
+
+    SINGLE_S --> UI
+    SINGLE_S --> LLM
+
+    MULTI_S --> UI
+    MULTI_S --> LLM
+    MULTI_S --> SYS
+```
+
+### Polling Streams
+
+```rust
+// Poll all pending streams for next result
+while let Some(completion) = handler.poll_streams_to_next_result().await {
+    let ToolCompletion {
+        call_id,
+        tool_name,
+        is_multi_step,
+        result,
+    } = completion;
+
+    if is_multi_step {
+        // Route to system events for UI updates
+        yield ChatCommand::AsyncToolResult { call_id, tool_name, result };
+    }
+
+    // Always finalize in chat history
+    finalize_tool_result(&mut history, call_id, result);
+}
+```
+
+## Session State Machine
+
+### State Transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+
+    Idle --> Processing: User Message
+    Processing --> ToolExecution: Tool Call
+    ToolExecution --> Processing: Tool Result
+    Processing --> Streaming: LLM Response
+    Streaming --> Processing: More Content
+    Streaming --> Idle: Complete
+
+    Processing --> Interrupted: Interrupt Signal
+    Interrupted --> Idle
+
+    Processing --> Error: Failure
+    Error --> Idle
+```
+
+### Update Loop
+
+```rust
+pub async fn update_state(&mut self) {
+    // 1. Process ChatCommand stream (LLM responses)
+    while let Ok(msg) = self.receiver_from_llm.try_recv() {
+        match msg {
+            ChatCommand::StreamingText(text) => {
+                self.append_streaming_text(text);
+            }
+            ChatCommand::ToolCall { topic, stream } => {
+                self.handle_tool_call(topic, stream).await;
+            }
+            ChatCommand::Complete => {
+                self.finalize_response();
+            }
+            // ...
+        }
+    }
+
+    // 2. Drain system events
+    let new_events = self.system_event_queue.slice_from(self.processed_idx);
+    self.processed_idx += new_events.len();
+
+    for event in new_events {
+        self.handle_system_event(event).await;
+    }
+}
+```
+
+## Performance Considerations
+
+### Memory Management
+
+- **Session State**: Kept minimal, messages flushed to database
+- **Tool Results**: Streamed, not buffered entirely
+- **History**: Sliding window prevents unbounded growth
+
+### Backpressure
+
+```mermaid
+flowchart LR
+    LLM[LLM] -->|bounded channel| SESS[Session]
+    SESS -->|bounded channel| UI[UI]
+
+    TOOL[Tool] -->|bounded channel| SCHED[Scheduler]
+    SCHED -->|bounded channel| SESS
+```
+
+Bounded channels prevent memory exhaustion:
+
+```rust
+// UI channel with backpressure
+let (tx, rx) = mpsc::channel::<ChatCommand>(100);
+
+// Tool result channel
+let (tool_tx, tool_rx) = mpsc::channel::<Result<Value>>(16);
+```
+
+### Graceful Degradation
+
+```rust
+// Timeouts on external calls
+let result = tokio::time::timeout(
+    Duration::from_secs(30),
+    client.fetch_contract_abi(address),
+).await??;
+
+// Retry with exponential backoff
+let result = retry_with_backoff(|| async {
+    etherscan.get_source_code(address).await
+}, 3).await?;
+```
