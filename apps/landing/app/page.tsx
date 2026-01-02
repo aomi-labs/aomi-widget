@@ -169,9 +169,9 @@ export default function HomePage() {
                 </Link>
                 <Link
                   className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/40 hover:text-emerald-100"
-                  href="/"
+                  href="/docs"
                 >
-                  View 
+                  Documentation
                 </Link>
               </div>
             </div>
