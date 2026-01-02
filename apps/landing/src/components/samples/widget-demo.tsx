@@ -2,12 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { Preview } from "@/components/playground/Preview";
+import { WalletFooter } from "@/components/wallet-footer";
 
 const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib/components/aomi-frame";
+import { WalletFooter } from "@/components/wallet-footer";
 
 export function WidgetDemo() {
   return (
-    <AomiFrame height="560px" />
+    <AomiFrame height="560px" walletFooter={WalletFooter} />
   );
 }`;
 
@@ -24,7 +26,7 @@ export function WidgetDemo() {
       code={widgetCode}
       badge="Live"
     >
-      <ClientFrame height="560px" />
+      <ClientFrame height="560px" walletFooter={WalletFooter} />
     </Preview>
   );
 }
