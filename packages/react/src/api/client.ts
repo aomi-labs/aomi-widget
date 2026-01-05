@@ -6,7 +6,6 @@ import type {
   SessionResponsePayload,
   SystemEvent,
   SystemResponsePayload,
-  SystemUpdate,
   SystemUpdateNotification,
 } from "./types";
 
@@ -167,7 +166,7 @@ export class BackendApi {
 
   subscribeToUpdates(
     sessionId: string,
-    onUpdate: (update: SystemUpdate) => void,
+    onUpdate: (update: SystemUpdateNotification) => void,
     onError?: (error: unknown) => void
   ): () => void {
     const updatesUrl = new URL("/api/updates", this.backendUrl);
@@ -177,12 +176,15 @@ export class BackendApi {
       existing.close();
     }
 
-    const updatesEventSource = new EventSource(updatesUrl.toString());
+    const updatesUrlString = updatesUrl.toString();
+    const updatesEventSource = new EventSource(updatesUrlString);
     this.updatesEventSources.set(sessionId, updatesEventSource);
+    console.log("🔔 [updates] subscribed", updatesUrlString);
 
     updatesEventSource.onmessage = (event) => {
       try {
-        const parsed = JSON.parse(event.data) as SystemUpdate;
+        console.log("🔔 [updates] message", { url: updatesUrlString, data: event.data });
+        const parsed = JSON.parse(event.data) as SystemUpdateNotification;
         onUpdate(parsed);
       } catch (error) {
         console.error("Failed to parse system update SSE:", error);
@@ -190,8 +192,16 @@ export class BackendApi {
       }
     };
 
+    updatesEventSource.onopen = () => {
+      console.log("🔔 [updates] open", updatesUrlString);
+    };
+
     updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
+      console.error("System updates SSE error:", {
+        url: updatesUrlString,
+        readyState: updatesEventSource.readyState,
+        error,
+      });
       onError?.(error);
     };
 
@@ -350,13 +360,15 @@ export class BackendApi {
       existing.close();
     }
 
-    const updatesEventSource = new EventSource(updatesUrl.toString());
+    const updatesUrlString = updatesUrl.toString();
+    const updatesEventSource = new EventSource(updatesUrlString);
     this.updatesEventSources.set(sessionId, updatesEventSource);
 
-    console.log("🔵 [subscribeToUpdatesWithNotification] URL:", updatesUrl.toString());
+    console.log("🔵 [subscribeToUpdatesWithNotification] URL:", updatesUrlString);
 
     updatesEventSource.onmessage = (event) => {
       try {
+        console.log("🔔 [updates] message", { url: updatesUrlString, data: event.data });
         const parsed = JSON.parse(event.data) as SystemUpdateNotification;
         onUpdate(parsed);
       } catch (error) {
@@ -365,8 +377,16 @@ export class BackendApi {
       }
     };
 
+    updatesEventSource.onopen = () => {
+      console.log("🔔 [updates] open", updatesUrlString);
+    };
+
     updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
+      console.error("System updates SSE error:", {
+        url: updatesUrlString,
+        readyState: updatesEventSource.readyState,
+        error,
+      });
       onError?.(error);
     };
 

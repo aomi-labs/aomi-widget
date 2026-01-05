@@ -84,6 +84,8 @@ export function AomiRuntimeProvider({
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
 
+  const lastSubscribedThreadRef = useRef<string | null>(null);
+
   const { showNotification } = useNotification();
 
   // Declare refs early so they can be used in orchestrator
@@ -271,6 +273,7 @@ export function AomiRuntimeProvider({
         const pendingId = findPendingThreadId();
         if (pendingId) {
           preparePendingThread(pendingId);
+          console.log("🔵 [ThreadListAdapter] Switched to pending thread:", pendingId);
           return;
         }
 
@@ -502,13 +505,25 @@ export function AomiRuntimeProvider({
   useEffect(() => {
     const backendState = backendStateRef.current;
     const threadId = threadContext.currentThreadId;
-    if (isThreadReady(backendState, threadId)) {
+    const isReady = isThreadReady(backendState, threadId);
+    if (!isReady) {
+      lastSubscribedThreadRef.current = null;
+      eventControllerRef.current?.setSubscribableSessionId(null);
+      return;
+    }
+
+    const isCurrentlyRunning = isThreadRunning(backendState, threadId);
+    if (isCurrentlyRunning) {
       const sessionId = resolveThreadId(backendState, threadId);
       eventControllerRef.current?.setSubscribableSessionId(sessionId);
-    } else {
+      lastSubscribedThreadRef.current = threadId;
+      return;
+    }
+
+    if (lastSubscribedThreadRef.current !== threadId) {
       eventControllerRef.current?.setSubscribableSessionId(null);
     }
-  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick]);
+  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick, isRunning]);
 
   return (
     <RuntimeActionsProvider

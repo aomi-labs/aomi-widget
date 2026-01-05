@@ -194,10 +194,13 @@ var BackendApi = class {
     if (existing) {
       existing.close();
     }
-    const updatesEventSource = new EventSource(updatesUrl.toString());
+    const updatesUrlString = updatesUrl.toString();
+    const updatesEventSource = new EventSource(updatesUrlString);
     this.updatesEventSources.set(sessionId, updatesEventSource);
+    console.log("\u{1F514} [updates] subscribed", updatesUrlString);
     updatesEventSource.onmessage = (event) => {
       try {
+        console.log("\u{1F514} [updates] message", { url: updatesUrlString, data: event.data });
         const parsed = JSON.parse(event.data);
         onUpdate(parsed);
       } catch (error) {
@@ -205,8 +208,15 @@ var BackendApi = class {
         onError == null ? void 0 : onError(error);
       }
     };
+    updatesEventSource.onopen = () => {
+      console.log("\u{1F514} [updates] open", updatesUrlString);
+    };
     updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
+      console.error("System updates SSE error:", {
+        url: updatesUrlString,
+        readyState: updatesEventSource.readyState,
+        error
+      });
       onError == null ? void 0 : onError(error);
     };
     return () => {
@@ -330,11 +340,13 @@ var BackendApi = class {
     if (existing) {
       existing.close();
     }
-    const updatesEventSource = new EventSource(updatesUrl.toString());
+    const updatesUrlString = updatesUrl.toString();
+    const updatesEventSource = new EventSource(updatesUrlString);
     this.updatesEventSources.set(sessionId, updatesEventSource);
-    console.log("\u{1F535} [subscribeToUpdatesWithNotification] URL:", updatesUrl.toString());
+    console.log("\u{1F535} [subscribeToUpdatesWithNotification] URL:", updatesUrlString);
     updatesEventSource.onmessage = (event) => {
       try {
+        console.log("\u{1F514} [updates] message", { url: updatesUrlString, data: event.data });
         const parsed = JSON.parse(event.data);
         onUpdate(parsed);
       } catch (error) {
@@ -342,8 +354,15 @@ var BackendApi = class {
         onError == null ? void 0 : onError(error);
       }
     };
+    updatesEventSource.onopen = () => {
+      console.log("\u{1F514} [updates] open", updatesUrlString);
+    };
     updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
+      console.error("System updates SSE error:", {
+        url: updatesUrlString,
+        readyState: updatesEventSource.readyState,
+        error
+      });
       onError == null ? void 0 : onError(error);
     };
     return () => {
@@ -1354,10 +1373,15 @@ var EventController = class {
     this.subscribableSessionId = null;
   }
   setSubscribableSessionId(sessionId) {
+    console.log("\u{1F514} [updates] setSubscribableSessionId", { sessionId });
     this.subscribableSessionId = sessionId;
     this.syncSubscriptions();
   }
   syncSubscriptions() {
+    console.log("\u{1F514} [updates] syncSubscriptions", {
+      subscribableSessionId: this.subscribableSessionId,
+      active: Array.from(this.updateSubscriptions.keys())
+    });
     const nextSessions = /* @__PURE__ */ new Set();
     if (this.subscribableSessionId) {
       nextSessions.add(this.subscribableSessionId);
@@ -1373,9 +1397,15 @@ var EventController = class {
   }
   ensureSubscription(sessionId) {
     if (this.updateSubscriptions.has(sessionId)) return;
-    const unsubscribe = this.config.backendApiRef.current.subscribeToUpdatesWithNotification(
+    console.log("\u{1F514} [updates] ensureSubscription", { sessionId });
+    const unsubscribe = this.config.backendApiRef.current.subscribeToUpdates(
       sessionId,
       (update) => {
+        console.log("\u{1F514} [updates] event_available", {
+          sessionId: update.session_id,
+          eventId: update.event_id,
+          eventType: update.event_type
+        });
         if (update.type !== "event_available") return;
         void this.drainEvents(update.session_id);
       },
@@ -1393,21 +1423,36 @@ var EventController = class {
   }
   async drainEvents(sessionId) {
     var _a;
-    if (this.eventsInFlight.has(sessionId)) return;
+    if (this.eventsInFlight.has(sessionId)) {
+      console.log("\u23F3 [events] drain already in flight", { sessionId });
+      return;
+    }
     this.eventsInFlight.add(sessionId);
     try {
       let afterId = (_a = this.lastEventIdBySession.get(sessionId)) != null ? _a : 0;
+      console.log("\u{1F4E5} [events] start drain", { sessionId, afterId });
       for (; ; ) {
+        const requestAfterId = afterId;
         const events = await this.config.backendApiRef.current.fetchEventsAfter(
           sessionId,
-          afterId,
+          requestAfterId,
           200
         );
+        console.log("\u{1F4E5} [events] fetched batch", {
+          sessionId,
+          afterId: requestAfterId,
+          count: events.length
+        });
         if (!events.length) break;
         for (const event of events) {
           const eventId = typeof event.event_id === "number" ? event.event_id : Number(event.event_id);
           if (Number.isFinite(eventId)) afterId = Math.max(afterId, eventId);
           if (event.type === "title_changed" && typeof event.new_title === "string") {
+            console.log("\u{1F3F7}\uFE0F [events] title_changed", {
+              sessionId,
+              eventId,
+              newTitle: event.new_title
+            });
             this.applyTitleChanged(sessionId, event.new_title);
           }
           if (event.type === "wallet_tx_request") {
@@ -1430,6 +1475,7 @@ var EventController = class {
         }
         if (events.length < 200) break;
       }
+      console.log("\u{1F4E5} [events] drain complete", { sessionId, afterId });
       this.lastEventIdBySession.set(sessionId, afterId);
     } catch (error) {
       console.error("Failed to fetch async events:", error);
@@ -1441,6 +1487,11 @@ var EventController = class {
     const backendState = this.config.backendStateRef.current;
     const tempId = findTempIdForBackendId(backendState, sessionId);
     const threadIdToUpdate = tempId || sessionId;
+    console.log("\u{1F3F7}\uFE0F [title] applying", {
+      sessionId,
+      threadId: threadIdToUpdate,
+      newTitle
+    });
     this.config.setThreadMetadata((prev) => {
       var _a;
       const next = new Map(prev);
@@ -1664,6 +1715,7 @@ function AomiRuntimeProvider({
     void fetchThreadList();
   }, [publicKey]);
   const threadListAdapter = (0, import_react6.useMemo)(() => {
+    console.log("\u{1F535} [ThreadListAdapter] Building thread list adapter with backend state:", backendStateRef.current);
     const backendState = backendStateRef.current;
     const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
     const preparePendingThread = (threadId) => {
@@ -1700,7 +1752,10 @@ function AomiRuntimeProvider({
       threadContext.bumpThreadViewKey();
     };
     const findPendingThreadId = () => {
-      if (backendState.creatingThreadId) return backendState.creatingThreadId;
+      if (backendState.creatingThreadId) {
+        console.log("\u{1F535} [ThreadListAdapter] Found pending thread:", backendState.creatingThreadId);
+        return backendState.creatingThreadId;
+      }
       for (const [id, meta] of threadContext.threadMetadata.entries()) {
         if (meta.status === "pending") return id;
       }
@@ -1721,10 +1776,12 @@ function AomiRuntimeProvider({
         const pendingId = findPendingThreadId();
         if (pendingId) {
           preparePendingThread(pendingId);
+          console.log("\u{1F535} [ThreadListAdapter] Switched to pending thread:", pendingId);
           return;
         }
         if (backendState.createThreadPromise) {
           preparePendingThread((_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`);
+          console.log("\u{1F535} [ThreadListAdapter] Switched to existing pending thread:", backendState.creatingThreadId);
           return;
         }
         const tempId = `temp-${crypto.randomUUID()}`;
