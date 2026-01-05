@@ -84,6 +84,13 @@ export function AomiRuntimeProvider({
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
 
+  const publicKeyRef = useRef(publicKey);
+  useEffect(() => {
+    publicKeyRef.current = publicKey;
+  }, [publicKey]);
+
+  const getPublicKey = useCallback(() => publicKeyRef.current, []);
+
   const lastSubscribedThreadRef = useRef<string | null>(null);
 
   const { showNotification } = useNotification();
@@ -101,7 +108,7 @@ export function AomiRuntimeProvider({
     ensureInitialState,
     setSystemEventsHandler,
     backendApiRef,
-  } = useRuntimeOrchestrator(backendUrl);
+  } = useRuntimeOrchestrator(backendUrl, { getPublicKey });
 
   // Create wallet handler
   if (!walletHandlerRef.current) {
@@ -273,7 +280,6 @@ export function AomiRuntimeProvider({
         const pendingId = findPendingThreadId();
         if (pendingId) {
           preparePendingThread(pendingId);
-          console.log("🔵 [ThreadListAdapter] Switched to pending thread:", pendingId);
           return;
         }
 
@@ -320,7 +326,16 @@ export function AomiRuntimeProvider({
               backendState.pendingChat.delete(uiThreadId);
               for (const text of pendingMessages) {
                 try {
-                  await backendApiRef.current.postChatMessage(backendId, text);
+                  const activePublicKey = publicKeyRef.current;
+                  if (activePublicKey) {
+                    await backendApiRef.current.postChatMessage(
+                      backendId,
+                      text,
+                      activePublicKey
+                    );
+                  } else {
+                    await backendApiRef.current.postChatMessage(backendId, text);
+                  }
                 } catch (error) {
                   console.error("Failed to send queued message:", error);
                 }

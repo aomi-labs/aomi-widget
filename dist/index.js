@@ -66,11 +66,12 @@ var BackendApi = class {
     console.log("\u{1F7E2} [fetchState] Success:", data);
     return data;
   }
-  async postChatMessage(sessionId, message) {
+  async postChatMessage(sessionId, message, publicKey) {
     console.log("\u{1F535} [postChatMessage] Called with sessionId:", sessionId, "message:", message);
     const result = await postState(this.backendUrl, "/api/chat", {
       message,
-      session_id: sessionId
+      session_id: sessionId,
+      public_key: publicKey
     });
     console.log("\u{1F7E2} [postChatMessage] Success:", result);
     return result;
@@ -698,6 +699,7 @@ var MessageController = class {
     this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
+    var _a, _b;
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
     if (!text) return;
@@ -716,9 +718,18 @@ var MessageController = class {
       return;
     }
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     try {
       this.markRunning(threadId, true);
-      await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      if (publicKey) {
+        await this.config.backendApiRef.current.postChatMessage(
+          backendThreadId,
+          text,
+          publicKey
+        );
+      } else {
+        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      }
       await this.flushPendingSystem(threadId);
       this.config.polling.start(threadId);
     } catch (error) {
@@ -767,13 +778,23 @@ var MessageController = class {
     }
   }
   async flushPendingChat(threadId) {
+    var _a, _b;
     const backendState = this.config.backendStateRef.current;
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     for (const text of pending) {
       try {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        if (publicKey) {
+          await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+            publicKey
+          );
+        } else {
+          await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        }
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }
@@ -883,7 +904,7 @@ var PollingController = class {
 };
 
 // packages/react/src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendUrl) {
+function useRuntimeOrchestrator(backendUrl, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef2(threadContext);
   threadContextRef.current = threadContext;
@@ -920,7 +941,8 @@ function useRuntimeOrchestrator(backendUrl) {
       backendStateRef,
       threadContextRef,
       polling: pollingRef.current,
-      setGlobalIsRunning: setIsRunning
+      setGlobalIsRunning: setIsRunning,
+      getPublicKey: options == null ? void 0 : options.getPublicKey
     });
   }
   const setSystemEventsHandler = useCallback((handler) => {
@@ -1581,6 +1603,12 @@ function AomiRuntimeProvider({
   useEffect3(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
+  const publicKeyRef = useRef4(publicKey);
+  useEffect3(() => {
+    publicKeyRef.current = publicKey;
+  }, [publicKey]);
+  const getPublicKey = useCallback3(() => publicKeyRef.current, []);
+  const lastSubscribedThreadRef = useRef4(null);
   const { showNotification } = useNotification();
   const eventControllerRef = useRef4(null);
   const walletHandlerRef = useRef4(null);
@@ -1593,7 +1621,7 @@ function AomiRuntimeProvider({
     ensureInitialState,
     setSystemEventsHandler,
     backendApiRef
-  } = useRuntimeOrchestrator(backendUrl);
+  } = useRuntimeOrchestrator(backendUrl, { getPublicKey });
   if (!walletHandlerRef.current) {
     walletHandlerRef.current = new WalletHandler({
       backendApiRef,
@@ -1681,7 +1709,6 @@ function AomiRuntimeProvider({
     void fetchThreadList();
   }, [publicKey]);
   const threadListAdapter = useMemo2(() => {
-    console.log("\u{1F535} [ThreadListAdapter] Building thread list adapter with backend state:", backendStateRef.current);
     const backendState = backendStateRef.current;
     const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
     const preparePendingThread = (threadId) => {
@@ -1718,10 +1745,7 @@ function AomiRuntimeProvider({
       threadContext.bumpThreadViewKey();
     };
     const findPendingThreadId = () => {
-      if (backendState.creatingThreadId) {
-        console.log("\u{1F535} [ThreadListAdapter] Found pending thread:", backendState.creatingThreadId);
-        return backendState.creatingThreadId;
-      }
+      if (backendState.creatingThreadId) return backendState.creatingThreadId;
       for (const [id, meta] of threadContext.threadMetadata.entries()) {
         if (meta.status === "pending") return id;
       }
@@ -1742,12 +1766,10 @@ function AomiRuntimeProvider({
         const pendingId = findPendingThreadId();
         if (pendingId) {
           preparePendingThread(pendingId);
-          console.log("\u{1F535} [ThreadListAdapter] Switched to pending thread:", pendingId);
           return;
         }
         if (backendState.createThreadPromise) {
           preparePendingThread((_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`);
-          console.log("\u{1F535} [ThreadListAdapter] Switched to existing pending thread:", backendState.creatingThreadId);
           return;
         }
         const tempId = `temp-${crypto.randomUUID()}`;
@@ -1782,7 +1804,16 @@ function AomiRuntimeProvider({
             backendState.pendingChat.delete(uiThreadId);
             for (const text of pendingMessages) {
               try {
-                await backendApiRef.current.postChatMessage(backendId, text);
+                const activePublicKey = publicKeyRef.current;
+                if (activePublicKey) {
+                  await backendApiRef.current.postChatMessage(
+                    backendId,
+                    text,
+                    activePublicKey
+                  );
+                } else {
+                  await backendApiRef.current.postChatMessage(backendId, text);
+                }
               } catch (error) {
                 console.error("Failed to send queued message:", error);
               }
@@ -1942,16 +1973,26 @@ function AomiRuntimeProvider({
     };
   }, [polling]);
   useEffect3(() => {
-    var _a, _b;
+    var _a, _b, _c;
     const backendState = backendStateRef.current;
     const threadId = threadContext.currentThreadId;
-    if (isThreadReady(backendState, threadId)) {
-      const sessionId = resolveThreadId(backendState, threadId);
-      (_a = eventControllerRef.current) == null ? void 0 : _a.setSubscribableSessionId(sessionId);
-    } else {
-      (_b = eventControllerRef.current) == null ? void 0 : _b.setSubscribableSessionId(null);
+    const isReady = isThreadReady(backendState, threadId);
+    if (!isReady) {
+      lastSubscribedThreadRef.current = null;
+      (_a = eventControllerRef.current) == null ? void 0 : _a.setSubscribableSessionId(null);
+      return;
     }
-  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick]);
+    const isCurrentlyRunning = isThreadRunning(backendState, threadId);
+    if (isCurrentlyRunning) {
+      const sessionId = resolveThreadId(backendState, threadId);
+      (_b = eventControllerRef.current) == null ? void 0 : _b.setSubscribableSessionId(sessionId);
+      lastSubscribedThreadRef.current = threadId;
+      return;
+    }
+    if (lastSubscribedThreadRef.current !== threadId) {
+      (_c = eventControllerRef.current) == null ? void 0 : _c.setSubscribableSessionId(null);
+    }
+  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick, isRunning]);
   return /* @__PURE__ */ jsx3(
     RuntimeActionsProvider,
     {

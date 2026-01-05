@@ -30,7 +30,11 @@ type BackendApiConfig = {
     limit?: number
   ) => Promise<SystemEvent[]>;
   createThread?: (publicKey?: string, title?: string) => Promise<CreateThreadResponse>;
-  postChatMessage?: (sessionId: string, message: string) => Promise<SessionResponsePayload>;
+  postChatMessage?: (
+    sessionId: string,
+    message: string,
+    publicKey?: string
+  ) => Promise<SessionResponsePayload>;
   postSystemMessage?: (sessionId: string, message: string) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<SessionResponsePayload>;
   renameThread?: (sessionId: string, title: string) => Promise<void>;
@@ -85,9 +89,9 @@ vi.mock("../../api/client", () => {
         : { session_id: "mock-thread" };
     });
 
-    postChatMessage = vi.fn(async (sessionId: string, message: string) => {
+    postChatMessage = vi.fn(async (sessionId: string, message: string, publicKey?: string) => {
       return backendApiConfig.postChatMessage
-        ? await backendApiConfig.postChatMessage(sessionId, message)
+        ? await backendApiConfig.postChatMessage(sessionId, message, publicKey)
         : { session_exists: true, is_processing: true, messages: [] };
     });
 
@@ -366,7 +370,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
     });
 
     await waitFor(() => {
-      expect(postChatMessage).toHaveBeenCalledWith("backend-1", "Hello mapped");
+      expect(postChatMessage).toHaveBeenCalledWith("backend-1", "Hello mapped", "pk_create");
     });
 
     await act(async () => {
@@ -455,8 +459,8 @@ describe("Aomi runtime orchestrator compatibility", () => {
       expect(postChatMessage).toHaveBeenCalledTimes(2);
     });
 
-    expect(postChatMessage.mock.calls[0]).toEqual(["backend-msgs", "First"]);
-    expect(postChatMessage.mock.calls[1]).toEqual(["backend-msgs", "Second"]);
+    expect(postChatMessage.mock.calls[0]).toEqual(["backend-msgs", "First", "pk_messages"]);
+    expect(postChatMessage.mock.calls[1]).toEqual(["backend-msgs", "Second", "pk_messages"]);
   });
 
   it("flushes system messages after the first user message", async () => {

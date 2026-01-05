@@ -72,11 +72,16 @@ export class BackendApi {
     return data;
   }
 
-  async postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload> {
+  async postChatMessage(
+    sessionId: string,
+    message: string,
+    publicKey?: string
+  ): Promise<SessionResponsePayload> {
     console.log("🔵 [postChatMessage] Called with sessionId:", sessionId, "message:", message);
     const result = await postState<SessionResponsePayload>(this.backendUrl, "/api/chat", {
       message,
       session_id: sessionId,
+      public_key: publicKey,
     });
     console.log("🟢 [postChatMessage] Success:", result);
     return result;

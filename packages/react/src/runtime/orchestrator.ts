@@ -21,7 +21,10 @@ type SystemEventsHandler = (
   events?: unknown[] | null
 ) => void;
 
-export function useRuntimeOrchestrator(backendUrl: string) {
+export function useRuntimeOrchestrator(
+  backendUrl: string,
+  options?: { getPublicKey?: () => string | undefined }
+) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
   threadContextRef.current = threadContext;
@@ -62,6 +65,7 @@ export function useRuntimeOrchestrator(backendUrl: string) {
       threadContextRef,
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
+      getPublicKey: options?.getPublicKey,
     });
   }
 

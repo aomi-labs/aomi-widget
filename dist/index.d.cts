@@ -67,7 +67,7 @@ declare class BackendApi {
     fetchState(sessionId: string, options?: {
         signal?: AbortSignal;
     }): Promise<SessionResponsePayload>;
-    postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload>;
+    postChatMessage(sessionId: string, message: string, publicKey?: string): Promise<SessionResponsePayload>;
     postSystemMessage(sessionId: string, message: string): Promise<SystemResponsePayload>;
     postInterrupt(sessionId: string): Promise<SessionResponsePayload>;
     disconnectSSE(): void;
