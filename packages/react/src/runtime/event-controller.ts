@@ -37,11 +37,16 @@ export class EventController {
   constructor(private readonly config: EventControllerConfig) {}
 
   setSubscribableSessionId(sessionId: string | null) {
+    console.log("🔔 [updates] setSubscribableSessionId", { sessionId });
     this.subscribableSessionId = sessionId;
     this.syncSubscriptions();
   }
 
   private syncSubscriptions() {
+    console.log("🔔 [updates] syncSubscriptions", {
+      subscribableSessionId: this.subscribableSessionId,
+      active: Array.from(this.updateSubscriptions.keys()),
+    });
     const nextSessions = new Set<string>();
     if (this.subscribableSessionId) {
       nextSessions.add(this.subscribableSessionId);
@@ -62,18 +67,23 @@ export class EventController {
 
   private ensureSubscription(sessionId: string) {
     if (this.updateSubscriptions.has(sessionId)) return;
+    console.log("🔔 [updates] ensureSubscription", { sessionId });
 
-    const unsubscribe =
-      this.config.backendApiRef.current.subscribeToUpdatesWithNotification(
-        sessionId,
-        (update) => {
-          if (update.type !== "event_available") return;
-          void this.drainEvents(update.session_id);
-        },
-        (error) => {
-          console.error("Failed to handle system update SSE:", error);
-        }
-      );
+    const unsubscribe = this.config.backendApiRef.current.subscribeToUpdates(
+      sessionId,
+      (update) => {
+        console.log("🔔 [updates] event_available", {
+          sessionId: update.session_id,
+          eventId: update.event_id,
+          eventType: update.event_type,
+        });
+        if (update.type !== "event_available") return;
+        void this.drainEvents(update.session_id);
+      },
+      (error) => {
+        console.error("Failed to handle system update SSE:", error);
+      }
+    );
 
     this.updateSubscriptions.set(sessionId, unsubscribe);
   }
@@ -86,17 +96,27 @@ export class EventController {
   }
 
   async drainEvents(sessionId: string) {
-    if (this.eventsInFlight.has(sessionId)) return;
+    if (this.eventsInFlight.has(sessionId)) {
+      console.log("⏳ [events] drain already in flight", { sessionId });
+      return;
+    }
     this.eventsInFlight.add(sessionId);
 
     try {
       let afterId = this.lastEventIdBySession.get(sessionId) ?? 0;
+      console.log("📥 [events] start drain", { sessionId, afterId });
       for (;;) {
+        const requestAfterId = afterId;
         const events = await this.config.backendApiRef.current.fetchEventsAfter(
           sessionId,
-          afterId,
+          requestAfterId,
           200
         );
+        console.log("📥 [events] fetched batch", {
+          sessionId,
+          afterId: requestAfterId,
+          count: events.length,
+        });
         if (!events.length) break;
 
         for (const event of events) {
@@ -107,6 +127,11 @@ export class EventController {
           if (Number.isFinite(eventId)) afterId = Math.max(afterId, eventId);
 
           if (event.type === "title_changed" && typeof event.new_title === "string") {
+            console.log("🏷️ [events] title_changed", {
+              sessionId,
+              eventId,
+              newTitle: event.new_title,
+            });
             this.applyTitleChanged(sessionId, event.new_title as string);
           }
 
@@ -138,6 +163,7 @@ export class EventController {
         if (events.length < 200) break;
       }
 
+      console.log("📥 [events] drain complete", { sessionId, afterId });
       this.lastEventIdBySession.set(sessionId, afterId);
     } catch (error) {
       console.error("Failed to fetch async events:", error);
@@ -151,6 +177,11 @@ export class EventController {
     const tempId = findTempIdForBackendId(backendState, sessionId);
     const threadIdToUpdate = tempId || sessionId;
 
+    console.log("🏷️ [title] applying", {
+      sessionId,
+      threadId: threadIdToUpdate,
+      newTitle,
+    });
     this.config.setThreadMetadata((prev) => {
       const next = new Map(prev);
       const existing = next.get(threadIdToUpdate);
@@ -252,4 +283,3 @@ export class EventController {
     this.updateSubscriptions.clear();
   }
 }
-
