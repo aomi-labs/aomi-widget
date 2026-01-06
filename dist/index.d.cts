@@ -74,6 +74,7 @@ declare class BackendApi {
     setConnectionStatus(on: boolean): void;
     connectSSE(sessionId: string, publicKey?: string): Promise<void>;
     private handleConnectionError;
+    private subscribeToUpdatesInternal;
     subscribeToUpdates(sessionId: string, onUpdate: (update: SystemUpdateNotification) => void, onError?: (error: unknown) => void): () => void;
     fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]>;
     createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse>;

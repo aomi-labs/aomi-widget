@@ -146,47 +146,100 @@ var BackendApi = class {
       this.setConnectionStatus(false);
     }
   }
-  subscribeToUpdates(sessionId, onUpdate, onError) {
+  subscribeToUpdatesInternal(sessionId, onUpdate, onError, logLabel) {
     const updatesUrl = new URL("/api/updates", this.backendUrl);
     updatesUrl.searchParams.set("session_id", sessionId);
+    const updatesUrlString = updatesUrl.toString();
     const existing = this.updatesEventSources.get(sessionId);
     if (existing) {
-      existing.close();
+      existing.cleanup();
+      this.updatesEventSources.delete(sessionId);
     }
-    const updatesUrlString = updatesUrl.toString();
-    const updatesEventSource = new EventSource(updatesUrlString);
-    this.updatesEventSources.set(sessionId, updatesEventSource);
-    console.log("\u{1F514} [updates] subscribed", updatesUrlString);
-    updatesEventSource.onmessage = (event) => {
-      try {
-        console.log("\u{1F514} [updates] message", { url: updatesUrlString, data: event.data });
-        const parsed = JSON.parse(event.data);
-        onUpdate(parsed);
-      } catch (error) {
-        console.error("Failed to parse system update SSE:", error);
-        onError == null ? void 0 : onError(error);
+    const subscription = {
+      eventSource: null,
+      retries: 0,
+      retryTimer: null,
+      stopped: false,
+      cleanup: () => {
+        subscription.stopped = true;
+        if (subscription.retryTimer) {
+          clearTimeout(subscription.retryTimer);
+          subscription.retryTimer = null;
+        }
+        if (subscription.eventSource) {
+          subscription.eventSource.close();
+          subscription.eventSource = null;
+        }
       }
     };
-    updatesEventSource.onopen = () => {
-      console.log("\u{1F514} [updates] open", updatesUrlString);
+    const scheduleRetry = () => {
+      subscription.retries += 1;
+      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
+      console.warn(
+        `\u{1F501} [${logLabel}] retrying in ${delayMs}ms (attempt ${subscription.retries})`,
+        { sessionId }
+      );
+      subscription.retryTimer = setTimeout(() => {
+        open();
+      }, delayMs);
     };
-    updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", {
-        url: updatesUrlString,
-        readyState: updatesEventSource.readyState,
-        error
-      });
-      onError == null ? void 0 : onError(error);
+    const open = () => {
+      if (subscription.stopped) return;
+      if (subscription.retryTimer) {
+        clearTimeout(subscription.retryTimer);
+        subscription.retryTimer = null;
+      }
+      if (subscription.eventSource) {
+        subscription.eventSource.close();
+      }
+      const updatesEventSource = new EventSource(updatesUrlString);
+      subscription.eventSource = updatesEventSource;
+      console.log(`\u{1F514} [updates] subscribed`, updatesUrlString);
+      updatesEventSource.onopen = () => {
+        subscription.retries = 0;
+        console.log("\u{1F514} [updates] open", updatesUrlString);
+      };
+      updatesEventSource.onmessage = (event) => {
+        try {
+          console.log("\u{1F514} [updates] message", { url: updatesUrlString, data: event.data });
+          const parsed = JSON.parse(event.data);
+          onUpdate(parsed);
+        } catch (error) {
+          console.error("Failed to parse system update SSE:", error);
+          onError == null ? void 0 : onError(error);
+        }
+      };
+      updatesEventSource.onerror = (error) => {
+        console.error("System updates SSE error:", {
+          url: updatesUrlString,
+          readyState: updatesEventSource.readyState,
+          error
+        });
+        onError == null ? void 0 : onError(error);
+        if (subscription.stopped) return;
+        updatesEventSource.close();
+        scheduleRetry();
+      };
     };
+    this.updatesEventSources.set(sessionId, subscription);
+    open();
     return () => {
       const current = this.updatesEventSources.get(sessionId);
-      if (current === updatesEventSource) {
-        current.close();
+      if (current === subscription) {
+        current.cleanup();
         this.updatesEventSources.delete(sessionId);
       } else {
-        updatesEventSource.close();
+        subscription.cleanup();
       }
     };
+  }
+  subscribeToUpdates(sessionId, onUpdate, onError) {
+    return this.subscribeToUpdatesInternal(
+      sessionId,
+      onUpdate,
+      onError,
+      "subscribeToUpdates"
+    );
   }
   async fetchThreads(publicKey) {
     console.log("\u{1F535} [fetchThreads] Called with publicKey:", publicKey);
@@ -293,46 +346,12 @@ var BackendApi = class {
     return await response.json();
   }
   subscribeToUpdatesWithNotification(sessionId, onUpdate, onError) {
-    const updatesUrl = new URL("/api/updates", this.backendUrl);
-    updatesUrl.searchParams.set("session_id", sessionId);
-    const existing = this.updatesEventSources.get(sessionId);
-    if (existing) {
-      existing.close();
-    }
-    const updatesUrlString = updatesUrl.toString();
-    const updatesEventSource = new EventSource(updatesUrlString);
-    this.updatesEventSources.set(sessionId, updatesEventSource);
-    console.log("\u{1F535} [subscribeToUpdatesWithNotification] URL:", updatesUrlString);
-    updatesEventSource.onmessage = (event) => {
-      try {
-        console.log("\u{1F514} [updates] message", { url: updatesUrlString, data: event.data });
-        const parsed = JSON.parse(event.data);
-        onUpdate(parsed);
-      } catch (error) {
-        console.error("Failed to parse system update SSE:", error);
-        onError == null ? void 0 : onError(error);
-      }
-    };
-    updatesEventSource.onopen = () => {
-      console.log("\u{1F514} [updates] open", updatesUrlString);
-    };
-    updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", {
-        url: updatesUrlString,
-        readyState: updatesEventSource.readyState,
-        error
-      });
-      onError == null ? void 0 : onError(error);
-    };
-    return () => {
-      const current = this.updatesEventSources.get(sessionId);
-      if (current === updatesEventSource) {
-        current.close();
-        this.updatesEventSources.delete(sessionId);
-      } else {
-        updatesEventSource.close();
-      }
-    };
+    return this.subscribeToUpdatesInternal(
+      sessionId,
+      onUpdate,
+      onError,
+      "subscribeToUpdatesWithNotification"
+    );
   }
 };
 
