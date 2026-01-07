@@ -49,7 +49,7 @@ export type {
 
 export { cn } from "./lib/utils";
 
-// Notification system (context/logic only - UI component is in registry)
+// Notification system (logic only)
 export {
   NotificationProvider,
   useNotification,
