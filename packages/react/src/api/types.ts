@@ -8,6 +8,8 @@ export interface SessionMessage {
 
 export interface SessionResponsePayload {
   messages?: SessionMessage[] | null;
+  system_events?: unknown[] | null;
+  title?: string | null;
   is_processing?: boolean;
   session_exists?: boolean;
   session_id?: string;
@@ -40,4 +42,17 @@ export type SystemUpdate = {
     session_id: string;
     new_title: string;
   };
+};
+
+export type SystemUpdateNotification = {
+  type: "event_available";
+  session_id: string;
+  event_id: number;
+  event_type: string;
+};
+
+export type SystemEvent = Record<string, unknown> & {
+  type: string;
+  session_id: string;
+  event_id: number;
 };

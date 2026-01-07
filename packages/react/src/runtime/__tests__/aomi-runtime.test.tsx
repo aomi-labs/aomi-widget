@@ -4,19 +4,37 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import type { AssistantRuntime } from "@assistant-ui/react";
 import { useAssistantRuntime, useThreadList } from "@assistant-ui/react";
 
-import { AomiRuntimeProvider } from "../aomi-runtime";
+import { AomiRuntimeProvider, AomiRuntimeProviderWithNotifications } from "../aomi-runtime";
 import { useRuntimeActions } from "../hooks";
 import { useRuntimeOrchestrator } from "../orchestrator";
-import type { BackendThreadMetadata, CreateThreadResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
+import type {
+  BackendThreadMetadata,
+  CreateThreadResponse,
+  SessionResponsePayload,
+  SystemEvent,
+  SystemUpdateNotification,
+} from "../../api/types";
 import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
 import type { ThreadContext } from "../../state/thread-context";
 import type { RuntimeActions } from "../hooks";
 
 type BackendApiConfig = {
   fetchThreads?: (publicKey: string) => Promise<BackendThreadMetadata[]>;
-  fetchState?: (sessionId: string) => Promise<SessionResponsePayload>;
+  fetchState?: (
+    sessionId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<SessionResponsePayload>;
+  fetchEventsAfter?: (
+    sessionId: string,
+    afterId?: number,
+    limit?: number
+  ) => Promise<SystemEvent[]>;
   createThread?: (publicKey?: string, title?: string) => Promise<CreateThreadResponse>;
-  postChatMessage?: (sessionId: string, message: string) => Promise<SessionResponsePayload>;
+  postChatMessage?: (
+    sessionId: string,
+    message: string,
+    publicKey?: string
+  ) => Promise<SessionResponsePayload>;
   postSystemMessage?: (sessionId: string, message: string) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<SessionResponsePayload>;
   renameThread?: (sessionId: string, title: string) => Promise<void>;
@@ -27,7 +45,7 @@ type BackendApiConfig = {
 
 let backendApiConfig: BackendApiConfig = {};
 const backendApiInstances: Array<{
-  emitUpdate: (update: SystemUpdate) => void;
+  emitUpdate: (update: SystemUpdateNotification) => void;
 }> = [];
 
 const setBackendApiConfig = (next: BackendApiConfig) => {
@@ -41,7 +59,7 @@ const resetBackendApiMocks = () => {
 
 vi.mock("../../api/client", () => {
   class MockBackendApi {
-    updatesHandler: ((update: SystemUpdate) => void) | null = null;
+    updatesHandlers = new Map<string, (update: SystemUpdateNotification) => void>();
 
     constructor(public readonly backendUrl: string) {
       backendApiInstances.push(this);
@@ -53,10 +71,16 @@ vi.mock("../../api/client", () => {
         : [];
     });
 
-    fetchState = vi.fn(async (sessionId: string) => {
+    fetchState = vi.fn(async (sessionId: string, options?: { signal?: AbortSignal }) => {
       return backendApiConfig.fetchState
-        ? await backendApiConfig.fetchState(sessionId)
+        ? await backendApiConfig.fetchState(sessionId, options)
         : { session_exists: true, is_processing: false, messages: [] };
+    });
+
+    fetchEventsAfter = vi.fn(async (sessionId: string, afterId = 0, limit = 100) => {
+      return backendApiConfig.fetchEventsAfter
+        ? await backendApiConfig.fetchEventsAfter(sessionId, afterId, limit)
+        : [];
     });
 
     createThread = vi.fn(async (publicKey?: string, title?: string) => {
@@ -65,9 +89,9 @@ vi.mock("../../api/client", () => {
         : { session_id: "mock-thread" };
     });
 
-    postChatMessage = vi.fn(async (sessionId: string, message: string) => {
+    postChatMessage = vi.fn(async (sessionId: string, message: string, publicKey?: string) => {
       return backendApiConfig.postChatMessage
-        ? await backendApiConfig.postChatMessage(sessionId, message)
+        ? await backendApiConfig.postChatMessage(sessionId, message, publicKey)
         : { session_exists: true, is_processing: true, messages: [] };
     });
 
@@ -107,17 +131,28 @@ vi.mock("../../api/client", () => {
       }
     });
 
-    subscribeToUpdates = (onUpdate: (update: SystemUpdate) => void) => {
-      this.updatesHandler = onUpdate;
+    subscribeToUpdates = (
+      sessionId: string,
+      onUpdate: (update: SystemUpdateNotification) => void
+    ) => {
+      this.updatesHandlers.set(sessionId, onUpdate);
       return () => {
-        if (this.updatesHandler === onUpdate) {
-          this.updatesHandler = null;
+        const current = this.updatesHandlers.get(sessionId);
+        if (current === onUpdate) {
+          this.updatesHandlers.delete(sessionId);
         }
       };
     };
 
-    emitUpdate(update: SystemUpdate) {
-      this.updatesHandler?.(update);
+    subscribeToUpdatesWithNotification = (
+      sessionId: string,
+      onUpdate: (update: SystemUpdateNotification) => void
+    ) => {
+      return this.subscribeToUpdates(sessionId, onUpdate);
+    };
+
+    emitUpdate(update: SystemUpdateNotification) {
+      this.updatesHandlers.get(update.session_id)?.(update);
     }
   }
 
@@ -202,9 +237,9 @@ const renderRuntime = ({
   const ref = React.createRef<HarnessHandle>();
   render(
     <ThreadContextProvider initialThreadId={initialThreadId}>
-      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={publicKey}>
+      <AomiRuntimeProviderWithNotifications backendUrl={backendUrl} publicKey={publicKey}>
         <RuntimeHarness ref={ref} />
-      </AomiRuntimeProvider>
+      </AomiRuntimeProviderWithNotifications>
     </ThreadContextProvider>
   );
   if (!ref.current) {
@@ -335,7 +370,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
     });
 
     await waitFor(() => {
-      expect(postChatMessage).toHaveBeenCalledWith("backend-1", "Hello mapped");
+      expect(postChatMessage).toHaveBeenCalledWith("backend-1", "Hello mapped", "pk_create");
     });
 
     await act(async () => {
@@ -424,8 +459,8 @@ describe("Aomi runtime orchestrator compatibility", () => {
       expect(postChatMessage).toHaveBeenCalledTimes(2);
     });
 
-    expect(postChatMessage.mock.calls[0]).toEqual(["backend-msgs", "First"]);
-    expect(postChatMessage.mock.calls[1]).toEqual(["backend-msgs", "Second"]);
+    expect(postChatMessage.mock.calls[0]).toEqual(["backend-msgs", "First", "pk_messages"]);
+    expect(postChatMessage.mock.calls[1]).toEqual(["backend-msgs", "Second", "pk_messages"]);
   });
 
   it("flushes system messages after the first user message", async () => {
@@ -516,6 +551,31 @@ describe("Aomi runtime orchestrator compatibility", () => {
       expect(fetchState).toHaveBeenCalledTimes(2);
     });
 
+    expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it("stops polling when processing flag is missing", async () => {
+    vi.useFakeTimers();
+    const fetchState = vi.fn(async (): Promise<SessionResponsePayload> => ({
+      session_exists: true,
+      messages: [{ sender: "assistant", content: "Done" }],
+    }));
+
+    setBackendApiConfig({ fetchState });
+
+    const ref = renderOrchestrator({ initialThreadId: "thread-1" });
+
+    await act(async () => {
+      ref.current.polling.start("thread-1");
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await flushPromises();
+    });
+
+    expect(fetchState).toHaveBeenCalledTimes(1);
     expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
     vi.useRealTimers();
   });
@@ -724,7 +784,44 @@ describe("Aomi runtime orchestrator compatibility", () => {
         })
     );
 
-    setBackendApiConfig({ createThread });
+    const eventsQueue = new Map<string, SystemEvent[]>([
+      [
+        "backend-sse",
+        [
+          {
+            type: "title_changed",
+            session_id: "backend-sse",
+            event_id: 1,
+            new_title: "Chat 12",
+          } as SystemEvent,
+        ],
+      ],
+      [
+        "thread-1",
+        [
+          {
+            type: "title_changed",
+            session_id: "thread-1",
+            event_id: 1,
+            new_title: "Renamed",
+          } as SystemEvent,
+          {
+            type: "title_changed",
+            session_id: "thread-1",
+            event_id: 2,
+            new_title: "#[placeholder]",
+          } as SystemEvent,
+        ],
+      ],
+    ]);
+
+    const fetchEventsAfter = vi.fn(async (sessionId: string) => {
+      const queue = eventsQueue.get(sessionId) ?? [];
+      if (!queue.length) return [];
+      return [queue.shift()!];
+    });
+
+    setBackendApiConfig({ createThread, fetchEventsAfter });
 
     const ref = renderRuntime({ publicKey: "pk_sse", initialThreadId: "thread-1" });
 
@@ -742,9 +839,11 @@ describe("Aomi runtime orchestrator compatibility", () => {
     const api = backendApiInstances[0];
     act(() => {
       api.emitUpdate({
-        type: "TitleChanged",
-        data: { session_id: "backend-sse", new_title: "Chat 12" },
-      } satisfies SystemUpdate);
+        type: "event_available",
+        session_id: "backend-sse",
+        event_id: 1,
+        event_type: "title_changed",
+      } satisfies SystemUpdateNotification);
     });
 
     await waitFor(() => {
@@ -755,9 +854,11 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     act(() => {
       api.emitUpdate({
-        type: "TitleChanged",
-        data: { session_id: "thread-1", new_title: "Renamed" },
-      } satisfies SystemUpdate);
+        type: "event_available",
+        session_id: "thread-1",
+        event_id: 2,
+        event_type: "title_changed",
+      } satisfies SystemUpdateNotification);
     });
 
     await waitFor(() => {
@@ -768,9 +869,11 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     act(() => {
       api.emitUpdate({
-        type: "TitleChanged",
-        data: { session_id: "thread-1", new_title: "#[placeholder]" },
-      } satisfies SystemUpdate);
+        type: "event_available",
+        session_id: "thread-1",
+        event_id: 3,
+        event_type: "title_changed",
+      } satisfies SystemUpdateNotification);
     });
 
     await waitFor(() => {
