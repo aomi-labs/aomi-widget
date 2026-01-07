@@ -4,8 +4,9 @@ import type {
   CreateThreadResponse,
   SessionMessage,
   SessionResponsePayload,
+  SystemEvent,
   SystemResponsePayload,
-  SystemUpdate,
+  SystemUpdateNotification,
 } from "./types";
 
 function toQueryString(payload: Record<string, unknown>): string {
@@ -46,16 +47,28 @@ async function postState<T>(
 export class BackendApi {
   private connectionStatus = false;
   private eventSource: EventSource | null = null;
-  private updatesEventSource: EventSource | null = null;
+  private updatesEventSources = new Map<
+    string,
+    {
+      eventSource: EventSource | null;
+      retries: number;
+      retryTimer: ReturnType<typeof setTimeout> | null;
+      stopped: boolean;
+      cleanup: () => void;
+    }
+  >();
 
   constructor(private readonly backendUrl: string) {}
 
-  async fetchState(sessionId: string): Promise<SessionResponsePayload> {
+  async fetchState(
+    sessionId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<SessionResponsePayload> {
     console.log("🔵 [fetchState] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
     console.log("🔵 [fetchState] URL:", url);
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: options?.signal });
     console.log("🔵 [fetchState] Response status:", response.status, response.statusText);
 
     if (!response.ok) {
@@ -68,11 +81,16 @@ export class BackendApi {
     return data;
   }
 
-  async postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload> {
+  async postChatMessage(
+    sessionId: string,
+    message: string,
+    publicKey?: string
+  ): Promise<SessionResponsePayload> {
     console.log("🔵 [postChatMessage] Called with sessionId:", sessionId, "message:", message);
     const result = await postState<SessionResponsePayload>(this.backendUrl, "/api/chat", {
       message,
       session_id: sessionId,
+      public_key: publicKey,
     });
     console.log("🟢 [postChatMessage] Success:", result);
     return result;
@@ -160,38 +178,121 @@ export class BackendApi {
     }
   }
 
-  subscribeToUpdates(
-    onUpdate: (update: SystemUpdate) => void,
-    onError?: (error: unknown) => void
+  private subscribeToUpdatesInternal<T>(
+    sessionId: string,
+    onUpdate: (update: T) => void,
+    onError: ((error: unknown) => void) | undefined,
+    logLabel: string
   ): () => void {
-    if (this.updatesEventSource) {
-      this.updatesEventSource.close();
+    const updatesUrl = new URL("/api/updates", this.backendUrl);
+    updatesUrl.searchParams.set("session_id", sessionId);
+    const updatesUrlString = updatesUrl.toString();
+
+    const existing = this.updatesEventSources.get(sessionId);
+    if (existing) {
+      existing.cleanup();
+      this.updatesEventSources.delete(sessionId);
     }
 
-    const updatesUrl = new URL("/api/updates", this.backendUrl).toString();
-    this.updatesEventSource = new EventSource(updatesUrl);
+    const subscription = {
+      eventSource: null as EventSource | null,
+      retries: 0,
+      retryTimer: null as ReturnType<typeof setTimeout> | null,
+      stopped: false,
+      cleanup: () => {
+        subscription.stopped = true;
+        if (subscription.retryTimer) {
+          clearTimeout(subscription.retryTimer);
+          subscription.retryTimer = null;
+        }
+        if (subscription.eventSource) {
+          subscription.eventSource.close();
+          subscription.eventSource = null;
+        }
+      },
+    };
 
-    this.updatesEventSource.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data) as SystemUpdate;
-        onUpdate(parsed);
-      } catch (error) {
-        console.error("Failed to parse system update SSE:", error);
-        onError?.(error);
+    const scheduleRetry = () => {
+      subscription.retries += 1;
+      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 10000);
+      console.warn(
+        `🔁 [${logLabel}] retrying in ${delayMs}ms (attempt ${subscription.retries})`,
+        { sessionId }
+      );
+      subscription.retryTimer = setTimeout(() => {
+        open();
+      }, delayMs);
+    };
+
+    const open = () => {
+      if (subscription.stopped) return;
+      if (subscription.retryTimer) {
+        clearTimeout(subscription.retryTimer);
+        subscription.retryTimer = null;
       }
+      if (subscription.eventSource) {
+        subscription.eventSource.close();
+      }
+
+      const updatesEventSource = new EventSource(updatesUrlString);
+      subscription.eventSource = updatesEventSource;
+
+      console.log(`🔔 [updates] subscribed`, updatesUrlString);
+
+      updatesEventSource.onopen = () => {
+        subscription.retries = 0;
+        console.log("🔔 [updates] open", updatesUrlString);
+      };
+
+      updatesEventSource.onmessage = (event) => {
+        try {
+          console.log("🔔 [updates] message", { url: updatesUrlString, data: event.data });
+          const parsed = JSON.parse(event.data) as T;
+          onUpdate(parsed);
+        } catch (error) {
+          console.error("Failed to parse system update SSE:", error);
+          onError?.(error);
+        }
+      };
+
+      updatesEventSource.onerror = (error) => {
+        console.error("System updates SSE error:", {
+          url: updatesUrlString,
+          readyState: updatesEventSource.readyState,
+          error,
+        });
+        onError?.(error);
+        if (subscription.stopped) return;
+        updatesEventSource.close();
+        scheduleRetry();
+      };
     };
 
-    this.updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
-      onError?.(error);
-    };
+    this.updatesEventSources.set(sessionId, subscription);
+    open();
 
     return () => {
-      if (this.updatesEventSource) {
-        this.updatesEventSource.close();
-        this.updatesEventSource = null;
+      const current = this.updatesEventSources.get(sessionId);
+      if (current === subscription) {
+        current.cleanup();
+        this.updatesEventSources.delete(sessionId);
+      } else {
+        subscription.cleanup();
       }
     };
+  }
+
+  subscribeToUpdates(
+    sessionId: string,
+    onUpdate: (update: SystemUpdateNotification) => void,
+    onError?: (error: unknown) => void
+  ): () => void {
+    return this.subscribeToUpdatesInternal(
+      sessionId,
+      onUpdate,
+      onError,
+      "subscribeToUpdates"
+    );
   }
 
   async fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]> {
@@ -305,5 +406,37 @@ export class BackendApi {
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
     console.log("🟢 [renameThread] Success");
+  }
+
+  async fetchEventsAfter(
+    sessionId: string,
+    afterId = 0,
+    limit = 100
+  ): Promise<SystemEvent[]> {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
+    if (limit) url.searchParams.set("limit", String(limit));
+
+    console.log("🔵 [fetchEventsAfter] URL:", url.toString());
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
+    }
+    return (await response.json()) as SystemEvent[];
+  }
+
+  subscribeToUpdatesWithNotification(
+    sessionId: string,
+    onUpdate: (update: SystemUpdateNotification) => void,
+    onError?: (error: unknown) => void
+  ): () => void {
+    return this.subscribeToUpdatesInternal(
+      sessionId,
+      onUpdate,
+      onError,
+      "subscribeToUpdatesWithNotification"
+    );
   }
 }

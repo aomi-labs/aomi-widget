@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
@@ -22,6 +22,10 @@ import {
 import { isPlaceholderTitle, isTempThreadId, parseTimestamp } from "./utils";
 import { useThreadContext } from "../state/thread-context";
 import type { ThreadMetadata } from "../state/types";
+import type { WalletTxRequestHandler } from "../utils/wallet";
+import { useNotification, NotificationProvider } from "../lib/notification-context";
+import { WalletHandler } from "./wallet-handler";
+import { EventController } from "./event-controller";
 
 const sortByLastActiveDesc = (
   [, metaA]: [string, ThreadMetadata],
@@ -62,24 +66,16 @@ export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
   publicKey?: string;
+  onWalletTxRequest?: WalletTxRequestHandler;
 };
 
 export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
   publicKey,
+  onWalletTxRequest,
 }: Readonly<AomiRuntimeProviderProps>) {
   const threadContext = useThreadContext();
-  const {
-    backendStateRef,
-    polling,
-    messageController,
-    isRunning,
-    setIsRunning,
-    ensureInitialState,
-    backendApiRef,
-  } = useRuntimeOrchestrator(backendUrl);
-
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
 
@@ -88,14 +84,89 @@ export function AomiRuntimeProvider({
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
 
+  const publicKeyRef = useRef(publicKey);
+  useEffect(() => {
+    publicKeyRef.current = publicKey;
+  }, [publicKey]);
+
+  const getPublicKey = useCallback(() => publicKeyRef.current, []);
+
+  const lastSubscribedThreadRef = useRef<string | null>(null);
+
+  const { showNotification } = useNotification();
+
+  // Declare refs early so they can be used in orchestrator
+  const eventControllerRef = useRef<EventController | null>(null);
+  const walletHandlerRef = useRef<WalletHandler | null>(null);
+
+  const {
+    backendStateRef,
+    polling,
+    messageController,
+    isRunning,
+    setIsRunning,
+    ensureInitialState,
+    setSystemEventsHandler,
+    backendApiRef,
+  } = useRuntimeOrchestrator(backendUrl, { getPublicKey });
+
+  // Create wallet handler
+  if (!walletHandlerRef.current) {
+    walletHandlerRef.current = new WalletHandler({
+      backendApiRef,
+      onWalletTxRequest,
+      publicKey,
+      showNotification,
+      applySessionMessagesToThread: (threadId, msgs) => {
+        messageController.inbound(threadId, msgs);
+      },
+      getCurrentThreadId: () => currentThreadIdRef.current,
+    });
+  }
+
+  // Create event controller
+  if (!eventControllerRef.current) {
+    eventControllerRef.current = new EventController({
+      backendApiRef,
+      backendStateRef,
+      showNotification,
+      handleWalletTxRequest: (sessionId, threadId, request) => {
+        walletHandlerRef.current?.handleRequest(sessionId, threadId, request);
+      },
+      setThreadMetadata: threadContext.setThreadMetadata,
+    });
+  }
+
+  const handleSystemEvents = useCallback(
+    (sessionId: string, threadId: string, events?: unknown[] | null) => {
+      eventControllerRef.current?.handleBackendSystemEvents(sessionId, threadId, events);
+    },
+    []
+  );
+
+  useEffect(() => {
+    setSystemEventsHandler(handleSystemEvents);
+    return () => {
+      setSystemEventsHandler(null);
+    };
+  }, [handleSystemEvents, setSystemEventsHandler]);
+
+  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = useState(0);
+  const bumpUpdateSubscriptions = useCallback(() => {
+    setUpdateSubscriptionsTick((prev) => prev + 1);
+  }, []);
+
   useEffect(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
 
+  // Sync isRunning when thread changes - check if it's currently running
+  // This ensures isRunning is correct when switching threads
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
-    setIsRunning(isThreadRunning(backendStateRef.current, threadId));
-  }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
+    const isCurrentlyRunning = isThreadRunning(backendStateRef.current, threadId);
+    setIsRunning(isCurrentlyRunning);
+  }, [threadContext.currentThreadId, setIsRunning]);
 
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
 
@@ -197,6 +268,15 @@ export function AomiRuntimeProvider({
       archivedThreads,
 
       onSwitchToNewThread: async () => {
+        const previousThreadId = currentThreadIdRef.current;
+
+        // Stop polling and interrupt if currently running
+        polling.stopAll();
+        if (isRunning && isThreadReady(backendState, previousThreadId)) {
+          const backendId = resolveThreadId(backendState, previousThreadId);
+          void backendApiRef.current.postInterrupt(backendId);
+        }
+
         const pendingId = findPendingThreadId();
         if (pendingId) {
           preparePendingThread(pendingId);
@@ -219,6 +299,8 @@ export function AomiRuntimeProvider({
 
             setBackendMapping(backendState, uiThreadId, backendId);
             markSkipInitialFetch(backendState, uiThreadId);
+
+            bumpUpdateSubscriptions();
 
             const backendTitle = newThread.title;
             if (backendTitle && !isPlaceholderTitle(backendTitle)) {
@@ -244,7 +326,16 @@ export function AomiRuntimeProvider({
               backendState.pendingChat.delete(uiThreadId);
               for (const text of pendingMessages) {
                 try {
-                  await backendApiRef.current.postChatMessage(backendId, text);
+                  const activePublicKey = publicKeyRef.current;
+                  if (activePublicKey) {
+                    await backendApiRef.current.postChatMessage(
+                      backendId,
+                      text,
+                      activePublicKey
+                    );
+                  } else {
+                    await backendApiRef.current.postChatMessage(backendId, text);
+                  }
                 } catch (error) {
                   console.error("Failed to send queued message:", error);
                 }
@@ -279,6 +370,15 @@ export function AomiRuntimeProvider({
       },
 
       onSwitchToThread: (threadId: string) => {
+        const previousThreadId = currentThreadIdRef.current;
+
+        // Stop polling and interrupt if currently running
+        polling.stopAll();
+        if (isRunning && isThreadReady(backendState, previousThreadId)) {
+          const backendId = resolveThreadId(backendState, previousThreadId);
+          void backendApiRef.current.postInterrupt(backendId);
+        }
+
         threadContext.setCurrentThreadId(threadId);
       },
 
@@ -377,39 +477,9 @@ export function AomiRuntimeProvider({
     threadContext,
     threadContext.currentThreadId,
     threadContext.threadMetadata,
+    bumpUpdateSubscriptions,
   ]);
 
-  useEffect(() => {
-    const unsubscribe = backendApiRef.current.subscribeToUpdates((update) => {
-      if (update.type !== "TitleChanged") return;
-      const sessionId = update.data.session_id;
-      const newTitle = update.data.new_title;
-
-      const backendState = backendStateRef.current;
-      const targetThreadId =
-        findTempIdForBackendId(backendState, sessionId) ??
-        resolveThreadId(backendState, sessionId);
-      const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-      threadContext.setThreadMetadata((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(targetThreadId);
-        const nextStatus = existing?.status === "archived" ? "archived" : "regular";
-        next.set(targetThreadId, {
-          title: normalizedTitle,
-          status: nextStatus,
-          lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
-        });
-        return next;
-      });
-      if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
-        backendState.creatingThreadId = null;
-      }
-    });
-
-    return () => {
-      unsubscribe?.();
-    };
-  }, [backendApiRef, backendStateRef, threadContext]);
 
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
@@ -442,8 +512,33 @@ export function AomiRuntimeProvider({
   useEffect(() => {
     return () => {
       polling.stopAll();
+      eventControllerRef.current?.cleanup();
     };
   }, [polling]);
+
+  // Update event controller subscription when current thread changes
+  useEffect(() => {
+    const backendState = backendStateRef.current;
+    const threadId = threadContext.currentThreadId;
+    const isReady = isThreadReady(backendState, threadId);
+    if (!isReady) {
+      lastSubscribedThreadRef.current = null;
+      eventControllerRef.current?.setSubscribableSessionId(null);
+      return;
+    }
+
+    const isCurrentlyRunning = isThreadRunning(backendState, threadId);
+    if (isCurrentlyRunning) {
+      const sessionId = resolveThreadId(backendState, threadId);
+      eventControllerRef.current?.setSubscribableSessionId(sessionId);
+      lastSubscribedThreadRef.current = threadId;
+      return;
+    }
+
+    if (lastSubscribedThreadRef.current !== threadId) {
+      eventControllerRef.current?.setSubscribableSessionId(null);
+    }
+  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick, isRunning]);
 
   return (
     <RuntimeActionsProvider
@@ -454,5 +549,16 @@ export function AomiRuntimeProvider({
     >
       <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
     </RuntimeActionsProvider>
+  );
+}
+
+// Wrapper component that provides NotificationProvider
+export function AomiRuntimeProviderWithNotifications(
+  props: Readonly<AomiRuntimeProviderProps>
+) {
+  return (
+    <NotificationProvider>
+      <AomiRuntimeProvider {...props} />
+    </NotificationProvider>
   );
 }

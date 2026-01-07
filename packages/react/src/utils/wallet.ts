@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 
 import { useRuntimeActions } from "../runtime/hooks";
 
+// ==================== Wallet Button State ====================
+
 export type WalletButtonState = {
   address?: string;
   chainId?: number;
@@ -15,6 +17,37 @@ export type WalletFooterProps = {
   wallet: WalletButtonState;
   setWallet: (data: Partial<WalletButtonState>) => void;
 };
+
+// ==================== Wallet Transaction Types ====================
+
+export type WalletTxRequestPayload = {
+  to: string;
+  value: string; // wei as decimal string
+  data: string; // 0x-prefixed hex
+  gas?: string | null;
+  gas_limit?: string | null;
+  description?: string;
+  topic?: string;
+  timestamp?: string;
+};
+
+export type WalletTxRequestContext = {
+  sessionId: string;
+  threadId: string;
+  publicKey?: string;
+};
+
+// Return the transaction hash (0x...) or throw on failure/rejection.
+export type WalletTxRequestHandler = (
+  request: WalletTxRequestPayload,
+  context: WalletTxRequestContext
+) => Promise<string>;
+
+export type Eip1193Provider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
+// ==================== Network Utilities ====================
 
 export const getNetworkName = (chainId: number | string | undefined): string => {
   if (chainId === undefined) return "";
@@ -47,11 +80,100 @@ export const getNetworkName = (chainId: number | string | undefined): string => 
 export const formatAddress = (addr?: string): string =>
   addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
 
+// ==================== Wallet Error Handling ====================
+
+export function normalizeWalletError(error: unknown): {
+  rejected: boolean;
+  message: string;
+} {
+  const e = error as {
+    code?: unknown;
+    name?: unknown;
+    message?: unknown;
+    shortMessage?: unknown;
+    cause?: unknown;
+  };
+  const cause = (e?.cause ?? null) as
+    | { code?: unknown; name?: unknown; message?: unknown; shortMessage?: unknown }
+    | null;
+
+  const code =
+    (typeof e?.code === "number" ? e.code : undefined) ??
+    (typeof cause?.code === "number" ? cause.code : undefined);
+  const name =
+    (typeof e?.name === "string" ? e.name : undefined) ??
+    (typeof cause?.name === "string" ? cause.name : undefined);
+  const msg =
+    (typeof e?.shortMessage === "string" ? e.shortMessage : undefined) ??
+    (typeof cause?.shortMessage === "string" ? cause.shortMessage : undefined) ??
+    (typeof e?.message === "string" ? e.message : undefined) ??
+    (typeof cause?.message === "string" ? cause.message : undefined) ??
+    "Unknown wallet error";
+
+  const rejected =
+    code === 4001 ||
+    name === "UserRejectedRequestError" ||
+    name === "RejectedRequestError" ||
+    /user rejected|rejected the request|denied|request rejected|canceled|cancelled/i.test(
+      msg
+    );
+
+  return { rejected, message: msg };
+}
+
+// ==================== Hex Conversion ====================
+
+export function toHexQuantity(value: string): string {
+  const trimmed = value.trim();
+  const asBigInt = BigInt(trimmed);
+  return `0x${asBigInt.toString(16)}`;
+}
+
+// ==================== Provider Detection ====================
+
+export async function pickInjectedProvider(
+  publicKey?: string
+): Promise<Eip1193Provider | undefined> {
+  const ethereum = (globalThis as unknown as { ethereum?: unknown }).ethereum as
+    | (Eip1193Provider & { providers?: unknown[] })
+    | undefined;
+  if (!ethereum?.request) return undefined;
+
+  const candidates: Eip1193Provider[] = Array.isArray(ethereum.providers)
+    ? (ethereum.providers.filter(
+        (p): p is Eip1193Provider => !!(p as Eip1193Provider)?.request
+      ) as Eip1193Provider[])
+    : [ethereum];
+
+  const target = publicKey?.toLowerCase();
+  if (target) {
+    for (const candidate of candidates) {
+      try {
+        const accounts = (await candidate.request({
+          method: "eth_accounts",
+        })) as unknown;
+        const list = Array.isArray(accounts)
+          ? (accounts as unknown[]).map((a) => String(a).toLowerCase())
+          : [];
+        if (list.includes(target)) return candidate;
+      } catch {
+        // Ignore providers that error on eth_accounts.
+      }
+    }
+  }
+
+  return candidates[0];
+}
+
+// ==================== Wallet System Message Emitter ====================
+
 type WalletSystemMessageEmitterProps = {
   wallet: WalletButtonState;
 };
 
-export function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitterProps) {
+export function WalletSystemMessageEmitter({
+  wallet,
+}: WalletSystemMessageEmitterProps) {
   const { sendSystemMessage } = useRuntimeActions();
   const lastWalletRef = useRef<{
     isConnected: boolean;
@@ -74,7 +196,11 @@ export function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitte
       const message = `User connected wallet with address ${normalizedAddress} on ${networkName} network (Chain ID: ${chainId}). Ready to help with transactions.`;
       console.log(message);
       void sendSystemMessage(message);
-      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+      lastWalletRef.current = {
+        isConnected: true,
+        address: normalizedAddress,
+        chainId,
+      };
       return;
     }
 
@@ -97,7 +223,11 @@ export function WalletSystemMessageEmitter({ wallet }: WalletSystemMessageEmitte
       const message = `User switched wallet to ${networkName} network (Chain ID: ${chainId}).`;
       console.log(message);
       void sendSystemMessage(message);
-      lastWalletRef.current = { isConnected: true, address: normalizedAddress, chainId };
+      lastWalletRef.current = {
+        isConnected: true,
+        address: normalizedAddress,
+        chainId,
+      };
     }
   }, [wallet, sendSystemMessage]);
 

@@ -24,6 +24,7 @@ type MessageControllerConfig = {
   threadContextRef: MutableRefObject<ThreadContext>;
   polling: PollingController;
   setGlobalIsRunning?: (running: boolean) => void;
+  getPublicKey?: () => string | undefined;
 };
 
 type ThreadContextApi = Pick<
@@ -87,10 +88,19 @@ export class MessageController {
     }
 
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = this.config.getPublicKey?.();
 
     try {
       this.markRunning(threadId, true);
-      await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      if (publicKey) {
+        await this.config.backendApiRef.current.postChatMessage(
+          backendThreadId,
+          text,
+          publicKey
+        );
+      } else {
+        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      }
       await this.flushPendingSystem(threadId);
       this.config.polling.start(threadId);
     } catch (error) {
@@ -149,9 +159,18 @@ export class MessageController {
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = this.config.getPublicKey?.();
     for (const text of pending) {
       try {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        if (publicKey) {
+          await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+            publicKey
+          );
+        } else {
+          await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        }
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }

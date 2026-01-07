@@ -1,0 +1,109 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "aomi",
+  "homepage": "https://r.aomi.dev",
+  "items": [
+    {
+      "name": "aomi-frame",
+      "type": "registry:component",
+      "description": "Full assistant shell with thread list and runtime wiring.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/aomi-frame.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react"
+      ],
+      "registryDependencies": [
+        "https://widget.aomi.dev/r/assistant-thread.json",
+        "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
+        "sidebar",
+        "separator",
+        "breadcrumb"
+      ]
+    },
+    {
+      "name": "assistant-thread",
+      "type": "registry:component",
+      "description": "Chat surface built on @assistant-ui primitives.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/thread.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "@assistant-ui/react",
+        "@assistant-ui/react-markdown",
+        "lucide-react",
+        "remark-gfm"
+      ],
+      "registryDependencies": [
+        "https://r.assistant-ui.com/markdown-text.json",
+        "https://r.assistant-ui.com/tooltip-icon-button.json",
+        "https://r.assistant-ui.com/attachment.json",
+        "https://widget.aomi.dev/r/assistant-tool-fallback.json",
+        "button"
+      ]
+    },
+    {
+      "name": "assistant-thread-list",
+      "type": "registry:component",
+      "description": "Thread list wrapper wired to runtime adapter.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/thread-list.tsx"
+        }
+      ],
+      "dependencies": [
+        "@assistant-ui/react",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "https://r.assistant-ui.com/tooltip-icon-button.json",
+        "button",
+        "skeleton"
+      ]
+    },
+    {
+      "name": "assistant-threadlist-sidebar",
+      "type": "registry:component",
+      "description": "Sidebar shell for thread navigation and wallet footer slot.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/threadlist-sidebar.tsx"
+        }
+      ],
+      "dependencies": [
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "https://widget.aomi.dev/r/assistant-thread-list.json",
+        "sidebar"
+      ]
+    },
+    {
+      "name": "assistant-tool-fallback",
+      "type": "registry:component",
+      "description": "Fallback renderer for assistant tool calls.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-fallback.tsx"
+        }
+      ],
+      "dependencies": [
+        "@assistant-ui/react",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button"
+      ]
+    }
+  ]
+}
