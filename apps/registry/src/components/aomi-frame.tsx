@@ -25,7 +25,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { NotificationContainer } from "@/components/ui/notification";
+import { NotificationToaster } from "@/components/ui/notification";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
@@ -69,7 +69,7 @@ export const AomiFrame = ({
       >
         {/* Internal: watches wallet state and sends system messages */}
         <WalletSystemMessageEmitter wallet={wallet} />
-        <NotificationContainer />
+        <NotificationToaster />
         <FrameShell
           className={className}
           frameStyle={frameStyle}

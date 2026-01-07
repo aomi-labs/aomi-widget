@@ -28,6 +28,7 @@
     "lucide-react": "^0.545.0",
     "motion": "^12.23.22",
     "remark-gfm": "^4.0.1",
+    "sonner": "^1.7.4",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

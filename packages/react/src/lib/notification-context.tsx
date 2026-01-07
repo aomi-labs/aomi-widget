@@ -2,8 +2,8 @@
 
 import {
   createContext,
-  useContext,
   useCallback,
+  useContext,
   useState,
   type ReactNode,
 } from "react";
@@ -83,4 +83,3 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     </NotificationContext.Provider>
   );
 }
-
