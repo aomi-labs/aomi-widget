@@ -64,15 +64,18 @@ declare class BackendApi {
     private eventSource;
     private updatesEventSources;
     constructor(backendUrl: string);
-    fetchState(sessionId: string): Promise<SessionResponsePayload>;
-    postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload>;
+    fetchState(sessionId: string, options?: {
+        signal?: AbortSignal;
+    }): Promise<SessionResponsePayload>;
+    postChatMessage(sessionId: string, message: string, publicKey?: string): Promise<SessionResponsePayload>;
     postSystemMessage(sessionId: string, message: string): Promise<SystemResponsePayload>;
     postInterrupt(sessionId: string): Promise<SessionResponsePayload>;
     disconnectSSE(): void;
     setConnectionStatus(on: boolean): void;
     connectSSE(sessionId: string, publicKey?: string): Promise<void>;
     private handleConnectionError;
-    subscribeToUpdates(sessionId: string, onUpdate: (update: SystemUpdate) => void, onError?: (error: unknown) => void): () => void;
+    private subscribeToUpdatesInternal;
+    subscribeToUpdates(sessionId: string, onUpdate: (update: SystemUpdateNotification) => void, onError?: (error: unknown) => void): () => void;
     fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]>;
     createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse>;
     archiveThread(sessionId: string): Promise<void>;
