@@ -52,11 +52,11 @@ var BackendApi = class {
     this.eventSource = null;
     this.updatesEventSources = /* @__PURE__ */ new Map();
   }
-  async fetchState(sessionId) {
+  async fetchState(sessionId, options) {
     console.log("\u{1F535} [fetchState] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
     console.log("\u{1F535} [fetchState] URL:", url);
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: options == null ? void 0 : options.signal });
     console.log("\u{1F535} [fetchState] Response status:", response.status, response.statusText);
     if (!response.ok) {
       console.error("\u{1F534} [fetchState] Error:", response.status, response.statusText);
@@ -66,11 +66,12 @@ var BackendApi = class {
     console.log("\u{1F7E2} [fetchState] Success:", data);
     return data;
   }
-  async postChatMessage(sessionId, message) {
+  async postChatMessage(sessionId, message, publicKey) {
     console.log("\u{1F535} [postChatMessage] Called with sessionId:", sessionId, "message:", message);
     const result = await postState(this.backendUrl, "/api/chat", {
       message,
-      session_id: sessionId
+      session_id: sessionId,
+      public_key: publicKey
     });
     console.log("\u{1F7E2} [postChatMessage] Success:", result);
     return result;
@@ -145,37 +146,100 @@ var BackendApi = class {
       this.setConnectionStatus(false);
     }
   }
-  subscribeToUpdates(sessionId, onUpdate, onError) {
+  subscribeToUpdatesInternal(sessionId, onUpdate, onError, logLabel) {
     const updatesUrl = new URL("/api/updates", this.backendUrl);
     updatesUrl.searchParams.set("session_id", sessionId);
+    const updatesUrlString = updatesUrl.toString();
     const existing = this.updatesEventSources.get(sessionId);
     if (existing) {
-      existing.close();
+      existing.cleanup();
+      this.updatesEventSources.delete(sessionId);
     }
-    const updatesEventSource = new EventSource(updatesUrl.toString());
-    this.updatesEventSources.set(sessionId, updatesEventSource);
-    updatesEventSource.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data);
-        onUpdate(parsed);
-      } catch (error) {
-        console.error("Failed to parse system update SSE:", error);
-        onError == null ? void 0 : onError(error);
+    const subscription = {
+      eventSource: null,
+      retries: 0,
+      retryTimer: null,
+      stopped: false,
+      cleanup: () => {
+        subscription.stopped = true;
+        if (subscription.retryTimer) {
+          clearTimeout(subscription.retryTimer);
+          subscription.retryTimer = null;
+        }
+        if (subscription.eventSource) {
+          subscription.eventSource.close();
+          subscription.eventSource = null;
+        }
       }
     };
-    updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
-      onError == null ? void 0 : onError(error);
+    const scheduleRetry = () => {
+      subscription.retries += 1;
+      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
+      console.warn(
+        `\u{1F501} [${logLabel}] retrying in ${delayMs}ms (attempt ${subscription.retries})`,
+        { sessionId }
+      );
+      subscription.retryTimer = setTimeout(() => {
+        open();
+      }, delayMs);
     };
+    const open = () => {
+      if (subscription.stopped) return;
+      if (subscription.retryTimer) {
+        clearTimeout(subscription.retryTimer);
+        subscription.retryTimer = null;
+      }
+      if (subscription.eventSource) {
+        subscription.eventSource.close();
+      }
+      const updatesEventSource = new EventSource(updatesUrlString);
+      subscription.eventSource = updatesEventSource;
+      console.log(`\u{1F514} [updates] subscribed`, updatesUrlString);
+      updatesEventSource.onopen = () => {
+        subscription.retries = 0;
+        console.log("\u{1F514} [updates] open", updatesUrlString);
+      };
+      updatesEventSource.onmessage = (event) => {
+        try {
+          console.log("\u{1F514} [updates] message", { url: updatesUrlString, data: event.data });
+          const parsed = JSON.parse(event.data);
+          onUpdate(parsed);
+        } catch (error) {
+          console.error("Failed to parse system update SSE:", error);
+          onError == null ? void 0 : onError(error);
+        }
+      };
+      updatesEventSource.onerror = (error) => {
+        console.error("System updates SSE error:", {
+          url: updatesUrlString,
+          readyState: updatesEventSource.readyState,
+          error
+        });
+        onError == null ? void 0 : onError(error);
+        if (subscription.stopped) return;
+        updatesEventSource.close();
+        scheduleRetry();
+      };
+    };
+    this.updatesEventSources.set(sessionId, subscription);
+    open();
     return () => {
       const current = this.updatesEventSources.get(sessionId);
-      if (current === updatesEventSource) {
-        current.close();
+      if (current === subscription) {
+        current.cleanup();
         this.updatesEventSources.delete(sessionId);
       } else {
-        updatesEventSource.close();
+        subscription.cleanup();
       }
     };
+  }
+  subscribeToUpdates(sessionId, onUpdate, onError) {
+    return this.subscribeToUpdatesInternal(
+      sessionId,
+      onUpdate,
+      onError,
+      "subscribeToUpdates"
+    );
   }
   async fetchThreads(publicKey) {
     console.log("\u{1F535} [fetchThreads] Called with publicKey:", publicKey);
@@ -282,42 +346,17 @@ var BackendApi = class {
     return await response.json();
   }
   subscribeToUpdatesWithNotification(sessionId, onUpdate, onError) {
-    const updatesUrl = new URL("/api/updates", this.backendUrl);
-    updatesUrl.searchParams.set("session_id", sessionId);
-    const existing = this.updatesEventSources.get(sessionId);
-    if (existing) {
-      existing.close();
-    }
-    const updatesEventSource = new EventSource(updatesUrl.toString());
-    this.updatesEventSources.set(sessionId, updatesEventSource);
-    console.log("\u{1F535} [subscribeToUpdatesWithNotification] URL:", updatesUrl.toString());
-    updatesEventSource.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data);
-        onUpdate(parsed);
-      } catch (error) {
-        console.error("Failed to parse system update SSE:", error);
-        onError == null ? void 0 : onError(error);
-      }
-    };
-    updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
-      onError == null ? void 0 : onError(error);
-    };
-    return () => {
-      const current = this.updatesEventSources.get(sessionId);
-      if (current === updatesEventSource) {
-        current.close();
-        this.updatesEventSources.delete(sessionId);
-      } else {
-        updatesEventSource.close();
-      }
-    };
+    return this.subscribeToUpdatesInternal(
+      sessionId,
+      onUpdate,
+      onError,
+      "subscribeToUpdatesWithNotification"
+    );
   }
 };
 
 // src/runtime/aomi-runtime.tsx
-import { useCallback as useCallback3, useEffect as useEffect2, useMemo as useMemo2, useRef as useRef4, useState as useState3 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect3, useMemo as useMemo2, useRef as useRef4, useState as useState3 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -336,7 +375,7 @@ function useRuntimeActions() {
 }
 
 // src/runtime/orchestrator.ts
-import { useCallback, useRef as useRef2, useState } from "react";
+import { useCallback, useEffect, useRef as useRef2, useState } from "react";
 
 // src/state/thread-context.tsx
 import { createContext as createContext2, useContext as useContext2, useMemo, useRef, useSyncExternalStore } from "react";
@@ -679,6 +718,7 @@ var MessageController = class {
     this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
+    var _a, _b;
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
     if (!text) return;
@@ -697,9 +737,18 @@ var MessageController = class {
       return;
     }
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     try {
       this.markRunning(threadId, true);
-      await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      if (publicKey) {
+        await this.config.backendApiRef.current.postChatMessage(
+          backendThreadId,
+          text,
+          publicKey
+        );
+      } else {
+        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      }
       await this.flushPendingSystem(threadId);
       this.config.polling.start(threadId);
     } catch (error) {
@@ -748,13 +797,23 @@ var MessageController = class {
     }
   }
   async flushPendingChat(threadId) {
+    var _a, _b;
     const backendState = this.config.backendStateRef.current;
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     for (const text of pending) {
       try {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        if (publicKey) {
+          await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+            publicKey
+          );
+        } else {
+          await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        }
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }
@@ -801,7 +860,9 @@ var PollingController = class {
   start(threadId) {
     const backendState = this.config.backendStateRef.current;
     if (!isThreadReady(backendState, threadId)) return;
-    if (this.intervals.has(threadId)) return;
+    if (this.intervals.has(threadId)) {
+      return;
+    }
     const backendThreadId = resolveThreadId(backendState, threadId);
     setThreadRunning(backendState, threadId, true);
     const tick = async () => {
@@ -809,6 +870,7 @@ var PollingController = class {
         return;
       }
       try {
+        console.log("\u{1F535} [PollingController] Fetching state for threadId:", threadId);
         const state = await this.config.backendApiRef.current.fetchState(backendThreadId);
         if (!this.intervals.has(threadId)) {
           return;
@@ -835,37 +897,33 @@ var PollingController = class {
     setThreadRunning(this.config.backendStateRef.current, threadId, false);
     (_b = (_a = this.config).onStop) == null ? void 0 : _b.call(_a, threadId);
   }
+  isPolling(threadId) {
+    return this.intervals.has(threadId);
+  }
   stopAll() {
     for (const threadId of this.intervals.keys()) {
       this.stop(threadId);
     }
   }
   handleState(threadId, state) {
-    var _a, _b, _c;
     if (state.session_exists === false) {
       this.stop(threadId);
       return;
     }
     const backendState = this.config.backendStateRef.current;
     const backendThreadId = resolveThreadId(backendState, threadId);
-    const hasMessages = ((_b = (_a = state.messages) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
-    const hasStreamingMessages = Boolean(
-      (_c = state.messages) == null ? void 0 : _c.some((message) => message.is_streaming)
-    );
     if (this.handleSystemEvents && state.system_events) {
       this.handleSystemEvents(backendThreadId, threadId, state.system_events);
     }
     this.config.applyMessages(threadId, state.messages);
-    const shouldStop = state.is_processing === false || state.is_processing == null && hasMessages && !hasStreamingMessages;
-    if (shouldStop) {
+    if (!state.is_processing) {
       this.stop(threadId);
-      return;
     }
   }
 };
 
 // src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
+function useRuntimeOrchestrator(backendUrl, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef2(threadContext);
   threadContextRef.current = threadContext;
@@ -874,6 +932,8 @@ function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
   const [isRunning, setIsRunning] = useState(false);
   const messageControllerRef = useRef2(null);
   const pollingRef = useRef2(null);
+  const systemEventsHandlerRef = useRef2(null);
+  const inFlightRef = useRef2(/* @__PURE__ */ new Map());
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
       backendApiRef,
@@ -900,55 +960,80 @@ function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
       backendStateRef,
       threadContextRef,
       polling: pollingRef.current,
-      setGlobalIsRunning: setIsRunning
+      setGlobalIsRunning: setIsRunning,
+      getPublicKey: options == null ? void 0 : options.getPublicKey
     });
   }
+  const setSystemEventsHandler = useCallback((handler) => {
+    var _a;
+    systemEventsHandlerRef.current = handler;
+    (_a = pollingRef.current) == null ? void 0 : _a.setSystemEventsHandler(handler != null ? handler : void 0);
+  }, []);
+  useEffect(() => {
+    return () => {
+      for (const controller of inFlightRef.current.values()) {
+        controller.abort();
+      }
+      inFlightRef.current.clear();
+    };
+  }, []);
   const ensureInitialState = useCallback(
     async (threadId) => {
-      var _a, _b, _c;
+      var _a, _b;
       const backendState = backendStateRef.current;
-      const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
       if (shouldSkipInitialFetch(backendState, threadId)) {
         clearSkipInitialFetch(backendState, threadId);
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
         return;
       }
       if (!isThreadReady(backendState, threadId)) {
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
         return;
       }
+      if (inFlightRef.current.has(threadId)) {
+        return;
+      }
       const backendThreadId = resolveThreadId(backendState, threadId);
+      const controller = new AbortController();
+      inFlightRef.current.set(threadId, controller);
       try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
+        console.log("\u{1F535} [Orchestrator] Fetching initial state for threadId:", threadId);
+        const state = await backendApiRef.current.fetchState(backendThreadId, {
+          signal: controller.signal
+        });
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
-        const hasStreamingMessages = Boolean(
-          (_b = state.messages) == null ? void 0 : _b.some((message) => message.is_streaming)
-        );
-        if (handleSystemEvents && state.system_events) {
-          handleSystemEvents(backendThreadId, threadId, state.system_events);
+        if (systemEventsHandlerRef.current && state.system_events) {
+          systemEventsHandlerRef.current(backendThreadId, threadId, state.system_events);
         }
-        if (state.is_processing || hasStreamingMessages) {
-          if (isCurrentThread) {
+        if (state.is_processing) {
+          if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(true);
           }
-          (_c = pollingRef.current) == null ? void 0 : _c.start(threadId);
+          (_b = pollingRef.current) == null ? void 0 : _b.start(threadId);
         } else {
-          if (isCurrentThread) {
+          if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
         }
       } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
         console.error("Failed to fetch initial state:", error);
-        if (isCurrentThread) {
+        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
+        }
+      } finally {
+        if (inFlightRef.current.get(threadId) === controller) {
+          inFlightRef.current.delete(threadId);
         }
       }
     },
-    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning, handleSystemEvents]
+    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
   );
   return {
     backendStateRef,
@@ -957,6 +1042,7 @@ function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
     isRunning,
     setIsRunning,
     ensureInitialState,
+    setSystemEventsHandler,
     backendApiRef
   };
 }
@@ -964,8 +1050,8 @@ function useRuntimeOrchestrator(backendUrl, handleSystemEvents) {
 // src/lib/notification-context.tsx
 import {
   createContext as createContext3,
-  useContext as useContext3,
   useCallback as useCallback2,
+  useContext as useContext3,
   useState as useState2
 } from "react";
 import { jsx as jsx2 } from "react/jsx-runtime";
@@ -1012,7 +1098,7 @@ function NotificationProvider({ children }) {
 }
 
 // src/utils/wallet.ts
-import { useEffect, useRef as useRef3 } from "react";
+import { useEffect as useEffect2, useRef as useRef3 } from "react";
 var getNetworkName = (chainId) => {
   if (chainId === void 0) return "";
   const id = typeof chainId === "string" ? Number(chainId) : chainId;
@@ -1084,7 +1170,7 @@ function WalletSystemMessageEmitter({
 }) {
   const { sendSystemMessage } = useRuntimeActions();
   const lastWalletRef = useRef3({ isConnected: false });
-  useEffect(() => {
+  useEffect2(() => {
     const prev = lastWalletRef.current;
     const { address, chainId, isConnected } = wallet;
     const normalizedAddress = address == null ? void 0 : address.toLowerCase();
@@ -1294,10 +1380,15 @@ var EventController = class {
     this.subscribableSessionId = null;
   }
   setSubscribableSessionId(sessionId) {
+    console.log("\u{1F514} [updates] setSubscribableSessionId", { sessionId });
     this.subscribableSessionId = sessionId;
     this.syncSubscriptions();
   }
   syncSubscriptions() {
+    console.log("\u{1F514} [updates] syncSubscriptions", {
+      subscribableSessionId: this.subscribableSessionId,
+      active: Array.from(this.updateSubscriptions.keys())
+    });
     const nextSessions = /* @__PURE__ */ new Set();
     if (this.subscribableSessionId) {
       nextSessions.add(this.subscribableSessionId);
@@ -1313,9 +1404,15 @@ var EventController = class {
   }
   ensureSubscription(sessionId) {
     if (this.updateSubscriptions.has(sessionId)) return;
-    const unsubscribe = this.config.backendApiRef.current.subscribeToUpdatesWithNotification(
+    console.log("\u{1F514} [updates] ensureSubscription", { sessionId });
+    const unsubscribe = this.config.backendApiRef.current.subscribeToUpdates(
       sessionId,
       (update) => {
+        console.log("\u{1F514} [updates] event_available", {
+          sessionId: update.session_id,
+          eventId: update.event_id,
+          eventType: update.event_type
+        });
         if (update.type !== "event_available") return;
         void this.drainEvents(update.session_id);
       },
@@ -1333,21 +1430,36 @@ var EventController = class {
   }
   async drainEvents(sessionId) {
     var _a;
-    if (this.eventsInFlight.has(sessionId)) return;
+    if (this.eventsInFlight.has(sessionId)) {
+      console.log("\u23F3 [events] drain already in flight", { sessionId });
+      return;
+    }
     this.eventsInFlight.add(sessionId);
     try {
       let afterId = (_a = this.lastEventIdBySession.get(sessionId)) != null ? _a : 0;
+      console.log("\u{1F4E5} [events] start drain", { sessionId, afterId });
       for (; ; ) {
+        const requestAfterId = afterId;
         const events = await this.config.backendApiRef.current.fetchEventsAfter(
           sessionId,
-          afterId,
+          requestAfterId,
           200
         );
+        console.log("\u{1F4E5} [events] fetched batch", {
+          sessionId,
+          afterId: requestAfterId,
+          count: events.length
+        });
         if (!events.length) break;
         for (const event of events) {
           const eventId = typeof event.event_id === "number" ? event.event_id : Number(event.event_id);
           if (Number.isFinite(eventId)) afterId = Math.max(afterId, eventId);
           if (event.type === "title_changed" && typeof event.new_title === "string") {
+            console.log("\u{1F3F7}\uFE0F [events] title_changed", {
+              sessionId,
+              eventId,
+              newTitle: event.new_title
+            });
             this.applyTitleChanged(sessionId, event.new_title);
           }
           if (event.type === "wallet_tx_request") {
@@ -1370,6 +1482,7 @@ var EventController = class {
         }
         if (events.length < 200) break;
       }
+      console.log("\u{1F4E5} [events] drain complete", { sessionId, afterId });
       this.lastEventIdBySession.set(sessionId, afterId);
     } catch (error) {
       console.error("Failed to fetch async events:", error);
@@ -1381,6 +1494,11 @@ var EventController = class {
     const backendState = this.config.backendStateRef.current;
     const tempId = findTempIdForBackendId(backendState, sessionId);
     const threadIdToUpdate = tempId || sessionId;
+    console.log("\u{1F3F7}\uFE0F [title] applying", {
+      sessionId,
+      threadId: threadIdToUpdate,
+      newTitle
+    });
     this.config.setThreadMetadata((prev) => {
       var _a;
       const next = new Map(prev);
@@ -1501,9 +1619,15 @@ function AomiRuntimeProvider({
   const threadContextRef = useRef4(threadContext);
   threadContextRef.current = threadContext;
   const currentThreadIdRef = useRef4(threadContext.currentThreadId);
-  useEffect2(() => {
+  useEffect3(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
+  const publicKeyRef = useRef4(publicKey);
+  useEffect3(() => {
+    publicKeyRef.current = publicKey;
+  }, [publicKey]);
+  const getPublicKey = useCallback3(() => publicKeyRef.current, []);
+  const lastSubscribedThreadRef = useRef4(null);
   const { showNotification } = useNotification();
   const eventControllerRef = useRef4(null);
   const walletHandlerRef = useRef4(null);
@@ -1514,11 +1638,9 @@ function AomiRuntimeProvider({
     isRunning,
     setIsRunning,
     ensureInitialState,
+    setSystemEventsHandler,
     backendApiRef
-  } = useRuntimeOrchestrator(backendUrl, (sessionId, threadId, events) => {
-    var _a;
-    (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
-  });
+  } = useRuntimeOrchestrator(backendUrl, { getPublicKey });
   if (!walletHandlerRef.current) {
     walletHandlerRef.current = new WalletHandler({
       backendApiRef,
@@ -1543,28 +1665,33 @@ function AomiRuntimeProvider({
       setThreadMetadata: threadContext.setThreadMetadata
     });
   }
-  useEffect2(() => {
-    if (polling && eventControllerRef.current) {
-      polling.setSystemEventsHandler((sessionId, threadId, events) => {
-        var _a;
-        (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
-      });
-    }
-  }, [polling]);
+  const handleSystemEvents = useCallback3(
+    (sessionId, threadId, events) => {
+      var _a;
+      (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
+    },
+    []
+  );
+  useEffect3(() => {
+    setSystemEventsHandler(handleSystemEvents);
+    return () => {
+      setSystemEventsHandler(null);
+    };
+  }, [handleSystemEvents, setSystemEventsHandler]);
   const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = useState3(0);
   const bumpUpdateSubscriptions = useCallback3(() => {
     setUpdateSubscriptionsTick((prev) => prev + 1);
   }, []);
-  useEffect2(() => {
+  useEffect3(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-  useEffect2(() => {
+  useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     const isCurrentlyRunning = isThreadRunning(backendStateRef.current, threadId);
     setIsRunning(isCurrentlyRunning);
   }, [threadContext.currentThreadId, setIsRunning]);
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
-  useEffect2(() => {
+  useEffect3(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -1696,7 +1823,16 @@ function AomiRuntimeProvider({
             backendState.pendingChat.delete(uiThreadId);
             for (const text of pendingMessages) {
               try {
-                await backendApiRef.current.postChatMessage(backendId, text);
+                const activePublicKey = publicKeyRef.current;
+                if (activePublicKey) {
+                  await backendApiRef.current.postChatMessage(
+                    backendId,
+                    text,
+                    activePublicKey
+                  );
+                } else {
+                  await backendApiRef.current.postChatMessage(backendId, text);
+                }
               } catch (error) {
                 console.error("Failed to send queued message:", error);
               }
@@ -1825,7 +1961,7 @@ function AomiRuntimeProvider({
     threadContext.threadMetadata,
     bumpUpdateSubscriptions
   ]);
-  useEffect2(() => {
+  useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
@@ -1840,7 +1976,7 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  useEffect2(() => {
+  useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     if (isTempThreadId(threadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
@@ -1848,24 +1984,34 @@ function AomiRuntimeProvider({
       void messageController.flushPendingSystem(threadId);
     }
   }, [currentMessages, messageController, threadContext.currentThreadId]);
-  useEffect2(() => {
+  useEffect3(() => {
     return () => {
       var _a;
       polling.stopAll();
       (_a = eventControllerRef.current) == null ? void 0 : _a.cleanup();
     };
   }, [polling]);
-  useEffect2(() => {
-    var _a, _b;
+  useEffect3(() => {
+    var _a, _b, _c;
     const backendState = backendStateRef.current;
     const threadId = threadContext.currentThreadId;
-    if (isThreadReady(backendState, threadId)) {
-      const sessionId = resolveThreadId(backendState, threadId);
-      (_a = eventControllerRef.current) == null ? void 0 : _a.setSubscribableSessionId(sessionId);
-    } else {
-      (_b = eventControllerRef.current) == null ? void 0 : _b.setSubscribableSessionId(null);
+    const isReady = isThreadReady(backendState, threadId);
+    if (!isReady) {
+      lastSubscribedThreadRef.current = null;
+      (_a = eventControllerRef.current) == null ? void 0 : _a.setSubscribableSessionId(null);
+      return;
     }
-  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick]);
+    const isCurrentlyRunning = isThreadRunning(backendState, threadId);
+    if (isCurrentlyRunning) {
+      const sessionId = resolveThreadId(backendState, threadId);
+      (_b = eventControllerRef.current) == null ? void 0 : _b.setSubscribableSessionId(sessionId);
+      lastSubscribedThreadRef.current = threadId;
+      return;
+    }
+    if (lastSubscribedThreadRef.current !== threadId) {
+      (_c = eventControllerRef.current) == null ? void 0 : _c.setSubscribableSessionId(null);
+    }
+  }, [backendStateRef, threadContext.currentThreadId, updateSubscriptionsTick, isRunning]);
   return /* @__PURE__ */ jsx3(
     RuntimeActionsProvider,
     {
