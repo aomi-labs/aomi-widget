@@ -22,6 +22,7 @@ export const registry: RegistryComponent[] = [
       // Internal aomi components (customized)
       aomi("assistant-thread"),
       aomi("assistant-threadlist-sidebar"),
+      aomi("notification"),
       // shadcn primitives
       "sidebar",
       "separator",
@@ -78,5 +79,18 @@ export const registry: RegistryComponent[] = [
     dependencies: ["@assistant-ui/react", "lucide-react"],
     registryDependencies: ["button"],
     description: "Fallback renderer for assistant tool calls.",
+  },
+  {
+    name: "notification",
+    file: "components/ui/notification.tsx",
+    dependencies: ["@aomi-labs/react", "sonner"],
+    registryDependencies: [aomi("sonner")],
+    description: "Notification toaster wired to the runtime notification store.",
+  },
+  {
+    name: "sonner",
+    file: "components/ui/sonner.tsx",
+    dependencies: ["sonner"],
+    description: "Shadcn wrapper for Sonner toasts.",
   },
 ];
