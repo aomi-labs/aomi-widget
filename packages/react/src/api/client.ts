@@ -313,6 +313,24 @@ export class BackendApi {
     return data;
   }
 
+  async fetchThread(sessionId: string): Promise<BackendThreadMetadata> {
+    console.log("🔵 [fetchThread] Called with sessionId:", sessionId);
+    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    console.log("🔵 [fetchThread] URL:", url);
+
+    const response = await fetch(url);
+    console.log("🔵 [fetchThread] Response status:", response.status, response.statusText);
+
+    if (!response.ok) {
+      console.error("🔴 [fetchThread] Error:", response.status, response.statusText);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as BackendThreadMetadata;
+    console.log("🟢 [fetchThread] Success:", data);
+    return data;
+  }
+
   async createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse> {
     console.log("🔵 [createThread] Called with publicKey:", publicKey, "title:", title);
     const body: Record<string, string> = {};
