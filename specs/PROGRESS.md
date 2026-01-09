@@ -21,12 +21,15 @@ UI improvements: Session service abstraction, toast notifications, and SSE retry
 
 | Task | Description | Key Changes |
 |------|-------------|-------------|
+| Backend-UI Decoupling | Complete decoupling of backend from UI via SessionService layer | Architecture: UI → SessionService → BackendApi → HTTP. All session operations now go through service layer |
 | Session Service | Created SessionService class to encapsulate session operations | `packages/react/src/services/session-service.ts` - Clean API for list, get, create, delete, rename, archive/unarchive |
 | Session Service Hook | Added useSessionService hook for React integration | `packages/react/src/hooks/use-session-service.ts` - Provides SessionService instance from BackendApi ref |
+| Runtime Refactoring | Refactored AomiRuntimeProvider to use SessionService | `packages/react/src/runtime/aomi-runtime.tsx` - Replaced all direct BackendApi session calls with SessionService methods |
+| Missing API Method | Added fetchThread method to BackendApi | `packages/react/src/api/client.ts` - Added GET /api/sessions/:session_id endpoint |
 | SSE Retry Logic | Implemented exponential backoff retry for SSE subscriptions | `packages/react/src/api/client.ts` - Retry with max 10s delay, exponential backoff (500ms * 2^n) |
 | Sonner Toast Component | Added Sonner toast component to shadcn registry | `apps/registry/src/components/ui/sonner.tsx` - Wrapped Sonner with Tailwind styling |
 | Package Version | Bumped @aomi-labs/react to 0.1.0 | `packages/react/package.json` - Version update |
-| Runtime Integration | Updated runtime to use SessionService | `packages/react/src/runtime/aomi-runtime.tsx` - Integrated useSessionService hook |
+| Package Exports | Exported SessionService and hook | `packages/react/src/index.ts` - Added exports for SessionService and useSessionService |
 
 ## Files Modified This Sprint
 
@@ -35,8 +38,8 @@ UI improvements: Session service abstraction, toast notifications, and SSE retry
 - `packages/react/src/hooks/use-session-service.ts` - New useSessionService hook (32 lines)
 
 ### API & Runtime
-- `packages/react/src/api/client.ts` - Added SSE retry logic with exponential backoff
-- `packages/react/src/runtime/aomi-runtime.tsx` - Integrated SessionService via useSessionService hook
+- `packages/react/src/api/client.ts` - Added `fetchThread` method + SSE retry logic with exponential backoff
+- `packages/react/src/runtime/aomi-runtime.tsx` - Refactored to use SessionService (replaced all direct BackendApi session calls)
 
 ### Registry Components
 - `apps/registry/src/components/ui/sonner.tsx` - New Sonner toast component (28 lines)
@@ -78,11 +81,14 @@ None currently - build and dev server working correctly.
 
 ## Notes for Next Agent
 
-### Session Service Architecture
+### Session Service Architecture (Backend-UI Decoupling)
+- **Architecture Layer**: UI Components → SessionService → BackendApi → HTTP → Backend
 - **SessionService** (`packages/react/src/services/session-service.ts`) - Encapsulates all session-related backend operations
 - **useSessionService** hook provides SessionService instance from BackendApi ref
 - Service methods map directly to BackendApi methods (listSessions, getSession, createSession, deleteSession, renameSession, archiveSession, unarchiveSession)
 - Service is instantiated per BackendApi instance via useMemo in the hook
+- **Decoupling**: UI components (`apps/registry`) never directly use `BackendApi` - all session operations go through `SessionService`
+- **Runtime**: `AomiRuntimeProvider` uses `useSessionService()` hook instead of direct `backendApiRef.current` calls
 
 ### SSE Retry Implementation
 - Retry logic uses exponential backoff: `500ms * 2^(retries - 1)` with max delay of 10s
