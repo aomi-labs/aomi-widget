@@ -73,7 +73,7 @@ export default function HomePage() {
           <br />
           <span className="italic text-white/80 font-pt-serif">from action.</span>
         </h1>
-        <p className="md:text-base leading-relaxed text-sm font-normal text-neutral-50 tracking-wide font-geist max-w-xl mr-auto mb-10 ml-auto drop-shadow-lg">
+        <p className="md:text-base leading-relaxed text-sm font-light text-neutral-50 tracking-wide font-geist max-w-xl mr-auto mb-10 ml-auto drop-shadow-lg">
           Your agentic terminal for blockchain automation. Transform
           <br className="hidden md:block" />
               natural language into secure, multi-chain transactions.
@@ -131,79 +131,79 @@ export default function HomePage() {
             <div className="ticker-track flex gap-16 pt-2 pb-2 gap-x-16 gap-y-16 items-center">
               {/* First set of logos */}
               <div className="flex gap-16 shrink-0 gap-x-16 gap-y-16 items-center">
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-normal tracking-tighter">TechFlow</span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/solana-sol-logo.png"
+                    alt="Solana"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-white hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter font-bricolage">
-                    Solana
-                  </span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/ethereum-eth-logo.png"
+                    alt="Ethereum"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-white hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter font-merriweather">
-                    Ethereum
-                  </span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/cosmos-atom-logo.png"
+                    alt="Cosmos"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-white hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-normal tracking-tighter font-instrument-serif">
-                    Delta
-                  </span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
+                    alt="MetaMask"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-white hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter font-playfair">
-                    CloudBase
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 text-white hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-normal tracking-tighter">InnovateTech</span>
-                </div>
-
-                <div className="flex items-center gap-3 text-white hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter">FlowState</span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/polymarket1671006384460.png"
+                    alt="Polymarket"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
               </div>
 
               {/* Duplicate set for seamless loop */}
               <div className="flex items-center gap-16 shrink-0">
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-normal tracking-tighter">TechFlow</span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/solana-sol-logo.png"
+                    alt="Solana"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter font-bricolage">
-                    Nexus Labs
-                  </span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/ethereum-eth-logo.png"
+                    alt="Ethereum"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter font-merriweather">
-                    DataSync
-                  </span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/cosmos-atom-logo.png"
+                    alt="Cosmos"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-normal tracking-tighter font-instrument-serif">
-                    VisionCorp
-                  </span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
+                    alt="MetaMask"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
-
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter font-playfair">
-                    CloudBase
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-normal tracking-tighter">InnovateTech</span>
-                </div>
-
-                <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
-                  <span className="text-lg font-semibold tracking-tighter">FlowState</span>
+                <div className="flex items-center">
+                  <img
+                    src="/assets/trusted/polymarket1671006384460.png"
+                    alt="Polymarket"
+                    className="h-8 w-auto object-contain opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  />
                 </div>
               </div>
             </div>
