@@ -1,3 +1,5 @@
+import { WidgetFrame } from "@/components/samples/widget-demo";
+
 export default function HomePage() {
   return (
     <div className="antialiased min-h-screen overflow-x-hidden selection:bg-stone-500/30 selection:text-white text-stone-200 relative bg-[#1c1917]">
@@ -50,7 +52,7 @@ export default function HomePage() {
     </nav>
     <main className="flex flex-col min-h-screen z-10 w-full relative">
       <div className="flex flex-col animate-fade-in text-center w-full max-w-7xl mr-auto ml-auto pt-36 pr-4 pb-10 pl-4 items-center">
-        <div className="flex backdrop-blur-[20px] hover:bg-white/10 transition-colors cursor-default bg-white/5 border-white/10 border rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
+        <div className="flex backdrop-blur-[20px] hover:bg-white/10 transition-colors cursor-default bg-white/20 border-white/10 border rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
           <div className="flex -space-x-2">
             <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
               <img src="https://i.pravatar.cc/100?img=1" alt="User" className="w-full h-full object-cover" />
@@ -62,7 +64,7 @@ export default function HomePage() {
               +
             </div>
           </div>
-          <span className="text-[10px] font-medium pr-2 font-geist text-white/80 pl-2">
+          <span className="text-[10px] font-medium pr-2 font-geist text-white pl-2">
                 500+ daily users
               </span>
         </div>
@@ -82,87 +84,18 @@ export default function HomePage() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3 relative z-10"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
                 <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#733e83] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div>
               </a>
-          <button className="transition-all hover:bg-white/10 active:scale-95 duration-300 text-xs font-medium text-white font-geist bg-transparent rounded-full ring-white/20 ring-1 pt-3 pr-8 pb-3 pl-8 shadow-lg backdrop-blur-md">
-                Learn More
-              </button>
+          <a href="/docs/about-aomi" className="group relative overflow-hidden transition-all hover:bg-white/10 active:scale-95 duration-300 text-xs font-medium text-white font-geist bg-white/30 rounded-full pt-3 pr-8 pb-3 pl-8 shadow-lg backdrop-blur-md">
+                <span className="relative z-10">Documentation</span>
+                <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity group-hover:opacity-100"></div>
+              </a>
         </div>
         <div className="animate-fade-in delay-200 transform hover:scale-[1.01] transition-all duration-1000 overflow-hidden w-full max-w-3xl rounded-[2.5rem] pt-4 pr-4 pb-4 pl-4 relative gap-x-8 gap-y-8" id="chat-transparant-padding">
           <div className="backdrop-blur-[50px] bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 pt-2 pr-2 pb-2 pl-2 absolute top-0 right-0 bottom-0 left-0 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] space-x-0 space-y-0 gap-x-4 gap-y-4">
           </div>
-          <div className="-top-40 -right-20 blur-[120px] bg-indigo-500/30 mix-blend-screen w-96 h-96 rounded-full absolute">
-          </div>
           <div className="absolute -bottom-40 -left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen">
           </div>
-          <div className="flex flex-col z-0 font-geist bg-[#f5f5f4] ring-stone-200 ring-1 rounded-3xl pt-12 pr-12 pb-12 pl-12 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_1px_-0.5px_rgba(0,0,0,0.06),0px_3px_3px_-1.5px_rgba(0,0,0,0.06),_0px_6px_6px_-3px_rgba(0,0,0,0.06),0px_12px_12px_-6px_rgba(0,0,0,0.06),0px_24px_24px_-12px_rgba(0,0,0,0.06)] gap-x-4 gap-y-6">
-            <div className="text-left space-y-2">
-              <h2 className="leading-tight md:text-5xl text-4xl font-medium text-neutral-800 tracking-tight font-pt-serif pt-5 pr-5 pl-5">
-                Hello There!
-                <span className="block text-2xl font-thin font-geist mt-4 mb-10 text-neutral-600 md:text-2xl">
-                      Transact with Aomi today
-                    </span>
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 font-geist gap-x-4 gap-y-4">
-              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left bg-white/5 h-36 border border-neutral-200/50 rounded-[1.5rem] pt-5 pr-5 pb-5 pl-5 justify-between hover:bg-white/40">
-                    <span className="leading-snug transition-colors text-sm font-normal text-neutral-700/90 group-hover:text-neutral-900 font-geist">
-                      Show my wallet balances
-                    </span>
-                    <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center transition-transform duration-300 border border-white/10 group-hover:scale-110 group-hover:bg-indigo-500/30">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-indigo-500">
-                        <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" className=""></path>
-                        <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path>
-                      </svg>
-                    </div>
-                  </button>
-              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left bg-white/5 h-36 border border-neutral-200/50 rounded-[1.5rem] pt-5 pr-5 pb-5 pl-5 justify-between hover:bg-white/40">
-                    <span className="leading-snug transition-colors text-sm font-light text-neutral-700/90 group-hover:text-neutral-900 font-geist">
-                      Stake ETH in yield pool
-                    </span>
-                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center transition-transform duration-300 border border-white/10 group-hover:scale-110 group-hover:bg-blue-500/30">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-emerald-500">
-                        <path d="M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3" className=""></path>
-                        <path d="M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4" className=""></path>
-                        <path d="M5 21h14"></path>
-                      </svg>
-                    </div>
-                  </button>
-              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left bg-white/5 h-36 border border-neutral-200/50 rounded-[1.5rem] pt-5 pr-5 pb-5 pl-5 shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.05)] justify-between hover:bg-white/40">
-                    <span className="leading-snug transition-colors group-hover:text-neutral-900 text-sm font-light text-neutral-700/90 font-geist">
-                      Swap 1 ETH to USDC
-                    </span>
-                    <div className="flex transition-transform duration-300 group-hover:scale-110 group-hover:bg-cyan-500/30 [--fx-filter:blur(10px)_liquid-glass(4.8,10)_saturate(1.25)_noise(0.5,1,0.35)] bg-cyan-500/20 w-10 h-10 border border-neutral-200/20 rounded-full shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.1)] saturate-50 items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-cyan-500">
-                        <path d="M8 3 4 7l4 4" className=""></path>
-                        <path d="M4 7h16"></path>
-                        <path d="m16 21 4-4-4-4" className=""></path>
-                        <path d="M20 17H4"></path>
-                      </svg>
-              </div>
-                  </button>
-              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left h-36 border border-neutral-200/50 rounded-3xl pt-5 pr-5 pb-5 pl-5 shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.05)] bg-white/5 hover:bg-white/40 justify-between">
-                    <span className="leading-snug transition-colors text-sm font-light text-neutral-700/90 group-hover:text-neutral-900 font-geist">
-                      Bridge USDC to Arbitrum
-                    </span>
-                    <div className="flex transition-transform duration-300 group-hover:scale-110 group-hover:bg-blue-500/30 [--fx-filter:blur(10px)_liquid-glass(5,10)_saturate(1.25)_noise(0.5,1,0.3)_contrast(0.9)] bg-blue-500/20 w-10 h-10 border border-neutral-200/20 rounded-full items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-blue-500">
-                        <circle cx="12" cy="12" r="10" className=""></circle>
-                        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
-                        <path d="M2 12h20"></path>
-                      </svg>
-              </div>
-                  </button>
-            </div>
-            <div className="group text-left w-full h-40 mt-2 relative">
-              <input type="text" className="outline-none cursor-text placeholder:text-neutral-500/60 transition-colors duration-300 hover:bg-white/40 focus:bg-white/60 focus:border-neutral-300 text-sm font-light text-neutral-700/90 font-geist bg-white/20 w-full h-40 border border-neutral-200/50 rounded-[1.5rem] ring-0 pt-4 pr-16 pb-6 pl-8 backdrop-blur-xl" />
-              <div className="-translate-y-1/2 z-20 absolute top-3/4 right-3">
-                <button className="flex transition-all duration-300 hover:scale-105 active:scale-90 text-white bg-neutral-900 w-12 h-12 border-transparent border rounded-full mr-3 shadow-lg items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                        <path d="m5 12 7-7 7 7" className=""></path>
-                        <path d="M12 19V5" className=""></path>
-                      </svg>
-                    </button>
-              </div>
-            </div>
+          <div className="flex flex-col z-0 font-geist bg-[#f5f5f4] ring-stone-200 ring-1 rounded-3xl pt-6 pr-6 pb-6 pl-6 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_1px_-0.5px_rgba(0,0,0,0.06),0px_3px_3px_-1.5px_rgba(0,0,0,0.06),_0px_6px_6px_-3px_rgba(0,0,0,0.06),0px_12px_12px_-6px_rgba(0,0,0,0.06),0px_24px_24px_-12px_rgba(0,0,0,0.06)] gap-x-4 gap-y-6">
+            <WidgetFrame />
           </div>
         </div>
       </div>
@@ -500,7 +433,7 @@ export default function HomePage() {
                           <div className="bg-[#9D77A8] w-2 h-2 rounded-full"></div>
                         </div>
                         <div className="flex-1">
-                          <h3 className="group-hover:text-[#9D77A8] transition-colors duration-300 text-lg font-semibold text-white font-geist">
+                          <h3 className="transition-colors duration-300 text-lg font-semibold text-white font-geist group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
                             Consultation &amp; Strategy
                           </h3>
                           <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
@@ -513,12 +446,12 @@ export default function HomePage() {
                         </div>
                       </div>
                       <div className="flex group relative gap-x-6 gap-y-6 items-start">
-                        <div className="flex-shrink-0 group-hover:border-blue-500/50 transition-colors duration-300 flex bg-[#1c1917] w-6 h-6 z-10 border-white/20 border rounded-full mt-1 relative shadow-inner items-center justify-center">
-                          <div className="group-hover:bg-[#9D77A8] transition-colors duration-300 bg-neutral-600 w-2 h-2 rounded-full">
+                        <div className="flex-shrink-0 group-hover:border-transparent transition-colors duration-300 flex bg-[#1c1917] w-6 h-6 z-10 border-white/20 border rounded-full mt-1 relative shadow-inner items-center justify-center">
+                          <div className="transition-colors duration-300 bg-neutral-600 w-2 h-2 rounded-full group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
                           </div>
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-white font-geist group-hover:text-cyan-300 transition-colors duration-300">
+                          <h3 className="text-lg font-semibold text-white font-geist transition-colors duration-300 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
                             Custom Build
                           </h3>
                           <p className="leading-relaxed text-sm font-light text-stone-50 font-geist mt-2">
@@ -529,12 +462,12 @@ export default function HomePage() {
                         </div>
                       </div>
                       <div className="relative flex gap-6 items-start group">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-white/20 bg-[#1c1917] z-10 relative mt-1 group-hover:border-cyan-500/50 transition-colors duration-300 flex items-center justify-center shadow-inner">
-                          <div className="w-2 h-2 rounded-full bg-neutral-600 group-hover:bg-cyan-400 transition-colors duration-300">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-white/20 bg-[#1c1917] z-10 relative mt-1 group-hover:border-transparent transition-colors duration-300 flex items-center justify-center shadow-inner">
+                          <div className="w-2 h-2 rounded-full bg-neutral-600 transition-colors duration-300 group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
                           </div>
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-white font-geist group-hover:text-cyan-300 transition-colors duration-300">
+                          <h3 className="text-lg font-semibold text-white font-geist transition-colors duration-300 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
                             Managed Orchestration
                           </h3>
                           <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
