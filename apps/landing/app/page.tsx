@@ -1,458 +1,822 @@
-import type { ReactNode } from "react";
-import Link from "next/link";
-import { ArrowRight, BookOpen, Code2, ExternalLink, Github, Palette, Plug, Sparkles } from "lucide-react";
-import { Badge } from "@aomi-labs/widget-lib/components/ui/badge";
-import { Button } from "@aomi-labs/widget-lib/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@aomi-labs/widget-lib/components/ui/card";
-import { Separator } from "@aomi-labs/widget-lib/components/ui/separator";
-import { Skeleton } from "@aomi-labs/widget-lib/components/ui/skeleton";
-import { Preview } from "@/components/playground/Preview";
-
-const installSnippet = `pnpm add @aomi-labs/react @assistant-ui/react @assistant-ui/react-markdown @tanstack/react-query @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-avatar @radix-ui/react-separator @radix-ui/react-tooltip framer-motion motion lucide-react react-shiki remark-gfm tailwindcss zustand`;
-
-const highlights = [
-  "Ship a full-stack, LLM-ready onchain assistant in one import.",
-  "Guided UX powered by @assistant-ui + Radix primitives.",
-  "Secure transaction automation with your backend guardrails.",
-];
-
-const features = [
-  {
-    title: "Natural language to transactions",
-    body: "Let users describe intents while we translate to safe transaction flows with inline confirmations.",
-  },
-  {
-    title: "Wallet friendly",
-    body: "Built-in wallet footer keeps balances and network context close, no extra wiring needed.",
-  },
-  {
-    title: "Themeable",
-    body: "Use your Tailwind tokens or CSS variables to make AomiFrame feel native to your product.",
-  },
-];
-
-const steps = [
-  "Install the widget library from npm.",
-  "Wrap your app in the provided providers (already wired here).",
-  "Drop <AomiFrame /> anywhere you want the AI assistant to live.",
-];
-
-const frameCode = `import "@aomi-labs/react/styles.css";
-import { AomiFrame } from "@aomi-labs/react";
-
-export function Assistant() {
-  return <AomiFrame height="640px" width="100%" />;
-}`;
-
-const buttonsCode = `import { Button, Badge } from "@aomi-labs/react";
-
-export function Buttons() {
-  return (
-    <div className="flex flex-wrap gap-3">
-      <Button>Primary</Button>
-      <Button variant="secondary">Secondary</Button>
-      <Button variant="outline">Outline</Button>
-      <Button variant="ghost">Ghost</Button>
-      <Badge>Badge</Badge>
-    </div>
-  );
-}`;
-
-const cardCode = `import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@aomi-labs/react";
-
-export function LoadingCard() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Wallet summary</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-4 w-1/3" />
-      </CardContent>
-    </Card>
-  );
-}`;
-
-const previews = [
-  {
-    title: "AomiFrame shell",
-    description: "Chat surface + thread list with sensible defaults.",
-    code: frameCode,
-    badge: "Core",
-    component: <FrameMock />,
-  },
-  {
-    title: "Buttons & badges",
-    description: "Use shadcn-style primitives or your own variants.",
-    code: buttonsCode,
-    component: <ButtonShowcase />,
-  },
-  {
-    title: "Cards & skeletons",
-    description: "Compose  blocks, templates, and loading states quickly.",
-    code: cardCode,
-    component: <CardSkeletonShowcase />,
-  },
-];
-
 export default function HomePage() {
   return (
-    <main className="relative overflow-hidden">
-      <div className="grid-sheen absolute inset-0 opacity-60" aria-hidden />
-      <div className="relative mx-auto flex max-w-6xl flex-col gap-16 px-6 pb-24 pt-14">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/60 bg-card/70 px-5 py-4 shadow-lg backdrop-blur">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
-              <Sparkles className="size-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">Aomi Widget</p>
-              <p className="text-xs text-muted-foreground"> & playground (Phase 2)</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="https://github.com/aomi-labs" target="_blank" className="gap-2">
-                <Github className="size-4" />
-                GitHub
-              </Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/" className="gap-2">
-                <ArrowRight className="size-4" />
-                
-              </Link>
-            </Button>
-          </div>
-        </header>
+    <div className="antialiased min-h-screen overflow-x-hidden selection:bg-stone-500/30 selection:text-white text-stone-200 relative bg-[#1c1917]">
+<div className="fixed top-0 w-full h-screen bg-cover bg-center z-0 pointer-events-none" style={{ backgroundImage: "url(\"/assets/hero-bg.jpg\")" }}></div>
+{/* <div className="fixed inset-0 bg-slate-900/10 mix-blend-multiply"></div> */}
+<div className="fixed inset-0 bg-gradient-to-b from-transparent via-slate-900/10 to-slate-900/40"></div>
 
-        <section className="grid items-stretch gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="relative overflow-hidden rounded-3xl border border-white/5 bg-white/5 px-7 py-10 shadow-[0_24px_80px_rgba(5,6,15,0.55)] backdrop-blur">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(80,134,255,0.14),transparent_45%),radial-gradient(circle_at_80%_10%,rgba(94,234,212,0.12),transparent_40%),radial-gradient(circle_at_60%_70%,rgba(236,72,153,0.12),transparent_38%)]" />
-            <div className="relative space-y-6">
-              <Badge className="rounded-full border border-white/20 bg-white/10 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200">
-                Aomi Widget · React
-              </Badge>
-              <div className="space-y-3">
-                <h1 className="text-3xl font-semibold leading-tight text-white sm:text-4xl lg:text-[2.6rem]">
-                  Natural language meets onchain automation.
-                </h1>
-                <p className="max-w-2xl text-base text-slate-200 sm:text-lg">
-                  Embed our conversational agent anywhere in your product to help users inspect assets, craft and
-                  simulate transactions, and execute with guardrails. No iframe needed—drop the React component and ship.
+    {/* <div className="absolute top-0 left-0 w-full h-screen z-0 pointer-events-none">
+      <img src="/assets/hero-bg.jpg" alt="Background" className="w-full h-full object-cover opacity-80" />
+      <div className="absolute inset-0 bg-slate-900/10 mix-blend-multiply"></div>
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-slate-900/10 to-[#1c1917]"></div>
+    </div> */}
+    <nav className="fixed flex z-50 pr-4 pl-4 top-6 right-0 left-0 gap-x-4 gap-y-4 items-center justify-center">
+      <div className="flex transition-all duration-300 backdrop-blur-[40px] bg-white/10 border-white/20 border-0 rounded-full ring-white/20 ring-1 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-2 gap-y-2 items-center">
+        <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-stone-50 w-[24px] h-[24px] drop-shadow-sm" strokeWidth="2" style={{ width: "24px", height: "24px" }} data-icon-replaced="true">
+          <circle cx="45" cy="55" r="35" stroke="currentColor" strokeWidth="14" className=""></circle>
+          <circle cx="75" cy="25" r="14" stroke="currentColor" strokeWidth="14"></circle>
+        </svg>
+        <span className="text-sm font-semibold text-white tracking-tight font-geist drop-shadow-sm">
+              Aomi
+            </span>
+      </div>
+      <div className="flex hidden md:flex transition-all backdrop-blur-[40px] bg-white/5 border-white/10 border-0 ring-white/20 ring-1 rounded-full pt-1.5 pr-1.5 pb-1.5 pl-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-6 gap-y-6 items-center">
+        <div className="flex items-center gap-6 pr-2">
+          <a href="#" className="transition-colors hover:text-white text-xs font-medium text-white/70 font-geist drop-shadow-sm">
+            Home
+          </a>
+          <a href="#intent" className="text-xs font-medium transition-colors font-geist text-white/70 hover:text-white drop-shadow-sm">
+            Features
+          </a>
+          <a href="#workflow" className="text-xs font-medium transition-colors font-geist text-white/70 hover:text-white drop-shadow-sm">
+            Workflow
+          </a>
+          <a href="#resources" className="transition-colors hover:text-white text-xs font-medium text-white/70 font-geist drop-shadow-sm">
+            Resources
+          </a>
+        </div>
+        <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" className="relative overflow-hidden group text-xs font-semibold px-5 py-2.5 rounded-full transition-all flex items-center gap-1.5 font-geist bg-white/90 text-neutral-900 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95">
+          <span className="relative z-10 flex items-center gap-1.5">
+                GitHub
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </span>
+          <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
+          </div>
+        </a>
+      </div>
+      <button className="md:hidden p-2.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white shadow-lg ring-1 ring-white/20 active:scale-95 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="menu" className="lucide lucide-menu w-5 h-5"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
+          </button>
+    </nav>
+    <main className="flex flex-col min-h-screen z-10 w-full relative">
+      <div className="flex flex-col animate-fade-in text-center w-full max-w-7xl mr-auto ml-auto pt-36 pr-4 pb-10 pl-4 items-center">
+        <div className="flex backdrop-blur-[20px] hover:bg-white/10 transition-colors cursor-default bg-white/5 border-white/10 border rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
+          <div className="flex -space-x-2">
+            <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
+              <img src="https://i.pravatar.cc/100?img=1" alt="User" className="w-full h-full object-cover" />
+            </div>
+            <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
+              <img src="https://i.pravatar.cc/100?img=5" alt="User" className="w-full h-full object-cover" />
+            </div>
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold font-geist bg-white/20 backdrop-blur-sm text-white border border-white/20">
+              +
+            </div>
+          </div>
+          <span className="text-[10px] font-medium pr-2 font-geist text-white/80 pl-2">
+                500+ daily users
+              </span>
+        </div>
+        <h1 className="leading-[1.1] md:text-7xl lg:text-8xl text-5xl text-neutral-50 tracking-tight font-serif text-center max-w-5xl mb-6 drop-shadow-2xl">
+          One prompt away
+          <br />
+          <span className="italic text-white/80 font-pt-serif">from action.</span>
+        </h1>
+        <p className="md:text-base leading-relaxed text-sm font-normal text-neutral-50 tracking-wide font-geist max-w-xl mr-auto mb-10 ml-auto drop-shadow-lg">
+          Your agentic terminal for blockchain automation. Transform
+          <br className="hidden md:block" />
+              natural language into secure, multi-chain transactions.
+        </p>
+        <div className="flex gap-4 mb-20 items-center">
+          <a href="https://calendly.com/cecilia-foameo/30min" target="_blank" rel="noreferrer" className="group overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:scale-105 active:scale-95 flex [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)] text-xs font-semibold text-stone-50 font-geist bg-gradient-to-r from-[#733e83] to-[#ec6b83] rounded-full ring-1 pt-3 pr-8 pb-3 pl-8 relative shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] items-center">
+                <span className="relative z-10">Contact Us</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3 relative z-10"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#733e83] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div>
+              </a>
+          <button className="transition-all hover:bg-white/10 active:scale-95 duration-300 text-xs font-medium text-white font-geist bg-transparent rounded-full ring-white/20 ring-1 pt-3 pr-8 pb-3 pl-8 shadow-lg backdrop-blur-md">
+                Learn More
+              </button>
+        </div>
+        <div className="animate-fade-in delay-200 transform hover:scale-[1.01] transition-all duration-1000 overflow-hidden w-full max-w-3xl rounded-[2.5rem] pt-4 pr-4 pb-4 pl-4 relative gap-x-8 gap-y-8" id="chat-transparant-padding">
+          <div className="backdrop-blur-[50px] bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 pt-2 pr-2 pb-2 pl-2 absolute top-0 right-0 bottom-0 left-0 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] space-x-0 space-y-0 gap-x-4 gap-y-4">
+          </div>
+          <div className="-top-40 -right-20 blur-[120px] bg-indigo-500/30 mix-blend-screen w-96 h-96 rounded-full absolute">
+          </div>
+          <div className="absolute -bottom-40 -left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen">
+          </div>
+          <div className="flex flex-col z-0 font-geist bg-[#f5f5f4] ring-stone-200 ring-1 rounded-3xl pt-12 pr-12 pb-12 pl-12 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_1px_-0.5px_rgba(0,0,0,0.06),0px_3px_3px_-1.5px_rgba(0,0,0,0.06),_0px_6px_6px_-3px_rgba(0,0,0,0.06),0px_12px_12px_-6px_rgba(0,0,0,0.06),0px_24px_24px_-12px_rgba(0,0,0,0.06)] gap-x-4 gap-y-6">
+            <div className="text-left space-y-2">
+              <h2 className="leading-tight md:text-5xl text-4xl font-medium text-neutral-800 tracking-tight font-pt-serif pt-5 pr-5 pl-5">
+                Hello There!
+                <span className="block text-2xl font-thin font-geist mt-4 mb-10 text-neutral-600 md:text-2xl">
+                      Transact with Aomi today
+                    </span>
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 font-geist gap-x-4 gap-y-4">
+              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left bg-white/5 h-36 border border-neutral-200/50 rounded-[1.5rem] pt-5 pr-5 pb-5 pl-5 justify-between hover:bg-white/40">
+                    <span className="leading-snug transition-colors text-sm font-normal text-neutral-700/90 group-hover:text-neutral-900 font-geist">
+                      Show my wallet balances
+                    </span>
+                    <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center transition-transform duration-300 border border-white/10 group-hover:scale-110 group-hover:bg-indigo-500/30">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-indigo-500">
+                        <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" className=""></path>
+                        <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path>
+                      </svg>
+                    </div>
+                  </button>
+              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left bg-white/5 h-36 border border-neutral-200/50 rounded-[1.5rem] pt-5 pr-5 pb-5 pl-5 justify-between hover:bg-white/40">
+                    <span className="leading-snug transition-colors text-sm font-light text-neutral-700/90 group-hover:text-neutral-900 font-geist">
+                      Stake ETH in yield pool
+                    </span>
+                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center transition-transform duration-300 border border-white/10 group-hover:scale-110 group-hover:bg-blue-500/30">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-emerald-500">
+                        <path d="M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3" className=""></path>
+                        <path d="M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4" className=""></path>
+                        <path d="M5 21h14"></path>
+                      </svg>
+                    </div>
+                  </button>
+              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left bg-white/5 h-36 border border-neutral-200/50 rounded-[1.5rem] pt-5 pr-5 pb-5 pl-5 shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.05)] justify-between hover:bg-white/40">
+                    <span className="leading-snug transition-colors group-hover:text-neutral-900 text-sm font-light text-neutral-700/90 font-geist">
+                      Swap 1 ETH to USDC
+                    </span>
+                    <div className="flex transition-transform duration-300 group-hover:scale-110 group-hover:bg-cyan-500/30 [--fx-filter:blur(10px)_liquid-glass(4.8,10)_saturate(1.25)_noise(0.5,1,0.35)] bg-cyan-500/20 w-10 h-10 border border-neutral-200/20 rounded-full shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.1)] saturate-50 items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-cyan-500">
+                        <path d="M8 3 4 7l4 4" className=""></path>
+                        <path d="M4 7h16"></path>
+                        <path d="m16 21 4-4-4-4" className=""></path>
+                        <path d="M20 17H4"></path>
+                      </svg>
+              </div>
+                  </button>
+              <button className="transition-all flex flex-col group active:scale-95 duration-300 font-geist text-left h-36 border border-neutral-200/50 rounded-3xl pt-5 pr-5 pb-5 pl-5 shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.05)] bg-white/5 hover:bg-white/40 justify-between">
+                    <span className="leading-snug transition-colors text-sm font-light text-neutral-700/90 group-hover:text-neutral-900 font-geist">
+                      Bridge USDC to Arbitrum
+                    </span>
+                    <div className="flex transition-transform duration-300 group-hover:scale-110 group-hover:bg-blue-500/30 [--fx-filter:blur(10px)_liquid-glass(5,10)_saturate(1.25)_noise(0.5,1,0.3)_contrast(0.9)] bg-blue-500/20 w-10 h-10 border border-neutral-200/20 rounded-full items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-blue-500">
+                        <circle cx="12" cy="12" r="10" className=""></circle>
+                        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                        <path d="M2 12h20"></path>
+                      </svg>
+              </div>
+                  </button>
+            </div>
+            <div className="group text-left w-full h-40 mt-2 relative">
+              <input type="text" className="outline-none cursor-text placeholder:text-neutral-500/60 transition-colors duration-300 hover:bg-white/40 focus:bg-white/60 focus:border-neutral-300 text-sm font-light text-neutral-700/90 font-geist bg-white/20 w-full h-40 border border-neutral-200/50 rounded-[1.5rem] ring-0 pt-4 pr-16 pb-6 pl-8 backdrop-blur-xl" />
+              <div className="-translate-y-1/2 z-20 absolute top-3/4 right-3">
+                <button className="flex transition-all duration-300 hover:scale-105 active:scale-90 text-white bg-neutral-900 w-12 h-12 border-transparent border rounded-full mr-3 shadow-lg items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                        <path d="m5 12 7-7 7 7" className=""></path>
+                        <path d="M12 19V5" className=""></path>
+                      </svg>
+                    </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="z-0 mt-20"></div>
+      <div className="text-neutral-200 w-full relative">
+        <section className="overflow-hidden w-full pt-10 pr-4 pb-10 pl-4 relative" id="intent">
+          <div className="lg:h-[400px] z-10 h-[600px] max-w-[1400px] mr-auto ml-auto relative">
+            <svg className="hidden lg:block w-full h-full absolute top-0 right-0 bottom-0 left-0" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+              <defs className="">
+                <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="rgba(255,255,255,0.02)"></stop>
+                  <stop offset="50%" stopColor="rgba(255,255,255,0.15)"></stop>
+                  <stop offset="100%" stopColor="rgba(255,255,255,0.02)"></stop>
+                </linearGradient>
+              </defs>
+              <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
+              <path d="M 180 115 L 0 115" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2">
+              </path>
+              <path d="M 180 115 L 340 250" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 0 250 L 340 250" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2" className="">
+              </path>
+              <path d="M 220 385 L 0 385" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2">
+              </path>
+              <path d="M 220 385 L 340 250" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 820 115 L 1000 115" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 820 115 L 660 250" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 1000 250 L 660 250" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 780 385 L 1000 385" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 780 385 L 660 250" stroke="rgba(255,255,255,0.7)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+            </svg>
+            <div className="flex flex-col lg:block z-10 w-full h-full relative items-center justify-center">
+              <div className="lg:absolute lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 z-20 text-center bg-[#9d78a8] max-w-lg pt-2 pr-2 pb-2 pl-2">
+                <h2 className="md:text-5xl text-4xl text-stone-50 tracking-tight font-serif mb-6">
+                  Intent-first interaction
+                </h2>
+                <p className="leading-relaxed text-sm font-light text-stone-50 font-geist">Traditional interfaces force you to navigate menus; we focus on what you want to achieve. By prioritizing user intent, we remove the friction between a thought and its execution.</p>
+              </div>
+              <div className="hidden lg:block">
+                <div className="absolute top-[23%] left-[15%] -translate-x-1/2 -translate-y-1/2 group">
+                  <div className="-top-1 -left-2 flex text-white/90 rounded-full absolute shadow-lg items-center justify-center scale-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-ccw">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                      <path d="M3 3v5h5"></path>
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" className=""></path>
+                      <path d="M16 16h5v5" className=""></path>
+                    </svg>
+                  </div>
+                  <div className="glass-card flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default [--fx-filter:blur(10px)_liquid-glass(1.8,10)_saturate(1.25)_noise(0.5,1,0.5)] text-sm font-bold text-neutral-200 bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4">
+                    Swap
+              </div>
+                </div>
+                <div className="absolute top-[50%] left-[10%] -translate-x-1/2 -translate-y-1/2 group">
+                  <div className="-top-3 -left-3 flex text-white/90 w-8 h-8 z-20 rounded-full absolute scale-150 items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-dollar-sign">
+                      <line x1="12" x2="12" y1="2" y2="22"></line>
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                  </div>
+                  <div className="glass-card flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default [--fx-filter:blur(10px)_liquid-glass(1.8,10)_saturate(1.25)_noise(0.5,1,0.5)] text-lg font-bold text-neutral-50 bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4">
+                    Buy
+              </div>
+                </div>
+                <div className="absolute top-[75%] left-[17%] -translate-x-1/2 -translate-y-1/2 group">
+                  <div className="-bottom-5 -left-4 flex text-white/90 w-8 h-8 z-20 rounded-full absolute scale-150 items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-send">
+                      <path d="m22 2-7 20-4-9-9-4Z" className=""></path>
+                      <path d="M22 2 11 13"></path>
+                    </svg>
+                  </div>
+                  <div className="glass-card flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default [--fx-filter:blur(10px)_liquid-glass(1.8,10)_saturate(1.25)_noise(0.5,1,0.5)] text-base font-bold text-stone-50 bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4">
+                    Send
+              </div>
+                </div>
+                <div className="absolute top-[22%] right-[18%] translate-x-1/2 -translate-y-1/2 group">
+                  <div className="absolute -top-3 right-20 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white/90 scale-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layers">
+                      <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" className="">
+                      </path>
+                      <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path>
+                      <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path>
+                    </svg>
+                  </div>
+                  <div className="glass-card flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default [--fx-filter:blur(10px)_liquid-glass(1.8,10)_saturate(1.25)_noise(0.5,1,0.5)] text-base font-bold text-stone-50 bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4">
+                    Assemble
+              </div>
+                </div>
+                <div className="absolute top-[50%] right-[10%] translate-x-1/2 -translate-y-1/2 group">
+                  <div className="absolute -bottom-3 -right-3 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white/90 scale-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-arrow-left-right">
+                      <path d="M8 3 4 7l4 4"></path>
+                      <path d="M4 7h16"></path>
+                      <path d="m16 21 4-4-4-4"></path>
+                      <path d="M20 17H4"></path>
+                    </svg>
+                  </div>
+                  <div className="glass-card flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default [--fx-filter:blur(10px)_liquid-glass(1.8,10)_saturate(1.25)_noise(0.5,1,0.5)] text-sm font-bold text-neutral-50 bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4">
+                    Exchange
+              </div>
+                </div>
+                <div className="absolute top-[75%] right-[20%] translate-x-1/2 -translate-y-1/2 group">
+                  <div className="absolute -bottom-3 -right-3 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white/90 scale-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-git-branch">
+                      <line x1="6" x2="6" y1="3" y2="15"></line>
+                      <circle cx="18" cy="6" r="3"></circle>
+                      <circle cx="6" cy="18" r="3"></circle>
+                      <path d="M18 9a9 9 0 0 1-9 9"></path>
+                    </svg>
+                  </div>
+                  <div className="glass-card flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default [--fx-filter:blur(10px)_liquid-glass(1.8,10)_saturate(1.25)_noise(0.5,1,0.5)] text-base font-bold text-stone-50 bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4">
+                    Route
+              </div>
+                </div>
+              </div>
+              <div className="lg:hidden w-full mt-12 grid grid-cols-2 md:grid-cols-3 gap-6">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white border border-white/10 flex items-center justify-center text-black shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-ccw">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                      <path d="M3 3v5h5"></path>
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                      <path d="M16 16h5v5"></path>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-white font-medium">Swap</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white border border-white/10 flex items-center justify-center text-black shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-dollar-sign">
+                      <line x1="12" x2="12" y1="2" y2="22"></line>
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-white font-medium">Buy</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white border border-white/10 flex items-center justify-center text-black shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-send">
+                      <path d="m22 2-7 20-4-9-9-4Z"></path>
+                      <path d="M22 2 11 13"></path>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-white-400 font-medium">Send</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white border border-white/10 flex items-center justify-center text-black shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layers">
+                      <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z">
+                      </path>
+                      <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path>
+                      <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-white font-medium">Assemble</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white border border-white/10 flex items-center justify-center text-black shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-arrow-left-right">
+                      <path d="M8 3 4 7l4 4"></path>
+                      <path d="M4 7h16"></path>
+                      <path d="m16 21 4-4-4-4"></path>
+                      <path d="M20 17H4"></path>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-white font-medium">Exchange</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white border border-white/10 flex items-center justify-center text-black shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-git-branch">
+                      <line x1="6" x2="6" y1="3" y2="15"></line>
+                      <circle cx="18" cy="6" r="3"></circle>
+                      <circle cx="6" cy="18" r="3"></circle>
+                      <path d="M18 9a9 9 0 0 1-9 9"></path>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-white font-medium">Route</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <section className="w-full pt-20 pr-4 pb-20 pl-4 gap-x-6 gap-y-6" id="technology-section">
+        <div className="flex flex-col gap-16 max-w-7xl mr-auto ml-auto">
+          <div className="flex flex-col md:flex-row md:items-end gap-6 items-start justify-between">
+            <div className="max-w-2xl pl-5">
+              <h2 className="leading-[1.1] md:text-5xl text-4xl text-white tracking-tight font-serif pt-10 pb-10">
+                Emulate real operations
+              </h2>
+            </div>
+            <p className="leading-relaxed text-sm font-light text-neutral-100 font-geist max-w-md mb-10 px-5">
+              Aomi turns complex blockchain operations into a simple, conversational workflow. Move from idea to execution
+              without the manual overhead.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 bg-[#e3d8e6] pt-8 pr-5 pb-8 pl-5">
+            <div className="flex flex-col gap-8 group">
+              <div className="flex select-none w-full h-48 relative perspective-1000 items-center justify-center">
+                <div className="absolute bg-neutral-200 text-neutral-900 rounded-xl px-4 py-3 shadow-2xl transform -rotate-12 translate-y-2 translate-x-4 border border-white/20 z-10 w-48 flex items-center gap-3 transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-105">
+                  <div className="bg-neutral-900 rounded-full p-1.5 text-white">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                      <path d="M3 3v5h5"></path>
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                      <path d="M16 16h5v5" className=""></path>
+                    </svg>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold font-geist leading-tight">Rebalance</span>
+                    <span className="text-[10px] font-medium font-geist opacity-60">my Portfolio</span>
+                  </div>
+                </div>
+                <div className="absolute bg-white text-neutral-900 rounded-xl px-4 py-3 shadow-xl transform rotate-6 -translate-y-4 -translate-x-4 border border-white/20 z-20 w-48 flex items-center gap-3 transition-transform duration-500 group-hover:rotate-3 group-hover:scale-105">
+                  <div className="bg-neutral-900 rounded-full p-1.5 text-white">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 20l10-10"></path>
+                      <path d="M17 20l-10-10"></path>
+                    </svg>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold font-geist leading-tight">Find the</span>
+                    <span className="text-[10px] font-medium font-geist opacity-60">best yield</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <h3 className="text-lg font-semibold text-stone-800 font-serif text-center">Contextual Intent Sanitization</h3>
+                <p className="leading-relaxed -multi text-sm font-light text-stone-600 font-geist">
+                  Resolve intents through natural language and extrapolate input into a structured set of actionable
+                  items. Prioritizing type-safety, Aomi converts sementic steps to sanitized machine logic, ensuring
+                  deterministic execution.
                 </p>
               </div>
-              <ul className="grid gap-2 text-sm text-slate-200">
-                {highlights.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <span className="mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <Link
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)]"
-                  href="https://www.npmjs.com/package/@aomi-labs/react"
-                  target="_blank"
-                >
-                  npm i @aomi-labs/react
-                </Link>
-                <Link
-                  className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/40 hover:text-emerald-100"
-                  href="/docs"
-                >
-                  Documentation
-                </Link>
+            </div>
+            <div className="flex flex-col gap-8 group">
+              <div className="h-48 w-full relative flex items-end justify-center overflow-hidden">
+                <svg className="w-[413px] h-[192px]" viewBox="0 0 200 120" fill="none" strokeWidth="2" style={{ width: "413px", height: "192px", color: "rgb(250, 250, 249)" }} data-icon-replaced="true">
+                              <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
+                  <path id="arc-outer" d="M 20 120 A 80 80 0 0 1 180 120" stroke="rgba(0,00,0,0.4)" strokeDasharray="6 3 1 4 8 2" strokeWidth="1" className="">
+                  </path>
+                  <path id="arc-middle" d="M 50 120 A 50 50 0 0 1 150 120" stroke="rgba(0,00,0,0.5)" strokeWidth="1" fill="none" className="">
+                  </path>
+                  <path id="arc-inner" d="M 80 120 A 20 20 0 0 1 120 120" stroke="rgba(0,00,0,0.5)" strokeDasharray="6 3 1 4 8 2" strokeWidth="1" fill="none" className="">
+                  </path>
+                  <g style={{ offsetPath: "path('M 20 120 A 80 80 0 0 1 180 120')", offsetDistance: "65%" }} className="">
+                    <circle cx="0" cy="0" r="10" fill="white" stroke="rgba(0,00,0,0.3)" className=""></circle>
+                    <text x="0" y="5" textAnchor="middle" fontSize="10" fontFamily="Geist" fill="black" className="">?</text>
+                  </g>
+                  <g style={{ offsetPath: "path('M 50 120 A 50 50 0 0 1 150 120')", offsetDistance: "30%" }} className="">
+                    <circle cx="0" cy="0" r="10" fill="white" stroke="rgba(0,00,0,0.3)" className=""></circle>
+                    <text x="0" y="4" textAnchor="middle" fontSize="10" fontFamily="Geist" fill="black" className="">?</text>
+                  </g>
+                  <g style={{ offsetPath: "path('M 80 120 A 20 20 0 0 1 120 120')", offsetDistance: "60%" }} className="">
+                    <circle cx="0" cy="0" r="10" fill="white" stroke="rgba(0,00,0,0.3)" className=""></circle>
+                    <text x="0" y="4" textAnchor="middle" fontSize="10" fontFamily="Geist" fill="black" className="">?</text>
+                  </g>
+                </svg>
+              </div>
+              <div className="flex flex-col gap-3">
+                <h3 className="text-lg font-semibold text-stone-800 font-serif text-center">Hierarchical Tree Synthesis</h3>
+                <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
+                  Intents are decomposed into a hierarchical execution tree. Aomi generates precise code block per node by
+                  referencing verified, open-source smart contracts. This recursive orchestration manages dependencies
+                  across multiple steps.
+                </p>
               </div>
             </div>
-          </div>
-
-          <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-card/70 p-6 shadow-2xl backdrop-blur" id="install">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">Workspace playground</p>
-                <p className="text-xs text-muted-foreground">Live previews wired to the library source.</p>
-              </div>
-              <Badge className="rounded-full bg-muted text-muted-foreground">Dev ready</Badge>
-            </div>
-            <FrameMock />
-            <div className="rounded-2xl border border-border/60 bg-slate-950 px-4 py-3 font-mono text-xs text-slate-100 shadow-inner">
-              <div className="flex items-center justify-between text-[0.78rem] uppercase tracking-[0.12em] text-slate-300">
-                <span>Install</span>
-                <Link
-                  href="https://www.npmjs.com/package/@aomi-labs/react"
-                  className="flex items-center gap-1 text-slate-200 underline-offset-4 hover:underline"
-                >
-                  npm
-                  <ExternalLink className="size-3" />
-                </Link>
-              </div>
-              <Separator className="my-3 bg-slate-800" />
-              <pre className="overflow-x-auto whitespace-pre-wrap leading-relaxed">{installSnippet}</pre>
-            </div>
-            <div className="rounded-2xl border border-dashed border-primary/50 bg-primary/5 px-4 py-3 text-sm text-primary">
-              Import <code className="font-mono text-primary">&quot;@aomi-labs/react/styles.css&quot;</code> inside your
-               app entrypoint so theme tokens and base styles apply.
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-6 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-200">
-              Why AomiFrame
-            </div>
-            <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Purpose-built for AI + onchain</h2>
-            <p className="mt-3 text-sm text-slate-200 sm:text-base">
-              We designed the widget to replace the old iframe demo: same quick theme control, now with native React,
-              faster hydration, and simpler integration.
-            </p>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {features.map((feature) => (
-                <div
-                  key={feature.title}
-                  className="rounded-xl border border-white/10 bg-slate-900/60 p-4 shadow-inner shadow-emerald-500/5"
-                >
-                  <h3 className="text-base font-semibold text-white">{feature.title}</h3>
-                  <p className="mt-2 text-sm text-slate-200">{feature.body}</p>
+            <div className="flex flex-col gap-8 group">
+              <div className="h-48 w-full relative flex items-center justify-center">
+                <svg className="w-[413px] h-[192px] top-0 right-0 bottom-0 left-0" viewBox="0 0 200 150" fill="none" strokeWidth="2" style={{ width: "413px", height: "192px", color: "rgb(250, 250, 249)" }} data-icon-replaced="true">
+                              <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
+                  <path d="M 0 0 Q 100 0 100 75" stroke="rgba(0,0,0,0.5)" strokeDasharray="6 3 1 4 8 2" strokeWidth="1" fill="none" className="">
+                  </path>
+                  <path d="M 200 0 Q 100 0 100 75" stroke="rgba(0,0,0,0.5)" strokeWidth="1" fill="none" className=""></path>
+                  <path d="M 0 150 Q 100 150 100 75" stroke="rgba(0,0,0,0.5)" strokeWidth="1" fill="none" className=""></path>
+                  <path d="M 200 150 Q 100 150 100 75" stroke="rgba(0,0,0,0.5)" strokeDasharray="6 3 1 4 8 2" strokeWidth="1" fill="none" className=""></path>
+                </svg>
+                <div className="border-black/50 border rounded-full pt-3 pr-3 pb-3 pl-3 absolute top-0 right-10 scale-180">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-black">
+                    <path d="M8 3 4 7l4 4"></path>
+                    <path d="M4 7h16"></path>
+                    <path d="m16 21 4-4-4-4"></path>
+                    <path d="M20 17H4"></path>
+                  </svg>
+                </div><div className="group-hover:scale-105 transition-transform z-10 bg-gradient-to-r from-black/0 via-black/10 to-black/0 ring-stone-300 ring-1 rounded-lg pt-2 pr-5 pb-2 pl-5 absolute shadow-lg backdrop-blur-sm [--fx-filter:blur(10px)_liquid-glass(3,10)_saturate(1.25)_noise(0.5,1,0.6)] items-center justify-center">
+                  <span className="text-xs font-semibold text-stone-50 font-geist">Authorize</span>
+                  <div className="absolute -bottom-4 -right-3">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="">
+                      <path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="white" stroke="#1c1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path>
+                    </svg>
                 </div>
-              ))}
+              </div>
+                <div className="absolute -bottom-3 left-10 p-3 rounded-full border border-black/50">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-black">
+                    <path d="M16 3h5v5"></path>
+                    <path d="M21 3 9 15" className=""></path>
+                    <path d="M21 13v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h8" className=""></path>
+                  </svg>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <h2 className="text-lg font-semibold text-stone-800 font-serif text-center">Seamless Frontend Integration</h2>
+                <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">Finalize the operations through concurrent stateless function calls. Aomi triggers a light-client native runtime across domains, bundling the sequence of transactions through EIP-7702, requiring only one signature to fire on-chain.</p>
+              </div>
             </div>
           </div>
-
-          <div className="rounded-2xl border border-white/5 bg-slate-900/60 p-6 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-200">
-              Three steps
+        </div>
+      </section>
+      <div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
+        <section className="flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow">
+          <div className="backdrop-blur-[40px] overflow-hidden bg-gradient-to-br from-white/10 via-white/5 to-transparent w-full border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 mt-10 pl-12 relative shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)]">
+            <div className="-top-40 -right-40 blur-[120px] pointer-events-none bg-indigo-500/20 mix-blend-screen w-96 h-96 rounded-full absolute">
             </div>
-            <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Embed in minutes</h2>
-            <ol className="mt-4 space-y-3 text-sm text-slate-200 sm:text-base">
-              {steps.map((step, index) => (
-                <li key={step} className="flex items-start gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-400/20 text-sm font-semibold text-emerald-200">
-                    {index + 1}
-                  </span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-            <div className="mt-5 rounded-xl border border-white/10 bg-black/60 p-4 font-mono text-xs text-emerald-100 shadow-inner shadow-emerald-500/10 sm:text-sm">
-              <pre className="overflow-x-auto whitespace-pre-wrap leading-relaxed">
-{`import { AomiFrame } from "@aomi-labs/widget-lib/aomi-frame";
-
-export function AIWallet() {
-  return (
-    <AomiFrame height="640px" width="100%">
-      {/* optional slots like wallet footer */}
-    </AomiFrame>
-  );
-}`}
-              </pre>
+            <div className="-bottom-40 -left-40 blur-[120px] pointer-events-none bg-blue-500/10 mix-blend-screen w-96 h-96 rounded-full absolute">
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-20 relative items-center">
+              <div className="flex flex-col justify-between h-full">
+                <div className="">
+                  <div className="inline-flex bg-white/10 w-fit border-white/20 border rounded-full ring-white/10 ring-1 mt-10 mb-6 pt-1 pr-3 pb-1 pl-3 backdrop-blur-md items-center">
+                    <span className="text-[10px] uppercase font-semibold text-white tracking-wider font-geist mt-1 mb-1">Workflow</span>
+                  </div>
+                  <h2 className="md:text-5xl text-4xl text-white tracking-tight font-serif mb-2">
+                    From intent to
+                    <span className="italic text-white/70">implementation.</span>
+                  </h2>
+                  <p className="text-base font-light text-neutral-50 font-geist mb-10">
+                    A seamless partnership model designed for the agentic
+                    future.
+                  </p>
+                  <div className="relative pl-2">
+                    <div className="absolute left-[11px] top-3 bottom-8 w-px bg-gradient-to-b from-indigo-500/50 via-white/10 to-transparent">
+                    </div>
+                    <div className="flex flex-col gap-10 gap-x-10 gap-y-10">
+                      <div className="relative flex gap-6 items-start group">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-indigo-500/50 bg-[#1c1917] z-10 relative mt-1 shadow-[0_0_15px_rgba(99,102,241,0.3)] flex items-center justify-center ring-1 ring-indigo-500/20">
+                          <div className="bg-[#9D77A8] w-2 h-2 rounded-full"></div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="group-hover:text-[#9D77A8] transition-colors duration-300 text-lg font-semibold text-white font-geist">
+                            Consultation &amp; Strategy
+                          </h3>
+                          <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
+                            Contact us to define how we can support your
+                            business with AI automation for on-chain
+                            transactions, whether you're building AI x crypto
+                            projects, onchain agents, or enhancing UX with
+                            chat interfaces.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex group relative gap-x-6 gap-y-6 items-start">
+                        <div className="flex-shrink-0 group-hover:border-blue-500/50 transition-colors duration-300 flex bg-[#1c1917] w-6 h-6 z-10 border-white/20 border rounded-full mt-1 relative shadow-inner items-center justify-center">
+                          <div className="group-hover:bg-[#9D77A8] transition-colors duration-300 bg-neutral-600 w-2 h-2 rounded-full">
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-white font-geist group-hover:text-cyan-300 transition-colors duration-300">
+                            Custom Build
+                          </h3>
+                          <p className="leading-relaxed text-sm font-light text-stone-50 font-geist mt-2">
+                            We build customized AI applications integrating
+                            your APIs and tools, seamlessly deployed within
+                            your existing infrastructure.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="relative flex gap-6 items-start group">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-white/20 bg-[#1c1917] z-10 relative mt-1 group-hover:border-cyan-500/50 transition-colors duration-300 flex items-center justify-center shadow-inner">
+                          <div className="w-2 h-2 rounded-full bg-neutral-600 group-hover:bg-cyan-400 transition-colors duration-300">
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-white font-geist group-hover:text-cyan-300 transition-colors duration-300">
+                            Managed Orchestration
+                          </h3>
+                          <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
+                            In production, we host the LLM infrastructure
+                            including agentic orchestration, allowing you to
+                            focus purely on your backend logic.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-12 mb-12">
+                  <a href="/docs/about-aomi" className="overflow-hidden group transition-all flex items-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95 text-xs font-semibold text-neutral-900 font-geist bg-white/90 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                    <span className="z-10 flex items-center gap-2 relative">Documentation</span>
+                    <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
+                    </div>
+                  </a>
+                </div>
+              </div>
+              <div className="lg:mt-0 flex flex-col h-full min-h-[420px] mt-0 relative justify-between">
+                                <div className="transition-opacity duration-500 bg-center opacity-100 bg-[url(/assets/workflow-bg.jpg)] bg-cover absolute top-0 right-0 bottom-0 left-0">
+                                </div>
+              </div>
             </div>
           </div>
         </section>
-
-        <section className="space-y-6" id="components">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Playground</p>
-              <h2 className="text-2xl font-semibold">Component previews</h2>
-            </div>
-            <Button asChild variant="outline" size="sm" className="gap-2">
-              <Link href="#theming">
-                <Palette className="size-4" />
-                Theme tokens
-              </Link>
-            </Button>
+  <section className="mb-30 pb-20" id="resources">
+    <div className="grid grid-cols-1 md:grid-cols-2 text-stone-50 relative">
+        <div className="group flex flex-col">
+            <h2 className="md:text-4xl font-normal text-white font-pt-serif mb-5">
+        AI infrastructure Hosting
+      </h2>
+      <div className="bg-[#e3d8e6] mr-5 pt-10 pr-10 pl-10">
+          <div className="flex flex-col gap-y-5">
+            <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
+              Aomi provides a serverless backend for the agentic lifecycle,
+              functioning as a high-performance “Amazon Lambda for Agents.”
+              Eliminate the overhead of managing Python or TypeScript frameworks
+              like LangChain or AI SDK. Simply select your model, configure your
+              system prompts, and define your tools.
+            </p>
+            <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
+              Our proprietary Rust framework is engineered to be stateless and
+              concurrent, executing agentic loops at native speed. Aomi handles
+              deployment, scaling, and lifecycle management for production-grade
+              workloads.
+            </p>
           </div>
-
-          <div className="grid gap-5 lg:grid-cols-3">
-            {previews.map((preview) => (
-              <Preview
-                key={preview.title}
-                title={preview.title}
-                description={preview.description}
-                code={preview.code}
-                badge={preview.badge}
-              >
-                {preview.component}
-              </Preview>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-5" id="theming">
-          <div className="flex items-center gap-3">
-            <Palette className="size-5 text-primary" />
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Theming</p>
-              <h3 className="text-xl font-semibold">Use your tokens or ours</h3>
-            </div>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="border-border/60 bg-card/70">
-              <CardHeader className="gap-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Code2 className="size-4 text-primary" />
-                  Import styles
-                </CardTitle>
-                <CardDescription>
-                  Theme variables live in <code className="font-mono text-sm">src/themes/default.css</code>. Override{" "}
-                  <code className="font-mono text-sm">--font-*</code>, radius, and palette in your app.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 font-mono text-xs text-muted-foreground">
-                <p>@import &quot;@aomi-labs/react/styles.css&quot;;</p>
-                <p>{`/* or @import "../../../src/styles.css"; while developing locally */`}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/60 bg-card/70">
-              <CardHeader className="gap-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Plug className="size-4 text-primary" />
-                  Source-aware Tailwind
-                </CardTitle>
-                <CardDescription>
-                  The  app points Tailwind&apos;s <code className="font-mono text-sm">@source</code> at{" "}
-                  <code className="font-mono text-sm">../../src</code> so new classes in the library show up instantly.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Keep <code className="font-mono text-xs">NEXT_PUBLIC_BACKEND_URL</code> handy when previewing the live
-                frame; otherwise the UI renders with mock data only.
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
-        <section className="space-y-4" id="guides">
-          <div className="flex items-center gap-3">
-            <BookOpen className="size-5 text-primary" />
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground"> map</p>
-              <h3 className="text-xl font-semibold">What&apos;s coming in this workspace</h3>
-            </div>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <GuideCard
-              icon={<ExternalLink className="size-4 text-primary" />}
-              title="Getting started"
-              body="Environment variables, providers, and peer deps to keep the assistant online."
-              href="//getting-started"
-            />
-            <GuideCard
-              icon={<Palette className="size-4 text-primary" />}
-              title="Theme packs"
-              body="Swap palettes via CSS variables, extend tokens, and preview light/dark pairs."
-              href="//theming"
-            />
-            <GuideCard
-              icon={<Code2 className="size-4 text-primary" />}
-              title="Component API"
-              body="Props tables and live previews for AomiFrame, assistant surfaces, and UI primitives."
-              href="#components"
-            />
-          </div>
-        </section>
+        <div className="relative flex h-48 w-full mt-5 mb-5">
+          <svg className="absolute inset-0 h-full w-full pointer-events-none lg:block" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="sqLineBlack" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="rgba(0,0,0,0.5)"></stop>
+                <stop offset="50%" stopColor="rgba(0,0,0,0.5)"></stop>
+                <stop offset="100%" stopColor="rgba(0,0,0,0.5)"></stop>
+              </linearGradient>
+            </defs>
+            <g fill="rgba(0,0,0,0.9)" stroke="rgba(0,0,0,0.5)" strokeWidth="0.6">
+              <rect x="85" y="46" width="30" height="30"></rect>
+              <rect x="16" y="15" width="16" height="16"></rect>
+              <rect x="16" y="85" width="16" height="16"></rect>
+              <rect x="168" y="15" width="16" height="16"></rect>
+              <rect x="168" y="85" width="16" height="16"></rect>
+            </g>
+            <g stroke="url(#sqLineBlack)" strokeWidth="0.6" fill="none" strokeDasharray="3 2 1 3">
+              <path d="M 32 26 H 88 V 60"></path>
+              <path d="M 32 94 H 88 V 60"></path>
+              <path d="M 168 26 H 112 V 60"></path>
+              <path d="M 168 94 H 112 V 60"></path>
+              <animate attributeName="stroke-dashoffset" from="0" to="14" dur="2.2s" repeatCount="indefinite"></animate>
+            </g>
+          </svg>
+        </div>
       </div>
+      </div>
+      <div className="group flex flex-col">
+          <div className="bg-[#e3d8e6] ml-5 pt-5 pr-10 pb-10 pl-10">
+        <div className="overflow-hidden backdrop-blur-[40px] bg-slate-500 border-stone-400/20 border ring-1 rounded-[2rem] mt-5 mb-10 pr-5 pl-8 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.12),0px_1px_1px_-0.5px_rgba(0,0,0,0.12),0px_3px_3px_-1.5px_rgba(0,0,0,0.12),0px_6px_6px_-3px_rgba(0,0,0,0.12),0px_12px_12px_-6px_rgba(0,0,0,0.12),0px_24px_24px_-12px_rgba(0,0,0,0.12)]">
+          <p className="text-sm font-light text-stone-200 font-space-mono mt-2 mb-2">$ pnpm install @aomi-labs/react</p><p className="text-sm font-light text-stone-200 font-space-mono mb-2">$ npx shadcn add @aomi/aomi-frame</p>
+        </div>
+        <div className="flex flex-col gap-y-5">
+          <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
+            Aomi provides a production-ready component library that embeds AI UX
+            directly into your UI. Our widgets support persistent memory,
+            real-time chat, and interactive tool calling—delivering a true
+            plug-and-play experience without sacrificing control.
+          </p>
+          <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
+            Following the shadcn/ui philosophy, components are installed directly
+            into your codebase rather than hidden behind a black-box dependency.
+            You retain full ownership and styling control.
+          </p>
+        </div>
+                      <div className="mt-10">
+                  <a href="https://www.npmjs.com/package/@aomi-labs/widget-lib" target="_blank" rel="noreferrer" className="ml-auto overflow-hidden group transition-all flex items-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95 text-xs font-semibold text-neutral-900 font-geist bg-white/90 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                    <span className="z-10 flex items-center gap-2 relative">Npm package</span>
+                    <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
+                    </div>
+                  </a>
+                      </div>
+                                  <h3 className="md:text-4xl font-normal text-stone-50 font-pt-serif text-right mt-20 absolute right-0">
+                                    Seamless frontend integration
+                                  </h3>
+      </div>
+      </div>
+    </div></section></div>
+        <section className="flex flex-col text-center w-full z-10 mb-10 pt-20 pb-20 relative items-center justify-center">
+          <h2 className="md:text-5xl text-3xl text-white tracking-tight font-serif mb-6">
+            Ready to automate?
+          </h2>
+          <p className="font-light text-stone-100 font-geist max-w-lg mb-8">
+            Join thousands of traders and developers building the next
+            generation of on-chain agents.
+          </p>
+          <div className="flex gap-x-4 gap-y-4 items-center">
+            <a href="https://calendly.com/cecilia-foameo/30min" target="_blank" rel="noreferrer" className="group overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:scale-105 active:scale-95 flex text-xs font-semibold text-stone-50 font-geist bg-gradient-to-r from-[#733e83] to-[#ec6b83] ring-1 rounded-full pt-3 pr-8 pb-3 pl-8 relative shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)] items-center">
+                    Book a Call              
+              </a>
+          </div>
+        </section>
+        <footer className="bg-[#9d78a8] w-full border-white/5 border-t mt-auto pt-10">
+          <div className="mx-auto w-full max-w-7xl px-4">
+            <div className="flex flex-col md:flex-row md:gap-4 w-full mb-12 items-start justify-between">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2 text-white">
+                <svg width="20" height="20" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-stone-100 w-[20px] h-[20px]" strokeWidth="2" style={{ width: "20px", height: "20px" }} data-icon-replaced="true">
+                  <circle cx="45" cy="55" r="35" stroke="currentColor" strokeWidth="14" className=""></circle>
+                  <circle cx="75" cy="25" r="14" stroke="currentColor" strokeWidth="14" className=""></circle>
+                </svg>
+                <span className="font-semibold text-stone-100 tracking-tight font-geist">
+                        Aomi
+                      </span>
+              </div>
+              <p className="text-xs text-neutral-100 max-w-xs font-geist leading-relaxed">
+                The interface for the agentic web. Automating complex
+                blockchain interactions with simple natural language.
+              </p>
+            </div>
+            <div className="flex gap-x-16 gap-y-16">
+              <div className="flex flex-col gap-3 text-stone-100 gap-x-3 gap-y-3">
+                <span className="uppercase text-xs font-semibold text-stone-100 tracking-wider font-geist">
+                        Product
+                      </span>
+                <a href="#" className="hover:text-stone-100 transition-colors text-xs text-stone-100 font-geist">
+                  Features
+                </a>
+                <a href="#" className="text-xs text-stone-100 hover:text-stone-100 transition-colors font-geist">
+                  Integrations
+                </a>
+                <a href="#" className="hover:text-white transition-colors text-xs text-stone-100 font-geist">
+                  Pricing
+                </a>
+                <a href="#" className="text-xs text-stone-100 hover:text-stone-100 transition-colors font-geist">
+                  Changelog
+                </a>
+              </div>
+              <div className="flex flex-col gap-3">
+                <span className="uppercase text-xs font-semibold text-stone-100 tracking-wider font-geist">
+                        Company
+                      </span>
+                <a href="#" className="text-stone-100 hover:text-stone-100 transition-colors text-xs text-neutral-400 font-geist">
+                  About
+                </a>
+                <a href="#" className="text-xs text-stone-100 hover:text-stone-400 transition-colors font-geist">
+                  Blog
+                </a>
+                <a href="#" className="text-xs text-stone-100 hover:text-stone-400 transition-colors font-geist">
+                  Careers
+                </a>
+                <a href="#" className="text-xs text-stone-100 hover:text-stone-400 transition-colors font-geist">
+                  Contact
+                </a>
+              </div>
+              <div className="flex flex-col gap-3">
+                <span className="uppercase text-xs font-semibold text-stone-100 tracking-wider font-geist">
+                        Legal
+                      </span>
+                <a href="#" className="text-xs text-stone-100 hover:text-white transition-colors font-geist">
+                  Privacy
+                </a>
+                <a href="#" className="text-xs text-stone-100 hover:text-white transition-colors font-geist">
+                  Terms
+                </a>
+              </div>
+            </div>
+          </div>
+            <div className="w-full flex items-center justify-between py-6 border-t border-white/5">
+              <span className="text-[10px] text-neutral-500 font-geist">
+                      (c) 2024 Aomi Inc. All rights reserved.
+                    </span>
+              <div className="flex items-center gap-4">
+                <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" className="text-neutral-400 hover:text-white transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="twitter" className="lucide lucide-twitter w-4 h-4"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>
+                </a>
+                <a href="#" className="text-neutral-400 hover:text-white transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="github" className="lucide lucide-github w-4 h-4"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path><path d="M9 18c-4.51 2-5-2-7-2"></path></svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </footer>
     </main>
-  );
+<style>{`
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Geist:wght@300;400;500;600;700&family=PT+Serif:wght@400;700&display=swap");
+html {
+  scroll-behavior: smooth;
 }
-
-function FrameMock() {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-background shadow-xl">
-      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 text-xs text-muted-foreground">
-        <span>Thread list</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">Live</span>
-      </div>
-      <div className="grid gap-0 border-b border-border/60 bg-muted/40 px-3 py-3">
-        <div className="flex items-center justify-between rounded-lg bg-card px-3 py-2">
-          <div>
-            <p className="text-sm font-semibold">New Chat</p>
-            <p className="text-xs text-muted-foreground">Waiting for first message</p>
-          </div>
-          <Badge className="rounded-full bg-primary/15 text-primary">active</Badge>
-        </div>
-        <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-10/12" />
-          <Skeleton className="h-3 w-8/12" />
-        </div>
-      </div>
-      <div className="space-y-3 bg-card px-4 py-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-emerald-400" />
-          Backend polling enabled
-        </div>
-        <div className="rounded-xl border border-dashed border-border/60 bg-background px-4 py-3 text-sm">
-          Thread, sidebar, and composer live inside <code className="font-mono text-primary">AomiFrame</code>. Bring
-          your own wallet footer or keep the defaults.
-        </div>
-      </div>
+.font-serif {
+  font-family: "Playfair Display", serif;
+}
+.font-sans {
+  font-family: "Inter", sans-serif;
+}
+.font-geist {
+  font-family: "Geist", "Inter", sans-serif;
+}
+.font-pt-serif {
+  font-family: "PT Serif", serif;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.delay-100 {
+  animation-delay: 100ms;
+}
+.delay-200 {
+  animation-delay: 200ms;
+}
+.delay-300 {
+  animation-delay: 300ms;
+}
+@keyframes flow {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+.animate-flow {
+  animation: flow 3s linear infinite;
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+.animate-float-delayed {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: 3s;
+}
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.1),
+    inset 0 0 20px rgba(255, 255, 255, 0.05);
+}
+.perspective-1000 {
+  perspective: 1000px;
+}
+`}</style>
     </div>
-  );
-}
-
-function ButtonShowcase() {
-  return (
-    <div className="flex flex-wrap gap-3">
-      <Button>Primary</Button>
-      <Button variant="secondary">Secondary</Button>
-      <Button variant="outline">Outline</Button>
-      <Button variant="ghost">Ghost</Button>
-      <Badge>Badge</Badge>
-    </div>
-  );
-}
-
-function CardSkeletonShowcase() {
-  return (
-    <Card className="border-border/60 bg-background/40">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Wallet summary</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">Mock state while fetching balances</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-4 w-1/3" />
-      </CardContent>
-    </Card>
-  );
-}
-
-function GuideCard({ icon, title, body, href }: { icon: ReactNode; title: string; body: string; href: string }) {
-  return (
-    <Card className="group border-border/60 bg-card/70 transition hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl">
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            {icon}
-          </div>
-          <div>
-            <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription className="text-sm text-muted-foreground">{body}</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Button asChild size="sm" variant="ghost" className="gap-2 text-primary">
-          <Link href={href}>
-            Explore
-            <ArrowRight className="size-4 transition group-hover:translate-x-0.5" />
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
   );
 }
