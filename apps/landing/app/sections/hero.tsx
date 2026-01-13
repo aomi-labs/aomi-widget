@@ -5,13 +5,14 @@ export function Hero() {
     <>
       <nav className="fixed flex z-50 pr-4 pl-4 top-6 right-0 left-0 gap-x-4 gap-y-4 items-center justify-center">
       <div className="flex transition-all duration-300 backdrop-blur-[40px] bg-white/10 border-white/20 border-0 rounded-full ring-white/20 ring-1 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-2 gap-y-2 items-center">
-        <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-stone-50 w-[24px] h-[24px] drop-shadow-sm" strokeWidth="2" style={{ width: "24px", height: "24px" }} data-icon-replaced="true">
-          <circle cx="45" cy="55" r="35" stroke="currentColor" strokeWidth="14" className=""></circle>
-          <circle cx="75" cy="25" r="14" stroke="currentColor" strokeWidth="14"></circle>
-        </svg>
+        <img
+          src="/assets/images/bubble.svg"
+          alt="Aomi"
+          className="w-6 h-6 drop-shadow-sm"
+        />
         <span className="text-sm font-semibold text-white tracking-tight font-geist drop-shadow-sm">
-              Aomi
-            </span>
+          Aomi
+        </span>
       </div>
       <div className="flex hidden md:flex transition-all backdrop-blur-[40px] bg-white/5 border-white/10 border-0 ring-white/20 ring-1 rounded-full pt-1.5 pr-1.5 pb-1.5 pl-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-6 gap-y-6 items-center">
         <div className="flex items-center gap-6 pr-2">
@@ -79,12 +80,8 @@ export function Hero() {
                 <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity group-hover:opacity-100"></div>
               </a>
         </div>
-        <div className="animate-fade-in delay-200 transform hover:scale-[1.01] transition-all duration-1000 overflow-hidden w-full max-w-3xl rounded-[2.5rem] pt-4 pr-4 pb-4 pl-4 relative gap-x-8 gap-y-8" id="chat-transparant-padding">
-          <div className="backdrop-blur-[50px] bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 pt-2 pr-2 pb-2 pl-2 absolute top-0 right-0 bottom-0 left-0 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] space-x-0 space-y-0 gap-x-4 gap-y-4">
-          </div>
-          <div className="absolute -bottom-40 -left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen">
-          </div>
-          <div className="flex flex-col z-0 font-geist bg-[#f5f5f4] ring-stone-200 ring-1 rounded-3xl pt-6 pr-6 pb-6 pl-6 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_1px_-0.5px_rgba(0,0,0,0.06),0px_3px_3px_-1.5px_rgba(0,0,0,0.06),_0px_6px_6px_-3px_rgba(0,0,0,0.06),0px_12px_12px_-6px_rgba(0,0,0,0.06),0px_24px_24px_-12px_rgba(0,0,0,0.06)] gap-x-4 gap-y-6">
+        <div className="w-full max-w-3xl">
+          <div className="glass-panel rounded-[2rem] p-3 relative">
             <WidgetFrame />
           </div>
         </div>

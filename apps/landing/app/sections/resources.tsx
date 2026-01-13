@@ -163,13 +163,14 @@ export function Resources() {
             <div className="flex flex-col md:flex-row md:gap-4 w-full mb-12 items-start justify-between">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 text-white">
-                <svg width="20" height="20" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-stone-100 w-[20px] h-[20px]" strokeWidth="2" style={{ width: "20px", height: "20px" }} data-icon-replaced="true">
-                  <circle cx="45" cy="55" r="35" stroke="currentColor" strokeWidth="14" className=""></circle>
-                  <circle cx="75" cy="25" r="14" stroke="currentColor" strokeWidth="14" className=""></circle>
-                </svg>
+                <img
+                  src="/assets/images/bubble.svg"
+                  alt="Aomi"
+                  className="w-5 h-5"
+                />
                 <span className="font-semibold text-stone-100 tracking-tight font-geist">
-                        Aomi
-                      </span>
+                  Aomi
+                </span>
               </div>
               <p className="text-xs text-neutral-100 max-w-xs font-geist leading-relaxed">
                 The interface for the agentic web. Automating complex
