@@ -89,12 +89,8 @@ export default function HomePage() {
                 <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity group-hover:opacity-100"></div>
               </a>
         </div>
-        <div className="animate-fade-in delay-200 transform hover:scale-[1.01] transition-all duration-1000 overflow-hidden w-full max-w-3xl rounded-[2.5rem] pt-4 pr-4 pb-4 pl-4 relative gap-x-8 gap-y-8" id="chat-transparant-padding">
-          <div className="backdrop-blur-[50px] bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 pt-2 pr-2 pb-2 pl-2 absolute top-0 right-0 bottom-0 left-0 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] space-x-0 space-y-0 gap-x-4 gap-y-4">
-          </div>
-          <div className="absolute -bottom-40 -left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen">
-          </div>
-          <div className="flex flex-col z-0 font-geist bg-[#f5f5f4] ring-stone-200 ring-1 rounded-3xl pt-6 pr-6 pb-6 pl-6 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_1px_-0.5px_rgba(0,0,0,0.06),0px_3px_3px_-1.5px_rgba(0,0,0,0.06),_0px_6px_6px_-3px_rgba(0,0,0,0.06),0px_12px_12px_-6px_rgba(0,0,0,0.06),0px_24px_24px_-12px_rgba(0,0,0,0.06)] gap-x-4 gap-y-6">
+        <div className="w-full max-w-3xl">
+          <div className="glass-panel rounded-[2rem] p-3 relative">
             <WidgetFrame />
           </div>
         </div>
@@ -523,7 +519,7 @@ export default function HomePage() {
 
       <div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
         <section className="flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow">
-          <div className="backdrop-blur-[40px] overflow-hidden bg-gradient-to-br from-white/10 via-white/5 to-transparent w-full border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 mt-10 pl-12 relative shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)]">
+          <div className="glass-panel overflow-hidden w-full rounded-[2.5rem] mt-10 pl-12 relative">
             <div className="-top-40 -right-40 blur-[120px] pointer-events-none bg-indigo-500/20 mix-blend-screen w-96 h-96 rounded-full absolute">
             </div>
             <div className="-bottom-40 -left-40 blur-[120px] pointer-events-none bg-blue-500/10 mix-blend-screen w-96 h-96 rounded-full absolute">
@@ -704,7 +700,7 @@ export default function HomePage() {
             </h2>
           </div>
 
-          <div className="mt-10 divide-y divide-white/10 rounded-[2rem] border border-white/10 bg-white/[0.03] text-left backdrop-blur-[40px] ring-1 ring-white/10 overflow-hidden mx-auto">
+          <div className="glass-panel mt-10 divide-y divide-white/10 rounded-[2rem] text-left overflow-hidden mx-auto">
             <details className="mx-5 group p-5">
               <summary className="w-full flex items-center justify-between text-left cursor-pointer list-none">
                 <span className="text-sm md:text-base font-geist font-normal tracking-tight text-white">
