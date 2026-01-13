@@ -223,7 +223,7 @@ export function Technology() {
                 </div>
               </div>
               <div className="flex flex-col gap-3">
-                <h3 className="text-lg font-semibold text-stone-800 font-serif text-center">Contextual Intent Sanitization</h3>
+                <h3 className="text-lg font-light text-stone-800 font-geist text-center">Contextual Intent Sanitization</h3>
                 <p className="leading-relaxed -multi text-sm font-light text-stone-600 font-geist">
                   Resolve intents through natural language and extrapolate input into a structured set of actionable
                   items. Prioritizing type-safety, Aomi converts sementic steps to sanitized machine logic, ensuring
@@ -256,7 +256,7 @@ export function Technology() {
                 </svg>
               </div>
               <div className="flex flex-col gap-3">
-                <h3 className="text-lg font-semibold text-stone-800 font-serif text-center">Hierarchical Tree Synthesis</h3>
+                <h3 className="text-lg font-light text-stone-800 font-geist text-center">Hierarchical Tree Synthesis</h3>
                 <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
                   Intents are decomposed into a hierarchical execution tree. Aomi generates precise code block per node by
                   referencing verified, open-source smart contracts. This recursive orchestration manages dependencies
@@ -300,8 +300,8 @@ export function Technology() {
                 </div>
               </div>
               <div className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold text-stone-800 font-serif text-center">Seamless Frontend Integration</h2>
-                <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">Finalize the operations through concurrent stateless function calls. Aomi triggers a light-client native runtime across domains, bundling the sequence of transactions through EIP-7702, requiring only one signature to fire on-chain.</p>
+                <h2 className="text-lg font-light text-stone-800 font-geist text-center">Batched Simulation & Execution</h2>
+                <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">After simulating operations concurrently with stateless runtime, Aomi triggers native light-client environments across domains, bundling the sequence of transactions through EIP-7702, requiring only one signature to fire on-chain.</p>
               </div>
             </div>
           </div>
