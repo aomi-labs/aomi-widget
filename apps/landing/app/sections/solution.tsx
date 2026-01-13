@@ -2,7 +2,7 @@ export function Solution() {
   return (
     <>
       <div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
-      <section className="js-animate flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow" data-animate="up" data-delay="200">
+      <section className="flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow" data-animate="up" data-delay="200">
       <div className="glass-panel overflow-hidden w-full rounded-[2.5rem] mt-10 pl-12 relative">
             <div className="-top-40 -right-40 blur-[120px] pointer-events-none bg-indigo-500/20 mix-blend-screen w-96 h-96 rounded-full absolute">
             </div>
