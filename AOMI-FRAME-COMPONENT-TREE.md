@@ -19,7 +19,7 @@ AomiFrame [apps/registry/src/components/aomi-frame.tsx]
 │              │     │     └─ SidebarMenuItem [apps/registry/src/components/ui/sidebar.tsx] (returns li)
 │              │     │        └─ SidebarMenuButton [apps/registry/src/components/ui/sidebar.tsx] (returns button)
 │              │     │           └─ Link [next/link] (returns <a>)
-│              │     │              └─ Image [next/image] (returns <img> - logo: /assets/images/a.svg)
+│              │     │              └─ Image [next/image] (returns <img> - logo: /assets/images/bubble.svg)
 │              │     ├─ SidebarContent [apps/registry/src/components/ui/sidebar.tsx] (returns div)
 │              │     │  └─ ThreadList [apps/registry/src/components/assistant-ui/thread-list.tsx] (returns ThreadListPrimitive.Root)
 │              │     │     └─ ThreadListPrimitive.Root [@assistant-ui/react] (returns div)

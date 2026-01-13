@@ -43,7 +43,7 @@ export function ThreadListSidebar({
                 >
                   <div className="aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white">
                     <Image
-                      src="/assets/images/a.svg"
+                      src="/assets/images/bubble.svg"
                       alt="Logo"
                       width={28}
                       height={28}
