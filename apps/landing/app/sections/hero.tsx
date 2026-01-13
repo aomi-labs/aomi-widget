@@ -8,7 +8,7 @@ export function Hero() {
         <img
           src="/assets/images/bubble.svg"
           alt="Aomi"
-          className="w-6 h-6 drop-shadow-sm"
+          className="w-6 h-6 drop-shadow-sm invert"
         />
         <span className="text-sm font-semibold text-white tracking-tight font-geist drop-shadow-sm">
           Aomi
