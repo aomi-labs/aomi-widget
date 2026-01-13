@@ -1,0 +1,20 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "notification",
+  "type": "registry:component",
+  "description": "Notification toaster wired to the runtime notification store.",
+  "files": [
+    {
+      "type": "registry:component",
+      "path": "components/ui/notification.tsx",
+      "content": "\"use client\";\n\nimport { useEffect, useRef } from \"react\";\nimport { toast } from \"sonner\";\n\nimport { useNotification } from \"@aomi-labs/react\";\nimport type { Notification } from \"@aomi-labs/react\";\n\nimport { Toaster } from \"./sonner\";\n\nexport function NotificationToaster() {\n  const { notifications, dismissNotification } = useNotification();\n  const shownRef = useRef<Set<string>>(new Set());\n\n  useEffect(() => {\n    const activeIds = new Set(notifications.map((notification) => notification.id));\n    for (const id of shownRef.current) {\n      if (!activeIds.has(id)) {\n        shownRef.current.delete(id);\n      }\n    }\n\n    for (const notification of notifications) {\n      if (shownRef.current.has(notification.id)) continue;\n      shownRef.current.add(notification.id);\n      showToast(notification, dismissNotification);\n    }\n  }, [notifications, dismissNotification]);\n\n  return <Toaster position=\"top-right\" />;\n}\n\nfunction showToast(\n  notification: Notification,\n  dismissNotification: (id: string) => void\n) {\n  const duration = notification.duration ?? 5000;\n  const toastDuration = duration <= 0 ? Infinity : duration;\n  const options = {\n    id: notification.id,\n    description: notification.message,\n    duration: toastDuration,\n    onDismiss: () => dismissNotification(notification.id),\n  };\n\n  if (notification.type === \"success\") {\n    toast.success(notification.title, options);\n    return;\n  }\n\n  if (notification.type === \"error\") {\n    toast.error(notification.title, options);\n    return;\n  }\n\n  toast(notification.title, options);\n}\n"
+    }
+  ],
+  "dependencies": [
+    "@aomi-labs/react",
+    "sonner"
+  ],
+  "registryDependencies": [
+    "https://widget.aomi.dev/r/sonner.json"
+  ]
+}
