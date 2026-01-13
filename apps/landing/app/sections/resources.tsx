@@ -5,6 +5,7 @@ export function Resources() {
         id="faq"
         className="js-animate border-white/20 border-t pt-20 pr-4 pb-10 pl-4 w-full"
         data-animate="up"
+        data-delay="300"
       >
         <div className="mr-auto ml-auto max-w-4xl text-center">
           <div>
@@ -13,7 +14,7 @@ export function Resources() {
             </h2>
           </div>
 
-          <div className="landing-glass-blur mt-10 divide-y divide-white/10 rounded-[2rem] border border-white/10 bg-white/[0.03] text-left backdrop-blur-[40px] ring-1 ring-white/10 overflow-hidden mx-auto">
+          <div className="glass-panel mt-10 divide-y divide-white/10 rounded-[2rem] text-left overflow-hidden mx-auto">
             <details className="mx-5 group p-5">
               <summary className="w-full flex items-center justify-between text-left cursor-pointer list-none">
                 <span className="text-sm md:text-base font-geist font-normal tracking-tight text-white">

@@ -72,7 +72,7 @@ export function Hero() {
           <a href="https://calendly.com/cecilia-foameo/30min" target="_blank" rel="noreferrer" className="landing-button-primary group [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)]">
                 <span className="relative z-10">Contact Us</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3 relative z-10"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-                <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#733e83] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div>
+                <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#9D77A8] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div>
               </a>
           <a href="/docs/about-aomi" className="group relative overflow-hidden transition-all border hover:bg-white/10 active:scale-95 duration-300 text-xs font-medium text-white font-geist bg-white/30 rounded-full pt-3 pr-8 pb-3 pl-8 shadow-lg backdrop-blur-md">
                 <span className="relative z-10">Documentation</span>
@@ -125,35 +125,35 @@ export function Hero() {
                   <img
                     src="/assets/trusted/solana-sol-logo.png"
                     alt="Solana"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/ethereum-eth-logo.png"
                     alt="Ethereum"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/cosmos-atom-logo.png"
                     alt="Cosmos"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
                     alt="MetaMask"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/polymarket1671006384460.png"
                     alt="Polymarket"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
               </div>
@@ -164,35 +164,35 @@ export function Hero() {
                   <img
                     src="/assets/trusted/solana-sol-logo.png"
                     alt="Solana"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/ethereum-eth-logo.png"
                     alt="Ethereum"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/cosmos-atom-logo.png"
                     alt="Cosmos"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
                     alt="MetaMask"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/polymarket1671006384460.png"
                     alt="Polymarket"
-                    className="h-8 w-auto object-contain opacity-80 grayscale brightness-0 invert transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
               </div>
