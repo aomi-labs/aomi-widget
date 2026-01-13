@@ -12,20 +12,27 @@
 
 ## Directory Structure
 ```
-src/
+packages/react/src/
 ├── index.ts                     # Public exports
-├── styles.css                   # Widget styles
-├── components/
-│   ├── aomi-frame.tsx          # Main widget shell
-│   ├── assistant-ui/           # Chat UI (runtime, thread, attachments)
-│   └── ui/                     # Primitives (button, dialog, sidebar)
-├── lib/
-│   ├── backend-api.ts          # HTTP client
-│   ├── thread-context.tsx      # State management
-│   └── conversion.ts           # Message transforms
-├── utils/wallet.ts             # Wallet helpers
-└── hooks/use-mobile.ts         # Mobile detection
+├── api/
+│   ├── client.ts               # BackendApi HTTP client
+│   └── types.ts                # API types
+├── services/
+│   └── session-service.ts      # SessionService - session operations abstraction
+├── hooks/
+│   └── use-session-service.ts  # useSessionService hook
+├── runtime/
+│   └── aomi-runtime.tsx       # AomiRuntimeProvider
+├── state/
+│   ├── thread-context.tsx      # Thread state management
+│   └── types.ts                # State types
+├── utils/
+│   ├── conversion.ts           # Message transforms
+│   └── wallet.ts               # Wallet helpers
+└── lib/
+    └── notification-context.tsx # Notification system
 
+apps/registry/src/               # UI components (decoupled from backend)
 apps/landing/                    # Demo Next.js app
 dist/                           # Build output
 ```

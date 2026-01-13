@@ -1,13 +1,16 @@
 # Current State
 
 ## Last Updated
-2024-11-30 - Restructured specs for agent workflow
+2024-12-XX - Backend-UI decoupling with SessionService
 
 ## Recent Changes
-- Created `CLAUDE.md` as agent entry point
-- Rewrote `specs/DOMAIN.md` with do/don't tables and concise rules
-- Streamlined `specs/METADATA.md` to essential facts only
-- Restructured `specs/STATE.md` for clearer task tracking
+- Decoupled backend from UI by introducing `SessionService` layer
+- Created `packages/react/src/services/session-service.ts` - encapsulates all session operations
+- Created `packages/react/src/hooks/use-session-service.ts` - React hook for SessionService
+- Refactored `AomiRuntimeProvider` to use `SessionService` instead of direct `BackendApi` calls
+- Added missing `fetchThread` method to `BackendApi` for `GET /api/sessions/:session_id`
+- Updated `DOMAIN.md` to reflect new architecture with service layer
+- Verified no direct `BackendApi` usage in `apps/registry` UI components
 
 ## Pending
 - None currently

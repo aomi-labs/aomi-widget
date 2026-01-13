@@ -1,0 +1,161 @@
+---
+title: Aomi Components
+description: Custom components built specifically for the Aomi assistant interface.
+---
+
+# Aomi Components
+
+These components are maintained by Aomi with custom functionality for the assistant interface.
+
+## AomiFrame
+
+Full assistant shell with thread list and runtime wiring. This is the main component that provides the complete chat interface.
+
+**Install:** `npx shadcn add https://widget.aomi.dev/r/aomi-frame.json`
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `width` | `CSSProperties["width"]` | `"100%"` | Frame width |
+| `height` | `CSSProperties["height"]` | `"80vh"` | Frame height |
+| `className` | `string` | — | Additional CSS classes |
+| `style` | `CSSProperties` | — | Inline styles |
+| `walletFooter` | `(props: WalletFooterProps) => ReactNode` | — | Render prop for wallet UI |
+| `children` | `ReactNode` | — | Additional content |
+
+### Usage
+
+```tsx
+import { AomiFrame } from "@/components/aomi-frame";
+
+export default function ChatPage() {
+  return (
+    <AomiFrame
+      height="600px"
+      walletFooter={({ wallet, setWallet }) => (
+        <YourWalletButton wallet={wallet} setWallet={setWallet} />
+      )}
+    />
+  );
+}
+```
+
+## Assistant Thread
+
+Chat surface with messages, composer, and suggestions. Built on `@assistant-ui/react` primitives.
+
+**Install:** Included with `aomi-frame`
+
+### Features
+
+- Message rendering with markdown support
+- Composer for user input
+- Suggestion chips
+- Attachment handling
+- Tool call fallbacks
+
+## Assistant Thread List
+
+Thread list with create/delete actions. Manages the list of conversation threads.
+
+**Install:** Included with `aomi-frame`
+
+### Features
+
+- Create new threads
+- Delete threads
+- Thread navigation
+- Loading states with skeletons
+
+## Assistant Threadlist Sidebar
+
+Sidebar wrapper with branding slot. Provides the sidebar container for thread navigation.
+
+**Install:** Included with `aomi-frame`
+
+### Features
+
+- Thread list integration
+- Wallet footer slot
+- Responsive behavior
+
+## Assistant Threadlist Collapsible
+
+Collapsible shell for thread navigation and wallet footer slot. Alternative to the sidebar for compact layouts.
+
+**Install:** Included with `aomi-frame`
+
+### Features
+
+- Collapsible thread list
+- Wallet footer integration
+- Mobile-friendly
+
+## Assistant Tool Fallback
+
+Fallback renderer for assistant tool calls. Displays tool execution results when custom renderers aren't available.
+
+**Install:** Included with `aomi-frame`
+
+### Features
+
+- Generic tool result display
+- Error handling
+- Action buttons
+
+## Notification
+
+Notification toaster wired to the runtime notification store. Provides toast notifications for the assistant interface.
+
+**Install:** Included with `aomi-frame`
+
+### Features
+
+- Runtime integration
+- Toast management
+- Customizable styling
+
+## Component Tree
+
+```
+AomiFrame
+├── ThreadListSidebar / ThreadListCollapsible
+│   ├── ThreadList
+│   │   ├── Thread items
+│   │   └── Create/Delete actions
+│   └── [Wallet Footer Slot]
+└── Thread
+    ├── Messages
+    │   ├── MarkdownText (assistant-ui)
+    │   ├── Attachment (assistant-ui)
+    │   └── ToolFallback
+    └── Composer
+        ├── Input
+        └── Suggestions
+```
+
+## Dependencies
+
+Aomi components depend on:
+
+- `@aomi-labs/react` - Core runtime and utilities
+- `@assistant-ui/react` - Assistant UI primitives
+- `@assistant-ui/react-markdown` - Markdown rendering
+- Various shadcn UI primitives (automatically installed)
+
+## Customization
+
+Since components are copied to your project, you can customize them directly:
+
+```
+your-project/
+└── components/
+    ├── aomi-frame.tsx          ← Edit this
+    └── assistant-ui/
+        ├── thread.tsx          ← Or this
+        ├── thread-list.tsx
+        └── ...
+```
+
+See [Theming & Visual Styling](/docs/theming) for theming options.

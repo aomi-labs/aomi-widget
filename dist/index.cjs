@@ -42,6 +42,7 @@ __export(index_exports, {
   BackendApi: () => BackendApi,
   NotificationProvider: () => NotificationProvider,
   RuntimeActionsProvider: () => RuntimeActionsProvider,
+  SessionService: () => SessionService,
   ThreadContextProvider: () => ThreadContextProvider,
   WalletSystemMessageEmitter: () => WalletSystemMessageEmitter,
   cn: () => cn,
@@ -56,6 +57,7 @@ __export(index_exports, {
   useCurrentThreadMetadata: () => useCurrentThreadMetadata,
   useNotification: () => useNotification,
   useRuntimeActions: () => useRuntimeActions,
+  useSessionService: () => useSessionService,
   useThreadContext: () => useThreadContext
 });
 module.exports = __toCommonJS(index_exports);
@@ -297,6 +299,20 @@ var BackendApi = class {
     console.log("\u{1F7E2} [fetchThreads] Success:", data);
     return data;
   }
+  async fetchThread(sessionId) {
+    console.log("\u{1F535} [fetchThread] Called with sessionId:", sessionId);
+    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    console.log("\u{1F535} [fetchThread] URL:", url);
+    const response = await fetch(url);
+    console.log("\u{1F535} [fetchThread] Response status:", response.status, response.statusText);
+    if (!response.ok) {
+      console.error("\u{1F534} [fetchThread] Error:", response.status, response.statusText);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    console.log("\u{1F7E2} [fetchThread] Success:", data);
+    return data;
+  }
   async createThread(publicKey, title) {
     console.log("\u{1F535} [createThread] Called with publicKey:", publicKey, "title:", title);
     const body = {};
@@ -398,8 +414,8 @@ var BackendApi = class {
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
-var import_react6 = require("react");
-var import_react7 = require("@assistant-ui/react");
+var import_react7 = require("react");
+var import_react8 = require("@assistant-ui/react");
 
 // packages/react/src/runtime/hooks.ts
 var import_react = require("react");
@@ -1620,6 +1636,86 @@ var EventController = class {
   }
 };
 
+// packages/react/src/hooks/use-session-service.ts
+var import_react6 = require("react");
+
+// packages/react/src/services/session-service.ts
+var SessionService = class {
+  constructor(backendApi) {
+    this.backendApi = backendApi;
+  }
+  /**
+   * List all sessions for a given public key
+   * @param publicKey - The public key to fetch sessions for
+   * @returns Promise resolving to array of session metadata
+   */
+  async listSessions(publicKey) {
+    return this.backendApi.fetchThreads(publicKey);
+  }
+  /**
+   * Get a single session by ID
+   * @param sessionId - The session ID to fetch
+   * @returns Promise resolving to session metadata
+   */
+  async getSession(sessionId) {
+    return this.backendApi.fetchThread(sessionId);
+  }
+  /**
+   * Create a new session
+   * @param publicKey - Optional public key for the session
+   * @param title - Optional title for the session
+   * @returns Promise resolving to created session response
+   */
+  async createSession(publicKey, title) {
+    return this.backendApi.createThread(publicKey, title);
+  }
+  /**
+   * Delete a session
+   * @param sessionId - The session ID to delete
+   * @returns Promise that resolves when deletion is complete
+   */
+  async deleteSession(sessionId) {
+    return this.backendApi.deleteThread(sessionId);
+  }
+  /**
+   * Rename a session
+   * @param sessionId - The session ID to rename
+   * @param newTitle - The new title for the session
+   * @returns Promise that resolves when rename is complete
+   */
+  async renameSession(sessionId, newTitle) {
+    return this.backendApi.renameThread(sessionId, newTitle);
+  }
+  /**
+   * Archive a session
+   * @param sessionId - The session ID to archive
+   * @returns Promise that resolves when archive is complete
+   */
+  async archiveSession(sessionId) {
+    return this.backendApi.archiveThread(sessionId);
+  }
+  /**
+   * Unarchive a session
+   * @param sessionId - The session ID to unarchive
+   * @returns Promise that resolves when unarchive is complete
+   */
+  async unarchiveSession(sessionId) {
+    return this.backendApi.unarchiveThread(sessionId);
+  }
+};
+
+// packages/react/src/hooks/use-session-service.ts
+function useSessionService(backendApiRef) {
+  return (0, import_react6.useMemo)(() => {
+    if (!backendApiRef.current) {
+      throw new Error(
+        "BackendApi instance is not available. Ensure you're using this hook within a runtime provider."
+      );
+    }
+    return new SessionService(backendApiRef.current);
+  }, [backendApiRef]);
+}
+
 // packages/react/src/runtime/aomi-runtime.tsx
 var import_jsx_runtime3 = require("react/jsx-runtime");
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
@@ -1650,21 +1746,21 @@ function AomiRuntimeProvider({
   onWalletTxRequest
 }) {
   const threadContext = useThreadContext();
-  const threadContextRef = (0, import_react6.useRef)(threadContext);
+  const threadContextRef = (0, import_react7.useRef)(threadContext);
   threadContextRef.current = threadContext;
-  const currentThreadIdRef = (0, import_react6.useRef)(threadContext.currentThreadId);
-  (0, import_react6.useEffect)(() => {
+  const currentThreadIdRef = (0, import_react7.useRef)(threadContext.currentThreadId);
+  (0, import_react7.useEffect)(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
-  const publicKeyRef = (0, import_react6.useRef)(publicKey);
-  (0, import_react6.useEffect)(() => {
+  const publicKeyRef = (0, import_react7.useRef)(publicKey);
+  (0, import_react7.useEffect)(() => {
     publicKeyRef.current = publicKey;
   }, [publicKey]);
-  const getPublicKey = (0, import_react6.useCallback)(() => publicKeyRef.current, []);
-  const lastSubscribedThreadRef = (0, import_react6.useRef)(null);
+  const getPublicKey = (0, import_react7.useCallback)(() => publicKeyRef.current, []);
+  const lastSubscribedThreadRef = (0, import_react7.useRef)(null);
   const { showNotification } = useNotification();
-  const eventControllerRef = (0, import_react6.useRef)(null);
-  const walletHandlerRef = (0, import_react6.useRef)(null);
+  const eventControllerRef = (0, import_react7.useRef)(null);
+  const walletHandlerRef = (0, import_react7.useRef)(null);
   const {
     backendStateRef,
     polling,
@@ -1675,6 +1771,7 @@ function AomiRuntimeProvider({
     setSystemEventsHandler,
     backendApiRef
   } = useRuntimeOrchestrator(backendUrl, { getPublicKey });
+  const sessionService = useSessionService(backendApiRef);
   if (!walletHandlerRef.current) {
     walletHandlerRef.current = new WalletHandler({
       backendApiRef,
@@ -1699,38 +1796,38 @@ function AomiRuntimeProvider({
       setThreadMetadata: threadContext.setThreadMetadata
     });
   }
-  const handleSystemEvents = (0, import_react6.useCallback)(
+  const handleSystemEvents = (0, import_react7.useCallback)(
     (sessionId, threadId, events) => {
       var _a;
       (_a = eventControllerRef.current) == null ? void 0 : _a.handleBackendSystemEvents(sessionId, threadId, events);
     },
     []
   );
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     setSystemEventsHandler(handleSystemEvents);
     return () => {
       setSystemEventsHandler(null);
     };
   }, [handleSystemEvents, setSystemEventsHandler]);
-  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = (0, import_react6.useState)(0);
-  const bumpUpdateSubscriptions = (0, import_react6.useCallback)(() => {
+  const [updateSubscriptionsTick, setUpdateSubscriptionsTick] = (0, import_react7.useState)(0);
+  const bumpUpdateSubscriptions = (0, import_react7.useCallback)(() => {
     setUpdateSubscriptionsTick((prev) => prev + 1);
   }, []);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     const isCurrentlyRunning = isThreadRunning(backendStateRef.current, threadId);
     setIsRunning(isCurrentlyRunning);
   }, [threadContext.currentThreadId, setIsRunning]);
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
       try {
-        const threadList = await backendApiRef.current.fetchThreads(publicKey);
+        const threadList = await sessionService.listSessions(publicKey);
         const currentContext = threadContextRef.current;
         const newMetadata = new Map(currentContext.threadMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -1760,8 +1857,8 @@ function AomiRuntimeProvider({
       }
     };
     void fetchThreadList();
-  }, [publicKey]);
-  const threadListAdapter = (0, import_react6.useMemo)(() => {
+  }, [publicKey, sessionService]);
+  const threadListAdapter = (0, import_react7.useMemo)(() => {
     const backendState = backendStateRef.current;
     const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
     const preparePendingThread = (threadId) => {
@@ -1827,7 +1924,7 @@ function AomiRuntimeProvider({
         }
         const tempId = `temp-${crypto.randomUUID()}`;
         preparePendingThread(tempId);
-        const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
+        const createPromise = sessionService.createSession(publicKey, void 0).then(async (newThread) => {
           var _a2;
           const uiThreadId = (_a2 = backendState.creatingThreadId) != null ? _a2 : tempId;
           const backendId = newThread.session_id;
@@ -1914,7 +2011,7 @@ function AomiRuntimeProvider({
           title: normalizedTitle
         });
         try {
-          await backendApiRef.current.renameThread(threadId, newTitle);
+          await sessionService.renameSession(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
           threadContext.updateThreadMetadata(threadId, { title: previousTitle });
@@ -1923,7 +2020,7 @@ function AomiRuntimeProvider({
       onArchive: async (threadId) => {
         threadContext.updateThreadMetadata(threadId, { status: "archived" });
         try {
-          await backendApiRef.current.archiveThread(threadId);
+          await sessionService.archiveSession(threadId);
         } catch (error) {
           console.error("Failed to archive thread:", error);
           threadContext.updateThreadMetadata(threadId, { status: "regular" });
@@ -1932,7 +2029,7 @@ function AomiRuntimeProvider({
       onUnarchive: async (threadId) => {
         threadContext.updateThreadMetadata(threadId, { status: "regular" });
         try {
-          await backendApiRef.current.unarchiveThread(threadId);
+          await sessionService.unarchiveSession(threadId);
         } catch (error) {
           console.error("Failed to unarchive thread:", error);
           threadContext.updateThreadMetadata(threadId, { status: "archived" });
@@ -1940,7 +2037,7 @@ function AomiRuntimeProvider({
       },
       onDelete: async (threadId) => {
         try {
-          await backendApiRef.current.deleteThread(threadId);
+          await sessionService.deleteSession(threadId);
           threadContext.setThreadMetadata((prev) => {
             const next = new Map(prev);
             next.delete(threadId);
@@ -1985,7 +2082,7 @@ function AomiRuntimeProvider({
       }
     };
   }, [
-    backendApiRef,
+    sessionService,
     polling,
     publicKey,
     backendStateRef,
@@ -1993,15 +2090,16 @@ function AomiRuntimeProvider({
     threadContext,
     threadContext.currentThreadId,
     threadContext.threadMetadata,
-    bumpUpdateSubscriptions
+    bumpUpdateSubscriptions,
+    backendApiRef
   ]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);
-  const runtime = (0, import_react7.useExternalStoreRuntime)({
+  const runtime = (0, import_react8.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
@@ -2010,7 +2108,7 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     if (isTempThreadId(threadId)) return;
     const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
@@ -2018,14 +2116,14 @@ function AomiRuntimeProvider({
       void messageController.flushPendingSystem(threadId);
     }
   }, [currentMessages, messageController, threadContext.currentThreadId]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     return () => {
       var _a;
       polling.stopAll();
       (_a = eventControllerRef.current) == null ? void 0 : _a.cleanup();
     };
   }, [polling]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     var _a, _b, _c;
     const backendState = backendStateRef.current;
     const threadId = threadContext.currentThreadId;
@@ -2052,7 +2150,7 @@ function AomiRuntimeProvider({
       value: {
         sendSystemMessage: (message) => messageController.outboundSystem(threadContext.currentThreadId, message)
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_react7.AssistantRuntimeProvider, { runtime, children })
+      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_react8.AssistantRuntimeProvider, { runtime, children })
     }
   );
 }
@@ -2073,6 +2171,7 @@ function cn(...inputs) {
   BackendApi,
   NotificationProvider,
   RuntimeActionsProvider,
+  SessionService,
   ThreadContextProvider,
   WalletSystemMessageEmitter,
   cn,
@@ -2087,6 +2186,7 @@ function cn(...inputs) {
   useCurrentThreadMetadata,
   useNotification,
   useRuntimeActions,
+  useSessionService,
   useThreadContext
 });
 //# sourceMappingURL=index.cjs.map

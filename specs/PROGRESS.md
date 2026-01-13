@@ -1,75 +1,79 @@
 # Progress Tracker
 
 ## Current Sprint Goal
-Landing page with documentation and shadcn component registry
+UI improvements: Session service abstraction, toast notifications, and SSE retry logic
 
 ## Branch Status
-- **Current Branch:** `new-docs`
+- **Current Branch:** `feat/ui-improvement`
 - **Recent Commits:**
-  - 542d995 rename docs to guilds
-  - c6e3b09 remove old landing, change docs to landing
-  - 24ab90d use /widget.aomi.dev/r as component hosting domain
-  - 01740b4 updated docs with shadcn
-  - 5b7260f revert back the unchanged lib with assistantUI("markdown-text")
-  - 2049d28 whole pnpm workspace clear
-  - 8b04b57 updates
-  - a527410 applyied styles
-  - 341969c applyied styles
-  - 30418d4 added actual content
+  - 5e4574c Add Sonner in shadcn registry
+  - 4043ffc Merge pull request #14 from aomi-labs/fix/shadcn-registry
+  - a3eabb5 Bump react package version to 0.1.0
+  - a002a6e Add shadcn registry in route
+  - bcdddf1 Merge pull request #13 from aomi-labs/new-docs
+  - f375c24 Add shadcn registry
+  - 1f711a9 Use shadcn sonner(toast) for notification
+  - ea47f46 Update pnpm lock
+  - 6aefdde Add missing packages in landing
+  - adc70f7 Add retry for sse subscription
 
 ## Recently Completed Work
 
 | Task | Description | Key Changes |
 |------|-------------|-------------|
-| Rename docs to landing | Consolidated docs app as main landing page | apps/docs → apps/landing |
-| Shadcn registry | Created component registry for shadcn-style distribution | apps/registry with build scripts |
-| Documentation restructure | Reorganized content into guides, api, examples | content/guides/, content/api/, content/examples/ |
-| Widget hosting domain | Set up widget.aomi.dev/r as component hosting | Registry outputs to dist/ |
-| Workspace cleanup | Cleaned up pnpm workspace structure | Removed old landing app |
+| Backend-UI Decoupling | Complete decoupling of backend from UI via SessionService layer | Architecture: UI → SessionService → BackendApi → HTTP. All session operations now go through service layer |
+| Session Service | Created SessionService class to encapsulate session operations | `packages/react/src/services/session-service.ts` - Clean API for list, get, create, delete, rename, archive/unarchive |
+| Session Service Hook | Added useSessionService hook for React integration | `packages/react/src/hooks/use-session-service.ts` - Provides SessionService instance from BackendApi ref |
+| Runtime Refactoring | Refactored AomiRuntimeProvider to use SessionService | `packages/react/src/runtime/aomi-runtime.tsx` - Replaced all direct BackendApi session calls with SessionService methods |
+| Missing API Method | Added fetchThread method to BackendApi | `packages/react/src/api/client.ts` - Added GET /api/sessions/:session_id endpoint |
+| SSE Retry Logic | Implemented exponential backoff retry for SSE subscriptions | `packages/react/src/api/client.ts` - Retry with max 10s delay, exponential backoff (500ms * 2^n) |
+| Sonner Toast Component | Added Sonner toast component to shadcn registry | `apps/registry/src/components/ui/sonner.tsx` - Wrapped Sonner with Tailwind styling |
+| Package Version | Bumped @aomi-labs/react to 0.1.0 | `packages/react/package.json` - Version update |
+| Package Exports | Exported SessionService and hook | `packages/react/src/index.ts` - Added exports for SessionService and useSessionService |
 
 ## Files Modified This Sprint
 
-### Landing App (apps/landing/)
-- `source.config.ts` - Fumadocs MDX configuration
-- `lib/source.tsx` - Docs, API, and examples loaders
-- `app/provider.tsx` - RootProvider wrapper
-- `app/layout.tsx` - Main layout with fonts
-- `app/docs/layout.tsx` - Docs layout with sidebar
-- `app/api/layout.tsx` - API reference layout
-- `app/examples/layout.tsx` - Examples layout
+### Core Services
+- `packages/react/src/services/session-service.ts` - New SessionService class (83 lines)
+- `packages/react/src/hooks/use-session-service.ts` - New useSessionService hook (32 lines)
 
-### Content (apps/landing/content/)
-- `guides/*.mdx` - 15 guide pages (about-aomi, architecture, cli, components, etc.)
-- `api/*.mdx` - API reference (sessions, system)
-- `examples/*.mdx` - Examples (metamask, polymarket)
-- `*/meta.json` - Navigation structure files
+### API & Runtime
+- `packages/react/src/api/client.ts` - Added `fetchThread` method + SSE retry logic with exponential backoff
+- `packages/react/src/runtime/aomi-runtime.tsx` - Refactored to use SessionService (replaced all direct BackendApi session calls)
 
-### Registry App (apps/registry/)
-- `package.json` - @aomi-labs/widget-lib package
-- `scripts/build-registry.js` - Registry build script
-- `src/components/aomi-frame.tsx` - Main widget component
-- `src/components/assistant-ui/*.tsx` - Assistant UI components
-- `src/components/ui/*.tsx` - UI primitives
-- `dist/*.json` - Built registry files
+### Registry Components
+- `apps/registry/src/components/ui/sonner.tsx` - New Sonner toast component (28 lines)
+- `apps/registry/src/registry.ts` - Added Sonner to registry
 
-### Playground Components
-- `apps/landing/src/components/playground/` - Preview, CopyButton
-- `apps/landing/src/components/samples/widget-demo.tsx` - Demo component
+### Package Configuration
+- `packages/react/package.json` - Version bumped to 0.1.0
+- `packages/react/src/index.ts` - Exported SessionService and useSessionService
+
+### Build Output
+- `dist/*` - Updated build artifacts
+- `packages/react/dist/*` - Updated package build
 
 ## Pending Tasks
 
-### Documentation Content
-- [ ] Fill in actual content for placeholder MDX pages
-- [ ] Complete API reference documentation
-- [ ] Add more code examples with live previews
+### Session Service
+- [ ] Add error handling and retry logic to SessionService methods
+- [ ] Add TypeScript JSDoc examples for all SessionService methods
+- [ ] Consider adding caching layer for session list operations
 
-### Registry
-- [ ] Verify all components build correctly
-- [ ] Test shadcn add workflow
+### SSE Improvements
+- [ ] Add max retry limit configuration
+- [ ] Add connection status indicator
+- [ ] Consider WebSocket fallback for better reliability
 
-### Low Priority
-- [ ] Add search functionality (Algolia DocSearch)
-- [ ] Add dark/light theme toggle
+### UI Components
+- [ ] Verify Sonner toast integration in landing app
+- [ ] Add toast examples to documentation
+- [ ] Test toast notifications across different scenarios
+
+### Testing
+- [ ] Add unit tests for SessionService
+- [ ] Add integration tests for SSE retry logic
+- [ ] Test session operations end-to-end
 
 ## Known Issues
 
@@ -77,40 +81,35 @@ None currently - build and dev server working correctly.
 
 ## Notes for Next Agent
 
-### Environment Requirements
-- **Node 20+ required** - fumadocs 16.x + Next.js 16 need Node 20
-- Run `nvm use 20` before any commands
+### Session Service Architecture (Backend-UI Decoupling)
+- **Architecture Layer**: UI Components → SessionService → BackendApi → HTTP → Backend
+- **SessionService** (`packages/react/src/services/session-service.ts`) - Encapsulates all session-related backend operations
+- **useSessionService** hook provides SessionService instance from BackendApi ref
+- Service methods map directly to BackendApi methods (listSessions, getSession, createSession, deleteSession, renameSession, archiveSession, unarchiveSession)
+- Service is instantiated per BackendApi instance via useMemo in the hook
+- **Decoupling**: UI components (`apps/registry`) never directly use `BackendApi` - all session operations go through `SessionService`
+- **Runtime**: `AomiRuntimeProvider` uses `useSessionService()` hook instead of direct `backendApiRef.current` calls
+
+### SSE Retry Implementation
+- Retry logic uses exponential backoff: `500ms * 2^(retries - 1)` with max delay of 10s
+- Retry state managed in subscription object with cleanup function
+- Retries are scheduled automatically on connection errors
+- Cleanup properly cancels pending retries when subscription is stopped
+
+### Sonner Integration
+- Sonner component added to shadcn registry at `apps/registry/src/components/ui/sonner.tsx`
+- Component wraps Sonner with Tailwind classes for consistent styling
+- Can be added via `npx shadcn@latest add sonner` from registry
 
 ### Key Commands
 ```bash
-pnpm --filter landing dev              # Dev server at :3000
-pnpm --filter landing build            # Production build
-pnpm --filter @aomi-labs/widget-lib build  # Build registry
+pnpm run build:lib              # Build library to dist/
+pnpm --filter landing dev        # Run demo at localhost:3000
+pnpm run lint                    # Lint check
 ```
 
 ### Architecture
-- **Landing** (`apps/landing/`) - Main site with fumadocs documentation
-- **Registry** (`apps/registry/`) - Shadcn-style component registry
-- fumadocs-mdx generates `.source/` files at install time (postinstall)
-- Three collections: `guides` (docs), `api` (reference), `examples`
-- Components hosted at widget.aomi.dev/r
-
-### File Structure
-```
-apps/
-├── landing/              # Landing page + docs
-│   ├── content/
-│   │   ├── guides/       # Documentation guides
-│   │   ├── api/          # API reference
-│   │   └── examples/     # Code examples
-│   ├── app/
-│   │   ├── docs/         # /docs routes (guides)
-│   │   ├── api/          # /api routes
-│   │   └── examples/     # /examples routes
-│   ├── lib/source.tsx    # Content loaders
-│   └── source.config.ts  # fumadocs-mdx config
-└── registry/             # Shadcn component registry
-    ├── src/components/   # Source components
-    ├── dist/             # Built registry JSON
-    └── scripts/          # Build scripts
-```
+- **SessionService** - Service layer abstraction for session operations
+- **useSessionService** - React hook for accessing SessionService
+- **SSE Retry** - Automatic reconnection with exponential backoff
+- **Sonner** - Toast notification component in registry
