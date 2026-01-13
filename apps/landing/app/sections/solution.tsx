@@ -96,10 +96,10 @@ export function Solution() {
   <section className="pb-20" id="resources">
     <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative">
         <div className="js-animate group flex flex-col" data-animate="left" data-delay="300">
-            <h2 className="md:text-4xl font-normal text-white font-pt-serif mb-10 ml-10">
+            <h2 className="md:text-3xl font-light text-white font-geist mb-10 ml-10">
         AI infrastructure Hosting
       </h2>
-      <div className="bg-[#e3d8e6] border border-white ml-10 mr-15 pt-10 pr-10 pl-10">
+      <div className="bg-[#e3d8e6] border border-white border-2 ml-10 mr-15 pt-10 pr-10 pl-10">
           <div className="flex flex-col gap-y-5">
             <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
               Aomi provides a serverless backend for the agentic lifecycle,
@@ -143,7 +143,7 @@ export function Solution() {
       </div>
       </div>
       <div className="js-animate group flex flex-col" data-animate="right" data-delay="600">
-          <div className="bg-[#e3d8e6] border border-white ml-15 mr-10 pt-5 pr-10 pb-10 pl-10">
+          <div className="bg-[#e3d8e6] border border-white border-2 ml-15 mr-10 pt-5 pr-10 pb-10 pl-10">
         <div className="overflow-hidden backdrop-blur-[40px] bg-neutral-600 border-stone-400/20 border  rounded-[2rem] mt-5 mb-10 pr-5 pl-8 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.12),0px_1px_1px_-0.5px_rgba(0,0,0,0.12),0px_3px_3px_-1.5px_rgba(0,0,0,0.12),0px_6px_6px_-3px_rgba(0,0,0,0.12),0px_12px_12px_-6px_rgba(0,0,0,0.12),0px_24px_24px_-12px_rgba(0,0,0,0.12)]">
           <p className="text-sm font-light text-stone-200 font-space-mono mt-2 mb-2">$ pnpm install @aomi-labs/react</p><p className="text-sm font-light text-stone-200 font-space-mono mb-2">$ npx shadcn add @aomi/aomi-frame</p>
         </div>
@@ -167,7 +167,7 @@ export function Solution() {
                     </div>
                   </a>
                       </div>
-                                  <h3 className="md:text-4xl font-normal text-stone-50 font-pt-serif text-right mr-10 mt-20 absolute right-0">
+                                  <h3 className="md:text-3xl font-light text-stone-50 font-geist text-right mr-10 mt-20 absolute right-0">
                                     Seamless frontend integration
                                   </h3>
       </div>
