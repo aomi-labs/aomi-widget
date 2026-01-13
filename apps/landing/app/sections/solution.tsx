@@ -2,8 +2,8 @@ export function Solution() {
   return (
     <>
 <div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
-        <section className="js-animate flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow" data-animate="up">
-          <div className="landing-glass-blur backdrop-blur-[40px] overflow-hidden bg-gradient-to-br from-white/10 via-white/5 to-transparent w-full border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 mt-10 pl-12 relative shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)]">
+        <section className="js-animate flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow" data-animate="up" data-delay="200">
+          <div className="glass-panel overflow-hidden w-full rounded-[2.5rem] mt-10 pl-12 relative shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)]">
             <div className="-top-40 -right-40 blur-[120px] pointer-events-none bg-indigo-500/20 mix-blend-screen w-96 h-96 rounded-full absolute">
             </div>
             <div className="-bottom-40 -left-40 blur-[120px] pointer-events-none bg-blue-500/10 mix-blend-screen w-96 h-96 rounded-full absolute">
@@ -95,11 +95,11 @@ export function Solution() {
         </section>
   <section className="pb-20" id="resources">
     <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative">
-        <div className="js-animate group flex flex-col" data-animate="left">
+        <div className="js-animate group flex flex-col" data-animate="left" data-delay="300">
             <h2 className="md:text-4xl font-normal text-white font-pt-serif mb-10">
         AI infrastructure Hosting
       </h2>
-      <div className="bg-[#e3d8e6] ml-5 mr-10 pt-10 pr-10 pl-10">
+      <div className="bg-[#e3d8e6] border border-white ml-5 mr-10 pt-10 pr-10 pl-10">
           <div className="flex flex-col gap-y-5">
             <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
               Aomi provides a serverless backend for the agentic lifecycle,
@@ -142,8 +142,8 @@ export function Solution() {
         </div>
       </div>
       </div>
-      <div className="js-animate group flex flex-col" data-animate="right">
-          <div className="bg-[#e3d8e6] ml-10 mr-5 pt-5 pr-10 pb-10 pl-10">
+      <div className="js-animate group flex flex-col" data-animate="right" data-delay="600">
+          <div className="bg-[#e3d8e6] border border-white ml-10 mr-5 pt-5 pr-10 pb-10 pl-10">
         <div className="overflow-hidden backdrop-blur-[40px] bg-neutral-600 border-stone-400/20 border  rounded-[2rem] mt-5 mb-10 pr-5 pl-8 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.12),0px_1px_1px_-0.5px_rgba(0,0,0,0.12),0px_3px_3px_-1.5px_rgba(0,0,0,0.12),0px_6px_6px_-3px_rgba(0,0,0,0.12),0px_12px_12px_-6px_rgba(0,0,0,0.12),0px_24px_24px_-12px_rgba(0,0,0,0.12)]">
           <p className="text-sm font-light text-stone-200 font-space-mono mt-2 mb-2">$ pnpm install @aomi-labs/react</p><p className="text-sm font-light text-stone-200 font-space-mono mb-2">$ npx shadcn add @aomi/aomi-frame</p>
         </div>

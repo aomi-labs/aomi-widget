@@ -15,8 +15,8 @@ export function Technology() {
               without the manual overhead.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 mx-8 gap-x-3   bg-[#e3d8e6] pt-8 pr-5 pb-8 pl-5">
-            <div className="js-animate flex flex-col gap-8 group" data-animate="up" data-delay="0">
+          <div className="grid grid-cols-1 md:grid-cols-3 mx-8">
+            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] border border-white pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="200">
               <div className="flex select-none w-full h-48 relative perspective-1000 items-center justify-center">
                 <div className="absolute bg-neutral-200 text-neutral-900 rounded-xl px-4 py-3 shadow-2xl transform -rotate-12 translate-y-2 translate-x-4 border border-white/20 z-10 w-48 flex items-center gap-3 transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-105">
                   <div className="bg-neutral-900 rounded-full p-1.5 text-white">
@@ -54,7 +54,7 @@ export function Technology() {
                 </p>
               </div>
             </div>
-            <div className="js-animate flex flex-col gap-8 group" data-animate="up" data-delay="120">
+            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] border border-white pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="500">
               <div className="h-48 w-full relative flex items-end justify-center overflow-hidden">
                 <svg className="w-[413px] h-[192px]" viewBox="0 0 200 120" fill="none" strokeWidth="2" style={{ width: "413px", height: "192px", color: "rgb(250, 250, 249)" }} data-icon-replaced="true">
                               <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
@@ -87,7 +87,7 @@ export function Technology() {
                 </p>
               </div>
             </div>
-            <div className="js-animate flex flex-col gap-8 group" data-animate="up" data-delay="240">
+            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] border border-white pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="800">
               <div className="h-48 w-full relative flex items-center justify-center">
                 <svg className="w-[413px] h-[192px] top-0 right-0 bottom-0 left-0" viewBox="0 0 200 150" fill="none" strokeWidth="2" style={{ width: "413px", height: "192px", color: "rgb(250, 250, 249)" }} data-icon-replaced="true">
                               <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
@@ -130,7 +130,7 @@ export function Technology() {
           </div>
         </div>
       </section>
-        <section className="js-animate overflow-hidden w-full pt-10 pr-4 pb-10 pl-4 relative" id="intent" data-animate="right">
+        <section className="js-animate overflow-hidden w-full pt-10 pr-4 pb-10 pl-4 relative" id="intent" data-animate="right" data-delay="700">
           <div className="lg:h-[400px] z-10 h-[600px] max-w-[1400px] mr-auto ml-auto relative">
             <svg className="hidden lg:block w-full h-full absolute top-0 right-0 bottom-0 left-0" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
               <defs className="">
