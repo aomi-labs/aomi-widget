@@ -1,9 +1,10 @@
 export function Resources() {
   return (
     <>
+
       <section 
         id="faq" 
-        className="js-animate border-white/20 border-t pt-20 pr-4 pb-10 pl-4 w-full"
+        className="border-white/20 border-t pt-20 pr-4 pb-10 pl-4 w-full"
         data-animate="up"
         data-delay="300"
         >
@@ -14,7 +15,7 @@ export function Resources() {
             </h2>
           </div>
 
-          <div className="glass-panel mt-10 mx-auto">
+          <div className="glass-panel mt-10 divide-y divide-white/10 rounded-[2rem] text-left overflow-hidden mx-auto">
             <details className="mx-5 group p-5">
               <summary className="w-full flex items-center justify-between text-left cursor-pointer list-none">
                 <span className="text-sm md:text-base font-geist font-normal tracking-tight text-white">
@@ -166,7 +167,7 @@ export function Resources() {
                 <img
                   src="/assets/images/bubble.svg"
                   alt="Aomi"
-                  className="w-5 h-5 invert"
+                  className="w-5 h-5"
                 />
                 <span className="font-semibold text-stone-100 tracking-tight font-geist">
                   Aomi
