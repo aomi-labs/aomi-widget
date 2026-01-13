@@ -1,12 +1,12 @@
 export function Resources() {
   return (
     <>
-      <section
-        id="faq"
+      <section 
+        id="faq" 
         className="js-animate border-white/20 border-t pt-20 pr-4 pb-10 pl-4 w-full"
         data-animate="up"
         data-delay="300"
-      >
+        >
         <div className="mr-auto ml-auto max-w-4xl text-center">
           <div>
             <h2 className="mt-1 mb-15 text-3xl md:text-4xl tracking-tight font-serif font-medium text-white">
@@ -14,7 +14,7 @@ export function Resources() {
             </h2>
           </div>
 
-          <div className="glass-panel mt-10 divide-y divide-white/10 rounded-[2rem] text-left overflow-hidden mx-auto">
+          <div className="glass-panel mt-10 mx-auto">
             <details className="mx-5 group p-5">
               <summary className="w-full flex items-center justify-between text-left cursor-pointer list-none">
                 <span className="text-sm md:text-base font-geist font-normal tracking-tight text-white">
@@ -166,7 +166,7 @@ export function Resources() {
                 <img
                   src="/assets/images/bubble.svg"
                   alt="Aomi"
-                  className="w-5 h-5"
+                  className="w-5 h-5 invert"
                 />
                 <span className="font-semibold text-stone-100 tracking-tight font-geist">
                   Aomi

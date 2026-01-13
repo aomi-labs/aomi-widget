@@ -1,9 +1,9 @@
 export function Solution() {
   return (
     <>
-<div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
-        <section className="js-animate flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow" data-animate="up" data-delay="200">
-          <div className="glass-panel overflow-hidden w-full rounded-[2.5rem] mt-10 pl-12 relative shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)]">
+      <div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
+      <section className="js-animate flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow" data-animate="up" data-delay="200">
+      <div className="glass-panel overflow-hidden w-full rounded-[2.5rem] mt-10 pl-12 relative">
             <div className="-top-40 -right-40 blur-[120px] pointer-events-none bg-indigo-500/20 mix-blend-screen w-96 h-96 rounded-full absolute">
             </div>
             <div className="-bottom-40 -left-40 blur-[120px] pointer-events-none bg-blue-500/10 mix-blend-screen w-96 h-96 rounded-full absolute">
@@ -15,7 +15,7 @@ export function Solution() {
                     <span className="text-[10px] uppercase font-semibold text-white tracking-wider font-geist mt-1 mb-1">Workflow</span>
                   </div>
                   <h2 className="md:text-5xl text-4xl text-white tracking-tight font-serif mb-2">
-                    From intent to
+                    From intent to <br />
                     <span className="italic text-white/70">implementation.</span>
                   </h2>
                   <p className="text-base font-light text-neutral-50 font-geist mb-10">
