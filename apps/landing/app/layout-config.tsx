@@ -32,7 +32,7 @@ export const baseLayoutOptions: BaseLayoutProps = {
         <img
           src="/assets/images/bubble.svg"
           alt="Aomi"
-          className="h-5 w-5 invert"
+          className="h-5 w-5"
         />
         <span className="font-semibold tracking-tight">Aomi</span>
       </span>

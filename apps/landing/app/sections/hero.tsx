@@ -1,4 +1,5 @@
 import { WidgetFrame } from "@/components/samples/widget-demo";
+import type { CSSProperties } from "react";
 
 export function Hero() {
   return (
@@ -42,7 +43,7 @@ export function Hero() {
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="menu" className="lucide lucide-menu w-5 h-5"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
           </button>
       </nav>
-      <div className="flex flex-col animate-fade-in text-center w-full max-w-7xl mr-auto ml-auto pt-36 pr-4 pb-10 pl-4 items-center">
+      <div className="flex flex-col animate-fade-in text-center w-full max-w-7xl mr-auto ml-auto pt-36 pr-4 pl-4 items-center">
         <div className="flex backdrop-blur-[20px] hover:bg-white/10 transition-colors cursor-default bg-white/20 border-white/10 border rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
           <div className="flex -space-x-2">
             <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
@@ -90,7 +91,7 @@ export function Hero() {
 
 
 
-      <section className="z-10 sm:py-24 pt-8 pb-8 relative" id="client-ticker">
+      <section className="z-10 sm:py-24 pb-15 relative" id="client-ticker">
         <div className="sm:px-6 lg:px-8 max-w-7xl mr-auto ml-auto pr-4 pl-4">
           <div className="text-center mb-12">
             <p className="uppercase text-xs font-medium text-white-500 tracking-wide font-geist">
@@ -110,47 +111,56 @@ export function Hero() {
           >
             {/* Gradient Overlays */}
             <div
-              className="z-10 pointer-events-none bg-gradient-to-r from-black via-black/80 to-transparent w-20 absolute top-0 bottom-0 left-0"
+              className="z-10 pointer-events-none bg-gradient-to-r from-black via-black/80 to-transparent w-15 absolute top-0 bottom-0 left-0"
               style={{ visibility: "hidden" }}
             ></div>
 
             {/* Animated Ticker */}
-            <div className="ticker-track flex gap-16 pt-2 pb-2 gap-x-16 gap-y-16 items-center">
+            <div
+              className="ticker-track flex w-max flex-nowrap pt-2 pb-2 items-center animate-marquee will-change-transform"
+              style={
+                {
+                  "--duration": "15s",
+                  "--group-gap": "2rem",
+                  gap: "var(--group-gap)",
+                } as CSSProperties
+              }
+            >
               {/* First set of logos */}
               <div className="flex gap-16 shrink-0 gap-x-16 gap-y-16 items-center">
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/solana-sol-logo.png"
                     alt="Solana"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/ethereum-eth-logo.png"
                     alt="Ethereum"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/cosmos-atom-logo.png"
                     alt="Cosmos"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
                     alt="MetaMask"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/polymarket1671006384460.png"
                     alt="Polymarket"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
               </div>
@@ -161,35 +171,35 @@ export function Hero() {
                   <img
                     src="/assets/trusted/solana-sol-logo.png"
                     alt="Solana"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/ethereum-eth-logo.png"
                     alt="Ethereum"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/cosmos-atom-logo.png"
                     alt="Cosmos"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
                     alt="MetaMask"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/polymarket1671006384460.png"
                     alt="Polymarket"
-                    className="h-[2.4rem] w-auto object-contain opacity-80 saturate-0 transition-opacity duration-300 hover:opacity-100"
+                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
               </div>
