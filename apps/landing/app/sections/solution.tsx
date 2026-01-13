@@ -37,7 +37,7 @@ export function Solution() {
                           <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
                             Contact us to define how we can support your
                             business with AI automation for on-chain
-                            transactions, whether you're building AI x crypto
+                            transactions, whether you&apos;re building AI x crypto
                             projects, onchain agents, or enhancing UX with
                             chat interfaces.
                           </p>
