@@ -16,6 +16,7 @@
   "registryDependencies": [
     "https://widget.aomi.dev/r/assistant-thread.json",
     "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
+    "https://widget.aomi.dev/r/notification.json",
     "sidebar",
     "separator",
     "breadcrumb"

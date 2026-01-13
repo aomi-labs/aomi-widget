@@ -19,6 +19,7 @@
       "registryDependencies": [
         "https://widget.aomi.dev/r/assistant-thread.json",
         "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
+        "https://widget.aomi.dev/r/notification.json",
         "sidebar",
         "separator",
         "breadcrumb"
@@ -104,6 +105,39 @@
       "registryDependencies": [
         "button"
       ]
+    },
+    {
+      "name": "notification",
+      "type": "registry:component",
+      "description": "Notification toaster wired to the runtime notification store.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/notification.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "sonner"
+      ],
+      "registryDependencies": [
+        "https://widget.aomi.dev/r/sonner.json"
+      ]
+    },
+    {
+      "name": "sonner",
+      "type": "registry:component",
+      "description": "Shadcn wrapper for Sonner toasts.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/sonner.tsx"
+        }
+      ],
+      "dependencies": [
+        "sonner"
+      ],
+      "registryDependencies": []
     }
   ]
 }
