@@ -73,7 +73,7 @@
     transform: translateX(0);
   }
   to {
-    transform: translateX(calc(-100% - var(--gap)));
+    transform: translateX(calc(-50% - var(--group-gap, 0px)));
   }
 }
 
@@ -163,8 +163,8 @@ html {
   .js-animate {
     opacity: 0;
     transform: translateY(40px);
-    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 2.5s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 2.5s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform, opacity;
   }
   .js-animate[data-animate="right"] {
