@@ -1,0 +1,182 @@
+export function Solution() {
+  return (
+    <>
+<div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
+        <section className="js-animate flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="workflow" data-animate="up">
+          <div className="landing-glass-blur backdrop-blur-[40px] overflow-hidden bg-gradient-to-br from-white/10 via-white/5 to-transparent w-full border-white/20 border rounded-[2.5rem] ring-white/20 ring-1 mt-10 pl-12 relative shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)]">
+            <div className="-top-40 -right-40 blur-[120px] pointer-events-none bg-indigo-500/20 mix-blend-screen w-96 h-96 rounded-full absolute">
+            </div>
+            <div className="-bottom-40 -left-40 blur-[120px] pointer-events-none bg-blue-500/10 mix-blend-screen w-96 h-96 rounded-full absolute">
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-20 relative items-center">
+              <div className="flex flex-col justify-between h-full">
+                <div className="">
+                  <div className="inline-flex bg-white/10 w-fit border-white/20 border rounded-full ring-white/10 ring-1 mt-10 mb-6 pt-1 pr-3 pb-1 pl-3 backdrop-blur-md items-center">
+                    <span className="text-[10px] uppercase font-semibold text-white tracking-wider font-geist mt-1 mb-1">Workflow</span>
+                  </div>
+                  <h2 className="md:text-5xl text-4xl text-white tracking-tight font-serif mb-2">
+                    From intent to
+                    <span className="italic text-white/70">implementation.</span>
+                  </h2>
+                  <p className="text-base font-light text-neutral-50 font-geist mb-10">
+                    A seamless partnership model designed for the agentic
+                    future.
+                  </p>
+                  <div className="relative pl-2">
+                    <div className="absolute left-[11px] top-3 bottom-8 w-px bg-gradient-to-b from-indigo-500/50 via-white/10 to-transparent">
+                    </div>
+                    <div className="flex flex-col gap-10 gap-x-10 gap-y-10">
+                      <div className="relative flex gap-6 items-start group">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-indigo-500/50 bg-[#1c1917] z-10 relative mt-1 shadow-[0_0_15px_rgba(99,102,241,0.3)] flex items-center justify-center ring-1 ring-indigo-500/20">
+                          <div className="bg-[#9D77A8] w-2 h-2 rounded-full"></div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="transition-colors duration-300 text-lg font-semibold text-white font-geist group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                            Consultation &amp; Strategy
+                          </h3>
+                          <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
+                            Contact us to define how we can support your
+                            business with AI automation for on-chain
+                            transactions, whether you're building AI x crypto
+                            projects, onchain agents, or enhancing UX with
+                            chat interfaces.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex group relative gap-x-6 gap-y-6 items-start">
+                        <div className="flex-shrink-0 group-hover:border-transparent transition-colors duration-300 flex bg-[#1c1917] w-6 h-6 z-10 border-white/20 border rounded-full mt-1 relative shadow-inner items-center justify-center">
+                          <div className="transition-colors duration-300 bg-neutral-600 w-2 h-2 rounded-full group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-white font-geist transition-colors duration-300 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                            Custom Build
+                          </h3>
+                          <p className="leading-relaxed text-sm font-light text-stone-50 font-geist mt-2">
+                            We build customized AI applications integrating
+                            your APIs and tools, seamlessly deployed within
+                            your existing infrastructure.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="relative flex gap-6 items-start group">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-white/20 bg-[#1c1917] z-10 relative mt-1 group-hover:border-transparent transition-colors duration-300 flex items-center justify-center shadow-inner">
+                          <div className="w-2 h-2 rounded-full bg-neutral-600 transition-colors duration-300 group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-white font-geist transition-colors duration-300 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                            Managed Orchestration
+                          </h3>
+                          <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
+                            In production, we host the LLM infrastructure
+                            including agentic orchestration, allowing you to
+                            focus purely on your backend logic.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-12 mb-12">
+                  <a href="/docs/about-aomi" className="overflow-hidden group transition-all flex items-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95 text-xs font-semibold text-neutral-900 font-geist bg-white/90 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                    <span className="z-10 flex items-center gap-2 relative">Documentation</span>
+                    <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
+                    </div>
+                  </a>
+                </div>
+              </div>
+              <div className="lg:mt-0 flex flex-col h-full min-h-[420px] mt-0 relative justify-between">
+                                <div className="transition-opacity duration-500 bg-center opacity-100 bg-[url(/assets/workflow-bg.jpg)] bg-cover absolute top-0 right-0 bottom-0 left-0">
+                                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+  <section className="pb-20" id="resources">
+    <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative">
+        <div className="js-animate group flex flex-col" data-animate="left">
+            <h2 className="md:text-4xl font-normal text-white font-pt-serif mb-10">
+        AI infrastructure Hosting
+      </h2>
+      <div className="bg-[#e3d8e6] ml-5 mr-10 pt-10 pr-10 pl-10">
+          <div className="flex flex-col gap-y-5">
+            <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
+              Aomi provides a serverless backend for the agentic lifecycle,
+              functioning as a high-performance “Amazon Lambda for Agents.”
+              Eliminate the overhead of managing Python or TypeScript frameworks
+              like LangChain or AI SDK. Simply select your model, configure your
+              system prompts, and define your tools.
+            </p>
+            <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
+              Our proprietary Rust framework is engineered to be stateless and
+              concurrent, executing agentic loops at native speed. Aomi handles
+              deployment, scaling, and lifecycle management for production-grade
+              workloads.
+            </p>
+          </div>
+        <div className="relative flex h-48 w-full mt-5 mb-5">
+          <svg className="absolute inset-0 h-full w-full pointer-events-none lg:block" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="sqLineBlack" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="rgba(0,0,0,0.5)"></stop>
+                <stop offset="50%" stopColor="rgba(0,0,0,0.5)"></stop>
+                <stop offset="100%" stopColor="rgba(0,0,0,0.5)"></stop>
+              </linearGradient>
+            </defs>
+            <g fill="rgba(0,0,0,0.9)" stroke="rgba(0,0,0,0.5)" strokeWidth="0.6">
+              <rect x="85" y="46" width="30" height="30"></rect>
+              <rect x="16" y="15" width="16" height="16"></rect>
+              <rect x="16" y="85" width="16" height="16"></rect>
+              <rect x="168" y="15" width="16" height="16"></rect>
+              <rect x="168" y="85" width="16" height="16"></rect>
+            </g>
+            <g stroke="url(#sqLineBlack)" strokeWidth="0.6" fill="none" strokeDasharray="3 2 1 3">
+              <path d="M 32 26 H 88 V 60"></path>
+              <path d="M 32 94 H 88 V 60"></path>
+              <path d="M 168 26 H 112 V 60"></path>
+              <path d="M 168 94 H 112 V 60"></path>
+              <animate attributeName="stroke-dashoffset" from="0" to="14" dur="2.2s" repeatCount="indefinite"></animate>
+            </g>
+          </svg>
+        </div>
+      </div>
+      </div>
+      <div className="js-animate group flex flex-col" data-animate="right">
+          <div className="bg-[#e3d8e6] ml-10 mr-5 pt-5 pr-10 pb-10 pl-10">
+        <div className="overflow-hidden backdrop-blur-[40px] bg-neutral-600 border-stone-400/20 border  rounded-[2rem] mt-5 mb-10 pr-5 pl-8 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.12),0px_1px_1px_-0.5px_rgba(0,0,0,0.12),0px_3px_3px_-1.5px_rgba(0,0,0,0.12),0px_6px_6px_-3px_rgba(0,0,0,0.12),0px_12px_12px_-6px_rgba(0,0,0,0.12),0px_24px_24px_-12px_rgba(0,0,0,0.12)]">
+          <p className="text-sm font-light text-stone-200 font-space-mono mt-2 mb-2">$ pnpm install @aomi-labs/react</p><p className="text-sm font-light text-stone-200 font-space-mono mb-2">$ npx shadcn add @aomi/aomi-frame</p>
+        </div>
+        <div className="flex flex-col gap-y-5">
+          <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
+            Aomi provides a production-ready component library that embeds AI UX
+            directly into your UI. Our widgets support persistent memory,
+            real-time chat, and interactive tool calling—delivering a true
+            plug-and-play experience without sacrificing control.
+          </p>
+          <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
+            Following the shadcn/ui philosophy, components are installed directly
+            into your codebase rather than hidden behind a black-box dependency.
+            You retain full ownership and styling control.
+          </p>
+        </div>
+                      <div className="mt-10">
+                  <a href="https://www.npmjs.com/package/@aomi-labs/widget-lib" target="_blank" rel="noreferrer" className="ml-auto overflow-hidden group transition-all flex items-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95 text-xs font-semibold text-neutral-900 font-geist bg-white/90 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                    <span className="z-10 flex items-center gap-2 relative">Npm package</span>
+                    <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
+                    </div>
+                  </a>
+                      </div>
+                                  <h3 className="md:text-4xl font-normal text-stone-50 font-pt-serif text-right mt-20 absolute right-0">
+                                    Seamless frontend integration
+                                  </h3>
+      </div>
+      </div>
+    </div></section></div>
+
+
+
+    
+    </>
+  );
+}
