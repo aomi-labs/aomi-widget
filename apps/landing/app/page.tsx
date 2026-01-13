@@ -13,8 +13,8 @@ export default function HomePage() {
       ></div>
       <div
         id="bg-dim"
-        className="fixed inset-0 pointer-events-none bg-black/30 opacity-0"
-        style={{ backdropFilter: "blur(0px)" }}
+        className="fixed inset-0 pointer-events-none"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0)", backdropFilter: "blur(0px)" }}
       ></div>
       <div className="fixed inset-0 bg-gradient-to-b from-transparent via-slate-900/10 to-slate-900/40"></div>
       <main id="top" className="flex flex-col min-h-screen z-10 w-full relative">
