@@ -13,12 +13,16 @@ export function WidgetDemo() {
   );
 }`;
 
-export function WidgetDemo() {
-  const ClientFrame = dynamic(
-    () => import("@aomi-labs/widget-lib/components/aomi-frame").then((m) => m.AomiFrame),
-    { ssr: false },
-  );
+const ClientFrame = dynamic(
+  () => import("@aomi-labs/widget-lib/components/aomi-frame").then((m) => m.AomiFrame),
+  { ssr: false },
+);
 
+export function WidgetFrame() {
+  return <ClientFrame height="560px" walletFooter={WalletFooter} />;
+}
+
+export function WidgetDemo() {
   return (
     <Preview
       title="AomiFrame live demo"
@@ -26,7 +30,7 @@ export function WidgetDemo() {
       code={widgetCode}
       badge="Live"
     >
-      <ClientFrame height="560px" walletFooter={WalletFooter} />
+      <WidgetFrame />
     </Preview>
   );
 }

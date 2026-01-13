@@ -11,7 +11,8 @@
     "./components/ui/*": "./src/components/ui/*.tsx",
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/themes/default.css",
+    "./themes/*.css": "./src/themes/*.css"
   },
   "scripts": {
     "build": "tsx scripts/build-registry.js"
