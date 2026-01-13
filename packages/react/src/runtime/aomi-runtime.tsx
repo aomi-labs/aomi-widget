@@ -26,6 +26,7 @@ import type { WalletTxRequestHandler } from "../utils/wallet";
 import { useNotification, NotificationProvider } from "../lib/notification-context";
 import { WalletHandler } from "./wallet-handler";
 import { EventController } from "./event-controller";
+import { useSessionService } from "../hooks/use-session-service";
 
 const sortByLastActiveDesc = (
   [, metaA]: [string, ThreadMetadata],
@@ -110,6 +111,9 @@ export function AomiRuntimeProvider({
     backendApiRef,
   } = useRuntimeOrchestrator(backendUrl, { getPublicKey });
 
+  // Create session service for session operations
+  const sessionService = useSessionService(backendApiRef);
+
   // Create wallet handler
   if (!walletHandlerRef.current) {
     walletHandlerRef.current = new WalletHandler({
@@ -175,7 +179,7 @@ export function AomiRuntimeProvider({
 
     const fetchThreadList = async () => {
       try {
-        const threadList = await backendApiRef.current.fetchThreads(publicKey);
+        const threadList = await sessionService.listSessions(publicKey);
         const currentContext = threadContextRef.current;
         const newMetadata = new Map(currentContext.threadMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -214,7 +218,7 @@ export function AomiRuntimeProvider({
     };
 
     void fetchThreadList();
-  }, [publicKey]);
+  }, [publicKey, sessionService]);
 
   const threadListAdapter = useMemo(() => {
     const backendState = backendStateRef.current;
@@ -291,8 +295,8 @@ export function AomiRuntimeProvider({
         const tempId = `temp-${crypto.randomUUID()}`;
         preparePendingThread(tempId);
 
-        const createPromise = backendApiRef.current
-          .createThread(publicKey, undefined)
+        const createPromise = sessionService
+          .createSession(publicKey, undefined)
           .then(async (newThread) => {
             const uiThreadId = backendState.creatingThreadId ?? tempId;
             const backendId = newThread.session_id;
@@ -390,7 +394,7 @@ export function AomiRuntimeProvider({
         });
 
         try {
-          await backendApiRef.current.renameThread(threadId, newTitle);
+          await sessionService.renameSession(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
           threadContext.updateThreadMetadata(threadId, { title: previousTitle });
@@ -401,7 +405,7 @@ export function AomiRuntimeProvider({
         threadContext.updateThreadMetadata(threadId, { status: "archived" });
 
         try {
-          await backendApiRef.current.archiveThread(threadId);
+          await sessionService.archiveSession(threadId);
         } catch (error) {
           console.error("Failed to archive thread:", error);
           threadContext.updateThreadMetadata(threadId, { status: "regular" });
@@ -412,7 +416,7 @@ export function AomiRuntimeProvider({
         threadContext.updateThreadMetadata(threadId, { status: "regular" });
 
         try {
-          await backendApiRef.current.unarchiveThread(threadId);
+          await sessionService.unarchiveSession(threadId);
         } catch (error) {
           console.error("Failed to unarchive thread:", error);
           threadContext.updateThreadMetadata(threadId, { status: "archived" });
@@ -421,7 +425,7 @@ export function AomiRuntimeProvider({
 
       onDelete: async (threadId: string) => {
         try {
-          await backendApiRef.current.deleteThread(threadId);
+          await sessionService.deleteSession(threadId);
 
           threadContext.setThreadMetadata((prev) => {
             const next = new Map(prev);
@@ -469,7 +473,7 @@ export function AomiRuntimeProvider({
       },
     };
   }, [
-    backendApiRef,
+    sessionService,
     polling,
     publicKey,
     backendStateRef,
@@ -478,6 +482,7 @@ export function AomiRuntimeProvider({
     threadContext.currentThreadId,
     threadContext.threadMetadata,
     bumpUpdateSubscriptions,
+    backendApiRef,
   ]);
 
 

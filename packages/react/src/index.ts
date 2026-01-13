@@ -17,6 +17,8 @@ export {
 } from "./runtime/aomi-runtime";
 export type { AomiRuntimeProviderProps } from "./runtime/aomi-runtime";
 export { useRuntimeActions, RuntimeActionsProvider } from "./runtime/hooks";
+export { SessionService } from "./services/session-service";
+export { useSessionService } from "./hooks/use-session-service";
 
 export {
   ThreadContextProvider,

@@ -1,6 +1,6 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
-import { ReactNode, SetStateAction } from 'react';
+import { ReactNode, RefObject, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
 import { ClassValue } from 'clsx';
 
@@ -77,6 +77,7 @@ declare class BackendApi {
     private subscribeToUpdatesInternal;
     subscribeToUpdates(sessionId: string, onUpdate: (update: SystemUpdateNotification) => void, onError?: (error: unknown) => void): () => void;
     fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]>;
+    fetchThread(sessionId: string): Promise<BackendThreadMetadata>;
     createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse>;
     archiveThread(sessionId: string): Promise<void>;
     unarchiveThread(sessionId: string): Promise<void>;
@@ -146,6 +147,77 @@ type RuntimeActions = {
 declare const RuntimeActionsProvider: react.Provider<RuntimeActions | undefined>;
 declare function useRuntimeActions(): RuntimeActions;
 
+/**
+ * SessionService encapsulates all session-related backend operations.
+ * This service provides a clean interface for session management,
+ * decoupling UI components from direct BackendApi usage.
+ */
+declare class SessionService {
+    private readonly backendApi;
+    constructor(backendApi: BackendApi);
+    /**
+     * List all sessions for a given public key
+     * @param publicKey - The public key to fetch sessions for
+     * @returns Promise resolving to array of session metadata
+     */
+    listSessions(publicKey: string): Promise<BackendThreadMetadata[]>;
+    /**
+     * Get a single session by ID
+     * @param sessionId - The session ID to fetch
+     * @returns Promise resolving to session metadata
+     */
+    getSession(sessionId: string): Promise<BackendThreadMetadata>;
+    /**
+     * Create a new session
+     * @param publicKey - Optional public key for the session
+     * @param title - Optional title for the session
+     * @returns Promise resolving to created session response
+     */
+    createSession(publicKey?: string, title?: string): Promise<CreateThreadResponse>;
+    /**
+     * Delete a session
+     * @param sessionId - The session ID to delete
+     * @returns Promise that resolves when deletion is complete
+     */
+    deleteSession(sessionId: string): Promise<void>;
+    /**
+     * Rename a session
+     * @param sessionId - The session ID to rename
+     * @param newTitle - The new title for the session
+     * @returns Promise that resolves when rename is complete
+     */
+    renameSession(sessionId: string, newTitle: string): Promise<void>;
+    /**
+     * Archive a session
+     * @param sessionId - The session ID to archive
+     * @returns Promise that resolves when archive is complete
+     */
+    archiveSession(sessionId: string): Promise<void>;
+    /**
+     * Unarchive a session
+     * @param sessionId - The session ID to unarchive
+     * @returns Promise that resolves when unarchive is complete
+     */
+    unarchiveSession(sessionId: string): Promise<void>;
+}
+
+/**
+ * Hook that provides a SessionService instance.
+ *
+ * @param backendApiRef - A ref to the BackendApi instance
+ * @returns A SessionService instance that encapsulates all session operations
+ *
+ * @example
+ * ```tsx
+ * const { backendApiRef } = useRuntimeOrchestrator(backendUrl);
+ * const sessionService = useSessionService(backendApiRef);
+ *
+ * // Use session service
+ * const sessions = await sessionService.listSessions(publicKey);
+ * ```
+ */
+declare function useSessionService(backendApiRef: RefObject<BackendApi>): SessionService;
+
 type ThreadStatus = "regular" | "archived" | "pending";
 type ThreadMetadata = {
     title: string;
@@ -205,4 +277,4 @@ declare function NotificationProvider({ children }: {
     children: ReactNode;
 }): react_jsx_runtime.JSX.Element;
 
-export { AomiRuntimeProvider, type AomiRuntimeProviderProps, AomiRuntimeProviderWithNotifications, BackendApi, type BackendSessionResponse, type BackendThreadMetadata, type CreateThreadResponse, type Eip1193Provider, type Notification, type NotificationIconType, NotificationProvider, type NotificationType, RuntimeActionsProvider, type SessionMessage, type SessionResponsePayload, type SystemEvent, type SystemResponsePayload, type SystemUpdate, type SystemUpdateNotification, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, type WalletTxRequestContext, type WalletTxRequestHandler, type WalletTxRequestPayload, cn, toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage, formatAddress, getNetworkName, normalizeWalletError, pickInjectedProvider, toHexQuantity, useCurrentThreadMessages, useCurrentThreadMetadata, useNotification, useRuntimeActions, useThreadContext };
+export { AomiRuntimeProvider, type AomiRuntimeProviderProps, AomiRuntimeProviderWithNotifications, BackendApi, type BackendSessionResponse, type BackendThreadMetadata, type CreateThreadResponse, type Eip1193Provider, type Notification, type NotificationIconType, NotificationProvider, type NotificationType, RuntimeActionsProvider, type SessionMessage, type SessionResponsePayload, SessionService, type SystemEvent, type SystemResponsePayload, type SystemUpdate, type SystemUpdateNotification, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletButtonState, type WalletFooterProps, WalletSystemMessageEmitter, type WalletTxRequestContext, type WalletTxRequestHandler, type WalletTxRequestPayload, cn, toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage, formatAddress, getNetworkName, normalizeWalletError, pickInjectedProvider, toHexQuantity, useCurrentThreadMessages, useCurrentThreadMetadata, useNotification, useRuntimeActions, useSessionService, useThreadContext };
