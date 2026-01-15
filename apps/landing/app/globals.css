@@ -322,3 +322,57 @@ html {
   font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
+
+/* ============================================
+   Assistant Message Alignment
+   ============================================ */
+
+/* Ensure assistant message content is left-aligned */
+.aui-assistant-message-root,
+.aui-assistant-message-content,
+.aui-assistant-message-content *,
+[data-role="assistant"],
+[data-role="assistant"] * {
+  text-align: left !important;
+}
+
+/* Ensure markdown content and all its children are left-aligned */
+.aui-md,
+.aui-md *,
+.aui-md p,
+.aui-md ul,
+.aui-md ol,
+.aui-md li,
+.aui-md h1,
+.aui-md h2,
+.aui-md h3,
+.aui-md h4,
+.aui-md h5,
+.aui-md h6,
+.aui-md blockquote,
+.aui-md div,
+.aui-md span {
+  text-align: left !important;
+}
+
+/* Override any center alignment on markdown wrapper */
+[data-role="assistant"] .aui-md,
+[data-role="assistant"] .aui-assistant-message-content,
+[data-role="assistant"] p,
+[data-role="assistant"] ul,
+[data-role="assistant"] ol {
+  text-align: left !important;
+}
+
+/* Ensure no flex/grid centering affects the content */
+.aui-assistant-message-content {
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+
+/* Target any direct children that might be centered */
+.aui-assistant-message-content > * {
+  text-align: left !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
