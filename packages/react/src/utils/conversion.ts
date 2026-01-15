@@ -14,7 +14,8 @@ export function toInboundMessage(msg: SessionMessage): ThreadMessageLike | null 
     content.push({ type: "text" as const, text: msg.content });
   }
 
-  const [topic, toolContent] = parseToolStream(msg.tool_stream) ?? [];
+  // Sync result or Asnyc Ack
+  const [topic, toolContent] = parseToolResult(msg.tool_result) ?? [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call" as const,
@@ -41,7 +42,7 @@ export function toInboundMessage(msg: SessionMessage): ThreadMessageLike | null 
 }
 
 export function toInboundSystem(msg: SessionMessage): ThreadMessageLike | null {
-  const [topic] = parseToolStream(msg.tool_stream) ?? [];
+  const [topic] = parseToolResult(msg.tool_result) ?? [];
   const messageText = topic || msg.content || "";
   const timestamp = parseTimestamp(msg.timestamp);
 
@@ -64,17 +65,17 @@ function parseTimestamp(timestamp?: string) {
   return Number.isNaN(parsed.valueOf()) ? undefined : parsed;
 }
 
-function parseToolStream(toolStream: SessionMessage["tool_stream"]): [string, string] | null {
-  if (!toolStream) return null;
+function parseToolResult(toolResult: SessionMessage["tool_result"]): [string, string] | null {
+  if (!toolResult) return null;
 
-  if (Array.isArray(toolStream) && toolStream.length === 2) {
-    const [topic, content] = toolStream;
+  if (Array.isArray(toolResult) && toolResult.length === 2) {
+    const [topic, content] = toolResult;
     return [String(topic), content];
   }
 
-  if (typeof toolStream === "object") {
-    const topic = (toolStream as { topic?: unknown }).topic;
-    const content = (toolStream as { content?: unknown }).content;
+  if (typeof toolResult === "object") {
+    const topic = (toolResult as { topic?: unknown }).topic;
+    const content = (toolResult as { content?: unknown }).content;
     return topic ? [String(topic), String(content)] : null;
   }
 
