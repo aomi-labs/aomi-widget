@@ -52,13 +52,13 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
       <SidebarMenuItem>
         <SidebarMenuButton size="lg" asChild>
           <Button
-            className="w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white"
+            className="w-full justify-center rounded-full text-white dark:text-black shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white dark:hover:bg-[var(--muted-foreground)] dark:hover:text-black"
             onClick={handleClick}
           >
             <div className="flex items-center gap-2">
-              <span className="text-sm">{label}</span>
+              <span className="text-sm dark:text-black/70">{label}</span>
               {networkName ? (
-                <span className="text-[11px] text-white/80">• {networkName}</span>
+                <span className="text-[11px] text-white/80 dark:text-black/70">• {networkName}</span>
               ) : null}
             </div>
           </Button>
