@@ -3,13 +3,15 @@
 import { useEffect } from "react";
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
-import { Button } from "@aomi-labs/widget-lib/components/ui/button";
 import {
+  Button,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@aomi-labs/widget-lib/components/ui/sidebar";
-import { formatAddress, getNetworkName, type WalletFooterProps } from "@aomi-labs/react";
+  formatAddress,
+  getNetworkName,
+  type WalletFooterProps,
+} from "@aomi-labs/widget-lib";
 
 export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   const { address, isConnected } = useAppKitAccount();
@@ -56,7 +58,7 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
             <div className="flex items-center gap-2">
               <span className="text-sm">{label}</span>
               {networkName ? (
-                <span className="text-[11px] text-white/80">- {networkName}</span>
+                <span className="text-[11px] text-white/80">• {networkName}</span>
               ) : null}
             </div>
           </Button>

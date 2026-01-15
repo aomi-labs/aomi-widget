@@ -1,25 +1,20 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 import { Preview } from "@/components/playground/Preview";
 import { WalletFooter } from "@/components/wallet-footer";
 
-const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib/components/aomi-frame";
+const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib";
 import { WalletFooter } from "@/components/wallet-footer";
 
 export function WidgetDemo() {
   return (
-    <AomiFrame height="560px" walletFooter={WalletFooter} />
+    <AomiFrame height="560px" width="100%" walletFooter={(props) => <WalletFooter {...props} />} />
   );
 }`;
 
-const ClientFrame = dynamic(
-  () => import("@aomi-labs/widget-lib/components/aomi-frame").then((m) => m.AomiFrame),
-  { ssr: false },
-);
-
 export function WidgetFrame() {
-  return <ClientFrame height="560px" walletFooter={WalletFooter} />;
+  return <AomiFrame height="560px" width="100%" walletFooter={(props) => <WalletFooter {...props} />} />;
 }
 
 export function WidgetDemo() {
