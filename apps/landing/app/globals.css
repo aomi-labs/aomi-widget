@@ -3,10 +3,70 @@
 @import "tw-animate-css";
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
-@import "@aomi-labs/widget-lib/themes/default.css";
+@import "@aomi-labs/widget-lib/styles.css";
 
-/* Scan the registry source during docs dev so Tailwind picks up component classes */
-@source "../../registry/src";
+/* Scan the npm package dist so Tailwind picks up component classes */
+@source "../node_modules/@aomi-labs/widget-lib/dist";
+
+/* ============================================
+   Custom Font Faces - Bauhaus
+   ============================================ */
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Thin.otf") format("opentype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Black.otf") format("opentype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ============================================
    Landing Page Specific Variables
@@ -115,6 +175,40 @@ html {
   }
 }
 
+/* ============================================
+   Terminal Animations
+   ============================================ */
+
+@keyframes terminalShrink {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.85) translateY(20px);
+    opacity: 0;
+  }
+}
+
+@keyframes terminalPop {
+  from {
+    transform: scale(0.85) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.terminal-animate-shrink {
+  animation: terminalShrink 0.23s ease forwards;
+}
+
+.terminal-animate-pop {
+  animation: terminalPop 0.35s ease-out forwards;
+}
+
 @layer components {
   .font-serif {
     font-family: "Playfair Display", serif;
@@ -127,6 +221,9 @@ html {
   }
   .font-pt-serif {
     font-family: "PT Serif", serif;
+  }
+  .font-bauhaus {
+    font-family: "Bauhaus_Chez_Display_2.0", "Arial Black", sans-serif;
   }
   .animate-fade-in {
     animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;

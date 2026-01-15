@@ -1,4 +1,4 @@
-import { WidgetFrame } from "@/components/samples/widget-demo";
+import { HeroTerminal } from "@/components/hero-terminal";
 import type { CSSProperties } from "react";
 
 export function Hero() {
@@ -81,11 +81,7 @@ export function Hero() {
                 <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity group-hover:opacity-100"></div>
               </a>
         </div>
-        <div className="w-full max-w-3xl">
-          <div className="glass-panel rounded-[2rem] p-3 relative">
-            <WidgetFrame />
-          </div>
-        </div>
+        <HeroTerminal />
       </div>
 
 
