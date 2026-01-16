@@ -36,7 +36,7 @@ export function ThreadContextProvider({
     storeRef.current = new ThreadStore({ initialThreadId });
   }
   const store = storeRef.current;
-  const value = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const value = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 
   return (
     <ThreadContextState.Provider value={value}>{children}</ThreadContextState.Provider>

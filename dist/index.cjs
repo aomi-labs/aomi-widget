@@ -577,7 +577,7 @@ function ThreadContextProvider({
     storeRef.current = new ThreadStore({ initialThreadId });
   }
   const store = storeRef.current;
-  const value = (0, import_react2.useSyncExternalStore)(store.subscribe, store.getSnapshot);
+  const value = (0, import_react2.useSyncExternalStore)(store.subscribe, store.getSnapshot, store.getSnapshot);
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ThreadContextState.Provider, { value, children });
 }
 function useCurrentThreadMessages() {
