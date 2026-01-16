@@ -598,7 +598,7 @@ function toInboundMessage(msg) {
   if (msg.content) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_a = parseToolStream(msg.tool_stream)) != null ? _a : [];
+  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",
@@ -622,7 +622,7 @@ function toInboundMessage(msg) {
 }
 function toInboundSystem(msg) {
   var _a;
-  const [topic] = (_a = parseToolStream(msg.tool_stream)) != null ? _a : [];
+  const [topic] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
   const messageText = topic || msg.content || "";
   const timestamp = parseTimestamp(msg.timestamp);
   if (!messageText.trim()) return null;
@@ -636,15 +636,15 @@ function parseTimestamp(timestamp) {
   const parsed = new Date(timestamp);
   return Number.isNaN(parsed.valueOf()) ? void 0 : parsed;
 }
-function parseToolStream(toolStream) {
-  if (!toolStream) return null;
-  if (Array.isArray(toolStream) && toolStream.length === 2) {
-    const [topic, content] = toolStream;
+function parseToolResult(toolResult) {
+  if (!toolResult) return null;
+  if (Array.isArray(toolResult) && toolResult.length === 2) {
+    const [topic, content] = toolResult;
     return [String(topic), content];
   }
-  if (typeof toolStream === "object") {
-    const topic = toolStream.topic;
-    const content = toolStream.content;
+  if (typeof toolResult === "object") {
+    const topic = toolResult.topic;
+    const content = toolResult.content;
     return topic ? [String(topic), String(content)] : null;
   }
   return null;
