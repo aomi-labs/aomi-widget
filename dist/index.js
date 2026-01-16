@@ -536,7 +536,7 @@ function ThreadContextProvider({
     storeRef.current = new ThreadStore({ initialThreadId });
   }
   const store = storeRef.current;
-  const value = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const value = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   return /* @__PURE__ */ jsx(ThreadContextState.Provider, { value, children });
 }
 function useCurrentThreadMessages() {
