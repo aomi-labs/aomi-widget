@@ -119,7 +119,7 @@ export function Solution() {
         </section>
   <section className="mb-20 flex w-full max-w-7xl pb-20 mr-auto ml-auto items-center justify-center" id="resources">
     <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative gap-y-16 md:gap-y-0">
-        <div className="js-animate group flex flex-col" data-animate="left" data-delay="300">
+        <div className="js-animate group flex flex-col" data-animate="left" data-delay="150">
             <h2 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist mb-10 md:mb-15 ml-5 md:ml-20 pl-5">
               AI infrastructure Hosting
             </h2>
@@ -166,7 +166,7 @@ export function Solution() {
         </div>
       </div>
       </div>
-      <div className="js-animate group flex flex-col" data-animate="right" data-delay="600">
+      <div className="js-animate group flex flex-col" data-animate="right" data-delay="220">
           <div className="bg-[#e3d8e6] ml-5 md:ml-15 mr-5 md:mr-20 pt-5 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
         <div className="overflow-hidden bg-[#1a1a1a] border border-neutral-800 rounded-2xl mt-5 mb-10 relative shadow-2xl">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-800 bg-neutral-900/50">
