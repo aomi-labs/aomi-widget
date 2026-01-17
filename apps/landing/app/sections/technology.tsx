@@ -2,10 +2,9 @@ export function Technology() {
   return (
     <>
       <div className="text-stone-800 w-full relative bg-stone-100">
-      <div className="w-full border-stone-200 border-t"> </div>
-      <section className="js-animate overflow-hidden w-full pt-10 pr-4 pb-10 pl-4 relative bg-stone-100" id="intent" data-animate="right" data-delay="50">
+            <section className="js-animate overflow-hidden w-full pr-4 pb-10 pl-4 relative bg-stone-100" id="intent" data-animate="right" data-delay="50">
           <div className="lg:h-[400px] z-10 h-[600px] max-w-[1400px] mr-auto ml-auto relative">
-            <svg className="hidden lg:block w-full h-full absolute top-0 right-0 bottom-0 left-0" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+            <svg className="hidden lg:block w-full h-full absolute top-0 right-0 bottom-0 left-0" viewBox="-100 0 1200 500" preserveAspectRatio="xMidYMid meet">
               <defs className="">
                 <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="rgba(68,64,60,0.02)"></stop>
@@ -14,18 +13,18 @@ export function Technology() {
                 </linearGradient>
               </defs>
               <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
-              <path d="M 180 115 L 0 115" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2">
+              <path d="M 180 115 L -100 115" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2">
               </path>
               <path d="M 180 115 L 340 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
-              <path d="M 0 250 L 340 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2" className="">
+              <path d="M -100 250 L 340 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2" className="">
               </path>
-              <path d="M 220 385 L 0 385" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2">
+              <path d="M 220 385 L -100 385" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2">
               </path>
               <path d="M 220 385 L 340 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
-              <path d="M 820 115 L 1000 115" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 820 115 L 1100 115" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
               <path d="M 820 115 L 660 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
-              <path d="M 1000 250 L 660 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
-              <path d="M 780 385 L 1000 385" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 1100 250 L 660 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
+              <path d="M 780 385 L 1100 385" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
               <path d="M 780 385 L 660 250" stroke="rgba(68,64,60,0.5)" strokeWidth="1" strokeDasharray="6 3 1 4 8 2"></path>
             </svg>
             <div className="flex flex-col lg:block z-10 w-full h-full relative items-center justify-center">
@@ -45,7 +44,7 @@ export function Technology() {
                       <path d="M16 16h5v5" className=""></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone-200 border rounded-full ring-stone-200 ring-1 pt-1 pr-3 pb-1 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Swap
               </div>
                 </div>
@@ -56,7 +55,7 @@ export function Technology() {
                       <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone-200 border rounded-full ring-stone-200 ring-1 pt-1 pr-3 pb-1 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Buy
               </div>
                 </div>
@@ -67,7 +66,7 @@ export function Technology() {
                       <path d="M22 2 11 13"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone-200 border rounded-full ring-stone-200 ring-1 pt-1 pr-3 pb-1 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Send
               </div>
                 </div>
@@ -80,7 +79,7 @@ export function Technology() {
                       <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone-200 border rounded-full ring-stone-200 ring-1 pt-1 pr-3 pb-1 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Assemble
               </div>
                 </div>
@@ -93,7 +92,7 @@ export function Technology() {
                       <path d="M20 17H4"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone-200 border rounded-full ring-stone-200 ring-1 pt-1 pr-3 pb-1 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Exchange
               </div>
                 </div>
@@ -106,7 +105,7 @@ export function Technology() {
                       <path d="M18 9a9 9 0 0 1-9 9"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone-200 border rounded-full ring-stone-200 ring-1 pt-1 pr-3 pb-1 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Route
               </div>
                 </div>
@@ -187,13 +186,13 @@ export function Technology() {
                 Emulate real operations
               </h2>
             </div>
-            <p className="leading-relaxed text-sm font-light text-stone-600 font-geist max-w-md mb-10 md:pr-15 text-center md:text-left px-4 md:px-0">
+            <p className="leading-relaxed text-sm font-light text-stone-900 font-geist max-w-md mb-10 md:pr-15 text-center md:text-left pt-8 px-4 md:px-0">
               Aomi turns complex blockchain operations into a simple, conversational workflow. Move from idea to execution
               without the manual overhead.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 mx-8 rounded-[2rem] overflow-hidden">
-            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] border border-white pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="50">
+            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="50">
               <div className="flex select-none w-full h-48 relative perspective-1000 items-center justify-center">
                 <div className="absolute bg-neutral-200 text-neutral-900 rounded-xl px-4 py-3 shadow-2xl transform -rotate-12 translate-y-2 translate-x-4 border border-white/20 z-10 w-48 flex items-center gap-3 transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-105">
                   <div className="bg-neutral-900 rounded-full p-1.5 text-white">
@@ -209,7 +208,7 @@ export function Technology() {
                     <span className="text-[10px] font-medium font-geist opacity-60">my Portfolio</span>
                   </div>
                 </div>
-                <div className="absolute bg-white text-neutral-900 rounded-xl px-4 py-3 shadow-xl transform rotate-6 -translate-y-4 -translate-x-4 border border-white/20 z-20 w-48 flex items-center gap-3 transition-transform duration-500 group-hover:rotate-3 group-hover:scale-105">
+                <div className="absolute bg-white text-neutral-900 rounded-xl px-4 py-3 shadow-xl transform rotate-6 -translate-y-4 -translate-x-4 z-20 w-48 flex items-center gap-3 transition-transform duration-500 group-hover:rotate-3 group-hover:scale-105">
                   <div className="bg-neutral-900 rounded-full p-1.5 text-white">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M7 20l10-10"></path>
@@ -217,8 +216,8 @@ export function Technology() {
                     </svg>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-bold font-geist leading-tight">Find the</span>
-                    <span className="text-[10px] font-medium font-geist opacity-60">best yield</span>
+                    <span className="text-[10px] font-bold font-geist leading-tight">USDC</span>
+                    <span className="text-[10px] font-medium font-geist opacity-60">10% yield</span>
                   </div>
                 </div>
               </div>
@@ -231,7 +230,7 @@ export function Technology() {
                 </p>
               </div>
             </div>
-            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] border border-white pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="150">
+            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="150">
               <div className="h-48 w-full relative flex items-end justify-center overflow-hidden">
                 <svg className="w-[413px] h-[192px]" viewBox="0 0 200 120" fill="none" strokeWidth="2" style={{ width: "413px", height: "192px", color: "rgb(250, 250, 249)" }} data-icon-replaced="true">
                               <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
@@ -264,7 +263,7 @@ export function Technology() {
                 </p>
               </div>
             </div>
-            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6] border border-white pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="300">
+            <div className="js-animate flex flex-col gap-8 group bg-[#e3d8e6]  pt-8 pr-5 pb-8 pl-5" data-animate="up" data-delay="300">
               <div className="h-48 w-full relative flex items-center justify-center">
                 <svg className="w-[413px] h-[192px] top-0 right-0 bottom-0 left-0" viewBox="0 0 200 150" fill="none" strokeWidth="2" style={{ width: "413px", height: "192px", color: "rgb(250, 250, 249)" }} data-icon-replaced="true">
                               <animate attributeName="stroke-dashoffset" from="0" to="30" dur="2s" repeatCount="indefinite" className=""></animate>
@@ -281,10 +280,10 @@ export function Technology() {
                     <path d="m16 21 4-4-4-4"></path>
                     <path d="M20 17H4"></path>
                   </svg>
-                </div><div className="border border-white/40 group-hover:scale-105 transition-transform z-10 bg-gradient-to-r from-black/0 via-black/10 to-black/0 ring-stone-300 ring-1 
-                  rounded-lg pt-2 pr-5 pb-2 pl-5 absolute shadow-lg backdrop-blur-sm [--fx-filter:blur(10px)_liquid-glass(3,10)_saturate(1.25)_noise(0.5,1,0.6)] 
+                </div><div className="group-hover:scale-105 transition-transform z-10 bg-gradient-to-r from-black/10 via-black/20 to-black/10 ring-stone-200 ring-0 
+                  rounded-full pt-1 pr-5 pb-2 pl-5 absolute shadow-lg backdrop-blur-sm [--fx-filter:blur(10px)_liquid-glass(3,10)_saturate(1.25)_noise(0.5,1,0.6)] 
                   items-center justify-center">
-                  <span className="text-xs font-semibold text-stone-800 font-geist">Authorize</span>
+                  <span className="text-xs font-bold text-white font-geist">Authorize</span>
                   <div className="absolute -bottom-4 -right-3">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="">
                       <path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="white" stroke="#1c1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path>
