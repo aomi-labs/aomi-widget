@@ -754,17 +754,20 @@ var MessageController = class {
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     try {
       this.markRunning(threadId, true);
-      if (publicKey) {
-        await this.config.backendApiRef.current.postChatMessage(
-          backendThreadId,
-          text,
-          publicKey
-        );
-      } else {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      const response = publicKey ? await this.config.backendApiRef.current.postChatMessage(
+        backendThreadId,
+        text,
+        publicKey
+      ) : await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      if (response == null ? void 0 : response.messages) {
+        this.inbound(threadId, response.messages);
       }
       await this.flushPendingSystem(threadId);
-      this.config.polling.start(threadId);
+      if (response == null ? void 0 : response.is_processing) {
+        this.config.polling.start(threadId);
+      } else if (!this.config.polling.isPolling(threadId)) {
+        this.markRunning(threadId, false);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       this.markRunning(threadId, false);
