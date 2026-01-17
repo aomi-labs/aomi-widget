@@ -31,7 +31,7 @@ export function Solution() {
     <>
       <div className="w-full bg-stone-100">
       <section className="flex flex-col w-full max-w-7xl mr-auto mb-22  ml-auto px-4" id="solution" data-animate="up" data-delay="200">
-      <div className="overflow-hidden w-full  rounded-[2.5rem] mt-10 pl-12 relative">
+      <div className="overflow-hidden w-full  rounded-[2.5rem] pl-12 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-20 relative items-center">
               <div className="flex flex-col justify-between h-full">
                 <div className="">

@@ -108,7 +108,7 @@ export function Hero() {
           <br className="hidden md:block" />
               natural language into secure, multi-chain transactions.
         </p>
-        <div className="flex gap-4 mb-20 items-center">
+        <div className="flex gap-4 mb-25 items-center">
           <a href="https://calendly.com/cecilia-foameo/30min" target="_blank" rel="noreferrer" className="landing-button-primary group [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)]">
                 <span className="relative z-10">Contact Us</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3 relative z-10"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
