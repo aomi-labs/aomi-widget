@@ -1,7 +1,11 @@
+"use client";
+
 import { HeroTerminal } from "@/components/hero-terminal";
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
 export function Hero() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <>
       <nav className="fixed flex z-50 pr-4 pl-4 top-6 right-0 left-0 gap-x-4 gap-y-4 items-center justify-center">
@@ -39,10 +43,43 @@ export function Hero() {
           </div>
         </a>
       </div>
-      <button className="md:hidden p-2.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white shadow-lg ring-1 ring-white/20 active:scale-95 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="menu" className="lucide lucide-menu w-5 h-5"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
-          </button>
+      <button
+        className="md:hidden p-2.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white shadow-lg ring-1 ring-white/20 active:scale-95 transition-transform"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      >
+        {mobileMenuOpen ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
+        )}
+      </button>
       </nav>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 w-2/3 z-50 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-2xl">
+            <div className="flex flex-col gap-4">
+              <a href="#top" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+                Overview
+              </a>
+              <a href="#technology-section" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+                Technology
+              </a>
+              <a href="#workflow" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+                Solutions
+              </a>
+              <a href="#resources" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+                Resources
+              </a>
+              <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" onClick={() => setMobileMenuOpen(false)} className="mt-2 text-center text-sm font-semibold px-5 py-3 rounded-full font-geist bg-white/90 text-neutral-900 shadow-lg">
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col animate-fade-in text-center w-full max-w-7xl mr-auto ml-auto pt-36 pr-4 pl-4 items-center">
         <div className="flex backdrop-blur-[20px] hover:bg-white/10 transition-colors cursor-default bg-white/20 border-white/10 border rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
           <div className="flex -space-x-2">
