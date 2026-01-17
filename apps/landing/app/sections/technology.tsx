@@ -44,7 +44,7 @@ export function Technology() {
                       <path d="M16 16h5v5" className=""></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="shadow-md bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Swap
               </div>
                 </div>
@@ -55,7 +55,7 @@ export function Technology() {
                       <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="shadow-md bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Buy
               </div>
                 </div>
@@ -66,7 +66,7 @@ export function Technology() {
                       <path d="M22 2 11 13"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="shadow-md bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Send
               </div>
                 </div>
@@ -79,7 +79,7 @@ export function Technology() {
                       <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="shadow-md bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Assemble
               </div>
                 </div>
@@ -92,7 +92,7 @@ export function Technology() {
                       <path d="M20 17H4"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="shadow-md bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Exchange
               </div>
                 </div>
@@ -105,7 +105,7 @@ export function Technology() {
                       <path d="M18 9a9 9 0 0 1-9 9"></path>
                     </svg>
                   </div>
-                  <div className="bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
+                  <div className="shadow-md bg-stone-100 border-stone border-0 rounded-full ring-stone-200 ring-1 py-2 pr-3 pl-3 text-sm font-semibold text-stone-800">
                     Route
               </div>
                 </div>
