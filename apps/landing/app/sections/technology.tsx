@@ -1,9 +1,9 @@
 export function Technology() {
   return (
     <>
-      <div className="text-stone-800 w-full relative bg-white">
+      <div className="text-stone-800 w-full relative bg-stone-100">
       <div className="w-full border-stone-200 border-t"> </div>
-      <section className="js-animate overflow-hidden w-full pt-10 pr-4 pb-10 pl-4 relative bg-white" id="intent" data-animate="right" data-delay="50">
+      <section className="js-animate overflow-hidden w-full pt-10 pr-4 pb-10 pl-4 relative bg-stone-100" id="intent" data-animate="right" data-delay="50">
           <div className="lg:h-[400px] z-10 h-[600px] max-w-[1400px] mr-auto ml-auto relative">
             <svg className="hidden lg:block w-full h-full absolute top-0 right-0 bottom-0 left-0" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
               <defs className="">
@@ -179,15 +179,15 @@ export function Technology() {
           </div>
         </section>
 
-      <section className="w-full pr-4 pb-20 pl-4 gap-x-6 gap-y-6 bg-white" id="technology-section">
+      <section className="w-full pr-4 pb-20 pl-4 gap-x-6 gap-y-6 bg-stone-100" id="technology-section">
         <div className="flex flex-col gap-16 max-w-7xl mr-auto ml-auto">
-          <div className="flex flex-col md:flex-row md:items-end gap-6 items-start justify-between">
-            <div className="max-w-2xl pl-5">
-              <h2 className="leading-[1.1] md:text-5xl text-4xl text-stone-900 tracking-tight font-serif pl-10 pt-10 pb-10">
+          <div className="flex flex-col md:flex-row md:items-end gap-6 items-center md:items-start justify-between">
+            <div className="max-w-2xl md:pl-5">
+              <h2 className="leading-[1.1] md:text-5xl text-4xl text-stone-900 tracking-tight font-serif md:pl-10 pt-10 pb-10 text-center md:text-left">
                 Emulate real operations
               </h2>
             </div>
-            <p className="leading-relaxed text-sm font-light text-stone-600 font-geist max-w-md mb-10 pr-15">
+            <p className="leading-relaxed text-sm font-light text-stone-600 font-geist max-w-md mb-10 md:pr-15 text-center md:text-left px-4 md:px-0">
               Aomi turns complex blockchain operations into a simple, conversational workflow. Move from idea to execution
               without the manual overhead.
             </p>

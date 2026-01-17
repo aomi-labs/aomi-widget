@@ -1,7 +1,7 @@
 export function Solution() {
   return (
     <>
-      <div className="w-full bg-white">
+      <div className="w-full bg-stone-100">
       <section className="flex flex-col w-full max-w-7xl mr-auto mb-32  ml-auto px-4" id="solution" data-animate="up" data-delay="200">
       <div className="overflow-hidden w-full  rounded-[2.5rem] mt-10 pl-12 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-20 relative items-center">
@@ -88,12 +88,12 @@ export function Solution() {
           </div>
         </section>
   <section className="mb-20 flex w-full max-w-7xl pb-20 mr-auto ml-auto items-center justify-center" id="resources">
-    <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative">
+    <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative gap-y-16 md:gap-y-0">
         <div className="js-animate group flex flex-col" data-animate="left" data-delay="300">
-            <h2 className="md:text-3xl text-stone-800 tracking-tight font-serif mb-15 ml-20 pl-5 ">
-        AI infrastructure Hosting
-      </h2>
-      <div className="bg-[#e3d8e6] border border-white border-2 ml-20 mr-15 pt-10 pr-10 pb-10 pl-10 rounded-4xl">
+            <h2 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-serif mb-10 md:mb-15 ml-5 md:ml-20 pl-5">
+              AI infrastructure Hosting
+            </h2>
+      <div className="bg-[#e3d8e6] border border-white border-2 ml-5 md:ml-20 mr-5 md:mr-15 pt-10 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
           <div className="flex flex-col gap-y-5">
             <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
               Aomi provides a serverless backend for the agentic lifecycle,
@@ -137,9 +137,17 @@ export function Solution() {
       </div>
       </div>
       <div className="js-animate group flex flex-col" data-animate="right" data-delay="600">
-          <div className="bg-[#e3d8e6] border border-white border-2 ml-15 mr-20 pt-5 pr-10 pb-10 pl-10 rounded-4xl">
-        <div className="overflow-hidden backdrop-blur-[40px] bg-neutral-600 border-stone-400/20 border  rounded-[2rem] mt-5 mb-10 pr-5 pl-8 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.12),0px_1px_1px_-0.5px_rgba(0,0,0,0.12),0px_3px_3px_-1.5px_rgba(0,0,0,0.12),0px_6px_6px_-3px_rgba(0,0,0,0.12),0px_12px_12px_-6px_rgba(0,0,0,0.12),0px_24px_24px_-12px_rgba(0,0,0,0.12)]">
-          <p className="text-sm font-light text-stone-200 font-space-mono mt-2 mb-2">$ pnpm install @aomi-labs/react</p><p className="text-sm font-light text-stone-200 font-space-mono mb-2">$ npx shadcn add @aomi/aomi-frame</p>
+          <div className="bg-[#e3d8e6] border border-white border-2 ml-5 md:ml-15 mr-5 md:mr-20 pt-5 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
+        <div className="overflow-hidden bg-[#1a1a1a] border border-neutral-800 rounded-2xl mt-5 mb-10 relative shadow-2xl">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-800 bg-neutral-900/50">
+            <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+            <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-neutral-300 font-mono"><span className="text-emerald-400">$</span> pnpm install @aomi-labs/react</p>
+            <p className="text-sm text-neutral-300 font-mono mt-2"><span className="text-emerald-400">$</span> npx shadcn add @aomi/aomi-frame</p>
+          </div>
         </div>
         <div className="flex flex-col gap-y-5">
           <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
@@ -161,10 +169,10 @@ export function Solution() {
                     </div>
                   </a>
                       </div>
-                                  <h3 className="md:text-3xl text-stone-800 tracking-tight font-serif text-right mr-20 mt-30 pr-5 absolute right-0">
-                                    Seamless frontend integration
-                                  </h3>
       </div>
+      <h3 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-serif text-center md:text-right mt-10 md:mt-15 mr-5 md:mr-20 pr-5">
+        Seamless frontend integration
+      </h3>
       </div>
     </div></section></div>
 
