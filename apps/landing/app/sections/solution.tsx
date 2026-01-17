@@ -1,8 +1,36 @@
+"use client";
+
+import { useEffect } from "react";
+
 export function Solution() {
+  useEffect(() => {
+    const loadUnicornStudio = () => {
+      if (typeof window === "undefined") return;
+
+      if ((window as any).UnicornStudio) {
+        (window as any).UnicornStudio.init();
+        return;
+      }
+
+      (window as any).UnicornStudio = { isInitialized: false };
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.29/dist/unicornStudio.umd.js";
+      script.onload = () => {
+        if ((window as any).UnicornStudio && !(window as any).UnicornStudio.isInitialized) {
+          (window as any).UnicornStudio.init();
+          (window as any).UnicornStudio.isInitialized = true;
+        }
+      };
+      document.body.appendChild(script);
+    };
+
+    loadUnicornStudio();
+  }, []);
+
   return (
     <>
       <div className="w-full bg-stone-100">
-      <section className="flex flex-col w-full max-w-7xl mr-auto mb-32  ml-auto px-4" id="solution" data-animate="up" data-delay="200">
+      <section className="flex flex-col w-full max-w-7xl mr-auto mb-22  ml-auto px-4" id="solution" data-animate="up" data-delay="200">
       <div className="overflow-hidden w-full  rounded-[2.5rem] mt-10 pl-12 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-20 relative items-center">
               <div className="flex flex-col justify-between h-full">
@@ -80,20 +108,22 @@ export function Solution() {
                   </a>
                 </div>
               </div>
-              {/* <div className="lg:mt-0 flex flex-col h-full min-h-[420px] mt-0 relative justify-between">
-                                <div className="transition-opacity duration-500 bg-center opacity-100 bg-[url(/assets/workflow-bg.jpg)] bg-cover absolute top-0 right-0 bottom-0 left-0">
-                                </div>
-              </div> */}
+              <div className="hidden lg:flex lg:mt-0 min-h-[420px] w-full relative items-center justify-center">
+                <div
+                  data-us-project="Vpa6JQ9WnxiC9cgDUWnu"
+                  style={{ width: "100%", height: "420px" }}
+                ></div>
+              </div>
             </div>
           </div>
         </section>
   <section className="mb-20 flex w-full max-w-7xl pb-20 mr-auto ml-auto items-center justify-center" id="resources">
     <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative gap-y-16 md:gap-y-0">
         <div className="js-animate group flex flex-col" data-animate="left" data-delay="300">
-            <h2 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-serif mb-10 md:mb-15 ml-5 md:ml-20 pl-5">
+            <h2 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist mb-10 md:mb-15 ml-5 md:ml-20 pl-5">
               AI infrastructure Hosting
             </h2>
-      <div className="bg-[#e3d8e6] border border-white border-2 ml-5 md:ml-20 mr-5 md:mr-15 pt-10 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
+      <div className="bg-[#e3d8e6] ml-5 md:ml-20 mr-5 md:mr-15 pt-10 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
           <div className="flex flex-col gap-y-5">
             <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
               Aomi provides a serverless backend for the agentic lifecycle,
@@ -118,7 +148,7 @@ export function Solution() {
                 <stop offset="100%" stopColor="rgba(0,0,0,0.5)"></stop>
               </linearGradient>
             </defs>
-            <g fill="rgba(0,0,0,0.9)" stroke="rgba(0,0,0,0.5)" strokeWidth="0.6">
+            <g fill="rgba(50,50,50,1)" stroke="rgba(68,64,60,0.5)" strokeWidth="0.6">
               <rect x="85" y="46" width="30" height="30"></rect>
               <rect x="16" y="15" width="16" height="16"></rect>
               <rect x="16" y="85" width="16" height="16"></rect>
@@ -137,7 +167,7 @@ export function Solution() {
       </div>
       </div>
       <div className="js-animate group flex flex-col" data-animate="right" data-delay="600">
-          <div className="bg-[#e3d8e6] border border-white border-2 ml-5 md:ml-15 mr-5 md:mr-20 pt-5 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
+          <div className="bg-[#e3d8e6] ml-5 md:ml-15 mr-5 md:mr-20 pt-5 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
         <div className="overflow-hidden bg-[#1a1a1a] border border-neutral-800 rounded-2xl mt-5 mb-10 relative shadow-2xl">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-800 bg-neutral-900/50">
             <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
@@ -170,11 +200,13 @@ export function Solution() {
                   </a>
                       </div>
       </div>
-      <h3 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-serif text-center md:text-right mt-10 md:mt-15 mr-5 md:mr-20 pr-5">
+      <h3 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist text-center md:text-right mt-10 md:mt-15 mr-5 md:mr-20 pr-5">
         Seamless frontend integration
       </h3>
       </div>
-    </div></section></div>
+    </div>
+    </section>
+    </div>
 
 
 

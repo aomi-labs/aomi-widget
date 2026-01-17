@@ -106,7 +106,7 @@
     rgba(255, 255, 255, 0.05),
     transparent
   );
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 0px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
@@ -250,11 +250,9 @@ html {
   .perspective-1000 {
     perspective: 1000px;
   }
-  .glass-card {
-    @apply flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4;
-  }
+
   .landing-button-primary {
-    @apply overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-semibold text-stone-50 bg-gradient-to-r from-[#733e83] to-[#ec6b83] ring-1 rounded-full pt-3 pr-8 pb-3 pl-8 relative shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)];
+    @apply overflow-hidden transition-all duration-300  hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-semibold text-stone-50 bg-gradient-to-r from-[#733e83] to-[#ec6b83] rounded-full pt-3 pr-8 pb-3 pl-8 relative;
     font-family: "Geist", "Inter", sans-serif;
   }
   .js-animate {
