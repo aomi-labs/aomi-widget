@@ -113,12 +113,10 @@ export function Hero() {
 
             {/* Animated Ticker */}
             <div
-              className="ticker-track flex w-max flex-nowrap pt-2 pb-2 items-center animate-marquee will-change-transform"
+              className="ticker-track flex flex-nowrap pt-2 pb-2 items-center justify-center"
               style={
                 {
-                  "--duration": "15s",
-                  "--group-gap": "2rem",
-                  gap: "var(--group-gap)",
+                  gap: "4rem",
                 } as CSSProperties
               }
             >
@@ -161,45 +159,7 @@ export function Hero() {
                 </div>
               </div>
 
-              {/* Duplicate set for seamless loop */}
-              <div className="flex items-center gap-16 shrink-0">
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/solana-sol-logo.png"
-                    alt="Solana"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/ethereum-eth-logo.png"
-                    alt="Ethereum"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/cosmos-atom-logo.png"
-                    alt="Cosmos"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
-                    alt="MetaMask"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/polymarket1671006384460.png"
-                    alt="Polymarket"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-              </div>
-            </div>
+                          </div>
           </div>
         </div>
       </section>
