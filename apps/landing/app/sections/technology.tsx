@@ -181,14 +181,14 @@ export function Technology() {
       <section className="w-full pr-4 pb-20 pl-4 gap-x-6 gap-y-6 bg-stone-100" id="technology-section">
         <div className="flex flex-col gap-16 max-w-7xl mr-auto ml-auto">
           <div className="flex flex-col md:flex-row md:items-end gap-6 items-center md:items-start justify-between">
-            <div className="max-w-2xl md:pl-5">
-              <h2 className="leading-[1.1] md:text-5xl text-4xl text-stone-900 tracking-tight font-serif md:pl-10 pt-10 pb-10 text-center md:text-left">
-                Emulate real operations
+            <div className="max-w-2xl px-4 md:px-5">
+              <h2 className="md:text-4xl pl-12 text-4xl text-stone-800 tracking-tight font-serif leading-[1.1]">
+                AI Engineering meets<br className="hidden md:block" />
+                <span className="italic text-stone-600 md:pl-12">Simulation Guardrails</span>
               </h2>
             </div>
-            <p className="leading-relaxed text-sm font-light text-stone-900 font-geist max-w-md mb-10 md:pr-15 text-center md:text-left pt-8 px-4 md:px-0">
-              Aomi turns complex blockchain operations into a simple, conversational workflow. Move from idea to execution
-              without the manual overhead.
+            <p className="leading-relaxed text-sm font-light text-stone-600 font-geist max-w-md md:pr-20 pl-10 md:pt-5 md:text-right px-4 md:px-0">
+              The value of blockchains to AI is verifiable settlement outcome. Aomi brings that to the forefront.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 mx-8 rounded-[2rem] overflow-hidden">
@@ -223,10 +223,10 @@ export function Technology() {
               </div>
               <div className="flex flex-col gap-3">
                 <h3 className="text-lg font-light text-stone-800 font-geist text-center">Contextual Intent Sanitization</h3>
-                <p className="leading-relaxed -multi text-sm font-light text-stone-600 font-geist">
-                  Resolve intents through natural language and extrapolate input into a structured set of actionable
-                  items. Prioritizing type-safety, Aomi converts sementic steps to sanitized machine logic, ensuring
-                  deterministic execution.
+                <p className="px-5 leading-relaxed -multi text-sm font-light text-stone-600 font-geist">
+                Our conversational UX bridges the gap between natural language and structured action. 
+                By mapping semantic steps to type-safe, sanitized logic, Aomi ensures every interaction 
+                results in predictable, deterministic execution.
                 </p>
               </div>
             </div>
@@ -256,10 +256,9 @@ export function Technology() {
               </div>
               <div className="flex flex-col gap-3">
                 <h3 className="text-lg font-light text-stone-800 font-geist text-center">Hierarchical Tree Synthesis</h3>
-                <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
-                  Intents are decomposed into a hierarchical execution tree. Aomi generates precise code block per node by
-                  referencing verified, open-source smart contracts. This recursive orchestration manages dependencies
-                  across multiple steps.
+                <p className="px-5 leading-relaxed text-sm font-light text-stone-700 font-geist">
+                Intents resolve into a hierarchical execution tree where Aomi generates targeted code blocks based on cached, verified contracts. 
+                By utilizing recursive orchestration, the system automatically handles complex dependency mapping and execution flow.
                 </p>
               </div>
             </div>
@@ -300,7 +299,11 @@ export function Technology() {
               </div>
               <div className="flex flex-col gap-3">
                 <h2 className="text-lg font-light text-stone-800 font-geist text-center">Batched Simulation & Execution</h2>
-                <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">After simulating operations concurrently with stateless runtime, Aomi triggers native light-client environments across domains, bundling the sequence of transactions through EIP-7702, requiring only one signature to fire on-chain.</p>
+                <p className="px-5 leading-relaxed text-sm font-light text-stone-700 font-geist">
+                With our stateless runtime for concurrent simulation, Aomi invokes native light-client across domains. 
+                By bundling transactions with EIP-7702, 
+                we collapses complex multi-step operations into a single-signature on-chain execution.
+                  </p>
               </div>
             </div>
           </div>

@@ -44,7 +44,7 @@ export function Hero() {
         </a>
       </div>
       <button
-        className="md:hidden p-2.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white shadow-lg ring-1 ring-white/20 active:scale-95 transition-transform"
+        className="md:hidden p-2.5 rounded-full backdrop-blur-[80px] bg-black/20 ring-white/20 ring-1 text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] active:scale-95 transition-transform"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
       >
         {mobileMenuOpen ? (
@@ -55,31 +55,33 @@ export function Hero() {
       </button>
       </nav>
 
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="fixed inset-0 backdrop-blur-[80px] bg-black/20 border-0" onClick={() => setMobileMenuOpen(false)}></div>
-          <div className="fixed top-20 left-1/2 -translate-x-1/2 w-2/3 z-50 backdrop-blur-[80px] bg-black/20 border-0rounded-2xl p-6 shadow-2xl">
-            <div className="flex flex-col gap-4">
-              <a href="#top" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+      {/* Mobile Menu Drawer */}
+      <div className={`fixed inset-0 z-40 md:hidden transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="fixed inset-0 backdrop-blur-[80px] bg-black/40" onClick={() => setMobileMenuOpen(false)}></div>
+        <div className={`fixed top-0 right-0 h-full w-full z-50 text-center pt-5 backdrop-blur-[80px] bg-black/30 border-l border-white/10 shadow-2xl transition-transform duration-300 ease-out ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="flex flex-col h-full pt-20 px-6 pb-8">
+            <div className="flex flex-col gap-2">
+              <a href="#top" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
                 Overview
               </a>
-              <a href="#technology-section" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+              <a href="#technology-section" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
                 Technology
               </a>
-              <a href="#workflow" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+              <a href="#workflow" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
                 Solutions
               </a>
-              <a href="#resources" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-2 border-b border-white/10">
+              <a href="#resources" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
                 Resources
               </a>
-              <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" onClick={() => setMobileMenuOpen(false)} className="mt-2 text-center text-sm font-semibold px-5 py-3 rounded-full font-geist bg-white/90 text-neutral-900 shadow-lg">
+            </div>
+            <div className="mt-auto">
+              <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" onClick={() => setMobileMenuOpen(false)} className="block text-center text-sm font-semibold px-5 py-3 rounded-full font-geist bg-white/90 text-neutral-900 shadow-lg">
                 GitHub
               </a>
             </div>
           </div>
         </div>
-      )}
+      </div>
       <div className="flex flex-col animate-fade-in text-center w-full mb-30 max-w-7xl mr-auto ml-auto pt-36 pr-4 pl-4 items-center">
         <div className="flex backdrop-blur-[80px] bg-black/20 border-0 transition-colors cursor-default   rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
           <div className="flex -space-x-2">
