@@ -128,7 +128,7 @@ export function Solution() {
       <div className="bg-[#e3d8e6] ml-5 md:ml-20 mr-5 md:mr-15 pt-10 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
           <div className="flex flex-col gap-y-5">
             <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
-            Think of it as 'AWS Lambda for Agents.' 
+            Think of it as &apos;AWS Lambda for Agents.&apos; 
             Eliminate the overhead of managing heavy Python or TypeScript frameworks 
             like LangChain or AI SDK. Simply select your model, 
             configure your system prompts, and define your tools.
