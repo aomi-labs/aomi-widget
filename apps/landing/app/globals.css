@@ -3,10 +3,70 @@
 @import "tw-animate-css";
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
-@import "@aomi-labs/widget-lib/themes/default.css";
+@import "@aomi-labs/widget-lib/styles.css";
 
-/* Scan the registry source during docs dev so Tailwind picks up component classes */
-@source "../../registry/src";
+/* Scan the npm package dist so Tailwind picks up component classes */
+@source "../node_modules/@aomi-labs/widget-lib/dist";
+
+/* ============================================
+   Custom Font Faces - Bauhaus
+   ============================================ */
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Thin.otf") format("opentype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bauhaus_Chez_Display_2.0";
+  src: url("/assets/fonts/BauhausChezDisplay2.0-Black.otf") format("opentype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ============================================
    Landing Page Specific Variables
@@ -46,7 +106,7 @@
     rgba(255, 255, 255, 0.05),
     transparent
   );
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 0px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
@@ -115,6 +175,40 @@ html {
   }
 }
 
+/* ============================================
+   Terminal Animations
+   ============================================ */
+
+@keyframes terminalShrink {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.85) translateY(20px);
+    opacity: 0;
+  }
+}
+
+@keyframes terminalPop {
+  from {
+    transform: scale(0.85) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.terminal-animate-shrink {
+  animation: terminalShrink 0.23s ease forwards;
+}
+
+.terminal-animate-pop {
+  animation: terminalPop 0.35s ease-out forwards;
+}
+
 @layer components {
   .font-serif {
     font-family: "Playfair Display", serif;
@@ -127,6 +221,9 @@ html {
   }
   .font-pt-serif {
     font-family: "PT Serif", serif;
+  }
+  .font-bauhaus {
+    font-family: "Bauhaus_Chez_Display_2.0", "Arial Black", sans-serif;
   }
   .animate-fade-in {
     animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -153,11 +250,9 @@ html {
   .perspective-1000 {
     perspective: 1000px;
   }
-  .glass-card {
-    @apply flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4;
-  }
+
   .landing-button-primary {
-    @apply overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-semibold text-stone-50 bg-gradient-to-r from-[#733e83] to-[#ec6b83] ring-1 rounded-full pt-3 pr-8 pb-3 pl-8 relative shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)];
+    @apply overflow-hidden transition-all duration-300  hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-semibold text-stone-50 bg-gradient-to-r from-[#733e83] to-[#ec6b83] rounded-full pt-3 pr-8 pb-3 pl-8 relative;
     font-family: "Geist", "Inter", sans-serif;
   }
   .js-animate {
@@ -224,4 +319,72 @@ html {
 .docs-prose code:not(pre code) {
   font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
+}
+
+/* ============================================
+   Composer Input Text Color Fix
+   ============================================ */
+
+/* Force dark text color for composer input */
+.aui-composer-input,
+.aui-composer-input::placeholder {
+  color: #292524 !important; /* stone-800 */
+}
+
+.aui-composer-input::placeholder {
+  color: #78716c !important; /* stone-500 for placeholder */
+}
+
+/* ============================================
+   Assistant Message Alignment
+   ============================================ */
+
+/* Ensure assistant message content is left-aligned */
+.aui-assistant-message-root,
+.aui-assistant-message-content,
+.aui-assistant-message-content *,
+[data-role="assistant"],
+[data-role="assistant"] * {
+  text-align: left !important;
+}
+
+/* Ensure markdown content and all its children are left-aligned */
+.aui-md,
+.aui-md *,
+.aui-md p,
+.aui-md ul,
+.aui-md ol,
+.aui-md li,
+.aui-md h1,
+.aui-md h2,
+.aui-md h3,
+.aui-md h4,
+.aui-md h5,
+.aui-md h6,
+.aui-md blockquote,
+.aui-md div,
+.aui-md span {
+  text-align: left !important;
+}
+
+/* Override any center alignment on markdown wrapper */
+[data-role="assistant"] .aui-md,
+[data-role="assistant"] .aui-assistant-message-content,
+[data-role="assistant"] p,
+[data-role="assistant"] ul,
+[data-role="assistant"] ol {
+  text-align: left !important;
+}
+
+/* Ensure no flex/grid centering affects the content */
+.aui-assistant-message-content {
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+
+/* Target any direct children that might be centered */
+.aui-assistant-message-content > * {
+  text-align: left !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
 }

@@ -167,7 +167,7 @@ export function Resources() {
                 <img
                   src="/assets/images/bubble.svg"
                   alt="Aomi"
-                  className="w-5 h-5"
+                  className="w-5 h-5 invert"
                 />
                 <span className="font-semibold text-stone-100 tracking-tight font-geist">
                   Aomi

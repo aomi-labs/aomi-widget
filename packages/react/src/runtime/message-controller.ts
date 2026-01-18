@@ -92,17 +92,25 @@ export class MessageController {
 
     try {
       this.markRunning(threadId, true);
-      if (publicKey) {
-        await this.config.backendApiRef.current.postChatMessage(
-          backendThreadId,
-          text,
-          publicKey
-        );
-      } else {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      const response = publicKey
+        ? await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+            publicKey
+          )
+        : await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+
+      // Apply the latest messages immediately so sync tool results appear without waiting for polling.
+      if (response?.messages) {
+        this.inbound(threadId, response.messages);
       }
+
       await this.flushPendingSystem(threadId);
-      this.config.polling.start(threadId);
+      if (response?.is_processing) {
+        this.config.polling.start(threadId);
+      } else if (!this.config.polling.isPolling(threadId)) {
+        this.markRunning(threadId, false);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       this.markRunning(threadId, false);

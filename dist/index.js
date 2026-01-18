@@ -536,7 +536,7 @@ function ThreadContextProvider({
     storeRef.current = new ThreadStore({ initialThreadId });
   }
   const store = storeRef.current;
-  const value = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const value = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   return /* @__PURE__ */ jsx(ThreadContextState.Provider, { value, children });
 }
 function useCurrentThreadMessages() {
@@ -557,7 +557,7 @@ function toInboundMessage(msg) {
   if (msg.content) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_a = parseToolStream(msg.tool_stream)) != null ? _a : [];
+  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",
@@ -581,7 +581,7 @@ function toInboundMessage(msg) {
 }
 function toInboundSystem(msg) {
   var _a;
-  const [topic] = (_a = parseToolStream(msg.tool_stream)) != null ? _a : [];
+  const [topic] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
   const messageText = topic || msg.content || "";
   const timestamp = parseTimestamp(msg.timestamp);
   if (!messageText.trim()) return null;
@@ -595,15 +595,15 @@ function parseTimestamp(timestamp) {
   const parsed = new Date(timestamp);
   return Number.isNaN(parsed.valueOf()) ? void 0 : parsed;
 }
-function parseToolStream(toolStream) {
-  if (!toolStream) return null;
-  if (Array.isArray(toolStream) && toolStream.length === 2) {
-    const [topic, content] = toolStream;
+function parseToolResult(toolResult) {
+  if (!toolResult) return null;
+  if (Array.isArray(toolResult) && toolResult.length === 2) {
+    const [topic, content] = toolResult;
     return [String(topic), content];
   }
-  if (typeof toolStream === "object") {
-    const topic = toolStream.topic;
-    const content = toolStream.content;
+  if (typeof toolResult === "object") {
+    const topic = toolResult.topic;
+    const content = toolResult.content;
     return topic ? [String(topic), String(content)] : null;
   }
   return null;
@@ -754,17 +754,20 @@ var MessageController = class {
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     try {
       this.markRunning(threadId, true);
-      if (publicKey) {
-        await this.config.backendApiRef.current.postChatMessage(
-          backendThreadId,
-          text,
-          publicKey
-        );
-      } else {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      const response = publicKey ? await this.config.backendApiRef.current.postChatMessage(
+        backendThreadId,
+        text,
+        publicKey
+      ) : await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      if (response == null ? void 0 : response.messages) {
+        this.inbound(threadId, response.messages);
       }
       await this.flushPendingSystem(threadId);
-      this.config.polling.start(threadId);
+      if (response == null ? void 0 : response.is_processing) {
+        this.config.polling.start(threadId);
+      } else if (!this.config.polling.isPolling(threadId)) {
+        this.markRunning(threadId, false);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       this.markRunning(threadId, false);
