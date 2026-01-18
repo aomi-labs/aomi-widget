@@ -3,8 +3,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { cn } from "@aomi-labs/react";
-import { Button } from "@aomi-labs/widget-lib/components/ui/button";
-import { Card, CardContent } from "@aomi-labs/widget-lib/components/ui/card";
+import { Button, Card, CardContent } from "@aomi-labs/widget-lib";
 import { CopyButton } from "./CopyButton";
 
 type PreviewProps = {

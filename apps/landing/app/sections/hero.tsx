@@ -1,11 +1,15 @@
-import { WidgetFrame } from "@/components/samples/widget-demo";
-import type { CSSProperties } from "react";
+"use client";
+
+import { HeroTerminal } from "@/components/hero-terminal";
+import { useState, type CSSProperties } from "react";
 
 export function Hero() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <>
       <nav className="fixed flex z-50 pr-4 pl-4 top-6 right-0 left-0 gap-x-4 gap-y-4 items-center justify-center">
-      <div className="flex transition-all duration-300 backdrop-blur-[40px] bg-white/10 border-white/20 border-0 rounded-full ring-white/20 ring-1 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-2 gap-y-2 items-center">
+      <div className="flex transition-all duration-300 backdrop-blur-[80px] bg-black/20 rounded-full ring-white/20 ring-1 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-2 gap-y-2 items-center">
         <img
           src="/assets/images/bubble.svg"
           alt="Aomi"
@@ -15,7 +19,7 @@ export function Hero() {
           Aomi
         </span>
       </div>
-      <div className="flex hidden md:flex transition-all backdrop-blur-[40px] bg-white/5 border-white/10 border-0 ring-white/20 ring-1 rounded-full pt-1.5 pr-1.5 pb-1.5 pl-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-6 gap-y-6 items-center">
+      <div className="flex hidden md:flex transition-all backdrop-blur-[80px] bg-black/20 ring-white/20 ring-1 rounded-full pt-1.5 pr-1.5 pb-1.5 pl-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-6 gap-y-6 items-center">
         <div className="flex items-center gap-6 pr-2">
           <a href="#top" className="transition-colors hover:text-white text-xs font-medium text-white/70 font-geist drop-shadow-sm">
             Overview
@@ -39,12 +43,47 @@ export function Hero() {
           </div>
         </a>
       </div>
-      <button className="md:hidden p-2.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white shadow-lg ring-1 ring-white/20 active:scale-95 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="menu" className="lucide lucide-menu w-5 h-5"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
-          </button>
+      <button
+        className="md:hidden p-2.5 rounded-full backdrop-blur-[80px] bg-black/20 ring-white/20 ring-1 text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] active:scale-95 transition-transform"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      >
+        {mobileMenuOpen ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
+        )}
+      </button>
       </nav>
-      <div className="flex flex-col animate-fade-in text-center w-full max-w-7xl mr-auto ml-auto pt-36 pr-4 pl-4 items-center">
-        <div className="flex backdrop-blur-[20px] hover:bg-white/10 transition-colors cursor-default bg-white/20 border-white/10 border rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
+
+      {/* Mobile Menu Drawer */}
+      <div className={`fixed inset-0 z-40 md:hidden transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="fixed inset-0 backdrop-blur-[80px] bg-black/40" onClick={() => setMobileMenuOpen(false)}></div>
+        <div className={`fixed top-0 right-0 h-full w-full z-50 text-center pt-5 backdrop-blur-[80px] bg-black/30 border-l border-white/10 shadow-2xl transition-transform duration-300 ease-out ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="flex flex-col h-full pt-20 px-6 pb-8">
+            <div className="flex flex-col gap-2">
+              <a href="#top" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+                Overview
+              </a>
+              <a href="#technology-section" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+                Technology
+              </a>
+              <a href="#workflow" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+                Solutions
+              </a>
+              <a href="#resources" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+                Resources
+              </a>
+            </div>
+            <div className="mt-auto">
+              <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" onClick={() => setMobileMenuOpen(false)} className="block text-center text-sm font-semibold px-5 py-3 rounded-full font-geist bg-white/90 text-neutral-900 shadow-lg">
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-col animate-fade-in text-center w-full mb-30 max-w-7xl mr-auto ml-auto pt-36 pr-4 pl-4 items-center">
+        <div className="flex backdrop-blur-[80px] bg-black/20 border-0 transition-colors cursor-default   rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
           <div className="flex -space-x-2">
             <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
               <img src="https://i.pravatar.cc/100?img=1" alt="User" className="w-full h-full object-cover" />
@@ -52,7 +91,7 @@ export function Hero() {
             <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
               <img src="https://i.pravatar.cc/100?img=5" alt="User" className="w-full h-full object-cover" />
             </div>
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold font-geist bg-white/20 backdrop-blur-sm text-white border border-white/20">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold font-geist">
               +
             </div>
           </div>
@@ -60,6 +99,7 @@ export function Hero() {
                 500+ daily users
               </span>
         </div>
+
         <h1 className="leading-[1.1] md:text-7xl lg:text-8xl text-5xl text-neutral-50 tracking-tight font-serif text-center max-w-5xl mb-6 drop-shadow-2xl">
           One prompt away
           <br />
@@ -70,31 +110,26 @@ export function Hero() {
           <br className="hidden md:block" />
               natural language into secure, multi-chain transactions.
         </p>
-        <div className="flex gap-4 mb-20 items-center">
+        <div className="flex gap-4 mb-25 items-center">
           <a href="https://calendly.com/cecilia-foameo/30min" target="_blank" rel="noreferrer" className="landing-button-primary group [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)]">
                 <span className="relative z-10">Contact Us</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3 relative z-10"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-                <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#9D77A8] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div>
+                {/* <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#9D77A8] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div> */}
               </a>
-          <a href="/docs/about-aomi" className="group relative overflow-hidden transition-all border hover:bg-white/10 active:scale-95 duration-300 text-xs font-medium text-white font-geist bg-white/30 rounded-full pt-3 pr-8 pb-3 pl-8 shadow-lg backdrop-blur-md">
+          <a href="/docs/about-aomi" className="backdrop-blur-[80px] group relative overflow-hidden transition-all hover:bg-white/20 active:scale-95 duration-300 text-xs font-medium text-white font-geist  bg-black/20 rounded-full ring-white/20 ring-1 pt-3 pr-8 pb-3 pl-8 shadow-lg">
                 <span className="relative z-10">Documentation</span>
-                <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity group-hover:opacity-100"></div>
               </a>
         </div>
-        <div className="w-full max-w-3xl">
-          <div className="glass-panel rounded-[2rem] p-3 relative">
-            <WidgetFrame />
-          </div>
-        </div>
+        <HeroTerminal />
       </div>
 
 
 
 
-      <section className="z-10 sm:py-24 pb-15 relative" id="client-ticker">
+      <section className="z-10 pt-20  relative bg-stone-100" id="client-ticker">
         <div className="sm:px-6 lg:px-8 max-w-7xl mr-auto ml-auto pr-4 pl-4">
           <div className="text-center mb-12">
-            <p className="uppercase text-xs font-medium text-white-500 tracking-wide font-geist">
+            <p className="uppercase text-xs font-medium text-stone-800 tracking-wide font-geist">
               Trusted by teams at
             </p>
           </div>
@@ -117,12 +152,10 @@ export function Hero() {
 
             {/* Animated Ticker */}
             <div
-              className="ticker-track flex w-max flex-nowrap pt-2 pb-2 items-center animate-marquee will-change-transform"
+              className="ticker-track flex flex-nowrap pt-2 pb-2 items-center justify-center"
               style={
                 {
-                  "--duration": "15s",
-                  "--group-gap": "2rem",
-                  gap: "var(--group-gap)",
+                  gap: "4rem",
                 } as CSSProperties
               }
             >
@@ -132,78 +165,40 @@ export function Hero() {
                   <img
                     src="/assets/trusted/solana-sol-logo.png"
                     alt="Solana"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/ethereum-eth-logo.png"
                     alt="Ethereum"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/cosmos-atom-logo.png"
                     alt="Cosmos"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
                     alt="MetaMask"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/polymarket1671006384460.png"
                     alt="Polymarket"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
+                    className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
               </div>
 
-              {/* Duplicate set for seamless loop */}
-              <div className="flex items-center gap-16 shrink-0">
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/solana-sol-logo.png"
-                    alt="Solana"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/ethereum-eth-logo.png"
-                    alt="Ethereum"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/cosmos-atom-logo.png"
-                    alt="Cosmos"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
-                    alt="MetaMask"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <img
-                    src="/assets/trusted/polymarket1671006384460.png"
-                    alt="Polymarket"
-                    className="h-[3rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
-                  />
-                </div>
-              </div>
-            </div>
+                          </div>
           </div>
         </div>
       </section>

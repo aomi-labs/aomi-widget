@@ -8,8 +8,7 @@ interface SessionMessage {
     sender?: string;
     content?: string;
     timestamp?: string;
-    is_streaming?: boolean;
-    tool_stream?: [string, string] | {
+    tool_result?: [string, string] | {
         topic?: unknown;
         content?: unknown;
     } | null;

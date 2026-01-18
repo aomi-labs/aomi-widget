@@ -1,40 +1,63 @@
+"use client";
+
+import { useEffect } from "react";
+
 export function Solution() {
+  useEffect(() => {
+    const loadUnicornStudio = () => {
+      if (typeof window === "undefined") return;
+
+      if ((window as any).UnicornStudio) {
+        (window as any).UnicornStudio.init();
+        return;
+      }
+
+      (window as any).UnicornStudio = { isInitialized: false };
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.29/dist/unicornStudio.umd.js";
+      script.onload = () => {
+        if ((window as any).UnicornStudio && !(window as any).UnicornStudio.isInitialized) {
+          (window as any).UnicornStudio.init();
+          (window as any).UnicornStudio.isInitialized = true;
+        }
+      };
+      document.body.appendChild(script);
+    };
+
+    loadUnicornStudio();
+  }, []);
+
   return (
     <>
-      <div className="max-w-7xl mt-20 mr-auto ml-auto pr-4 pl-4">
-      <section className="flex flex-col w-full max-w-7xl mr-auto mb-32 ml-auto pr-4 pl-4" id="solution" data-animate="up" data-delay="200">
-      <div className="glass-panel overflow-hidden w-full rounded-[2.5rem] mt-10 pl-12 relative">
-            <div className="-top-40 -right-40 blur-[120px] pointer-events-none bg-indigo-500/20 mix-blend-screen w-96 h-96 rounded-full absolute">
-            </div>
-            <div className="-bottom-40 -left-40 blur-[120px] pointer-events-none bg-blue-500/10 mix-blend-screen w-96 h-96 rounded-full absolute">
-            </div>
+      <div className="w-full bg-stone-100">
+      <section className="flex flex-col w-full max-w-7xl mr-auto mb-22  ml-auto px-4" id="solution" data-animate="up" data-delay="200">
+      <div className="overflow-hidden w-full  rounded-[2.5rem] pl-12 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-20 relative items-center">
               <div className="flex flex-col justify-between h-full">
                 <div className="">
-                  <div className="inline-flex bg-white/10 w-fit border-white/20 border rounded-full ring-white/10 ring-1 mt-10 mb-6 pt-1 pr-3 pb-1 pl-3 backdrop-blur-md items-center">
-                    <span className="text-[10px] uppercase font-semibold text-white tracking-wider font-geist mt-1 mb-1">Solution</span>
+                  <div className="inline-flex bg-stone-100 w-fit border-stone-200 border rounded-full ring-stone-200 ring-1 mt-10 mb-6 pt-1 pr-3 pb-1 pl-3 items-center">
+                    <span className="text-[10px] uppercase font-semibold text-stone-800 tracking-wider font-geist mt-1 mb-1">Solution</span>
                   </div>
-                  <h2 className="md:text-5xl text-4xl text-white tracking-tight font-serif mb-2">
-                    From intent to <br />
-                    <span className="italic text-white/70">implementation.</span>
+                  <h2 className="md:text-5xl text-4xl text-stone-800 tracking-tight font-serif mb-2">
+                    Leverage intelligence<br />
+                    <span className="italic text-stone-600">to Automate.</span>
                   </h2>
-                  <p className="text-base font-light text-neutral-50 font-geist mb-10">
-                    A seamless partnership model designed for the agentic
-                    future.
+                  <p className="text-base font-light text-stone-600 font-geist mb-10">
+                    Partner with Aomi for the agentic future.
                   </p>
                   <div className="relative pl-2">
-                    <div className="absolute left-[11px] top-3 bottom-8 w-px bg-gradient-to-b from-indigo-500/50 via-white/10 to-transparent">
+                    <div className="absolute left-[11px] top-3 bottom-8 w-px bg-gradient-to-b from-stone-500/50 via-stone-300 to-transparent">
                     </div>
                     <div className="flex flex-col gap-10 gap-x-10 gap-y-10">
-                      <div className="relative flex gap-6 items-start group">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-indigo-500/50 bg-[#1c1917] z-10 relative mt-1 shadow-[0_0_15px_rgba(99,102,241,0.3)] flex items-center justify-center ring-1 ring-indigo-500/20">
+                      <div className="relative flex gap-6 items-start">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full border  bg-white z-10 relative mt-1 flex items-center justify-center ring-1">
                           <div className="bg-[#9D77A8] w-2 h-2 rounded-full"></div>
                         </div>
                         <div className="flex-1">
-                          <h3 className="transition-colors duration-300 text-lg font-semibold text-white font-geist group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                          <h3 className="text-lg font-semibold text-stone-800 font-geist">
                             Consultation &amp; Strategy
                           </h3>
-                          <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
+                          <p className="leading-relaxed text-sm font-light text-stone-600 font-geist mt-2">
                             Contact us to define how we can support your
                             business with AI automation for on-chain
                             transactions, whether you&apos;re building AI x crypto
@@ -43,32 +66,32 @@ export function Solution() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex group relative gap-x-6 gap-y-6 items-start">
-                        <div className="flex-shrink-0 group-hover:border-transparent transition-colors duration-300 flex bg-[#1c1917] w-6 h-6 z-10 border-white/20 border rounded-full mt-1 relative shadow-inner items-center justify-center">
-                          <div className="transition-colors duration-300 bg-neutral-600 w-2 h-2 rounded-full group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                      <div className="flex relative gap-x-6 gap-y-6 items-start">
+                        <div className="flex-shrink-0 flex bg-white w-6 h-6 z-10 border-stone-300 border rounded-full mt-1 relative shadow-inner items-center justify-center">
+                          <div className="bg-stone-400 w-2 h-2 rounded-full">
                           </div>
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-white font-geist transition-colors duration-300 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                          <h3 className="text-lg font-semibold text-stone-800 font-geist">
                             Custom Build
                           </h3>
-                          <p className="leading-relaxed text-sm font-light text-stone-50 font-geist mt-2">
+                          <p className="leading-relaxed text-sm font-light text-stone-600 font-geist mt-2">
                             We build customized AI applications integrating
                             your APIs and tools, seamlessly deployed within
                             your existing infrastructure.
                           </p>
                         </div>
                       </div>
-                      <div className="relative flex gap-6 items-start group">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-white/20 bg-[#1c1917] z-10 relative mt-1 group-hover:border-transparent transition-colors duration-300 flex items-center justify-center shadow-inner">
-                          <div className="w-2 h-2 rounded-full bg-neutral-600 transition-colors duration-300 group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                      <div className="relative flex gap-6 items-start">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full border border-stone-300 bg-white z-10 relative mt-1 flex items-center justify-center shadow-inner">
+                          <div className="w-2 h-2 rounded-full bg-stone-400">
                           </div>
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-white font-geist transition-colors duration-300 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ec6b83] group-hover:to-[#733e83]">
+                          <h3 className="text-lg font-semibold text-stone-800 font-geist">
                             Managed Orchestration
                           </h3>
-                          <p className="leading-relaxed text-sm font-light text-neutral-50 font-geist mt-2">
+                          <p className="leading-relaxed text-sm font-light text-stone-600 font-geist mt-2">
                             In production, we host the LLM infrastructure
                             including agentic orchestration, allowing you to
                             focus purely on your backend logic.
@@ -79,40 +102,41 @@ export function Solution() {
                   </div>
                 </div>
                 <div className="mt-12 mb-12">
-                  <a href="/docs/about-aomi" className="overflow-hidden group transition-all flex items-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95 text-xs font-semibold text-neutral-900 font-geist bg-white/90 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                  <a href="/docs/about-aomi" className="overflow-hidden group transition-all flex items-center gap-2 hover:shadow-lg active:scale-95 text-xs font-semibold text-white font-geist bg-stone-800 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-md">
                     <span className="z-10 flex items-center gap-2 relative">Documentation</span>
-                    <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
-                    </div>
                   </a>
                 </div>
               </div>
-              <div className="lg:mt-0 flex flex-col h-full min-h-[420px] mt-0 relative justify-between">
-                                <div className="transition-opacity duration-500 bg-center opacity-100 bg-[url(/assets/workflow-bg.jpg)] bg-cover absolute top-0 right-0 bottom-0 left-0">
-                                </div>
+              <div className="hidden lg:flex lg:mt-0 min-h-[420px] w-full relative items-center justify-center">
+                <div
+                  data-us-project="Vpa6JQ9WnxiC9cgDUWnu"
+                  style={{ width: "100%", height: "420px" }}
+                ></div>
               </div>
             </div>
           </div>
         </section>
-  <section className="pb-20" id="resources">
-    <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative">
-        <div className="js-animate group flex flex-col" data-animate="left" data-delay="300">
-            <h2 className="md:text-3xl font-light text-white font-geist mb-10 ml-10">
-        AI infrastructure Hosting
-      </h2>
-      <div className="bg-[#e3d8e6] border border-white border-2 ml-10 mr-15 pt-10 pr-10 pl-10">
+  <section className="mb-20 flex w-full max-w-7xl pb-20 mr-auto ml-auto items-center justify-center" id="resources">
+    <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative gap-y-16 md:gap-y-0">
+        <div className="js-animate group flex flex-col" data-animate="left" data-delay="150">
+            <h2 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist pb-2 ml-5 md:ml-20 pl-5">
+              AI infrastructure Hosting
+            </h2>
+            <p className="leading-relaxed text-sm font-light text-stone-700 max-w-90 font-geist mb-10 md:mb-10  ml-5 md:ml-20 pl-5">
+              Aomi provides high-performance serverless backend for the agentic lifecycle.
+            </p>
+      <div className="bg-[#e3d8e6] ml-5 md:ml-20 mr-5 md:mr-15 pt-10 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
           <div className="flex flex-col gap-y-5">
             <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
-              Aomi provides a serverless backend for the agentic lifecycle,
-              functioning as a high-performance “Amazon Lambda for Agents.”
-              Eliminate the overhead of managing Python or TypeScript frameworks
-              like LangChain or AI SDK. Simply select your model, configure your
-              system prompts, and define your tools.
+            Think of it as &apos;AWS Lambda for Agents.&apos; 
+            Eliminate the overhead of managing heavy Python or TypeScript frameworks 
+            like LangChain or AI SDK. Simply select your model, 
+            configure your system prompts, and define your tools.
             </p>
             <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
-              Our proprietary Rust framework is engineered to be stateless and
-              concurrent, executing agentic loops at native speed. Aomi handles
-              deployment, scaling, and lifecycle management for production-grade
-              workloads.
+            Our proprietary Rust framework is engineered for stateless concurrency, 
+            executing agentic loops at native speed. Aomi handles the deployment, scaling, 
+            and lifecycle management required for production-grade workloads.
             </p>
           </div>
         <div className="relative flex h-48 w-full mt-5 mb-5">
@@ -124,7 +148,7 @@ export function Solution() {
                 <stop offset="100%" stopColor="rgba(0,0,0,0.5)"></stop>
               </linearGradient>
             </defs>
-            <g fill="rgba(0,0,0,0.9)" stroke="rgba(0,0,0,0.5)" strokeWidth="0.6">
+            <g fill="rgba(50,50,50,1)" stroke="rgba(68,64,60,0.5)" strokeWidth="0.6">
               <rect x="85" y="46" width="30" height="30"></rect>
               <rect x="16" y="15" width="16" height="16"></rect>
               <rect x="16" y="85" width="16" height="16"></rect>
@@ -142,10 +166,18 @@ export function Solution() {
         </div>
       </div>
       </div>
-      <div className="js-animate group flex flex-col" data-animate="right" data-delay="600">
-          <div className="bg-[#e3d8e6] border border-white border-2 ml-15 mr-10 pt-5 pr-10 pb-10 pl-10">
-        <div className="overflow-hidden backdrop-blur-[40px] bg-neutral-600 border-stone-400/20 border  rounded-[2rem] mt-5 mb-10 pr-5 pl-8 relative shadow-[0px_0px_0px_1px_rgba(0,0,0,0.12),0px_1px_1px_-0.5px_rgba(0,0,0,0.12),0px_3px_3px_-1.5px_rgba(0,0,0,0.12),0px_6px_6px_-3px_rgba(0,0,0,0.12),0px_12px_12px_-6px_rgba(0,0,0,0.12),0px_24px_24px_-12px_rgba(0,0,0,0.12)]">
-          <p className="text-sm font-light text-stone-200 font-space-mono mt-2 mb-2">$ pnpm install @aomi-labs/react</p><p className="text-sm font-light text-stone-200 font-space-mono mb-2">$ npx shadcn add @aomi/aomi-frame</p>
+      <div className="js-animate group flex flex-col" data-animate="right" data-delay="220">
+          <div className="bg-[#e3d8e6] ml-5 md:ml-15 mr-5 md:mr-20 pt-5 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
+        <div className="overflow-hidden bg-[#1a1a1a] border border-neutral-800 rounded-2xl mt-5 mb-10 relative shadow-2xl">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-800 bg-neutral-900/50">
+            <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+            <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-neutral-300 font-mono"><span className="text-emerald-400">$</span> pnpm install @aomi-labs/react</p>
+            <p className="text-sm text-neutral-300 font-mono mt-2"><span className="text-emerald-400">$</span> npx shadcn add @aomi/aomi-frame</p>
+          </div>
         </div>
         <div className="flex flex-col gap-y-5">
           <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
@@ -167,12 +199,17 @@ export function Solution() {
                     </div>
                   </a>
                       </div>
-                                  <h3 className="md:text-3xl font-light text-stone-50 font-geist text-right mr-10 mt-20 absolute right-0">
-                                    Seamless frontend integration
-                                  </h3>
       </div>
+      <p className="max-w-90 font-geist text-sm font-light leading-relaxed text-stone-700 text-right mt-10 md:mt-10 md:ml-30 mr-10">
+            Customized UI as the product surface of intelligence, build AI into your application without complexity.
+          </p>
+      <h3 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist text-center md:text-right pt-3 md:mr-20 pr-5">
+        Seamless frontend integration
+      </h3>
       </div>
-    </div></section></div>
+    </div>
+    </section>
+    </div>
 
 
 

@@ -2,8 +2,7 @@ export interface SessionMessage {
   sender?: string;
   content?: string;
   timestamp?: string;
-  is_streaming?: boolean;
-  tool_stream?: [string, string] | { topic?: unknown; content?: unknown } | null;
+  tool_result?: [string, string] | { topic?: unknown; content?: unknown } | null;
 }
 
 export interface SessionResponsePayload {
