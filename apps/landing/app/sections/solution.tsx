@@ -39,12 +39,11 @@ export function Solution() {
                     <span className="text-[10px] uppercase font-semibold text-stone-800 tracking-wider font-geist mt-1 mb-1">Solution</span>
                   </div>
                   <h2 className="md:text-5xl text-4xl text-stone-800 tracking-tight font-serif mb-2">
-                    From intent to <br />
-                    <span className="italic text-stone-600">implementation.</span>
+                    Leverage intelligence<br />
+                    <span className="italic text-stone-600">to Automate.</span>
                   </h2>
                   <p className="text-base font-light text-stone-600 font-geist mb-10">
-                    A seamless partnership model designed for the agentic
-                    future.
+                    Partner with Aomi for the agentic future.
                   </p>
                   <div className="relative pl-2">
                     <div className="absolute left-[11px] top-3 bottom-8 w-px bg-gradient-to-b from-stone-500/50 via-stone-300 to-transparent">
@@ -120,23 +119,24 @@ export function Solution() {
   <section className="mb-20 flex w-full max-w-7xl pb-20 mr-auto ml-auto items-center justify-center" id="resources">
     <div className="grid grid-cols-1 md:grid-cols-2 mx-5 text-stone-50 relative gap-y-16 md:gap-y-0">
         <div className="js-animate group flex flex-col" data-animate="left" data-delay="150">
-            <h2 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist mb-10 md:mb-15 ml-5 md:ml-20 pl-5">
+            <h2 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist pb-2 ml-5 md:ml-20 pl-5">
               AI infrastructure Hosting
             </h2>
+            <p className="leading-relaxed text-sm font-light text-stone-700 max-w-90 font-geist mb-10 md:mb-10  ml-5 md:ml-20 pl-5">
+              Aomi provides high-performance serverless backend for the agentic lifecycle.
+            </p>
       <div className="bg-[#e3d8e6] ml-5 md:ml-20 mr-5 md:mr-15 pt-10 pr-6 md:pr-10 pb-10 pl-6 md:pl-10 rounded-4xl">
           <div className="flex flex-col gap-y-5">
             <p className="leading-relaxed text-sm font-light text-stone-700 font-geist">
-              Aomi provides a serverless backend for the agentic lifecycle,
-              functioning as a high-performance “Amazon Lambda for Agents.”
-              Eliminate the overhead of managing Python or TypeScript frameworks
-              like LangChain or AI SDK. Simply select your model, configure your
-              system prompts, and define your tools.
+            Think of it as 'AWS Lambda for Agents.' 
+            Eliminate the overhead of managing heavy Python or TypeScript frameworks 
+            like LangChain or AI SDK. Simply select your model, 
+            configure your system prompts, and define your tools.
             </p>
             <p className="font-geist text-sm font-light leading-relaxed text-stone-700">
-              Proprietary Rust framework engineered to be stateless and
-              concurrent, executing agentic loops at native speed. Aomi handles
-              deployment, scaling, and lifecycle management for production-grade
-              workloads.
+            Our proprietary Rust framework is engineered for stateless concurrency, 
+            executing agentic loops at native speed. Aomi handles the deployment, scaling, 
+            and lifecycle management required for production-grade workloads.
             </p>
           </div>
         <div className="relative flex h-48 w-full mt-5 mb-5">
@@ -200,7 +200,10 @@ export function Solution() {
                   </a>
                       </div>
       </div>
-      <h3 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist text-center md:text-right mt-10 md:mt-15 mr-5 md:mr-20 pr-5">
+      <p className="max-w-90 font-geist text-sm font-light leading-relaxed text-stone-700 text-right mt-10 md:mt-10 md:ml-30 mr-10">
+            Customized UI as the product surface of intelligence, build AI into your application without complexity.
+          </p>
+      <h3 className="text-2xl md:text-3xl text-stone-800 tracking-tight font-thin font-geist text-center md:text-right pt-3 md:mr-20 pr-5">
         Seamless frontend integration
       </h3>
       </div>
