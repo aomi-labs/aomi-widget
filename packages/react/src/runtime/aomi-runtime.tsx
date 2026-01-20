@@ -9,7 +9,7 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import { RuntimeActionsProvider } from "./hooks";
+import { RuntimeActionsProvider } from "../contexts/runtime-actions";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
   findTempIdForBackendId,
@@ -18,10 +18,10 @@ import {
   markSkipInitialFetch,
   resolveThreadId,
   setBackendMapping,
-} from "./backend-state";
+} from "../state/backend-state";
 import { isPlaceholderTitle, isTempThreadId, parseTimestamp } from "./utils";
-import { useThreadContext } from "../state/thread-context";
-import type { ThreadMetadata } from "../state/types";
+import { useThreadContext } from "../contexts/thread-context";
+import { ThreadMetadata } from "src/state/thread-store";
 
 const sortByLastActiveDesc = (
   [, metaA]: [string, ThreadMetadata],
@@ -163,13 +163,11 @@ export function AomiRuntimeProvider({
           return next;
         });
         backendState.pendingChat.delete(previousPendingId);
-        backendState.pendingSystem.delete(previousPendingId);
         backendState.tempToBackendId.delete(previousPendingId);
         backendState.skipInitialFetch.delete(previousPendingId);
       }
       backendState.creatingThreadId = threadId;
       backendState.pendingChat.delete(threadId);
-      backendState.pendingSystem.delete(threadId);
       threadContext.setThreadMetadata((prev) =>
         new Map(prev).set(threadId, {
           title: "New Chat",
@@ -334,7 +332,6 @@ export function AomiRuntimeProvider({
             return next;
           });
           backendState.pendingChat.delete(threadId);
-          backendState.pendingSystem.delete(threadId);
           backendState.tempToBackendId.delete(threadId);
           backendState.skipInitialFetch.delete(threadId);
           backendState.runningThreads.delete(threadId);
@@ -380,30 +377,33 @@ export function AomiRuntimeProvider({
   ]);
 
   useEffect(() => {
-    const unsubscribe = backendApiRef.current.subscribeToUpdates((update) => {
-      if (update.type !== "TitleChanged") return;
-      const sessionId = update.data.session_id;
-      const newTitle = update.data.new_title;
+    const unsubscribe = backendApiRef.current.subscribeSSE((event) => {
+      const eventType = event.type as string;
+      const sessionId = event.session_id;
 
-      const backendState = backendStateRef.current;
-      const targetThreadId =
-        findTempIdForBackendId(backendState, sessionId) ??
-        resolveThreadId(backendState, sessionId);
-      const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-      threadContext.setThreadMetadata((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(targetThreadId);
-        const nextStatus = existing?.status === "archived" ? "archived" : "regular";
-        next.set(targetThreadId, {
-          title: normalizedTitle,
-          status: nextStatus,
-          lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+      if (eventType === "title_changed") {
+        const newTitle = event.new_title as string;
+        const backendState = backendStateRef.current;
+        const targetThreadId =
+          findTempIdForBackendId(backendState, sessionId) ??
+          resolveThreadId(backendState, sessionId);
+        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+        threadContext.setThreadMetadata((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(targetThreadId);
+          const nextStatus = existing?.status === "archived" ? "archived" : "regular";
+          next.set(targetThreadId, {
+            title: normalizedTitle,
+            status: nextStatus,
+            lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+          });
+          return next;
         });
-        return next;
-      });
-      if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
-        backendState.creatingThreadId = null;
+        if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
+          backendState.creatingThreadId = null;
+        }
       }
+      // TODO: handle "tool_completion" and other event types
     });
 
     return () => {
@@ -431,15 +431,6 @@ export function AomiRuntimeProvider({
   });
 
   useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    if (isTempThreadId(threadId)) return;
-    const hasUserMessages = currentMessages.some((msg) => msg.role === "user");
-    if (hasUserMessages) {
-      void messageController.flushPendingSystem(threadId);
-    }
-  }, [currentMessages, messageController, threadContext.currentThreadId]);
-
-  useEffect(() => {
     return () => {
       polling.stopAll();
     };
@@ -448,8 +439,8 @@ export function AomiRuntimeProvider({
   return (
     <RuntimeActionsProvider
       value={{
-        sendSystemMessage: (message: string) =>
-          messageController.outboundSystem(threadContext.currentThreadId, message),
+        sendSystemCommand: (command: any) => 
+          eventBuff.enqueueOutbound(threadContext.currentThreadId, command), // TODO
       }}
     >
       <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>

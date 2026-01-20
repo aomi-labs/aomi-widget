@@ -1,20 +1,36 @@
 "use client";
 
 import { createContext, useContext, useMemo, useRef, useSyncExternalStore } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
+import { ThreadMetadata, ThreadStore } from "../state/thread-store";
 
-import type { ThreadMetadata } from "./types";
-import { ThreadStore, type ThreadContext as ThreadContextValue } from "./thread-store";
 
-export type ThreadContext = ThreadContextValue;
+export type ThreadContext = {
+  currentThreadId: string;
+  setCurrentThreadId: (id: string) => void;
+  threadViewKey: number;
+  bumpThreadViewKey: () => void;
+  threads: Map<string, ThreadMessageLike[]>;
+  setThreads: (updater: SetStateAction<Map<string, ThreadMessageLike[]>>) => void;
+  threadMetadata: Map<string, ThreadMetadata>;
+  setThreadMetadata: (updater: SetStateAction<Map<string, ThreadMetadata>>) => void;
+  threadCnt: number;
+  setThreadCnt: (updater: SetStateAction<number>) => void;
+  getThreadMessages: (threadId: string) => ThreadMessageLike[];
+  setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
+  getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
+  updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+};
+
+
 
 export type ThreadContextProviderProps = {
   children: ReactNode;
   initialThreadId?: string;
 };
 
-const ThreadContextState = createContext<ThreadContextValue | null>(null);
+const ThreadContextState = createContext<ThreadContext | null>(null);
 
 export function useThreadContext(): ThreadContext {
   const context = useContext(ThreadContextState);

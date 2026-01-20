@@ -1,10 +1,9 @@
-import { isTempThreadId } from "./utils";
+import { isTempThreadId } from "../runtime/utils";
 
 export type BakendState = {
   tempToBackendId: Map<string, string>;
   skipInitialFetch: Set<string>;
   pendingChat: Map<string, string[]>;
-  pendingSystem: Map<string, string[]>;
   runningThreads: Set<string>;
   creatingThreadId: string | null;
   createThreadPromise: Promise<void> | null;
@@ -15,7 +14,6 @@ export function createBakendState(): BakendState {
     tempToBackendId: new Map(),
     skipInitialFetch: new Set(),
     pendingChat: new Map(),
-    pendingSystem: new Map(),
     runningThreads: new Set(),
     creatingThreadId: null,
     createThreadPromise: null,
@@ -91,17 +89,3 @@ export function hasPendingChat(state: BakendState, threadId: string): boolean {
   return (state.pendingChat.get(threadId)?.length ?? 0) > 0;
 }
 
-export function enqueuePendingSystem(state: BakendState, threadId: string, text: string) {
-  const existing = state.pendingSystem.get(threadId) ?? [];
-  state.pendingSystem.set(threadId, [...existing, text]);
-}
-
-export function dequeuePendingSystem(state: BakendState, threadId: string): string[] {
-  const pending = state.pendingSystem.get(threadId) ?? [];
-  state.pendingSystem.delete(threadId);
-  return pending;
-}
-
-export function hasPendingSystem(state: BakendState, threadId: string): boolean {
-  return (state.pendingSystem.get(threadId)?.length ?? 0) > 0;
-}

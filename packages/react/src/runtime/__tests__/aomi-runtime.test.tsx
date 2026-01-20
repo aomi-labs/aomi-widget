@@ -5,20 +5,20 @@ import type { AssistantRuntime } from "@assistant-ui/react";
 import { useAssistantRuntime, useThreadList } from "@assistant-ui/react";
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
-import { useRuntimeActions } from "../hooks";
+import { useRuntimeActions } from "../../contexts/runtime-actions";
 import { useRuntimeOrchestrator } from "../orchestrator";
-import type { BackendThreadMetadata, CreateThreadResponse, SessionResponsePayload, SystemUpdate } from "../../api/types";
-import { ThreadContextProvider, useThreadContext } from "../../state/thread-context";
-import type { ThreadContext } from "../../state/thread-context";
-import type { RuntimeActions } from "../hooks";
+import type { ApiThread, ApiCreateThreadResponse, ApiStateResponse, ApiChatResponse, ApiInterruptResponse, ApiSystemUpdate } from "../../backend/types";
+import { ThreadContextProvider, useThreadContext } from "../../contexts/thread-context";
+import type { ThreadContext } from "../../contexts/thread-context";
+import type { RuntimeActions } from "../../contexts/runtime-actions";
 
 type BackendApiConfig = {
-  fetchThreads?: (publicKey: string) => Promise<BackendThreadMetadata[]>;
-  fetchState?: (sessionId: string) => Promise<SessionResponsePayload>;
-  createThread?: (publicKey?: string, title?: string) => Promise<CreateThreadResponse>;
-  postChatMessage?: (sessionId: string, message: string) => Promise<SessionResponsePayload>;
+  fetchThreads?: (publicKey: string) => Promise<ApiThread[]>;
+  fetchState?: (sessionId: string) => Promise<ApiStateResponse>;
+  createThread?: (publicKey?: string, title?: string) => Promise<ApiCreateThreadResponse>;
+  postChatMessage?: (sessionId: string, message: string) => Promise<ApiChatResponse>;
   postSystemMessage?: (sessionId: string, message: string) => Promise<{ res?: unknown }>;
-  postInterrupt?: (sessionId: string) => Promise<SessionResponsePayload>;
+  postInterrupt?: (sessionId: string) => Promise<ApiInterruptResponse>;
   renameThread?: (sessionId: string, title: string) => Promise<void>;
   archiveThread?: (sessionId: string) => Promise<void>;
   unarchiveThread?: (sessionId: string) => Promise<void>;
@@ -27,7 +27,7 @@ type BackendApiConfig = {
 
 let backendApiConfig: BackendApiConfig = {};
 const backendApiInstances: Array<{
-  emitUpdate: (update: SystemUpdate) => void;
+  emitUpdate: (update: ApiSystemUpdate) => void;
 }> = [];
 
 const setBackendApiConfig = (next: BackendApiConfig) => {
@@ -41,7 +41,7 @@ const resetBackendApiMocks = () => {
 
 vi.mock("../../api/client", () => {
   class MockBackendApi {
-    updatesHandler: ((update: SystemUpdate) => void) | null = null;
+    updatesHandler: ((update: ApiSystemUpdate) => void) | null = null;
 
     constructor(public readonly backendUrl: string) {
       backendApiInstances.push(this);
@@ -107,7 +107,7 @@ vi.mock("../../api/client", () => {
       }
     });
 
-    subscribeToUpdates = (onUpdate: (update: SystemUpdate) => void) => {
+    subscribeToUpdates = (onUpdate: (update: ApiSystemUpdate) => void) => {
       this.updatesHandler = onUpdate;
       return () => {
         if (this.updatesHandler === onUpdate) {
@@ -116,7 +116,7 @@ vi.mock("../../api/client", () => {
       };
     };
 
-    emitUpdate(update: SystemUpdate) {
+    emitUpdate(update: ApiSystemUpdate) {
       this.updatesHandler?.(update);
     }
   }
@@ -242,7 +242,7 @@ afterEach(() => {
 
 describe("Aomi runtime orchestrator compatibility", () => {
   it("fetches and organizes thread lists", async () => {
-    const fetchThreads = vi.fn(async (): Promise<BackendThreadMetadata[]> => [
+    const fetchThreads = vi.fn(async (): Promise<ApiThread[]> => [
       {
         session_id: "thread-1",
         title: "Chat 2",
@@ -286,19 +286,19 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("creates a single thread, maps backend id, and skips initial fetch", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: ApiCreateThreadResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );
-    const fetchState = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
       session_exists: true,
       is_processing: false,
       messages: [],
     }));
-    const postChatMessage = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const postChatMessage = vi.fn(async (): Promise<ApiChatResponse> => ({
       session_exists: true,
       is_processing: true,
       messages: [],
@@ -355,10 +355,10 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("reuses the pending temp thread for rapid creates", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: ApiCreateThreadResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );
@@ -385,14 +385,14 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("queues temp thread messages and flushes in order", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: ApiCreateThreadResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );
-    const postChatMessage = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const postChatMessage = vi.fn(async (): Promise<ApiChatResponse> => ({
       session_exists: true,
       is_processing: true,
       messages: [],
@@ -429,7 +429,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("flushes system messages after the first user message", async () => {
-    const postChatMessage = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const postChatMessage = vi.fn(async (): Promise<ApiChatResponse> => ({
       session_exists: true,
       is_processing: true,
       messages: [],
@@ -443,7 +443,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
     const ref = renderRuntime({ publicKey: "pk_system", initialThreadId: "thread-1" });
 
     await act(async () => {
-      await ref.current!.runtimeActions.sendSystemMessage("system");
+      await ref.current!.runtimeActions.sendSystemCommand("system");
     });
 
     expect(postSystemMessage).not.toHaveBeenCalled();
@@ -484,7 +484,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
   it("starts polling when processing and stops when finished", async () => {
     vi.useFakeTimers();
-    const fetchState = vi.fn(async (sessionId: string): Promise<SessionResponsePayload> => {
+    const fetchState = vi.fn(async (sessionId: string): Promise<ApiStateResponse> => {
       if (fetchState.mock.calls.length === 1) {
         return {
           session_exists: true,
@@ -522,7 +522,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
   it("stops polling when the session no longer exists", async () => {
     vi.useFakeTimers();
-    const fetchState = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
       session_exists: false,
       is_processing: true,
       messages: [],
@@ -551,7 +551,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
   it("keeps polling inactive threads when switching", async () => {
     vi.useFakeTimers();
-    const fetchState = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
       session_exists: true,
       is_processing: true,
       messages: [],
@@ -581,12 +581,12 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
   it("interrupts polling and stops updates on cancel", async () => {
     vi.useFakeTimers();
-    const fetchState = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
       session_exists: true,
       is_processing: true,
       messages: [{ sender: "assistant", content: "Streaming" }],
     }));
-    const postInterrupt = vi.fn(async (): Promise<SessionResponsePayload> => ({
+    const postInterrupt = vi.fn(async (): Promise<ApiInterruptResponse> => ({
       session_exists: true,
       is_processing: false,
       messages: [],
@@ -716,10 +716,10 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("updates titles from SSE for backend and temp threads", async () => {
-    let resolveCreate: ((value: CreateThreadResponse) => void) | undefined;
+    let resolveCreate: ((value: ApiCreateThreadResponse) => void) | undefined;
     const createThread = vi.fn(
       () =>
-        new Promise<CreateThreadResponse>((resolve) => {
+        new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
         })
     );

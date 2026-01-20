@@ -1,11 +1,11 @@
 import type {
-  BackendSessionResponse,
-  BackendThreadMetadata,
-  CreateThreadResponse,
-  SessionMessage,
-  SessionResponsePayload,
-  SystemResponsePayload,
-  SystemUpdate,
+  ApiChatResponse,
+  ApiCreateThreadResponse,
+  ApiInterruptResponse,
+  ApiSSEEvent,
+  ApiStateResponse,
+  ApiSystemResponse,
+  ApiThread,
 } from "./types";
 
 function toQueryString(payload: Record<string, unknown>): string {
@@ -50,7 +50,7 @@ export class BackendApi {
 
   constructor(private readonly backendUrl: string) {}
 
-  async fetchState(sessionId: string): Promise<SessionResponsePayload> {
+  async fetchState(sessionId: string): Promise<ApiStateResponse> {
     console.log("🔵 [fetchState] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
     console.log("🔵 [fetchState] URL:", url);
@@ -63,14 +63,14 @@ export class BackendApi {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const data = (await response.json()) as SessionResponsePayload;
+    const data = (await response.json()) as ApiStateResponse;
     console.log("🟢 [fetchState] Success:", data);
     return data;
   }
 
-  async postChatMessage(sessionId: string, message: string): Promise<SessionResponsePayload> {
+  async postChatMessage(sessionId: string, message: string): Promise<ApiChatResponse> {
     console.log("🔵 [postChatMessage] Called with sessionId:", sessionId, "message:", message);
-    const result = await postState<SessionResponsePayload>(this.backendUrl, "/api/chat", {
+    const result = await postState<ApiChatResponse>(this.backendUrl, "/api/chat", {
       message,
       session_id: sessionId,
     });
@@ -78,9 +78,9 @@ export class BackendApi {
     return result;
   }
 
-  async postSystemMessage(sessionId: string, message: string): Promise<SystemResponsePayload> {
+  async postSystemMessage(sessionId: string, message: string): Promise<ApiSystemResponse> {
     console.log("🔵 [postSystemMessage] Called with sessionId:", sessionId, "message:", message);
-    const result = await postState<SystemResponsePayload>(this.backendUrl, "/api/system", {
+    const result = await postState<ApiSystemResponse>(this.backendUrl, "/api/system", {
       message,
       session_id: sessionId,
     });
@@ -88,9 +88,9 @@ export class BackendApi {
     return result;
   }
 
-  async postInterrupt(sessionId: string): Promise<SessionResponsePayload> {
+  async postInterrupt(sessionId: string): Promise<ApiInterruptResponse> {
     console.log("🔵 [postInterrupt] Called with sessionId:", sessionId);
-    const result = await postState<SessionResponsePayload>(this.backendUrl, "/api/interrupt", {
+    const result = await postState<ApiInterruptResponse>(this.backendUrl, "/api/interrupt", {
       session_id: sessionId,
     });
     console.log("🟢 [postInterrupt] Success:", result);
@@ -160,8 +160,8 @@ export class BackendApi {
     }
   }
 
-  subscribeToUpdates(
-    onUpdate: (update: SystemUpdate) => void,
+  subscribeSSE(
+    onUpdate: (event: ApiSSEEvent) => void,
     onError?: (error: unknown) => void
   ): () => void {
     if (this.updatesEventSource) {
@@ -173,16 +173,16 @@ export class BackendApi {
 
     this.updatesEventSource.onmessage = (event) => {
       try {
-        const parsed = JSON.parse(event.data) as SystemUpdate;
+        const parsed = JSON.parse(event.data) as ApiSSEEvent;
         onUpdate(parsed);
       } catch (error) {
-        console.error("Failed to parse system update SSE:", error);
+        console.error("Failed to parse SSE event:", error);
         onError?.(error);
       }
     };
 
     this.updatesEventSource.onerror = (error) => {
-      console.error("System updates SSE error:", error);
+      console.error("SSE connection error:", error);
       onError?.(error);
     };
 
@@ -194,7 +194,7 @@ export class BackendApi {
     };
   }
 
-  async fetchThreads(publicKey: string): Promise<BackendThreadMetadata[]> {
+  async fetchThreads(publicKey: string): Promise<ApiThread[]> {
     console.log("🔵 [fetchThreads] Called with publicKey:", publicKey);
     const url = `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
     console.log("🔵 [fetchThreads] URL:", url);
@@ -207,12 +207,12 @@ export class BackendApi {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as BackendThreadMetadata[];
+    const data = (await response.json()) as ApiThread[];
     console.log("🟢 [fetchThreads] Success:", data);
     return data;
   }
 
-  async createThread(publicKey?: string, title?: string): Promise<CreateThreadResponse> {
+  async createThread(publicKey?: string, title?: string): Promise<ApiCreateThreadResponse> {
     console.log("🔵 [createThread] Called with publicKey:", publicKey, "title:", title);
     const body: Record<string, string> = {};
     if (publicKey) {
@@ -238,7 +238,7 @@ export class BackendApi {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as CreateThreadResponse;
+    const data = (await response.json()) as ApiCreateThreadResponse;
     console.log("🟢 [createThread] Success:", data);
     return data;
   }
