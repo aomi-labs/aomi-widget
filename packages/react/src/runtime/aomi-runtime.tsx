@@ -10,6 +10,7 @@ import {
 } from "@assistant-ui/react";
 
 import { RuntimeActionsProvider } from "../contexts/runtime-actions";
+import { EventContextProvider } from "../contexts/event-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
   findTempIdForBackendId,
@@ -437,13 +438,13 @@ export function AomiRuntimeProvider({
   }, [polling]);
 
   return (
-    <RuntimeActionsProvider
-      value={{
-        sendSystemCommand: (command: any) => 
-          eventBuff.enqueueOutbound(threadContext.currentThreadId, command), // TODO
-      }}
+    <EventContextProvider
+      backendApi={backendApiRef.current}
+      sessionId={threadContext.currentThreadId}
     >
-      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
-    </RuntimeActionsProvider>
+      <RuntimeActionsProvider value={{}}>
+        <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+      </RuntimeActionsProvider>
+    </EventContextProvider>
   );
 }
