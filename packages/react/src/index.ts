@@ -1,27 +1,28 @@
-export { BackendApi } from "./api/client";
+export { BackendApi } from "./backend/client";
 export type {
-  BackendSessionResponse,
-  BackendThreadMetadata,
-  CreateThreadResponse,
-  SessionMessage,
-  SessionResponsePayload,
-  SystemResponsePayload,
-  SystemUpdate,
-} from "./api/types";
+  AomiMessage,
+  ApiChatResponse,
+  ApiCreateThreadResponse,
+  ApiInterruptResponse,
+  ApiSSEEvent,
+  ApiStateResponse,
+  ApiSystemResponse,
+  ApiThread,
+} from "./backend/types";
 
 export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
-export { useRuntimeActions, RuntimeActionsProvider } from "./runtime/hooks";
+export { useRuntimeActions, RuntimeActionsProvider } from "./contexts/runtime-actions";
 
 export {
   ThreadContextProvider,
   useThreadContext,
   useCurrentThreadMetadata,
   useCurrentThreadMessages,
-} from "./state/thread-context";
+} from "./contexts/thread-context";
 export type { ThreadMetadata, ThreadStatus } from "./state/types";
 
 export { toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage } from "./utils/conversion";
 export { WalletSystemMessageEmitter, formatAddress, getNetworkName } from "./utils/wallet";
 export type { WalletButtonState, WalletFooterProps } from "./utils/wallet";
 
-export { cn } from "./lib/utils";
+export { cn } from "./runtime/utils";

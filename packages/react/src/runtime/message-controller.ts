@@ -1,22 +1,20 @@
 import type { MutableRefObject } from "react";
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 
-import type { BackendApi } from "../api/client";
-import type { SessionMessage } from "../api/types";
-import { toInboundSystem, toInboundMessage } from "../utils/conversion";
-import type { ThreadContext } from "../state/thread-context";
+import type { BackendApi } from "../backend/client";
+import type { AomiMessage } from "../backend/types";
+import {  toInboundMessage } from "./utils";
+import type { ThreadContext } from "../contexts/thread-context";
 import type { PollingController } from "./polling-controller";
 import {
   dequeuePendingChat,
-  dequeuePendingSystem,
   enqueuePendingChat,
-  enqueuePendingSystem,
   hasPendingChat,
   isThreadReady,
   resolveThreadId,
   setThreadRunning,
   type BakendState,
-} from "./backend-state";
+} from "../state/backend-state";
 
 type MessageControllerConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
@@ -34,7 +32,7 @@ type ThreadContextApi = Pick<
 export class MessageController {
   constructor(private readonly config: MessageControllerConfig) {}
 
-  inbound(threadId: string, msgs?: SessionMessage[] | null) {
+  inbound(threadId: string, msgs?: AomiMessage[] | null) {
     const backendState = this.config.backendStateRef.current;
     if (!msgs) return;
     if (hasPendingChat(backendState, threadId)) {
@@ -44,13 +42,6 @@ export class MessageController {
 
     const threadMessages: ThreadMessageLike[] = [];
     for (const msg of msgs) {
-      if (msg.sender === "system") {
-        const systemMessage = toInboundSystem(msg);
-        if (systemMessage) {
-          threadMessages.push(systemMessage);
-        }
-        continue;
-      }
       const threadMessage = toInboundMessage(msg);
       if (threadMessage) {
         threadMessages.push(threadMessage);
@@ -91,7 +82,6 @@ export class MessageController {
     try {
       this.markRunning(threadId, true);
       await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
-      await this.flushPendingSystem(threadId);
       this.config.polling.start(threadId);
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -99,50 +89,6 @@ export class MessageController {
     }
   }
 
-  async outboundSystem(threadId: string, text: string) {
-    const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
-    const threadMessages = this.getThreadContextApi().getThreadMessages(threadId);
-    const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
-
-    if (!hasUserMessages) {
-      enqueuePendingSystem(backendState, threadId, text);
-      return;
-    }
-
-    await this.outboundSystemInner(threadId, text);
-  }
-
-  async outboundSystemInner(threadId: string, text: string) {
-    const backendState = this.config.backendStateRef.current;
-    const threadState = this.getThreadContextApi();
-    const backendThreadId = resolveThreadId(backendState, threadId);
-    this.markRunning(threadId, true);
-    try {
-      const response = await this.config.backendApiRef.current.postSystemMessage(backendThreadId, text);
-      if (response.res) {
-        const systemMessage = toInboundSystem(response.res);
-        if (systemMessage) {
-          const updatedMessages = [...threadState.getThreadMessages(threadId), systemMessage];
-          threadState.setThreadMessages(threadId, updatedMessages);
-        }
-      }
-      await this.flushPendingSystem(threadId);
-      this.config.polling.start(threadId);
-    } catch (error) {
-      console.error("Failed to send system message:", error);
-      this.markRunning(threadId, false);
-    }
-  }
-
-  async flushPendingSystem(threadId: string) {
-    const backendState = this.config.backendStateRef.current;
-    const pending = dequeuePendingSystem(backendState, threadId);
-    if (!pending.length) return;
-    for (const pendingMessage of pending) {
-      await this.outboundSystemInner(threadId, pendingMessage);
-    }
-  }
 
   async flushPendingChat(threadId: string) {
     const backendState = this.config.backendStateRef.current;

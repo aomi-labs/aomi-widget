@@ -1,9 +1,9 @@
 import type { MutableRefObject } from "react";
 import { useCallback, useRef, useState } from "react";
 
-import { BackendApi } from "../api/client";
-import type { SessionMessage } from "../api/types";
-import { useThreadContext, type ThreadContext } from "../state/thread-context";
+import { BackendApi } from "../backend/client";
+import type { AomiMessage } from "../backend/types";
+import { useThreadContext, type ThreadContext } from "../contexts/thread-context";
 import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
 import {
@@ -13,7 +13,7 @@ import {
   resolveThreadId,
   shouldSkipInitialFetch,
   type BakendState,
-} from "./backend-state";
+} from "../state/backend-state";
 
 export function useRuntimeOrchestrator(backendUrl: string) {
   const threadContext = useThreadContext();
@@ -31,7 +31,7 @@ export function useRuntimeOrchestrator(backendUrl: string) {
       pollingRef.current = new PollingController({
         backendApiRef,
         backendStateRef,
-        applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
+        applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
           messageControllerRef.current?.inbound(threadId, msgs);
         },
       onStop: (threadId: string) => {

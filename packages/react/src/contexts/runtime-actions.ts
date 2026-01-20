@@ -3,7 +3,8 @@
 import { createContext, useContext } from "react";
 
 export type RuntimeActions = {
-  sendSystemMessage: (message: string) => Promise<void>;
+  // Todo
+  sendSystemCommand: (command: any) => Promise<void>;
 };
 
 const RuntimeActionsContext = createContext<RuntimeActions | undefined>(undefined);

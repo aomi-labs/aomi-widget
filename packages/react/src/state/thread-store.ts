@@ -1,23 +1,14 @@
 import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
+import { ThreadContext } from "src/contexts/thread-context";
 
-import type { ThreadMetadata } from "./types";
 
-export type ThreadContext = {
-  currentThreadId: string;
-  setCurrentThreadId: (id: string) => void;
-  threadViewKey: number;
-  bumpThreadViewKey: () => void;
-  threads: Map<string, ThreadMessageLike[]>;
-  setThreads: (updater: SetStateAction<Map<string, ThreadMessageLike[]>>) => void;
-  threadMetadata: Map<string, ThreadMetadata>;
-  setThreadMetadata: (updater: SetStateAction<Map<string, ThreadMetadata>>) => void;
-  threadCnt: number;
-  setThreadCnt: (updater: SetStateAction<number>) => void;
-  getThreadMessages: (threadId: string) => ThreadMessageLike[];
-  setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
-  getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
-  updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+export type ThreadStatus = "regular" | "archived" | "pending";
+
+export type ThreadMetadata = {
+  title: string;
+  status: ThreadStatus;
+  lastActiveAt?: string | number;
 };
 
 type ThreadStoreState = {

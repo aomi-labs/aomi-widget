@@ -1,18 +1,18 @@
 import type { MutableRefObject } from "react";
 
-import type { BackendApi } from "../api/client";
-import type { SessionMessage, SessionResponsePayload } from "../api/types";
+import type { BackendApi } from "../backend/client";
+import type { AomiMessage, ApiStateResponse } from "../backend/types";
 import {
   isThreadReady,
   resolveThreadId,
   setThreadRunning,
   type BakendState,
-} from "./backend-state";
+} from "../state/backend-state";
 
 type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
   backendStateRef: MutableRefObject<BakendState>;
-  applyMessages: (threadId: string, messages?: SessionMessage[] | null) => void;
+  applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
   onStop?: (threadId: string) => void;
   intervalMs?: number;
 };
@@ -63,7 +63,7 @@ export class PollingController {
     }
   }
 
-  private handleState(threadId: string, state: SessionResponsePayload) {
+  private handleState(threadId: string, state: ApiStateResponse) {
     if (state.session_exists === false) {
       this.stop(threadId);
       return;
