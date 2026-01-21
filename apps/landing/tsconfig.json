@@ -44,9 +44,6 @@
       ],
       "@aomi-labs/react/*": [
         "../../packages/react/src/*"
-      ],
-      "@aomi-labs/widget-lib/*": [
-        "../registry/src/*"
       ]
     }
   },

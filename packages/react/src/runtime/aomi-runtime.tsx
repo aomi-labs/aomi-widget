@@ -9,7 +9,6 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import { RuntimeActionsProvider } from "../contexts/runtime-actions";
 import { EventContextProvider } from "../contexts/event-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
@@ -100,6 +99,7 @@ export function AomiRuntimeProvider({
 
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
 
+  // Fetch thread list on mount when publicKey is available
   useEffect(() => {
     if (!publicKey) return;
 
@@ -144,7 +144,7 @@ export function AomiRuntimeProvider({
     };
 
     void fetchThreadList();
-  }, [publicKey]);
+  }, [publicKey, backendApiRef]);
 
   const threadListAdapter = useMemo(() => {
     const backendState = backendStateRef.current;
@@ -377,6 +377,7 @@ export function AomiRuntimeProvider({
     threadContext.threadMetadata,
   ]);
 
+  // Subscribe to SSE updates for title changes
   useEffect(() => {
     const currentSessionId = threadContext.currentThreadId;
     const unsubscribe = backendApiRef.current.subscribeSSE(
@@ -407,7 +408,8 @@ export function AomiRuntimeProvider({
             backendState.creatingThreadId = null;
           }
         }
-        // TODO: handle "tool_completion" and other event types
+        // Other event types (wallet:tx_request, notification, etc.) are handled
+        // by the EventContext and dispatched to subscribers
       }
     );
 
@@ -416,6 +418,7 @@ export function AomiRuntimeProvider({
     };
   }, [backendApiRef, backendStateRef, threadContext, threadContext.currentThreadId]);
 
+  // Flush pending chat when thread becomes ready
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
@@ -446,9 +449,7 @@ export function AomiRuntimeProvider({
       backendApi={backendApiRef.current}
       sessionId={threadContext.currentThreadId}
     >
-      <RuntimeActionsProvider value={{}}>
-        <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
-      </RuntimeActionsProvider>
+      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
     </EventContextProvider>
   );
 }

@@ -36,8 +36,8 @@ yarn-error.log*
 # vercel
 .vercel
 
-# generated registry (copied at build time)
-apps/landing/public/r
+# generated registry build output
+apps/landing/public/r/dist
 apps/registry/dist
 
 # typescript

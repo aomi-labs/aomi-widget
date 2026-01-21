@@ -13,6 +13,7 @@ type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
   backendStateRef: MutableRefObject<BakendState>;
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
+  onStart?: (threadId: string) => void;
   onStop?: (threadId: string) => void;
   intervalMs?: number;
 };
@@ -34,8 +35,18 @@ export class PollingController {
     setThreadRunning(backendState, threadId, true);
 
     const tick = async () => {
+      if (!this.intervals.has(threadId)) return;
+
       try {
-        const state = await this.config.backendApiRef.current.fetchState(backendThreadId);
+        console.log(
+          "[PollingController] Fetching state for threadId:",
+          threadId,
+        );
+        const state =
+          await this.config.backendApiRef.current.fetchState(backendThreadId);
+
+        if (!this.intervals.has(threadId)) return;
+
         this.handleState(threadId, state);
       } catch (error) {
         console.error("Polling error:", error);
@@ -45,6 +56,8 @@ export class PollingController {
 
     const intervalId = setInterval(tick, this.intervalMs);
     this.intervals.set(threadId, intervalId);
+
+    this.config.onStart?.(threadId);
   }
 
   stop(threadId: string) {
@@ -55,6 +68,10 @@ export class PollingController {
     }
     setThreadRunning(this.config.backendStateRef.current, threadId, false);
     this.config.onStop?.(threadId);
+  }
+
+  isPolling(threadId: string): boolean {
+    return this.intervals.has(threadId);
   }
 
   stopAll() {

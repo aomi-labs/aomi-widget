@@ -3,7 +3,7 @@ import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 
 import type { BackendApi } from "../backend/client";
 import type { AomiMessage } from "../backend/types";
-import {  toInboundMessage } from "./utils";
+import { toInboundMessage } from "./utils";
 import type { ThreadContext } from "../contexts/thread-context";
 import type { PollingController } from "./polling-controller";
 import {
@@ -22,6 +22,7 @@ type MessageControllerConfig = {
   threadContextRef: MutableRefObject<ThreadContext>;
   polling: PollingController;
   setGlobalIsRunning?: (running: boolean) => void;
+  getPublicKey?: () => string | undefined;
 };
 
 type ThreadContextApi = Pick<
@@ -78,26 +79,51 @@ export class MessageController {
     }
 
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = this.config.getPublicKey?.();
 
     try {
       this.markRunning(threadId, true);
-      await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
-      this.config.polling.start(threadId);
+      const response = publicKey
+        ? await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+            publicKey
+          )
+        : await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+
+      // Apply the latest messages immediately so sync tool results appear without waiting for polling.
+      if (response?.messages) {
+        this.inbound(threadId, response.messages);
+      }
+
+      if (response?.is_processing) {
+        this.config.polling.start(threadId);
+      } else if (!this.config.polling.isPolling(threadId)) {
+        this.markRunning(threadId, false);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       this.markRunning(threadId, false);
     }
   }
 
-
   async flushPendingChat(threadId: string) {
     const backendState = this.config.backendStateRef.current;
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = this.config.getPublicKey?.();
     for (const text of pending) {
       try {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        if (publicKey) {
+          await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+            publicKey
+          );
+        } else {
+          await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        }
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }

@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/react",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Runtime, state, and utilities for the Aomi assistant.",
   "type": "module",
   "main": "./dist/index.cjs",

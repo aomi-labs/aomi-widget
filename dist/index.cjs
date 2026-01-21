@@ -39,14 +39,9 @@ var index_exports = {};
 __export(index_exports, {
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   BackendApi: () => BackendApi,
-  RuntimeActionsProvider: () => RuntimeActionsProvider,
-  ThreadContextProvider: () => ThreadContextProvider,
-  useCurrentThreadMessages: () => useCurrentThreadMessages,
-  useCurrentThreadMetadata: () => useCurrentThreadMetadata,
+  EventContextProvider: () => EventContextProvider,
   useEventContext: () => useEventContext,
   useNotificationHandler: () => useNotificationHandler,
-  useRuntimeActions: () => useRuntimeActions,
-  useThreadContext: () => useThreadContext,
   useWalletHandler: () => useWalletHandler
 });
 module.exports = __toCommonJS(index_exports);
@@ -64,277 +59,164 @@ function toQueryString(payload) {
 async function postState(backendUrl, path, payload) {
   const query = toQueryString(payload);
   const url = `${backendUrl}${path}${query}`;
-  console.log("\u{1F535} [postState] URL:", url);
-  console.log("\u{1F535} [postState] Payload:", payload);
-  const response = await fetch(url, {
-    method: "POST"
-  });
-  console.log("\u{1F535} [postState] Response status:", response.status);
+  const response = await fetch(url, { method: "POST" });
   if (!response.ok) {
-    console.error("\u{1F534} [postState] Error:", response.status, response.statusText);
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
-  const data = await response.json();
-  console.log("\u{1F7E2} [postState] Success:", data);
-  return data;
+  return await response.json();
 }
 var BackendApi = class {
   constructor(backendUrl) {
     this.backendUrl = backendUrl;
-    this.connectionStatus = false;
-    this.eventSource = null;
-    this.updatesEventSource = null;
+    this.sseConnections = /* @__PURE__ */ new Map();
   }
   async fetchState(sessionId) {
-    console.log("\u{1F535} [fetchState] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
-    console.log("\u{1F535} [fetchState] URL:", url);
     const response = await fetch(url);
-    console.log("\u{1F535} [fetchState] Response status:", response.status, response.statusText);
     if (!response.ok) {
-      console.error("\u{1F534} [fetchState] Error:", response.status, response.statusText);
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    const data = await response.json();
-    console.log("\u{1F7E2} [fetchState] Success:", data);
-    return data;
+    return await response.json();
   }
-  async postChatMessage(sessionId, message) {
-    console.log("\u{1F535} [postChatMessage] Called with sessionId:", sessionId, "message:", message);
-    const result = await postState(this.backendUrl, "/api/chat", {
+  async postChatMessage(sessionId, message, publicKey) {
+    return postState(this.backendUrl, "/api/chat", {
       message,
-      session_id: sessionId
+      session_id: sessionId,
+      public_key: publicKey
     });
-    console.log("\u{1F7E2} [postChatMessage] Success:", result);
-    return result;
   }
   async postSystemMessage(sessionId, message) {
-    console.log("\u{1F535} [postSystemMessage] Called with sessionId:", sessionId, "message:", message);
-    const result = await postState(this.backendUrl, "/api/system", {
+    return postState(this.backendUrl, "/api/system", {
       message,
       session_id: sessionId
     });
-    console.log("\u{1F7E2} [postSystemMessage] Success:", result);
-    return result;
   }
   async postInterrupt(sessionId) {
-    console.log("\u{1F535} [postInterrupt] Called with sessionId:", sessionId);
-    const result = await postState(this.backendUrl, "/api/interrupt", {
+    return postState(this.backendUrl, "/api/interrupt", {
       session_id: sessionId
     });
-    console.log("\u{1F7E2} [postInterrupt] Success:", result);
-    return result;
   }
-  disconnectSSE() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
-    this.setConnectionStatus(false);
-  }
-  setConnectionStatus(on) {
-    this.connectionStatus = on;
-  }
-  async connectSSE(sessionId, publicKey) {
-    this.disconnectSSE();
-    try {
-      const url = new URL(`${this.backendUrl}/api/chat/stream`);
-      url.searchParams.set("session_id", sessionId);
-      if (publicKey) {
-        url.searchParams.set("public_key", publicKey);
-      }
-      this.eventSource = new EventSource(url.toString());
-      this.eventSource.onopen = () => {
-        console.log("\u{1F310} SSE connection opened to:", url.toString());
-        this.setConnectionStatus(true);
-      };
-      this.eventSource.onmessage = (event) => {
-        try {
-          JSON.parse(event.data);
-        } catch (error) {
-          console.error("Failed to parse SSE data:", error);
-        }
-      };
-      this.eventSource.onerror = (error) => {
-        console.error("SSE connection error:", error);
-      };
-    } catch (error) {
-      console.error("Failed to establish SSE connection:", error);
-      this.handleConnectionError(sessionId, publicKey);
-    }
-  }
-  handleConnectionError(sessionId, publicKey) {
-    this.setConnectionStatus(false);
-    let attempt = 0;
-    const total = 3;
-    if (attempt < total) {
-      attempt++;
-      console.log(`Attempting to reconnect (${attempt}/${total})...`);
-      setTimeout(() => {
-        this.connectSSE(sessionId, publicKey);
-      }, 100);
-    } else {
-      console.error("Max reconnection attempts reached");
-      this.setConnectionStatus(false);
-    }
-  }
+  /**
+   * Subscribe to SSE updates for a session.
+   * EventSource handles reconnection automatically.
+   * Returns an unsubscribe function.
+   */
   subscribeSSE(sessionId, onUpdate, onError) {
-    if (this.updatesEventSource) {
-      this.updatesEventSource.close();
-    }
+    var _a;
+    (_a = this.sseConnections.get(sessionId)) == null ? void 0 : _a.close();
     const url = new URL("/api/updates", this.backendUrl);
     url.searchParams.set("session_id", sessionId);
-    this.updatesEventSource = new EventSource(url.toString());
-    this.updatesEventSource.onmessage = (event) => {
+    const eventSource = new EventSource(url.toString());
+    this.sseConnections.set(sessionId, eventSource);
+    eventSource.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
         onUpdate(parsed);
       } catch (error) {
-        console.error("Failed to parse SSE event:", error);
         onError == null ? void 0 : onError(error);
       }
     };
-    this.updatesEventSource.onerror = (error) => {
-      console.error("SSE connection error:", error);
+    eventSource.onerror = (error) => {
       onError == null ? void 0 : onError(error);
     };
     return () => {
-      if (this.updatesEventSource) {
-        this.updatesEventSource.close();
-        this.updatesEventSource = null;
+      eventSource.close();
+      if (this.sseConnections.get(sessionId) === eventSource) {
+        this.sseConnections.delete(sessionId);
       }
     };
   }
   async fetchThreads(publicKey) {
-    console.log("\u{1F535} [fetchThreads] Called with publicKey:", publicKey);
     const url = `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
-    console.log("\u{1F535} [fetchThreads] URL:", url);
     const response = await fetch(url);
-    console.log("\u{1F535} [fetchThreads] Response status:", response.status);
     if (!response.ok) {
-      console.error("\u{1F534} [fetchThreads] Error:", response.status);
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
-    const data = await response.json();
-    console.log("\u{1F7E2} [fetchThreads] Success:", data);
-    return data;
+    return await response.json();
+  }
+  async fetchThread(sessionId) {
+    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   async createThread(publicKey, title) {
-    console.log("\u{1F535} [createThread] Called with publicKey:", publicKey, "title:", title);
     const body = {};
-    if (publicKey) {
-      body.public_key = publicKey;
-    }
-    if (title) {
-      body.title = title;
-    }
-    console.log("\u{1F535} [createThread] Request body:", body);
+    if (publicKey) body.public_key = publicKey;
+    if (title) body.title = title;
     const url = `${this.backendUrl}/api/sessions`;
-    console.log("\u{1F535} [createThread] URL:", url);
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
-    console.log("\u{1F535} [createThread] Response status:", response.status);
     if (!response.ok) {
-      console.error("\u{1F534} [createThread] Error:", response.status);
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
-    const data = await response.json();
-    console.log("\u{1F7E2} [createThread] Success:", data);
-    return data;
+    return await response.json();
   }
   async archiveThread(sessionId) {
-    console.log("\u{1F535} [archiveThread] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`;
-    console.log("\u{1F535} [archiveThread] URL:", url);
     const response = await fetch(url, { method: "POST" });
-    console.log("\u{1F535} [archiveThread] Response status:", response.status);
     if (!response.ok) {
-      console.error("\u{1F534} [archiveThread] Error:", response.status);
       throw new Error(`Failed to archive thread: HTTP ${response.status}`);
     }
-    console.log("\u{1F7E2} [archiveThread] Success");
   }
   async unarchiveThread(sessionId) {
-    console.log("\u{1F535} [unarchiveThread] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`;
-    console.log("\u{1F535} [unarchiveThread] URL:", url);
     const response = await fetch(url, { method: "POST" });
-    console.log("\u{1F535} [unarchiveThread] Response status:", response.status);
     if (!response.ok) {
-      console.error("\u{1F534} [unarchiveThread] Error:", response.status);
       throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
     }
-    console.log("\u{1F7E2} [unarchiveThread] Success");
   }
   async deleteThread(sessionId) {
-    console.log("\u{1F535} [deleteThread] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    console.log("\u{1F535} [deleteThread] URL:", url);
     const response = await fetch(url, { method: "DELETE" });
-    console.log("\u{1F535} [deleteThread] Response status:", response.status);
     if (!response.ok) {
-      console.error("\u{1F534} [deleteThread] Error:", response.status);
       throw new Error(`Failed to delete thread: HTTP ${response.status}`);
     }
-    console.log("\u{1F7E2} [deleteThread] Success");
   }
   async renameThread(sessionId, newTitle) {
-    console.log("\u{1F535} [renameThread] Called with sessionId:", sessionId, "newTitle:", newTitle);
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    console.log("\u{1F535} [renameThread] URL:", url);
     const response = await fetch(url, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: newTitle })
     });
-    console.log("\u{1F535} [renameThread] Response status:", response.status);
     if (!response.ok) {
-      console.error("\u{1F534} [renameThread] Error:", response.status);
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
-    console.log("\u{1F7E2} [renameThread] Success");
   }
   async getSystemEvents(sessionId) {
-    console.log("\u{1F535} [getSystemEvents] Called with sessionId:", sessionId);
     const url = `${this.backendUrl}/api/events?session_id=${encodeURIComponent(sessionId)}`;
-    console.log("\u{1F535} [getSystemEvents] URL:", url);
     const response = await fetch(url);
-    console.log("\u{1F535} [getSystemEvents] Response status:", response.status);
     if (!response.ok) {
-      if (response.status === 404) {
-        console.log("\u{1F7E1} [getSystemEvents] Session not found, returning empty");
-        return [];
-      }
-      console.error("\u{1F534} [getSystemEvents] Error:", response.status);
+      if (response.status === 404) return [];
       throw new Error(`Failed to get system events: HTTP ${response.status}`);
     }
-    const data = await response.json();
-    console.log("\u{1F7E2} [getSystemEvents] Success:", data);
-    return data;
+    return await response.json();
+  }
+  async fetchEventsAfter(sessionId, afterId = 0, limit = 100) {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
+    if (limit) url.searchParams.set("limit", String(limit));
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
+    }
+    return await response.json();
   }
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
-var import_react5 = require("react");
-var import_react6 = require("@assistant-ui/react");
-
-// packages/react/src/contexts/runtime-actions.ts
-var import_react = require("react");
-var RuntimeActionsContext = (0, import_react.createContext)(void 0);
-var RuntimeActionsProvider = RuntimeActionsContext.Provider;
-function useRuntimeActions() {
-  const context = (0, import_react.useContext)(RuntimeActionsContext);
-  if (!context) {
-    throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
-  }
-  return context;
-}
+var import_react4 = require("react");
+var import_react5 = require("@assistant-ui/react");
 
 // packages/react/src/contexts/event-context.tsx
-var import_react2 = require("react");
+var import_react = require("react");
 
 // packages/react/src/state/event-buffer.ts
 function createEventBuffer() {
@@ -382,9 +264,9 @@ function setSSEStatus(state, status) {
 
 // packages/react/src/contexts/event-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
-var EventContextState = (0, import_react2.createContext)(null);
+var EventContextState = (0, import_react.createContext)(null);
 function useEventContext() {
-  const context = (0, import_react2.useContext)(EventContextState);
+  const context = (0, import_react.useContext)(EventContextState);
   if (!context) {
     throw new Error(
       "useEventContext must be used within EventContextProvider. Wrap your app with <EventContextProvider>...</EventContextProvider>"
@@ -397,13 +279,13 @@ function EventContextProvider({
   backendApi,
   sessionId
 }) {
-  const bufferRef = (0, import_react2.useRef)(null);
+  const bufferRef = (0, import_react.useRef)(null);
   if (!bufferRef.current) {
     bufferRef.current = createEventBuffer();
   }
   const buffer = bufferRef.current;
-  const [sseStatus, setSseStatus] = (0, import_react2.useState)("disconnected");
-  (0, import_react2.useEffect)(() => {
+  const [sseStatus, setSseStatus] = (0, import_react.useState)("disconnected");
+  (0, import_react.useEffect)(() => {
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
     const unsubscribe = backendApi.subscribeSSE(
@@ -437,13 +319,13 @@ function EventContextProvider({
       setSseStatus("disconnected");
     };
   }, [backendApi, buffer, sessionId]);
-  const subscribeCallback = (0, import_react2.useCallback)(
+  const subscribeCallback = (0, import_react.useCallback)(
     (type, callback) => {
       return subscribe(buffer, type, callback);
     },
     [buffer]
   );
-  const sendOutbound = (0, import_react2.useCallback)(
+  const sendOutbound = (0, import_react.useCallback)(
     async (event) => {
       try {
         const message = JSON.stringify({
@@ -466,163 +348,20 @@ function EventContextProvider({
 }
 
 // packages/react/src/runtime/orchestrator.ts
-var import_react4 = require("react");
-
-// packages/react/src/contexts/thread-context.tsx
 var import_react3 = require("react");
 
-// packages/react/src/state/thread-store.ts
-var ThreadStore = class {
-  constructor(options) {
-    this.listeners = /* @__PURE__ */ new Set();
-    this.subscribe = (listener) => {
-      this.listeners.add(listener);
-      return () => {
-        this.listeners.delete(listener);
-      };
-    };
-    this.getSnapshot = () => this.snapshot;
-    this.setCurrentThreadId = (threadId) => {
-      this.ensureThreadExists(threadId);
-      this.updateState({ currentThreadId: threadId });
-    };
-    this.bumpThreadViewKey = () => {
-      this.updateState({ threadViewKey: this.state.threadViewKey + 1 });
-    };
-    this.setThreadCnt = (updater) => {
-      const nextCnt = this.resolveStateAction(updater, this.state.threadCnt);
-      this.updateState({ threadCnt: nextCnt });
-    };
-    this.setThreads = (updater) => {
-      const nextThreads = this.resolveStateAction(updater, this.state.threads);
-      this.updateState({ threads: new Map(nextThreads) });
-    };
-    this.setThreadMetadata = (updater) => {
-      const nextMetadata = this.resolveStateAction(updater, this.state.threadMetadata);
-      this.updateState({ threadMetadata: new Map(nextMetadata) });
-    };
-    this.setThreadMessages = (threadId, messages) => {
-      this.ensureThreadExists(threadId);
-      const nextThreads = new Map(this.state.threads);
-      nextThreads.set(threadId, messages);
-      this.updateState({ threads: nextThreads });
-    };
-    this.getThreadMessages = (threadId) => {
-      var _a;
-      return (_a = this.state.threads.get(threadId)) != null ? _a : [];
-    };
-    this.getThreadMetadata = (threadId) => {
-      return this.state.threadMetadata.get(threadId);
-    };
-    this.updateThreadMetadata = (threadId, updates) => {
-      const existing = this.state.threadMetadata.get(threadId);
-      if (!existing) {
-        return;
-      }
-      const nextMetadata = new Map(this.state.threadMetadata);
-      nextMetadata.set(threadId, __spreadValues(__spreadValues({}, existing), updates));
-      this.updateState({ threadMetadata: nextMetadata });
-    };
-    var _a;
-    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : crypto.randomUUID();
-    this.state = {
-      currentThreadId: initialThreadId,
-      threadViewKey: 0,
-      threadCnt: 1,
-      threads: /* @__PURE__ */ new Map([[initialThreadId, []]]),
-      threadMetadata: /* @__PURE__ */ new Map([
-        [
-          initialThreadId,
-          {
-            title: "New Chat",
-            status: "pending",
-            lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-          }
-        ]
-      ])
-    };
-    this.snapshot = this.buildSnapshot();
-  }
-  emit() {
-    for (const listener of this.listeners) {
-      listener();
-    }
-  }
-  resolveStateAction(updater, current) {
-    return typeof updater === "function" ? updater(current) : updater;
-  }
-  ensureThreadExists(threadId) {
-    if (!this.state.threadMetadata.has(threadId)) {
-      const nextMetadata = new Map(this.state.threadMetadata);
-      nextMetadata.set(threadId, {
-        title: "New Chat",
-        status: "regular",
-        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-      this.state = __spreadProps(__spreadValues({}, this.state), { threadMetadata: nextMetadata });
-    }
-    if (!this.state.threads.has(threadId)) {
-      const nextThreads = new Map(this.state.threads);
-      nextThreads.set(threadId, []);
-      this.state = __spreadProps(__spreadValues({}, this.state), { threads: nextThreads });
-    }
-  }
-  updateState(partial) {
-    this.state = __spreadValues(__spreadValues({}, this.state), partial);
-    this.snapshot = this.buildSnapshot();
-    this.emit();
-  }
-  buildSnapshot() {
-    return {
-      currentThreadId: this.state.currentThreadId,
-      setCurrentThreadId: this.setCurrentThreadId,
-      threadViewKey: this.state.threadViewKey,
-      bumpThreadViewKey: this.bumpThreadViewKey,
-      threads: this.state.threads,
-      setThreads: this.setThreads,
-      threadMetadata: this.state.threadMetadata,
-      setThreadMetadata: this.setThreadMetadata,
-      threadCnt: this.state.threadCnt,
-      setThreadCnt: this.setThreadCnt,
-      getThreadMessages: this.getThreadMessages,
-      setThreadMessages: this.setThreadMessages,
-      getThreadMetadata: this.getThreadMetadata,
-      updateThreadMetadata: this.updateThreadMetadata
-    };
-  }
-};
-
 // packages/react/src/contexts/thread-context.tsx
+var import_react2 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
-var ThreadContextState = (0, import_react3.createContext)(null);
+var ThreadContextState = (0, import_react2.createContext)(null);
 function useThreadContext() {
-  const context = (0, import_react3.useContext)(ThreadContextState);
+  const context = (0, import_react2.useContext)(ThreadContextState);
   if (!context) {
     throw new Error(
       "useThreadContext must be used within ThreadContextProvider. Wrap your app with <ThreadContextProvider>...</ThreadContextProvider>"
     );
   }
   return context;
-}
-function ThreadContextProvider({
-  children,
-  initialThreadId
-}) {
-  const storeRef = (0, import_react3.useRef)(null);
-  if (!storeRef.current) {
-    storeRef.current = new ThreadStore({ initialThreadId });
-  }
-  const store = storeRef.current;
-  const value = (0, import_react3.useSyncExternalStore)(store.subscribe, store.getSnapshot);
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ThreadContextState.Provider, { value, children });
-}
-function useCurrentThreadMessages() {
-  const { currentThreadId, getThreadMessages } = useThreadContext();
-  return (0, import_react3.useMemo)(() => getThreadMessages(currentThreadId), [currentThreadId, getThreadMessages]);
-}
-function useCurrentThreadMetadata() {
-  const { currentThreadId, getThreadMetadata } = useThreadContext();
-  return (0, import_react3.useMemo)(() => getThreadMetadata(currentThreadId), [currentThreadId, getThreadMetadata]);
 }
 
 // packages/react/src/runtime/utils.ts
@@ -772,6 +511,7 @@ var MessageController = class {
     this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
+    var _a, _b;
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
     if (!text) return;
@@ -790,23 +530,45 @@ var MessageController = class {
       return;
     }
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     try {
       this.markRunning(threadId, true);
-      await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
-      this.config.polling.start(threadId);
+      const response = publicKey ? await this.config.backendApiRef.current.postChatMessage(
+        backendThreadId,
+        text,
+        publicKey
+      ) : await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+      if (response == null ? void 0 : response.messages) {
+        this.inbound(threadId, response.messages);
+      }
+      if (response == null ? void 0 : response.is_processing) {
+        this.config.polling.start(threadId);
+      } else if (!this.config.polling.isPolling(threadId)) {
+        this.markRunning(threadId, false);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       this.markRunning(threadId, false);
     }
   }
   async flushPendingChat(threadId) {
+    var _a, _b;
     const backendState = this.config.backendStateRef.current;
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     for (const text of pending) {
       try {
-        await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        if (publicKey) {
+          await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+            publicKey
+          );
+        } else {
+          await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        }
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }
@@ -847,14 +609,21 @@ var PollingController = class {
     this.intervalMs = (_a = config.intervalMs) != null ? _a : 500;
   }
   start(threadId) {
+    var _a, _b;
     const backendState = this.config.backendStateRef.current;
     if (!isThreadReady(backendState, threadId)) return;
     if (this.intervals.has(threadId)) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
     setThreadRunning(backendState, threadId, true);
     const tick = async () => {
+      if (!this.intervals.has(threadId)) return;
       try {
+        console.log(
+          "[PollingController] Fetching state for threadId:",
+          threadId
+        );
         const state = await this.config.backendApiRef.current.fetchState(backendThreadId);
+        if (!this.intervals.has(threadId)) return;
         this.handleState(threadId, state);
       } catch (error) {
         console.error("Polling error:", error);
@@ -863,6 +632,7 @@ var PollingController = class {
     };
     const intervalId = setInterval(tick, this.intervalMs);
     this.intervals.set(threadId, intervalId);
+    (_b = (_a = this.config).onStart) == null ? void 0 : _b.call(_a, threadId);
   }
   stop(threadId) {
     var _a, _b;
@@ -873,6 +643,9 @@ var PollingController = class {
     }
     setThreadRunning(this.config.backendStateRef.current, threadId, false);
     (_b = (_a = this.config).onStop) == null ? void 0 : _b.call(_a, threadId);
+  }
+  isPolling(threadId) {
+    return this.intervals.has(threadId);
   }
   stopAll() {
     for (const threadId of this.intervals.keys()) {
@@ -892,15 +665,16 @@ var PollingController = class {
 };
 
 // packages/react/src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendUrl) {
+function useRuntimeOrchestrator(backendUrl, options) {
   const threadContext = useThreadContext();
-  const threadContextRef = (0, import_react4.useRef)(threadContext);
+  const threadContextRef = (0, import_react3.useRef)(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = (0, import_react4.useRef)(new BackendApi(backendUrl));
-  const backendStateRef = (0, import_react4.useRef)(createBakendState());
-  const [isRunning, setIsRunning] = (0, import_react4.useState)(false);
-  const messageControllerRef = (0, import_react4.useRef)(null);
-  const pollingRef = (0, import_react4.useRef)(null);
+  const backendApiRef = (0, import_react3.useRef)(new BackendApi(backendUrl));
+  const backendStateRef = (0, import_react3.useRef)(createBakendState());
+  const [isRunning, setIsRunning] = (0, import_react3.useState)(false);
+  const messageControllerRef = (0, import_react3.useRef)(null);
+  const pollingRef = (0, import_react3.useRef)(null);
+  const pendingFetches = (0, import_react3.useRef)(/* @__PURE__ */ new Set());
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
       backendApiRef,
@@ -908,6 +682,11 @@ function useRuntimeOrchestrator(backendUrl) {
       applyMessages: (threadId, msgs) => {
         var _a;
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
+      },
+      onStart: (threadId) => {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(true);
+        }
       },
       onStop: (threadId) => {
         if (threadContextRef.current.currentThreadId === threadId) {
@@ -922,50 +701,49 @@ function useRuntimeOrchestrator(backendUrl) {
       backendStateRef,
       threadContextRef,
       polling: pollingRef.current,
-      setGlobalIsRunning: setIsRunning
+      setGlobalIsRunning: setIsRunning,
+      getPublicKey: options == null ? void 0 : options.getPublicKey
     });
   }
-  const ensureInitialState = (0, import_react4.useCallback)(
-    async (threadId) => {
-      var _a, _b;
-      const backendState = backendStateRef.current;
-      const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
-      if (shouldSkipInitialFetch(backendState, threadId)) {
-        clearSkipInitialFetch(backendState, threadId);
-        if (isCurrentThread) {
-          setIsRunning(false);
-        }
-        return;
+  const ensureInitialState = (0, import_react3.useCallback)(async (threadId) => {
+    var _a, _b;
+    const backendState = backendStateRef.current;
+    if (shouldSkipInitialFetch(backendState, threadId)) {
+      clearSkipInitialFetch(backendState, threadId);
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
       }
-      if (!isThreadReady(backendState, threadId)) {
-        if (isCurrentThread) {
-          setIsRunning(false);
-        }
-        return;
+      return;
+    }
+    if (!isThreadReady(backendState, threadId)) {
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
       }
-      const backendThreadId = resolveThreadId(backendState, threadId);
-      try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
-        (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
+      return;
+    }
+    if (pendingFetches.current.has(threadId)) return;
+    const backendThreadId = resolveThreadId(backendState, threadId);
+    pendingFetches.current.add(threadId);
+    try {
+      const state = await backendApiRef.current.fetchState(backendThreadId);
+      (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, state.messages);
+      if (threadContextRef.current.currentThreadId === threadId) {
         if (state.is_processing) {
-          if (isCurrentThread) {
-            setIsRunning(true);
-          }
+          setIsRunning(true);
           (_b = pollingRef.current) == null ? void 0 : _b.start(threadId);
         } else {
-          if (isCurrentThread) {
-            setIsRunning(false);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-        if (isCurrentThread) {
           setIsRunning(false);
         }
       }
-    },
-    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
-  );
+    } catch (error) {
+      console.error("Failed to fetch initial state:", error);
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
+      }
+    } finally {
+      pendingFetches.current.delete(threadId);
+    }
+  }, []);
   return {
     backendStateRef,
     polling: pollingRef.current,
@@ -1015,21 +793,21 @@ function AomiRuntimeProvider({
     ensureInitialState,
     backendApiRef
   } = useRuntimeOrchestrator(backendUrl);
-  const threadContextRef = (0, import_react5.useRef)(threadContext);
+  const threadContextRef = (0, import_react4.useRef)(threadContext);
   threadContextRef.current = threadContext;
-  const currentThreadIdRef = (0, import_react5.useRef)(threadContext.currentThreadId);
-  (0, import_react5.useEffect)(() => {
+  const currentThreadIdRef = (0, import_react4.useRef)(threadContext.currentThreadId);
+  (0, import_react4.useEffect)(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     setIsRunning(isThreadRunning(backendStateRef.current, threadId));
   }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
   const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -1064,8 +842,8 @@ function AomiRuntimeProvider({
       }
     };
     void fetchThreadList();
-  }, [publicKey]);
-  const threadListAdapter = (0, import_react5.useMemo)(() => {
+  }, [publicKey, backendApiRef]);
+  const threadListAdapter = (0, import_react4.useMemo)(() => {
     const backendState = backendStateRef.current;
     const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
     const preparePendingThread = (threadId) => {
@@ -1273,7 +1051,7 @@ function AomiRuntimeProvider({
     threadContext.currentThreadId,
     threadContext.threadMetadata
   ]);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     const currentSessionId = threadContext.currentThreadId;
     const unsubscribe = backendApiRef.current.subscribeSSE(
       currentSessionId,
@@ -1308,13 +1086,13 @@ function AomiRuntimeProvider({
       unsubscribe == null ? void 0 : unsubscribe();
     };
   }, [backendApiRef, backendStateRef, threadContext, threadContext.currentThreadId]);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);
-  const runtime = (0, import_react6.useExternalStoreRuntime)({
+  const runtime = (0, import_react5.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
@@ -1323,7 +1101,7 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  (0, import_react5.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     return () => {
       polling.stopAll();
     };
@@ -1333,20 +1111,20 @@ function AomiRuntimeProvider({
     {
       backendApi: backendApiRef.current,
       sessionId: threadContext.currentThreadId,
-      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RuntimeActionsProvider, { value: {}, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_react6.AssistantRuntimeProvider, { runtime, children }) })
+      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_react5.AssistantRuntimeProvider, { runtime, children })
     }
   );
 }
 
 // packages/react/src/handlers/wallet-handler.ts
-var import_react7 = require("react");
+var import_react6 = require("react");
 function useWalletHandler({
   sessionId,
   onTxRequest
 }) {
   const { subscribe: subscribe2, sendOutbound } = useEventContext();
-  const [pendingTxRequests, setPendingTxRequests] = (0, import_react7.useState)([]);
-  (0, import_react7.useEffect)(() => {
+  const [pendingTxRequests, setPendingTxRequests] = (0, import_react6.useState)([]);
+  (0, import_react6.useEffect)(() => {
     const unsubscribe = subscribe2("wallet:tx_request", (event) => {
       const request = event.payload;
       setPendingTxRequests((prev) => [...prev, request]);
@@ -1354,7 +1132,7 @@ function useWalletHandler({
     });
     return unsubscribe;
   }, [subscribe2, onTxRequest]);
-  const sendTxComplete = (0, import_react7.useCallback)(
+  const sendTxComplete = (0, import_react6.useCallback)(
     (tx) => {
       sendOutbound({
         type: "wallet:tx_complete",
@@ -1365,7 +1143,7 @@ function useWalletHandler({
     },
     [sendOutbound, sessionId]
   );
-  const sendConnectionChange = (0, import_react7.useCallback)(
+  const sendConnectionChange = (0, import_react6.useCallback)(
     (status, address) => {
       sendOutbound({
         type: status === "connected" ? "wallet:connected" : "wallet:disconnected",
@@ -1376,7 +1154,7 @@ function useWalletHandler({
     },
     [sendOutbound, sessionId]
   );
-  const clearTxRequest = (0, import_react7.useCallback)((index) => {
+  const clearTxRequest = (0, import_react6.useCallback)((index) => {
     setPendingTxRequests((prev) => prev.filter((_, i) => i !== index));
   }, []);
   return {
@@ -1388,7 +1166,7 @@ function useWalletHandler({
 }
 
 // packages/react/src/handlers/notification-handler.ts
-var import_react8 = require("react");
+var import_react7 = require("react");
 var notificationIdCounter = 0;
 function generateNotificationId() {
   return `notif-${Date.now()}-${++notificationIdCounter}`;
@@ -1397,8 +1175,8 @@ function useNotificationHandler({
   onNotification
 } = {}) {
   const { subscribe: subscribe2 } = useEventContext();
-  const [notifications, setNotifications] = (0, import_react8.useState)([]);
-  (0, import_react8.useEffect)(() => {
+  const [notifications, setNotifications] = (0, import_react7.useState)([]);
+  (0, import_react7.useEffect)(() => {
     const unsubscribe = subscribe2("notification", (event) => {
       var _a, _b;
       const payload = event.payload;
@@ -1417,7 +1195,7 @@ function useNotificationHandler({
     return unsubscribe;
   }, [subscribe2, onNotification]);
   const unhandledCount = notifications.filter((n) => !n.handled).length;
-  const markHandled = (0, import_react8.useCallback)((id) => {
+  const markHandled = (0, import_react7.useCallback)((id) => {
     setNotifications(
       (prev) => prev.map((n) => n.id === id ? __spreadProps(__spreadValues({}, n), { handled: true }) : n)
     );
@@ -1432,14 +1210,9 @@ function useNotificationHandler({
 0 && (module.exports = {
   AomiRuntimeProvider,
   BackendApi,
-  RuntimeActionsProvider,
-  ThreadContextProvider,
-  useCurrentThreadMessages,
-  useCurrentThreadMetadata,
+  EventContextProvider,
   useEventContext,
   useNotificationHandler,
-  useRuntimeActions,
-  useThreadContext,
   useWalletHandler
 });
 //# sourceMappingURL=index.cjs.map

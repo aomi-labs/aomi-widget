@@ -3,8 +3,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { cn } from "@aomi-labs/react";
-import { Button } from "@aomi-labs/widget-lib/components/ui/button";
-import { Card, CardContent } from "@aomi-labs/widget-lib/components/ui/card";
+import { Button, Card, CardContent } from "@aomi-labs/widget-lib";
 import { CopyButton } from "./CopyButton";
 
 type PreviewProps = {
@@ -54,8 +53,7 @@ export function Preview({ title, description, code, children, badge }: PreviewPr
       </div>
       <CardContent className="p-0">
         {view === "preview" ? (
-          <div className="relative overflow-hidden rounded-b-2xl border-border/60 bg-gradient-to-br from-background via-background/70 to-background px-5 py-6">
-            <div className="pointer-events-none absolute inset-0 opacity-40 blur-3xl" aria-hidden />
+          <div className="relative overflow-hidden rounded-b-2xl bg-muted/30 px-5 py-6">
             <div className={cn("relative", badge ? "pt-1" : undefined)}>{children}</div>
           </div>
         ) : (
