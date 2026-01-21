@@ -50,6 +50,7 @@ let builder = ChatAppBuilder::new("You are a helpful assistant.").await?;
 ```
 
 This automatically registers core tools:
+
 - `SendTransactionToWallet`
 - `EncodeFunctionCall`
 - `GetCurrentTime`
@@ -97,6 +98,7 @@ builder.add_tool(AnotherTool)?;
 ```
 
 Tools are registered in both:
+
 1. The `ToolScheduler` (for execution)
 2. The `AgentBuilder` (for LLM awareness)
 
@@ -249,14 +251,14 @@ flowchart TD
     INT -->|"User cancelled"| CANCEL[Cancellation]
 ```
 
-| Variant | Description | Fields |
-|---------|-------------|--------|
-| `StreamingText(String)` | Incremental LLM output | Text chunk |
-| `ToolCall { topic, stream }` | Tool invocation | Tool name, result stream |
+| Variant                                          | Description            | Fields                     |
+| ------------------------------------------------ | ---------------------- | -------------------------- |
+| `StreamingText(String)`                          | Incremental LLM output | Text chunk                 |
+| `ToolCall { topic, stream }`                     | Tool invocation        | Tool name, result stream   |
 | `AsyncToolResult { call_id, tool_name, result }` | Multi-step tool result | Call ID, name, JSON result |
-| `Complete` | Response finished | - |
-| `Error(String)` | Processing error | Error message |
-| `Interrupted` | User cancelled | - |
+| `Complete`                                       | Response finished      | -                          |
+| `Error(String)`                                  | Processing error       | Error message              |
+| `Interrupted`                                    | User cancelled         | -                          |
 
 ## System Events
 
@@ -297,12 +299,12 @@ flowchart LR
     ASYNC -->|"Background update"| SSE[SSE Broadcast]
 ```
 
-| Variant | Purpose | Usage |
-|---------|---------|-------|
-| `InlineDisplay(Value)` | UI notifications | Tool progress, wallet requests |
-| `SystemNotice(String)` | Status messages | Connection status |
-| `SystemError(String)` | Error messages | API failures |
-| `AsyncUpdate(Value)` | Background updates | Title changes, task completion |
+| Variant                | Purpose            | Usage                          |
+| ---------------------- | ------------------ | ------------------------------ |
+| `InlineDisplay(Value)` | UI notifications   | Tool progress, wallet requests |
+| `SystemNotice(String)` | Status messages    | Connection status              |
+| `SystemError(String)`  | Error messages     | API failures                   |
+| `AsyncUpdate(Value)`   | Background updates | Title changes, task completion |
 
 ## Custom Tools
 

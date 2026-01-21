@@ -32,14 +32,14 @@ export function isThreadReady(state: BakendState, threadId: string): boolean {
 export function setBackendMapping(
   state: BakendState,
   tempId: string,
-  backendId: string
+  backendId: string,
 ) {
   state.tempToBackendId.set(tempId, backendId);
 }
 
 export function findTempIdForBackendId(
   state: BakendState,
-  backendId: string
+  backendId: string,
 ): string | undefined {
   for (const [tempId, id] of state.tempToBackendId.entries()) {
     if (id === backendId) return tempId;
@@ -53,7 +53,7 @@ export function markSkipInitialFetch(state: BakendState, threadId: string) {
 
 export function shouldSkipInitialFetch(
   state: BakendState,
-  threadId: string
+  threadId: string,
 ): boolean {
   return state.skipInitialFetch.has(threadId);
 }
@@ -62,7 +62,11 @@ export function clearSkipInitialFetch(state: BakendState, threadId: string) {
   state.skipInitialFetch.delete(threadId);
 }
 
-export function setThreadRunning(state: BakendState, threadId: string, running: boolean) {
+export function setThreadRunning(
+  state: BakendState,
+  threadId: string,
+  running: boolean,
+) {
   if (running) {
     state.runningThreads.add(threadId);
   } else {
@@ -74,12 +78,19 @@ export function isThreadRunning(state: BakendState, threadId: string): boolean {
   return state.runningThreads.has(threadId);
 }
 
-export function enqueuePendingChat(state: BakendState, threadId: string, text: string) {
+export function enqueuePendingChat(
+  state: BakendState,
+  threadId: string,
+  text: string,
+) {
   const existing = state.pendingChat.get(threadId) ?? [];
   state.pendingChat.set(threadId, [...existing, text]);
 }
 
-export function dequeuePendingChat(state: BakendState, threadId: string): string[] {
+export function dequeuePendingChat(
+  state: BakendState,
+  threadId: string,
+): string[] {
   const pending = state.pendingChat.get(threadId) ?? [];
   state.pendingChat.delete(threadId);
   return pending;
@@ -88,4 +99,3 @@ export function dequeuePendingChat(state: BakendState, threadId: string): string
 export function hasPendingChat(state: BakendState, threadId: string): boolean {
   return (state.pendingChat.get(threadId)?.length ?? 0) > 0;
 }
-

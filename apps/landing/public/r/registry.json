@@ -13,9 +13,7 @@
           "path": "components/aomi-frame.tsx"
         }
       ],
-      "dependencies": [
-        "@aomi-labs/react"
-      ],
+      "dependencies": ["@aomi-labs/react"],
       "registryDependencies": [
         "https://widget.aomi.dev/r/assistant-thread.json",
         "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
@@ -60,10 +58,7 @@
           "path": "components/assistant-ui/thread-list.tsx"
         }
       ],
-      "dependencies": [
-        "@assistant-ui/react",
-        "lucide-react"
-      ],
+      "dependencies": ["@assistant-ui/react", "lucide-react"],
       "registryDependencies": [
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "button",
@@ -80,9 +75,7 @@
           "path": "components/assistant-ui/threadlist-sidebar.tsx"
         }
       ],
-      "dependencies": [
-        "lucide-react"
-      ],
+      "dependencies": ["lucide-react"],
       "registryDependencies": [
         "https://widget.aomi.dev/r/assistant-thread-list.json",
         "sidebar"
@@ -98,13 +91,8 @@
           "path": "components/assistant-ui/tool-fallback.tsx"
         }
       ],
-      "dependencies": [
-        "@assistant-ui/react",
-        "lucide-react"
-      ],
-      "registryDependencies": [
-        "button"
-      ]
+      "dependencies": ["@assistant-ui/react", "lucide-react"],
+      "registryDependencies": ["button"]
     },
     {
       "name": "notification",
@@ -116,13 +104,8 @@
           "path": "components/ui/notification.tsx"
         }
       ],
-      "dependencies": [
-        "@aomi-labs/react",
-        "sonner"
-      ],
-      "registryDependencies": [
-        "https://widget.aomi.dev/r/sonner.json"
-      ]
+      "dependencies": ["@aomi-labs/react", "sonner"],
+      "registryDependencies": ["https://widget.aomi.dev/r/sonner.json"]
     },
     {
       "name": "sonner",
@@ -134,9 +117,7 @@
           "path": "components/ui/sonner.tsx"
         }
       ],
-      "dependencies": [
-        "sonner"
-      ],
+      "dependencies": ["sonner"],
       "registryDependencies": []
     }
   ]

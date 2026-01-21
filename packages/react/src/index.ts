@@ -65,7 +65,7 @@ export {
   useUser,
   UserContextProvider,
   type UserState,
-} from "./contexts/user-context"; 
+} from "./contexts/user-context";
 
 // Backwards compatibility alias
 export type { UserState as WalletButtonState } from "./contexts/user-context";

@@ -21,12 +21,14 @@ export function SidebarNav({ sections, currentSlug }: SidebarNavProps) {
           {section.items[0] ? (
             <Link
               href={`/docs/${section.items[0].slug}`}
-              className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground transition hover:text-foreground"
+              className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase transition hover:text-foreground"
             >
               {section.title}
             </Link>
           ) : (
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{section.title}</p>
+            <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              {section.title}
+            </p>
           )}
           <div className="space-y-1">
             {section.items.map((item) => {
@@ -37,11 +39,15 @@ export function SidebarNav({ sections, currentSlug }: SidebarNavProps) {
                   href={`/docs/${item.slug}`}
                   className={cn(
                     "block rounded-lg border border-transparent px-3 py-2 transition hover:border-border/80 hover:bg-card",
-                    isActive ? "border-primary/60 bg-primary/5 text-foreground" : "text-muted-foreground"
+                    isActive
+                      ? "border-primary/60 bg-primary/5 text-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
                   <div className="text-sm font-semibold">{item.title}</div>
-                  <p className="text-xs text-muted-foreground">{item.description}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.description}
+                  </p>
                 </Link>
               );
             })}

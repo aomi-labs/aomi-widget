@@ -14,8 +14,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-
-
 // ==================== Thread Utilities ====================
 
 export const isTempThreadId = (id: string) => id.startsWith("temp-");

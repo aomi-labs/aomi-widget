@@ -2,6 +2,7 @@
 title: Architecture
 description: How the widget, backend, and wallets fit together.
 ---
+
 # AOMI Architecture
 
 AOMI is an AI-powered blockchain operations assistant that transforms natural language into Web3 operations. Built with a streaming-first, modular design, it enables conversational interactions for querying blockchain state, executing swaps, calling smart contracts, and sending transactions.
@@ -128,67 +129,67 @@ graph TD
 
 The heart of LLM orchestration. Manages agent creation, streaming completions, and system events.
 
-| Component | Purpose |
-|-----------|---------|
-| `ChatApp` | Main application wrapper |
-| `ChatAppBuilder` | Builder pattern for app configuration |
-| `stream_completion` | Async generator for LLM responses |
-| `SystemEventQueue` | Thread-safe event buffer |
-| `ChatCommand` | Streaming response variants |
+| Component           | Purpose                               |
+| ------------------- | ------------------------------------- |
+| `ChatApp`           | Main application wrapper              |
+| `ChatAppBuilder`    | Builder pattern for app configuration |
+| `stream_completion` | Async generator for LLM responses     |
+| `SystemEventQueue`  | Thread-safe event buffer              |
+| `ChatCommand`       | Streaming response variants           |
 
 ### aomi-backend
 
 Session and history management for multi-user scenarios.
 
-| Component | Purpose |
-|-----------|---------|
+| Component        | Purpose                     |
+| ---------------- | --------------------------- |
 | `SessionManager` | Manages concurrent sessions |
-| `SessionState` | Per-session state machine |
-| `HistoryBackend` | Pluggable persistence |
-| `ChatMessage` | Message representation |
+| `SessionState`   | Per-session state machine   |
+| `HistoryBackend` | Pluggable persistence       |
+| `ChatMessage`    | Message representation      |
 
 ### aomi-tools
 
 Centralized tool management via IO Scheduler pattern.
 
-| Component | Purpose |
-|-----------|---------|
-| `ToolScheduler` | Global tool registry and executor |
-| `ToolApiHandler` | Per-request handler |
-| `ToolResultStream` | Streaming tool results |
-| `AomiApiTool` | Tool trait for single-result tools |
-| `MultiStepApiTool` | Tool trait for streaming tools |
+| Component          | Purpose                            |
+| ------------------ | ---------------------------------- |
+| `ToolScheduler`    | Global tool registry and executor  |
+| `ToolApiHandler`   | Per-request handler                |
+| `ToolResultStream` | Streaming tool results             |
+| `AomiApiTool`      | Tool trait for single-result tools |
+| `MultiStepApiTool` | Tool trait for streaming tools     |
 
 ### aomi-anvil
 
 Anvil fork management for transaction simulation.
 
-| Component | Purpose |
-|-----------|---------|
-| `ForkProvider` | Managed or external fork |
-| `AnvilInstance` | Spawned Anvil process |
-| `ForkSnapshot` | Fork state capture |
+| Component       | Purpose                  |
+| --------------- | ------------------------ |
+| `ForkProvider`  | Managed or external fork |
+| `AnvilInstance` | Spawned Anvil process    |
+| `ForkSnapshot`  | Fork state capture       |
 
 ### aomi-scripts
 
 Forge script generation and execution.
 
-| Component | Purpose |
-|-----------|---------|
-| `ForgeExecutor` | Dependency-aware executor |
-| `ScriptAssembler` | Script generation |
-| `SourceFetcher` | Background contract fetching |
-| `ExecutionPlan` | Operation grouping |
+| Component         | Purpose                      |
+| ----------------- | ---------------------------- |
+| `ForgeExecutor`   | Dependency-aware executor    |
+| `ScriptAssembler` | Script generation            |
+| `SourceFetcher`   | Background contract fetching |
+| `ExecutionPlan`   | Operation grouping           |
 
 ### aomi-eval
 
 Evaluation framework for testing agent behavior.
 
-| Component | Purpose |
-|-----------|---------|
-| `EvalHarness` | Test runner |
-| `EvalCase` | Test case definition |
-| `Assertion` | Balance/state assertions |
+| Component     | Purpose                  |
+| ------------- | ------------------------ |
+| `EvalHarness` | Test runner              |
+| `EvalCase`    | Test case definition     |
+| `Assertion`   | Balance/state assertions |
 
 ## Data Flow
 
@@ -368,27 +369,27 @@ flowchart TB
 
 ## External Integrations
 
-| Service | Crate | Purpose |
-|---------|-------|---------|
-| Anthropic Claude | aomi-chat | LLM inference |
-| MCP Server | aomi-mcp | Extended tool protocol |
-| Etherscan | aomi-tools | Contract data |
-| Brave Search | aomi-tools | Web search |
-| BAML Server | aomi-baml | Structured AI outputs |
-| Alchemy/Infura | aomi-tools | RPC endpoints |
+| Service          | Crate      | Purpose                |
+| ---------------- | ---------- | ---------------------- |
+| Anthropic Claude | aomi-chat  | LLM inference          |
+| MCP Server       | aomi-mcp   | Extended tool protocol |
+| Etherscan        | aomi-tools | Contract data          |
+| Brave Search     | aomi-tools | Web search             |
+| BAML Server      | aomi-baml  | Structured AI outputs  |
+| Alchemy/Infura   | aomi-tools | RPC endpoints          |
 
 ## Configuration
 
 ### Environment Variables
 
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `ANTHROPIC_API_KEY` | Yes | Claude API access |
-| `DATABASE_URL` | Yes | PostgreSQL/SQLite connection |
-| `BRAVE_SEARCH_API_KEY` | No | Web search |
-| `ETHERSCAN_API_KEY` | No | Contract data |
-| `ALCHEMY_API_KEY` | No | RPC endpoints |
-| `BAML_SERVER_URL` | No | Structured AI |
+| Variable               | Required | Purpose                      |
+| ---------------------- | -------- | ---------------------------- |
+| `ANTHROPIC_API_KEY`    | Yes      | Claude API access            |
+| `DATABASE_URL`         | Yes      | PostgreSQL/SQLite connection |
+| `BRAVE_SEARCH_API_KEY` | No       | Web search                   |
+| `ETHERSCAN_API_KEY`    | No       | Contract data                |
+| `ALCHEMY_API_KEY`      | No       | RPC endpoints                |
+| `BAML_SERVER_URL`      | No       | Structured AI                |
 
 ### Network Configuration
 

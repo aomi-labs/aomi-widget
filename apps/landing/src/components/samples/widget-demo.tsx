@@ -14,7 +14,13 @@ export function WidgetDemo() {
 }`;
 
 export function WidgetFrame() {
-  return <AomiFrame height="560px" width="100%" walletFooter={(props) => <WalletFooter {...props} />} />;
+  return (
+    <AomiFrame
+      height="560px"
+      width="100%"
+      walletFooter={(props) => <WalletFooter {...props} />}
+    />
+  );
 }
 
 export function WidgetDemo() {

@@ -21,7 +21,9 @@ for (const arg of args) {
 
 const rawName = options.name || options.n;
 if (!rawName) {
-  console.error("Usage: pnpm run generate:theme --name=<slug> [--label=\"Display Name\"]");
+  console.error(
+    'Usage: pnpm run generate:theme --name=<slug> [--label="Display Name"]',
+  );
   process.exit(1);
 }
 
@@ -40,7 +42,9 @@ const label = options.label || toTitleCase(slug);
 const outputPath = path.join(themesDir, `${slug}.css`);
 
 if (existsSync(outputPath)) {
-  console.error(`Theme file already exists at ${path.relative(repoRoot, outputPath)}`);
+  console.error(
+    `Theme file already exists at ${path.relative(repoRoot, outputPath)}`,
+  );
   process.exit(1);
 }
 
@@ -54,13 +58,18 @@ const stampedBanner = [
   `/* ${label} Theme (generated ${new Date().toISOString()}) */`,
   "/* Duplicate of default.css — update tokens, colors, and AppKit overrides as needed. */",
 ].join("\n");
-const normalized = defaultCss.replace("/* @aomi-labs/widget-lib - Theme Styles */", stampedBanner);
+const normalized = defaultCss.replace(
+  "/* @aomi-labs/widget-lib - Theme Styles */",
+  stampedBanner,
+);
 
 mkdirSync(themesDir, { recursive: true });
 writeFileSync(outputPath, normalized, "utf8");
 
 console.log(`Created ${path.relative(repoRoot, outputPath)}`);
-console.log("Reminder: add metadata to src/themes/tokens.config.ts and wire docs/templates accordingly.");
+console.log(
+  "Reminder: add metadata to src/themes/tokens.config.ts and wire docs/templates accordingly.",
+);
 
 function toTitleCase(value) {
   return value

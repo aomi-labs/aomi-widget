@@ -4,8 +4,8 @@ packages:
   - packages/*
 
 onlyBuiltDependencies:
-  - '@reown/appkit'
-  - '@tailwindcss/oxide'
+  - "@reown/appkit"
+  - "@tailwindcss/oxide"
   - bufferutil
   - esbuild
   - keccak

@@ -8,135 +8,254 @@ export function Hero() {
 
   return (
     <>
-      <nav className="fixed flex z-50 pr-4 pl-4 top-6 right-0 left-0 gap-x-4 gap-y-4 items-center justify-center">
-      <div className="flex transition-all duration-300 backdrop-blur-[80px] bg-black/20 rounded-full ring-white/20 ring-1 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-2 gap-y-2 items-center">
-        <img
-          src="/assets/images/bubble.svg"
-          alt="Aomi"
-          className="w-6 h-6 drop-shadow-sm invert"
-        />
-        <span className="text-sm font-semibold text-white tracking-tight font-geist drop-shadow-sm">
-          Aomi
-        </span>
-      </div>
-      <div className="flex hidden md:flex transition-all backdrop-blur-[80px] bg-black/20 ring-white/20 ring-1 rounded-full pt-1.5 pr-1.5 pb-1.5 pl-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] gap-x-6 gap-y-6 items-center">
-        <div className="flex items-center gap-6 pr-2">
-          <a href="#top" className="transition-colors hover:text-white text-xs font-medium text-white/70 font-geist drop-shadow-sm">
-            Overview
-          </a>
-          <a href="#technology-section" className="text-xs font-medium transition-colors font-geist text-white/70 hover:text-white drop-shadow-sm">
-            Technology
-          </a>
-          <a href="#workflow" className="text-xs font-medium transition-colors font-geist text-white/70 hover:text-white drop-shadow-sm">
-            Solutions
-          </a>
-          <a href="#resources" className="transition-colors hover:text-white text-xs font-medium text-white/70 font-geist drop-shadow-sm">
-            Resources
+      <nav className="fixed top-6 right-0 left-0 z-50 flex items-center justify-center gap-x-4 gap-y-4 pr-4 pl-4">
+        <div className="flex items-center gap-x-2 gap-y-2 rounded-full bg-black/20 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px] transition-all duration-300">
+          <img
+            src="/assets/images/bubble.svg"
+            alt="Aomi"
+            className="h-6 w-6 drop-shadow-sm invert"
+          />
+          <span className="font-geist text-sm font-semibold tracking-tight text-white drop-shadow-sm">
+            Aomi
+          </span>
+        </div>
+        <div className="flex hidden items-center gap-x-6 gap-y-6 rounded-full bg-black/20 pt-1.5 pr-1.5 pb-1.5 pl-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px] transition-all md:flex">
+          <div className="flex items-center gap-6 pr-2">
+            <a
+              href="#top"
+              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
+            >
+              Overview
+            </a>
+            <a
+              href="#technology-section"
+              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
+            >
+              Technology
+            </a>
+            <a
+              href="#workflow"
+              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
+            >
+              Solutions
+            </a>
+            <a
+              href="#resources"
+              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
+            >
+              Resources
+            </a>
+          </div>
+          <a
+            href="https://github.com/aomi-labs"
+            target="_blank"
+            rel="noreferrer"
+            className="group font-geist relative flex items-center gap-1.5 overflow-hidden rounded-full bg-white/90 px-5 py-2.5 text-xs font-semibold text-neutral-900 shadow-[0_0_20px_rgba(255,255,255,0.3)] transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95"
+          >
+            <span className="relative z-10 flex items-center gap-1.5">
+              GitHub
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                data-lucide="arrow-right"
+                className="lucide lucide-arrow-right h-3 w-3"
+              >
+                <path d="M5 12h14"></path>
+                <path d="m12 5 7 7-7 7"></path>
+              </svg>
+            </span>
+            <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100"></div>
           </a>
         </div>
-        <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" className="relative overflow-hidden group text-xs font-semibold px-5 py-2.5 rounded-full transition-all flex items-center gap-1.5 font-geist bg-white/90 text-neutral-900 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95">
-          <span className="relative z-10 flex items-center gap-1.5">
-                GitHub
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-              </span>
-          <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
-          </div>
-        </a>
-      </div>
-      <button
-        className="md:hidden p-2.5 rounded-full backdrop-blur-[80px] bg-black/20 ring-white/20 ring-1 text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] active:scale-95 transition-transform"
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-      >
-        {mobileMenuOpen ? (
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
-        )}
-      </button>
+        <button
+          className="rounded-full bg-black/20 p-2.5 text-white shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px] transition-transform active:scale-95 md:hidden"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          {mobileMenuOpen ? (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+            >
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+            >
+              <path d="M4 5h16"></path>
+              <path d="M4 12h16"></path>
+              <path d="M4 19h16"></path>
+            </svg>
+          )}
+        </button>
       </nav>
 
       {/* Mobile Menu Drawer */}
-      <div className={`fixed inset-0 z-40 md:hidden transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className="fixed inset-0 backdrop-blur-[80px] bg-black/40" onClick={() => setMobileMenuOpen(false)}></div>
-        <div className={`fixed top-0 right-0 h-full w-full z-50 text-center pt-5 backdrop-blur-[80px] bg-black/30 border-l border-white/10 shadow-2xl transition-transform duration-300 ease-out ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="flex flex-col h-full pt-20 px-6 pb-8">
+      <div
+        className={`fixed inset-0 z-40 transition-opacity duration-300 md:hidden ${mobileMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+      >
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-[80px]"
+          onClick={() => setMobileMenuOpen(false)}
+        ></div>
+        <div
+          className={`fixed top-0 right-0 z-50 h-full w-full border-l border-white/10 bg-black/30 pt-5 text-center shadow-2xl backdrop-blur-[80px] transition-transform duration-300 ease-out ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}
+        >
+          <div className="flex h-full flex-col px-6 pt-20 pb-8">
             <div className="flex flex-col gap-2">
-              <a href="#top" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+              <a
+                href="#top"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
                 Overview
               </a>
-              <a href="#technology-section" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+              <a
+                href="#technology-section"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
                 Technology
               </a>
-              <a href="#workflow" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+              <a
+                href="#workflow"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
                 Solutions
               </a>
-              <a href="#resources" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-white font-geist py-3 px-4 rounded-xl hover:bg-white/10 transition-colors">
+              <a
+                href="#resources"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
                 Resources
               </a>
             </div>
             <div className="mt-auto">
-              <a href="https://github.com/aomi-labs" target="_blank" rel="noreferrer" onClick={() => setMobileMenuOpen(false)} className="block text-center text-sm font-semibold px-5 py-3 rounded-full font-geist bg-white/90 text-neutral-900 shadow-lg">
+              <a
+                href="https://github.com/aomi-labs"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist block rounded-full bg-white/90 px-5 py-3 text-center text-sm font-semibold text-neutral-900 shadow-lg"
+              >
                 GitHub
               </a>
             </div>
           </div>
         </div>
       </div>
-      <div className="flex flex-col animate-fade-in text-center w-full mb-30 max-w-7xl mr-auto ml-auto pt-36 pr-4 pl-4 items-center">
-        <div className="flex backdrop-blur-[80px] bg-black/20 border-0 transition-colors cursor-default   rounded-full ring-white/10 ring-1 mb-8 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg items-center">
+      <div className="animate-fade-in mr-auto mb-30 ml-auto flex w-full max-w-7xl flex-col items-center pt-36 pr-4 pl-4 text-center">
+        <div className="mb-8 flex cursor-default items-center rounded-full border-0 bg-black/20 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg ring-1 ring-white/10 backdrop-blur-[80px] transition-colors">
           <div className="flex -space-x-2">
-            <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
-              <img src="https://i.pravatar.cc/100?img=1" alt="User" className="w-full h-full object-cover" />
+            <div className="h-6 w-6 overflow-hidden rounded-full border border-white/20 bg-neutral-200">
+              <img
+                src="https://i.pravatar.cc/100?img=1"
+                alt="User"
+                className="h-full w-full object-cover"
+              />
             </div>
-            <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden bg-neutral-200">
-              <img src="https://i.pravatar.cc/100?img=5" alt="User" className="w-full h-full object-cover" />
+            <div className="h-6 w-6 overflow-hidden rounded-full border border-white/20 bg-neutral-200">
+              <img
+                src="https://i.pravatar.cc/100?img=5"
+                alt="User"
+                className="h-full w-full object-cover"
+              />
             </div>
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold font-geist">
+            <div className="font-geist flex h-6 w-6 items-center justify-center rounded-full text-[8px] font-bold">
               +
             </div>
           </div>
-          <span className="text-[10px] font-medium pr-2 font-geist text-white pl-2">
-                500+ daily users
-              </span>
+          <span className="font-geist pr-2 pl-2 text-[10px] font-medium text-white">
+            500+ daily users
+          </span>
         </div>
 
-        <h1 className="leading-[1.1] md:text-7xl lg:text-8xl text-5xl text-neutral-50 tracking-tight font-serif text-center max-w-5xl mb-6 drop-shadow-2xl">
+        <h1 className="mb-6 max-w-5xl text-center font-serif text-5xl leading-[1.1] tracking-tight text-neutral-50 drop-shadow-2xl md:text-7xl lg:text-8xl">
           One prompt away
           <br />
-          <span className="italic text-white/80 font-pt-serif">from action.</span>
+          <span className="font-pt-serif text-white/80 italic">
+            from action.
+          </span>
         </h1>
-        <p className="md:text-base leading-relaxed text-sm font-light text-neutral-50 tracking-wide font-geist max-w-xl mr-auto mb-10 ml-auto drop-shadow-lg">
+        <p className="font-geist mr-auto mb-10 ml-auto max-w-xl text-sm leading-relaxed font-light tracking-wide text-neutral-50 drop-shadow-lg md:text-base">
           Your agentic terminal for blockchain automation. Transform
           <br className="hidden md:block" />
-              natural language into secure, multi-chain transactions.
+          natural language into secure, multi-chain transactions.
         </p>
-        <div className="flex gap-4 mb-25 items-center">
-          <a href="https://calendly.com/cecilia-foameo/30min" target="_blank" rel="noreferrer" className="landing-button-primary group [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)]">
-                <span className="relative z-10">Contact Us</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" data-lucide="arrow-right" className="lucide lucide-arrow-right w-3 h-3 relative z-10"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-                {/* <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#9D77A8] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div> */}
-              </a>
-          <a href="/docs/about-aomi" className="backdrop-blur-[80px] group relative overflow-hidden transition-all hover:bg-white/20 active:scale-95 duration-300 text-xs font-medium text-white font-geist  bg-black/20 rounded-full ring-white/20 ring-1 pt-3 pr-8 pb-3 pl-8 shadow-lg">
-                <span className="relative z-10">Documentation</span>
-              </a>
+        <div className="mb-25 flex items-center gap-4">
+          <a
+            href="https://calendly.com/cecilia-foameo/30min"
+            target="_blank"
+            rel="noreferrer"
+            className="landing-button-primary group [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)]"
+          >
+            <span className="relative z-10">Contact Us</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              data-lucide="arrow-right"
+              className="lucide lucide-arrow-right relative z-10 h-3 w-3"
+            >
+              <path d="M5 12h14"></path>
+              <path d="m12 5 7 7-7 7"></path>
+            </svg>
+            {/* <div className="group-hover:opacity-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-opacity bg-gradient-to-r from-[#9D77A8] to-[#ec6b83] opacity-0 absolute top-0 right-0 bottom-0 left-0 shadow-lg"></div> */}
+          </a>
+          <a
+            href="/docs/about-aomi"
+            className="group font-geist relative overflow-hidden rounded-full bg-black/20 pt-3 pr-8 pb-3 pl-8 text-xs font-medium text-white shadow-lg ring-1 ring-white/20 backdrop-blur-[80px] transition-all duration-300 hover:bg-white/20 active:scale-95"
+          >
+            <span className="relative z-10">Documentation</span>
+          </a>
         </div>
         <HeroTerminal />
       </div>
 
-
-
-
-      <section className="z-10 pt-20  relative bg-stone-100" id="client-ticker">
-        <div className="sm:px-6 lg:px-8 max-w-7xl mr-auto ml-auto pr-4 pl-4">
-          <div className="text-center mb-12">
-            <p className="uppercase text-xs font-medium text-stone-800 tracking-wide font-geist">
+      <section className="relative z-10 bg-stone-100 pt-20" id="client-ticker">
+        <div className="mr-auto ml-auto max-w-7xl pr-4 pl-4 sm:px-6 lg:px-8">
+          <div className="mb-12 text-center">
+            <p className="font-geist text-xs font-medium tracking-wide text-stone-800 uppercase">
               Trusted by teams at
             </p>
           </div>
 
           {/* Ticker Container */}
           <div
-            className="overflow-hidden relative"
+            className="relative overflow-hidden"
             style={{
               maskImage:
                 "linear-gradient(to right, transparent, black 15%, black 85%, transparent)",
@@ -146,13 +265,13 @@ export function Hero() {
           >
             {/* Gradient Overlays */}
             <div
-              className="z-10 pointer-events-none bg-gradient-to-r from-black via-black/80 to-transparent w-15 absolute top-0 bottom-0 left-0"
+              className="pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-15 bg-gradient-to-r from-black via-black/80 to-transparent"
               style={{ visibility: "hidden" }}
             ></div>
 
             {/* Animated Ticker */}
             <div
-              className="ticker-track flex flex-nowrap pt-2 pb-2 items-center justify-center"
+              className="ticker-track flex flex-nowrap items-center justify-center pt-2 pb-2"
               style={
                 {
                   gap: "4rem",
@@ -160,7 +279,7 @@ export function Hero() {
               }
             >
               {/* First set of logos */}
-              <div className="flex gap-16 shrink-0 gap-x-16 gap-y-16 items-center">
+              <div className="flex shrink-0 items-center gap-16 gap-x-16 gap-y-16">
                 <div className="flex items-center">
                   <img
                     src="/assets/trusted/solana-sol-logo.png"
@@ -197,8 +316,7 @@ export function Hero() {
                   />
                 </div>
               </div>
-
-                          </div>
+            </div>
           </div>
         </div>
       </section>

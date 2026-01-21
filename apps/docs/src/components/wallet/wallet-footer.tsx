@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import {
+  useAppKit,
+  useAppKitAccount,
+  useAppKitNetwork,
+} from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
 import { Button } from "@aomi-labs/widget-lib/components/ui/button";
 import {
@@ -27,7 +31,8 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
 
   // Sync AppKit state → lib
   useEffect(() => {
-    const numericChainId = typeof chainId === "string" ? Number(chainId) : chainId;
+    const numericChainId =
+      typeof chainId === "string" ? Number(chainId) : chainId;
     setWallet({
       address,
       chainId: numericChainId,
@@ -47,7 +52,7 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   };
 
   const label = wallet.isConnected
-    ? wallet.ensName ?? formatAddress(wallet.address)
+    ? (wallet.ensName ?? formatAddress(wallet.address))
     : "Connect Wallet";
 
   return (
@@ -61,7 +66,9 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
             <div className="flex items-center gap-2">
               <span className="text-sm">{label}</span>
               {networkName ? (
-                <span className="text-[11px] text-white/80">• {networkName}</span>
+                <span className="text-[11px] text-white/80">
+                  • {networkName}
+                </span>
               ) : null}
             </div>
           </Button>

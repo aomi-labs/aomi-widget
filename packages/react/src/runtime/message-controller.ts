@@ -55,8 +55,14 @@ export class MessageController {
   async outbound(message: AppendMessage, threadId: string) {
     const backendState = this.config.backendStateRef.current;
     const text = message.content
-      .filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
-      .map((part: Extract<typeof message.content[number], { type: "text" }>) => part.text)
+      .filter(
+        (part): part is Extract<typeof part, { type: "text" }> =>
+          part.type === "text",
+      )
+      .map(
+        (part: Extract<(typeof message.content)[number], { type: "text" }>) =>
+          part.text,
+      )
       .join("\n");
 
     if (!text) return;
@@ -70,7 +76,9 @@ export class MessageController {
     };
 
     threadState.setThreadMessages(threadId, [...existingMessages, userMessage]);
-    threadState.updateThreadMetadata(threadId, { lastActiveAt: new Date().toISOString() });
+    threadState.updateThreadMetadata(threadId, {
+      lastActiveAt: new Date().toISOString(),
+    });
 
     if (!isThreadReady(backendState, threadId)) {
       this.markRunning(threadId, true);
@@ -87,9 +95,12 @@ export class MessageController {
         ? await this.config.backendApiRef.current.postChatMessage(
             backendThreadId,
             text,
-            publicKey
+            publicKey,
           )
-        : await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+        : await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+          );
 
       // Apply the latest messages immediately so sync tool results appear without waiting for polling.
       if (response?.messages) {
@@ -119,10 +130,13 @@ export class MessageController {
           await this.config.backendApiRef.current.postChatMessage(
             backendThreadId,
             text,
-            publicKey
+            publicKey,
           );
         } else {
-          await this.config.backendApiRef.current.postChatMessage(backendThreadId, text);
+          await this.config.backendApiRef.current.postChatMessage(
+            backendThreadId,
+            text,
+          );
         }
       } catch (error) {
         console.error("Failed to send queued message:", error);

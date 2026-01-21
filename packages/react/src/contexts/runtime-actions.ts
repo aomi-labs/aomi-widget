@@ -10,14 +10,18 @@ import { createContext, useContext } from "react";
  */
 export type RuntimeActions = Record<string, never>;
 
-const RuntimeActionsContext = createContext<RuntimeActions | undefined>(undefined);
+const RuntimeActionsContext = createContext<RuntimeActions | undefined>(
+  undefined,
+);
 
 export const RuntimeActionsProvider = RuntimeActionsContext.Provider;
 
 export function useRuntimeActions(): RuntimeActions {
   const context = useContext(RuntimeActionsContext);
   if (!context) {
-    throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
+    throw new Error(
+      "useRuntimeActions must be used within AomiRuntimeProvider",
+    );
   }
   return context;
 }

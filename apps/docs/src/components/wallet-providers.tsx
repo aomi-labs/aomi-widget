@@ -20,13 +20,27 @@ const initializeAppKit = (config: Parameters<typeof createAppKit>[0]) => {
 
 initializeAppKit(appKitProviderConfig);
 
-function ContextProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {
-  const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig as Config, cookies);
+function ContextProvider({
+  children,
+  cookies,
+}: {
+  children: ReactNode;
+  cookies: string | null;
+}) {
+  const initialState = cookieToInitialState(
+    wagmiAdapter.wagmiConfig as Config,
+    cookies,
+  );
 
   return (
     <AppKitProvider {...appKitProviderConfig}>
-      <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState}>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <WagmiProvider
+        config={wagmiAdapter.wagmiConfig as Config}
+        initialState={initialState}
+      >
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
       </WagmiProvider>
     </AppKitProvider>
   );

@@ -20,6 +20,7 @@ your-project/
 ```
 
 This means:
+
 - Edit component source directly
 - No fighting with CSS overrides
 - No waiting for upstream releases
@@ -91,7 +92,7 @@ Override the color variables:
 
 ```css
 :root {
-  --primary: 221.2 83.2% 53.3%;        /* Blue */
+  --primary: 221.2 83.2% 53.3%; /* Blue */
   --primary-foreground: 210 40% 98%;
 }
 ```
@@ -113,10 +114,12 @@ Edit `components/assistant-ui/thread.tsx`:
 
 ```tsx
 // Find the message container and adjust styles
-<div className={cn(
-  "rounded-lg px-4 py-2",
-  isUser ? "bg-primary text-primary-foreground" : "bg-muted"
-)}>
+<div
+  className={cn(
+    "rounded-lg px-4 py-2",
+    isUser ? "bg-primary text-primary-foreground" : "bg-muted",
+  )}
+>
   {content}
 </div>
 ```
@@ -136,20 +139,22 @@ Use the `cn` helper to merge classes conditionally:
 ```tsx
 import { cn } from "@aomi-labs/react";
 
-<div className={cn(
-  "base-styles",
-  isActive && "active-styles",
-  className // Allow overrides from props
-)} />
+<div
+  className={cn(
+    "base-styles",
+    isActive && "active-styles",
+    className, // Allow overrides from props
+  )}
+/>;
 ```
 
 ## Best Practices
 
-| Do | Don't |
-|----|-------|
-| Edit component source directly | Use `!important` overrides |
-| Use CSS variables for colors | Hardcode hex values |
-| Keep Tailwind for layout | Create separate CSS files |
+| Do                                    | Don't                      |
+| ------------------------------------- | -------------------------- |
+| Edit component source directly        | Use `!important` overrides |
+| Use CSS variables for colors          | Hardcode hex values        |
+| Keep Tailwind for layout              | Create separate CSS files  |
 | Extend the theme in `tailwind.config` | Override everything inline |
 
 ## Resources

@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import {
+  useAppKit,
+  useAppKitAccount,
+  useAppKitNetwork,
+} from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
 import {
   Button,
@@ -24,7 +28,8 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   const { open } = useAppKit();
 
   useEffect(() => {
-    const numericChainId = typeof chainId === "string" ? Number(chainId) : chainId;
+    const numericChainId =
+      typeof chainId === "string" ? Number(chainId) : chainId;
     setWallet({
       address,
       chainId: numericChainId,
@@ -44,7 +49,7 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   };
 
   const label = wallet.isConnected
-    ? wallet.ensName ?? formatAddress(wallet.address)
+    ? (wallet.ensName ?? formatAddress(wallet.address))
     : "Connect Wallet";
 
   return (
@@ -52,13 +57,15 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
       <SidebarMenuItem>
         <SidebarMenuButton size="lg" asChild>
           <Button
-            className="w-full justify-center rounded-full text-white dark:text-black shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white dark:hover:bg-[var(--muted-foreground)] dark:hover:text-black"
+            className="w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white dark:text-black dark:hover:bg-[var(--muted-foreground)] dark:hover:text-black"
             onClick={handleClick}
           >
             <div className="flex items-center gap-2">
               <span className="text-sm dark:text-black/70">{label}</span>
               {networkName ? (
-                <span className="text-[11px] text-white/80 dark:text-black/70">• {networkName}</span>
+                <span className="text-[11px] text-white/80 dark:text-black/70">
+                  • {networkName}
+                </span>
               ) : null}
             </div>
           </Button>
