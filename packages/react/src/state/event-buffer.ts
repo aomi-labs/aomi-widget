@@ -11,7 +11,6 @@ export type OutboundEvent = {
   type: string;
   sessionId: string;
   payload: unknown;
-  priority: "high" | "normal";
   timestamp: number;
 };
 
@@ -98,9 +97,6 @@ export function hasOutbound(state: EventBuffer): boolean {
   return state.outboundQueue.length > 0;
 }
 
-export function hasHighPriorityOutbound(state: EventBuffer): boolean {
-  return state.outboundQueue.some((e) => e.priority === "high");
-}
 
 // =============================================================================
 // Subscription Helpers
