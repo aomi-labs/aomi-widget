@@ -1,7 +1,7 @@
 import type { MutableRefObject } from "react";
 import { useCallback, useRef, useState } from "react";
 
-import { BackendApi } from "../backend/client";
+import type { BackendApi } from "../backend/client";
 import type { AomiMessage, ApiSystemEvent } from "../backend/types";
 import {
   useThreadContext,
@@ -24,13 +24,14 @@ type OrchestratorOptions = {
 };
 
 export function useRuntimeOrchestrator(
-  backendUrl: string,
+  backendApi: BackendApi,
   options?: OrchestratorOptions,
 ) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = useRef(new BackendApi(backendUrl));
+  const backendApiRef = useRef(backendApi);
+  backendApiRef.current = backendApi;
   const backendStateRef = useRef<BakendState>(createBakendState());
 
   const [isRunning, setIsRunning] = useState(false);

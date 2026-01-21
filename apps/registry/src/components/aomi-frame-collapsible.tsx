@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useCallback, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import {
-  AomiRuntimeProviderWithNotifications,
+  AomiRuntimeProvider,
   ThreadContextProvider,
-  WalletSystemMessageEmitter,
   cn,
-  type WalletButtonState,
+  useUser,
   type WalletFooterProps,
   useCurrentThreadMetadata,
   useThreadContext,
@@ -27,7 +26,7 @@ type AomiFrameCollapsibleProps = {
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
-  /** Render prop for wallet footer - receives wallet state and setter from lib */
+  /** Render prop for wallet footer - receives wallet state and setter from UserContext */
   walletFooter?: (props: WalletFooterProps) => ReactNode;
   /** Additional content to render inside the frame */
   children?: ReactNode;
@@ -44,41 +43,23 @@ export const AomiFrameCollapsible = ({
   children,
   defaultOpen = false,
 }: AomiFrameCollapsibleProps) => {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
-
-  // Local wallet state (replaces Zustand)
-  const [wallet, setWalletState] = useState<WalletButtonState>({
-    isConnected: false,
-    address: undefined,
-    chainId: undefined,
-    ensName: undefined,
-  });
-
-  const setWallet = useCallback((data: Partial<WalletButtonState>) => {
-    setWalletState((prev) => ({ ...prev, ...data }));
-  }, []);
 
   return (
     <ThreadContextProvider>
-      <AomiRuntimeProviderWithNotifications
-        backendUrl={backendUrl}
-        publicKey={wallet.address}
-      >
-        {/* Internal: watches wallet state and sends system messages */}
-        <WalletSystemMessageEmitter wallet={wallet} />
+      <AomiRuntimeProvider backendUrl={backendUrl}>
         <NotificationToaster />
         <FrameShellCollapsible
           className={className}
           frameStyle={frameStyle}
           walletFooter={walletFooter}
-          wallet={wallet}
-          setWallet={setWallet}
           defaultOpen={defaultOpen}
         >
           {children}
         </FrameShellCollapsible>
-      </AomiRuntimeProviderWithNotifications>
+      </AomiRuntimeProvider>
     </ThreadContextProvider>
   );
 };
@@ -87,8 +68,6 @@ type FrameShellCollapsibleProps = {
   className?: string;
   frameStyle: CSSProperties;
   walletFooter?: (props: WalletFooterProps) => ReactNode;
-  wallet: WalletButtonState;
-  setWallet: (data: Partial<WalletButtonState>) => void;
   children?: ReactNode;
   defaultOpen?: boolean;
 };
@@ -97,13 +76,12 @@ const FrameShellCollapsible = ({
   className,
   frameStyle,
   walletFooter,
-  wallet,
-  setWallet,
   children,
   defaultOpen = false,
 }: FrameShellCollapsibleProps) => {
   const currentTitle = useCurrentThreadMetadata()?.title ?? "New Chat";
   const { currentThreadId, threadViewKey } = useThreadContext();
+  const { user, setUser } = useUser();
 
   return (
     <>
@@ -111,16 +89,16 @@ const FrameShellCollapsible = ({
       <div
         className={cn(
           "flex h-full w-full overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950",
-          className
+          className,
         )}
         style={frameStyle}
       >
         <ThreadListCollapsible
-          footer={walletFooter?.({ wallet, setWallet })}
+          footer={walletFooter?.({ wallet: user, setWallet: setUser })}
           defaultOpen={defaultOpen}
         />
         <div className="relative flex flex-1 flex-col overflow-hidden">
-          <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
+          <header className="mt-1 flex h-14 shrink-0 items-center gap-2 border-b px-3">
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
               <BreadcrumbList>
