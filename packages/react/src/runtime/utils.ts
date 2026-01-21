@@ -29,16 +29,12 @@ export const isPlaceholderTitle = (title?: string) => {
 
 // ==================== Message Conversion ====================
 
-type MessageContentPart = Exclude<
-  ThreadMessageLike["content"],
-  string
-> extends readonly (infer U)[]
-  ? U
-  : never;
+type MessageContentPart =
+  Exclude<ThreadMessageLike["content"], string> extends readonly (infer U)[]
+    ? U
+    : never;
 
-export function toInboundMessage(
-  msg: AomiMessage,
-): ThreadMessageLike | null {
+export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
   if (msg.sender === "system") return null;
 
   const content: MessageContentPart[] = [];
@@ -49,8 +45,7 @@ export function toInboundMessage(
     content.push({ type: "text" as const, text: msg.content });
   }
 
-  // Sync result or Asnyc Ack
-  const [topic, toolContent] = parseToolResult(msg.tool_result) ?? [];
+  const [topic, toolContent] = parseToolPayload(msg) ?? [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call" as const,
@@ -78,6 +73,14 @@ export function toInboundMessage(
   return threadMessage;
 }
 
+function parseToolPayload(msg: AomiMessage): [string, string] | null {
+  if (msg.tool_stream && Array.isArray(msg.tool_stream)) {
+    const [topic, content] = msg.tool_stream;
+    return [String(topic), String(content ?? "")];
+  }
+
+  return parseToolResult(msg.tool_result);
+}
 
 export function constructUITool(): string {
   return "";

@@ -629,7 +629,7 @@ function toInboundMessage(msg) {
   if (msg.content) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
+  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",
@@ -650,6 +650,13 @@ function toInboundMessage(msg) {
     content: content.length > 0 ? content : [{ type: "text", text: "" }]
   }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
   return threadMessage;
+}
+function parseToolPayload(msg) {
+  if (msg.tool_stream && Array.isArray(msg.tool_stream)) {
+    const [topic, content] = msg.tool_stream;
+    return [String(topic), String(content != null ? content : "")];
+  }
+  return parseToolResult(msg.tool_result);
 }
 function parseToolResult(toolResult) {
   if (!toolResult) return null;
@@ -965,16 +972,20 @@ function buildThreadLists(threadMetadata) {
   const entries = Array.from(threadMetadata.entries()).filter(
     ([, meta]) => !isPlaceholderTitle(meta.title)
   );
-  const regularThreads = entries.filter(([, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(([id, meta]) => ({
-    id,
-    title: meta.title || "New Chat",
-    status: "regular"
-  }));
-  const archivedThreads = entries.filter(([, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(([id, meta]) => ({
-    id,
-    title: meta.title || "New Chat",
-    status: "archived"
-  }));
+  const regularThreads = entries.filter(([, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(
+    ([id, meta]) => ({
+      id,
+      title: meta.title || "New Chat",
+      status: "regular"
+    })
+  );
+  const archivedThreads = entries.filter(([, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(
+    ([id, meta]) => ({
+      id,
+      title: meta.title || "New Chat",
+      status: "archived"
+    })
+  );
   return { regularThreads, archivedThreads };
 }
 function AomiRuntimeProvider({
@@ -1005,7 +1016,9 @@ function AomiRuntimeProvider({
     const threadId = threadContext.currentThreadId;
     setIsRunning(isThreadRunning(backendStateRef.current, threadId));
   }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
-  const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
+  const currentMessages = threadContext.getThreadMessages(
+    threadContext.currentThreadId
+  );
   useEffect2(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
@@ -1044,7 +1057,9 @@ function AomiRuntimeProvider({
   }, [publicKey]);
   const threadListAdapter = useMemo2(() => {
     const backendState = backendStateRef.current;
-    const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
+    const { regularThreads, archivedThreads } = buildThreadLists(
+      threadContext.threadMetadata
+    );
     const preparePendingThread = (threadId) => {
       const previousPendingId = backendState.creatingThreadId;
       if (previousPendingId && previousPendingId !== threadId) {
@@ -1095,7 +1110,9 @@ function AomiRuntimeProvider({
           return;
         }
         if (backendState.createThreadPromise) {
-          preparePendingThread((_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`);
+          preparePendingThread(
+            (_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`
+          );
           return;
         }
         const tempId = `temp-${crypto.randomUUID()}`;
@@ -1174,7 +1191,9 @@ function AomiRuntimeProvider({
           await backendApiRef.current.renameThread(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
-          threadContext.updateThreadMetadata(threadId, { title: previousTitle });
+          threadContext.updateThreadMetadata(threadId, {
+            title: previousTitle
+          });
         }
       },
       onArchive: async (threadId) => {
@@ -1216,7 +1235,9 @@ function AomiRuntimeProvider({
             backendState.creatingThreadId = null;
           }
           if (threadContext.currentThreadId === threadId) {
-            const firstRegularThread = Array.from(threadContext.threadMetadata.entries()).find(
+            const firstRegularThread = Array.from(
+              threadContext.threadMetadata.entries()
+            ).find(
               ([id, meta]) => meta.status === "regular" && id !== threadId
             );
             if (firstRegularThread) {
@@ -1260,6 +1281,7 @@ function AomiRuntimeProvider({
         const sessionId = event.session_id;
         if (eventType === "title_changed") {
           const newTitle = event.new_title;
+          if (!newTitle) return;
           const backendState = backendStateRef.current;
           const targetThreadId = (_a = findTempIdForBackendId(backendState, sessionId)) != null ? _a : resolveThreadId(backendState, sessionId);
           const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
@@ -1284,7 +1306,12 @@ function AomiRuntimeProvider({
     return () => {
       unsubscribe == null ? void 0 : unsubscribe();
     };
-  }, [backendApiRef, backendStateRef, threadContext, threadContext.currentThreadId]);
+  }, [
+    backendApiRef,
+    backendStateRef,
+    threadContext,
+    threadContext.currentThreadId
+  ]);
   useEffect2(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;

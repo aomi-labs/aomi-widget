@@ -4,10 +4,11 @@ import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
 
 interface AomiMessage {
-    sender?: string;
+    sender?: "user" | "agent" | "system" | string;
     content?: string;
     timestamp?: string;
     is_streaming?: boolean;
+    tool_stream?: [string, string] | null;
     tool_result?: [string, string] | {
         topic?: unknown;
         content?: unknown;
@@ -23,6 +24,9 @@ interface ApiStateResponse {
     is_processing?: boolean;
     session_exists?: boolean;
     session_id?: string;
+    system_events?: unknown[];
+    rehydrated?: boolean;
+    state_source?: "db" | "memory" | string;
 }
 /**
  * POST /api/chat
@@ -32,6 +36,7 @@ interface ApiChatResponse {
     messages?: AomiMessage[] | null;
     title?: string | null;
     is_processing?: boolean;
+    session_exists?: boolean;
 }
 /**
  * POST /api/system
@@ -69,8 +74,9 @@ interface ApiCreateThreadResponse {
  * Base SSE event - all events have session_id and type
  */
 type ApiSSEEvent = {
-    type: string;
+    type: "title_changed" | "tool_completion" | string;
     session_id: string;
+    new_title?: string;
     [key: string]: unknown;
 };
 /**
