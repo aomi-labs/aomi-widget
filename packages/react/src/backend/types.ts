@@ -7,7 +7,10 @@ export interface AomiMessage {
   content?: string;
   timestamp?: string;
   is_streaming?: boolean;
-  tool_result?: [string, string] | { topic?: unknown; content?: unknown } | null;
+  tool_result?:
+    | [string, string]
+    | { topic?: unknown; content?: unknown }
+    | null;
 }
 
 // =============================================================================
@@ -20,6 +23,7 @@ export interface AomiMessage {
  */
 export interface ApiStateResponse {
   messages?: AomiMessage[] | null;
+  system_events?: ApiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
   session_exists?: boolean;
@@ -32,6 +36,7 @@ export interface ApiStateResponse {
  */
 export interface ApiChatResponse {
   messages?: AomiMessage[] | null;
+  system_events?: ApiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
 }
@@ -97,11 +102,50 @@ export type ApiSSEEventType = "title_changed" | "tool_completion";
 // =============================================================================
 
 /**
- * GET /api/events
- * Returns async callback events from backend (wallet tx requests, notifications, etc.)
+ * Backend SystemEvent enum serializes as tagged JSON:
+ * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
+ * - SystemNotice: {"SystemNotice": "message"}
+ * - SystemError: {"SystemError": "message"}
+ * - AsyncCallback: {"AsyncCallback": {...}}
  */
-export type ApiSystemEvent = {
-  type: string;
-  [key: string]: unknown;
-};
+export type ApiSystemEvent =
+  | { InlineCall: { type: string; payload?: unknown; [key: string]: unknown } }
+  | { SystemNotice: string }
+  | { SystemError: string }
+  | { AsyncCallback: Record<string, unknown> };
 
+/**
+ * Type guard for InlineCall events
+ */
+export function isInlineCall(
+  event: ApiSystemEvent,
+): event is { InlineCall: { type: string; payload?: unknown } } {
+  return "InlineCall" in event;
+}
+
+/**
+ * Type guard for SystemNotice events
+ */
+export function isSystemNotice(
+  event: ApiSystemEvent,
+): event is { SystemNotice: string } {
+  return "SystemNotice" in event;
+}
+
+/**
+ * Type guard for SystemError events
+ */
+export function isSystemError(
+  event: ApiSystemEvent,
+): event is { SystemError: string } {
+  return "SystemError" in event;
+}
+
+/**
+ * Type guard for AsyncCallback events
+ */
+export function isAsyncCallback(
+  event: ApiSystemEvent,
+): event is { AsyncCallback: Record<string, unknown> } {
+  return "AsyncCallback" in event;
+}

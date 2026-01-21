@@ -2,7 +2,7 @@ import type { MutableRefObject } from "react";
 import { useCallback, useRef, useState } from "react";
 
 import { BackendApi } from "../backend/client";
-import type { AomiMessage } from "../backend/types";
+import type { AomiMessage, ApiSystemEvent } from "../backend/types";
 import {
   useThreadContext,
   type ThreadContext,
@@ -18,9 +18,14 @@ import {
   type BakendState,
 } from "../state/backend-state";
 
+type OrchestratorOptions = {
+  getPublicKey?: () => string | undefined;
+  onSystemEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+};
+
 export function useRuntimeOrchestrator(
   backendUrl: string,
-  options?: { getPublicKey?: () => string | undefined },
+  options?: OrchestratorOptions,
 ) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
@@ -42,6 +47,7 @@ export function useRuntimeOrchestrator(
       applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
         messageControllerRef.current?.inbound(threadId, msgs);
       },
+      onSystemEvents: options?.onSystemEvents,
       onStart: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);

@@ -406,7 +406,7 @@ sequenceDiagram
     EB-->>BE: POST /events
 
     Note over BE: AI requests transaction
-    BE->>EB: SSE: {type: wallet:tx_request, to, value, data}
+    BE->>API: HTTP api/state: {"system": {"type": "wallet_tx_request",}}
     EB->>WH: subscriber callback
     WH->>WH: setPendingTxRequests([...prev, request])
     WH->>WC: onTxRequest?.(request)

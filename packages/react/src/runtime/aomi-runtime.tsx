@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
@@ -9,7 +9,12 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import { EventContextProvider } from "../contexts/event-context";
+import {
+  EventContextProvider,
+  useEventContext,
+} from "../contexts/event-context";
+import { NotificationContextProvider } from "../contexts/notification-context";
+import { UserContextProvider, useUser } from "../contexts/user-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
   findTempIdForBackendId,
@@ -23,9 +28,13 @@ import { isPlaceholderTitle, isTempThreadId, parseTimestamp } from "./utils";
 import { useThreadContext } from "../contexts/thread-context";
 import { ThreadMetadata } from "../state/thread-store";
 
+// =============================================================================
+// Thread List Helpers
+// =============================================================================
+
 const sortByLastActiveDesc = (
   [, metaA]: [string, ThreadMetadata],
-  [, metaB]: [string, ThreadMetadata]
+  [, metaB]: [string, ThreadMetadata],
 ) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -34,26 +43,30 @@ const sortByLastActiveDesc = (
 
 function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
   const entries = Array.from(threadMetadata.entries()).filter(
-    ([, meta]) => !isPlaceholderTitle(meta.title)
+    ([, meta]) => !isPlaceholderTitle(meta.title),
   );
 
   const regularThreads = entries
     .filter(([, meta]) => meta.status === "regular")
     .sort(sortByLastActiveDesc)
-    .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
-      id,
-      title: meta.title || "New Chat",
-      status: "regular",
-    }));
+    .map(
+      ([id, meta]): ExternalStoreThreadData<"regular"> => ({
+        id,
+        title: meta.title || "New Chat",
+        status: "regular",
+      }),
+    );
 
   const archivedThreads = entries
     .filter(([, meta]) => meta.status === "archived")
     .sort(sortByLastActiveDesc)
-    .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
-      id,
-      title: meta.title || "New Chat",
-      status: "archived",
-    }));
+    .map(
+      ([id, meta]): ExternalStoreThreadData<"archived"> => ({
+        id,
+        title: meta.title || "New Chat",
+        status: "archived",
+      }),
+    );
 
   return { regularThreads, archivedThreads };
 }
@@ -70,6 +83,8 @@ export function AomiRuntimeProvider({
   publicKey,
 }: Readonly<AomiRuntimeProviderProps>) {
   const threadContext = useThreadContext();
+  const { dispatchInboundSystem: dispatchSystemEvents } = useEventContext();
+  const { onUserStateChange } = useUser();
   const {
     backendStateRef,
     polling,
@@ -78,7 +93,26 @@ export function AomiRuntimeProvider({
     setIsRunning,
     ensureInitialState,
     backendApiRef,
-  } = useRuntimeOrchestrator(backendUrl);
+  } = useRuntimeOrchestrator(backendUrl, { onSystemEvents: dispatchSystemEvents });
+
+
+  useEffect(() => {
+    const unsubscribe = onUserStateChange(async (newUser) => {
+      const sessionId = threadContext.currentThreadId;
+      const message = JSON.stringify({
+        type: "wallet:state_changed",
+        payload: {
+          address: newUser.address,
+          chainId: newUser.chainId,
+          isConnected: newUser.isConnected,
+          ensName: newUser.ensName,
+        },
+      });
+      await backendApiRef.current.postSystemMessage(sessionId, message);
+    });
+
+    return unsubscribe;
+  }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
 
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
@@ -97,7 +131,9 @@ export function AomiRuntimeProvider({
     setIsRunning(isThreadRunning(backendStateRef.current, threadId));
   }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
 
-  const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
+  const currentMessages = threadContext.getThreadMessages(
+    threadContext.currentThreadId,
+  );
 
   // Fetch thread list on mount when publicKey is available
   useEffect(() => {
@@ -148,7 +184,9 @@ export function AomiRuntimeProvider({
 
   const threadListAdapter = useMemo(() => {
     const backendState = backendStateRef.current;
-    const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
+    const { regularThreads, archivedThreads } = buildThreadLists(
+      threadContext.threadMetadata,
+    );
 
     const preparePendingThread = (threadId: string) => {
       const previousPendingId = backendState.creatingThreadId;
@@ -174,7 +212,7 @@ export function AomiRuntimeProvider({
           title: "New Chat",
           status: "pending",
           lastActiveAt: new Date().toISOString(),
-        })
+        }),
       );
       threadContext.setThreadMessages(threadId, []);
       threadContext.setCurrentThreadId(threadId);
@@ -203,7 +241,9 @@ export function AomiRuntimeProvider({
         }
 
         if (backendState.createThreadPromise) {
-          preparePendingThread(backendState.creatingThreadId ?? `temp-${crypto.randomUUID()}`);
+          preparePendingThread(
+            backendState.creatingThreadId ?? `temp-${crypto.randomUUID()}`,
+          );
           return;
         }
 
@@ -224,11 +264,13 @@ export function AomiRuntimeProvider({
               threadContext.setThreadMetadata((prev) => {
                 const next = new Map(prev);
                 const existing = next.get(uiThreadId);
-                const nextStatus = existing?.status === "archived" ? "archived" : "regular";
+                const nextStatus =
+                  existing?.status === "archived" ? "archived" : "regular";
                 next.set(uiThreadId, {
                   title: backendTitle,
                   status: nextStatus,
-                  lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+                  lastActiveAt:
+                    existing?.lastActiveAt ?? new Date().toISOString(),
                 });
                 return next;
               });
@@ -282,7 +324,8 @@ export function AomiRuntimeProvider({
       },
 
       onRename: async (threadId: string, newTitle: string) => {
-        const previousTitle = threadContext.getThreadMetadata(threadId)?.title ?? "";
+        const previousTitle =
+          threadContext.getThreadMetadata(threadId)?.title ?? "";
         const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
         threadContext.updateThreadMetadata(threadId, {
           title: normalizedTitle,
@@ -292,7 +335,9 @@ export function AomiRuntimeProvider({
           await backendApiRef.current.renameThread(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
-          threadContext.updateThreadMetadata(threadId, { title: previousTitle });
+          threadContext.updateThreadMetadata(threadId, {
+            title: previousTitle,
+          });
         }
       },
 
@@ -341,8 +386,10 @@ export function AomiRuntimeProvider({
           }
 
           if (threadContext.currentThreadId === threadId) {
-            const firstRegularThread = Array.from(threadContext.threadMetadata.entries()).find(
-              ([id, meta]) => meta.status === "regular" && id !== threadId
+            const firstRegularThread = Array.from(
+              threadContext.threadMetadata.entries(),
+            ).find(
+              ([id, meta]) => meta.status === "regular" && id !== threadId,
             );
 
             if (firstRegularThread) {
@@ -354,7 +401,7 @@ export function AomiRuntimeProvider({
                   title: "New Chat",
                   status: "regular",
                   lastActiveAt: new Date().toISOString(),
-                })
+                }),
               );
               threadContext.setThreadMessages(defaultId, []);
               threadContext.setCurrentThreadId(defaultId);
@@ -396,7 +443,8 @@ export function AomiRuntimeProvider({
           threadContext.setThreadMetadata((prev) => {
             const next = new Map(prev);
             const existing = next.get(targetThreadId);
-            const nextStatus = existing?.status === "archived" ? "archived" : "regular";
+            const nextStatus =
+              existing?.status === "archived" ? "archived" : "regular";
             next.set(targetThreadId, {
               title: normalizedTitle,
               status: nextStatus,
@@ -404,19 +452,27 @@ export function AomiRuntimeProvider({
             });
             return next;
           });
-          if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
+          if (
+            !isPlaceholderTitle(newTitle) &&
+            backendState.creatingThreadId === targetThreadId
+          ) {
             backendState.creatingThreadId = null;
           }
         }
         // Other event types (wallet:tx_request, notification, etc.) are handled
         // by the EventContext and dispatched to subscribers
-      }
+      },
     );
 
     return () => {
       unsubscribe?.();
     };
-  }, [backendApiRef, backendStateRef, threadContext, threadContext.currentThreadId]);
+  }, [
+    backendApiRef,
+    backendStateRef,
+    threadContext,
+    threadContext.currentThreadId,
+  ]);
 
   // Flush pending chat when thread becomes ready
   useEffect(() => {
@@ -444,12 +500,21 @@ export function AomiRuntimeProvider({
     };
   }, [polling]);
 
+
   return (
-    <EventContextProvider
-      backendApi={backendApiRef.current}
-      sessionId={threadContext.currentThreadId}
-    >
-      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
-    </EventContextProvider>
+    <NotificationContextProvider>
+      <UserContextProvider>
+        <EventContextProvider
+        backendApi={backendApiRef.current}
+        sessionId={threadContext.currentThreadId}
+      >
+          <AssistantRuntimeProvider runtime={runtime}>
+            {children}
+          </AssistantRuntimeProvider>
+      </EventContextProvider>
+      </UserContextProvider>
+    </NotificationContextProvider>
   );
 }
+
+// =============================================================================

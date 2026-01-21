@@ -40,8 +40,17 @@ __export(index_exports, {
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   BackendApi: () => BackendApi,
   EventContextProvider: () => EventContextProvider,
+  NotificationContextProvider: () => NotificationContextProvider,
+  ThreadContextProvider: () => ThreadContextProvider,
+  UserContextProvider: () => UserContextProvider,
+  cn: () => cn,
+  useCurrentThreadMessages: () => useCurrentThreadMessages,
+  useCurrentThreadMetadata: () => useCurrentThreadMetadata,
   useEventContext: () => useEventContext,
+  useNotification: () => useNotification,
   useNotificationHandler: () => useNotificationHandler,
+  useThreadContext: () => useThreadContext,
+  useUser: () => useUser,
   useWalletHandler: () => useWalletHandler
 });
 module.exports = __toCommonJS(index_exports);
@@ -212,11 +221,25 @@ var BackendApi = class {
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
-var import_react4 = require("react");
-var import_react5 = require("@assistant-ui/react");
+var import_react6 = require("react");
+var import_react7 = require("@assistant-ui/react");
 
 // packages/react/src/contexts/event-context.tsx
 var import_react = require("react");
+
+// packages/react/src/backend/types.ts
+function isInlineCall(event) {
+  return "InlineCall" in event;
+}
+function isSystemNotice(event) {
+  return "SystemNotice" in event;
+}
+function isSystemError(event) {
+  return "SystemError" in event;
+}
+function isAsyncCallback(event) {
+  return "AsyncCallback" in event;
+}
 
 // packages/react/src/state/event-buffer.ts
 function createEventBuffer() {
@@ -280,9 +303,7 @@ function EventContextProvider({
   sessionId
 }) {
   const bufferRef = (0, import_react.useRef)(null);
-  if (!bufferRef.current) {
-    bufferRef.current = createEventBuffer();
-  }
+  bufferRef.current = createEventBuffer();
   const buffer = bufferRef.current;
   const [sseStatus, setSseStatus] = (0, import_react.useState)("disconnected");
   (0, import_react.useEffect)(() => {
@@ -318,7 +339,7 @@ function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, buffer, sessionId]);
+  }, [backendApi, bufferRef, sessionId]);
   const subscribeCallback = (0, import_react.useCallback)(
     (type, callback) => {
       return subscribe(buffer, type, callback);
@@ -339,23 +360,292 @@ function EventContextProvider({
     },
     [backendApi]
   );
+  const dispatchSystemEvents = (0, import_react.useCallback)(
+    (sessionId2, events) => {
+      var _a;
+      for (const event of events) {
+        let eventType;
+        let payload;
+        if (isInlineCall(event)) {
+          eventType = event.InlineCall.type;
+          payload = (_a = event.InlineCall.payload) != null ? _a : event.InlineCall;
+        } else if (isSystemNotice(event)) {
+          eventType = "system_notice";
+          payload = { message: event.SystemNotice };
+        } else if (isSystemError(event)) {
+          eventType = "system_error";
+          payload = { message: event.SystemError };
+        } else if (isAsyncCallback(event)) {
+          eventType = "async_callback";
+          payload = event.AsyncCallback;
+        } else {
+          console.warn("Unknown system event type:", event);
+          continue;
+        }
+        const inboundEvent = {
+          type: eventType,
+          sessionId: sessionId2,
+          payload,
+          status: "fetched",
+          timestamp: Date.now()
+        };
+        enqueueInbound(buffer, {
+          type: eventType,
+          sessionId: sessionId2,
+          payload
+        });
+        dispatch(buffer, inboundEvent);
+      }
+    },
+    [buffer]
+  );
   const contextValue = {
     subscribe: subscribeCallback,
-    sendOutbound,
+    sendOutboundSystem: sendOutbound,
+    dispatchInboundSystem: dispatchSystemEvents,
     sseStatus
   };
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/runtime/orchestrator.ts
-var import_react3 = require("react");
-
-// packages/react/src/contexts/thread-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 var import_react2 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
-var ThreadContextState = (0, import_react2.createContext)(null);
+var NotificationContext = (0, import_react2.createContext)(
+  null
+);
+function useNotification() {
+  const context = (0, import_react2.useContext)(NotificationContext);
+  if (!context) {
+    throw new Error(
+      "useNotification must be used within NotificationContextProvider"
+    );
+  }
+  return context;
+}
+var notificationIdCounter = 0;
+function generateId() {
+  return `notif-${Date.now()}-${++notificationIdCounter}`;
+}
+function NotificationContextProvider({
+  children
+}) {
+  const [notifications, setNotifications] = (0, import_react2.useState)([]);
+  const showNotification = (0, import_react2.useCallback)((params) => {
+    const id = generateId();
+    const notification = __spreadProps(__spreadValues({}, params), {
+      id,
+      timestamp: Date.now()
+    });
+    setNotifications((prev) => [notification, ...prev]);
+    return id;
+  }, []);
+  const dismissNotification = (0, import_react2.useCallback)((id) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+  const clearAll = (0, import_react2.useCallback)(() => {
+    setNotifications([]);
+  }, []);
+  const value = {
+    notifications,
+    showNotification,
+    dismissNotification,
+    clearAll
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NotificationContext.Provider, { value, children });
+}
+
+// packages/react/src/contexts/user-context.tsx
+var import_react3 = require("react");
+var import_jsx_runtime3 = require("react/jsx-runtime");
+var UserContext = (0, import_react3.createContext)(void 0);
+function useUser() {
+  const context = (0, import_react3.useContext)(UserContext);
+  if (!context) {
+    throw new Error("useUser must be used within UserContextProvider");
+  }
+  return {
+    user: context.user,
+    setUser: context.setUser,
+    getUserState: context.getUserState,
+    onUserStateChange: context.onUserStateChange
+  };
+}
+function UserContextProvider({ children }) {
+  const [user, setUserState] = (0, import_react3.useState)({
+    isConnected: false,
+    address: void 0,
+    chainId: void 0,
+    ensName: void 0
+  });
+  const userRef = (0, import_react3.useRef)(user);
+  userRef.current = user;
+  const StateChangeCallbacks = (0, import_react3.useRef)(/* @__PURE__ */ new Set());
+  const setUser = (0, import_react3.useCallback)((data) => {
+    setUserState((prev) => {
+      const next = __spreadValues(__spreadValues({}, prev), data);
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+      return next;
+    });
+  }, []);
+  const getUserState = (0, import_react3.useCallback)(() => userRef.current, []);
+  const onUserStateChange = (0, import_react3.useCallback)(
+    (callback) => {
+      StateChangeCallbacks.current.add(callback);
+      return () => {
+        StateChangeCallbacks.current.delete(callback);
+      };
+    },
+    []
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+    UserContext.Provider,
+    {
+      value: {
+        user,
+        setUser,
+        getUserState,
+        onUserStateChange
+      },
+      children
+    }
+  );
+}
+
+// packages/react/src/runtime/orchestrator.ts
+var import_react5 = require("react");
+
+// packages/react/src/contexts/thread-context.tsx
+var import_react4 = require("react");
+
+// packages/react/src/state/thread-store.ts
+var ThreadStore = class {
+  constructor(options) {
+    this.listeners = /* @__PURE__ */ new Set();
+    this.subscribe = (listener) => {
+      this.listeners.add(listener);
+      return () => {
+        this.listeners.delete(listener);
+      };
+    };
+    this.getSnapshot = () => this.snapshot;
+    this.setCurrentThreadId = (threadId) => {
+      this.ensureThreadExists(threadId);
+      this.updateState({ currentThreadId: threadId });
+    };
+    this.bumpThreadViewKey = () => {
+      this.updateState({ threadViewKey: this.state.threadViewKey + 1 });
+    };
+    this.setThreadCnt = (updater) => {
+      const nextCnt = this.resolveStateAction(updater, this.state.threadCnt);
+      this.updateState({ threadCnt: nextCnt });
+    };
+    this.setThreads = (updater) => {
+      const nextThreads = this.resolveStateAction(updater, this.state.threads);
+      this.updateState({ threads: new Map(nextThreads) });
+    };
+    this.setThreadMetadata = (updater) => {
+      const nextMetadata = this.resolveStateAction(updater, this.state.threadMetadata);
+      this.updateState({ threadMetadata: new Map(nextMetadata) });
+    };
+    this.setThreadMessages = (threadId, messages) => {
+      this.ensureThreadExists(threadId);
+      const nextThreads = new Map(this.state.threads);
+      nextThreads.set(threadId, messages);
+      this.updateState({ threads: nextThreads });
+    };
+    this.getThreadMessages = (threadId) => {
+      var _a;
+      return (_a = this.state.threads.get(threadId)) != null ? _a : [];
+    };
+    this.getThreadMetadata = (threadId) => {
+      return this.state.threadMetadata.get(threadId);
+    };
+    this.updateThreadMetadata = (threadId, updates) => {
+      const existing = this.state.threadMetadata.get(threadId);
+      if (!existing) {
+        return;
+      }
+      const nextMetadata = new Map(this.state.threadMetadata);
+      nextMetadata.set(threadId, __spreadValues(__spreadValues({}, existing), updates));
+      this.updateState({ threadMetadata: nextMetadata });
+    };
+    var _a;
+    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : crypto.randomUUID();
+    this.state = {
+      currentThreadId: initialThreadId,
+      threadViewKey: 0,
+      threadCnt: 1,
+      threads: /* @__PURE__ */ new Map([[initialThreadId, []]]),
+      threadMetadata: /* @__PURE__ */ new Map([
+        [
+          initialThreadId,
+          {
+            title: "New Chat",
+            status: "pending",
+            lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+          }
+        ]
+      ])
+    };
+    this.snapshot = this.buildSnapshot();
+  }
+  emit() {
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+  resolveStateAction(updater, current) {
+    return typeof updater === "function" ? updater(current) : updater;
+  }
+  ensureThreadExists(threadId) {
+    if (!this.state.threadMetadata.has(threadId)) {
+      const nextMetadata = new Map(this.state.threadMetadata);
+      nextMetadata.set(threadId, {
+        title: "New Chat",
+        status: "regular",
+        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      this.state = __spreadProps(__spreadValues({}, this.state), { threadMetadata: nextMetadata });
+    }
+    if (!this.state.threads.has(threadId)) {
+      const nextThreads = new Map(this.state.threads);
+      nextThreads.set(threadId, []);
+      this.state = __spreadProps(__spreadValues({}, this.state), { threads: nextThreads });
+    }
+  }
+  updateState(partial) {
+    this.state = __spreadValues(__spreadValues({}, this.state), partial);
+    this.snapshot = this.buildSnapshot();
+    this.emit();
+  }
+  buildSnapshot() {
+    return {
+      currentThreadId: this.state.currentThreadId,
+      setCurrentThreadId: this.setCurrentThreadId,
+      threadViewKey: this.state.threadViewKey,
+      bumpThreadViewKey: this.bumpThreadViewKey,
+      threads: this.state.threads,
+      setThreads: this.setThreads,
+      threadMetadata: this.state.threadMetadata,
+      setThreadMetadata: this.setThreadMetadata,
+      threadCnt: this.state.threadCnt,
+      setThreadCnt: this.setThreadCnt,
+      getThreadMessages: this.getThreadMessages,
+      setThreadMessages: this.setThreadMessages,
+      getThreadMetadata: this.getThreadMetadata,
+      updateThreadMetadata: this.updateThreadMetadata
+    };
+  }
+};
+
+// packages/react/src/contexts/thread-context.tsx
+var import_jsx_runtime4 = require("react/jsx-runtime");
+var ThreadContextState = (0, import_react4.createContext)(null);
 function useThreadContext() {
-  const context = (0, import_react2.useContext)(ThreadContextState);
+  const context = (0, import_react4.useContext)(ThreadContextState);
   if (!context) {
     throw new Error(
       "useThreadContext must be used within ThreadContextProvider. Wrap your app with <ThreadContextProvider>...</ThreadContextProvider>"
@@ -363,8 +653,33 @@ function useThreadContext() {
   }
   return context;
 }
+function ThreadContextProvider({
+  children,
+  initialThreadId
+}) {
+  const storeRef = (0, import_react4.useRef)(null);
+  if (!storeRef.current) {
+    storeRef.current = new ThreadStore({ initialThreadId });
+  }
+  const store = storeRef.current;
+  const value = (0, import_react4.useSyncExternalStore)(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ThreadContextState.Provider, { value, children });
+}
+function useCurrentThreadMessages() {
+  const { currentThreadId, getThreadMessages } = useThreadContext();
+  return (0, import_react4.useMemo)(() => getThreadMessages(currentThreadId), [currentThreadId, getThreadMessages]);
+}
+function useCurrentThreadMetadata() {
+  const { currentThreadId, getThreadMetadata } = useThreadContext();
+  return (0, import_react4.useMemo)(() => getThreadMetadata(currentThreadId), [currentThreadId, getThreadMetadata]);
+}
 
 // packages/react/src/runtime/utils.ts
+var import_clsx = require("clsx");
+var import_tailwind_merge = require("tailwind-merge");
+function cn(...inputs) {
+  return (0, import_tailwind_merge.twMerge)((0, import_clsx.clsx)(inputs));
+}
 var isTempThreadId = (id) => id.startsWith("temp-");
 var parseTimestamp = (value) => {
   if (value === void 0 || value === null) return 0;
@@ -653,9 +968,15 @@ var PollingController = class {
     }
   }
   handleState(threadId, state) {
+    var _a;
     if (state.session_exists === false) {
       this.stop(threadId);
       return;
+    }
+    if (((_a = state.system_events) == null ? void 0 : _a.length) && this.config.onSystemEvents) {
+      const backendState = this.config.backendStateRef.current;
+      const sessionId = resolveThreadId(backendState, threadId);
+      this.config.onSystemEvents(sessionId, state.system_events);
     }
     this.config.applyMessages(threadId, state.messages);
     if (!state.is_processing) {
@@ -667,14 +988,14 @@ var PollingController = class {
 // packages/react/src/runtime/orchestrator.ts
 function useRuntimeOrchestrator(backendUrl, options) {
   const threadContext = useThreadContext();
-  const threadContextRef = (0, import_react3.useRef)(threadContext);
+  const threadContextRef = (0, import_react5.useRef)(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = (0, import_react3.useRef)(new BackendApi(backendUrl));
-  const backendStateRef = (0, import_react3.useRef)(createBakendState());
-  const [isRunning, setIsRunning] = (0, import_react3.useState)(false);
-  const messageControllerRef = (0, import_react3.useRef)(null);
-  const pollingRef = (0, import_react3.useRef)(null);
-  const pendingFetches = (0, import_react3.useRef)(/* @__PURE__ */ new Set());
+  const backendApiRef = (0, import_react5.useRef)(new BackendApi(backendUrl));
+  const backendStateRef = (0, import_react5.useRef)(createBakendState());
+  const [isRunning, setIsRunning] = (0, import_react5.useState)(false);
+  const messageControllerRef = (0, import_react5.useRef)(null);
+  const pollingRef = (0, import_react5.useRef)(null);
+  const pendingFetches = (0, import_react5.useRef)(/* @__PURE__ */ new Set());
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
       backendApiRef,
@@ -683,6 +1004,7 @@ function useRuntimeOrchestrator(backendUrl, options) {
         var _a;
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
       },
+      onSystemEvents: options == null ? void 0 : options.onSystemEvents,
       onStart: (threadId) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);
@@ -705,7 +1027,7 @@ function useRuntimeOrchestrator(backendUrl, options) {
       getPublicKey: options == null ? void 0 : options.getPublicKey
     });
   }
-  const ensureInitialState = (0, import_react3.useCallback)(async (threadId) => {
+  const ensureInitialState = (0, import_react5.useCallback)(async (threadId) => {
     var _a, _b;
     const backendState = backendStateRef.current;
     if (shouldSkipInitialFetch(backendState, threadId)) {
@@ -756,7 +1078,7 @@ function useRuntimeOrchestrator(backendUrl, options) {
 }
 
 // packages/react/src/runtime/aomi-runtime.tsx
-var import_jsx_runtime3 = require("react/jsx-runtime");
+var import_jsx_runtime5 = require("react/jsx-runtime");
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -766,16 +1088,20 @@ function buildThreadLists(threadMetadata) {
   const entries = Array.from(threadMetadata.entries()).filter(
     ([, meta]) => !isPlaceholderTitle(meta.title)
   );
-  const regularThreads = entries.filter(([, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(([id, meta]) => ({
-    id,
-    title: meta.title || "New Chat",
-    status: "regular"
-  }));
-  const archivedThreads = entries.filter(([, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(([id, meta]) => ({
-    id,
-    title: meta.title || "New Chat",
-    status: "archived"
-  }));
+  const regularThreads = entries.filter(([, meta]) => meta.status === "regular").sort(sortByLastActiveDesc).map(
+    ([id, meta]) => ({
+      id,
+      title: meta.title || "New Chat",
+      status: "regular"
+    })
+  );
+  const archivedThreads = entries.filter(([, meta]) => meta.status === "archived").sort(sortByLastActiveDesc).map(
+    ([id, meta]) => ({
+      id,
+      title: meta.title || "New Chat",
+      status: "archived"
+    })
+  );
   return { regularThreads, archivedThreads };
 }
 function AomiRuntimeProvider({
@@ -784,6 +1110,8 @@ function AomiRuntimeProvider({
   publicKey
 }) {
   const threadContext = useThreadContext();
+  const { dispatchInboundSystem: dispatchSystemEvents } = useEventContext();
+  const { onUserStateChange } = useUser();
   const {
     backendStateRef,
     polling,
@@ -792,22 +1120,40 @@ function AomiRuntimeProvider({
     setIsRunning,
     ensureInitialState,
     backendApiRef
-  } = useRuntimeOrchestrator(backendUrl);
-  const threadContextRef = (0, import_react4.useRef)(threadContext);
+  } = useRuntimeOrchestrator(backendUrl, { onSystemEvents: dispatchSystemEvents });
+  (0, import_react6.useEffect)(() => {
+    const unsubscribe = onUserStateChange(async (newUser) => {
+      const sessionId = threadContext.currentThreadId;
+      const message = JSON.stringify({
+        type: "wallet:state_changed",
+        payload: {
+          address: newUser.address,
+          chainId: newUser.chainId,
+          isConnected: newUser.isConnected,
+          ensName: newUser.ensName
+        }
+      });
+      await backendApiRef.current.postSystemMessage(sessionId, message);
+    });
+    return unsubscribe;
+  }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
+  const threadContextRef = (0, import_react6.useRef)(threadContext);
   threadContextRef.current = threadContext;
-  const currentThreadIdRef = (0, import_react4.useRef)(threadContext.currentThreadId);
-  (0, import_react4.useEffect)(() => {
+  const currentThreadIdRef = (0, import_react6.useRef)(threadContext.currentThreadId);
+  (0, import_react6.useEffect)(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     setIsRunning(isThreadRunning(backendStateRef.current, threadId));
   }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
-  const currentMessages = threadContext.getThreadMessages(threadContext.currentThreadId);
-  (0, import_react4.useEffect)(() => {
+  const currentMessages = threadContext.getThreadMessages(
+    threadContext.currentThreadId
+  );
+  (0, import_react6.useEffect)(() => {
     if (!publicKey) return;
     const fetchThreadList = async () => {
       var _a, _b;
@@ -843,9 +1189,11 @@ function AomiRuntimeProvider({
     };
     void fetchThreadList();
   }, [publicKey, backendApiRef]);
-  const threadListAdapter = (0, import_react4.useMemo)(() => {
+  const threadListAdapter = (0, import_react6.useMemo)(() => {
     const backendState = backendStateRef.current;
-    const { regularThreads, archivedThreads } = buildThreadLists(threadContext.threadMetadata);
+    const { regularThreads, archivedThreads } = buildThreadLists(
+      threadContext.threadMetadata
+    );
     const preparePendingThread = (threadId) => {
       const previousPendingId = backendState.creatingThreadId;
       if (previousPendingId && previousPendingId !== threadId) {
@@ -896,7 +1244,9 @@ function AomiRuntimeProvider({
           return;
         }
         if (backendState.createThreadPromise) {
-          preparePendingThread((_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`);
+          preparePendingThread(
+            (_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`
+          );
           return;
         }
         const tempId = `temp-${crypto.randomUUID()}`;
@@ -975,7 +1325,9 @@ function AomiRuntimeProvider({
           await backendApiRef.current.renameThread(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
-          threadContext.updateThreadMetadata(threadId, { title: previousTitle });
+          threadContext.updateThreadMetadata(threadId, {
+            title: previousTitle
+          });
         }
       },
       onArchive: async (threadId) => {
@@ -1017,7 +1369,9 @@ function AomiRuntimeProvider({
             backendState.creatingThreadId = null;
           }
           if (threadContext.currentThreadId === threadId) {
-            const firstRegularThread = Array.from(threadContext.threadMetadata.entries()).find(
+            const firstRegularThread = Array.from(
+              threadContext.threadMetadata.entries()
+            ).find(
               ([id, meta]) => meta.status === "regular" && id !== threadId
             );
             if (firstRegularThread) {
@@ -1051,7 +1405,7 @@ function AomiRuntimeProvider({
     threadContext.currentThreadId,
     threadContext.threadMetadata
   ]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     const currentSessionId = threadContext.currentThreadId;
     const unsubscribe = backendApiRef.current.subscribeSSE(
       currentSessionId,
@@ -1085,14 +1439,19 @@ function AomiRuntimeProvider({
     return () => {
       unsubscribe == null ? void 0 : unsubscribe();
     };
-  }, [backendApiRef, backendStateRef, threadContext, threadContext.currentThreadId]);
-  (0, import_react4.useEffect)(() => {
+  }, [
+    backendApiRef,
+    backendStateRef,
+    threadContext,
+    threadContext.currentThreadId
+  ]);
+  (0, import_react6.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);
-  const runtime = (0, import_react5.useExternalStoreRuntime)({
+  const runtime = (0, import_react7.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
@@ -1101,38 +1460,44 @@ function AomiRuntimeProvider({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     return () => {
       polling.stopAll();
     };
   }, [polling]);
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(UserContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
     EventContextProvider,
     {
       backendApi: backendApiRef.current,
       sessionId: threadContext.currentThreadId,
-      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_react5.AssistantRuntimeProvider, { runtime, children })
+      children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_react7.AssistantRuntimeProvider, { runtime, children })
     }
-  );
+  ) }) });
 }
 
 // packages/react/src/handlers/wallet-handler.ts
-var import_react6 = require("react");
+var import_react8 = require("react");
 function useWalletHandler({
   sessionId,
   onTxRequest
 }) {
-  const { subscribe: subscribe2, sendOutbound } = useEventContext();
-  const [pendingTxRequests, setPendingTxRequests] = (0, import_react6.useState)([]);
-  (0, import_react6.useEffect)(() => {
-    const unsubscribe = subscribe2("wallet:tx_request", (event) => {
-      const request = event.payload;
-      setPendingTxRequests((prev) => [...prev, request]);
-      onTxRequest == null ? void 0 : onTxRequest(request);
-    });
+  const { subscribe: subscribe2, sendOutboundSystem: sendOutbound } = useEventContext();
+  const { setUser } = useUser();
+  const [pendingTxRequests, setPendingTxRequests] = (0, import_react8.useState)(
+    []
+  );
+  (0, import_react8.useEffect)(() => {
+    const unsubscribe = subscribe2(
+      "wallet_tx_request",
+      (event) => {
+        const request = event.payload;
+        setPendingTxRequests((prev) => [...prev, request]);
+        onTxRequest == null ? void 0 : onTxRequest(request);
+      }
+    );
     return unsubscribe;
   }, [subscribe2, onTxRequest]);
-  const sendTxComplete = (0, import_react6.useCallback)(
+  const sendTxComplete = (0, import_react8.useCallback)(
     (tx) => {
       sendOutbound({
         type: "wallet:tx_complete",
@@ -1143,8 +1508,21 @@ function useWalletHandler({
     },
     [sendOutbound, sessionId]
   );
-  const sendConnectionChange = (0, import_react6.useCallback)(
-    (status, address) => {
+  const sendConnectionChange = (0, import_react8.useCallback)(
+    (status, address, chainId) => {
+      if (status === "connected") {
+        setUser({
+          isConnected: true,
+          address,
+          chainId
+        });
+      } else {
+        setUser({
+          isConnected: false,
+          address: void 0,
+          chainId: void 0
+        });
+      }
       sendOutbound({
         type: status === "connected" ? "wallet:connected" : "wallet:disconnected",
         sessionId,
@@ -1152,9 +1530,9 @@ function useWalletHandler({
         priority: "normal"
       });
     },
-    [sendOutbound, sessionId]
+    [setUser, sendOutbound, sessionId]
   );
-  const clearTxRequest = (0, import_react6.useCallback)((index) => {
+  const clearTxRequest = (0, import_react8.useCallback)((index) => {
     setPendingTxRequests((prev) => prev.filter((_, i) => i !== index));
   }, []);
   return {
@@ -1166,17 +1544,17 @@ function useWalletHandler({
 }
 
 // packages/react/src/handlers/notification-handler.ts
-var import_react7 = require("react");
-var notificationIdCounter = 0;
+var import_react9 = require("react");
+var notificationIdCounter2 = 0;
 function generateNotificationId() {
-  return `notif-${Date.now()}-${++notificationIdCounter}`;
+  return `notif-${Date.now()}-${++notificationIdCounter2}`;
 }
 function useNotificationHandler({
   onNotification
 } = {}) {
   const { subscribe: subscribe2 } = useEventContext();
-  const [notifications, setNotifications] = (0, import_react7.useState)([]);
-  (0, import_react7.useEffect)(() => {
+  const [notifications, setNotifications] = (0, import_react9.useState)([]);
+  (0, import_react9.useEffect)(() => {
     const unsubscribe = subscribe2("notification", (event) => {
       var _a, _b;
       const payload = event.payload;
@@ -1195,7 +1573,7 @@ function useNotificationHandler({
     return unsubscribe;
   }, [subscribe2, onNotification]);
   const unhandledCount = notifications.filter((n) => !n.handled).length;
-  const markHandled = (0, import_react7.useCallback)((id) => {
+  const markHandled = (0, import_react9.useCallback)((id) => {
     setNotifications(
       (prev) => prev.map((n) => n.id === id ? __spreadProps(__spreadValues({}, n), { handled: true }) : n)
     );
@@ -1211,8 +1589,17 @@ function useNotificationHandler({
   AomiRuntimeProvider,
   BackendApi,
   EventContextProvider,
+  NotificationContextProvider,
+  ThreadContextProvider,
+  UserContextProvider,
+  cn,
+  useCurrentThreadMessages,
+  useCurrentThreadMetadata,
   useEventContext,
+  useNotification,
   useNotificationHandler,
+  useThreadContext,
+  useUser,
   useWalletHandler
 });
 //# sourceMappingURL=index.cjs.map
