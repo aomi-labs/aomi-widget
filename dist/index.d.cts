@@ -41,7 +41,6 @@ interface ApiStateResponse {
     is_processing?: boolean;
     session_exists?: boolean;
     session_id?: string;
-    system_events?: unknown[];
     rehydrated?: boolean;
     state_source?: "db" | "memory" | string;
 }
@@ -146,9 +145,8 @@ declare class BackendApi {
 type AomiRuntimeProviderProps = {
     children: ReactNode;
     backendUrl?: string;
-    publicKey?: string;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, publicKey, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 type InboundEvent = {
     type: string;

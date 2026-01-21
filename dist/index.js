@@ -184,11 +184,7 @@ var BackendApi = class {
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
-import { useEffect as useEffect2, useMemo as useMemo2, useRef as useRef5 } from "react";
-import {
-  AssistantRuntimeProvider,
-  useExternalStoreRuntime
-} from "@assistant-ui/react";
+import { useMemo as useMemo3 } from "react";
 
 // packages/react/src/contexts/event-context.tsx
 import {
@@ -433,76 +429,13 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx2(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/user-context.tsx
-import {
-  createContext as createContext3,
-  useCallback as useCallback3,
-  useContext as useContext3,
-  useRef as useRef2,
-  useState as useState3
-} from "react";
-import { jsx as jsx3 } from "react/jsx-runtime";
-var UserContext = createContext3(void 0);
-function useUser() {
-  const context = useContext3(UserContext);
-  if (!context) {
-    throw new Error("useUser must be used within UserContextProvider");
-  }
-  return {
-    user: context.user,
-    setUser: context.setUser,
-    getUserState: context.getUserState,
-    onUserStateChange: context.onUserStateChange
-  };
-}
-function UserContextProvider({ children }) {
-  const [user, setUserState] = useState3({
-    isConnected: false,
-    address: void 0,
-    chainId: void 0,
-    ensName: void 0
-  });
-  const userRef = useRef2(user);
-  userRef.current = user;
-  const StateChangeCallbacks = useRef2(/* @__PURE__ */ new Set());
-  const setUser = useCallback3((data) => {
-    setUserState((prev) => {
-      const next = __spreadValues(__spreadValues({}, prev), data);
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
-      return next;
-    });
-  }, []);
-  const getUserState = useCallback3(() => userRef.current, []);
-  const onUserStateChange = useCallback3(
-    (callback) => {
-      StateChangeCallbacks.current.add(callback);
-      return () => {
-        StateChangeCallbacks.current.delete(callback);
-      };
-    },
-    []
-  );
-  return /* @__PURE__ */ jsx3(
-    UserContext.Provider,
-    {
-      value: {
-        user,
-        setUser,
-        getUserState,
-        onUserStateChange
-      },
-      children
-    }
-  );
-}
-
-// packages/react/src/runtime/orchestrator.ts
-import { useCallback as useCallback4, useRef as useRef4, useState as useState4 } from "react";
+// packages/react/src/contexts/runtime-actions.ts
+import { createContext as createContext3, useContext as useContext3 } from "react";
+var RuntimeActionsContext = createContext3(void 0);
+var RuntimeActionsProvider = RuntimeActionsContext.Provider;
 
 // packages/react/src/contexts/thread-context.tsx
-import { createContext as createContext4, useContext as useContext4, useMemo, useRef as useRef3, useSyncExternalStore } from "react";
+import { createContext as createContext4, useContext as useContext4, useMemo, useRef as useRef2, useSyncExternalStore } from "react";
 
 // packages/react/src/state/thread-store.ts
 var ThreadStore = class {
@@ -626,7 +559,7 @@ var ThreadStore = class {
 };
 
 // packages/react/src/contexts/thread-context.tsx
-import { jsx as jsx4 } from "react/jsx-runtime";
+import { jsx as jsx3 } from "react/jsx-runtime";
 var ThreadContextState = createContext4(null);
 function useThreadContext() {
   const context = useContext4(ThreadContextState);
@@ -641,13 +574,13 @@ function ThreadContextProvider({
   children,
   initialThreadId
 }) {
-  const storeRef = useRef3(null);
+  const storeRef = useRef2(null);
   if (!storeRef.current) {
     storeRef.current = new ThreadStore({ initialThreadId });
   }
   const store = storeRef.current;
   const value = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  return /* @__PURE__ */ jsx4(ThreadContextState.Provider, { value, children });
+  return /* @__PURE__ */ jsx3(ThreadContextState.Provider, { value, children });
 }
 function useCurrentThreadMessages() {
   const { currentThreadId, getThreadMessages } = useThreadContext();
@@ -657,6 +590,81 @@ function useCurrentThreadMetadata() {
   const { currentThreadId, getThreadMetadata } = useThreadContext();
   return useMemo(() => getThreadMetadata(currentThreadId), [currentThreadId, getThreadMetadata]);
 }
+
+// packages/react/src/contexts/user-context.tsx
+import {
+  createContext as createContext5,
+  useCallback as useCallback3,
+  useContext as useContext5,
+  useRef as useRef3,
+  useState as useState3
+} from "react";
+import { jsx as jsx4 } from "react/jsx-runtime";
+var UserContext = createContext5(void 0);
+function useUser() {
+  const context = useContext5(UserContext);
+  if (!context) {
+    throw new Error("useUser must be used within UserContextProvider");
+  }
+  return {
+    user: context.user,
+    setUser: context.setUser,
+    getUserState: context.getUserState,
+    onUserStateChange: context.onUserStateChange
+  };
+}
+function UserContextProvider({ children }) {
+  const [user, setUserState] = useState3({
+    isConnected: false,
+    address: void 0,
+    chainId: void 0,
+    ensName: void 0
+  });
+  const userRef = useRef3(user);
+  userRef.current = user;
+  const StateChangeCallbacks = useRef3(/* @__PURE__ */ new Set());
+  const setUser = useCallback3((data) => {
+    setUserState((prev) => {
+      const next = __spreadValues(__spreadValues({}, prev), data);
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+      return next;
+    });
+  }, []);
+  const getUserState = useCallback3(() => userRef.current, []);
+  const onUserStateChange = useCallback3(
+    (callback) => {
+      StateChangeCallbacks.current.add(callback);
+      return () => {
+        StateChangeCallbacks.current.delete(callback);
+      };
+    },
+    []
+  );
+  return /* @__PURE__ */ jsx4(
+    UserContext.Provider,
+    {
+      value: {
+        user,
+        setUser,
+        getUserState,
+        onUserStateChange
+      },
+      children
+    }
+  );
+}
+
+// packages/react/src/runtime/core.tsx
+import { useEffect as useEffect2, useMemo as useMemo2, useRef as useRef5 } from "react";
+import {
+  AssistantRuntimeProvider,
+  useExternalStoreRuntime
+} from "@assistant-ui/react";
+
+// packages/react/src/runtime/orchestrator.ts
+import { useCallback as useCallback4, useRef as useRef4, useState as useState4 } from "react";
 
 // packages/react/src/runtime/utils.ts
 import { clsx } from "clsx";
@@ -977,11 +985,12 @@ var PollingController = class {
 };
 
 // packages/react/src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendUrl, options) {
+function useRuntimeOrchestrator(backendApi, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef4(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = useRef4(new BackendApi(backendUrl));
+  const backendApiRef = useRef4(backendApi);
+  backendApiRef.current = backendApi;
   const backendStateRef = useRef4(createBakendState());
   const [isRunning, setIsRunning] = useState4(false);
   const messageControllerRef = useRef4(null);
@@ -1068,8 +1077,7 @@ function useRuntimeOrchestrator(backendUrl, options) {
   };
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
-import { jsx as jsx5 } from "react/jsx-runtime";
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1095,14 +1103,229 @@ function buildThreadLists(threadMetadata) {
   );
   return { regularThreads, archivedThreads };
 }
-function AomiRuntimeProvider({
+function buildThreadListAdapter({
+  backendStateRef,
+  backendApiRef,
+  threadContext,
+  currentThreadIdRef,
+  polling,
+  userAddress,
+  setIsRunning
+}) {
+  const backendState = backendStateRef.current;
+  const { regularThreads, archivedThreads } = buildThreadLists(
+    threadContext.threadMetadata
+  );
+  const preparePendingThread = (threadId) => {
+    const previousPendingId = backendState.creatingThreadId;
+    if (previousPendingId && previousPendingId !== threadId) {
+      threadContext.setThreadMetadata((prev) => {
+        const next = new Map(prev);
+        next.delete(previousPendingId);
+        return next;
+      });
+      threadContext.setThreads((prev) => {
+        const next = new Map(prev);
+        next.delete(previousPendingId);
+        return next;
+      });
+      backendState.pendingChat.delete(previousPendingId);
+      backendState.tempToBackendId.delete(previousPendingId);
+      backendState.skipInitialFetch.delete(previousPendingId);
+    }
+    backendState.creatingThreadId = threadId;
+    backendState.pendingChat.delete(threadId);
+    threadContext.setThreadMetadata(
+      (prev) => new Map(prev).set(threadId, {
+        title: "New Chat",
+        status: "pending",
+        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+      })
+    );
+    threadContext.setThreadMessages(threadId, []);
+    threadContext.setCurrentThreadId(threadId);
+    setIsRunning(false);
+    threadContext.bumpThreadViewKey();
+  };
+  const findPendingThreadId = () => {
+    if (backendState.creatingThreadId) return backendState.creatingThreadId;
+    for (const [id, meta] of threadContext.threadMetadata.entries()) {
+      if (meta.status === "pending") return id;
+    }
+    return null;
+  };
+  return {
+    threadId: threadContext.currentThreadId,
+    threads: regularThreads,
+    archivedThreads,
+    onSwitchToNewThread: async () => {
+      var _a;
+      const pendingId = findPendingThreadId();
+      if (pendingId) {
+        preparePendingThread(pendingId);
+        return;
+      }
+      if (backendState.createThreadPromise) {
+        preparePendingThread(
+          (_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`
+        );
+        return;
+      }
+      const tempId = `temp-${crypto.randomUUID()}`;
+      preparePendingThread(tempId);
+      const createPromise = backendApiRef.current.createThread(userAddress, void 0).then(async (newThread) => {
+        var _a2;
+        const uiThreadId = (_a2 = backendState.creatingThreadId) != null ? _a2 : tempId;
+        const backendId = newThread.session_id;
+        setBackendMapping(backendState, uiThreadId, backendId);
+        markSkipInitialFetch(backendState, uiThreadId);
+        const backendTitle = newThread.title;
+        if (backendTitle && !isPlaceholderTitle(backendTitle)) {
+          threadContext.setThreadMetadata((prev) => {
+            var _a3;
+            const next = new Map(prev);
+            const existing = next.get(uiThreadId);
+            const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
+            next.set(uiThreadId, {
+              title: backendTitle,
+              status: nextStatus,
+              lastActiveAt: (_a3 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a3 : (/* @__PURE__ */ new Date()).toISOString()
+            });
+            return next;
+          });
+        }
+        if (backendState.creatingThreadId === uiThreadId) {
+          backendState.creatingThreadId = null;
+        }
+        const pendingMessages = backendState.pendingChat.get(uiThreadId);
+        if (pendingMessages == null ? void 0 : pendingMessages.length) {
+          backendState.pendingChat.delete(uiThreadId);
+          for (const text of pendingMessages) {
+            try {
+              await backendApiRef.current.postChatMessage(backendId, text);
+            } catch (error) {
+              console.error("Failed to send queued message:", error);
+            }
+          }
+          if (currentThreadIdRef.current === uiThreadId) {
+            polling == null ? void 0 : polling.start(uiThreadId);
+          }
+        }
+      }).catch((error) => {
+        var _a2;
+        console.error("Failed to create new thread:", error);
+        const failedId = (_a2 = backendState.creatingThreadId) != null ? _a2 : tempId;
+        threadContext.setThreadMetadata((prev) => {
+          const next = new Map(prev);
+          next.delete(failedId);
+          return next;
+        });
+        threadContext.setThreads((prev) => {
+          const next = new Map(prev);
+          next.delete(failedId);
+          return next;
+        });
+        if (backendState.creatingThreadId === failedId) {
+          backendState.creatingThreadId = null;
+        }
+      }).finally(() => {
+        backendState.createThreadPromise = null;
+      });
+      backendState.createThreadPromise = createPromise;
+    },
+    onSwitchToThread: (threadId) => {
+      threadContext.setCurrentThreadId(threadId);
+    },
+    onRename: async (threadId, newTitle) => {
+      var _a, _b;
+      const previousTitle = (_b = (_a = threadContext.getThreadMetadata(threadId)) == null ? void 0 : _a.title) != null ? _b : "";
+      const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+      threadContext.updateThreadMetadata(threadId, {
+        title: normalizedTitle
+      });
+      try {
+        await backendApiRef.current.renameThread(threadId, newTitle);
+      } catch (error) {
+        console.error("Failed to rename thread:", error);
+        threadContext.updateThreadMetadata(threadId, {
+          title: previousTitle
+        });
+      }
+    },
+    onArchive: async (threadId) => {
+      threadContext.updateThreadMetadata(threadId, { status: "archived" });
+      try {
+        await backendApiRef.current.archiveThread(threadId);
+      } catch (error) {
+        console.error("Failed to archive thread:", error);
+        threadContext.updateThreadMetadata(threadId, { status: "regular" });
+      }
+    },
+    onUnarchive: async (threadId) => {
+      threadContext.updateThreadMetadata(threadId, { status: "regular" });
+      try {
+        await backendApiRef.current.unarchiveThread(threadId);
+      } catch (error) {
+        console.error("Failed to unarchive thread:", error);
+        threadContext.updateThreadMetadata(threadId, { status: "archived" });
+      }
+    },
+    onDelete: async (threadId) => {
+      try {
+        await backendApiRef.current.deleteThread(threadId);
+        threadContext.setThreadMetadata((prev) => {
+          const next = new Map(prev);
+          next.delete(threadId);
+          return next;
+        });
+        threadContext.setThreads((prev) => {
+          const next = new Map(prev);
+          next.delete(threadId);
+          return next;
+        });
+        backendState.pendingChat.delete(threadId);
+        backendState.tempToBackendId.delete(threadId);
+        backendState.skipInitialFetch.delete(threadId);
+        backendState.runningThreads.delete(threadId);
+        if (backendState.creatingThreadId === threadId) {
+          backendState.creatingThreadId = null;
+        }
+        if (threadContext.currentThreadId === threadId) {
+          const firstRegularThread = Array.from(
+            threadContext.threadMetadata.entries()
+          ).find(([id, meta]) => meta.status === "regular" && id !== threadId);
+          if (firstRegularThread) {
+            threadContext.setCurrentThreadId(firstRegularThread[0]);
+          } else {
+            const defaultId = "default-session";
+            threadContext.setThreadMetadata(
+              (prev) => new Map(prev).set(defaultId, {
+                title: "New Chat",
+                status: "regular",
+                lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+              })
+            );
+            threadContext.setThreadMessages(defaultId, []);
+            threadContext.setCurrentThreadId(defaultId);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to delete thread:", error);
+        throw error;
+      }
+    }
+  };
+}
+
+// packages/react/src/runtime/core.tsx
+import { jsx as jsx5 } from "react/jsx-runtime";
+function AomiRuntimeCore({
   children,
-  backendUrl = "http://localhost:8080",
-  publicKey
+  backendApi
 }) {
   const threadContext = useThreadContext();
   const { dispatchInboundSystem: dispatchSystemEvents } = useEventContext();
-  const { onUserStateChange } = useUser();
+  const { user, onUserStateChange, getUserState } = useUser();
   const {
     backendStateRef,
     polling,
@@ -1111,7 +1334,10 @@ function AomiRuntimeProvider({
     setIsRunning,
     ensureInitialState,
     backendApiRef
-  } = useRuntimeOrchestrator(backendUrl, { onSystemEvents: dispatchSystemEvents });
+  } = useRuntimeOrchestrator(backendApi, {
+    onSystemEvents: dispatchSystemEvents,
+    getPublicKey: () => getUserState().address
+  });
   useEffect2(() => {
     const unsubscribe = onUserStateChange(async (newUser) => {
       const sessionId = threadContext.currentThreadId;
@@ -1145,11 +1371,12 @@ function AomiRuntimeProvider({
     threadContext.currentThreadId
   );
   useEffect2(() => {
-    if (!publicKey) return;
+    const userAddress = user.address;
+    if (!userAddress) return;
     const fetchThreadList = async () => {
       var _a, _b;
       try {
-        const threadList = await backendApiRef.current.fetchThreads(publicKey);
+        const threadList = await backendApiRef.current.fetchThreads(userAddress);
         const currentContext = threadContextRef.current;
         const newMetadata = new Map(currentContext.threadMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -1179,223 +1406,28 @@ function AomiRuntimeProvider({
       }
     };
     void fetchThreadList();
-  }, [publicKey, backendApiRef]);
-  const threadListAdapter = useMemo2(() => {
-    const backendState = backendStateRef.current;
-    const { regularThreads, archivedThreads } = buildThreadLists(
+  }, [user.address, backendApiRef]);
+  const threadListAdapter = useMemo2(
+    () => buildThreadListAdapter({
+      backendStateRef,
+      backendApiRef,
+      threadContext,
+      currentThreadIdRef,
+      polling,
+      userAddress: user.address,
+      setIsRunning
+    }),
+    [
+      backendApiRef,
+      polling,
+      user.address,
+      backendStateRef,
+      setIsRunning,
+      threadContext,
+      threadContext.currentThreadId,
       threadContext.threadMetadata
-    );
-    const preparePendingThread = (threadId) => {
-      const previousPendingId = backendState.creatingThreadId;
-      if (previousPendingId && previousPendingId !== threadId) {
-        threadContext.setThreadMetadata((prev) => {
-          const next = new Map(prev);
-          next.delete(previousPendingId);
-          return next;
-        });
-        threadContext.setThreads((prev) => {
-          const next = new Map(prev);
-          next.delete(previousPendingId);
-          return next;
-        });
-        backendState.pendingChat.delete(previousPendingId);
-        backendState.tempToBackendId.delete(previousPendingId);
-        backendState.skipInitialFetch.delete(previousPendingId);
-      }
-      backendState.creatingThreadId = threadId;
-      backendState.pendingChat.delete(threadId);
-      threadContext.setThreadMetadata(
-        (prev) => new Map(prev).set(threadId, {
-          title: "New Chat",
-          status: "pending",
-          lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-        })
-      );
-      threadContext.setThreadMessages(threadId, []);
-      threadContext.setCurrentThreadId(threadId);
-      setIsRunning(false);
-      threadContext.bumpThreadViewKey();
-    };
-    const findPendingThreadId = () => {
-      if (backendState.creatingThreadId) return backendState.creatingThreadId;
-      for (const [id, meta] of threadContext.threadMetadata.entries()) {
-        if (meta.status === "pending") return id;
-      }
-      return null;
-    };
-    return {
-      threadId: threadContext.currentThreadId,
-      threads: regularThreads,
-      archivedThreads,
-      onSwitchToNewThread: async () => {
-        var _a;
-        const pendingId = findPendingThreadId();
-        if (pendingId) {
-          preparePendingThread(pendingId);
-          return;
-        }
-        if (backendState.createThreadPromise) {
-          preparePendingThread(
-            (_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`
-          );
-          return;
-        }
-        const tempId = `temp-${crypto.randomUUID()}`;
-        preparePendingThread(tempId);
-        const createPromise = backendApiRef.current.createThread(publicKey, void 0).then(async (newThread) => {
-          var _a2;
-          const uiThreadId = (_a2 = backendState.creatingThreadId) != null ? _a2 : tempId;
-          const backendId = newThread.session_id;
-          setBackendMapping(backendState, uiThreadId, backendId);
-          markSkipInitialFetch(backendState, uiThreadId);
-          const backendTitle = newThread.title;
-          if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-            threadContext.setThreadMetadata((prev) => {
-              var _a3;
-              const next = new Map(prev);
-              const existing = next.get(uiThreadId);
-              const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-              next.set(uiThreadId, {
-                title: backendTitle,
-                status: nextStatus,
-                lastActiveAt: (_a3 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a3 : (/* @__PURE__ */ new Date()).toISOString()
-              });
-              return next;
-            });
-          }
-          if (backendState.creatingThreadId === uiThreadId) {
-            backendState.creatingThreadId = null;
-          }
-          const pendingMessages = backendState.pendingChat.get(uiThreadId);
-          if (pendingMessages == null ? void 0 : pendingMessages.length) {
-            backendState.pendingChat.delete(uiThreadId);
-            for (const text of pendingMessages) {
-              try {
-                await backendApiRef.current.postChatMessage(backendId, text);
-              } catch (error) {
-                console.error("Failed to send queued message:", error);
-              }
-            }
-            if (currentThreadIdRef.current === uiThreadId) {
-              polling == null ? void 0 : polling.start(uiThreadId);
-            }
-          }
-        }).catch((error) => {
-          var _a2;
-          console.error("Failed to create new thread:", error);
-          const failedId = (_a2 = backendState.creatingThreadId) != null ? _a2 : tempId;
-          threadContext.setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            next.delete(failedId);
-            return next;
-          });
-          threadContext.setThreads((prev) => {
-            const next = new Map(prev);
-            next.delete(failedId);
-            return next;
-          });
-          if (backendState.creatingThreadId === failedId) {
-            backendState.creatingThreadId = null;
-          }
-        }).finally(() => {
-          backendState.createThreadPromise = null;
-        });
-        backendState.createThreadPromise = createPromise;
-      },
-      onSwitchToThread: (threadId) => {
-        threadContext.setCurrentThreadId(threadId);
-      },
-      onRename: async (threadId, newTitle) => {
-        var _a, _b;
-        const previousTitle = (_b = (_a = threadContext.getThreadMetadata(threadId)) == null ? void 0 : _a.title) != null ? _b : "";
-        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-        threadContext.updateThreadMetadata(threadId, {
-          title: normalizedTitle
-        });
-        try {
-          await backendApiRef.current.renameThread(threadId, newTitle);
-        } catch (error) {
-          console.error("Failed to rename thread:", error);
-          threadContext.updateThreadMetadata(threadId, {
-            title: previousTitle
-          });
-        }
-      },
-      onArchive: async (threadId) => {
-        threadContext.updateThreadMetadata(threadId, { status: "archived" });
-        try {
-          await backendApiRef.current.archiveThread(threadId);
-        } catch (error) {
-          console.error("Failed to archive thread:", error);
-          threadContext.updateThreadMetadata(threadId, { status: "regular" });
-        }
-      },
-      onUnarchive: async (threadId) => {
-        threadContext.updateThreadMetadata(threadId, { status: "regular" });
-        try {
-          await backendApiRef.current.unarchiveThread(threadId);
-        } catch (error) {
-          console.error("Failed to unarchive thread:", error);
-          threadContext.updateThreadMetadata(threadId, { status: "archived" });
-        }
-      },
-      onDelete: async (threadId) => {
-        try {
-          await backendApiRef.current.deleteThread(threadId);
-          threadContext.setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            next.delete(threadId);
-            return next;
-          });
-          threadContext.setThreads((prev) => {
-            const next = new Map(prev);
-            next.delete(threadId);
-            return next;
-          });
-          backendState.pendingChat.delete(threadId);
-          backendState.tempToBackendId.delete(threadId);
-          backendState.skipInitialFetch.delete(threadId);
-          backendState.runningThreads.delete(threadId);
-          if (backendState.creatingThreadId === threadId) {
-            backendState.creatingThreadId = null;
-          }
-          if (threadContext.currentThreadId === threadId) {
-            const firstRegularThread = Array.from(
-              threadContext.threadMetadata.entries()
-            ).find(
-              ([id, meta]) => meta.status === "regular" && id !== threadId
-            );
-            if (firstRegularThread) {
-              threadContext.setCurrentThreadId(firstRegularThread[0]);
-            } else {
-              const defaultId = "default-session";
-              threadContext.setThreadMetadata(
-                (prev) => new Map(prev).set(defaultId, {
-                  title: "New Chat",
-                  status: "regular",
-                  lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-                })
-              );
-              threadContext.setThreadMessages(defaultId, []);
-              threadContext.setCurrentThreadId(defaultId);
-            }
-          }
-        } catch (error) {
-          console.error("Failed to delete thread:", error);
-          throw error;
-        }
-      }
-    };
-  }, [
-    backendApiRef,
-    polling,
-    publicKey,
-    backendStateRef,
-    setIsRunning,
-    threadContext,
-    threadContext.currentThreadId,
-    threadContext.threadMetadata
-  ]);
+    ]
+  );
   useEffect2(() => {
     const currentSessionId = threadContext.currentThreadId;
     const unsubscribe = backendApiRef.current.subscribeSSE(
@@ -1406,7 +1438,6 @@ function AomiRuntimeProvider({
         const sessionId = event.session_id;
         if (eventType === "title_changed") {
           const newTitle = event.new_title;
-          if (!newTitle) return;
           const backendState = backendStateRef.current;
           const targetThreadId = (_a = findTempIdForBackendId(backendState, sessionId)) != null ? _a : resolveThreadId(backendState, sessionId);
           const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
@@ -1457,18 +1488,29 @@ function AomiRuntimeProvider({
       polling.stopAll();
     };
   }, [polling]);
-  return /* @__PURE__ */ jsx5(NotificationContextProvider, { children: /* @__PURE__ */ jsx5(UserContextProvider, { children: /* @__PURE__ */ jsx5(
+  return /* @__PURE__ */ jsx5(AssistantRuntimeProvider, { runtime, children });
+}
+
+// packages/react/src/runtime/aomi-runtime.tsx
+import { jsx as jsx6 } from "react/jsx-runtime";
+function AomiRuntimeProvider({
+  children,
+  backendUrl = "http://localhost:8080"
+}) {
+  const threadContext = useThreadContext();
+  const backendApi = useMemo3(() => new BackendApi(backendUrl), [backendUrl]);
+  return /* @__PURE__ */ jsx6(NotificationContextProvider, { children: /* @__PURE__ */ jsx6(UserContextProvider, { children: /* @__PURE__ */ jsx6(
     EventContextProvider,
     {
-      backendApi: backendApiRef.current,
+      backendApi,
       sessionId: threadContext.currentThreadId,
-      children: /* @__PURE__ */ jsx5(AssistantRuntimeProvider, { runtime, children })
+      children: /* @__PURE__ */ jsx6(RuntimeActionsProvider, { value: {}, children: /* @__PURE__ */ jsx6(AomiRuntimeCore, { backendApi, children }) })
     }
   ) }) });
 }
 
 // packages/react/src/handlers/wallet-handler.ts
-import { useCallback as useCallback6, useEffect as useEffect3, useState as useState5 } from "react";
+import { useCallback as useCallback5, useEffect as useEffect3, useState as useState5 } from "react";
 function useWalletHandler({
   sessionId,
   onTxRequest
@@ -1489,7 +1531,7 @@ function useWalletHandler({
     );
     return unsubscribe;
   }, [subscribe2, onTxRequest]);
-  const sendTxComplete = useCallback6(
+  const sendTxComplete = useCallback5(
     (tx) => {
       sendOutbound({
         type: "wallet:tx_complete",
@@ -1500,7 +1542,7 @@ function useWalletHandler({
     },
     [sendOutbound, sessionId]
   );
-  const sendConnectionChange = useCallback6(
+  const sendConnectionChange = useCallback5(
     (status, address, chainId) => {
       if (status === "connected") {
         setUser({
@@ -1524,7 +1566,7 @@ function useWalletHandler({
     },
     [setUser, sendOutbound, sessionId]
   );
-  const clearTxRequest = useCallback6((index) => {
+  const clearTxRequest = useCallback5((index) => {
     setPendingTxRequests((prev) => prev.filter((_, i) => i !== index));
   }, []);
   return {
@@ -1536,7 +1578,7 @@ function useWalletHandler({
 }
 
 // packages/react/src/handlers/notification-handler.ts
-import { useCallback as useCallback7, useEffect as useEffect4, useState as useState6 } from "react";
+import { useCallback as useCallback6, useEffect as useEffect4, useState as useState6 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
   return `notif-${Date.now()}-${++notificationIdCounter2}`;
@@ -1565,7 +1607,7 @@ function useNotificationHandler({
     return unsubscribe;
   }, [subscribe2, onNotification]);
   const unhandledCount = notifications.filter((n) => !n.handled).length;
-  const markHandled = useCallback7((id) => {
+  const markHandled = useCallback6((id) => {
     setNotifications(
       (prev) => prev.map((n) => n.id === id ? __spreadProps(__spreadValues({}, n), { handled: true }) : n)
     );

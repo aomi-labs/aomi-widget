@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useCallback, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import {
-  AomiRuntimeProviderWithNotifications,
+  AomiRuntimeProvider,
   ThreadContextProvider,
-  WalletSystemMessageEmitter,
   cn,
-  type WalletButtonState,
+  useUser,
   type WalletFooterProps,
   useCurrentThreadMetadata,
   useThreadContext,
@@ -32,7 +31,7 @@ type AomiFrameProps = {
   height?: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
-  /** Render prop for wallet footer - receives wallet state and setter from lib */
+  /** Render prop for wallet footer - receives wallet state and setter from UserContext */
   walletFooter?: (props: WalletFooterProps) => ReactNode;
   /** Additional content to render inside the frame */
   children?: ReactNode;
@@ -46,40 +45,22 @@ export const AomiFrame = ({
   walletFooter,
   children,
 }: AomiFrameProps) => {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
-
-  // Local wallet state (replaces Zustand)
-  const [wallet, setWalletState] = useState<WalletButtonState>({
-    isConnected: false,
-    address: undefined,
-    chainId: undefined,
-    ensName: undefined,
-  });
-
-  const setWallet = useCallback((data: Partial<WalletButtonState>) => {
-    setWalletState((prev) => ({ ...prev, ...data }));
-  }, []);
 
   return (
     <ThreadContextProvider>
-      <AomiRuntimeProviderWithNotifications
-        backendUrl={backendUrl}
-        publicKey={wallet.address}
-      >
-        {/* Internal: watches wallet state and sends system messages */}
-        <WalletSystemMessageEmitter wallet={wallet} />
+      <AomiRuntimeProvider backendUrl={backendUrl}>
         <NotificationToaster />
         <FrameShell
           className={className}
           frameStyle={frameStyle}
           walletFooter={walletFooter}
-          wallet={wallet}
-          setWallet={setWallet}
         >
           {children}
         </FrameShell>
-      </AomiRuntimeProviderWithNotifications>
+      </AomiRuntimeProvider>
     </ThreadContextProvider>
   );
 };
@@ -88,8 +69,6 @@ type FrameShellProps = {
   className?: string;
   frameStyle: CSSProperties;
   walletFooter?: (props: WalletFooterProps) => ReactNode;
-  wallet: WalletButtonState;
-  setWallet: (data: Partial<WalletButtonState>) => void;
   children?: ReactNode;
 };
 
@@ -97,12 +76,11 @@ const FrameShell = ({
   className,
   frameStyle,
   walletFooter,
-  wallet,
-  setWallet,
   children,
 }: FrameShellProps) => {
   const currentTitle = useCurrentThreadMetadata()?.title ?? "New Chat";
   const { currentThreadId, threadViewKey } = useThreadContext();
+  const { user, setUser } = useUser();
 
   return (
     <SidebarProvider>
@@ -110,13 +88,15 @@ const FrameShell = ({
       <div
         className={cn(
           "flex h-full w-full overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950",
-          className
+          className,
         )}
         style={frameStyle}
       >
-        <ThreadListSidebar footer={walletFooter?.({ wallet, setWallet })} />
+        <ThreadListSidebar
+          footer={walletFooter?.({ wallet: user, setWallet: setUser })}
+        />
         <SidebarInset className="relative">
-          <header className="flex h-14 mt-1 shrink-0 items-center gap-2 border-b px-3">
+          <header className="mt-1 flex h-14 shrink-0 items-center gap-2 border-b px-3">
             <SidebarTrigger />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
