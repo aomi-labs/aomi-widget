@@ -6,12 +6,22 @@ export type {
   ApiInterruptResponse,
   ApiSSEEvent,
   ApiStateResponse,
+  ApiSystemEvent,
   ApiSystemResponse,
   ApiThread,
 } from "./backend/types";
 
 export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
 export { useRuntimeActions, RuntimeActionsProvider } from "./contexts/runtime-actions";
+export { useEventContext } from "./contexts/event-context";
+export { useWalletHandler } from "./handlers/wallet-handler";
+export { useNotificationHandler } from "./handlers/notification-handler";
+export type {
+  WalletTxRequest,
+  WalletTxComplete,
+  WalletConnectionStatus,
+} from "./handlers/wallet-handler";
+export type { Notification } from "./handlers/notification-handler";
 
 export {
   ThreadContextProvider,
@@ -19,10 +29,4 @@ export {
   useCurrentThreadMetadata,
   useCurrentThreadMessages,
 } from "./contexts/thread-context";
-export type { ThreadMetadata, ThreadStatus } from "./state/types";
-
-export { toInboundSystem as constructSystemMessage, toInboundMessage as constructThreadMessage } from "./utils/conversion";
-export { WalletSystemMessageEmitter, formatAddress, getNetworkName } from "./utils/wallet";
-export type { WalletButtonState, WalletFooterProps } from "./utils/wallet";
-
-export { cn } from "./runtime/utils";
+export type { ThreadMetadata, ThreadStatus } from "./state/thread-store";

@@ -15,6 +15,7 @@ graph TB
     subgraph "Provider Layer"
         TCP[ThreadContextProvider]
         ARP[AomiRuntimeProvider]
+        ECP[EventContextProvider]
         RAP[RuntimeActionsProvider]
         ASRP[AssistantRuntimeProvider]
     end
@@ -23,7 +24,6 @@ graph TB
         RO[RuntimeOrchestrator]
         MC[MessageController]
         PC[PollingController]
-        EC[EventController]
     end
 
     subgraph "State"
@@ -32,36 +32,35 @@ graph TB
         EB[EventBuffer]
     end
 
-    subgraph "Hooks"
-        WH[WalletHandler]
+    subgraph "Handler Hooks"
+        WH[useWalletHandler]
+        NH[useNotificationHandler]
     end
 
     subgraph "External"
         API[BackendApi]
-        SSE[BackendSSE]
         BE[Backend Server]
     end
 
     TCP --> ARP
-    ARP --> RAP
+    ARP --> ECP
+    ECP --> RAP
     RAP --> ASRP
 
     ARP --> RO
     RO --> MC
     RO --> PC
-    RO --> EC
     RO --> BS
 
     MC --> API
     PC --> API
     API --> BE
 
-    EC --> SSE
-    EC --> EB
-    SSE --> BE
+    ECP --> EB
+    ECP --> API
 
-    WH --> EC
-    WH --> EB
+    WH --> ECP
+    NH --> ECP
 
     ARP --> TS
     MC --> TS
@@ -269,29 +268,81 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant BE as Backend Server
-    participant SSE as BackendSSE
-    participant EC as EventController
+    participant API as BackendApi
+    participant ECP as EventContextProvider
     participant EB as EventBuffer
+    participant NH as useNotificationHandler
     participant UI as Notification Component
 
     Note over BE: System triggers notification
-    BE->>SSE: SSE push: "You have a notification"
-    SSE->>EC: onEvent({type: notification, id})
-    EC->>EB: enqueueInbound(event)
+    BE->>API: SSE push: {type: notification, session_id, title, body}
+    API->>ECP: subscribeSSE callback
+    ECP->>EB: enqueueInbound(event)
+    ECP->>EB: dispatch(event)
 
-    Note over EB: Buffer stores event
+    Note over EB: Dispatch to subscribers
 
-    EC->>EB: dequeueInbound()
-    EB-->>EC: event
-    EC->>EC: processNotification(event)
+    EB->>NH: subscriber callback(event)
+    NH->>NH: Build Notification object
+    NH->>NH: setNotifications([...prev, notification])
+    NH->>NH: onNotification?.(notification)
+    NH-->>UI: notifications array updated
+    UI->>UI: Render notification toast/panel
+```
 
-    alt Needs full payload
-        EC->>BE: GET /notifications/{id}
-        BE-->>EC: Full notification data
+---
+
+## Event Handler Architecture
+
+```mermaid
+graph TB
+    subgraph "Application Layer"
+        WC[Wallet Component]
+        NC[Notification Component]
     end
 
-    EC->>UI: dispatch(notification)
-    UI->>UI: Render notification toast/panel
+    subgraph "Handler Hooks"
+        WH[useWalletHandler]
+        NH[useNotificationHandler]
+    end
+
+    subgraph "Event Context"
+        EC[useEventContext]
+        SUB[subscribe fn]
+        ENQ[enqueueOutbound fn]
+    end
+
+    subgraph "Event Buffer State"
+        IBQ[inboundQueue]
+        OBQ[outboundQueue]
+        SUBS[subscribers Map]
+    end
+
+    subgraph "Backend Integration"
+        API[BackendApi]
+        SSE[SSE Connection]
+        POST[POST /events]
+    end
+
+    WC --> WH
+    NC --> NH
+
+    WH --> EC
+    NH --> EC
+
+    EC --> SUB
+    EC --> ENQ
+
+    SUB --> SUBS
+    ENQ --> OBQ
+
+    SSE --> IBQ
+    IBQ --> SUBS
+    SUBS -.->|dispatch| NH
+    SUBS -.->|dispatch| WH
+
+    OBQ --> POST
+    POST --> API
 ```
 
 ---
@@ -301,33 +352,112 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Wallet as Wallet Provider
-    participant WH as WalletHandler
-    participant EC as EventController
+    participant WC as Wallet Component
+    participant WH as useWalletHandler
+    participant EC as useEventContext
     participant EB as EventBuffer
+    participant ECP as EventContextProvider
     participant API as BackendApi
     participant BE as Backend Server
 
     Note over Wallet: Transaction completes
-    Wallet-->>WH: onTransactionConfirmed(tx)
+    Wallet-->>WC: onTransactionConfirmed(tx)
+    WC->>WH: sendTxComplete({txHash, status, amount, token})
 
-    WH->>WH: Build event payload
-    WH->>EC: enqueueOutbound({<br/>  type: wallet:tx_complete,<br/>  txHash, amount, token<br/>})
+    WH->>EC: enqueueOutbound({<br/>  type: wallet:tx_complete,<br/>  sessionId, payload, priority: high<br/>})
     EC->>EB: outboundQueue.push(event)
 
-    Note over EB: Buffer batches events
+    Note over EB: Buffer stores event
 
-    alt Immediate flush (high priority)
-        EC->>EC: flushOutbound()
-    else Batched flush
-        Note over EC: Flush timer triggers
-        EC->>EC: flushOutbound()
+    alt priority = high (immediate flush)
+        EC->>EB: drainOutbound()
+        EB-->>EC: events[]
+        EC->>API: POST /events [events]
+    else priority = normal (batched)
+        Note over ECP: Flush timer (1s interval)
+        ECP->>EB: hasHighPriorityOutbound()
+        ECP->>EB: drainOutbound()
+        EB-->>ECP: events[]
+        ECP->>API: POST /events [events]
     end
 
-    EC->>EB: drain outboundQueue
-    EB-->>EC: events[]
-    EC->>API: POST /events [events]
     API->>BE: Store/process events
     BE-->>API: 200 OK
+```
+
+---
+
+## Wallet Handler - Full Flow
+
+```mermaid
+sequenceDiagram
+    participant AppKit as External Wallet<br/>(AppKit/wagmi)
+    participant WC as Wallet Component
+    participant WH as useWalletHandler
+    participant EC as useEventContext
+    participant EB as EventBuffer
+    participant BE as Backend
+
+    Note over AppKit: Wallet connects
+    AppKit-->>WC: onConnect(address, chainId)
+    WC->>WH: sendConnectionChange("connected", address)
+    WH->>EC: enqueueOutbound({type: wallet:connected, ...})
+    EC->>EB: push to outboundQueue
+    EB-->>BE: POST /events
+
+    Note over BE: AI requests transaction
+    BE->>EB: SSE: {type: wallet:tx_request, to, value, data}
+    EB->>WH: subscriber callback
+    WH->>WH: setPendingTxRequests([...prev, request])
+    WH->>WC: onTxRequest?.(request)
+    WC->>WC: Show tx confirmation UI
+
+    Note over WC: User approves transaction
+    WC->>AppKit: sendTransaction(tx)
+    AppKit-->>WC: txHash
+
+    WC->>WH: sendTxComplete({txHash, status: success})
+    WH->>EC: enqueueOutbound({type: wallet:tx_complete, priority: high})
+    EC->>EB: immediate flush (high priority)
+    EB-->>BE: POST /events
+
+    WC->>WH: clearTxRequest(index)
+    WH->>WH: Remove from pendingTxRequests
+```
+
+---
+
+## Notification Handler - Full Flow
+
+```mermaid
+sequenceDiagram
+    participant BE as Backend
+    participant API as BackendApi
+    participant ECP as EventContextProvider
+    participant EB as EventBuffer
+    participant NH as useNotificationHandler
+    participant NC as Notification Component
+    participant User as User
+
+    Note over BE: Backend sends notification
+    BE->>API: SSE: {type: notification, session_id, title, body}
+    API->>ECP: subscribeSSE callback(event)
+    ECP->>EB: enqueueInbound(event)
+    ECP->>EB: dispatch(event) to subscribers
+
+    EB->>NH: subscriber("notification", callback)
+    NH->>NH: Build Notification {id, type, title, body, handled: false}
+    NH->>NH: setNotifications([notification, ...prev])
+    NH->>NC: onNotification?.(notification)
+
+    NC->>NC: Render notification badge/toast
+    NC->>NC: Show unhandledCount
+
+    Note over User: User clicks notification
+    User->>NC: Click to view
+    NC->>NH: markHandled(id)
+    NH->>NH: Update notification.handled = true
+    NH->>NC: unhandledCount decremented
 ```
 
 ---
@@ -416,22 +546,33 @@ Manages backend polling:
 - `stopAll()` - Stop all active polls
 - Auto-stops when `is_processing` becomes false
 
-### EventController
+### EventContextProvider
 
-Manages bidirectional event streaming:
-- `connect()` - Establish SSE connection to backend
-- `disconnect()` - Close SSE connection
-- `enqueueOutbound(event)` - Add event to outbound queue
-- `flushOutbound()` - Send queued events to backend
-- `processInbound()` - Dequeue and handle inbound events
-- Handles auto-reconnect with exponential backoff
+React context that manages the EventBuffer and SSE connection:
+- Subscribes to BackendApi SSE events on mount
+- Dispatches inbound events to registered subscribers
+- Provides `subscribe(type, callback)` for handler hooks
+- Provides `enqueueOutbound(event)` for sending events
+- Flushes outbound queue on timer (1s) or immediately for high priority
+- Exposes `sseStatus` for connection state
 
-### WalletHandler
+### useWalletHandler
 
 Hook for wallet integration:
-- Listens to wallet provider events (tx confirm, connect, disconnect)
-- Converts wallet events to outbound event format
-- Enqueues events to EventBuffer via EventController
+- `sendTxComplete(tx)` - Report transaction completion to backend
+- `sendConnectionChange(status, address)` - Report wallet connect/disconnect
+- `pendingTxRequests` - Array of pending AI-requested transactions
+- `clearTxRequest(index)` - Remove handled request from queue
+- Subscribes to `wallet:tx_request` events from backend
+
+### useNotificationHandler
+
+Hook for notification display:
+- `notifications` - Array of all received notifications
+- `unhandledCount` - Count of unread notifications
+- `markHandled(id)` - Mark notification as read
+- `onNotification` - Optional callback when new notification arrives
+- Subscribes to `notification` events from backend
 
 ### BackendSSE
 

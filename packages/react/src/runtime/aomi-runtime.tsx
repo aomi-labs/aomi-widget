@@ -22,7 +22,7 @@ import {
 } from "../state/backend-state";
 import { isPlaceholderTitle, isTempThreadId, parseTimestamp } from "./utils";
 import { useThreadContext } from "../contexts/thread-context";
-import { ThreadMetadata } from "src/state/thread-store";
+import { ThreadMetadata } from "../state/thread-store";
 
 const sortByLastActiveDesc = (
   [, metaA]: [string, ThreadMetadata],
@@ -378,39 +378,43 @@ export function AomiRuntimeProvider({
   ]);
 
   useEffect(() => {
-    const unsubscribe = backendApiRef.current.subscribeSSE((event) => {
-      const eventType = event.type as string;
-      const sessionId = event.session_id;
+    const currentSessionId = threadContext.currentThreadId;
+    const unsubscribe = backendApiRef.current.subscribeSSE(
+      currentSessionId,
+      (event) => {
+        const eventType = event.type as string;
+        const sessionId = event.session_id;
 
-      if (eventType === "title_changed") {
-        const newTitle = event.new_title as string;
-        const backendState = backendStateRef.current;
-        const targetThreadId =
-          findTempIdForBackendId(backendState, sessionId) ??
-          resolveThreadId(backendState, sessionId);
-        const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-        threadContext.setThreadMetadata((prev) => {
-          const next = new Map(prev);
-          const existing = next.get(targetThreadId);
-          const nextStatus = existing?.status === "archived" ? "archived" : "regular";
-          next.set(targetThreadId, {
-            title: normalizedTitle,
-            status: nextStatus,
-            lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+        if (eventType === "title_changed") {
+          const newTitle = event.new_title as string;
+          const backendState = backendStateRef.current;
+          const targetThreadId =
+            findTempIdForBackendId(backendState, sessionId) ??
+            resolveThreadId(backendState, sessionId);
+          const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+          threadContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(targetThreadId);
+            const nextStatus = existing?.status === "archived" ? "archived" : "regular";
+            next.set(targetThreadId, {
+              title: normalizedTitle,
+              status: nextStatus,
+              lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+            });
+            return next;
           });
-          return next;
-        });
-        if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
-          backendState.creatingThreadId = null;
+          if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
+            backendState.creatingThreadId = null;
+          }
         }
+        // TODO: handle "tool_completion" and other event types
       }
-      // TODO: handle "tool_completion" and other event types
-    });
+    );
 
     return () => {
       unsubscribe?.();
     };
-  }, [backendApiRef, backendStateRef, threadContext]);
+  }, [backendApiRef, backendStateRef, threadContext, threadContext.currentThreadId]);
 
   useEffect(() => {
     const threadId = threadContext.currentThreadId;

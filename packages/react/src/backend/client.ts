@@ -4,6 +4,7 @@ import type {
   ApiInterruptResponse,
   ApiSSEEvent,
   ApiStateResponse,
+  ApiSystemEvent,
   ApiSystemResponse,
   ApiThread,
 } from "./types";
@@ -161,6 +162,7 @@ export class BackendApi {
   }
 
   subscribeSSE(
+    sessionId: string,
     onUpdate: (event: ApiSSEEvent) => void,
     onError?: (error: unknown) => void
   ): () => void {
@@ -168,8 +170,9 @@ export class BackendApi {
       this.updatesEventSource.close();
     }
 
-    const updatesUrl = new URL("/api/updates", this.backendUrl).toString();
-    this.updatesEventSource = new EventSource(updatesUrl);
+    const url = new URL("/api/updates", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    this.updatesEventSource = new EventSource(url.toString());
 
     this.updatesEventSource.onmessage = (event) => {
       try {
@@ -305,5 +308,28 @@ export class BackendApi {
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
     console.log("🟢 [renameThread] Success");
+  }
+
+  async getSystemEvents(sessionId: string): Promise<ApiSystemEvent[]> {
+    console.log("🔵 [getSystemEvents] Called with sessionId:", sessionId);
+    const url = `${this.backendUrl}/api/events?session_id=${encodeURIComponent(sessionId)}`;
+    console.log("🔵 [getSystemEvents] URL:", url);
+
+    const response = await fetch(url);
+    console.log("🔵 [getSystemEvents] Response status:", response.status);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        // Session doesn't exist yet, return empty array
+        console.log("🟡 [getSystemEvents] Session not found, returning empty");
+        return [];
+      }
+      console.error("🔴 [getSystemEvents] Error:", response.status);
+      throw new Error(`Failed to get system events: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as ApiSystemEvent[];
+    console.log("🟢 [getSystemEvents] Success:", data);
+    return data;
   }
 }
