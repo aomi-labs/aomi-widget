@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  AlertCircleIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
@@ -37,9 +36,10 @@ import {
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
 
-import { cn } from "@aomi-labs/react";
-import { useThreadContext } from "@aomi-labs/react";
-import { useAssistantApi } from "@assistant-ui/react";
+import { cn, useNotification, useThreadContext } from "@aomi-labs/react";
+import { useAssistantApi, useMessage } from "@assistant-ui/react";
+
+const seenSystemMessages = new Set<string>();
 
 export const Thread: FC = () => {
   const api = useAssistantApi();
@@ -198,7 +198,7 @@ const Composer: FC = () => {
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-sm outline-none placeholder:text-muted-foreground focus:outline-primary"
+          className="aui-composer-input ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-sm text-stone-800 outline-none placeholder:text-muted-foreground focus:outline-primary"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -407,24 +407,57 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
 };
 
 const SystemMessage: FC = () => {
-  return (
-    <MessagePrimitive.Root asChild>
-      <div
-        className="aui-system-message-root mx-auto w-full max-w-[var(--thread-max-width)] px-2 py-4 animate-in fade-in slide-in-from-bottom-1"
-        data-role="system"
-      >
-        <div className="aui-system-message-card flex w-full flex-wrap items-start gap-3 rounded-3xl border px-5 py-4 text-left text-sm bg-background/70 dark:bg-muted/30">
-          <AlertCircleIcon className="aui-system-message-icon mt-0.5 size-4 shrink-0 text-blue-500 dark:text-blue-300" />
-          <div className="aui-system-message-body flex flex-col gap-1">
-            <span className="aui-system-message-title font-medium text-foreground">
-              System notice
-            </span>
-            <div className="aui-system-message-content leading-relaxed text-muted-foreground">
-              <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </MessagePrimitive.Root>
-  );
+  const { showNotification } = useNotification();
+  const messageId = useMessage((state) => state.id);
+  const content = useMessage(
+    (state) => state.content
+  ) as Array<{ type: string; text?: string }>;
+  const custom = useMessage(
+    (state) => state.metadata?.custom
+  ) as { kind?: string; title?: string } | undefined;
+  useEffect(() => {
+    const text = content
+      .filter((part) => part.type === "text")
+      .map((part) => part.text ?? "")
+      .join("")
+      .trim();
+
+    if (!text) return;
+
+    const key = messageId ?? text;
+    if (seenSystemMessages.has(key)) return;
+    seenSystemMessages.add(key);
+
+    const inferredKind =
+      custom?.kind ??
+      (text.startsWith("Wallet transaction request:") ? "wallet_tx_request" : "system_notice");
+
+    const type =
+      inferredKind === "system_error"
+        ? "error"
+        : inferredKind === "system_success"
+          ? "success"
+          : "notice";
+
+    const title =
+      custom?.title ??
+      (inferredKind === "wallet_tx_request"
+        ? "Wallet transaction request"
+        : inferredKind === "system_error"
+          ? "Error"
+          : "System notice");
+
+    const iconType =
+      inferredKind === "wallet_tx_request"
+        ? "wallet"
+        : type === "success"
+          ? "success"
+          : type === "error"
+            ? "error"
+            : "notice";
+
+    showNotification({ type, iconType, title, message: text });
+  }, [content, custom, showNotification, messageId]);
+
+  return null;
 };

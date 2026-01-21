@@ -1,7 +1,5 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import * as react from 'react';
-import { ReactNode, SetStateAction } from 'react';
-import { ThreadMessageLike } from '@assistant-ui/react';
+import { ReactNode } from 'react';
 
 interface AomiMessage {
     sender?: string;
@@ -84,26 +82,27 @@ type ApiSystemEvent = {
 
 declare class BackendApi {
     private readonly backendUrl;
-    private connectionStatus;
-    private eventSource;
-    private updatesEventSource;
+    private sseConnections;
     constructor(backendUrl: string);
     fetchState(sessionId: string): Promise<ApiStateResponse>;
-    postChatMessage(sessionId: string, message: string): Promise<ApiChatResponse>;
+    postChatMessage(sessionId: string, message: string, publicKey?: string): Promise<ApiChatResponse>;
     postSystemMessage(sessionId: string, message: string): Promise<ApiSystemResponse>;
     postInterrupt(sessionId: string): Promise<ApiInterruptResponse>;
-    disconnectSSE(): void;
-    setConnectionStatus(on: boolean): void;
-    connectSSE(sessionId: string, publicKey?: string): Promise<void>;
-    private handleConnectionError;
+    /**
+     * Subscribe to SSE updates for a session.
+     * EventSource handles reconnection automatically.
+     * Returns an unsubscribe function.
+     */
     subscribeSSE(sessionId: string, onUpdate: (event: ApiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     fetchThreads(publicKey: string): Promise<ApiThread[]>;
+    fetchThread(sessionId: string): Promise<ApiThread>;
     createThread(publicKey?: string, title?: string): Promise<ApiCreateThreadResponse>;
     archiveThread(sessionId: string): Promise<void>;
     unarchiveThread(sessionId: string): Promise<void>;
     deleteThread(sessionId: string): Promise<void>;
     renameThread(sessionId: string, newTitle: string): Promise<void>;
     getSystemEvents(sessionId: string): Promise<ApiSystemEvent[]>;
+    fetchEventsAfter(sessionId: string, afterId?: number, limit?: number): Promise<ApiSystemEvent[]>;
 }
 
 type AomiRuntimeProviderProps = {
@@ -112,16 +111,6 @@ type AomiRuntimeProviderProps = {
     publicKey?: string;
 };
 declare function AomiRuntimeProvider({ children, backendUrl, publicKey, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
-
-/**
- * RuntimeActions is now mostly deprecated.
- * Use useEventContext() for event-based communication instead:
- * - enqueueOutbound() to send events to backend
- * - subscribe() to listen for events
- */
-type RuntimeActions = Record<string, never>;
-declare const RuntimeActionsProvider: react.Provider<RuntimeActions | undefined>;
-declare function useRuntimeActions(): RuntimeActions;
 
 type InboundEvent = {
     type: string;
@@ -139,6 +128,13 @@ type OutboundEvent = {
 };
 type SSEStatus = "connected" | "connecting" | "disconnected";
 type EventSubscriber = (event: InboundEvent) => void;
+type EventBuffer = {
+    inboundQueue: InboundEvent[];
+    outboundQueue: OutboundEvent[];
+    sseStatus: SSEStatus;
+    lastEventId: string | null;
+    subscribers: Map<string, Set<EventSubscriber>>;
+};
 
 type EventContext = {
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
@@ -149,6 +145,12 @@ type EventContext = {
     sseStatus: SSEStatus;
 };
 declare function useEventContext(): EventContext;
+type EventContextProviderProps = {
+    children: ReactNode;
+    backendApi: BackendApi;
+    sessionId: string;
+};
+declare function EventContextProvider({ children, backendApi, sessionId, }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
 
 type WalletTxRequest = {
     to: string;
@@ -202,36 +204,4 @@ type NotificationApi = {
 };
 declare function useNotificationHandler({ onNotification, }?: NotificationHandlerConfig): NotificationApi;
 
-type ThreadStatus = "regular" | "archived" | "pending";
-type ThreadMetadata = {
-    title: string;
-    status: ThreadStatus;
-    lastActiveAt?: string | number;
-};
-
-type ThreadContext = {
-    currentThreadId: string;
-    setCurrentThreadId: (id: string) => void;
-    threadViewKey: number;
-    bumpThreadViewKey: () => void;
-    threads: Map<string, ThreadMessageLike[]>;
-    setThreads: (updater: SetStateAction<Map<string, ThreadMessageLike[]>>) => void;
-    threadMetadata: Map<string, ThreadMetadata>;
-    setThreadMetadata: (updater: SetStateAction<Map<string, ThreadMetadata>>) => void;
-    threadCnt: number;
-    setThreadCnt: (updater: SetStateAction<number>) => void;
-    getThreadMessages: (threadId: string) => ThreadMessageLike[];
-    setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
-    getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
-    updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
-};
-type ThreadContextProviderProps = {
-    children: ReactNode;
-    initialThreadId?: string;
-};
-declare function useThreadContext(): ThreadContext;
-declare function ThreadContextProvider({ children, initialThreadId, }: ThreadContextProviderProps): react_jsx_runtime.JSX.Element;
-declare function useCurrentThreadMessages(): ThreadMessageLike[];
-declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
-
-export { type AomiMessage, AomiRuntimeProvider, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type Notification, RuntimeActionsProvider, ThreadContextProvider, type ThreadMetadata, type ThreadStatus, type WalletConnectionStatus, type WalletTxComplete, type WalletTxRequest, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotificationHandler, useRuntimeActions, useThreadContext, useWalletHandler };
+export { type AomiMessage, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification, type NotificationApi, type NotificationHandlerConfig, type OutboundEvent, type SSEStatus, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, useEventContext, useNotificationHandler, useWalletHandler };

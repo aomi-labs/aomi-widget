@@ -2,7 +2,7 @@
 
 import { useState, useCallback, type CSSProperties, type ReactNode } from "react";
 import {
-  AomiRuntimeProvider,
+  AomiRuntimeProviderWithNotifications,
   ThreadContextProvider,
   WalletSystemMessageEmitter,
   cn,
@@ -25,6 +25,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { NotificationToaster } from "@/components/ui/notification";
 
 type AomiFrameProps = {
   width?: CSSProperties["width"];
@@ -62,9 +63,13 @@ export const AomiFrame = ({
 
   return (
     <ThreadContextProvider>
-      <AomiRuntimeProvider backendUrl={backendUrl} publicKey={wallet.address}>
+      <AomiRuntimeProviderWithNotifications
+        backendUrl={backendUrl}
+        publicKey={wallet.address}
+      >
         {/* Internal: watches wallet state and sends system messages */}
         <WalletSystemMessageEmitter wallet={wallet} />
+        <NotificationToaster />
         <FrameShell
           className={className}
           frameStyle={frameStyle}
@@ -74,7 +79,7 @@ export const AomiFrame = ({
         >
           {children}
         </FrameShell>
-      </AomiRuntimeProvider>
+      </AomiRuntimeProviderWithNotifications>
     </ThreadContextProvider>
   );
 };

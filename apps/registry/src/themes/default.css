@@ -1,5 +1,6 @@
-/* @aomi-labs/widget-lib - Theme Styles */
-/* Consumers should import this file: @import "@aomi-labs/widget-lib/styles.css" */
+/* @aomi-labs/widget-lib - Default Theme (shadcn compatible) */
+/* Import via: @import "@aomi-labs/widget-lib/styles.css" (alias) */
+/* Or directly: @import "@aomi-labs/widget-lib/themes/default.css" */
 
 /* ============================================
    Theme Configuration (Tailwind v4 compatible)
@@ -45,6 +46,16 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  @keyframes shimmer-sweep {
+    from {
+      background-position: 150% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  --animate-shimmer: shimmer-sweep var(--shimmer-duration, 1000ms) linear infinite both;
 }
 
 /* ============================================
@@ -111,7 +122,7 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --input: oklch(0.6 0 0 / 15%);
   --ring: oklch(0.552 0.016 285.938);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);

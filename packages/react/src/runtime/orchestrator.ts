@@ -3,7 +3,10 @@ import { useCallback, useRef, useState } from "react";
 
 import { BackendApi } from "../backend/client";
 import type { AomiMessage } from "../backend/types";
-import { useThreadContext, type ThreadContext } from "../contexts/thread-context";
+import {
+  useThreadContext,
+  type ThreadContext,
+} from "../contexts/thread-context";
 import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
 import {
@@ -15,7 +18,10 @@ import {
   type BakendState,
 } from "../state/backend-state";
 
-export function useRuntimeOrchestrator(backendUrl: string) {
+export function useRuntimeOrchestrator(
+  backendUrl: string,
+  options?: { getPublicKey?: () => string | undefined },
+) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
   threadContextRef.current = threadContext;
@@ -24,16 +30,23 @@ export function useRuntimeOrchestrator(backendUrl: string) {
 
   const [isRunning, setIsRunning] = useState(false);
 
-  const messageControllerRef: MutableRefObject<MessageController | null> = useRef(null);
+  const messageControllerRef: MutableRefObject<MessageController | null> =
+    useRef(null);
   const pollingRef: MutableRefObject<PollingController | null> = useRef(null);
+  const pendingFetches = useRef<Set<string>>(new Set());
 
   if (!pollingRef.current) {
-      pollingRef.current = new PollingController({
-        backendApiRef,
-        backendStateRef,
-        applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
-          messageControllerRef.current?.inbound(threadId, msgs);
-        },
+    pollingRef.current = new PollingController({
+      backendApiRef,
+      backendStateRef,
+      applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
+        messageControllerRef.current?.inbound(threadId, msgs);
+      },
+      onStart: (threadId: string) => {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(true);
+        }
+      },
       onStop: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
@@ -49,51 +62,55 @@ export function useRuntimeOrchestrator(backendUrl: string) {
       threadContextRef,
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
+      getPublicKey: options?.getPublicKey,
     });
   }
 
-  const ensureInitialState = useCallback(
-    async (threadId: string) => {
-      const backendState = backendStateRef.current;
-      const isCurrentThread = threadContextRef.current.currentThreadId === threadId;
-      if (shouldSkipInitialFetch(backendState, threadId)) {
-        clearSkipInitialFetch(backendState, threadId);
-        if (isCurrentThread) {
-          setIsRunning(false);
-        }
-        return;
-      }
+  const ensureInitialState = useCallback(async (threadId: string) => {
+    const backendState = backendStateRef.current;
 
-      if (!isThreadReady(backendState, threadId)) {
-        if (isCurrentThread) {
-          setIsRunning(false);
-        }
-        return;
+    if (shouldSkipInitialFetch(backendState, threadId)) {
+      clearSkipInitialFetch(backendState, threadId);
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
       }
+      return;
+    }
 
-      const backendThreadId = resolveThreadId(backendState, threadId);
-      try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
-        messageControllerRef.current?.inbound(threadId, state.messages);
+    if (!isThreadReady(backendState, threadId)) {
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
+      }
+      return;
+    }
+
+    // Skip if already fetching this thread
+    if (pendingFetches.current.has(threadId)) return;
+
+    const backendThreadId = resolveThreadId(backendState, threadId);
+    pendingFetches.current.add(threadId);
+
+    try {
+      const state = await backendApiRef.current.fetchState(backendThreadId);
+      messageControllerRef.current?.inbound(threadId, state.messages);
+
+      if (threadContextRef.current.currentThreadId === threadId) {
         if (state.is_processing) {
-          if (isCurrentThread) {
-            setIsRunning(true);
-          }
+          setIsRunning(true);
           pollingRef.current?.start(threadId);
         } else {
-          if (isCurrentThread) {
-            setIsRunning(false);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-        if (isCurrentThread) {
           setIsRunning(false);
         }
       }
-    },
-    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
-  );
+    } catch (error) {
+      console.error("Failed to fetch initial state:", error);
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
+      }
+    } finally {
+      pendingFetches.current.delete(threadId);
+    }
+  }, []);
 
   return {
     backendStateRef,

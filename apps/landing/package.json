@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@aomi-labs/react": "workspace:*",
-    "@aomi-labs/widget-lib": "workspace:*",
+    "@aomi-labs/widget-lib": "^1.0.0",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
     "@mdx-js/react": "^3.1.1",
@@ -28,6 +28,9 @@
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@reown/appkit": "^1.8.14",
+    "@reown/appkit-adapter-wagmi": "^1.8.14",
+    "@reown/appkit-common": "^1.8.14",
     "@tanstack/react-query": "^5.90.10",
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.545.0",
@@ -60,6 +63,7 @@
     "prettier-plugin-tailwindcss": "^0.6.14",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "wagmi": "^2.19.5",
     "zod": "^4.2.1"
   }
 }

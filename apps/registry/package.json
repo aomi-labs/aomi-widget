@@ -7,10 +7,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./aomi-frame": "./src/components/aomi-frame.tsx",
+    "./aomi-frame-collapsible": "./src/components/aomi-frame-collapsible.tsx",
     "./components/ui/*": "./src/components/ui/*.tsx",
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/themes/default.css",
+    "./themes/*.css": "./src/themes/*.css"
   },
   "scripts": {
     "build": "tsx scripts/build-registry.js"
@@ -19,15 +21,21 @@
     "@aomi-labs/react": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
+    "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-avatar": "^1.1.10",
+    "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-popover": "^1.1.4",
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tooltip": "^1.2.8",
     "class-variance-authority": "^0.7.1",
+    "cmdk": "^1.0.0",
     "lucide-react": "^0.545.0",
     "motion": "^12.23.22",
     "remark-gfm": "^4.0.1",
+    "sonner": "^1.7.4",
+    "vaul": "^1.1.2",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
