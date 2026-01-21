@@ -34,6 +34,8 @@ export function getMDXComponents(components: MDXComponents): MDXComponents {
 }
 
 // For backwards compatibility with @next/mdx
-export function useMDXComponents(components: MDXComponents = {}): MDXComponents {
+export function useMDXComponents(
+  components: MDXComponents = {},
+): MDXComponents {
   return getMDXComponents(components);
 }

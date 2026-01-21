@@ -40,9 +40,7 @@ export type NotificationContextApi = {
 // Context
 // =============================================================================
 
-const NotificationContext = createContext<NotificationContextApi | null>(
-  null,
-);
+const NotificationContext = createContext<NotificationContextApi | null>(null);
 
 // =============================================================================
 // Hook

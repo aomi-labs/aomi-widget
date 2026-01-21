@@ -72,7 +72,6 @@ export function useWalletHandler({
     return unsubscribe;
   }, [subscribe, onTxRequest]);
 
-
   // ---------------------------------------------------------------------------
   // Subscribe to wallet-related inbound events
   // Backend sends InlineCall with type: "user_state_response"
@@ -110,11 +109,7 @@ export function useWalletHandler({
   // Outbound: Send connection status change and update user state
   // ---------------------------------------------------------------------------
   const sendConnectionChange = useCallback(
-    (
-      status: WalletConnectionStatus,
-      address?: string,
-      chainId?: number,
-    ) => {
+    (status: WalletConnectionStatus, address?: string, chainId?: number) => {
       // Update user state
       if (status === "connected") {
         setUser({

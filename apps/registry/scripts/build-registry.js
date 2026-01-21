@@ -65,7 +65,7 @@ function main() {
 
   writeFileSync(
     path.join(distDir, "registry.json"),
-    JSON.stringify(registryIndex, null, 2)
+    JSON.stringify(registryIndex, null, 2),
   );
 
   console.log(`Wrote ${items.length} component files + registry.json to dist/`);

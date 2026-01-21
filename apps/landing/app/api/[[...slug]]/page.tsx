@@ -25,10 +25,7 @@ export default async function Page(props: {
   const mdxComponents = getMDXComponents({});
 
   return (
-    <DocsPage
-      toc={page.data.toc}
-      full={page.data.full ?? false}
-    >
+    <DocsPage toc={page.data.toc} full={page.data.full ?? false}>
       <DocsBody>
         <h1>{page.data.title}</h1>
         {page.data.description && (
@@ -44,11 +41,9 @@ export function generateStaticParams() {
   return api.generateParams();
 }
 
-export async function generateMetadata(
-  props: {
-    params: Promise<{ slug?: string[] }>;
-  },
-): Promise<Metadata> {
+export async function generateMetadata(props: {
+  params: Promise<{ slug?: string[] }>;
+}): Promise<Metadata> {
   const { slug = [] } = await props.params;
   const page = api.getPage(slug);
 

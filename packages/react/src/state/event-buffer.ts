@@ -1,4 +1,3 @@
-
 export type InboundEvent = {
   type: string;
   sessionId: string;
@@ -17,7 +16,6 @@ export type OutboundEvent = {
 export type SSEStatus = "connected" | "connecting" | "disconnected";
 
 export type EventSubscriber = (event: InboundEvent) => void;
-
 
 export type EventBuffer = {
   inboundQueue: InboundEvent[];
@@ -43,7 +41,7 @@ export function createEventBuffer(): EventBuffer {
 
 export function enqueueInbound(
   state: EventBuffer,
-  event: Omit<InboundEvent, "status" | "timestamp">
+  event: Omit<InboundEvent, "status" | "timestamp">,
 ): void {
   state.inboundQueue.push({
     ...event,
@@ -63,7 +61,7 @@ export function peekInbound(state: EventBuffer): InboundEvent | null {
 export function markFetched(
   state: EventBuffer,
   event: InboundEvent,
-  payload: unknown
+  payload: unknown,
 ): void {
   event.status = "fetched";
   event.payload = payload;
@@ -79,7 +77,7 @@ export function hasInbound(state: EventBuffer): boolean {
 
 export function enqueueOutbound(
   state: EventBuffer,
-  event: Omit<OutboundEvent, "timestamp">
+  event: Omit<OutboundEvent, "timestamp">,
 ): void {
   state.outboundQueue.push({
     ...event,
@@ -97,7 +95,6 @@ export function hasOutbound(state: EventBuffer): boolean {
   return state.outboundQueue.length > 0;
 }
 
-
 // =============================================================================
 // Subscription Helpers
 // =============================================================================
@@ -105,7 +102,7 @@ export function hasOutbound(state: EventBuffer): boolean {
 export function subscribe(
   state: EventBuffer,
   type: string,
-  callback: EventSubscriber
+  callback: EventSubscriber,
 ): () => void {
   if (!state.subscribers.has(type)) {
     state.subscribers.set(type, new Set());
@@ -120,7 +117,7 @@ export function subscribe(
 
 export function subscribeAll(
   state: EventBuffer,
-  callback: EventSubscriber
+  callback: EventSubscriber,
 ): () => void {
   return subscribe(state, "*", callback);
 }

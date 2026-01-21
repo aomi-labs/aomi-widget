@@ -564,7 +564,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 0 * * *'  # Daily
+    - cron: "0 0 * * *" # Daily
 
 jobs:
   eval:
@@ -600,11 +600,11 @@ flowchart LR
 
 ### Guidelines
 
-| Practice | Description |
-|----------|-------------|
-| **Fork at specific block** | Ensure reproducible state |
-| **Pre-fund accounts** | Avoid flaky balance issues |
-| **Reset after each test** | Isolate test state |
-| **Use deterministic inputs** | Avoid random addresses |
-| **Check tool calls** | Verify agent behavior |
-| **Validate outputs** | Assert on final state |
+| Practice                     | Description                |
+| ---------------------------- | -------------------------- |
+| **Fork at specific block**   | Ensure reproducible state  |
+| **Pre-fund accounts**        | Avoid flaky balance issues |
+| **Reset after each test**    | Isolate test state         |
+| **Use deterministic inputs** | Avoid random addresses     |
+| **Check tool calls**         | Verify agent behavior      |
+| **Validate outputs**         | Assert on final state      |

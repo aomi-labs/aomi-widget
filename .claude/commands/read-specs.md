@@ -12,7 +12,9 @@ Read and internalize the project specifications to understand the codebase befor
 Read the following spec files in order:
 
 ### 1. Domain Logic (specs/DOMAIN.md)
+
 Contains immutable truths of the system:
+
 - Architecture decisions and rationale
 - Invariants that must never be violated
 - Constraints for blockchain, LLM, and concurrency
@@ -21,7 +23,9 @@ Contains immutable truths of the system:
 - Agent behavioral rules
 
 ### 2. Environment Metadata (specs/METADATA.md)
+
 Contains factual environment information:
+
 - Tooling versions
 - Repository file tree
 - Key dependencies
@@ -32,7 +36,9 @@ Contains factual environment information:
 - Build commands
 
 ### 3. Current Progress (specs/PROGRESS.md)
+
 Contains temporary sprint/task state:
+
 - Current sprint goal
 - Branch status and recent commits
 - Recently completed work
@@ -46,6 +52,7 @@ Contains temporary sprint/task state:
 $ARGUMENTS
 
 If a focus area is specified above, pay special attention to sections related to that topic. For example:
+
 - "session management" → Focus on session invariants, SessionState patterns, and related idioms
 - "tools" → Focus on tool registration patterns, ToolScheduler, and tool execution invariants
 - "database" → Focus on database schema, store traits, and database access patterns
@@ -54,6 +61,7 @@ If a focus area is specified above, pay special attention to sections related to
 ## After Reading
 
 After reading the specs, summarize:
+
 1. **Key constraints** relevant to the current task
 2. **Patterns to follow** from the idioms section
 3. **Current state** from PROGRESS.md that may affect the work

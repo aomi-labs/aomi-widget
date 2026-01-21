@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useEventContext } from "../contexts/event-context";
 import type { InboundEvent } from "../state/event-buffer";
 
-
 export type Notification = {
   id: string;
   type: string;
@@ -14,7 +13,6 @@ export type Notification = {
   timestamp: number;
   sessionId: string;
 };
-
 
 export type NotificationHandlerConfig = {
   /** Callback when new notification arrives */
@@ -75,7 +73,7 @@ export function useNotificationHandler({
   // ---------------------------------------------------------------------------
   const markHandled = useCallback((id: string) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, handled: true } : n))
+      prev.map((n) => (n.id === id ? { ...n, handled: true } : n)),
     );
   }, []);
 

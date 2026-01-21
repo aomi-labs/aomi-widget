@@ -3,4 +3,3 @@
 export { AomiFrame } from "./components/aomi-frame";
 // Re-export the collapsible version
 export { AomiFrameCollapsible } from "./components/aomi-frame-collapsible";
-

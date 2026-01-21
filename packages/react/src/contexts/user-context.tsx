@@ -9,14 +9,12 @@ import {
   type ReactNode,
 } from "react";
 
-
 export type UserState = {
   address?: string;
   chainId?: number;
   isConnected: boolean;
   ensName?: string;
 };
-
 
 type UserContextValue = {
   user: UserState;
@@ -25,9 +23,7 @@ type UserContextValue = {
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
 
-
 const UserContext = createContext<UserContextValue | undefined>(undefined);
-
 
 export function useUser() {
   const context = useContext(UserContext);
@@ -43,9 +39,6 @@ export function useUser() {
   };
 }
 
-
-
-
 // ==================== Provider ====================
 
 export function UserContextProvider({ children }: { children: ReactNode }) {
@@ -60,37 +53,39 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
   const userRef = useRef(user);
   userRef.current = user;
 
-    // Store callbacks in a ref
-    const StateChangeCallbacks = useRef<Set<(user: UserState) => void>>(new Set());
+  // Store callbacks in a ref
+  const StateChangeCallbacks = useRef<Set<(user: UserState) => void>>(
+    new Set(),
+  );
 
-    const setUser = useCallback((data: Partial<UserState>) => {
-      setUserState((prev) => {
-        const next = { ...prev, ...data };
-        
-        // Notify all subscribers
-        StateChangeCallbacks.current.forEach((callback) => {
-          callback(next);
-        });
-        
-        return next;
+  const setUser = useCallback((data: Partial<UserState>) => {
+    setUserState((prev) => {
+      const next = { ...prev, ...data };
+
+      // Notify all subscribers
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
       });
-    }, []);
+
+      return next;
+    });
+  }, []);
 
   // Stable getters that runtime classes can call
   const getUserState = useCallback(() => userRef.current, []);
 
   // Subscribe to user state changes
   const onUserStateChange = useCallback(
-      (callback: (user: UserState) => void) => {
-        StateChangeCallbacks.current.add(callback);
-        
-        // Return unsubscribe function
-        return () => {
-          StateChangeCallbacks.current.delete(callback);
-        };
-      },
-      [],
-    );
+    (callback: (user: UserState) => void) => {
+      StateChangeCallbacks.current.add(callback);
+
+      // Return unsubscribe function
+      return () => {
+        StateChangeCallbacks.current.delete(callback);
+      };
+    },
+    [],
+  );
 
   return (
     <UserContext.Provider
@@ -98,7 +93,7 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
         user,
         setUser,
         getUserState,
-        onUserStateChange
+        onUserStateChange,
       }}
     >
       {children}

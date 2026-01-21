@@ -10,6 +10,7 @@ This example demonstrates how to build a MetaMask-style wallet interface using A
 ## Overview
 
 This example shows:
+
 - Wallet connection with MetaMask-style UI
 - Account management and switching
 - Transaction signing flow
@@ -49,11 +50,7 @@ import { useAppKit } from "@reown/appkit/react";
 function ConnectButton() {
   const { open } = useAppKit();
 
-  return (
-    <button onClick={() => open()}>
-      Connect Wallet
-    </button>
-  );
+  return <button onClick={() => open()}>Connect Wallet</button>;
 }
 ```
 
@@ -71,7 +68,9 @@ function AccountInfo() {
   return (
     <div>
       <p>Address: {address}</p>
-      <p>Balance: {balance?.formatted} {balance?.symbol}</p>
+      <p>
+        Balance: {balance?.formatted} {balance?.symbol}
+      </p>
       <p>Network: {chain?.name}</p>
     </div>
   );

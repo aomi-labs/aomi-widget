@@ -1,7 +1,4 @@
 {
   "title": "Components",
-  "pages": [
-    "ui-components",
-    "aomi-components"
-  ]
+  "pages": ["ui-components", "aomi-components"]
 }

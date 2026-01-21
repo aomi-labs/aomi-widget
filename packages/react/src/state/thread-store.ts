@@ -2,7 +2,6 @@ import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import { ThreadContext } from "../contexts/thread-context";
 
-
 export type ThreadStatus = "regular" | "archived" | "pending";
 
 export type ThreadMetadata = {
@@ -66,7 +65,9 @@ export class ThreadStore {
   }
 
   private resolveStateAction<T>(updater: SetStateAction<T>, current: T): T {
-    return typeof updater === "function" ? (updater as (prev: T) => T)(current) : updater;
+    return typeof updater === "function"
+      ? (updater as (prev: T) => T)(current)
+      : updater;
   }
 
   private ensureThreadExists(threadId: string) {
@@ -131,8 +132,13 @@ export class ThreadStore {
     this.updateState({ threads: new Map(nextThreads) });
   };
 
-  setThreadMetadata = (updater: SetStateAction<Map<string, ThreadMetadata>>) => {
-    const nextMetadata = this.resolveStateAction(updater, this.state.threadMetadata);
+  setThreadMetadata = (
+    updater: SetStateAction<Map<string, ThreadMetadata>>,
+  ) => {
+    const nextMetadata = this.resolveStateAction(
+      updater,
+      this.state.threadMetadata,
+    );
     this.updateState({ threadMetadata: new Map(nextMetadata) });
   };
 
@@ -151,7 +157,10 @@ export class ThreadStore {
     return this.state.threadMetadata.get(threadId);
   };
 
-  updateThreadMetadata = (threadId: string, updates: Partial<ThreadMetadata>) => {
+  updateThreadMetadata = (
+    threadId: string,
+    updates: Partial<ThreadMetadata>,
+  ) => {
     const existing = this.state.threadMetadata.get(threadId);
     if (!existing) {
       return;

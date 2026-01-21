@@ -1,7 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime,
@@ -11,13 +18,18 @@ import {
   type ExternalStoreThreadData,
 } from "@assistant-ui/react";
 import { BackendApi, type SessionMessage } from "@/lib/backend-api";
-import { constructSystemMessage, constructThreadMessage } from "@/lib/conversion";
+import {
+  constructSystemMessage,
+  constructThreadMessage,
+} from "@/lib/conversion";
 import { useThreadContext, type ThreadMetadata } from "@/lib/thread-context";
 
 type RuntimeActions = {
   sendSystemMessage: (message: string) => Promise<void>;
 };
-const RuntimeActionsContext = createContext<RuntimeActions | undefined>(undefined);
+const RuntimeActionsContext = createContext<RuntimeActions | undefined>(
+  undefined,
+);
 
 const isTempThreadId = (id: string) => id.startsWith("temp-");
 const parseTimestamp = (value?: string | number) => {
@@ -44,7 +56,9 @@ const isPlaceholderTitle = (title?: string) => {
 export const useRuntimeActions = () => {
   const context = useContext(RuntimeActionsContext);
   if (!context) {
-    throw new Error("useRuntimeActions must be used within AomiRuntimeProvider");
+    throw new Error(
+      "useRuntimeActions must be used within AomiRuntimeProvider",
+    );
   }
   return context;
 };
@@ -77,7 +91,9 @@ export function AomiRuntimeProvider({
   // ==================== State ====================
   const [isRunning, setIsRunning] = useState(false);
   const backendApiRef = useRef(new BackendApi(backendUrl));
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const pendingSystemMessagesRef = useRef<Map<string, string[]>>(new Map());
   // Queue for chat messages sent before backend ID is available
   const pendingChatMessagesRef = useRef<Map<string, string[]>>(new Map());
@@ -115,12 +131,15 @@ export function AomiRuntimeProvider({
   }, []);
 
   // Helper to find a temp thread ID for a given backend ID (reverse lookup)
-  const findTempIdForBackendId = useCallback((backendId: string): string | undefined => {
-    for (const [tempId, bId] of tempToBackendIdRef.current.entries()) {
-      if (bId === backendId) return tempId;
-    }
-    return undefined;
-  }, []);
+  const findTempIdForBackendId = useCallback(
+    (backendId: string): string | undefined => {
+      for (const [tempId, bId] of tempToBackendIdRef.current.entries()) {
+        if (bId === backendId) return tempId;
+      }
+      return undefined;
+    },
+    [],
+  );
 
   // Check if a thread is ready for API calls (either not temp, or temp with backend ID)
   const isThreadReady = useCallback((threadId: string): boolean => {
@@ -129,36 +148,43 @@ export function AomiRuntimeProvider({
   }, []);
 
   // ==================== Message Processing ====================
-  const applyMessages = useCallback((msgs?: SessionMessage[] | null) => {
-    if (!msgs) return;
+  const applyMessages = useCallback(
+    (msgs?: SessionMessage[] | null) => {
+      if (!msgs) return;
 
-    // Don't overwrite messages if there are pending chat messages waiting to be sent
-    // This prevents the UI from losing user messages while waiting for backend ID
-    const hasPendingMessages = pendingChatMessagesRef.current.has(currentThreadId) && 
-      (pendingChatMessagesRef.current.get(currentThreadId)?.length ?? 0) > 0;
-    if (hasPendingMessages) {
-      console.log("Skipping applyMessages - pending messages exist for thread:", currentThreadId);
-      return;
-    }
+      // Don't overwrite messages if there are pending chat messages waiting to be sent
+      // This prevents the UI from losing user messages while waiting for backend ID
+      const hasPendingMessages =
+        pendingChatMessagesRef.current.has(currentThreadId) &&
+        (pendingChatMessagesRef.current.get(currentThreadId)?.length ?? 0) > 0;
+      if (hasPendingMessages) {
+        console.log(
+          "Skipping applyMessages - pending messages exist for thread:",
+          currentThreadId,
+        );
+        return;
+      }
 
-    const threadMessages: ThreadMessageLike[] = [];
+      const threadMessages: ThreadMessageLike[] = [];
 
-    for (const msg of msgs) {
-      if (msg.sender === "system") {
-        const systemMessage = constructSystemMessage(msg);
-        if (systemMessage) {
-          threadMessages.push(systemMessage);
+      for (const msg of msgs) {
+        if (msg.sender === "system") {
+          const systemMessage = constructSystemMessage(msg);
+          if (systemMessage) {
+            threadMessages.push(systemMessage);
+          }
+          continue;
         }
-        continue;
+        const threadMessage = constructThreadMessage(msg);
+        if (threadMessage) {
+          threadMessages.push(threadMessage);
+        }
       }
-      const threadMessage = constructThreadMessage(msg);
-      if (threadMessage) {
-        threadMessages.push(threadMessage);
-      }
-    }
 
-    setThreadMessages(currentThreadId, threadMessages);
-  }, [currentThreadId, setThreadMessages]);
+      setThreadMessages(currentThreadId, threadMessages);
+    },
+    [currentThreadId, setThreadMessages],
+  );
 
   // ==================== Backend API ====================
   useEffect(() => {
@@ -198,13 +224,22 @@ export function AomiRuntimeProvider({
         setIsRunning(false);
       }
     }, 500);
-  }, [currentThreadId, applyMessages, stopPolling, isThreadReady, resolveThreadId]);
+  }, [
+    currentThreadId,
+    applyMessages,
+    stopPolling,
+    isThreadReady,
+    resolveThreadId,
+  ]);
 
   // ==================== Load Initial Thread State ====================
   useEffect(() => {
     const fetchInitialState = async () => {
       // For temp threads without a backend ID yet, skip fetching
-      if (isTempThreadId(currentThreadId) && !tempToBackendIdRef.current.has(currentThreadId)) {
+      if (
+        isTempThreadId(currentThreadId) &&
+        !tempToBackendIdRef.current.has(currentThreadId)
+      ) {
         setIsRunning(false);
         return;
       }
@@ -242,7 +277,13 @@ export function AomiRuntimeProvider({
     return () => {
       stopPolling();
     };
-  }, [currentThreadId, applyMessages, startPolling, stopPolling, resolveThreadId]);
+  }, [
+    currentThreadId,
+    applyMessages,
+    startPolling,
+    stopPolling,
+    resolveThreadId,
+  ]);
 
   // ==================== Load Thread List from Backend ====================
   useEffect(() => {
@@ -298,7 +339,7 @@ export function AomiRuntimeProvider({
   const threadListAdapter: ExternalStoreThreadListAdapter = (() => {
     const sortByLastActiveDesc = (
       [, metaA]: [string, ThreadMetadata],
-      [, metaB]: [string, ThreadMetadata]
+      [, metaB]: [string, ThreadMetadata],
     ) => {
       const tsA = parseTimestamp(metaA.lastActiveAt);
       const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -309,21 +350,25 @@ export function AomiRuntimeProvider({
       .filter(([_, meta]) => meta.status === "regular")
       .filter(([_, meta]) => !isPlaceholderTitle(meta.title))
       .sort(sortByLastActiveDesc)
-      .map(([id, meta]): ExternalStoreThreadData<"regular"> => ({
-        id,
-        title: meta.title || "New Chat",
-        status: "regular",
-      }));
+      .map(
+        ([id, meta]): ExternalStoreThreadData<"regular"> => ({
+          id,
+          title: meta.title || "New Chat",
+          status: "regular",
+        }),
+      );
 
     const archivedThreadsArray = Array.from(threadMetadata.entries())
       .filter(([_, meta]) => meta.status === "archived")
       .filter(([_, meta]) => !isPlaceholderTitle(meta.title))
       .sort(sortByLastActiveDesc)
-      .map(([id, meta]): ExternalStoreThreadData<"archived"> => ({
-        id,
-        title: meta.title || "New Chat",
-        status: "archived",
-      }));
+      .map(
+        ([id, meta]): ExternalStoreThreadData<"archived"> => ({
+          id,
+          title: meta.title || "New Chat",
+          status: "archived",
+        }),
+      );
 
     return {
       threadId: currentThreadId,
@@ -359,7 +404,7 @@ export function AomiRuntimeProvider({
               title: "New Chat",
               status: "pending",
               lastActiveAt: new Date().toISOString(),
-            })
+            }),
           );
           setThreadMessages(newId, []);
           setCurrentThreadId(newId);
@@ -376,7 +421,9 @@ export function AomiRuntimeProvider({
 
         // If a creation request is already in flight, just reset UI with a fresh pending thread
         if (createThreadPromiseRef.current) {
-          preparePendingThread(creatingThreadIdRef.current ?? `temp-${crypto.randomUUID()}`);
+          preparePendingThread(
+            creatingThreadIdRef.current ?? `temp-${crypto.randomUUID()}`,
+          );
           return;
         }
 
@@ -409,7 +456,8 @@ export function AomiRuntimeProvider({
                 next.set(uiThreadId, {
                   title: backendTitle,
                   status: nextStatus,
-                  lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+                  lastActiveAt:
+                    existing?.lastActiveAt ?? new Date().toISOString(),
                 });
                 return next;
               });
@@ -419,7 +467,8 @@ export function AomiRuntimeProvider({
             }
 
             // Flush any pending chat messages that were queued while waiting for backend ID
-            const pendingMessages = pendingChatMessagesRef.current.get(uiThreadId);
+            const pendingMessages =
+              pendingChatMessagesRef.current.get(uiThreadId);
             if (pendingMessages?.length) {
               pendingChatMessagesRef.current.delete(uiThreadId);
               for (const text of pendingMessages) {
@@ -468,7 +517,9 @@ export function AomiRuntimeProvider({
       // Rename thread
       onRename: async (threadId: string, newTitle: string) => {
         // Optimistic update
-        updateThreadMetadata(threadId, { title: isPlaceholderTitle(newTitle) ? "" : newTitle });
+        updateThreadMetadata(threadId, {
+          title: isPlaceholderTitle(newTitle) ? "" : newTitle,
+        });
 
         try {
           await backendApiRef.current.renameThread(threadId, newTitle);
@@ -506,50 +557,53 @@ export function AomiRuntimeProvider({
         }
       },
 
-        // Delete thread
-        onDelete: async (threadId: string) => {
-          try {
-            await backendApiRef.current.deleteThread(threadId);
+      // Delete thread
+      onDelete: async (threadId: string) => {
+        try {
+          await backendApiRef.current.deleteThread(threadId);
 
-            // Remove from context
-            setThreadMetadata((prev) => {
-              const next = new Map(prev);
-              next.delete(threadId);
-              return next;
-            });
-            setThreads((prev) => {
-              const next = new Map(prev);
-              next.delete(threadId);
-              return next;
-            });
+          // Remove from context
+          setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(threadId);
+            return next;
+          });
+          setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(threadId);
+            return next;
+          });
 
-            // Switch to another thread if current was deleted
-            if (currentThreadId === threadId) {
-              const firstRegularThread = Array.from(threadMetadata.entries())
-                .find(([id, meta]) => meta.status === "regular" && id !== threadId);
+          // Switch to another thread if current was deleted
+          if (currentThreadId === threadId) {
+            const firstRegularThread = Array.from(
+              threadMetadata.entries(),
+            ).find(
+              ([id, meta]) => meta.status === "regular" && id !== threadId,
+            );
 
-              if (firstRegularThread) {
-                setCurrentThreadId(firstRegularThread[0]);
-              } else {
-                // No threads left, create a default one
-                const defaultId = "default-session";
-                setThreadMetadata((prev) =>
-                  new Map(prev).set(defaultId, {
-                    title: "New Chat",
-                    status: "regular",
-                    lastActiveAt: new Date().toISOString(),
-                  })
-                );
-                setThreadMessages(defaultId, []);
-                setCurrentThreadId(defaultId);
-              }
+            if (firstRegularThread) {
+              setCurrentThreadId(firstRegularThread[0]);
+            } else {
+              // No threads left, create a default one
+              const defaultId = "default-session";
+              setThreadMetadata((prev) =>
+                new Map(prev).set(defaultId, {
+                  title: "New Chat",
+                  status: "regular",
+                  lastActiveAt: new Date().toISOString(),
+                }),
+              );
+              setThreadMessages(defaultId, []);
+              setCurrentThreadId(defaultId);
             }
-          } catch (error) {
-            console.error("Failed to delete thread:", error);
-            throw error; // Let the UI handle the error
           }
-        },
-      };
+        } catch (error) {
+          console.error("Failed to delete thread:", error);
+          throw error; // Let the UI handle the error
+        }
+      },
+    };
   })();
 
   // ==================== Message Handlers ====================
@@ -558,12 +612,18 @@ export function AomiRuntimeProvider({
       const backendThreadId = resolveThreadId(threadId);
       setIsRunning(true);
       try {
-        const response = await backendApiRef.current.postSystemMessage(backendThreadId, message);
+        const response = await backendApiRef.current.postSystemMessage(
+          backendThreadId,
+          message,
+        );
 
         if (response.res) {
           const systemMessage = constructSystemMessage(response.res);
           if (systemMessage) {
-            const updatedMessages = [...getThreadMessages(threadId), systemMessage];
+            const updatedMessages = [
+              ...getThreadMessages(threadId),
+              systemMessage,
+            ];
             setThreadMessages(threadId, updatedMessages);
           }
         }
@@ -574,7 +634,7 @@ export function AomiRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [getThreadMessages, setThreadMessages, startPolling, resolveThreadId]
+    [getThreadMessages, setThreadMessages, startPolling, resolveThreadId],
   );
 
   const flushPendingSystemMessages = useCallback(
@@ -588,7 +648,7 @@ export function AomiRuntimeProvider({
         await sendSystemMessageNow(threadId, pendingMessage);
       }
     },
-    [sendSystemMessageNow]
+    [sendSystemMessageNow],
   );
 
   // Flush pending chat messages when backend ID becomes available
@@ -610,14 +670,20 @@ export function AomiRuntimeProvider({
       // Start polling after all messages are sent
       startPolling();
     },
-    [resolveThreadId, startPolling]
+    [resolveThreadId, startPolling],
   );
 
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = message.content
-        .filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
-        .map((part: Extract<typeof message.content[number], { type: "text" }>) => part.text)
+        .filter(
+          (part): part is Extract<typeof part, { type: "text" }> =>
+            part.type === "text",
+        )
+        .map(
+          (part: Extract<(typeof message.content)[number], { type: "text" }>) =>
+            part.text,
+        )
         .join("\n");
 
       if (!text) return;
@@ -630,13 +696,18 @@ export function AomiRuntimeProvider({
 
       // Add message to current thread (show immediately in UI)
       setThreadMessages(currentThreadId, [...currentMessages, userMessage]);
-      updateThreadMetadata(currentThreadId, { lastActiveAt: new Date().toISOString() });
+      updateThreadMetadata(currentThreadId, {
+        lastActiveAt: new Date().toISOString(),
+      });
 
       // If thread isn't ready (backend ID not available yet), queue the message
       if (!isThreadReady(currentThreadId)) {
-        console.log("Thread not ready yet; queuing message for later delivery.");
+        console.log(
+          "Thread not ready yet; queuing message for later delivery.",
+        );
         setIsRunning(true); // Show pending state
-        const pending = pendingChatMessagesRef.current.get(currentThreadId) || [];
+        const pending =
+          pendingChatMessagesRef.current.get(currentThreadId) || [];
         pendingChatMessagesRef.current.set(currentThreadId, [...pending, text]);
         return;
       }
@@ -662,7 +733,7 @@ export function AomiRuntimeProvider({
       isThreadReady,
       resolveThreadId,
       updateThreadMetadata,
-    ]
+    ],
   );
 
   const sendSystemMessage = useCallback(
@@ -672,14 +743,18 @@ export function AomiRuntimeProvider({
       const hasUserMessages = threadMessages.some((msg) => msg.role === "user");
 
       if (!hasUserMessages) {
-        const pending = pendingSystemMessagesRef.current.get(currentThreadId) || [];
-        pendingSystemMessagesRef.current.set(currentThreadId, [...pending, message]);
+        const pending =
+          pendingSystemMessagesRef.current.get(currentThreadId) || [];
+        pendingSystemMessagesRef.current.set(currentThreadId, [
+          ...pending,
+          message,
+        ]);
         return;
       }
 
       await sendSystemMessageNow(currentThreadId, message);
     },
-    [currentThreadId, getThreadMessages, sendSystemMessageNow, isThreadReady]
+    [currentThreadId, getThreadMessages, sendSystemMessageNow, isThreadReady],
   );
 
   const onCancel = useCallback(async () => {
@@ -742,13 +817,16 @@ export function AomiRuntimeProvider({
           });
           return next;
         });
-        if (!isPlaceholderTitle(newTitle) && creatingThreadIdRef.current === threadIdToUpdate) {
+        if (
+          !isPlaceholderTitle(newTitle) &&
+          creatingThreadIdRef.current === threadIdToUpdate
+        ) {
           creatingThreadIdRef.current = null;
         }
       },
       (error) => {
         console.error("Failed to handle system update SSE:", error);
-      }
+      },
     );
 
     return () => {
@@ -758,7 +836,9 @@ export function AomiRuntimeProvider({
 
   return (
     <RuntimeActionsContext.Provider value={{ sendSystemMessage }}>
-      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+      <AssistantRuntimeProvider runtime={runtime}>
+        {children}
+      </AssistantRuntimeProvider>
     </RuntimeActionsContext.Provider>
   );
 }
