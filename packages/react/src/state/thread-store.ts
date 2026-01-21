@@ -1,6 +1,6 @@
 import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
-import { ThreadContext } from "src/contexts/thread-context";
+import { ThreadContext } from "../contexts/thread-context";
 
 
 export type ThreadStatus = "regular" | "archived" | "pending";

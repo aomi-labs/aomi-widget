@@ -92,3 +92,16 @@ export type ApiSSEEvent = {
  */
 export type ApiSSEEventType = "title_changed" | "tool_completion";
 
+// =============================================================================
+// System Events (/api/events)
+// =============================================================================
+
+/**
+ * GET /api/events
+ * Returns async callback events from backend (wallet tx requests, notifications, etc.)
+ */
+export type ApiSystemEvent = {
+  type: string;
+  [key: string]: unknown;
+};
+

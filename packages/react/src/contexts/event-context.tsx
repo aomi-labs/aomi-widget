@@ -11,14 +11,11 @@ import {
 import type { ReactNode } from "react";
 
 import type { BackendApi } from "../backend/client";
-import type { ApiSSEEvent, ApiSystemEvent } from "../backend/types";
+import type { ApiSSEEvent } from "../backend/types";
 import {
   createEventBuffer,
   dispatch,
   enqueueInbound,
-  enqueueOutbound,
-  drainOutbound,
-  hasHighPriorityOutbound,
   setSSEStatus,
   subscribe as subscribeToBuffer,
   type EventBuffer,
@@ -35,8 +32,8 @@ import {
 export type EventContext = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
-  /** Enqueue an outbound event to be sent to backend */
-  enqueueOutbound: (event: Omit<OutboundEvent, "timestamp">) => void;
+  /** Send an outbound event to backend immediately */
+  sendOutbound: (event: Omit<OutboundEvent, "timestamp">) => void;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -72,9 +69,6 @@ export type EventContextProviderProps = {
 // Provider
 // =============================================================================
 
-const FLUSH_INTERVAL_MS = 1000;
-const POLL_INTERVAL_MS = 2000;
-
 export function EventContextProvider({
   children,
   backendApi,
@@ -89,22 +83,21 @@ export function EventContextProvider({
   const [sseStatus, setSseStatus] = useState<SSEStatus>("disconnected");
 
   // ---------------------------------------------------------------------------
-  // SSE Subscription
+  // SSE Subscription (reconnects when sessionId changes)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
 
     const unsubscribe = backendApi.subscribeSSE(
+      sessionId,
       (event: ApiSSEEvent) => {
-        // Convert SSE event to inbound event and enqueue
         enqueueInbound(buffer, {
           type: event.type,
           sessionId: event.session_id,
-          payload: event, // Store raw event, handler can fetch more if needed
+          payload: event,
         });
 
-        // Immediately dispatch to subscribers
         const inboundEvent: InboundEvent = {
           type: event.type,
           sessionId: event.session_id,
@@ -121,7 +114,6 @@ export function EventContextProvider({
       }
     );
 
-    // Mark as connected after subscription
     setSSEStatus(buffer, "connected");
     setSseStatus("connected");
 
@@ -130,76 +122,7 @@ export function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, buffer]);
-
-  // ---------------------------------------------------------------------------
-  // System Events Polling (GET /api/events)
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const pollSystemEvents = async () => {
-      try {
-        const events = await backendApi.getSystemEvents(sessionId);
-        for (const event of events) {
-          const inboundEvent: InboundEvent = {
-            type: event.type,
-            sessionId,
-            payload: event,
-            status: "fetched",
-            timestamp: Date.now(),
-          };
-          enqueueInbound(buffer, {
-            type: event.type,
-            sessionId,
-            payload: event,
-          });
-          dispatch(buffer, inboundEvent);
-        }
-      } catch (error) {
-        // Silently ignore polling errors (session may not exist yet)
-        console.debug("System events poll:", error);
-      }
-    };
-
-    const intervalId = setInterval(pollSystemEvents, POLL_INTERVAL_MS);
-    // Initial poll
-    void pollSystemEvents();
-
-    return () => clearInterval(intervalId);
   }, [backendApi, buffer, sessionId]);
-
-  // ---------------------------------------------------------------------------
-  // Outbound Flush Timer
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const flushOutbound = async () => {
-      const events = drainOutbound(buffer);
-      if (events.length === 0) return;
-
-      try {
-        // TODO: POST to /api/events when endpoint is ready
-        console.log("📤 Flushing outbound events:", events);
-        // await backendApi.postEvents(sessionId, events);
-      } catch (error) {
-        console.error("Failed to flush outbound events:", error);
-        // Re-enqueue failed events
-        for (const event of events) {
-          enqueueOutbound(buffer, event);
-        }
-      }
-    };
-
-    const intervalId = setInterval(() => {
-      if (hasHighPriorityOutbound(buffer)) {
-        void flushOutbound();
-      }
-    }, FLUSH_INTERVAL_MS);
-
-    return () => {
-      clearInterval(intervalId);
-      // Flush remaining on cleanup
-      void flushOutbound();
-    };
-  }, [buffer, sessionId]);
 
   // ---------------------------------------------------------------------------
   // Context Value
@@ -211,26 +134,24 @@ export function EventContextProvider({
     [buffer]
   );
 
-  const enqueueOutboundCallback = useCallback(
-    (event: Omit<OutboundEvent, "timestamp">) => {
-      enqueueOutbound(buffer, event);
-
-      // Immediate flush for high priority
-      if (event.priority === "high") {
-        const events = drainOutbound(buffer);
-        if (events.length > 0) {
-          // TODO: POST to /api/events when endpoint is ready
-          console.log("📤 Immediate flush (high priority):", events);
-          // void backendApi.postEvents(sessionId, events);
-        }
+  const sendOutbound = useCallback(
+    async (event: Omit<OutboundEvent, "timestamp">) => {
+      try {
+        const message = JSON.stringify({
+          type: event.type,
+          payload: event.payload,
+        });
+        await backendApi.postSystemMessage(event.sessionId, message);
+      } catch (error) {
+        console.error("Failed to send outbound event:", error);
       }
     },
-    [buffer]
+    [backendApi]
   );
 
   const contextValue: EventContext = {
     subscribe: subscribeCallback,
-    enqueueOutbound: enqueueOutboundCallback,
+    sendOutbound,
     sseStatus,
   };
 

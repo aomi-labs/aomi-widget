@@ -42,7 +42,7 @@ export function useWalletHandler({
   sessionId,
   onTxRequest,
 }: WalletHandlerConfig): WalletHanderApi {
-  const { subscribe, enqueueOutbound } = useEventContext();
+  const { subscribe, sendOutbound } = useEventContext();
   const [pendingTxRequests, setPendingTxRequests] = useState<WalletTxRequest[]>([]);
 
   // ---------------------------------------------------------------------------
@@ -67,14 +67,14 @@ export function useWalletHandler({
   // ---------------------------------------------------------------------------
   const sendTxComplete = useCallback(
     (tx: WalletTxComplete) => {
-      enqueueOutbound({
+      sendOutbound({
         type: "wallet:tx_complete",
         sessionId,
         payload: tx,
-        priority: "high", // Tx completions are high priority
+        priority: "high",
       });
     },
-    [enqueueOutbound, sessionId]
+    [sendOutbound, sessionId]
   );
 
   // ---------------------------------------------------------------------------
@@ -82,14 +82,14 @@ export function useWalletHandler({
   // ---------------------------------------------------------------------------
   const sendConnectionChange = useCallback(
     (status: WalletConnectionStatus, address?: string) => {
-      enqueueOutbound({
+      sendOutbound({
         type: status === "connected" ? "wallet:connected" : "wallet:disconnected",
         sessionId,
         payload: { status, address },
         priority: "normal",
       });
     },
-    [enqueueOutbound, sessionId]
+    [sendOutbound, sessionId]
   );
 
   // ---------------------------------------------------------------------------
