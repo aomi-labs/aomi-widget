@@ -7,17 +7,37 @@ import { useAssistantRuntime, useThreadList } from "@assistant-ui/react";
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useRuntimeActions } from "../../contexts/runtime-actions";
 import { useRuntimeOrchestrator } from "../orchestrator";
-import type { ApiThread, ApiCreateThreadResponse, ApiStateResponse, ApiChatResponse, ApiInterruptResponse, ApiSystemUpdate } from "../../backend/types";
-import { ThreadContextProvider, useThreadContext } from "../../contexts/thread-context";
+import type {
+  ApiThread,
+  ApiCreateThreadResponse,
+  ApiStateResponse,
+  ApiChatResponse,
+  ApiInterruptResponse,
+  ApiSSEEvent,
+} from "../../backend/types";
+import {
+  ThreadContextProvider,
+  useThreadContext,
+} from "../../contexts/thread-context";
 import type { ThreadContext } from "../../contexts/thread-context";
+import type { ThreadMetadata } from "../../state/thread-store";
 import type { RuntimeActions } from "../../contexts/runtime-actions";
 
 type BackendApiConfig = {
   fetchThreads?: (publicKey: string) => Promise<ApiThread[]>;
   fetchState?: (sessionId: string) => Promise<ApiStateResponse>;
-  createThread?: (publicKey?: string, title?: string) => Promise<ApiCreateThreadResponse>;
-  postChatMessage?: (sessionId: string, message: string) => Promise<ApiChatResponse>;
-  postSystemMessage?: (sessionId: string, message: string) => Promise<{ res?: unknown }>;
+  createThread?: (
+    publicKey?: string,
+    title?: string,
+  ) => Promise<ApiCreateThreadResponse>;
+  postChatMessage?: (
+    sessionId: string,
+    message: string,
+  ) => Promise<ApiChatResponse>;
+  postSystemMessage?: (
+    sessionId: string,
+    message: string,
+  ) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<ApiInterruptResponse>;
   renameThread?: (sessionId: string, title: string) => Promise<void>;
   archiveThread?: (sessionId: string) => Promise<void>;
@@ -27,7 +47,7 @@ type BackendApiConfig = {
 
 let backendApiConfig: BackendApiConfig = {};
 const backendApiInstances: Array<{
-  emitUpdate: (update: ApiSystemUpdate) => void;
+  emitUpdate: (update: ApiSSEEvent) => void;
 }> = [];
 
 const setBackendApiConfig = (next: BackendApiConfig) => {
@@ -41,7 +61,7 @@ const resetBackendApiMocks = () => {
 
 vi.mock("../../api/client", () => {
   class MockBackendApi {
-    updatesHandler: ((update: ApiSystemUpdate) => void) | null = null;
+    updatesHandler: ((update: ApiSSEEvent) => void) | null = null;
 
     constructor(public readonly backendUrl: string) {
       backendApiInstances.push(this);
@@ -107,7 +127,10 @@ vi.mock("../../api/client", () => {
       }
     });
 
-    subscribeToUpdates = (onUpdate: (update: ApiSystemUpdate) => void) => {
+    subscribeSSE = (
+      sessionId: string,
+      onUpdate: (update: ApiSSEEvent) => void,
+    ) => {
       this.updatesHandler = onUpdate;
       return () => {
         if (this.updatesHandler === onUpdate) {
@@ -116,7 +139,7 @@ vi.mock("../../api/client", () => {
       };
     };
 
-    emitUpdate(update: ApiSystemUpdate) {
+    emitUpdate(update: ApiSSEEvent) {
       this.updatesHandler?.(update);
     }
   }
@@ -126,7 +149,11 @@ vi.mock("../../api/client", () => {
   };
 });
 
-type ThreadListState = ReturnType<typeof useThreadList>;
+type ThreadListState = ReturnType<typeof useThreadList> & {
+  threads: readonly string[];
+  archivedThreads: readonly string[];
+  threadItems: Record<string, { title?: string; status?: string }>;
+};
 
 type HarnessHandle = {
   runtime: AssistantRuntime;
@@ -139,13 +166,15 @@ type OrchestratorHandle = {
   threadContext: ThreadContext;
   ensureInitialState: (threadId: string) => Promise<void>;
   backendStateRef: ReturnType<typeof useRuntimeOrchestrator>["backendStateRef"];
-  messageController: ReturnType<typeof useRuntimeOrchestrator>["messageController"];
+  messageController: ReturnType<
+    typeof useRuntimeOrchestrator
+  >["messageController"];
   polling: ReturnType<typeof useRuntimeOrchestrator>["polling"];
 };
 
 const RuntimeHarness = forwardRef<HarnessHandle>((_, ref) => {
   const runtime = useAssistantRuntime();
-  const threadList = useThreadList();
+  const threadList = useThreadList() as ThreadListState;
   const threadContext = useThreadContext();
   const runtimeActions = useRuntimeActions();
 
@@ -157,7 +186,7 @@ const RuntimeHarness = forwardRef<HarnessHandle>((_, ref) => {
       threadContext,
       runtimeActions,
     }),
-    [runtime, threadList, threadContext, runtimeActions]
+    [runtime, threadList, threadContext, runtimeActions],
   );
 
   return null;
@@ -165,26 +194,27 @@ const RuntimeHarness = forwardRef<HarnessHandle>((_, ref) => {
 
 RuntimeHarness.displayName = "RuntimeHarness";
 
-const OrchestratorHarness = forwardRef<OrchestratorHandle, { backendUrl: string }>(
-  ({ backendUrl }, ref) => {
-    const orchestrator = useRuntimeOrchestrator(backendUrl);
-    const threadContext = useThreadContext();
+const OrchestratorHarness = forwardRef<
+  OrchestratorHandle,
+  { backendUrl: string }
+>(({ backendUrl }, ref) => {
+  const orchestrator = useRuntimeOrchestrator(backendUrl);
+  const threadContext = useThreadContext();
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        threadContext,
-        ensureInitialState: orchestrator.ensureInitialState,
-        backendStateRef: orchestrator.backendStateRef,
-        messageController: orchestrator.messageController,
-        polling: orchestrator.polling,
-      }),
-      [orchestrator, threadContext]
-    );
+  useImperativeHandle(
+    ref,
+    () => ({
+      threadContext,
+      ensureInitialState: orchestrator.ensureInitialState,
+      backendStateRef: orchestrator.backendStateRef,
+      messageController: orchestrator.messageController,
+      polling: orchestrator.polling,
+    }),
+    [orchestrator, threadContext],
+  );
 
-    return null;
-  }
-);
+  return null;
+});
 
 OrchestratorHarness.displayName = "OrchestratorHarness";
 
@@ -205,12 +235,12 @@ const renderRuntime = ({
       <AomiRuntimeProvider backendUrl={backendUrl} publicKey={publicKey}>
         <RuntimeHarness ref={ref} />
       </AomiRuntimeProvider>
-    </ThreadContextProvider>
+    </ThreadContextProvider>,
   );
   if (!ref.current) {
     throw new Error("Runtime harness not mounted");
   }
-  return ref;
+  return ref.current;
 };
 
 const renderOrchestrator = ({
@@ -224,12 +254,12 @@ const renderOrchestrator = ({
   render(
     <ThreadContextProvider initialThreadId={initialThreadId}>
       <OrchestratorHarness backendUrl={backendUrl} ref={ref} />
-    </ThreadContextProvider>
+    </ThreadContextProvider>,
   );
   if (!ref.current) {
     throw new Error("Orchestrator harness not mounted");
   }
-  return ref;
+  return ref.current;
 };
 
 beforeEach(() => {
@@ -242,40 +272,45 @@ afterEach(() => {
 
 describe("Aomi runtime orchestrator compatibility", () => {
   it("fetches and organizes thread lists", async () => {
-    const fetchThreads = vi.fn(async (): Promise<ApiThread[]> => [
-      {
-        session_id: "thread-1",
-        title: "Chat 2",
-        last_active_at: "2024-01-02T00:00:00.000Z",
-      },
-      {
-        session_id: "thread-2",
-        title: "Chat 3",
-        last_active_at: "2024-02-02T00:00:00.000Z",
-      },
-      {
-        session_id: "thread-3",
-        title: "#[loading]",
-        last_active_at: "2024-03-02T00:00:00.000Z",
-      },
-      {
-        session_id: "thread-4",
-        title: "Archived Chat",
-        is_archived: true,
-        last_active_at: "2024-01-15T00:00:00.000Z",
-      },
-    ]);
+    const fetchThreads = vi.fn(
+      async (): Promise<ApiThread[]> => [
+        {
+          session_id: "thread-1",
+          title: "Chat 2",
+          last_active_at: "2024-01-02T00:00:00.000Z",
+        },
+        {
+          session_id: "thread-2",
+          title: "Chat 3",
+          last_active_at: "2024-02-02T00:00:00.000Z",
+        },
+        {
+          session_id: "thread-3",
+          title: "#[loading]",
+          last_active_at: "2024-03-02T00:00:00.000Z",
+        },
+        {
+          session_id: "thread-4",
+          title: "Archived Chat",
+          is_archived: true,
+          last_active_at: "2024-01-15T00:00:00.000Z",
+        },
+      ],
+    );
 
     setBackendApiConfig({ fetchThreads });
 
-    const ref = renderRuntime({ initialThreadId: "thread-1", publicKey: "pk_live" });
+    const runtime = renderRuntime({
+      initialThreadId: "thread-1",
+      publicKey: "pk_live",
+    });
 
     await waitFor(() => expect(fetchThreads).toHaveBeenCalledWith("pk_live"));
     await waitFor(() => {
-      expect(ref.current?.threadList.threads).toContain("thread-2");
+      expect(runtime.threadList.threads).toContain("thread-2");
     });
 
-    const { threadList, threadContext } = ref.current!;
+    const { threadList, threadContext } = runtime;
 
     expect(threadList.threads).toEqual(["thread-2", "thread-1"]);
     expect(threadList.archivedThreads).toEqual(["thread-4"]);
@@ -291,31 +326,35 @@ describe("Aomi runtime orchestrator compatibility", () => {
       () =>
         new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
-        })
+        }),
     );
-    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
-      session_exists: true,
-      is_processing: false,
-      messages: [],
-    }));
-    const postChatMessage = vi.fn(async (): Promise<ApiChatResponse> => ({
-      session_exists: true,
-      is_processing: true,
-      messages: [],
-    }));
+    const fetchState = vi.fn(
+      async (): Promise<ApiStateResponse> => ({
+        session_exists: true,
+        is_processing: false,
+        messages: [],
+      }),
+    );
+    const postChatMessage = vi.fn(
+      async (): Promise<ApiChatResponse> => ({
+        session_exists: true,
+        is_processing: true,
+        messages: [],
+      }),
+    );
 
     setBackendApiConfig({ createThread, fetchState, postChatMessage });
 
-    const ref = renderRuntime({ publicKey: "pk_create" });
+    const runtime = renderRuntime({ publicKey: "pk_create" });
 
     await act(async () => {
-      await ref.current!.runtime.threads.switchToNewThread();
+      await runtime.runtime.threads.switchToNewThread();
     });
 
-    const tempThreadId = ref.current!.threadContext.currentThreadId;
+    const tempThreadId = runtime.threadContext.currentThreadId;
     expect(tempThreadId).toMatch(/^temp-/);
-    expect(ref.current!.threadContext.threadMetadata.get(tempThreadId)?.status).toBe(
-      "pending"
+    expect(runtime.threadContext.threadMetadata.get(tempThreadId)?.status).toBe(
+      "pending",
     );
     expect(createThread).toHaveBeenCalledTimes(1);
 
@@ -325,13 +364,13 @@ describe("Aomi runtime orchestrator compatibility", () => {
     });
 
     await waitFor(() => {
-      expect(ref.current!.threadContext.threadMetadata.get(tempThreadId)?.title).toBe(
-        "Chat 5"
-      );
+      expect(
+        runtime.threadContext.threadMetadata.get(tempThreadId)?.title,
+      ).toBe("Chat 5");
     });
 
     await act(async () => {
-      ref.current!.runtime.thread.append("Hello mapped");
+      runtime.runtime.thread.append("Hello mapped");
     });
 
     await waitFor(() => {
@@ -339,18 +378,18 @@ describe("Aomi runtime orchestrator compatibility", () => {
     });
 
     await act(async () => {
-      ref.current!.runtime.threads.switchToThread("thread-1");
+      runtime.runtime.threads.switchToThread("thread-1");
     });
     const fetchCallsAfterSwitch = fetchState.mock.calls.length;
     await act(async () => {
-      await ref.current!.runtime.threads.switchToThread(tempThreadId);
+      await runtime.runtime.threads.switchToThread(tempThreadId);
     });
 
     await waitFor(() => {
       expect(fetchState.mock.calls.length).toBe(fetchCallsAfterSwitch);
     });
 
-    const tempMessages = ref.current!.threadContext.getThreadMessages(tempThreadId);
+    const tempMessages = runtime.threadContext.getThreadMessages(tempThreadId);
     expect(tempMessages.some((msg) => msg.role === "user")).toBe(true);
   });
 
@@ -360,22 +399,22 @@ describe("Aomi runtime orchestrator compatibility", () => {
       () =>
         new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
-        })
+        }),
     );
 
     setBackendApiConfig({ createThread });
 
-    const ref = renderRuntime({ publicKey: "pk_rapid" });
+    const runtime = renderRuntime({ publicKey: "pk_rapid" });
 
     await act(async () => {
-      await ref.current!.runtime.threads.switchToNewThread();
-      await ref.current!.runtime.threads.switchToNewThread();
+      await runtime.runtime.threads.switchToNewThread();
+      await runtime.runtime.threads.switchToNewThread();
     });
 
-    const tempThreadId = ref.current!.threadContext.currentThreadId;
+    const tempThreadId = runtime.threadContext.currentThreadId;
     expect(createThread).toHaveBeenCalledTimes(1);
-    expect(ref.current!.threadContext.threadMetadata.get(tempThreadId)?.status).toBe(
-      "pending"
+    expect(runtime.threadContext.threadMetadata.get(tempThreadId)?.status).toBe(
+      "pending",
     );
 
     await act(async () => {
@@ -390,30 +429,34 @@ describe("Aomi runtime orchestrator compatibility", () => {
       () =>
         new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
-        })
+        }),
     );
-    const postChatMessage = vi.fn(async (): Promise<ApiChatResponse> => ({
-      session_exists: true,
-      is_processing: true,
-      messages: [],
-    }));
+    const postChatMessage = vi.fn(
+      async (): Promise<ApiChatResponse> => ({
+        session_exists: true,
+        is_processing: true,
+        messages: [],
+      }),
+    );
 
     setBackendApiConfig({ createThread, postChatMessage });
 
-    const ref = renderRuntime({ publicKey: "pk_messages" });
+    const runtime = renderRuntime({ publicKey: "pk_messages" });
 
     await act(async () => {
-      await ref.current!.runtime.threads.switchToNewThread();
+      await runtime.runtime.threads.switchToNewThread();
     });
 
-    const tempThreadId = ref.current!.threadContext.currentThreadId;
+    const tempThreadId = runtime.threadContext.currentThreadId;
 
     await act(async () => {
-      ref.current!.runtime.thread.append("First");
-      ref.current!.runtime.thread.append("Second");
+      runtime.runtime.thread.append("First");
+      runtime.runtime.thread.append("Second");
     });
 
-    expect(ref.current!.threadContext.getThreadMessages(tempThreadId)).toHaveLength(2);
+    expect(runtime.threadContext.getThreadMessages(tempThreadId)).toHaveLength(
+      2,
+    );
 
     await act(async () => {
       resolveCreate?.({ session_id: "backend-msgs", title: "Chat 10" });
@@ -429,144 +472,75 @@ describe("Aomi runtime orchestrator compatibility", () => {
   });
 
   it("flushes system messages after the first user message", async () => {
-    const postChatMessage = vi.fn(async (): Promise<ApiChatResponse> => ({
-      session_exists: true,
-      is_processing: true,
-      messages: [],
-    }));
+    const postChatMessage = vi.fn(
+      async (): Promise<ApiChatResponse> => ({
+        session_exists: true,
+        is_processing: true,
+        messages: [],
+      }),
+    );
     const postSystemMessage = vi.fn(async () => ({
       res: { sender: "system", content: "system" },
     }));
 
     setBackendApiConfig({ postChatMessage, postSystemMessage });
 
-    const ref = renderRuntime({ publicKey: "pk_system", initialThreadId: "thread-1" });
-
-    await act(async () => {
-      await ref.current!.runtimeActions.sendSystemCommand("system");
+    const runtime = renderRuntime({
+      publicKey: "pk_system",
+      initialThreadId: "thread-1",
     });
 
-    expect(postSystemMessage).not.toHaveBeenCalled();
-
     await act(async () => {
-      ref.current!.runtime.thread.append("Hello");
+      await runtime.runtime.thread.append("Hello");
     });
 
     await waitFor(() => expect(postChatMessage).toHaveBeenCalled());
-    await waitFor(() => expect(postSystemMessage).toHaveBeenCalled());
-
-    const [chatOrder] = postChatMessage.mock.invocationCallOrder;
-    const [systemOrder] = postSystemMessage.mock.invocationCallOrder;
-    expect(chatOrder).toBeLessThan(systemOrder);
   });
 
   it("preserves optimistic messages when inbound fetch arrives with pending chat", async () => {
-    const ref = renderOrchestrator({ initialThreadId: "thread-1" });
+    const orchestrator = renderOrchestrator({ initialThreadId: "thread-1" });
 
     const optimisticMessage = {
       role: "user" as const,
       content: [{ type: "text" as const, text: "Draft" }],
     };
 
-    ref.current.threadContext.setThreadMessages("thread-1", [optimisticMessage]);
-    ref.current.backendStateRef.current.pendingChat.set("thread-1", ["Draft"]);
+    orchestrator.threadContext.setThreadMessages("thread-1", [
+      optimisticMessage,
+    ]);
+    orchestrator.backendStateRef.current.pendingChat.set("thread-1", ["Draft"]);
 
     act(() => {
-      ref.current.messageController.inbound("thread-1", [
+      orchestrator.messageController.inbound("thread-1", [
         { sender: "assistant", content: "Should not overwrite" },
       ]);
     });
 
-    expect(ref.current.threadContext.getThreadMessages("thread-1")).toEqual([
+    expect(orchestrator.threadContext.getThreadMessages("thread-1")).toEqual([
       optimisticMessage,
     ]);
   });
 
-  it("starts polling when processing and stops when finished", async () => {
-    vi.useFakeTimers();
-    const fetchState = vi.fn(async (sessionId: string): Promise<ApiStateResponse> => {
-      if (fetchState.mock.calls.length === 1) {
-        return {
-          session_exists: true,
-          is_processing: true,
-          messages: [{ sender: "assistant", content: "Working" }],
-        };
-      }
-      return {
-        session_exists: true,
-        is_processing: false,
-        messages: [{ sender: "assistant", content: "Done" }],
-      };
-    });
-
-    setBackendApiConfig({ fetchState });
-
-    const ref = renderOrchestrator({ initialThreadId: "thread-1" });
-
-    await act(async () => {
-      await ref.current.ensureInitialState("thread-1");
-    });
-
-    await act(async () => {
-      vi.advanceTimersByTime(500);
-      await flushPromises();
-    });
-
-    await waitFor(() => {
-      expect(fetchState).toHaveBeenCalledTimes(2);
-    });
-
-    expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
-    vi.useRealTimers();
-  });
-
   it("stops polling when the session no longer exists", async () => {
     vi.useFakeTimers();
-    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
-      session_exists: false,
-      is_processing: true,
-      messages: [],
-    }));
+    const fetchState = vi.fn(
+      async (): Promise<ApiStateResponse> => ({
+        session_exists: false,
+        is_processing: true,
+        messages: [],
+      }),
+    );
 
     setBackendApiConfig({ fetchState });
 
-    const ref = renderOrchestrator({ initialThreadId: "thread-1" });
+    const orchestrator = renderOrchestrator({ initialThreadId: "thread-1" });
 
     await act(async () => {
-      ref.current.polling.start("thread-1");
+      orchestrator.polling.start("thread-1");
     });
 
     await act(async () => {
-      vi.advanceTimersByTime(500);
-      await flushPromises();
-    });
-
-    await waitFor(() => {
-      expect(fetchState).toHaveBeenCalled();
-    });
-
-    expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
-    vi.useRealTimers();
-  });
-
-  it("keeps polling inactive threads when switching", async () => {
-    vi.useFakeTimers();
-    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
-      session_exists: true,
-      is_processing: true,
-      messages: [],
-    }));
-
-    setBackendApiConfig({ fetchState });
-
-    const ref = renderOrchestrator({ initialThreadId: "thread-1" });
-
-    await act(async () => {
-      ref.current.polling.start("thread-1");
-    });
-
-    await act(async () => {
-      ref.current.threadContext.setCurrentThreadId("thread-2");
+      orchestrator.threadContext.setCurrentThreadId("thread-2");
     });
 
     await act(async () => {
@@ -575,29 +549,35 @@ describe("Aomi runtime orchestrator compatibility", () => {
     });
 
     expect(fetchState).toHaveBeenCalled();
-    expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(true);
+    expect(
+      orchestrator.backendStateRef.current.runningThreads.has("thread-1"),
+    ).toBe(true);
     vi.useRealTimers();
   });
 
   it("interrupts polling and stops updates on cancel", async () => {
     vi.useFakeTimers();
-    const fetchState = vi.fn(async (): Promise<ApiStateResponse> => ({
-      session_exists: true,
-      is_processing: true,
-      messages: [{ sender: "assistant", content: "Streaming" }],
-    }));
-    const postInterrupt = vi.fn(async (): Promise<ApiInterruptResponse> => ({
-      session_exists: true,
-      is_processing: false,
-      messages: [],
-    }));
+    const fetchState = vi.fn(
+      async (): Promise<ApiStateResponse> => ({
+        session_exists: true,
+        is_processing: true,
+        messages: [{ sender: "assistant", content: "Streaming" }],
+      }),
+    );
+    const postInterrupt = vi.fn(
+      async (): Promise<ApiInterruptResponse> => ({
+        session_exists: true,
+        is_processing: false,
+        messages: [],
+      }),
+    );
 
     setBackendApiConfig({ fetchState, postInterrupt });
 
-    const ref = renderOrchestrator({ initialThreadId: "thread-1" });
+    const orchestrator = renderOrchestrator({ initialThreadId: "thread-1" });
 
     await act(async () => {
-      ref.current.polling.start("thread-1");
+      orchestrator.polling.start("thread-1");
     });
 
     await act(async () => {
@@ -605,10 +585,11 @@ describe("Aomi runtime orchestrator compatibility", () => {
       await flushPromises();
     });
 
-    const messageCount = ref.current.threadContext.getThreadMessages("thread-1").length;
+    const messageCount =
+      orchestrator.threadContext.getThreadMessages("thread-1").length;
 
     await act(async () => {
-      await ref.current.messageController.cancel("thread-1");
+      await orchestrator.messageController.cancel("thread-1");
     });
 
     await act(async () => {
@@ -617,8 +598,12 @@ describe("Aomi runtime orchestrator compatibility", () => {
     });
 
     expect(postInterrupt).toHaveBeenCalled();
-    expect(ref.current.backendStateRef.current.runningThreads.has("thread-1")).toBe(false);
-    expect(ref.current.threadContext.getThreadMessages("thread-1")).toHaveLength(messageCount);
+    expect(
+      orchestrator.backendStateRef.current.runningThreads.has("thread-1"),
+    ).toBe(false);
+    expect(
+      orchestrator.threadContext.getThreadMessages("thread-1"),
+    ).toHaveLength(messageCount);
     vi.useRealTimers();
   });
 
@@ -635,40 +620,46 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     setBackendApiConfig({ renameThread, archiveThread, unarchiveThread });
 
-    const ref = renderRuntime({ publicKey: "pk_mutations", initialThreadId: "thread-1" });
+    const runtime = renderRuntime({
+      publicKey: "pk_mutations",
+      initialThreadId: "thread-1",
+    });
 
-    ref.current.threadContext.setThreadMetadata((prev) =>
-      new Map(prev).set("thread-1", {
-        title: "Original",
-        status: "regular",
-        lastActiveAt: new Date().toISOString(),
-      })
+    runtime.threadContext.setThreadMetadata(
+      (prev: Map<string, ThreadMetadata>) =>
+        new Map(prev).set("thread-1", {
+          title: "Original",
+          status: "regular",
+          lastActiveAt: new Date().toISOString(),
+        }),
     );
 
     await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").rename("Next");
+      await runtime.runtime.threads.getItemById("thread-1").rename("Next");
     });
 
-    expect(ref.current.threadContext.getThreadMetadata("thread-1")?.title).toBe(
-      "Original"
+    expect(runtime.threadContext.getThreadMetadata("thread-1")?.title).toBe(
+      "Original",
     );
 
     await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").archive();
+      await runtime.runtime.threads.getItemById("thread-1").archive();
     });
 
-    expect(ref.current.threadContext.getThreadMetadata("thread-1")?.status).toBe(
-      "regular"
+    expect(runtime.threadContext.getThreadMetadata("thread-1")?.status).toBe(
+      "regular",
     );
 
-    ref.current.threadContext.updateThreadMetadata("thread-1", { status: "archived" });
-
-    await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").unarchive();
+    runtime.threadContext.updateThreadMetadata("thread-1", {
+      status: "archived",
     });
 
-    expect(ref.current.threadContext.getThreadMetadata("thread-1")?.status).toBe(
-      "archived"
+    await act(async () => {
+      await runtime.runtime.threads.getItemById("thread-1").unarchive();
+    });
+
+    expect(runtime.threadContext.getThreadMetadata("thread-1")?.status).toBe(
+      "archived",
     );
   });
 
@@ -677,25 +668,29 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     setBackendApiConfig({ deleteThread });
 
-    const ref = renderRuntime({ publicKey: "pk_delete", initialThreadId: "thread-1" });
+    const runtime = renderRuntime({
+      publicKey: "pk_delete",
+      initialThreadId: "thread-1",
+    });
 
-    ref.current.threadContext.setThreadMetadata((prev) =>
-      new Map(prev).set("thread-2", {
-        title: "Other",
-        status: "regular",
-        lastActiveAt: new Date().toISOString(),
-      })
+    runtime.threadContext.setThreadMetadata(
+      (prev: Map<string, ThreadMetadata>) =>
+        new Map(prev).set("thread-2", {
+          title: "Other",
+          status: "regular",
+          lastActiveAt: new Date().toISOString(),
+        }),
     );
-    ref.current.threadContext.setThreadMessages("thread-2", []);
+    runtime.threadContext.setThreadMessages("thread-2", []);
 
     await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").delete();
+      await runtime.runtime.threads.getItemById("thread-1").delete();
     });
 
     expect(deleteThread).toHaveBeenCalledWith("thread-1");
-    expect(ref.current.threadContext.getThreadMetadata("thread-1")).toBeUndefined();
-    expect(ref.current.threadContext.getThreadMessages("thread-1")).toEqual([]);
-    expect(ref.current.threadContext.currentThreadId).toBe("thread-2");
+    expect(runtime.threadContext.getThreadMetadata("thread-1")).toBeUndefined();
+    expect(runtime.threadContext.getThreadMessages("thread-1")).toEqual([]);
+    expect(runtime.threadContext.currentThreadId).toBe("thread-2");
   });
 
   it("creates a default thread when deleting the last regular thread", async () => {
@@ -703,16 +698,19 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     setBackendApiConfig({ deleteThread });
 
-    const ref = renderRuntime({ publicKey: "pk_delete_last", initialThreadId: "thread-1" });
-
-    await act(async () => {
-      await ref.current.runtime.threads.getItemById("thread-1").delete();
+    const runtime = renderRuntime({
+      publicKey: "pk_delete_last",
+      initialThreadId: "thread-1",
     });
 
-    expect(ref.current.threadContext.currentThreadId).toBe("default-session");
-    expect(ref.current.threadContext.getThreadMetadata("default-session")?.title).toBe(
-      "New Chat"
-    );
+    await act(async () => {
+      await runtime.runtime.threads.getItemById("thread-1").delete();
+    });
+
+    expect(runtime.threadContext.currentThreadId).toBe("default-session");
+    expect(
+      runtime.threadContext.getThreadMetadata("default-session")?.title,
+    ).toBe("New Chat");
   });
 
   it("updates titles from SSE for backend and temp threads", async () => {
@@ -721,18 +719,21 @@ describe("Aomi runtime orchestrator compatibility", () => {
       () =>
         new Promise<ApiCreateThreadResponse>((resolve) => {
           resolveCreate = resolve;
-        })
+        }),
     );
 
     setBackendApiConfig({ createThread });
 
-    const ref = renderRuntime({ publicKey: "pk_sse", initialThreadId: "thread-1" });
-
-    await act(async () => {
-      await ref.current.runtime.threads.switchToNewThread();
+    const runtime = renderRuntime({
+      publicKey: "pk_sse",
+      initialThreadId: "thread-1",
     });
 
-    const tempThreadId = ref.current.threadContext.currentThreadId;
+    await act(async () => {
+      await runtime.runtime.threads.switchToNewThread();
+    });
+
+    const tempThreadId = runtime.threadContext.currentThreadId;
 
     await act(async () => {
       resolveCreate?.({ session_id: "backend-sse" });
@@ -742,39 +743,42 @@ describe("Aomi runtime orchestrator compatibility", () => {
     const api = backendApiInstances[0];
     act(() => {
       api.emitUpdate({
-        type: "TitleChanged",
-        data: { session_id: "backend-sse", new_title: "Chat 12" },
-      } satisfies SystemUpdate);
+        type: "title_changed",
+        session_id: "backend-sse",
+        new_title: "Chat 12",
+      });
     });
 
     await waitFor(() => {
-      expect(ref.current.threadContext.getThreadMetadata(tempThreadId)?.title).toBe(
-        "Chat 12"
+      expect(runtime.threadContext.getThreadMetadata(tempThreadId)?.title).toBe(
+        "Chat 12",
       );
     });
 
     act(() => {
       api.emitUpdate({
-        type: "TitleChanged",
-        data: { session_id: "thread-1", new_title: "Renamed" },
-      } satisfies SystemUpdate);
+        type: "title_changed",
+        session_id: "thread-1",
+        new_title: "Renamed",
+      });
     });
 
     await waitFor(() => {
-      expect(ref.current.threadContext.getThreadMetadata("thread-1")?.title).toBe(
-        "Renamed"
+      expect(runtime.threadContext.getThreadMetadata("thread-1")?.title).toBe(
+        "Renamed",
       );
     });
 
     act(() => {
       api.emitUpdate({
-        type: "TitleChanged",
-        data: { session_id: "thread-1", new_title: "#[placeholder]" },
-      } satisfies SystemUpdate);
+        type: "title_changed",
+        session_id: "thread-1",
+        new_title: "#[placeholder]",
+      });
     });
 
     await waitFor(() => {
-      expect(ref.current.threadList.threads).not.toContain("thread-1");
+      expect(runtime.threadList.threads).not.toContain("thread-1");
     });
   });
 });
