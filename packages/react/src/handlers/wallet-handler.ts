@@ -46,7 +46,7 @@ export function useWalletHandler({
   onTxRequest,
 }: WalletHandlerConfig): WalletHanderApi {
   const { subscribe, sendOutboundSystem: sendOutbound } = useEventContext();
-  const { setUser } = useUser();
+  const { setUser, getUserState } = useUser();
   const [pendingTxRequests, setPendingTxRequests] = useState<WalletTxRequest[]>(
     [],
   );
@@ -72,6 +72,26 @@ export function useWalletHandler({
     return unsubscribe;
   }, [subscribe, onTxRequest]);
 
+
+  // ---------------------------------------------------------------------------
+  // Subscribe to wallet-related inbound events
+  // Backend sends InlineCall with type: "user_state_response"
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const unsubscribe = subscribe(
+      "user_state_request",
+      (event: InboundEvent) => {
+        sendOutbound({
+          type: "user_state_response",
+          sessionId,
+          payload: getUserState(),
+        });
+      },
+    );
+
+    return unsubscribe;
+  }, [subscribe, onTxRequest]);
+
   // ---------------------------------------------------------------------------
   // Outbound: Send transaction completion
   // ---------------------------------------------------------------------------
@@ -81,7 +101,6 @@ export function useWalletHandler({
         type: "wallet:tx_complete",
         sessionId,
         payload: tx,
-        priority: "high",
       });
     },
     [sendOutbound, sessionId],
@@ -117,7 +136,6 @@ export function useWalletHandler({
           status === "connected" ? "wallet:connected" : "wallet:disconnected",
         sessionId,
         payload: { status, address },
-        priority: "normal",
       });
     },
     [setUser, sendOutbound, sessionId],

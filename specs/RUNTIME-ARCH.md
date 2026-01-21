@@ -14,9 +14,12 @@ The runtime is built on `@assistant-ui/react`'s external store pattern. It bridg
 graph TB
     subgraph "Provider Layer"
         TCP[ThreadContextProvider]
-        ARP[AomiRuntimeProvider]
+        ARP[AomiRuntimeProvider shell]
+        NCP[NotificationContextProvider]
+        UCP[UserContextProvider]
         ECP[EventContextProvider]
         RAP[RuntimeActionsProvider]
+        ARC[AomiRuntimeCore]
         ASRP[AssistantRuntimeProvider]
     end
 
@@ -43,11 +46,14 @@ graph TB
     end
 
     TCP --> ARP
-    ARP --> ECP
+    ARP --> NCP
+    NCP --> UCP
+    UCP --> ECP
     ECP --> RAP
-    RAP --> ASRP
+    RAP --> ARC
+    ARC --> ASRP
 
-    ARP --> RO
+    ARC --> RO
     RO --> MC
     RO --> PC
     RO --> BS
@@ -62,7 +68,7 @@ graph TB
     WH --> ECP
     NH --> ECP
 
-    ARP --> TS
+    ARC --> TS
     MC --> TS
 ```
 
@@ -105,11 +111,11 @@ graph LR
 
 ### State Responsibilities
 
-| State | Purpose | Reactivity |
-|-------|---------|------------|
+| State           | Purpose                       | Reactivity                     |
+| --------------- | ----------------------------- | ------------------------------ |
 | `ThreadContext` | UI-facing thread/message data | Reactive (triggers re-renders) |
-| `BackendState` | Backend sync coordination | Non-reactive (mutable ref) |
-| `EventBuffer` | Inbound/outbound event queues | Non-reactive (mutable ref) |
+| `BackendState`  | Backend sync coordination     | Non-reactive (mutable ref)     |
+| `EventBuffer`   | Inbound/outbound event queues | Non-reactive (mutable ref)     |
 
 ---
 
@@ -261,7 +267,6 @@ sequenceDiagram
 ```
 
 ---
-
 
 ## Event Flow - Inbound Notification (SSE)
 
@@ -512,26 +517,38 @@ sequenceDiagram
 
 ## Key Components
 
-### AomiRuntimeProvider
+### AomiRuntimeProvider (shell)
 
-Main provider component that:
-- Initializes the runtime orchestrator
+Provider shell component (`runtime/aomi-runtime.tsx`, ~50 lines) that:
+
+- Creates `BackendApi` instance from `backendUrl`
+- Composes context providers: Notification → User → Event → RuntimeActions
+- Renders `AomiRuntimeCore` with shared `backendApi`
+
+### AomiRuntimeCore
+
+Inner component (`runtime/core.tsx`) that:
+
+- Uses `useUser()` for wallet state, auto-syncs changes to backend
+- Uses `useEventContext()` for system event dispatching
+- Initializes runtime orchestrator with `getPublicKey` callback
 - Connects to `@assistant-ui/react` via `useExternalStoreRuntime`
-- Manages thread list operations (create, switch, rename, archive, delete)
-- Subscribes to backend title updates
+- Manages thread list via `buildThreadListAdapter()`
+- Subscribes to SSE title updates
 
 ### RuntimeOrchestrator
 
 Hook that creates and coordinates:
-- `BackendApi` instance
+
 - `BackendState` ref
-- `MessageController` instance
-- `PollingController` instance
+- `MessageController` instance (with `getPublicKey` callback)
+- `PollingController` instance (with `onSystemEvents` callback)
 - `ensureInitialState()` for loading thread data on switch
 
 ### MessageController
 
 Handles all message operations:
+
 - `outbound()` - Send user messages
 - `outboundSystem()` - Send system messages
 - `inbound()` - Process messages from backend
@@ -541,6 +558,7 @@ Handles all message operations:
 ### PollingController
 
 Manages backend polling:
+
 - `start(threadId)` - Begin polling at 500ms intervals
 - `stop(threadId)` - Stop polling for a thread
 - `stopAll()` - Stop all active polls
@@ -549,6 +567,7 @@ Manages backend polling:
 ### EventContextProvider
 
 React context that manages the EventBuffer and SSE connection:
+
 - Subscribes to BackendApi SSE events on mount
 - Dispatches inbound events to registered subscribers
 - Provides `subscribe(type, callback)` for handler hooks
@@ -559,6 +578,7 @@ React context that manages the EventBuffer and SSE connection:
 ### useWalletHandler
 
 Hook for wallet integration:
+
 - `sendTxComplete(tx)` - Report transaction completion to backend
 - `sendConnectionChange(status, address)` - Report wallet connect/disconnect
 - `pendingTxRequests` - Array of pending AI-requested transactions
@@ -568,6 +588,7 @@ Hook for wallet integration:
 ### useNotificationHandler
 
 Hook for notification display:
+
 - `notifications` - Array of all received notifications
 - `unhandledCount` - Count of unread notifications
 - `markHandled(id)` - Mark notification as read
@@ -577,6 +598,7 @@ Hook for notification display:
 ### BackendSSE
 
 SSE client for real-time server events:
+
 - Maintains persistent connection to `/events/subscribe`
 - Parses SSE event types (notification, title_changed, etc.)
 - Forwards events to EventController for buffering
@@ -586,38 +608,38 @@ SSE client for real-time server events:
 
 Non-reactive state for event streaming:
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `inboundQueue` | Event[] | Buffered events from SSE |
-| `outboundQueue` | Event[] | Buffered events to send |
-| `sseStatus` | string | Connection status |
-| `lastEventId` | string | For SSE resume |
+| Field           | Type    | Purpose                  |
+| --------------- | ------- | ------------------------ |
+| `inboundQueue`  | Event[] | Buffered events from SSE |
+| `outboundQueue` | Event[] | Buffered events to send  |
+| `sseStatus`     | string  | Connection status        |
+| `lastEventId`   | string  | For SSE resume           |
 
 ### BackendState
 
 Non-reactive state for backend coordination:
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `tempToBackendId` | Map | Maps temporary UI IDs to real backend IDs |
-| `skipInitialFetch` | Set | Threads that shouldn't fetch on switch |
-| `pendingChat` | Map | User messages queued before thread ready |
-| `pendingSystem` | Map | System messages queued before user message |
-| `runningThreads` | Set | Threads currently processing |
-| `creatingThreadId` | string | Thread being created |
-| `createThreadPromise` | Promise | Active thread creation promise |
+| Field                 | Type    | Purpose                                    |
+| --------------------- | ------- | ------------------------------------------ |
+| `tempToBackendId`     | Map     | Maps temporary UI IDs to real backend IDs  |
+| `skipInitialFetch`    | Set     | Threads that shouldn't fetch on switch     |
+| `pendingChat`         | Map     | User messages queued before thread ready   |
+| `pendingSystem`       | Map     | System messages queued before user message |
+| `runningThreads`      | Set     | Threads currently processing               |
+| `creatingThreadId`    | string  | Thread being created                       |
+| `createThreadPromise` | Promise | Active thread creation promise             |
 
 ### ThreadContext
 
 Reactive state for UI:
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `currentThreadId` | string | Active thread |
-| `threadMetadata` | Map | Title, status, lastActiveAt per thread |
-| `threads` | Map | Messages per thread |
-| `threadCnt` | number | Counter for "Chat N" naming |
-| `threadViewKey` | number | Force re-render key |
+| Field             | Type   | Purpose                                |
+| ----------------- | ------ | -------------------------------------- |
+| `currentThreadId` | string | Active thread                          |
+| `threadMetadata`  | Map    | Title, status, lastActiveAt per thread |
+| `threads`         | Map    | Messages per thread                    |
+| `threadCnt`       | number | Counter for "Chat N" naming            |
+| `threadViewKey`   | number | Force re-render key                    |
 
 ---
 
@@ -645,11 +667,13 @@ The `resolveThreadId()` function always checks `tempToBackendId` first, allowing
 ## Cleanup
 
 On unmount, the runtime:
+
 1. Calls `polling.stopAll()` to clear all intervals
 2. Calls `eventController.cleanup()` to close SSE and flush outbound
 3. React handles cleanup of refs and state
 
 On thread delete:
+
 1. Removes from `threadMetadata` and `threads`
 2. Clears all backend state entries for that thread
 3. Switches to another thread or creates a default
