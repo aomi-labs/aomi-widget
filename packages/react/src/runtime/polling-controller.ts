@@ -1,7 +1,11 @@
 import type { MutableRefObject } from "react";
 
 import type { BackendApi } from "../backend/client";
-import type { AomiMessage, ApiStateResponse } from "../backend/types";
+import type {
+  AomiMessage,
+  ApiStateResponse,
+  ApiSystemEvent,
+} from "../backend/types";
 import {
   isThreadReady,
   resolveThreadId,
@@ -13,6 +17,7 @@ type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
   backendStateRef: MutableRefObject<BakendState>;
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
+  onSystemEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
   onStart?: (threadId: string) => void;
   onStop?: (threadId: string) => void;
   intervalMs?: number;
@@ -84,6 +89,13 @@ export class PollingController {
     if (state.session_exists === false) {
       this.stop(threadId);
       return;
+    }
+
+    // Dispatch system events (wallet_tx_request, errors, etc.)
+    if (state.system_events?.length && this.config.onSystemEvents) {
+      const backendState = this.config.backendStateRef.current;
+      const sessionId = resolveThreadId(backendState, threadId);
+      this.config.onSystemEvents(sessionId, state.system_events);
     }
 
     this.config.applyMessages(threadId, state.messages);

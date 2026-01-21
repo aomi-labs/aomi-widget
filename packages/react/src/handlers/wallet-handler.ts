@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useEventContext } from "../contexts/event-context";
+import { useUser } from "../contexts/user-context";
 import type { InboundEvent } from "../state/event-buffer";
-
 
 export type WalletTxRequest = {
   to: string;
@@ -21,7 +21,6 @@ export type WalletTxComplete = {
 
 export type WalletConnectionStatus = "connected" | "disconnected";
 
-
 export type WalletHandlerConfig = {
   sessionId: string;
   onTxRequest?: (request: WalletTxRequest) => void;
@@ -30,8 +29,12 @@ export type WalletHandlerConfig = {
 export type WalletHanderApi = {
   /** Send transaction completion event to backend */
   sendTxComplete: (tx: WalletTxComplete) => void;
-  /** Send wallet connection status change */
-  sendConnectionChange: (status: WalletConnectionStatus, address?: string) => void;
+  /** Send wallet connection status change and update user state */
+  sendConnectionChange: (
+    status: WalletConnectionStatus,
+    address?: string,
+    chainId?: number,
+  ) => void;
   /** Pending transaction requests from AI */
   pendingTxRequests: WalletTxRequest[];
   /** Clear a pending request after handling */
@@ -42,22 +45,29 @@ export function useWalletHandler({
   sessionId,
   onTxRequest,
 }: WalletHandlerConfig): WalletHanderApi {
-  const { subscribe, sendOutbound } = useEventContext();
-  const [pendingTxRequests, setPendingTxRequests] = useState<WalletTxRequest[]>([]);
+  const { subscribe, sendOutboundSystem: sendOutbound } = useEventContext();
+  const { setUser } = useUser();
+  const [pendingTxRequests, setPendingTxRequests] = useState<WalletTxRequest[]>(
+    [],
+  );
 
   // ---------------------------------------------------------------------------
   // Subscribe to wallet-related inbound events
+  // Backend sends InlineCall with type: "wallet_tx_request"
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const unsubscribe = subscribe("wallet:tx_request", (event: InboundEvent) => {
-      const request = event.payload as WalletTxRequest;
+    const unsubscribe = subscribe(
+      "wallet_tx_request",
+      (event: InboundEvent) => {
+        const request = event.payload as WalletTxRequest;
 
-      // Add to pending requests
-      setPendingTxRequests((prev) => [...prev, request]);
+        // Add to pending requests
+        setPendingTxRequests((prev) => [...prev, request]);
 
-      // Call optional callback
-      onTxRequest?.(request);
-    });
+        // Call optional callback
+        onTxRequest?.(request);
+      },
+    );
 
     return unsubscribe;
   }, [subscribe, onTxRequest]);
@@ -74,22 +84,43 @@ export function useWalletHandler({
         priority: "high",
       });
     },
-    [sendOutbound, sessionId]
+    [sendOutbound, sessionId],
   );
 
   // ---------------------------------------------------------------------------
-  // Outbound: Send connection status change
+  // Outbound: Send connection status change and update user state
   // ---------------------------------------------------------------------------
   const sendConnectionChange = useCallback(
-    (status: WalletConnectionStatus, address?: string) => {
+    (
+      status: WalletConnectionStatus,
+      address?: string,
+      chainId?: number,
+    ) => {
+      // Update user state
+      if (status === "connected") {
+        setUser({
+          isConnected: true,
+          address,
+          chainId,
+        });
+      } else {
+        setUser({
+          isConnected: false,
+          address: undefined,
+          chainId: undefined,
+        });
+      }
+
+      // Send event to backend (optional - only if you still want events)
       sendOutbound({
-        type: status === "connected" ? "wallet:connected" : "wallet:disconnected",
+        type:
+          status === "connected" ? "wallet:connected" : "wallet:disconnected",
         sessionId,
         payload: { status, address },
         priority: "normal",
       });
     },
-    [sendOutbound, sessionId]
+    [setUser, sendOutbound, sessionId],
   );
 
   // ---------------------------------------------------------------------------

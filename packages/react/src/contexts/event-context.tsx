@@ -11,7 +11,13 @@ import {
 import type { ReactNode } from "react";
 
 import type { BackendApi } from "../backend/client";
-import type { ApiSSEEvent } from "../backend/types";
+import type { ApiSSEEvent, ApiSystemEvent } from "../backend/types";
+import {
+  isInlineCall,
+  isSystemNotice,
+  isSystemError,
+  isAsyncCallback,
+} from "../backend/types";
 import {
   createEventBuffer,
   dispatch,
@@ -24,7 +30,6 @@ import {
   type OutboundEvent,
   type SSEStatus,
 } from "../state/event-buffer";
-
 // =============================================================================
 // Context Type
 // =============================================================================
@@ -33,7 +38,9 @@ export type EventContext = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send an outbound event to backend immediately */
-  sendOutbound: (event: Omit<OutboundEvent, "timestamp">) => void;
+  sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => void;
+  /** Dispatch system events from HTTP polling into the event buffer */
+  dispatchInboundSystem: (sessionId: string, events: ApiSystemEvent[]) => void;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -49,7 +56,7 @@ export function useEventContext(): EventContext {
   if (!context) {
     throw new Error(
       "useEventContext must be used within EventContextProvider. " +
-        "Wrap your app with <EventContextProvider>...</EventContextProvider>"
+        "Wrap your app with <EventContextProvider>...</EventContextProvider>",
     );
   }
   return context;
@@ -75,10 +82,8 @@ export function EventContextProvider({
   sessionId,
 }: EventContextProviderProps) {
   const bufferRef = useRef<EventBuffer | null>(null);
-  if (!bufferRef.current) {
-    bufferRef.current = createEventBuffer();
-  }
-  const buffer = bufferRef.current;
+  bufferRef.current = createEventBuffer();
+  const buffer = bufferRef.current!;
 
   const [sseStatus, setSseStatus] = useState<SSEStatus>("disconnected");
 
@@ -111,7 +116,7 @@ export function EventContextProvider({
         console.error("SSE error:", error);
         setSSEStatus(buffer, "disconnected");
         setSseStatus("disconnected");
-      }
+      },
     );
 
     setSSEStatus(buffer, "connected");
@@ -122,7 +127,7 @@ export function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, buffer, sessionId]);
+  }, [backendApi, bufferRef, sessionId]);
 
   // ---------------------------------------------------------------------------
   // Context Value
@@ -131,7 +136,7 @@ export function EventContextProvider({
     (type: string, callback: EventSubscriber) => {
       return subscribeToBuffer(buffer, type, callback);
     },
-    [buffer]
+    [buffer],
   );
 
   const sendOutbound = useCallback(
@@ -146,12 +151,56 @@ export function EventContextProvider({
         console.error("Failed to send outbound event:", error);
       }
     },
-    [backendApi]
+    [backendApi],
+  );
+
+  const dispatchSystemEvents = useCallback(
+    (sessionId: string, events: ApiSystemEvent[]) => {
+      for (const event of events) {
+        let eventType: string;
+        let payload: unknown;
+
+        // Unwrap the tagged enum from backend serialization
+        if (isInlineCall(event)) {
+          // InlineCall has inner type like "wallet_tx_request"
+          eventType = event.InlineCall.type;
+          payload = event.InlineCall.payload ?? event.InlineCall;
+        } else if (isSystemNotice(event)) {
+          eventType = "system_notice";
+          payload = { message: event.SystemNotice };
+        } else if (isSystemError(event)) {
+          eventType = "system_error";
+          payload = { message: event.SystemError };
+        } else if (isAsyncCallback(event)) {
+          eventType = "async_callback";
+          payload = event.AsyncCallback;
+        } else {
+          console.warn("Unknown system event type:", event);
+          continue;
+        }
+
+        const inboundEvent: InboundEvent = {
+          type: eventType,
+          sessionId,
+          payload,
+          status: "fetched",
+          timestamp: Date.now(),
+        };
+        enqueueInbound(buffer, {
+          type: eventType,
+          sessionId,
+          payload,
+        });
+        dispatch(buffer, inboundEvent);
+      }
+    },
+    [buffer],
   );
 
   const contextValue: EventContext = {
     subscribe: subscribeCallback,
-    sendOutbound,
+    sendOutboundSystem: sendOutbound,
+    dispatchInboundSystem: dispatchSystemEvents,
     sseStatus,
   };
 

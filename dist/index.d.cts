@@ -1,5 +1,23 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { ReactNode } from 'react';
+import { ReactNode, SetStateAction } from 'react';
+import { ThreadMessageLike } from '@assistant-ui/react';
+import { ClassValue } from 'clsx';
+
+type UserState = {
+    address?: string;
+    chainId?: number;
+    isConnected: boolean;
+    ensName?: string;
+};
+declare function useUser(): {
+    user: UserState;
+    setUser: (data: Partial<UserState>) => void;
+    getUserState: () => UserState;
+    onUserStateChange: (callback: (user: UserState) => void) => () => void;
+};
+declare function UserContextProvider({ children }: {
+    children: ReactNode;
+}): react_jsx_runtime.JSX.Element;
 
 interface AomiMessage {
     sender?: string;
@@ -17,6 +35,7 @@ interface AomiMessage {
  */
 interface ApiStateResponse {
     messages?: AomiMessage[] | null;
+    system_events?: ApiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
     session_exists?: boolean;
@@ -28,6 +47,7 @@ interface ApiStateResponse {
  */
 interface ApiChatResponse {
     messages?: AomiMessage[] | null;
+    system_events?: ApiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
 }
@@ -72,12 +92,24 @@ type ApiSSEEvent = {
     [key: string]: unknown;
 };
 /**
- * GET /api/events
- * Returns async callback events from backend (wallet tx requests, notifications, etc.)
+ * Backend SystemEvent enum serializes as tagged JSON:
+ * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
+ * - SystemNotice: {"SystemNotice": "message"}
+ * - SystemError: {"SystemError": "message"}
+ * - AsyncCallback: {"AsyncCallback": {...}}
  */
 type ApiSystemEvent = {
-    type: string;
-    [key: string]: unknown;
+    InlineCall: {
+        type: string;
+        payload?: unknown;
+        [key: string]: unknown;
+    };
+} | {
+    SystemNotice: string;
+} | {
+    SystemError: string;
+} | {
+    AsyncCallback: Record<string, unknown>;
 };
 
 declare class BackendApi {
@@ -140,7 +172,9 @@ type EventContext = {
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
     subscribe: (type: string, callback: EventSubscriber) => () => void;
     /** Send an outbound event to backend immediately */
-    sendOutbound: (event: Omit<OutboundEvent, "timestamp">) => void;
+    sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => void;
+    /** Dispatch system events from HTTP polling into the event buffer */
+    dispatchInboundSystem: (sessionId: string, events: ApiSystemEvent[]) => void;
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };
@@ -172,8 +206,8 @@ type WalletHandlerConfig = {
 type WalletHanderApi = {
     /** Send transaction completion event to backend */
     sendTxComplete: (tx: WalletTxComplete) => void;
-    /** Send wallet connection status change */
-    sendConnectionChange: (status: WalletConnectionStatus, address?: string) => void;
+    /** Send wallet connection status change and update user state */
+    sendConnectionChange: (status: WalletConnectionStatus, address?: string, chainId?: number) => void;
     /** Pending transaction requests from AI */
     pendingTxRequests: WalletTxRequest[];
     /** Clear a pending request after handling */
@@ -181,7 +215,7 @@ type WalletHanderApi = {
 };
 declare function useWalletHandler({ sessionId, onTxRequest, }: WalletHandlerConfig): WalletHanderApi;
 
-type Notification = {
+type Notification$1 = {
     id: string;
     type: string;
     title: string;
@@ -192,11 +226,11 @@ type Notification = {
 };
 type NotificationHandlerConfig = {
     /** Callback when new notification arrives */
-    onNotification?: (notification: Notification) => void;
+    onNotification?: (notification: Notification$1) => void;
 };
 type NotificationApi = {
     /** All notifications */
-    notifications: Notification[];
+    notifications: Notification$1[];
     /** Unhandled count */
     unhandledCount: number;
     /** Mark notification as handled */
@@ -204,4 +238,73 @@ type NotificationApi = {
 };
 declare function useNotificationHandler({ onNotification, }?: NotificationHandlerConfig): NotificationApi;
 
-export { type AomiMessage, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification, type NotificationApi, type NotificationHandlerConfig, type OutboundEvent, type SSEStatus, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, useEventContext, useNotificationHandler, useWalletHandler };
+type ThreadStatus = "regular" | "archived" | "pending";
+type ThreadMetadata = {
+    title: string;
+    status: ThreadStatus;
+    lastActiveAt?: string | number;
+};
+
+type ThreadContext = {
+    currentThreadId: string;
+    setCurrentThreadId: (id: string) => void;
+    threadViewKey: number;
+    bumpThreadViewKey: () => void;
+    threads: Map<string, ThreadMessageLike[]>;
+    setThreads: (updater: SetStateAction<Map<string, ThreadMessageLike[]>>) => void;
+    threadMetadata: Map<string, ThreadMetadata>;
+    setThreadMetadata: (updater: SetStateAction<Map<string, ThreadMetadata>>) => void;
+    threadCnt: number;
+    setThreadCnt: (updater: SetStateAction<number>) => void;
+    getThreadMessages: (threadId: string) => ThreadMessageLike[];
+    setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
+    getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
+    updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+};
+type ThreadContextProviderProps = {
+    children: ReactNode;
+    initialThreadId?: string;
+};
+declare function useThreadContext(): ThreadContext;
+declare function ThreadContextProvider({ children, initialThreadId, }: ThreadContextProviderProps): react_jsx_runtime.JSX.Element;
+declare function useCurrentThreadMessages(): ThreadMessageLike[];
+declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
+
+/**
+ * Utility function to merge Tailwind CSS classes with conflict resolution.
+ * Combines clsx for conditional classes and tailwind-merge for deduplication.
+ */
+declare function cn(...inputs: ClassValue[]): string;
+
+type NotificationType = "notice" | "success" | "error" | "wallet";
+type Notification = {
+    id: string;
+    type: NotificationType;
+    title: string;
+    message?: string;
+    duration?: number;
+    timestamp: number;
+};
+type ShowNotificationParams = Omit<Notification, "id" | "timestamp">;
+type NotificationContextApi = {
+    /** All active notifications */
+    notifications: Notification[];
+    /** Show a new notification */
+    showNotification: (params: ShowNotificationParams) => string;
+    /** Dismiss a notification by ID */
+    dismissNotification: (id: string) => void;
+    /** Clear all notifications */
+    clearAll: () => void;
+};
+declare function useNotification(): NotificationContextApi;
+type NotificationContextProviderProps = {
+    children: ReactNode;
+};
+declare function NotificationContextProvider({ children, }: NotificationContextProviderProps): react_jsx_runtime.JSX.Element;
+
+type WalletFooterProps = {
+    wallet: UserState;
+    setWallet: (data: Partial<UserState>) => void;
+};
+
+export { type AomiMessage, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification$1 as HandlerNotification, type InboundEvent, type Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, UserContextProvider, type UserState, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletFooterProps, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
