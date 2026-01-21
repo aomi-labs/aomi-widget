@@ -3,10 +3,11 @@
 // =============================================================================
 
 export interface AomiMessage {
-  sender?: string;
+  sender?: "user" | "agent" | "system" | string;
   content?: string;
   timestamp?: string;
   is_streaming?: boolean;
+  tool_stream?: [string, string] | null;
   tool_result?:
     | [string, string]
     | { topic?: unknown; content?: unknown }
@@ -28,6 +29,8 @@ export interface ApiStateResponse {
   is_processing?: boolean;
   session_exists?: boolean;
   session_id?: string;
+  rehydrated?: boolean;
+  state_source?: "db" | "memory" | string;
 }
 
 /**
@@ -39,6 +42,7 @@ export interface ApiChatResponse {
   system_events?: ApiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
+  session_exists?: boolean;
 }
 
 /**
@@ -85,16 +89,12 @@ export interface ApiCreateThreadResponse {
  * Base SSE event - all events have session_id and type
  */
 export type ApiSSEEvent = {
-  type: string;
+  type: "title_changed" | "tool_completion" | string;
   session_id: string;
+  new_title?: string;
   [key: string]: unknown;
 };
 
-/**
- * Known SSE event types:
- * - "title_changed": { type, session_id, new_title }
- * - "tool_completion": { type, session_id, ... }
- */
 export type ApiSSEEventType = "title_changed" | "tool_completion";
 
 // =============================================================================

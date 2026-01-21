@@ -690,7 +690,7 @@ function toInboundMessage(msg) {
   if (msg.content) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
+  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",
@@ -711,6 +711,13 @@ function toInboundMessage(msg) {
     content: content.length > 0 ? content : [{ type: "text", text: "" }]
   }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
   return threadMessage;
+}
+function parseToolPayload(msg) {
+  if (msg.tool_stream && Array.isArray(msg.tool_stream)) {
+    const [topic, content] = msg.tool_stream;
+    return [String(topic), String(content != null ? content : "")];
+  }
+  return parseToolResult(msg.tool_result);
 }
 function parseToolResult(toolResult) {
   if (!toolResult) return null;
@@ -1399,6 +1406,7 @@ function AomiRuntimeProvider({
         const sessionId = event.session_id;
         if (eventType === "title_changed") {
           const newTitle = event.new_title;
+          if (!newTitle) return;
           const backendState = backendStateRef.current;
           const targetThreadId = (_a = findTempIdForBackendId(backendState, sessionId)) != null ? _a : resolveThreadId(backendState, sessionId);
           const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
