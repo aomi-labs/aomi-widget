@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 
 import type { BackendApi } from "../backend/client";
 import type { AomiMessage, ApiSystemEvent } from "../backend/types";
+import type { UserState } from "../contexts/user-context";
 import {
   useThreadContext,
   type ThreadContext,
@@ -20,6 +21,7 @@ import {
 
 type OrchestratorOptions = {
   getPublicKey?: () => string | undefined;
+  getUserState?: () => UserState;
   onSystemEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
 };
 
@@ -49,6 +51,7 @@ export function useRuntimeOrchestrator(
         messageControllerRef.current?.inbound(threadId, msgs);
       },
       onSystemEvents: options?.onSystemEvents,
+      getUserState: options?.getUserState,
       onStart: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);
@@ -98,7 +101,11 @@ export function useRuntimeOrchestrator(
     pendingFetches.current.add(threadId);
 
     try {
-      const state = await backendApiRef.current.fetchState(backendThreadId);
+      const userState = options?.getUserState?.();
+      const state = await backendApiRef.current.fetchState(
+        backendThreadId,
+        userState,
+      );
       messageControllerRef.current?.inbound(threadId, state.messages);
 
       if (threadContextRef.current.currentThreadId === threadId) {

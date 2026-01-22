@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { BackendApi } from "../backend/client";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
-import { RuntimeActionsProvider } from "../contexts/runtime-actions";
 import {
   ThreadContextProvider,
   useThreadContext,
@@ -37,9 +36,9 @@ export function AomiRuntimeProvider({
     <ThreadContextProvider>
       <NotificationContextProvider>
         <UserContextProvider>
-          <FrameShell backendApi={backendApi}>
+          <AomiRuntimeInner backendApi={backendApi}>
             {children}
-          </FrameShell>
+          </AomiRuntimeInner>
         </UserContextProvider>
       </NotificationContextProvider>
     </ThreadContextProvider>
@@ -66,9 +65,7 @@ function AomiRuntimeInner({
       backendApi={backendApi}
       sessionId={threadContext.currentThreadId}
     >
-      <RuntimeActionsProvider value={{}}>
-        <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
-      </RuntimeActionsProvider>
+      <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
     </EventContextProvider>
   );
 }

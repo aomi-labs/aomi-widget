@@ -23,13 +23,13 @@ export type Notification = {
   timestamp: number;
 };
 
-export type ShowNotificationParams = Omit<Notification, "id" | "timestamp">;
+export type NotificationData = Omit<Notification, "id" | "timestamp">;
 
 export type NotificationContextApi = {
   /** All active notifications */
   notifications: Notification[];
   /** Show a new notification */
-  showNotification: (params: ShowNotificationParams) => string;
+  showNotification: (params: NotificationData) => string;
   /** Dismiss a notification by ID */
   dismissNotification: (id: string) => void;
   /** Clear all notifications */
@@ -74,7 +74,7 @@ export function NotificationContextProvider({
 }: NotificationContextProviderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const showNotification = useCallback((params: ShowNotificationParams) => {
+  const showNotification = useCallback((params: NotificationData) => {
     const id = generateId();
     const notification: Notification = {
       ...params,

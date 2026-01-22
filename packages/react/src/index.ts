@@ -21,6 +21,12 @@ export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
 export type { AomiRuntimeProviderProps } from "./runtime/aomi-runtime";
 
 // =============================================================================
+// Unified Runtime API
+// =============================================================================
+export { useAomiRuntime } from "./interface";
+export type { AomiRuntimeApi } from "./interface";
+
+// =============================================================================
 // Event System (follows RUNTIME-ARCH.md)
 // =============================================================================
 export {
@@ -98,7 +104,7 @@ export {
   NotificationContextProvider,
   type Notification,
   type NotificationType,
-  type ShowNotificationParams,
+  type NotificationData as ShowNotificationParams,
   type NotificationContextApi as NotificationContextValue,
   type NotificationContextProviderProps,
 } from "./contexts/notification-context";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
@@ -12,6 +12,7 @@ import type { BackendApi } from "../backend/client";
 import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/user-context";
 import { useThreadContext } from "../contexts/thread-context";
+import { useNotification } from "../contexts/notification-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
   findTempIdForBackendId,
@@ -21,6 +22,7 @@ import {
 } from "../state/backend-state";
 import { isPlaceholderTitle, isTempThreadId } from "./utils";
 import { buildThreadListAdapter } from "./threadlist-adapter";
+import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
 
 // =============================================================================
 // Core Props
@@ -54,6 +56,7 @@ export function AomiRuntimeCore({
   } = useRuntimeOrchestrator(backendApi, {
     onSystemEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
+    getUserState,
   });
 
   // ---------------------------------------------------------------------------
@@ -265,9 +268,141 @@ export function AomiRuntimeCore({
     };
   }, [polling]);
 
+  // ---------------------------------------------------------------------------
+  // Build AomiRuntimeApi
+  // ---------------------------------------------------------------------------
+  const userContext = useUser();
+  const notificationContext = useNotification();
+  const eventContext = useEventContext();
+
+  const sendMessage = useCallback(
+    async (text: string) => {
+      // Build a minimal AppendMessage - the message controller only extracts text from content
+      // Using unknown cast because AppendMessage has complex metadata requirements we don't need
+      const appendMessage = {
+        role: "user",
+        content: [{ type: "text", text }],
+      } as unknown as AppendMessage;
+      await messageController.outbound(
+        appendMessage,
+        threadContext.currentThreadId,
+      );
+    },
+    [messageController, threadContext.currentThreadId],
+  );
+
+  const cancelGeneration = useCallback(() => {
+    messageController.cancel(threadContext.currentThreadId);
+  }, [messageController, threadContext.currentThreadId]);
+
+  const getMessages = useCallback(
+    (threadId?: string) => {
+      const id = threadId ?? threadContext.currentThreadId;
+      return threadContext.getThreadMessages(id);
+    },
+    [threadContext],
+  );
+
+  const createThread = useCallback(async (): Promise<string> => {
+    await threadListAdapter.onSwitchToNewThread();
+    return threadContextRef.current.currentThreadId;
+  }, [threadListAdapter]);
+
+  const deleteThread = useCallback(
+    async (threadId: string) => {
+      await threadListAdapter.onDelete(threadId);
+    },
+    [threadListAdapter],
+  );
+
+  const renameThread = useCallback(
+    async (threadId: string, title: string) => {
+      await threadListAdapter.onRename(threadId, title);
+    },
+    [threadListAdapter],
+  );
+
+  const archiveThread = useCallback(
+    async (threadId: string) => {
+      await threadListAdapter.onArchive(threadId);
+    },
+    [threadListAdapter],
+  );
+
+  const selectThread = useCallback(
+    (threadId: string) => {
+      // Check if thread exists
+      if (threadContext.allThreadsMetadata.has(threadId)) {
+        threadListAdapter.onSwitchToThread(threadId);
+      } else {
+        // Thread doesn't exist, create a new one
+        void threadListAdapter.onSwitchToNewThread();
+      }
+    },
+    [threadContext.allThreadsMetadata, threadListAdapter],
+  );
+
+  const aomiRuntimeApi: AomiRuntimeApi = useMemo(
+    () => ({
+      // User API
+      user: userContext.user,
+      getUserState: userContext.getUserState,
+      setUser: userContext.setUser,
+      onUserStateChange: userContext.onUserStateChange,
+
+      // Thread API
+      currentThreadId: threadContext.currentThreadId,
+      threadViewKey: threadContext.threadViewKey,
+      threadMetadata: threadContext.allThreadsMetadata,
+      getThreadMetadata: threadContext.getThreadMetadata,
+      createThread,
+      deleteThread,
+      renameThread,
+      archiveThread,
+      selectThread,
+
+      // Chat API
+      isRunning,
+      getMessages,
+      sendMessage,
+      cancelGeneration,
+
+      // Notification API
+      notifications: notificationContext.notifications,
+      showNotification: notificationContext.showNotification,
+      dismissNotification: notificationContext.dismissNotification,
+      clearAllNotifications: notificationContext.clearAll,
+
+      // Event API
+      subscribe: eventContext.subscribe,
+      sendSystemCommand: eventContext.sendOutboundSystem,
+      sseStatus: eventContext.sseStatus,
+    }),
+    [
+      userContext,
+      threadContext.currentThreadId,
+      threadContext.threadViewKey,
+      threadContext.allThreadsMetadata,
+      threadContext.getThreadMetadata,
+      createThread,
+      deleteThread,
+      renameThread,
+      archiveThread,
+      selectThread,
+      isRunning,
+      getMessages,
+      sendMessage,
+      cancelGeneration,
+      notificationContext,
+      eventContext,
+    ],
+  );
+
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      {children}
-    </AssistantRuntimeProvider>
+    <AomiRuntimeApiProvider value={aomiRuntimeApi}>
+      <AssistantRuntimeProvider runtime={runtime}>
+        {children}
+      </AssistantRuntimeProvider>
+    </AomiRuntimeApiProvider>
   );
 }

@@ -4,10 +4,8 @@ import { type CSSProperties, type ReactNode } from "react";
 import {
   AomiRuntimeProvider,
   cn,
-  useUser,
+  useAomiRuntime,
   type UserConfig,
-  useCurrentThreadMetadata,
-  useThreadContext,
 } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
@@ -56,7 +54,7 @@ export const AomiFrame = ({
 
   return (
     <AomiRuntimeProvider backendUrl={backendUrl}>
-      <AomiFrameContent
+      <AomiFrameShell
         width={width}
         height={height}
         className={className}
@@ -64,16 +62,16 @@ export const AomiFrame = ({
         walletFooter={walletFooter}
       >
         {children}
-      </AomiFrameContent>
+      </AomiFrameShell>
     </AomiRuntimeProvider>
   );
 };
 
 // =============================================================================
-// Internal Content Component (uses hooks from providers)
+// Internal Shell Component (uses hooks from providers)
 // =============================================================================
 
-type AomiFrameContentProps = {
+type AomiFrameShellProps = {
   width: CSSProperties["width"];
   height: CSSProperties["height"];
   className?: string;
@@ -82,17 +80,17 @@ type AomiFrameContentProps = {
   children?: ReactNode;
 };
 
-const AomiFrameContent = ({
+const AomiFrameShell = ({
   width,
   height,
   className,
   style,
   walletFooter,
   children,
-}: AomiFrameContentProps) => {
-  const currentTitle = useCurrentThreadMetadata()?.title ?? "New Chat";
-  const { currentThreadId, threadViewKey } = useThreadContext();
-  const { user, setUser } = useUser();
+}: AomiFrameShellProps) => {
+  const { user, setUser, currentThreadId, threadViewKey, getThreadMetadata } =
+    useAomiRuntime();
+  const currentTitle = getThreadMetadata(currentThreadId)?.title ?? "New Chat";
 
   const frameStyle: CSSProperties = { width, height, ...style };
 

@@ -6,6 +6,7 @@ import type {
   ApiStateResponse,
   ApiSystemEvent,
 } from "../backend/types";
+import type { UserState } from "../contexts/user-context";
 import {
   isThreadReady,
   resolveThreadId,
@@ -18,6 +19,7 @@ type PollingConfig = {
   backendStateRef: MutableRefObject<BakendState>;
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
   onSystemEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+  getUserState?: () => UserState;
   onStart?: (threadId: string) => void;
   onStop?: (threadId: string) => void;
   intervalMs?: number;
@@ -47,8 +49,11 @@ export class PollingController {
           "[PollingController] Fetching state for threadId:",
           threadId,
         );
-        const state =
-          await this.config.backendApiRef.current.fetchState(backendThreadId);
+        const userState = this.config.getUserState?.();
+        const state = await this.config.backendApiRef.current.fetchState(
+          backendThreadId,
+          userState,
+        );
 
         if (!this.intervals.has(threadId)) return;
 
