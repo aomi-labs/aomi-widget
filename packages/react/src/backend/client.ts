@@ -8,6 +8,7 @@ import type {
   ApiSystemResponse,
   ApiThread,
 } from "./types";
+import type { UserState } from "../contexts/user-context";
 
 function toQueryString(payload: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -41,9 +42,17 @@ export class BackendApi {
 
   constructor(private readonly backendUrl: string) {}
 
-  async fetchState(sessionId: string): Promise<ApiStateResponse> {
-    const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url);
+  async fetchState(
+    sessionId: string,
+    userState?: UserState,
+  ): Promise<ApiStateResponse> {
+    const url = new URL("/api/state", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (userState) {
+      url.searchParams.set("user_state", JSON.stringify(userState));
+    }
+
+    const response = await fetch(url.toString());
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

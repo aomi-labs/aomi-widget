@@ -16,11 +16,11 @@ export type ThreadContext = {
   setCurrentThreadId: (id: string) => void;
   threadViewKey: number;
   bumpThreadViewKey: () => void;
-  threads: Map<string, ThreadMessageLike[]>;
+  allThreads: Map<string, ThreadMessageLike[]>;
   setThreads: (
     updater: SetStateAction<Map<string, ThreadMessageLike[]>>,
   ) => void;
-  threadMetadata: Map<string, ThreadMetadata>;
+  allThreadsMetadata: Map<string, ThreadMetadata>;
   setThreadMetadata: (
     updater: SetStateAction<Map<string, ThreadMetadata>>,
   ) => void;
