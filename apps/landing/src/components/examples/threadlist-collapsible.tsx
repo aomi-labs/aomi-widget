@@ -8,11 +8,11 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { ThreadList } from "@/components/assistant-ui/thread-list";
-import { Separator } from "@/components/ui/separator";
+} from "@aomi-labs/widget-lib/components/ui/collapsible";
+import { Button } from "@aomi-labs/widget-lib/components/ui/button";
+import { Separator } from "@aomi-labs/widget-lib/components/ui/separator";
 import { cn } from "@aomi-labs/react";
+import { ThreadList } from "@aomi-labs/widget-lib/components/assistant-ui/thread-list";
 
 type ThreadListCollapsibleProps = {
   /** Optional footer component (e.g., WalletFooter from consumer app) */

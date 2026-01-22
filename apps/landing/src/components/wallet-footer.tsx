@@ -14,10 +14,10 @@ import {
   SidebarMenuItem,
   formatAddress,
   getNetworkName,
-  type WalletFooterProps,
+  type UserConfig,
 } from "@aomi-labs/widget-lib";
 
-export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
+export function WalletFooter({ user, setUser }: UserConfig) {
   const { address, isConnected } = useAppKitAccount();
   const { chainId } = useAppKitNetwork();
   const { data: ensName } = useEnsName({
@@ -30,26 +30,26 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   useEffect(() => {
     const numericChainId =
       typeof chainId === "string" ? Number(chainId) : chainId;
-    setWallet({
+    setUser({
       address,
       chainId: numericChainId,
       isConnected,
       ensName: ensName ?? undefined,
     });
-  }, [address, chainId, isConnected, ensName, setWallet]);
+  }, [address, chainId, isConnected, ensName, setUser]);
 
-  const networkName = getNetworkName(wallet.chainId);
+  const networkName = getNetworkName(user.chainId);
 
   const handleClick = () => {
-    if (wallet.isConnected) {
+    if (user.isConnected) {
       void open({ view: "Account" });
     } else {
       void open({ view: "Connect" });
     }
   };
 
-  const label = wallet.isConnected
-    ? (wallet.ensName ?? formatAddress(wallet.address))
+  const label = user.isConnected
+    ? (user.ensName ?? formatAddress(user.address))
     : "Connect Wallet";
 
   return (

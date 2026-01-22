@@ -7,7 +7,10 @@ import { BackendApi } from "../backend/client";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
 import { RuntimeActionsProvider } from "../contexts/runtime-actions";
-import { useThreadContext } from "../contexts/thread-context";
+import {
+  ThreadContextProvider,
+  useThreadContext,
+} from "../contexts/thread-context";
 import { UserContextProvider } from "../contexts/user-context";
 import { AomiRuntimeCore } from "./core";
 
@@ -28,24 +31,44 @@ export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
 }: Readonly<AomiRuntimeProviderProps>) {
-  const threadContext = useThreadContext();
-
   const backendApi = useMemo(() => new BackendApi(backendUrl), [backendUrl]);
 
   return (
-    <NotificationContextProvider>
-      <UserContextProvider>
-        <EventContextProvider
-          backendApi={backendApi}
-          sessionId={threadContext.currentThreadId}
-        >
-          <RuntimeActionsProvider value={{}}>
-            <AomiRuntimeCore backendApi={backendApi}>
-              {children}
-            </AomiRuntimeCore>
-          </RuntimeActionsProvider>
-        </EventContextProvider>
-      </UserContextProvider>
-    </NotificationContextProvider>
+    <ThreadContextProvider>
+      <NotificationContextProvider>
+        <UserContextProvider>
+          <FrameShell backendApi={backendApi}>
+            {children}
+          </FrameShell>
+        </UserContextProvider>
+      </NotificationContextProvider>
+    </ThreadContextProvider>
+  );
+}
+
+// =============================================================================
+// Inner Provider (needs ThreadContext)
+// =============================================================================
+
+type AomiRuntimeInnerProps = {
+  children: ReactNode;
+  backendApi: BackendApi;
+};
+
+function AomiRuntimeInner({
+  children,
+  backendApi,
+}: Readonly<AomiRuntimeInnerProps>) {
+  const threadContext = useThreadContext();
+
+  return (
+    <EventContextProvider
+      backendApi={backendApi}
+      sessionId={threadContext.currentThreadId}
+    >
+      <RuntimeActionsProvider value={{}}>
+        <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
+      </RuntimeActionsProvider>
+    </EventContextProvider>
   );
 }

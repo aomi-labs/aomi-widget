@@ -125,10 +125,10 @@ function parseToolResult(
 // ==================== Wallet Utilities ====================
 
 /**
- * Props for wallet footer components.
- * @deprecated Use useUser() hook instead for global state access.
+ * User configuration props for footer components.
+ * Provides user state and setter from UserContext.
  */
-export type WalletFooterProps = {
+export type UserConfig = {
   user: UserState;
   setUser: (data: Partial<UserState>) => void;
 };

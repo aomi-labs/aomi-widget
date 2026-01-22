@@ -1,34 +1,34 @@
 "use client";
 
+/**
+ * AomiFrameCollapsible - Example of building custom frame UI with headless mode
+ *
+ * This demonstrates how consumers can use AomiRuntimeProvider directly
+ * and build their own custom UI with the provided hooks.
+ */
+
 import { type CSSProperties, type ReactNode } from "react";
 import {
   AomiRuntimeProvider,
   cn,
-  useUser,
+  useAomiRuntime,
   type UserConfig,
-  useCurrentThreadMetadata,
-  useThreadContext,
 } from "@aomi-labs/react";
-import { Thread } from "@/components/assistant-ui/thread";
-import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
+import { Separator } from "@aomi-labs/widget-lib/components/ui/separator";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+} from "@aomi-labs/widget-lib/components/ui/breadcrumb";
+import { Thread } from "@aomi-labs/widget-lib/components/assistant-ui/thread";
+import { ThreadListCollapsible } from "./threadlist-collapsible";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type AomiFrameProps = {
+type AomiFrameCollapsibleProps = {
   width?: CSSProperties["width"];
   height?: CSSProperties["height"];
   className?: string;
@@ -37,34 +37,38 @@ type AomiFrameProps = {
   walletFooter?: (props: UserConfig) => ReactNode;
   /** Additional content to render inside the frame */
   children?: ReactNode;
+  /** Default open state for collapsible */
+  defaultOpen?: boolean;
 };
 
 // =============================================================================
-// AomiFrame Component
+// AomiFrameCollapsible Component
 // =============================================================================
 
-export const AomiFrame = ({
+export const AomiFrameCollapsible = ({
   width = "100%",
   height = "80vh",
   className,
   style,
   walletFooter,
   children,
-}: AomiFrameProps) => {
+  defaultOpen = false,
+}: AomiFrameCollapsibleProps) => {
   const backendUrl =
     process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
 
   return (
     <AomiRuntimeProvider backendUrl={backendUrl}>
-      <AomiFrameContent
+      <AomiFrameCollapsibleContent
         width={width}
         height={height}
         className={className}
         style={style}
         walletFooter={walletFooter}
+        defaultOpen={defaultOpen}
       >
         {children}
-      </AomiFrameContent>
+      </AomiFrameCollapsibleContent>
     </AomiRuntimeProvider>
   );
 };
@@ -73,31 +77,33 @@ export const AomiFrame = ({
 // Internal Content Component (uses hooks from providers)
 // =============================================================================
 
-type AomiFrameContentProps = {
+type AomiFrameCollapsibleContentProps = {
   width: CSSProperties["width"];
   height: CSSProperties["height"];
   className?: string;
   style?: CSSProperties;
   walletFooter?: (props: UserConfig) => ReactNode;
   children?: ReactNode;
+  defaultOpen?: boolean;
 };
 
-const AomiFrameContent = ({
+const AomiFrameCollapsibleContent = ({
   width,
   height,
   className,
   style,
   walletFooter,
   children,
-}: AomiFrameContentProps) => {
-  const currentTitle = useCurrentThreadMetadata()?.title ?? "New Chat";
-  const { currentThreadId, threadViewKey } = useThreadContext();
-  const { user, setUser } = useUser();
+  defaultOpen = false,
+}: AomiFrameCollapsibleContentProps) => {
+  const { user, setUser, currentThreadId, threadViewKey, getThreadMetadata } =
+    useAomiRuntime();
+  const currentTitle = getThreadMetadata(currentThreadId)?.title ?? "New Chat";
 
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <SidebarProvider>
+    <>
       {children}
       <div
         className={cn(
@@ -106,10 +112,12 @@ const AomiFrameContent = ({
         )}
         style={frameStyle}
       >
-        <ThreadListSidebar footer={walletFooter?.({ user, setUser })} />
-        <SidebarInset className="relative">
+        <ThreadListCollapsible
+          footer={walletFooter?.({ user, setUser })}
+          defaultOpen={defaultOpen}
+        />
+        <div className="relative flex flex-1 flex-col overflow-hidden">
           <header className="mt-1 flex h-14 shrink-0 items-center gap-2 border-b px-3">
-            <SidebarTrigger />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
               <BreadcrumbList>
@@ -123,8 +131,8 @@ const AomiFrameContent = ({
           <div className="flex-1 overflow-hidden">
             <Thread key={`${currentThreadId}-${threadViewKey}`} />
           </div>
-        </SidebarInset>
+        </div>
       </div>
-    </SidebarProvider>
+    </>
   );
 };

@@ -70,13 +70,8 @@ export {
 // Backwards compatibility alias
 export type { UserState as WalletButtonState } from "./contexts/user-context";
 
-// Wallet footer props type (for render prop pattern)
-export type WalletFooterProps = {
-  wallet: import("./contexts/user-context").UserState;
-  setWallet: (
-    data: Partial<import("./contexts/user-context").UserState>,
-  ) => void;
-};
+// User config type (for render prop pattern)
+export type { UserConfig } from "./runtime/utils";
 
 // =============================================================================
 // Thread Context (for UI components)
@@ -93,7 +88,7 @@ export type { ThreadMetadata } from "./state/thread-store";
 // =============================================================================
 // Utilities
 // =============================================================================
-export { cn } from "./runtime/utils";
+export { cn, formatAddress, getNetworkName } from "./runtime/utils";
 
 // =============================================================================
 // Notification Context (for toast UI)

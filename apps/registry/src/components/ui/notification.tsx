@@ -36,12 +36,10 @@ function showToast(
   notification: Notification,
   dismissNotification: (id: string) => void,
 ) {
-  const duration = notification.duration ?? 5000;
-  const toastDuration = duration <= 0 ? Infinity : duration;
   const options = {
     id: notification.id,
-    description: notification.message,
-    duration: toastDuration,
+    description: notification.title,
+    duration: Infinity,
     onDismiss: () => dismissNotification(notification.id),
   };
 
