@@ -353,7 +353,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     const tempThreadId = runtime.threadContext.currentThreadId;
     expect(tempThreadId).toMatch(/^temp-/);
-    expect(runtime.threadContext.threadMetadata.get(tempThreadId)?.status).toBe(
+    expect(runtime.threadContext.allThreadsMetadata.get(tempThreadId)?.status).toBe(
       "pending",
     );
     expect(createThread).toHaveBeenCalledTimes(1);
@@ -365,7 +365,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     await waitFor(() => {
       expect(
-        runtime.threadContext.threadMetadata.get(tempThreadId)?.title,
+        runtime.threadContext.allThreadsMetadata.get(tempThreadId)?.title,
       ).toBe("Chat 5");
     });
 
@@ -413,7 +413,7 @@ describe("Aomi runtime orchestrator compatibility", () => {
 
     const tempThreadId = runtime.threadContext.currentThreadId;
     expect(createThread).toHaveBeenCalledTimes(1);
-    expect(runtime.threadContext.threadMetadata.get(tempThreadId)?.status).toBe(
+    expect(runtime.threadContext.allThreadsMetadata.get(tempThreadId)?.status).toBe(
       "pending",
     );
 

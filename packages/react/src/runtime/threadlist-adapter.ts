@@ -80,7 +80,7 @@ export function buildThreadListAdapter({
 }: ThreadListAdapterConfig) {
   const backendState = backendStateRef.current;
   const { regularThreads, archivedThreads } = buildThreadLists(
-    threadContext.threadMetadata,
+    threadContext.allThreadsMetadata,
   );
 
   const preparePendingThread = (threadId: string) => {
@@ -117,7 +117,7 @@ export function buildThreadListAdapter({
 
   const findPendingThreadId = () => {
     if (backendState.creatingThreadId) return backendState.creatingThreadId;
-    for (const [id, meta] of threadContext.threadMetadata.entries()) {
+    for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
       if (meta.status === "pending") return id;
     }
     return null;
@@ -282,7 +282,7 @@ export function buildThreadListAdapter({
 
         if (threadContext.currentThreadId === threadId) {
           const firstRegularThread = Array.from(
-            threadContext.threadMetadata.entries(),
+            threadContext.allThreadsMetadata.entries(),
           ).find(([id, meta]) => meta.status === "regular" && id !== threadId);
 
           if (firstRegularThread) {

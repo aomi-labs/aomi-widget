@@ -116,7 +116,7 @@ export function AomiRuntimeCore({
         const threadList =
           await backendApiRef.current.fetchThreads(userAddress);
         const currentContext = threadContextRef.current;
-        const newMetadata = new Map(currentContext.threadMetadata);
+        const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
 
         for (const thread of threadList) {
@@ -177,7 +177,7 @@ export function AomiRuntimeCore({
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
-      threadContext.threadMetadata,
+      threadContext.allThreadsMetadata,
     ],
   );
 
