@@ -3,12 +3,12 @@
 import { useEffect } from "react";
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
-import { Button } from "@aomi-labs/widget-lib/components/ui/button";
+import { Button } from "../../../../registry/src/components/ui/button";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@aomi-labs/widget-lib/components/ui/sidebar";
+} from "../../../../registry/src/components/ui/sidebar";
 import {
   formatAddress,
   getNetworkName,

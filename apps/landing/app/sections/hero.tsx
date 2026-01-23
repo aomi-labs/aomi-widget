@@ -1,6 +1,6 @@
 "use client";
 
-import { HeroTerminal } from "@/components/hero-terminal";
+import { WidgetFrame } from "@landing/components/samples/widget-demo";
 import { useState, type CSSProperties } from "react";
 
 export function Hero() {
@@ -120,7 +120,11 @@ export function Hero() {
                 <span className="relative z-10">Documentation</span>
               </a>
         </div>
-        <HeroTerminal />
+        <div className="w-full max-w-3xl">
+          <div className="glass-panel rounded-[2rem] p-3 relative">
+            <WidgetFrame />
+          </div>
+        </div>
       </div>
 
 
