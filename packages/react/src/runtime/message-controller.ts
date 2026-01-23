@@ -2,7 +2,7 @@ import type { MutableRefObject } from "react";
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 
 import type { BackendApi } from "../backend/client";
-import type { AomiMessage } from "../backend/types";
+import type { AomiMessage, ApiSystemEvent } from "../backend/types";
 import { toInboundMessage } from "./utils";
 import type { ThreadContext } from "../contexts/thread-context";
 import type { PollingController } from "./polling-controller";
@@ -23,6 +23,7 @@ type MessageControllerConfig = {
   polling: PollingController;
   setGlobalIsRunning?: (running: boolean) => void;
   getPublicKey?: () => string | undefined;
+  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
 };
 
 type ThreadContextApi = Pick<
@@ -107,6 +108,10 @@ export class MessageController {
         this.inbound(threadId, response.messages);
       }
 
+      if (response?.system_events?.length && this.config.onSyncEvents) {
+        this.config.onSyncEvents(backendThreadId, response.system_events);
+      }
+
       if (response?.is_processing) {
         this.config.polling.start(threadId);
       } else if (!this.config.polling.isPolling(threadId)) {
@@ -151,7 +156,14 @@ export class MessageController {
     this.config.polling.stop(threadId);
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
-      await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      const response =
+        await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      if (response?.messages) {
+        this.inbound(threadId, response.messages);
+      }
+      if (response?.system_events?.length && this.config.onSyncEvents) {
+        this.config.onSyncEvents(backendThreadId, response.system_events);
+      }
       this.markRunning(threadId, false);
     } catch (error) {
       console.error("Failed to cancel:", error);

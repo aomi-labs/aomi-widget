@@ -79,6 +79,10 @@ describe("Thread API", () => {
     });
 
     it("rolls back on error", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
       const renameThread = vi.fn(async () => {
         throw new Error("Failed");
       });
@@ -93,6 +97,7 @@ describe("Thread API", () => {
       });
 
       expect(getApi().getThreadMetadata(threadId)?.title).toBe(originalTitle);
+      consoleSpy.mockRestore();
     });
   });
 
@@ -113,6 +118,10 @@ describe("Thread API", () => {
     });
 
     it("rolls back on error", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
       const archiveThread = vi.fn(async () => {
         throw new Error("Failed");
       });
@@ -127,6 +136,7 @@ describe("Thread API", () => {
 
       // Should rollback - status depends on initial state
       expect(getApi().getThreadMetadata(threadId)?.status).not.toBe("archived");
+      consoleSpy.mockRestore();
     });
   });
 

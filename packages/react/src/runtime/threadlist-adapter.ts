@@ -155,21 +155,22 @@ export function buildThreadListAdapter({
           markSkipInitialFetch(backendState, uiThreadId);
 
           const backendTitle = newThread.title;
-          if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-            threadContext.setThreadMetadata((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(uiThreadId);
-              const nextStatus =
-                existing?.status === "archived" ? "archived" : "regular";
-              next.set(uiThreadId, {
-                title: backendTitle,
-                status: nextStatus,
-                lastActiveAt:
-                  existing?.lastActiveAt ?? new Date().toISOString(),
-              });
-              return next;
+          const normalizedTitle =
+            backendTitle && !isPlaceholderTitle(backendTitle)
+              ? backendTitle
+              : "New Chat";
+
+          // Always update status to "regular" after successful creation
+          threadContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(uiThreadId);
+            next.set(uiThreadId, {
+              title: normalizedTitle,
+              status: "regular",
+              lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
             });
-          }
+            return next;
+          });
 
           if (backendState.creatingThreadId === uiThreadId) {
             backendState.creatingThreadId = null;
