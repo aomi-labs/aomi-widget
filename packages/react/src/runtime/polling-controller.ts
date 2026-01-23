@@ -10,12 +10,12 @@ import {
   isThreadReady,
   resolveThreadId,
   setThreadRunning,
-  type BakendState,
+  type BackendState,
 } from "../state/backend-state";
 
 type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
-  backendStateRef: MutableRefObject<BakendState>;
+  backendStateRef: MutableRefObject<BackendState>;
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
   onSystemEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
   onStart?: (threadId: string) => void;

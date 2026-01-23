@@ -318,6 +318,109 @@ function isAsyncCallback(event) {
   return "AsyncCallback" in event;
 }
 
+// packages/react/src/runtime/utils.ts
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
+var isTempThreadId = (id) => id.startsWith("temp-");
+var parseTimestamp = (value) => {
+  if (value === void 0 || value === null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
+  }
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric)) {
+    return numeric < 1e12 ? numeric * 1e3 : numeric;
+  }
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+};
+var isPlaceholderTitle = (title) => {
+  var _a;
+  const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
+  return !normalized || normalized.startsWith("#[");
+};
+function toInboundMessage(msg) {
+  var _a;
+  if (msg.sender === "system") return null;
+  const content = [];
+  const role = msg.sender === "user" ? "user" : "assistant";
+  if (msg.content) {
+    content.push({ type: "text", text: msg.content });
+  }
+  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
+  if (topic && toolContent) {
+    content.push({
+      type: "tool-call",
+      toolCallId: `tool_${Date.now()}`,
+      toolName: topic,
+      args: void 0,
+      result: (() => {
+        try {
+          return JSON.parse(toolContent);
+        } catch (e) {
+          return { args: toolContent };
+        }
+      })()
+    });
+  }
+  const threadMessage = __spreadValues({
+    role,
+    content: content.length > 0 ? content : [{ type: "text", text: "" }]
+  }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
+  return threadMessage;
+}
+function parseToolPayload(msg) {
+  if (msg.tool_stream && Array.isArray(msg.tool_stream)) {
+    const [topic, content] = msg.tool_stream;
+    return [String(topic), String(content != null ? content : "")];
+  }
+  return parseToolResult(msg.tool_result);
+}
+function parseToolResult(toolResult) {
+  if (!toolResult) return null;
+  if (Array.isArray(toolResult) && toolResult.length === 2) {
+    const [topic, content] = toolResult;
+    return [String(topic), content];
+  }
+  if (typeof toolResult === "object") {
+    const topic = toolResult.topic;
+    const content = toolResult.content;
+    return topic ? [String(topic), String(content)] : null;
+  }
+  return null;
+}
+var getNetworkName = (chainId) => {
+  if (chainId === void 0) return "";
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 42161:
+      return "arbitrum";
+    case 8453:
+      return "base";
+    case 10:
+      return "optimism";
+    case 11155111:
+      return "sepolia";
+    case 1337:
+    case 31337:
+      return "testnet";
+    case 59140:
+      return "linea-sepolia";
+    case 59144:
+      return "linea";
+    default:
+      return "testnet";
+  }
+};
+var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+
 // packages/react/src/state/event-buffer.ts
 function createEventBuffer() {
   return {
@@ -384,6 +487,11 @@ function EventContextProvider({
   const buffer = bufferRef.current;
   const [sseStatus, setSseStatus] = useState("disconnected");
   useEffect(() => {
+    if (isTempThreadId(sessionId)) {
+      setSSEStatus(buffer, "disconnected");
+      setSseStatus("disconnected");
+      return;
+    }
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
     const unsubscribe = backendApi.subscribeSSE(
@@ -416,7 +524,7 @@ function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, bufferRef, sessionId]);
+  }, [backendApi, bufferRef, sessionId, buffer]);
   const subscribeCallback = useCallback(
     (type, callback) => {
       return subscribe(buffer, type, callback);
@@ -546,13 +654,6 @@ var RuntimeActionsProvider = RuntimeActionsContext.Provider;
 import { createContext as createContext4, useContext as useContext4, useMemo, useRef as useRef2, useSyncExternalStore } from "react";
 
 // packages/react/src/state/thread-store.ts
-var createThreadId = () => {
-  const cryptoObj = globalThis.crypto;
-  if (cryptoObj && "randomUUID" in cryptoObj) {
-    return cryptoObj.randomUUID();
-  }
-  return `thread_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-};
 var ThreadStore = class {
   constructor(options) {
     this.listeners = /* @__PURE__ */ new Set();
@@ -605,7 +706,7 @@ var ThreadStore = class {
       this.updateState({ threadMetadata: nextMetadata });
     };
     var _a;
-    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : createThreadId();
+    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : crypto.randomUUID();
     this.state = {
       currentThreadId: initialThreadId,
       threadViewKey: 0,
@@ -781,111 +882,8 @@ import {
 // packages/react/src/runtime/orchestrator.ts
 import { useCallback as useCallback4, useRef as useRef4, useState as useState4 } from "react";
 
-// packages/react/src/runtime/utils.ts
-import { clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
-var isTempThreadId = (id) => id.startsWith("temp-");
-var parseTimestamp = (value) => {
-  if (value === void 0 || value === null) return 0;
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
-  }
-  const numeric = Number(value);
-  if (!Number.isNaN(numeric)) {
-    return numeric < 1e12 ? numeric * 1e3 : numeric;
-  }
-  const ts = Date.parse(value);
-  return Number.isNaN(ts) ? 0 : ts;
-};
-var isPlaceholderTitle = (title) => {
-  var _a;
-  const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
-  return !normalized || normalized.startsWith("#[");
-};
-function toInboundMessage(msg) {
-  var _a;
-  if (msg.sender === "system") return null;
-  const content = [];
-  const role = msg.sender === "user" ? "user" : "assistant";
-  if (msg.content) {
-    content.push({ type: "text", text: msg.content });
-  }
-  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
-  if (topic && toolContent) {
-    content.push({
-      type: "tool-call",
-      toolCallId: `tool_${Date.now()}`,
-      toolName: topic,
-      args: void 0,
-      result: (() => {
-        try {
-          return JSON.parse(toolContent);
-        } catch (e) {
-          return { args: toolContent };
-        }
-      })()
-    });
-  }
-  const threadMessage = __spreadValues({
-    role,
-    content: content.length > 0 ? content : [{ type: "text", text: "" }]
-  }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
-  return threadMessage;
-}
-function parseToolPayload(msg) {
-  if (msg.tool_stream && Array.isArray(msg.tool_stream)) {
-    const [topic, content] = msg.tool_stream;
-    return [String(topic), String(content != null ? content : "")];
-  }
-  return parseToolResult(msg.tool_result);
-}
-function parseToolResult(toolResult) {
-  if (!toolResult) return null;
-  if (Array.isArray(toolResult) && toolResult.length === 2) {
-    const [topic, content] = toolResult;
-    return [String(topic), content];
-  }
-  if (typeof toolResult === "object") {
-    const topic = toolResult.topic;
-    const content = toolResult.content;
-    return topic ? [String(topic), String(content)] : null;
-  }
-  return null;
-}
-var getNetworkName = (chainId) => {
-  if (chainId === void 0) return "";
-  const id = typeof chainId === "string" ? Number(chainId) : chainId;
-  switch (id) {
-    case 1:
-      return "ethereum";
-    case 137:
-      return "polygon";
-    case 42161:
-      return "arbitrum";
-    case 8453:
-      return "base";
-    case 10:
-      return "optimism";
-    case 11155111:
-      return "sepolia";
-    case 1337:
-    case 31337:
-      return "testnet";
-    case 59140:
-      return "linea-sepolia";
-    case 59144:
-      return "linea";
-    default:
-      return "testnet";
-  }
-};
-var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-
 // packages/react/src/state/backend-state.ts
-function createBakendState() {
+function createBackendState() {
   return {
     tempToBackendId: /* @__PURE__ */ new Map(),
     skipInitialFetch: /* @__PURE__ */ new Set(),
@@ -1134,7 +1132,7 @@ function useRuntimeOrchestrator(backendApi, options) {
   threadContextRef.current = threadContext;
   const backendApiRef = useRef4(backendApi);
   backendApiRef.current = backendApi;
-  const backendStateRef = useRef4(createBakendState());
+  const backendStateRef = useRef4(createBackendState());
   const [isRunning, setIsRunning] = useState4(false);
   const messageControllerRef = useRef4(null);
   const pollingRef = useRef4(null);
@@ -1686,7 +1684,7 @@ function useWalletHandler({
       }
     );
     return unsubscribe;
-  }, [subscribe2, onTxRequest]);
+  }, [subscribe2, sendOutbound, sessionId, getUserState]);
   const sendTxComplete = useCallback5(
     (tx) => {
       sendOutbound({

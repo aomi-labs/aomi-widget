@@ -37,4 +37,3 @@ export const appKitProviderConfig = {
   },
   features: { analytics: true },
 };
-

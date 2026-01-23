@@ -11,11 +11,11 @@ import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
 import {
   clearSkipInitialFetch,
-  createBakendState,
+  createBackendState,
   isThreadReady,
   resolveThreadId,
   shouldSkipInitialFetch,
-  type BakendState,
+  type BackendState,
 } from "../state/backend-state";
 
 type OrchestratorOptions = {
@@ -32,7 +32,7 @@ export function useRuntimeOrchestrator(
   threadContextRef.current = threadContext;
   const backendApiRef = useRef(backendApi);
   backendApiRef.current = backendApi;
-  const backendStateRef = useRef<BakendState>(createBakendState());
+  const backendStateRef = useRef<BackendState>(createBackendState());
 
   const [isRunning, setIsRunning] = useState(false);
 
