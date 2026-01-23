@@ -193,7 +193,7 @@ export function Solution() {
           </p>
         </div>
                       <div className="mt-10">
-                  <a href="https://www.npmjs.com/package/@aomi-labs/widget-lib" target="_blank" rel="noreferrer" className="ml-auto overflow-hidden group transition-all flex items-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95 text-xs font-semibold text-neutral-900 font-geist bg-white/90 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                  <a href="https://www.npmjs.com/package/@aomi-labs/react" target="_blank" rel="noreferrer" className="ml-auto overflow-hidden group transition-all flex items-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] active:scale-95 text-xs font-semibold text-neutral-900 font-geist bg-white/90 w-fit rounded-full pt-3 pr-6 pb-3 pl-6 relative shadow-[0_0_20px_rgba(255,255,255,0.3)]">
                     <span className="z-10 flex items-center gap-2 relative">Npm package</span>
                     <div className="bg-gradient-to-tr from-white via-neutral-100 to-neutral-200 opacity-100 absolute top-0 right-0 bottom-0 left-0">
                     </div>

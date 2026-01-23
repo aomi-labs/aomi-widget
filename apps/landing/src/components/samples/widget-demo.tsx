@@ -1,10 +1,10 @@
 "use client";
 
-import { AomiFrame } from "@aomi-labs/widget-lib";
-import { Preview } from "@/components/playground/Preview";
-import { WalletFooter } from "@/components/wallet-footer";
+import { AomiFrame } from "@/components/aomi-frame";
+import { Preview } from "@landing/components/playground/Preview";
+import { WalletFooter } from "@landing/components/wallet-footer";
 
-const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib";
+const widgetCode = `import { AomiFrame } from "@aomi-labs/react";
 import { WalletFooter } from "@/components/wallet-footer";
 
 export function WidgetDemo() {
@@ -14,7 +14,13 @@ export function WidgetDemo() {
 }`;
 
 export function WidgetFrame() {
-  return <AomiFrame height="560px" width="100%" walletFooter={(props) => <WalletFooter {...props} />} />;
+  return (
+    <AomiFrame
+      height="560px"
+      width="100%"
+      walletFooter={(props) => <WalletFooter {...props} />}
+    />
+  );
 }
 
 export function WidgetDemo() {

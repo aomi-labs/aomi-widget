@@ -10,10 +10,8 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: [
     "@aomi-labs/react",
-    "@aomi-labs/widget-lib",
   ],
   webpack: (config) => {
-    // Resolve @/ imports from registry to its src folder
     const registrySrc = path.resolve(__dirname, "../registry/src");
     const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
     const docsSrc = path.resolve(__dirname);
@@ -23,10 +21,11 @@ const nextConfig: NextConfig = {
       "@/.source": path.join(docsSrc, ".source"),
       "@/app": path.join(docsSrc, "app"),
       "@/lib": path.join(docsSrc, "lib"),
-      // Point to landing app's src/components (app-specific components)
-      // Registry components can be imported via @aomi-labs/widget-lib/components/*
-      "@/components": path.join(landingSrc, "components"),
-      "@/hooks": path.join(landingSrc, "hooks"),
+      // Registry components/hooks live in apps/registry/src
+      "@/components": path.join(registrySrc, "components"),
+      "@/hooks": path.join(registrySrc, "hooks"),
+      // Landing app-specific imports
+      "@landing": landingSrc,
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
     };
     return config;
