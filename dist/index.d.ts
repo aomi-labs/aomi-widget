@@ -127,7 +127,7 @@ declare class BackendApi {
     postInterrupt(sessionId: string): Promise<ApiInterruptResponse>;
     /**
      * Subscribe to SSE updates for a session.
-     * EventSource handles reconnection automatically.
+     * Uses fetch streaming and reconnects on disconnects.
      * Returns an unsubscribe function.
      */
     subscribeSSE(sessionId: string, onUpdate: (event: ApiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
@@ -159,7 +159,6 @@ type OutboundEvent = {
     type: string;
     sessionId: string;
     payload: unknown;
-    priority: "high" | "normal";
     timestamp: number;
 };
 type SSEStatus = "connected" | "connecting" | "disconnected";
@@ -279,6 +278,8 @@ declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
  * Combines clsx for conditional classes and tailwind-merge for deduplication.
  */
 declare function cn(...inputs: ClassValue[]): string;
+declare const getNetworkName: (chainId: number | string | undefined) => string;
+declare const formatAddress: (addr?: string) => string;
 
 type NotificationType = "notice" | "success" | "error" | "wallet";
 type Notification = {
@@ -311,4 +312,4 @@ type WalletFooterProps = {
     setWallet: (data: Partial<UserState>) => void;
 };
 
-export { type AomiMessage, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification$1 as HandlerNotification, type InboundEvent, type Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, UserContextProvider, type UserState, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletFooterProps, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiMessage, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification$1 as HandlerNotification, type InboundEvent, type Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, UserContextProvider, type UserState, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletFooterProps, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, formatAddress, getNetworkName, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
