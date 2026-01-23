@@ -10,13 +10,20 @@ import type {
 } from "./types";
 
 const SESSION_ID_HEADER = "X-Session-Id";
+const shouldLogSse = process.env.NODE_ENV !== "production";
 
 type SseSubscription = {
   abortController: AbortController | null;
   retries: number;
   retryTimer: ReturnType<typeof setTimeout> | null;
   stopped: boolean;
-  stop: () => void;
+  listeners: Set<SseListener>;
+  stop: (reason?: string) => void;
+};
+
+type SseListener = {
+  onUpdate: (event: ApiSSEEvent) => void;
+  onError?: (error: unknown) => void;
 };
 
 function toQueryString(payload: Record<string, unknown>): string {
@@ -158,15 +165,40 @@ export class BackendApi {
     onUpdate: (event: ApiSSEEvent) => void,
     onError?: (error: unknown) => void,
   ): () => void {
-    // Close existing connection for this session
-    this.sseConnections.get(sessionId)?.stop();
+    const existing = this.sseConnections.get(sessionId);
+    const listener: SseListener = { onUpdate, onError };
+    if (existing) {
+      existing.listeners.add(listener);
+      if (shouldLogSse) {
+        console.debug("[aomi][sse] listener added", {
+          sessionId,
+          listeners: existing.listeners.size,
+        });
+      }
+      return () => {
+        existing.listeners.delete(listener);
+        if (shouldLogSse) {
+          console.debug("[aomi][sse] listener removed", {
+            sessionId,
+            listeners: existing.listeners.size,
+          });
+        }
+        if (existing.listeners.size === 0) {
+          existing.stop("unsubscribe");
+          if (this.sseConnections.get(sessionId) === existing) {
+            this.sseConnections.delete(sessionId);
+          }
+        }
+      };
+    }
 
     const subscription: SseSubscription = {
       abortController: null,
       retries: 0,
       retryTimer: null,
       stopped: false,
-      stop: () => {
+      listeners: new Set([listener]),
+      stop: (reason?: string) => {
         subscription.stopped = true;
         if (subscription.retryTimer) {
           clearTimeout(subscription.retryTimer);
@@ -174,6 +206,13 @@ export class BackendApi {
         }
         subscription.abortController?.abort();
         subscription.abortController = null;
+        if (shouldLogSse) {
+          console.debug("[aomi][sse] stop", {
+            sessionId,
+            reason,
+            retries: subscription.retries,
+          });
+        }
       },
     };
 
@@ -181,6 +220,13 @@ export class BackendApi {
       if (subscription.stopped) return;
       subscription.retries += 1;
       const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 10000);
+      if (shouldLogSse) {
+        console.debug("[aomi][sse] retry scheduled", {
+          sessionId,
+          delayMs,
+          retries: subscription.retries,
+        });
+      }
       subscription.retryTimer = setTimeout(() => {
         void open();
       }, delayMs);
@@ -195,6 +241,7 @@ export class BackendApi {
 
       const controller = new AbortController();
       subscription.abortController = controller;
+      const openedAt = Date.now();
 
       try {
         const response = await fetch(`${this.backendUrl}/api/updates`, {
@@ -215,16 +262,37 @@ export class BackendApi {
         subscription.retries = 0;
 
         await readSseStream(response.body, controller.signal, (data) => {
+          let parsed: ApiSSEEvent;
           try {
-            const parsed = JSON.parse(data) as ApiSSEEvent;
-            onUpdate(parsed);
+            parsed = JSON.parse(data) as ApiSSEEvent;
           } catch (error) {
-            onError?.(error);
+            for (const item of subscription.listeners) {
+              item.onError?.(error);
+            }
+            return;
+          }
+
+          for (const item of subscription.listeners) {
+            try {
+              item.onUpdate(parsed);
+            } catch (error) {
+              item.onError?.(error);
+            }
           }
         });
+        if (shouldLogSse) {
+          console.debug("[aomi][sse] stream ended", {
+            sessionId,
+            aborted: controller.signal.aborted,
+            stopped: subscription.stopped,
+            durationMs: Date.now() - openedAt,
+          });
+        }
       } catch (error) {
         if (!controller.signal.aborted && !subscription.stopped) {
-          onError?.(error);
+          for (const item of subscription.listeners) {
+            item.onError?.(error);
+          }
         }
       }
 
@@ -237,9 +305,18 @@ export class BackendApi {
     void open();
 
     return () => {
-      subscription.stop();
-      if (this.sseConnections.get(sessionId) === subscription) {
-        this.sseConnections.delete(sessionId);
+      subscription.listeners.delete(listener);
+      if (shouldLogSse) {
+        console.debug("[aomi][sse] listener removed", {
+          sessionId,
+          listeners: subscription.listeners.size,
+        });
+      }
+      if (subscription.listeners.size === 0) {
+        subscription.stop("unsubscribe");
+        if (this.sseConnections.get(sessionId) === subscription) {
+          this.sseConnections.delete(sessionId);
+        }
       }
     };
   }

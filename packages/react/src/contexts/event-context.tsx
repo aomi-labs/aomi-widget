@@ -83,8 +83,10 @@ export function EventContextProvider({
   sessionId,
 }: EventContextProviderProps) {
   const bufferRef = useRef<EventBuffer | null>(null);
-  bufferRef.current = createEventBuffer();
-  const buffer = bufferRef.current!;
+  if (!bufferRef.current) {
+    bufferRef.current = createEventBuffer();
+  }
+  const buffer = bufferRef.current;
 
   const [sseStatus, setSseStatus] = useState<SSEStatus>("disconnected");
 

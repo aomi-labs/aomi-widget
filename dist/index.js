@@ -654,6 +654,18 @@ var RuntimeActionsProvider = RuntimeActionsContext.Provider;
 import { createContext as createContext4, useContext as useContext4, useMemo, useRef as useRef2, useSyncExternalStore } from "react";
 
 // packages/react/src/state/thread-store.ts
+var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
+var logThreadMetadataChange = (source, threadId, prev, next) => {
+  if (!shouldLogThreadUpdates) return;
+  if (!prev && !next) return;
+  if (!prev || !next) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+    return;
+  }
+  if (prev.title !== next.title || prev.status !== next.status || prev.lastActiveAt !== next.lastActiveAt) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+  }
+};
 var ThreadStore = class {
   constructor(options) {
     this.listeners = /* @__PURE__ */ new Set();
@@ -680,7 +692,21 @@ var ThreadStore = class {
       this.updateState({ threads: new Map(nextThreads) });
     };
     this.setThreadMetadata = (updater) => {
-      const nextMetadata = this.resolveStateAction(updater, this.state.threadMetadata);
+      const prevMetadata = this.state.threadMetadata;
+      const nextMetadata = this.resolveStateAction(updater, prevMetadata);
+      for (const [threadId, next] of nextMetadata.entries()) {
+        logThreadMetadataChange(
+          "setThreadMetadata",
+          threadId,
+          prevMetadata.get(threadId),
+          next
+        );
+      }
+      for (const [threadId, prev] of prevMetadata.entries()) {
+        if (!nextMetadata.has(threadId)) {
+          logThreadMetadataChange("setThreadMetadata", threadId, prev, void 0);
+        }
+      }
       this.updateState({ threadMetadata: new Map(nextMetadata) });
     };
     this.setThreadMessages = (threadId, messages) => {
@@ -701,8 +727,10 @@ var ThreadStore = class {
       if (!existing) {
         return;
       }
+      const next = __spreadValues(__spreadValues({}, existing), updates);
       const nextMetadata = new Map(this.state.threadMetadata);
-      nextMetadata.set(threadId, __spreadValues(__spreadValues({}, existing), updates));
+      nextMetadata.set(threadId, next);
+      logThreadMetadataChange("updateThreadMetadata", threadId, existing, next);
       this.updateState({ threadMetadata: nextMetadata });
     };
     var _a;
@@ -903,6 +931,9 @@ function isThreadReady(state, threadId) {
 }
 function setBackendMapping(state, tempId, backendId) {
   state.tempToBackendId.set(tempId, backendId);
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[aomi][mapping] set", { tempId, backendId });
+  }
 }
 function findTempIdForBackendId(state, backendId) {
   for (const [tempId, id] of state.tempToBackendId.entries()) {
@@ -1511,6 +1542,10 @@ function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId
   );
+  const resolvedSessionId = resolveThreadId(
+    backendStateRef.current,
+    threadContext.currentThreadId
+  );
   useEffect2(() => {
     const userAddress = user.address;
     if (!userAddress) return;
@@ -1570,18 +1605,37 @@ function AomiRuntimeCore({
     ]
   );
   useEffect2(() => {
+    const backendState = backendStateRef.current;
     const currentSessionId = threadContext.currentThreadId;
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[aomi][sse] subscribe", {
+        currentSessionId,
+        resolvedSessionId,
+        hasMapping: currentSessionId !== resolvedSessionId
+      });
+    }
     const unsubscribe = backendApiRef.current.subscribeSSE(
-      currentSessionId,
+      resolvedSessionId,
       (event) => {
         var _a;
         const eventType = event.type;
         const sessionId = event.session_id;
         if (eventType === "title_changed") {
           const newTitle = event.new_title;
-          const backendState = backendStateRef.current;
-          const targetThreadId = (_a = findTempIdForBackendId(backendState, sessionId)) != null ? _a : resolveThreadId(backendState, sessionId);
+          const backendState2 = backendStateRef.current;
+          const targetThreadId = (_a = findTempIdForBackendId(backendState2, sessionId)) != null ? _a : resolveThreadId(backendState2, sessionId);
           const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+          if (process.env.NODE_ENV !== "production") {
+            console.debug("[aomi][sse] title_changed", {
+              sessionId,
+              newTitle,
+              normalizedTitle,
+              currentThreadId: threadContextRef.current.currentThreadId,
+              targetThreadId,
+              hasMapping: sessionId !== targetThreadId,
+              creatingThreadId: backendState2.creatingThreadId
+            });
+          }
           threadContext.setThreadMetadata((prev) => {
             var _a2;
             const next = new Map(prev);
@@ -1594,8 +1648,8 @@ function AomiRuntimeCore({
             });
             return next;
           });
-          if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
-            backendState.creatingThreadId = null;
+          if (!isPlaceholderTitle(newTitle) && backendState2.creatingThreadId === targetThreadId) {
+            backendState2.creatingThreadId = null;
           }
         }
       }
@@ -1607,7 +1661,8 @@ function AomiRuntimeCore({
     backendApiRef,
     backendStateRef,
     threadContext,
-    threadContext.currentThreadId
+    threadContext.currentThreadId,
+    resolvedSessionId
   ]);
   useEffect2(() => {
     const threadId = threadContext.currentThreadId;

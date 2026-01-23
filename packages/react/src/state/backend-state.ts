@@ -35,6 +35,9 @@ export function setBackendMapping(
   backendId: string
 ) {
   state.tempToBackendId.set(tempId, backendId);
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[aomi][mapping] set", { tempId, backendId });
+  }
 }
 
 export function findTempIdForBackendId(
@@ -88,4 +91,3 @@ export function dequeuePendingChat(state: BackendState, threadId: string): strin
 export function hasPendingChat(state: BackendState, threadId: string): boolean {
   return (state.pendingChat.get(threadId)?.length ?? 0) > 0;
 }
-
