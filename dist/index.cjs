@@ -44,6 +44,8 @@ __export(index_exports, {
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
   cn: () => cn,
+  formatAddress: () => formatAddress,
+  getNetworkName: () => getNetworkName,
   useCurrentThreadMessages: () => useCurrentThreadMessages,
   useCurrentThreadMetadata: () => useCurrentThreadMetadata,
   useEventContext: () => useEventContext,
@@ -56,6 +58,7 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // packages/react/src/backend/client.ts
+var SESSION_ID_HEADER = "X-Session-Id";
 function toQueryString(payload) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(payload)) {
@@ -65,10 +68,48 @@ function toQueryString(payload) {
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
-async function postState(backendUrl, path, payload) {
+function withSessionHeader(sessionId, init) {
+  const headers = new Headers(init);
+  headers.set(SESSION_ID_HEADER, sessionId);
+  return headers;
+}
+function extractSseData(rawEvent) {
+  const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
+  if (!dataLines.length) return null;
+  return dataLines.join("\n");
+}
+async function readSseStream(stream, signal, onMessage) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (!signal.aborted) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r/g, "");
+      let separatorIndex = buffer.indexOf("\n\n");
+      while (separatorIndex >= 0) {
+        const rawEvent = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+        const data = extractSseData(rawEvent);
+        if (data) {
+          onMessage(data);
+        }
+        separatorIndex = buffer.indexOf("\n\n");
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+async function postState(backendUrl, path, payload, sessionId) {
   const query = toQueryString(payload);
   const url = `${backendUrl}${path}${query}`;
-  const response = await fetch(url, { method: "POST" });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: sessionId ? withSessionHeader(sessionId) : void 0
+  });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
@@ -80,8 +121,10 @@ var BackendApi = class {
     this.sseConnections = /* @__PURE__ */ new Map();
   }
   async fetchState(sessionId) {
-    const url = `${this.backendUrl}/api/state?session_id=${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url);
+    const url = `${this.backendUrl}/api/state`;
+    const response = await fetch(url, {
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -90,47 +133,98 @@ var BackendApi = class {
   async postChatMessage(sessionId, message, publicKey) {
     return postState(this.backendUrl, "/api/chat", {
       message,
-      session_id: sessionId,
       public_key: publicKey
-    });
+    }, sessionId);
   }
   async postSystemMessage(sessionId, message) {
     return postState(this.backendUrl, "/api/system", {
-      message,
-      session_id: sessionId
-    });
+      message
+    }, sessionId);
   }
   async postInterrupt(sessionId) {
-    return postState(this.backendUrl, "/api/interrupt", {
-      session_id: sessionId
-    });
+    return postState(
+      this.backendUrl,
+      "/api/interrupt",
+      {},
+      sessionId
+    );
   }
   /**
    * Subscribe to SSE updates for a session.
-   * EventSource handles reconnection automatically.
+   * Uses fetch streaming and reconnects on disconnects.
    * Returns an unsubscribe function.
    */
   subscribeSSE(sessionId, onUpdate, onError) {
     var _a;
-    (_a = this.sseConnections.get(sessionId)) == null ? void 0 : _a.close();
-    const url = new URL("/api/updates", this.backendUrl);
-    url.searchParams.set("session_id", sessionId);
-    const eventSource = new EventSource(url.toString());
-    this.sseConnections.set(sessionId, eventSource);
-    eventSource.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data);
-        onUpdate(parsed);
-      } catch (error) {
-        onError == null ? void 0 : onError(error);
+    (_a = this.sseConnections.get(sessionId)) == null ? void 0 : _a.stop();
+    const subscription = {
+      abortController: null,
+      retries: 0,
+      retryTimer: null,
+      stopped: false,
+      stop: () => {
+        var _a2;
+        subscription.stopped = true;
+        if (subscription.retryTimer) {
+          clearTimeout(subscription.retryTimer);
+          subscription.retryTimer = null;
+        }
+        (_a2 = subscription.abortController) == null ? void 0 : _a2.abort();
+        subscription.abortController = null;
       }
     };
-    eventSource.onerror = (error) => {
-      onError == null ? void 0 : onError(error);
+    const scheduleRetry = () => {
+      if (subscription.stopped) return;
+      subscription.retries += 1;
+      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
+      subscription.retryTimer = setTimeout(() => {
+        void open();
+      }, delayMs);
     };
+    const open = async () => {
+      if (subscription.stopped) return;
+      if (subscription.retryTimer) {
+        clearTimeout(subscription.retryTimer);
+        subscription.retryTimer = null;
+      }
+      const controller = new AbortController();
+      subscription.abortController = controller;
+      try {
+        const response = await fetch(`${this.backendUrl}/api/updates`, {
+          headers: withSessionHeader(sessionId, {
+            Accept: "text/event-stream"
+          }),
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          throw new Error(`SSE HTTP ${response.status}: ${response.statusText}`);
+        }
+        if (!response.body) {
+          throw new Error("SSE response missing body");
+        }
+        subscription.retries = 0;
+        await readSseStream(response.body, controller.signal, (data) => {
+          try {
+            const parsed = JSON.parse(data);
+            onUpdate(parsed);
+          } catch (error) {
+            onError == null ? void 0 : onError(error);
+          }
+        });
+      } catch (error) {
+        if (!controller.signal.aborted && !subscription.stopped) {
+          onError == null ? void 0 : onError(error);
+        }
+      }
+      if (!subscription.stopped) {
+        scheduleRetry();
+      }
+    };
+    this.sseConnections.set(sessionId, subscription);
+    void open();
     return () => {
-      eventSource.close();
-      if (this.sseConnections.get(sessionId) === eventSource) {
+      subscription.stop();
+      if (this.sseConnections.get(sessionId) === subscription) {
         this.sseConnections.delete(sessionId);
       }
     };
@@ -145,7 +239,9 @@ var BackendApi = class {
   }
   async fetchThread(sessionId) {
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -168,21 +264,30 @@ var BackendApi = class {
   }
   async archiveThread(sessionId) {
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`;
-    const response = await fetch(url, { method: "POST" });
+    const response = await fetch(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`Failed to archive thread: HTTP ${response.status}`);
     }
   }
   async unarchiveThread(sessionId) {
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`;
-    const response = await fetch(url, { method: "POST" });
+    const response = await fetch(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
     }
   }
   async deleteThread(sessionId) {
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`Failed to delete thread: HTTP ${response.status}`);
     }
@@ -191,7 +296,9 @@ var BackendApi = class {
     const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
     const response = await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
       body: JSON.stringify({ title: newTitle })
     });
     if (!response.ok) {
@@ -199,8 +306,10 @@ var BackendApi = class {
     }
   }
   async getSystemEvents(sessionId) {
-    const url = `${this.backendUrl}/api/events?session_id=${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url);
+    const url = `${this.backendUrl}/api/events`;
+    const response = await fetch(url, {
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       if (response.status === 404) return [];
       throw new Error(`Failed to get system events: HTTP ${response.status}`);
@@ -209,10 +318,11 @@ var BackendApi = class {
   }
   async fetchEventsAfter(sessionId, afterId = 0, limit = 100) {
     const url = new URL("/api/events", this.backendUrl);
-    url.searchParams.set("session_id", sessionId);
     if (afterId > 0) url.searchParams.set("after_id", String(afterId));
     if (limit) url.searchParams.set("limit", String(limit));
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), {
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch events: HTTP ${response.status}`);
     }
@@ -463,6 +573,13 @@ var RuntimeActionsProvider = RuntimeActionsContext.Provider;
 var import_react4 = require("react");
 
 // packages/react/src/state/thread-store.ts
+var createThreadId = () => {
+  const cryptoObj = globalThis.crypto;
+  if (cryptoObj && "randomUUID" in cryptoObj) {
+    return cryptoObj.randomUUID();
+  }
+  return `thread_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+};
 var ThreadStore = class {
   constructor(options) {
     this.listeners = /* @__PURE__ */ new Set();
@@ -515,7 +632,7 @@ var ThreadStore = class {
       this.updateState({ threadMetadata: nextMetadata });
     };
     var _a;
-    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : crypto.randomUUID();
+    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : createThreadId();
     this.state = {
       currentThreadId: initialThreadId,
       threadViewKey: 0,
@@ -756,6 +873,34 @@ function parseToolResult(toolResult) {
   }
   return null;
 }
+var getNetworkName = (chainId) => {
+  if (chainId === void 0) return "";
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 42161:
+      return "arbitrum";
+    case 8453:
+      return "base";
+    case 10:
+      return "optimism";
+    case 11155111:
+      return "sepolia";
+    case 1337:
+    case 31337:
+      return "testnet";
+    case 59140:
+      return "linea-sepolia";
+    case 59144:
+      return "linea";
+    default:
+      return "testnet";
+  }
+};
+var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
 
 // packages/react/src/state/backend-state.ts
 function createBakendState() {
@@ -1532,7 +1677,7 @@ function useWalletHandler({
   onTxRequest
 }) {
   const { subscribe: subscribe2, sendOutboundSystem: sendOutbound } = useEventContext();
-  const { setUser } = useUser();
+  const { setUser, getUserState } = useUser();
   const [pendingTxRequests, setPendingTxRequests] = (0, import_react10.useState)(
     []
   );
@@ -1547,13 +1692,25 @@ function useWalletHandler({
     );
     return unsubscribe;
   }, [subscribe2, onTxRequest]);
+  (0, import_react10.useEffect)(() => {
+    const unsubscribe = subscribe2(
+      "user_state_request",
+      (event) => {
+        sendOutbound({
+          type: "user_state_response",
+          sessionId,
+          payload: getUserState()
+        });
+      }
+    );
+    return unsubscribe;
+  }, [subscribe2, onTxRequest]);
   const sendTxComplete = (0, import_react10.useCallback)(
     (tx) => {
       sendOutbound({
         type: "wallet:tx_complete",
         sessionId,
-        payload: tx,
-        priority: "high"
+        payload: tx
       });
     },
     [sendOutbound, sessionId]
@@ -1576,8 +1733,7 @@ function useWalletHandler({
       sendOutbound({
         type: status === "connected" ? "wallet:connected" : "wallet:disconnected",
         sessionId,
-        payload: { status, address },
-        priority: "normal"
+        payload: { status, address }
       });
     },
     [setUser, sendOutbound, sessionId]
@@ -1643,6 +1799,8 @@ function useNotificationHandler({
   ThreadContextProvider,
   UserContextProvider,
   cn,
+  formatAddress,
+  getNetworkName,
   useCurrentThreadMessages,
   useCurrentThreadMetadata,
   useEventContext,

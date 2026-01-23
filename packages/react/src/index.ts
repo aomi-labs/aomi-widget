@@ -93,7 +93,7 @@ export type { ThreadMetadata } from "./state/thread-store";
 // =============================================================================
 // Utilities
 // =============================================================================
-export { cn } from "./runtime/utils";
+export { cn, formatAddress, getNetworkName } from "./runtime/utils";
 
 // =============================================================================
 // Notification Context (for toast UI)
