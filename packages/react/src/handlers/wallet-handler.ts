@@ -90,7 +90,7 @@ export function useWalletHandler({
     );
 
     return unsubscribe;
-  }, [subscribe, onTxRequest]);
+  }, [subscribe, sendOutbound, sessionId, getUserState]);
 
   // ---------------------------------------------------------------------------
   // Outbound: Send transaction completion

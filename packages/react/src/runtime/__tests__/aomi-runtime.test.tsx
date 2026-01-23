@@ -59,7 +59,7 @@ const resetBackendApiMocks = () => {
   backendApiInstances.length = 0;
 };
 
-vi.mock("../../api/client", () => {
+vi.mock("../../backend/client", () => {
   class MockBackendApi {
     updatesHandler: ((update: ApiSSEEvent) => void) | null = null;
 

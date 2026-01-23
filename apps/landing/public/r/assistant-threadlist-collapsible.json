@@ -1,0 +1,23 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "assistant-threadlist-collapsible",
+  "type": "registry:component",
+  "description": "Collapsible shell for thread navigation and wallet footer slot.",
+  "files": [
+    {
+      "type": "registry:component",
+      "path": "components/assistant-ui/threadlist-collapsible.tsx",
+      "content": "\"use client\";\n\nimport * as React from \"react\";\nimport Link from \"next/link\";\nimport Image from \"next/image\";\nimport { MenuIcon } from \"lucide-react\";\nimport {\n  Collapsible,\n  CollapsibleContent,\n  CollapsibleTrigger,\n} from \"@/components/ui/collapsible\";\nimport { Button } from \"@/components/ui/button\";\nimport { ThreadList } from \"@/components/assistant-ui/thread-list\";\nimport { Separator } from \"@/components/ui/separator\";\nimport { cn } from \"@aomi-labs/react\";\n\ntype ThreadListCollapsibleProps = {\n  /** Optional footer component (e.g., WalletFooter from consumer app) */\n  footer?: React.ReactNode;\n  /** Default open state */\n  defaultOpen?: boolean;\n  /** Controlled open state */\n  open?: boolean;\n  /** Callback when open state changes */\n  onOpenChange?: (open: boolean) => void;\n  /** Additional className */\n  className?: string;\n};\n\nexport function ThreadListCollapsible({\n  footer,\n  defaultOpen = false,\n  open,\n  onOpenChange,\n  className,\n}: ThreadListCollapsibleProps) {\n  const [isOpen, setIsOpen] = React.useState(defaultOpen);\n\n  const handleOpenChange = React.useCallback(\n    (newOpen: boolean) => {\n      if (onOpenChange) {\n        onOpenChange(newOpen);\n      } else {\n        setIsOpen(newOpen);\n      }\n    },\n    [onOpenChange]\n  );\n\n  const isControlled = open !== undefined;\n  const collapsibleOpen = isControlled ? open : isOpen;\n\n  return (\n    <div\n      className={cn(\n        \"flex flex-col border-r bg-background transition-all duration-200\",\n        collapsibleOpen ? \"w-64\" : \"w-16\",\n        className\n      )}\n    >\n      <Collapsible\n        open={collapsibleOpen}\n        onOpenChange={handleOpenChange}\n        className=\"flex flex-1 flex-col overflow-hidden\"\n      >\n        {/* Header */}\n        <div className=\"aomi-collapsible-header flex h-14 shrink-0 items-center gap-2 border-b px-3\">\n          <div className=\"flex items-center justify-between gap-2 w-full\">\n            <CollapsibleTrigger asChild>\n              <Button\n                variant=\"ghost\"\n                size=\"icon\"\n                className=\"shrink-0\"\n                aria-label={collapsibleOpen ? \"Collapse sidebar\" : \"Expand sidebar\"}\n              >\n                <MenuIcon className=\"size-5\" />\n              </Button>\n            </CollapsibleTrigger>\n\n            {collapsibleOpen && (\n              <Link\n                href=\"https://aomi.dev\"\n                target=\"_blank\"\n                rel=\"noopener noreferrer\"\n                className=\"flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent transition-colors\"\n              >\n                <div className=\"aomi-collapsible-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white\">\n                  <Image\n                    src=\"/assets/images/a.svg\"\n                    alt=\"Aomi Logo\"\n                    width={28}\n                    height={28}\n                    className=\"aomi-collapsible-header-icon size-7 ml-3\"\n                    priority\n                  />\n                </div>\n              </Link>\n            )}\n          </div>\n        </div>\n\n        {/* Collapsible Content */}\n        <CollapsibleContent className=\"flex flex-1 flex-col overflow-hidden data-[state=closed]:hidden\">\n          <div className=\"aomi-collapsible-content flex flex-1 flex-col overflow-hidden p-2\">\n            <ThreadList />\n          </div>\n          {footer && (\n            <>\n              <Separator />\n              <div className=\"aomi-collapsible-footer border-t border-sm py-4 px-2\">\n                {footer}\n              </div>\n            </>\n          )}\n        </CollapsibleContent>\n      </Collapsible>\n    </div>\n  );\n}\n"
+    }
+  ],
+  "dependencies": [
+    "lucide-react",
+    "next"
+  ],
+  "registryDependencies": [
+    "https://widget.aomi.dev/r/assistant-thread-list.json",
+    "collapsible",
+    "button",
+    "separator"
+  ]
+}

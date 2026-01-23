@@ -447,16 +447,7 @@ const SystemMessage: FC = () => {
           ? "Error"
           : "System notice");
 
-    const iconType =
-      inferredKind === "wallet_tx_request"
-        ? "wallet"
-        : type === "success"
-          ? "success"
-          : type === "error"
-            ? "error"
-            : "notice";
-
-    showNotification({ type, iconType, title, message: text });
+    showNotification({ type, title, message: text });
   }, [content, custom, showNotification, messageId]);
 
   return null;
