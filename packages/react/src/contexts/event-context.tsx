@@ -197,6 +197,7 @@ export function EventContextProvider({
     [buffer],
   );
 
+
   const contextValue: EventContext = {
     subscribe: subscribeCallback,
     sendOutboundSystem: sendOutbound,

@@ -42,7 +42,9 @@ export function AomiRuntimeCore({
   backendApi,
 }: Readonly<AomiRuntimeCoreProps>) {
   const threadContext = useThreadContext();
-  const { dispatchInboundSystem: dispatchSystemEvents } = useEventContext();
+  const eventContext = useEventContext();
+  const notificationContext = useNotification();
+  const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
 
   const {
@@ -54,7 +56,7 @@ export function AomiRuntimeCore({
     ensureInitialState,
     backendApiRef,
   } = useRuntimeOrchestrator(backendApi, {
-    onSystemEvents: dispatchSystemEvents,
+    onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
   });
@@ -245,6 +247,67 @@ export function AomiRuntimeCore({
   }, [messageController, backendStateRef, threadContext.currentThreadId]);
 
   // ---------------------------------------------------------------------------
+  // Show notifications for tool updates/completions (SSE events)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const showToolNotification = (eventType: "tool_update" | "tool_complete") =>
+      (event: { payload?: unknown }) => {
+        const payload = event.payload as Record<string, unknown> | undefined;
+        const toolName =
+          typeof payload?.tool_name === "string" ? payload.tool_name : undefined;
+        const title = toolName
+          ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}`
+          : eventType === "tool_update"
+            ? "Tool update"
+            : "Tool complete";
+        const message =
+          typeof payload?.message === "string"
+            ? payload.message
+            : typeof payload?.result === "string"
+              ? payload.result
+              : undefined;
+
+        notificationContext.showNotification({
+          type: "notice",
+          title,
+          message,
+        });
+      };
+
+    const unsubscribeUpdate = eventContext.subscribe(
+      "tool_update",
+      showToolNotification("tool_update"),
+    );
+    const unsubscribeComplete = eventContext.subscribe(
+      "tool_complete",
+      showToolNotification("tool_complete"),
+    );
+
+    return () => {
+      unsubscribeUpdate();
+      unsubscribeComplete();
+    };
+  }, [eventContext, notificationContext]);
+
+  // ---------------------------------------------------------------------------
+  // Show notifications for system notices (SSE events)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const unsubscribe = eventContext.subscribe("system_notice", (event) => {
+      const payload = event.payload as { message?: string } | undefined;
+      const message = payload?.message;
+
+      notificationContext.showNotification({
+        type: "notice",
+        title: "System notice",
+        message,
+      });
+    });
+
+    return unsubscribe;
+  }, [eventContext, notificationContext]);
+
+  // ---------------------------------------------------------------------------
   // External store runtime
   // ---------------------------------------------------------------------------
   const runtime = useExternalStoreRuntime({
@@ -272,8 +335,6 @@ export function AomiRuntimeCore({
   // Build AomiRuntimeApi
   // ---------------------------------------------------------------------------
   const userContext = useUser();
-  const notificationContext = useNotification();
-  const eventContext = useEventContext();
 
   const sendMessage = useCallback(
     async (text: string) => {

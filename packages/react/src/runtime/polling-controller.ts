@@ -18,7 +18,7 @@ type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
   backendStateRef: MutableRefObject<BakendState>;
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
-  onSystemEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
   getUserState?: () => UserState;
   onStart?: (threadId: string) => void;
   onStop?: (threadId: string) => void;
@@ -97,10 +97,10 @@ export class PollingController {
     }
 
     // Dispatch system events (wallet_tx_request, errors, etc.)
-    if (state.system_events?.length && this.config.onSystemEvents) {
+    if (state.system_events?.length && this.config.onSyncEvents) {
       const backendState = this.config.backendStateRef.current;
       const sessionId = resolveThreadId(backendState, threadId);
-      this.config.onSystemEvents(sessionId, state.system_events);
+      this.config.onSyncEvents(sessionId, state.system_events);
     }
 
     this.config.applyMessages(threadId, state.messages);

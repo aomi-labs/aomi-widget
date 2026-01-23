@@ -205,26 +205,20 @@ var BackendApi = class {
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
   }
-  async getSystemEvents(sessionId) {
-    const url = `${this.backendUrl}/api/events?session_id=${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url);
+  async getSystemEvents(sessionId, count) {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (count !== void 0) {
+      url.searchParams.set("count", String(count));
+    }
+    const response = await fetch(url.toString());
     if (!response.ok) {
       if (response.status === 404) return [];
       throw new Error(`Failed to get system events: HTTP ${response.status}`);
     }
     return await response.json();
   }
-  async fetchEventsAfter(sessionId, afterId = 0, limit = 100) {
-    const url = new URL("/api/events", this.backendUrl);
-    url.searchParams.set("session_id", sessionId);
-    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
-    if (limit) url.searchParams.set("limit", String(limit));
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
+  // fetchEventsAfter removed: /api/events only supports count now
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
@@ -884,7 +878,7 @@ var MessageController = class {
     this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
-    var _a, _b;
+    var _a, _b, _c;
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter(
       (part) => part.type === "text"
@@ -922,6 +916,9 @@ var MessageController = class {
       );
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
+      }
+      if (((_c = response == null ? void 0 : response.system_events) == null ? void 0 : _c.length) && this.config.onSyncEvents) {
+        this.config.onSyncEvents(backendThreadId, response.system_events);
       }
       if (response == null ? void 0 : response.is_processing) {
         this.config.polling.start(threadId);
@@ -961,12 +958,19 @@ var MessageController = class {
     this.config.polling.start(threadId);
   }
   async cancel(threadId) {
+    var _a;
     const backendState = this.config.backendStateRef.current;
     if (!isThreadReady(backendState, threadId)) return;
     this.config.polling.stop(threadId);
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
-      await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      const response = await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      if (response == null ? void 0 : response.messages) {
+        this.inbound(threadId, response.messages);
+      }
+      if (((_a = response == null ? void 0 : response.system_events) == null ? void 0 : _a.length) && this.config.onSyncEvents) {
+        this.config.onSyncEvents(backendThreadId, response.system_events);
+      }
       this.markRunning(threadId, false);
     } catch (error) {
       console.error("Failed to cancel:", error);
@@ -1048,10 +1052,10 @@ var PollingController = class {
       this.stop(threadId);
       return;
     }
-    if (((_a = state.system_events) == null ? void 0 : _a.length) && this.config.onSystemEvents) {
+    if (((_a = state.system_events) == null ? void 0 : _a.length) && this.config.onSyncEvents) {
       const backendState = this.config.backendStateRef.current;
       const sessionId = resolveThreadId(backendState, threadId);
-      this.config.onSystemEvents(sessionId, state.system_events);
+      this.config.onSyncEvents(sessionId, state.system_events);
     }
     this.config.applyMessages(threadId, state.messages);
     if (!state.is_processing) {
@@ -1080,7 +1084,7 @@ function useRuntimeOrchestrator(backendApi, options) {
         var _a;
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
       },
-      onSystemEvents: options == null ? void 0 : options.onSystemEvents,
+      onSyncEvents: options == null ? void 0 : options.onSyncEvents,
       getUserState: options == null ? void 0 : options.getUserState,
       onStart: (threadId) => {
         if (threadContextRef.current.currentThreadId === threadId) {
@@ -1101,11 +1105,12 @@ function useRuntimeOrchestrator(backendApi, options) {
       threadContextRef,
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
-      getPublicKey: options == null ? void 0 : options.getPublicKey
+      getPublicKey: options == null ? void 0 : options.getPublicKey,
+      onSyncEvents: options == null ? void 0 : options.onSyncEvents
     });
   }
   const ensureInitialState = (0, import_react5.useCallback)(async (threadId) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const backendState = backendStateRef.current;
     if (shouldSkipInitialFetch(backendState, threadId)) {
       clearSkipInitialFetch(backendState, threadId);
@@ -1130,10 +1135,13 @@ function useRuntimeOrchestrator(backendApi, options) {
         userState
       );
       (_b = messageControllerRef.current) == null ? void 0 : _b.inbound(threadId, state.messages);
+      if (((_c = state.system_events) == null ? void 0 : _c.length) && (options == null ? void 0 : options.onSyncEvents)) {
+        options.onSyncEvents(backendThreadId, state.system_events);
+      }
       if (threadContextRef.current.currentThreadId === threadId) {
         if (state.is_processing) {
           setIsRunning(true);
-          (_c = pollingRef.current) == null ? void 0 : _c.start(threadId);
+          (_d = pollingRef.current) == null ? void 0 : _d.start(threadId);
         } else {
           setIsRunning(false);
         }
@@ -1261,20 +1269,18 @@ function buildThreadListAdapter({
         setBackendMapping(backendState, uiThreadId, backendId);
         markSkipInitialFetch(backendState, uiThreadId);
         const backendTitle = newThread.title;
-        if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-          threadContext.setThreadMetadata((prev) => {
-            var _a3;
-            const next = new Map(prev);
-            const existing = next.get(uiThreadId);
-            const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-            next.set(uiThreadId, {
-              title: backendTitle,
-              status: nextStatus,
-              lastActiveAt: (_a3 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a3 : (/* @__PURE__ */ new Date()).toISOString()
-            });
-            return next;
+        const normalizedTitle = backendTitle && !isPlaceholderTitle(backendTitle) ? backendTitle : "New Chat";
+        threadContext.setThreadMetadata((prev) => {
+          var _a3;
+          const next = new Map(prev);
+          const existing = next.get(uiThreadId);
+          next.set(uiThreadId, {
+            title: normalizedTitle,
+            status: "regular",
+            lastActiveAt: (_a3 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a3 : (/* @__PURE__ */ new Date()).toISOString()
           });
-        }
+          return next;
+        });
         if (backendState.creatingThreadId === uiThreadId) {
           backendState.creatingThreadId = null;
         }
@@ -1419,7 +1425,9 @@ function AomiRuntimeCore({
   backendApi
 }) {
   const threadContext = useThreadContext();
-  const { dispatchInboundSystem: dispatchSystemEvents } = useEventContext();
+  const eventContext = useEventContext();
+  const notificationContext = useNotification();
+  const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
   const {
     backendStateRef,
@@ -1430,7 +1438,7 @@ function AomiRuntimeCore({
     ensureInitialState,
     backendApiRef
   } = useRuntimeOrchestrator(backendApi, {
-    onSystemEvents: dispatchSystemEvents,
+    onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState
   });
@@ -1570,6 +1578,43 @@ function AomiRuntimeCore({
     if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);
+  (0, import_react7.useEffect)(() => {
+    const showToolNotification = (eventType) => (event) => {
+      const payload = event.payload;
+      const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
+      const title = toolName ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}` : eventType === "tool_update" ? "Tool update" : "Tool complete";
+      const message = typeof (payload == null ? void 0 : payload.message) === "string" ? payload.message : typeof (payload == null ? void 0 : payload.result) === "string" ? payload.result : void 0;
+      notificationContext.showNotification({
+        type: "notice",
+        title,
+        message
+      });
+    };
+    const unsubscribeUpdate = eventContext.subscribe(
+      "tool_update",
+      showToolNotification("tool_update")
+    );
+    const unsubscribeComplete = eventContext.subscribe(
+      "tool_complete",
+      showToolNotification("tool_complete")
+    );
+    return () => {
+      unsubscribeUpdate();
+      unsubscribeComplete();
+    };
+  }, [eventContext, notificationContext]);
+  (0, import_react7.useEffect)(() => {
+    const unsubscribe = eventContext.subscribe("system_notice", (event) => {
+      const payload = event.payload;
+      const message = payload == null ? void 0 : payload.message;
+      notificationContext.showNotification({
+        type: "notice",
+        title: "System notice",
+        message
+      });
+    });
+    return unsubscribe;
+  }, [eventContext, notificationContext]);
   const runtime = (0, import_react8.useExternalStoreRuntime)({
     messages: currentMessages,
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
@@ -1585,8 +1630,6 @@ function AomiRuntimeCore({
     };
   }, [polling]);
   const userContext = useUser();
-  const notificationContext = useNotification();
-  const eventContext = useEventContext();
   const sendMessage = (0, import_react7.useCallback)(
     async (text) => {
       const appendMessage = {

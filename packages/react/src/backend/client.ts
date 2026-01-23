@@ -213,9 +213,16 @@ export class BackendApi {
     }
   }
 
-  async getSystemEvents(sessionId: string): Promise<ApiSystemEvent[]> {
-    const url = `${this.backendUrl}/api/events?session_id=${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url);
+  async getSystemEvents(
+    sessionId: string,
+    count?: number,
+  ): Promise<ApiSystemEvent[]> {
+    const url = new URL("/api/events", this.backendUrl);
+    url.searchParams.set("session_id", sessionId);
+    if (count !== undefined) {
+      url.searchParams.set("count", String(count));
+    }
+    const response = await fetch(url.toString());
 
     if (!response.ok) {
       if (response.status === 404) return [];
@@ -225,22 +232,5 @@ export class BackendApi {
     return (await response.json()) as ApiSystemEvent[];
   }
 
-  async fetchEventsAfter(
-    sessionId: string,
-    afterId = 0,
-    limit = 100,
-  ): Promise<ApiSystemEvent[]> {
-    const url = new URL("/api/events", this.backendUrl);
-    url.searchParams.set("session_id", sessionId);
-    if (afterId > 0) url.searchParams.set("after_id", String(afterId));
-    if (limit) url.searchParams.set("limit", String(limit));
-
-    const response = await fetch(url.toString());
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch events: HTTP ${response.status}`);
-    }
-
-    return (await response.json()) as ApiSystemEvent[];
-  }
+  // fetchEventsAfter removed: /api/events only supports count now
 }

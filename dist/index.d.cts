@@ -75,7 +75,7 @@ interface ApiCreateThreadResponse {
  * Base SSE event - all events have session_id and type
  */
 type ApiSSEEvent = {
-    type: "title_changed" | "tool_completion" | string;
+    type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | string;
     session_id: string;
     new_title?: string;
     [key: string]: unknown;
@@ -85,7 +85,7 @@ type ApiSSEEvent = {
  * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
  * - SystemNotice: {"SystemNotice": "message"}
  * - SystemError: {"SystemError": "message"}
- * - AsyncCallback: {"AsyncCallback": {...}}
+ * - AsyncCallback: {"AsyncCallback": {...}} (not sent over HTTP)
  */
 type ApiSystemEvent = {
     InlineCall: {
@@ -138,8 +138,7 @@ declare class BackendApi {
     unarchiveThread(sessionId: string): Promise<void>;
     deleteThread(sessionId: string): Promise<void>;
     renameThread(sessionId: string, newTitle: string): Promise<void>;
-    getSystemEvents(sessionId: string): Promise<ApiSystemEvent[]>;
-    fetchEventsAfter(sessionId: string, afterId?: number, limit?: number): Promise<ApiSystemEvent[]>;
+    getSystemEvents(sessionId: string, count?: number): Promise<ApiSystemEvent[]>;
 }
 
 type AomiRuntimeProviderProps = {

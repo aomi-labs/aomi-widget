@@ -22,7 +22,7 @@ import {
 type OrchestratorOptions = {
   getPublicKey?: () => string | undefined;
   getUserState?: () => UserState;
-  onSystemEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
 };
 
 export function useRuntimeOrchestrator(
@@ -50,7 +50,7 @@ export function useRuntimeOrchestrator(
       applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
         messageControllerRef.current?.inbound(threadId, msgs);
       },
-      onSystemEvents: options?.onSystemEvents,
+      onSyncEvents: options?.onSyncEvents,
       getUserState: options?.getUserState,
       onStart: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
@@ -73,6 +73,7 @@ export function useRuntimeOrchestrator(
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
       getPublicKey: options?.getPublicKey,
+      onSyncEvents: options?.onSyncEvents,
     });
   }
 
@@ -107,6 +108,9 @@ export function useRuntimeOrchestrator(
         userState,
       );
       messageControllerRef.current?.inbound(threadId, state.messages);
+      if (state.system_events?.length && options?.onSyncEvents) {
+        options.onSyncEvents(backendThreadId, state.system_events);
+      }
 
       if (threadContextRef.current.currentThreadId === threadId) {
         if (state.is_processing) {

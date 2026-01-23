@@ -89,13 +89,17 @@ export interface ApiCreateThreadResponse {
  * Base SSE event - all events have session_id and type
  */
 export type ApiSSEEvent = {
-  type: "title_changed" | "tool_completion" | string;
+  type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | string;
   session_id: string;
   new_title?: string;
   [key: string]: unknown;
 };
 
-export type ApiSSEEventType = "title_changed" | "tool_completion";
+export type ApiSSEEventType =
+  | "title_changed"
+  | "tool_update"
+  | "tool_complete"
+  | "system_notice";
 
 // =============================================================================
 // System Events (/api/events)
@@ -106,7 +110,7 @@ export type ApiSSEEventType = "title_changed" | "tool_completion";
  * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
  * - SystemNotice: {"SystemNotice": "message"}
  * - SystemError: {"SystemError": "message"}
- * - AsyncCallback: {"AsyncCallback": {...}}
+ * - AsyncCallback: {"AsyncCallback": {...}} (not sent over HTTP)
  */
 export type ApiSystemEvent =
   | { InlineCall: { type: string; payload?: unknown; [key: string]: unknown } }
@@ -149,3 +153,7 @@ export function isAsyncCallback(
 ): event is { AsyncCallback: Record<string, unknown> } {
   return "AsyncCallback" in event;
 }
+
+/**
+ * Type guard for AsyncCallback events
+ */
