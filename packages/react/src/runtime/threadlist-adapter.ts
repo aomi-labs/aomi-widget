@@ -31,7 +31,7 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
   );
 
   const regularThreads = entries
-    .filter(([, meta]) => meta.status === "regular")
+    .filter(([, meta]) => meta.status !== "archived")
     .sort(sortByLastActiveDesc)
     .map(
       ([id, meta]): ExternalStoreThreadData<"regular"> => ({
