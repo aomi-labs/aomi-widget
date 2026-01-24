@@ -16,8 +16,6 @@ export function cn(...inputs: ClassValue[]) {
 
 // ==================== Thread Utilities ====================
 
-export const isTempThreadId = (id: string) => id.startsWith("temp-");
-
 export const parseTimestamp = (value?: string | number) => {
   if (value === undefined || value === null) return 0;
   if (typeof value === "number") {

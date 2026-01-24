@@ -15,12 +15,11 @@ import { useThreadContext } from "../contexts/thread-context";
 import { useNotification } from "../contexts/notification-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
-  findTempIdForBackendId,
   isThreadRunning,
   isThreadReady,
   resolveThreadId,
 } from "../state/backend-state";
-import { isPlaceholderTitle, isTempThreadId } from "./utils";
+import { isPlaceholderTitle } from "./utils";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
 
@@ -218,9 +217,7 @@ export function AomiRuntimeCore({
 
         if (eventType === "title_changed") {
           const newTitle = event.new_title as string;
-          const targetThreadId =
-            findTempIdForBackendId(backendState, sessionId) ??
-            resolveThreadId(backendState, sessionId);
+          const targetThreadId = resolveThreadId(backendState, sessionId);
           const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
 
           if (process.env.NODE_ENV !== "production") {
@@ -272,7 +269,6 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
-    if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);

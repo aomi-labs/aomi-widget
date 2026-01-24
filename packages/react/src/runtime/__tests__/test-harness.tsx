@@ -19,8 +19,8 @@ export type BackendApiConfig = {
   fetchThreads?: (publicKey: string) => Promise<ApiThread[]>;
   fetchState?: (sessionId: string) => Promise<ApiStateResponse>;
   createThread?: (
+    threadId: string,
     publicKey?: string,
-    title?: string,
   ) => Promise<ApiCreateThreadResponse>;
   postChatMessage?: (
     sessionId: string,
@@ -91,10 +91,10 @@ vi.mock("../../backend/client", () => {
         : { session_exists: true, is_processing: false, messages: [] };
     });
 
-    createThread = vi.fn(async (publicKey?: string, title?: string) => {
+    createThread = vi.fn(async (threadId: string, publicKey?: string) => {
       return mockState.config.createThread
-        ? await mockState.config.createThread(publicKey, title)
-        : { session_id: `mock-thread-${Date.now()}` };
+        ? await mockState.config.createThread(threadId, publicKey)
+        : { session_id: threadId };
     });
 
     postChatMessage = vi.fn(async (sessionId: string, message: string) => {
