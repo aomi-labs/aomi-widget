@@ -136,3 +136,4 @@ Backend Server
 3. Wallet state synced automatically via `onUserStateChange` subscription
 4. Polling stops when `is_processing=false`
 5. System events dispatched to EventBuffer for handler subscription
+

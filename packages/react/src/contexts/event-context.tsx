@@ -18,6 +18,7 @@ import {
   isSystemError,
   isAsyncCallback,
 } from "../backend/types";
+import { isTempThreadId } from "../runtime/utils";
 import {
   createEventBuffer,
   dispatch,
@@ -82,7 +83,9 @@ export function EventContextProvider({
   sessionId,
 }: EventContextProviderProps) {
   const bufferRef = useRef<EventBuffer | null>(null);
-  bufferRef.current = createEventBuffer();
+  if (!bufferRef.current) {
+    bufferRef.current = createEventBuffer();
+  }
   const buffer = bufferRef.current!;
 
   const [sseStatus, setSseStatus] = useState<SSEStatus>("disconnected");
@@ -91,6 +94,12 @@ export function EventContextProvider({
   // SSE Subscription (reconnects when sessionId changes)
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    if (isTempThreadId(sessionId)) {
+      setSSEStatus(buffer, "disconnected");
+      setSseStatus("disconnected");
+      return;
+    }
+
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
 
@@ -127,7 +136,7 @@ export function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, bufferRef, sessionId]);
+  }, [backendApi, sessionId, buffer]);
 
   // ---------------------------------------------------------------------------
   // Context Value

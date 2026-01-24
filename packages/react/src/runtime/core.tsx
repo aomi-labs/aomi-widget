@@ -108,6 +108,15 @@ export function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId,
   );
+  const resolvedSessionId = useMemo(
+    () =>
+      resolveThreadId(backendStateRef.current, threadContext.currentThreadId),
+    [
+      backendStateRef,
+      threadContext.currentThreadId,
+      threadContext.allThreadsMetadata,
+    ],
+  );
 
   // ---------------------------------------------------------------------------
   // Fetch thread list when user connects
@@ -190,21 +199,43 @@ export function AomiRuntimeCore({
   // SSE subscription for title changes
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    const backendState = backendStateRef.current;
     const currentSessionId = threadContext.currentThreadId;
+
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[aomi][sse] subscribe", {
+        currentSessionId,
+        resolvedSessionId,
+        hasMapping: currentSessionId !== resolvedSessionId,
+      });
+    }
+
     const unsubscribe = backendApiRef.current.subscribeSSE(
-      currentSessionId,
+      resolvedSessionId,
       (event) => {
         const eventType = event.type as string;
         const sessionId = event.session_id;
 
         if (eventType === "title_changed") {
           const newTitle = event.new_title as string;
-          const backendState = backendStateRef.current;
           const targetThreadId =
             findTempIdForBackendId(backendState, sessionId) ??
             resolveThreadId(backendState, sessionId);
           const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-          threadContext.setThreadMetadata((prev) => {
+
+          if (process.env.NODE_ENV !== "production") {
+            console.debug("[aomi][sse] title_changed", {
+              sessionId,
+              newTitle,
+              normalizedTitle,
+              currentThreadId: threadContextRef.current.currentThreadId,
+              targetThreadId,
+              hasMapping: sessionId !== targetThreadId,
+              creatingThreadId: backendState.creatingThreadId,
+            });
+          }
+
+          threadContextRef.current.setThreadMetadata((prev) => {
             const next = new Map(prev);
             const existing = next.get(targetThreadId);
             const nextStatus =
@@ -232,8 +263,8 @@ export function AomiRuntimeCore({
   }, [
     backendApiRef,
     backendStateRef,
-    threadContext,
     threadContext.currentThreadId,
+    resolvedSessionId,
   ]);
 
   // ---------------------------------------------------------------------------

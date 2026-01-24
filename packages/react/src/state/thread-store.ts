@@ -2,6 +2,29 @@ import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import { ThreadContext } from "../contexts/thread-context";
 
+const shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
+
+const logThreadMetadataChange = (
+  source: string,
+  threadId: string,
+  prev: ThreadMetadata | undefined,
+  next: ThreadMetadata | undefined,
+) => {
+  if (!shouldLogThreadUpdates) return;
+  if (!prev && !next) return;
+  if (!prev || !next) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+    return;
+  }
+  if (
+    prev.title !== next.title ||
+    prev.status !== next.status ||
+    prev.lastActiveAt !== next.lastActiveAt
+  ) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+  }
+};
+
 export type ThreadStatus = "regular" | "archived" | "pending";
 
 export type ThreadMetadata = {
@@ -135,10 +158,21 @@ export class ThreadStore {
   setThreadMetadata = (
     updater: SetStateAction<Map<string, ThreadMetadata>>,
   ) => {
-    const nextMetadata = this.resolveStateAction(
-      updater,
-      this.state.threadMetadata,
-    );
+    const prevMetadata = this.state.threadMetadata;
+    const nextMetadata = this.resolveStateAction(updater, prevMetadata);
+    for (const [threadId, next] of nextMetadata.entries()) {
+      logThreadMetadataChange(
+        "setThreadMetadata",
+        threadId,
+        prevMetadata.get(threadId),
+        next,
+      );
+    }
+    for (const [threadId, prev] of prevMetadata.entries()) {
+      if (!nextMetadata.has(threadId)) {
+        logThreadMetadataChange("setThreadMetadata", threadId, prev, undefined);
+      }
+    }
     this.updateState({ threadMetadata: new Map(nextMetadata) });
   };
 
@@ -165,8 +199,10 @@ export class ThreadStore {
     if (!existing) {
       return;
     }
+    const next = { ...existing, ...updates };
     const nextMetadata = new Map(this.state.threadMetadata);
-    nextMetadata.set(threadId, { ...existing, ...updates });
+    nextMetadata.set(threadId, next);
+    logThreadMetadataChange("updateThreadMetadata", threadId, existing, next);
     this.updateState({ threadMetadata: nextMetadata });
   };
 }
