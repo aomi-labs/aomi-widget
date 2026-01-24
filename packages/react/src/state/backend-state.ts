@@ -35,6 +35,9 @@ export function setBackendMapping(
   backendId: string,
 ) {
   state.tempToBackendId.set(tempId, backendId);
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[aomi][mapping] set", { tempId, backendId });
+  }
 }
 
 export function findTempIdForBackendId(

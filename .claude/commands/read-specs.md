@@ -68,3 +68,4 @@ After reading the specs, summarize:
 4. Any **potential conflicts** between the task and existing invariants
 
 Do NOT make any changes to the specs files during this command - this is read-only.
+
