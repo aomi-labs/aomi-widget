@@ -89,7 +89,12 @@ export interface ApiCreateThreadResponse {
  * Base SSE event - all events have session_id and type
  */
 export type ApiSSEEvent = {
-  type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | string;
+  type:
+    | "title_changed"
+    | "tool_update"
+    | "tool_complete"
+    | "system_notice"
+    | string;
   session_id: string;
   new_title?: string;
   [key: string]: unknown;

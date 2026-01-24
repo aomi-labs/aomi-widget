@@ -281,11 +281,14 @@ export function AomiRuntimeCore({
   // Show notifications for tool updates/completions (SSE events)
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const showToolNotification = (eventType: "tool_update" | "tool_complete") =>
+    const showToolNotification =
+      (eventType: "tool_update" | "tool_complete") =>
       (event: { payload?: unknown }) => {
         const payload = event.payload as Record<string, unknown> | undefined;
         const toolName =
-          typeof payload?.tool_name === "string" ? payload.tool_name : undefined;
+          typeof payload?.tool_name === "string"
+            ? payload.tool_name
+            : undefined;
         const title = toolName
           ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}`
           : eventType === "tool_update"

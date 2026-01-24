@@ -127,7 +127,7 @@ declare class BackendApi {
     postInterrupt(sessionId: string): Promise<ApiInterruptResponse>;
     /**
      * Subscribe to SSE updates for a session.
-     * EventSource handles reconnection automatically.
+     * Uses fetch streaming and reconnects on disconnects.
      * Returns an unsubscribe function.
      */
     subscribeSSE(sessionId: string, onUpdate: (event: ApiSSEEvent) => void, onError?: (error: unknown) => void): () => void;

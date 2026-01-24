@@ -163,7 +163,7 @@ export function buildThreadListAdapter({
             const nextTitle =
               backendTitle && !isPlaceholderTitle(backendTitle)
                 ? backendTitle
-                : existing?.title ?? "New Chat";
+                : (existing?.title ?? "New Chat");
             next.set(uiThreadId, {
               title: nextTitle,
               status: nextStatus,

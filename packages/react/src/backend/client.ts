@@ -37,10 +37,7 @@ function toQueryString(payload: Record<string, unknown>): string {
   return qs ? `?${qs}` : "";
 }
 
-function withSessionHeader(
-  sessionId: string,
-  init?: HeadersInit,
-): HeadersInit {
+function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
@@ -139,19 +136,29 @@ export class BackendApi {
     message: string,
     publicKey?: string,
   ): Promise<ApiChatResponse> {
-    return postState<ApiChatResponse>(this.backendUrl, "/api/chat", {
-      message,
-      public_key: publicKey,
-    }, sessionId);
+    return postState<ApiChatResponse>(
+      this.backendUrl,
+      "/api/chat",
+      {
+        message,
+        public_key: publicKey,
+      },
+      sessionId,
+    );
   }
 
   async postSystemMessage(
     sessionId: string,
     message: string,
   ): Promise<ApiSystemResponse> {
-    return postState<ApiSystemResponse>(this.backendUrl, "/api/system", {
-      message,
-    }, sessionId);
+    return postState<ApiSystemResponse>(
+      this.backendUrl,
+      "/api/system",
+      {
+        message,
+      },
+      sessionId,
+    );
   }
 
   async postInterrupt(sessionId: string): Promise<ApiInterruptResponse> {
@@ -260,7 +267,9 @@ export class BackendApi {
         });
 
         if (!response.ok) {
-          throw new Error(`SSE HTTP ${response.status}: ${response.statusText}`);
+          throw new Error(
+            `SSE HTTP ${response.status}: ${response.statusText}`,
+          );
         }
 
         if (!response.body) {

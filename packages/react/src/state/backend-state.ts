@@ -77,7 +77,10 @@ export function setThreadRunning(
   }
 }
 
-export function isThreadRunning(state: BackendState, threadId: string): boolean {
+export function isThreadRunning(
+  state: BackendState,
+  threadId: string,
+): boolean {
   return state.runningThreads.has(threadId);
 }
 
