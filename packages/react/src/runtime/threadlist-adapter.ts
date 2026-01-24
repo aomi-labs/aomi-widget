@@ -7,7 +7,7 @@ import type { ThreadMetadata } from "../state/thread-store";
 import {
   markSkipInitialFetch,
   setBackendMapping,
-  type BakendState,
+  type BackendState,
 } from "../state/backend-state";
 import type { PollingController } from "./polling-controller";
 import { isPlaceholderTitle, parseTimestamp } from "./utils";
@@ -60,7 +60,7 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
 // =============================================================================
 
 export type ThreadListAdapterConfig = {
-  backendStateRef: MutableRefObject<BakendState>;
+  backendStateRef: MutableRefObject<BackendState>;
   backendApiRef: MutableRefObject<BackendApi>;
   threadContext: ThreadContext;
   currentThreadIdRef: MutableRefObject<string>;

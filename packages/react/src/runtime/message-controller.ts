@@ -13,12 +13,12 @@ import {
   isThreadReady,
   resolveThreadId,
   setThreadRunning,
-  type BakendState,
+  type BackendState,
 } from "../state/backend-state";
 
 type MessageControllerConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
-  backendStateRef: MutableRefObject<BakendState>;
+  backendStateRef: MutableRefObject<BackendState>;
   threadContextRef: MutableRefObject<ThreadContext>;
   polling: PollingController;
   setGlobalIsRunning?: (running: boolean) => void;
