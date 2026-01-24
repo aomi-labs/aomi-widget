@@ -53,7 +53,7 @@ export function ThreadListCollapsible({
   return (
     <div
       className={cn(
-        "bg-background flex flex-col border-r transition-all duration-200",
+        "flex flex-col border-r bg-background transition-all duration-200",
         collapsibleOpen ? "w-64" : "w-16",
         className,
       )}
@@ -84,7 +84,7 @@ export function ThreadListCollapsible({
                 href="https://aomi.dev"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors"
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
               >
                 <div className="aomi-collapsible-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white">
                   <Image

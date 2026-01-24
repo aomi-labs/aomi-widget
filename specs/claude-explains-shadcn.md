@@ -733,7 +733,7 @@ pnpm links to the first match, which is the root. Need to rename the root:
 
 ⏺ Now reinstall to fix the symlinks:
 
-⏺ Bash(rm -rf node_modules apps/_/node_modules packages/_/node_modules && pnpm
+⏺ Bash(rm -rf node*modules apps/*/node*modules packages/*/node_modules && pnpm
 install)
 ⎿  Scope: all 5 workspace projects  
  Lockfile is up to date, resolution step is skipped
@@ -768,8 +768,8 @@ package.json
 
 ⏺ pnpm knows it correctly. Let me try a fresh install:
 
-⏺ Bash(rm -rf node_modules apps/_/node_modules timeout:
-packages/_/node_modules .pnpm-store && rm pnpm-lock.yaml && 3m 0s
+⏺ Bash(rm -rf node*modules apps/*/node*modules timeout:
+packages/*/node_modules .pnpm-store && rm pnpm-lock.yaml && 3m 0s
 pnpm install)
 ⎿  Running in the background (↓ to manage)
 
@@ -848,10 +848,8 @@ How it works:
 3. Finds it → that's the root
 4. Reads the file:
    packages:
-
-
-    - apps/*
-    - packages/*
+   - apps/\*
+   - packages/\*
 
 5. Scans those globs for package.json files
 6. Builds a map: "@aomi-labs/react" → packages/react
