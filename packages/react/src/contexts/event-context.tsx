@@ -18,7 +18,6 @@ import {
   isSystemError,
   isAsyncCallback,
 } from "../backend/types";
-import { isTempThreadId } from "../runtime/utils";
 import {
   createEventBuffer,
   dispatch,
@@ -94,12 +93,6 @@ export function EventContextProvider({
   // SSE Subscription (reconnects when sessionId changes)
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (isTempThreadId(sessionId)) {
-      setSSEStatus(buffer, "disconnected");
-      setSseStatus("disconnected");
-      return;
-    }
-
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
 

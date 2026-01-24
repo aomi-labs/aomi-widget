@@ -6,7 +6,6 @@ import type { ThreadContext } from "../contexts/thread-context";
 import type { ThreadMetadata } from "../state/thread-store";
 import {
   markSkipInitialFetch,
-  setBackendMapping,
   type BackendState,
 } from "../state/backend-state";
 import type { PollingController } from "./polling-controller";
@@ -97,7 +96,6 @@ export function buildThreadListAdapter({
         return next;
       });
       backendState.pendingChat.delete(previousPendingId);
-      backendState.tempToBackendId.delete(previousPendingId);
       backendState.skipInitialFetch.delete(previousPendingId);
     }
     backendState.creatingThreadId = threadId;
@@ -115,13 +113,13 @@ export function buildThreadListAdapter({
     threadContext.bumpThreadViewKey();
   };
 
-  const findPendingThreadId = () => {
-    if (backendState.creatingThreadId) return backendState.creatingThreadId;
-    for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
-      if (meta.status === "pending") return id;
-    }
-    return null;
-  };
+    const findPendingThreadId = () => {
+      if (backendState.creatingThreadId) return backendState.creatingThreadId;
+      for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
+        if (meta.status === "pending") return id;
+      }
+      return null;
+    };
 
   return {
     threadId: threadContext.currentThreadId,
@@ -137,35 +135,35 @@ export function buildThreadListAdapter({
 
       if (backendState.createThreadPromise) {
         preparePendingThread(
-          backendState.creatingThreadId ?? `temp-${crypto.randomUUID()}`,
+          backendState.creatingThreadId ?? crypto.randomUUID(),
         );
         return;
       }
 
-      const tempId = `temp-${crypto.randomUUID()}`;
-      preparePendingThread(tempId);
+      const threadId = crypto.randomUUID();
+      preparePendingThread(threadId);
 
       const createPromise = backendApiRef.current
-        .createThread(userAddress, undefined)
+        .createThread(threadId, userAddress)
         .then(async (newThread) => {
-          const uiThreadId = backendState.creatingThreadId ?? tempId;
+          const uiThreadId = backendState.creatingThreadId ?? threadId;
           const backendId = newThread.session_id;
 
-          setBackendMapping(backendState, uiThreadId, backendId);
+          if (uiThreadId !== backendId) {
+            console.warn("[aomi][thread] backend id mismatch", {
+              uiThreadId,
+              backendId,
+            });
+          }
           markSkipInitialFetch(backendState, uiThreadId);
 
-          const backendTitle = newThread.title;
           threadContext.setThreadMetadata((prev) => {
             const next = new Map(prev);
             const existing = next.get(uiThreadId);
             const nextStatus =
               existing?.status === "archived" ? "archived" : "regular";
-            const nextTitle =
-              backendTitle && !isPlaceholderTitle(backendTitle)
-                ? backendTitle
-                : (existing?.title ?? "New Chat");
             next.set(uiThreadId, {
-              title: nextTitle,
+              title: existing?.title ?? "New Chat",
               status: nextStatus,
               lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
             });
@@ -193,7 +191,7 @@ export function buildThreadListAdapter({
         })
         .catch((error) => {
           console.error("Failed to create new thread:", error);
-          const failedId = backendState.creatingThreadId ?? tempId;
+          const failedId = backendState.creatingThreadId ?? threadId;
           threadContext.setThreadMetadata((prev) => {
             const next = new Map(prev);
             next.delete(failedId);
@@ -274,7 +272,6 @@ export function buildThreadListAdapter({
           return next;
         });
         backendState.pendingChat.delete(threadId);
-        backendState.tempToBackendId.delete(threadId);
         backendState.skipInitialFetch.delete(threadId);
         backendState.runningThreads.delete(threadId);
         if (backendState.creatingThreadId === threadId) {

@@ -1,7 +1,4 @@
-import { isTempThreadId } from "../runtime/utils";
-
 export type BackendState = {
-  tempToBackendId: Map<string, string>;
   skipInitialFetch: Set<string>;
   pendingChat: Map<string, string[]>;
   runningThreads: Set<string>;
@@ -11,7 +8,6 @@ export type BackendState = {
 
 export function createBackendState(): BackendState {
   return {
-    tempToBackendId: new Map(),
     skipInitialFetch: new Set(),
     pendingChat: new Map(),
     runningThreads: new Set(),
@@ -21,33 +17,11 @@ export function createBackendState(): BackendState {
 }
 
 export function resolveThreadId(state: BackendState, threadId: string): string {
-  return state.tempToBackendId.get(threadId) ?? threadId;
+  return threadId;
 }
 
 export function isThreadReady(state: BackendState, threadId: string): boolean {
-  if (!isTempThreadId(threadId)) return true;
-  return state.tempToBackendId.has(threadId);
-}
-
-export function setBackendMapping(
-  state: BackendState,
-  tempId: string,
-  backendId: string,
-) {
-  state.tempToBackendId.set(tempId, backendId);
-  if (process.env.NODE_ENV !== "production") {
-    console.debug("[aomi][mapping] set", { tempId, backendId });
-  }
-}
-
-export function findTempIdForBackendId(
-  state: BackendState,
-  backendId: string,
-): string | undefined {
-  for (const [tempId, id] of state.tempToBackendId.entries()) {
-    if (id === backendId) return tempId;
-  }
-  return undefined;
+  return state.creatingThreadId !== threadId;
 }
 
 export function markSkipInitialFetch(state: BackendState, threadId: string) {

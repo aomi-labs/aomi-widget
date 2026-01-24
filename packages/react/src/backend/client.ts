@@ -158,17 +158,18 @@ export class BackendApi {
   }
 
   async createThread(
+    threadId: string,
     publicKey?: string,
-    title?: string,
   ): Promise<ApiCreateThreadResponse> {
-    const body: Record<string, string> = {};
+    const body: Record<string, string> = { session_id: threadId };
     if (publicKey) body.public_key = publicKey;
-    if (title) body.title = title;
 
     const url = `${this.backendUrl}/api/sessions`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withSessionHeader(threadId, {
+        "Content-Type": "application/json",
+      }),
       body: JSON.stringify(body),
     });
 

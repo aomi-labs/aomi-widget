@@ -31,7 +31,6 @@ const RuntimeActionsContext = createContext<RuntimeActions | undefined>(
   undefined,
 );
 
-const isTempThreadId = (id: string) => id.startsWith("temp-");
 const parseTimestamp = (value?: string | number) => {
   if (value === undefined || value === null) return 0;
   if (typeof value === "number") {
@@ -121,31 +120,14 @@ export function AomiRuntimeProvider({
   // This prevents the fetchState from clearing input when switching from temp to real thread
   const skipInitialFetchRef = useRef<Set<string>>(new Set());
 
-  // Ref to map temp thread IDs to their real backend IDs
-  // This allows us to keep using tempId in the UI while using backendId for API calls
-  const tempToBackendIdRef = useRef<Map<string, string>>(new Map());
+  // Helper to resolve a thread ID to its backend ID
+  const resolveThreadId = useCallback((threadId: string): string => threadId, []);
 
-  // Helper to resolve a thread ID to its backend ID (handles temp -> real mapping)
-  const resolveThreadId = useCallback((threadId: string): string => {
-    return tempToBackendIdRef.current.get(threadId) || threadId;
-  }, []);
-
-  // Helper to find a temp thread ID for a given backend ID (reverse lookup)
-  const findTempIdForBackendId = useCallback(
-    (backendId: string): string | undefined => {
-      for (const [tempId, bId] of tempToBackendIdRef.current.entries()) {
-        if (bId === backendId) return tempId;
-      }
-      return undefined;
-    },
+  // Check if a thread is ready for API calls
+  const isThreadReady = useCallback(
+    (threadId: string): boolean => creatingThreadIdRef.current !== threadId,
     [],
   );
-
-  // Check if a thread is ready for API calls (either not temp, or temp with backend ID)
-  const isThreadReady = useCallback((threadId: string): boolean => {
-    if (!isTempThreadId(threadId)) return true;
-    return tempToBackendIdRef.current.has(threadId);
-  }, []);
 
   // ==================== Message Processing ====================
   const applyMessages = useCallback(
@@ -235,11 +217,8 @@ export function AomiRuntimeProvider({
   // ==================== Load Initial Thread State ====================
   useEffect(() => {
     const fetchInitialState = async () => {
-      // For temp threads without a backend ID yet, skip fetching
-      if (
-        isTempThreadId(currentThreadId) &&
-        !tempToBackendIdRef.current.has(currentThreadId)
-      ) {
+      // Skip fetching if the thread is still being created
+      if (!isThreadReady(currentThreadId)) {
         setIsRunning(false);
         return;
       }
@@ -392,7 +371,6 @@ export function AomiRuntimeProvider({
             });
             pendingChatMessagesRef.current.delete(previousPendingId);
             pendingSystemMessagesRef.current.delete(previousPendingId);
-            tempToBackendIdRef.current.delete(previousPendingId);
             skipInitialFetchRef.current.delete(previousPendingId);
           }
 
@@ -422,48 +400,47 @@ export function AomiRuntimeProvider({
         // If a creation request is already in flight, just reset UI with a fresh pending thread
         if (createThreadPromiseRef.current) {
           preparePendingThread(
-            creatingThreadIdRef.current ?? `temp-${crypto.randomUUID()}`,
+            creatingThreadIdRef.current ?? crypto.randomUUID(),
           );
           return;
         }
 
-        // Generate a temporary ID for immediate UI update
-        const tempId = `temp-${crypto.randomUUID()}`;
-        preparePendingThread(tempId);
+        // Generate a thread ID for immediate UI update
+        const threadId = crypto.randomUUID();
+        preparePendingThread(threadId);
 
-        // Create thread on backend in background (with null title)
+        // Create thread on backend in background
         const createPromise = backendApiRef.current
-          .createThread(publicKey, undefined)
+          .createThread(threadId, publicKey)
           .then(async (newThread) => {
-            const uiThreadId = creatingThreadIdRef.current ?? tempId;
+            const uiThreadId = creatingThreadIdRef.current ?? threadId;
             const backendId = newThread.session_id;
-
-            // Store the mapping from tempId to backendId
-            // This allows API calls to use the real backendId while UI stays on tempId
-            tempToBackendIdRef.current.set(uiThreadId, backendId);
+            if (uiThreadId !== backendId) {
+              console.warn("[aomi][thread] backend id mismatch", {
+                uiThreadId,
+                backendId,
+              });
+            }
 
             // Mark this temp thread to skip initial fetch - we just created it,
             // and fetching would overwrite any messages the user has typed
             skipInitialFetchRef.current.add(uiThreadId);
 
-            const backendTitle = newThread.title;
-            if (backendTitle && !isPlaceholderTitle(backendTitle)) {
-              setThreadMetadata((prev) => {
-                const next = new Map(prev);
-                const existing = next.get(uiThreadId);
-                const nextStatus =
-                  existing?.status === "archived" ? "archived" : "regular";
-                next.set(uiThreadId, {
-                  title: backendTitle,
-                  status: nextStatus,
-                  lastActiveAt:
-                    existing?.lastActiveAt ?? new Date().toISOString(),
-                });
-                return next;
+            setThreadMetadata((prev) => {
+              const next = new Map(prev);
+              const existing = next.get(uiThreadId);
+              const nextStatus =
+                existing?.status === "archived" ? "archived" : "regular";
+              next.set(uiThreadId, {
+                title: existing?.title ?? "New Chat",
+                status: nextStatus,
+                lastActiveAt:
+                  existing?.lastActiveAt ?? new Date().toISOString(),
               });
-              if (creatingThreadIdRef.current === uiThreadId) {
-                creatingThreadIdRef.current = null;
-              }
+              return next;
+            });
+            if (creatingThreadIdRef.current === uiThreadId) {
+              creatingThreadIdRef.current = null;
             }
 
             // Flush any pending chat messages that were queued while waiting for backend ID
@@ -486,7 +463,7 @@ export function AomiRuntimeProvider({
           })
           .catch((error) => {
             console.error("Failed to create new thread:", error);
-            const failedId = creatingThreadIdRef.current ?? tempId;
+            const failedId = creatingThreadIdRef.current ?? threadId;
             // On error, remove the temp thread from UI
             setThreadMetadata((prev) => {
               const next = new Map(prev);
