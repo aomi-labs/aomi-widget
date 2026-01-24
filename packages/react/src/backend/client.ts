@@ -8,24 +8,10 @@ import type {
   ApiSystemResponse,
   ApiThread,
 } from "./types";
+import { createSseSubscriber, type SseSubscriber } from "./sse";
 import type { UserState } from "../contexts/user-context";
 
 const SESSION_ID_HEADER = "X-Session-Id";
-const shouldLogSse = process.env.NODE_ENV !== "production";
-
-type SseSubscription = {
-  abortController: AbortController | null;
-  retries: number;
-  retryTimer: ReturnType<typeof setTimeout> | null;
-  stopped: boolean;
-  listeners: Set<SseListener>;
-  stop: (reason?: string) => void;
-};
-
-type SseListener = {
-  onUpdate: (event: ApiSSEEvent) => void;
-  onError?: (error: unknown) => void;
-};
 
 function toQueryString(payload: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -41,48 +27,6 @@ function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
-}
-
-function extractSseData(rawEvent: string): string | null {
-  const dataLines = rawEvent
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart());
-  if (!dataLines.length) return null;
-  return dataLines.join("\n");
-}
-
-async function readSseStream(
-  stream: ReadableStream<Uint8Array>,
-  signal: AbortSignal,
-  onMessage: (data: string) => void,
-): Promise<void> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (!signal.aborted) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      buffer = buffer.replace(/\r/g, "");
-
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex >= 0) {
-        const rawEvent = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-        const data = extractSseData(rawEvent);
-        if (data) {
-          onMessage(data);
-        }
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 async function postState<T>(
@@ -107,9 +51,15 @@ async function postState<T>(
 }
 
 export class BackendApi {
-  private sseConnections = new Map<string, SseSubscription>();
+  private sseSubscriber: SseSubscriber;
 
-  constructor(private readonly backendUrl: string) {}
+  constructor(private readonly backendUrl: string) {
+    this.sseSubscriber = createSseSubscriber({
+      backendUrl,
+      getHeaders: (sessionId) =>
+        withSessionHeader(sessionId, { Accept: "text/event-stream" }),
+    });
+  }
 
   async fetchState(
     sessionId: string,
@@ -180,162 +130,7 @@ export class BackendApi {
     onUpdate: (event: ApiSSEEvent) => void,
     onError?: (error: unknown) => void,
   ): () => void {
-    const existing = this.sseConnections.get(sessionId);
-    const listener: SseListener = { onUpdate, onError };
-    if (existing) {
-      existing.listeners.add(listener);
-      if (shouldLogSse) {
-        console.debug("[aomi][sse] listener added", {
-          sessionId,
-          listeners: existing.listeners.size,
-        });
-      }
-      return () => {
-        existing.listeners.delete(listener);
-        if (shouldLogSse) {
-          console.debug("[aomi][sse] listener removed", {
-            sessionId,
-            listeners: existing.listeners.size,
-          });
-        }
-        if (existing.listeners.size === 0) {
-          existing.stop("unsubscribe");
-          if (this.sseConnections.get(sessionId) === existing) {
-            this.sseConnections.delete(sessionId);
-          }
-        }
-      };
-    }
-
-    const subscription: SseSubscription = {
-      abortController: null,
-      retries: 0,
-      retryTimer: null,
-      stopped: false,
-      listeners: new Set([listener]),
-      stop: (reason?: string) => {
-        subscription.stopped = true;
-        if (subscription.retryTimer) {
-          clearTimeout(subscription.retryTimer);
-          subscription.retryTimer = null;
-        }
-        subscription.abortController?.abort();
-        subscription.abortController = null;
-        if (shouldLogSse) {
-          console.debug("[aomi][sse] stop", {
-            sessionId,
-            reason,
-            retries: subscription.retries,
-          });
-        }
-      },
-    };
-
-    const scheduleRetry = () => {
-      if (subscription.stopped) return;
-      subscription.retries += 1;
-      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 10000);
-      if (shouldLogSse) {
-        console.debug("[aomi][sse] retry scheduled", {
-          sessionId,
-          delayMs,
-          retries: subscription.retries,
-        });
-      }
-      subscription.retryTimer = setTimeout(() => {
-        void open();
-      }, delayMs);
-    };
-
-    const open = async () => {
-      if (subscription.stopped) return;
-      if (subscription.retryTimer) {
-        clearTimeout(subscription.retryTimer);
-        subscription.retryTimer = null;
-      }
-
-      const controller = new AbortController();
-      subscription.abortController = controller;
-      const openedAt = Date.now();
-
-      try {
-        const response = await fetch(`${this.backendUrl}/api/updates`, {
-          headers: withSessionHeader(sessionId, {
-            Accept: "text/event-stream",
-          }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            `SSE HTTP ${response.status}: ${response.statusText}`,
-          );
-        }
-
-        if (!response.body) {
-          throw new Error("SSE response missing body");
-        }
-
-        subscription.retries = 0;
-
-        await readSseStream(response.body, controller.signal, (data) => {
-          let parsed: ApiSSEEvent;
-          try {
-            parsed = JSON.parse(data) as ApiSSEEvent;
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              item.onError?.(error);
-            }
-            return;
-          }
-
-          for (const item of subscription.listeners) {
-            try {
-              item.onUpdate(parsed);
-            } catch (error) {
-              item.onError?.(error);
-            }
-          }
-        });
-        if (shouldLogSse) {
-          console.debug("[aomi][sse] stream ended", {
-            sessionId,
-            aborted: controller.signal.aborted,
-            stopped: subscription.stopped,
-            durationMs: Date.now() - openedAt,
-          });
-        }
-      } catch (error) {
-        if (!controller.signal.aborted && !subscription.stopped) {
-          for (const item of subscription.listeners) {
-            item.onError?.(error);
-          }
-        }
-      }
-
-      if (!subscription.stopped) {
-        scheduleRetry();
-      }
-    };
-
-    this.sseConnections.set(sessionId, subscription);
-    void open();
-
-    return () => {
-      subscription.listeners.delete(listener);
-      if (shouldLogSse) {
-        console.debug("[aomi][sse] listener removed", {
-          sessionId,
-          listeners: subscription.listeners.size,
-        });
-      }
-      if (subscription.listeners.size === 0) {
-        subscription.stop("unsubscribe");
-        if (this.sseConnections.get(sessionId) === subscription) {
-          this.sseConnections.delete(sessionId);
-        }
-      }
-    };
+    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
   }
 
   async fetchThreads(publicKey: string): Promise<ApiThread[]> {
