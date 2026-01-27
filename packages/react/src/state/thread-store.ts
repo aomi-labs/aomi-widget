@@ -1,23 +1,36 @@
 import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
+import { ThreadContext } from "../contexts/thread-context";
 
-import type { ThreadMetadata } from "./types";
+const shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 
-export type ThreadContext = {
-  currentThreadId: string;
-  setCurrentThreadId: (id: string) => void;
-  threadViewKey: number;
-  bumpThreadViewKey: () => void;
-  threads: Map<string, ThreadMessageLike[]>;
-  setThreads: (updater: SetStateAction<Map<string, ThreadMessageLike[]>>) => void;
-  threadMetadata: Map<string, ThreadMetadata>;
-  setThreadMetadata: (updater: SetStateAction<Map<string, ThreadMetadata>>) => void;
-  threadCnt: number;
-  setThreadCnt: (updater: SetStateAction<number>) => void;
-  getThreadMessages: (threadId: string) => ThreadMessageLike[];
-  setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
-  getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
-  updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+const logThreadMetadataChange = (
+  source: string,
+  threadId: string,
+  prev: ThreadMetadata | undefined,
+  next: ThreadMetadata | undefined,
+) => {
+  if (!shouldLogThreadUpdates) return;
+  if (!prev && !next) return;
+  if (!prev || !next) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+    return;
+  }
+  if (
+    prev.title !== next.title ||
+    prev.status !== next.status ||
+    prev.lastActiveAt !== next.lastActiveAt
+  ) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+  }
+};
+
+export type ThreadStatus = "regular" | "archived" | "pending";
+
+export type ThreadMetadata = {
+  title: string;
+  status: ThreadStatus;
+  lastActiveAt?: string | number;
 };
 
 type ThreadStoreState = {
@@ -75,7 +88,9 @@ export class ThreadStore {
   }
 
   private resolveStateAction<T>(updater: SetStateAction<T>, current: T): T {
-    return typeof updater === "function" ? (updater as (prev: T) => T)(current) : updater;
+    return typeof updater === "function"
+      ? (updater as (prev: T) => T)(current)
+      : updater;
   }
 
   private ensureThreadExists(threadId: string) {
@@ -108,9 +123,9 @@ export class ThreadStore {
       setCurrentThreadId: this.setCurrentThreadId,
       threadViewKey: this.state.threadViewKey,
       bumpThreadViewKey: this.bumpThreadViewKey,
-      threads: this.state.threads,
+      allThreads: this.state.threads,
       setThreads: this.setThreads,
-      threadMetadata: this.state.threadMetadata,
+      allThreadsMetadata: this.state.threadMetadata,
       setThreadMetadata: this.setThreadMetadata,
       threadCnt: this.state.threadCnt,
       setThreadCnt: this.setThreadCnt,
@@ -140,8 +155,24 @@ export class ThreadStore {
     this.updateState({ threads: new Map(nextThreads) });
   };
 
-  setThreadMetadata = (updater: SetStateAction<Map<string, ThreadMetadata>>) => {
-    const nextMetadata = this.resolveStateAction(updater, this.state.threadMetadata);
+  setThreadMetadata = (
+    updater: SetStateAction<Map<string, ThreadMetadata>>,
+  ) => {
+    const prevMetadata = this.state.threadMetadata;
+    const nextMetadata = this.resolveStateAction(updater, prevMetadata);
+    for (const [threadId, next] of nextMetadata.entries()) {
+      logThreadMetadataChange(
+        "setThreadMetadata",
+        threadId,
+        prevMetadata.get(threadId),
+        next,
+      );
+    }
+    for (const [threadId, prev] of prevMetadata.entries()) {
+      if (!nextMetadata.has(threadId)) {
+        logThreadMetadataChange("setThreadMetadata", threadId, prev, undefined);
+      }
+    }
     this.updateState({ threadMetadata: new Map(nextMetadata) });
   };
 
@@ -160,13 +191,18 @@ export class ThreadStore {
     return this.state.threadMetadata.get(threadId);
   };
 
-  updateThreadMetadata = (threadId: string, updates: Partial<ThreadMetadata>) => {
+  updateThreadMetadata = (
+    threadId: string,
+    updates: Partial<ThreadMetadata>,
+  ) => {
     const existing = this.state.threadMetadata.get(threadId);
     if (!existing) {
       return;
     }
+    const next = { ...existing, ...updates };
     const nextMetadata = new Map(this.state.threadMetadata);
-    nextMetadata.set(threadId, { ...existing, ...updates });
+    nextMetadata.set(threadId, next);
+    logThreadMetadataChange("updateThreadMetadata", threadId, existing, next);
     this.updateState({ threadMetadata: nextMetadata });
   };
 }

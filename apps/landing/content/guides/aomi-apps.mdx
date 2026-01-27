@@ -32,11 +32,11 @@ flowchart TB
 
 Each agentic app defines:
 
-| Component | Purpose | Example |
-|-----------|---------|---------|
-| **Preamble** | System prompt defining role and constraints | "You are a DeFi trading assistant..." |
-| **Tools** | Available actions the agent can take | `SwapTokens`, `GetPrice`, `CheckBalance` |
-| **Behavior** | Response patterns and workflows | "Always simulate before executing" |
+| Component    | Purpose                                     | Example                                  |
+| ------------ | ------------------------------------------- | ---------------------------------------- |
+| **Preamble** | System prompt defining role and constraints | "You are a DeFi trading assistant..."    |
+| **Tools**    | Available actions the agent can take        | `SwapTokens`, `GetPrice`, `CheckBalance` |
+| **Behavior** | Response patterns and workflows             | "Always simulate before executing"       |
 
 ## Quick Start
 
@@ -538,21 +538,21 @@ flowchart TD
     end
 ```
 
-| Principle | Description |
-|-----------|-------------|
-| **Single Responsibility** | Each tool does one thing well |
-| **Clear Parameters** | Document all fields with examples |
-| **Safe by Default** | Simulate transactions, require confirmation |
-| **Informative Output** | Return enough context for LLM to explain |
+| Principle                 | Description                                 |
+| ------------------------- | ------------------------------------------- |
+| **Single Responsibility** | Each tool does one thing well               |
+| **Clear Parameters**      | Document all fields with examples           |
+| **Safe by Default**       | Simulate transactions, require confirmation |
+| **Informative Output**    | Return enough context for LLM to explain    |
 
 ### Preamble Writing
 
-| Do | Don't |
-|-----|-------|
-| Be specific about capabilities | Make vague claims |
-| Define clear workflows | Leave behavior ambiguous |
-| Set explicit constraints | Assume common sense |
-| Include examples | Use jargon without explanation |
+| Do                             | Don't                          |
+| ------------------------------ | ------------------------------ |
+| Be specific about capabilities | Make vague claims              |
+| Define clear workflows         | Leave behavior ambiguous       |
+| Set explicit constraints       | Assume common sense            |
+| Include examples               | Use jargon without explanation |
 
 ### Error Handling
 

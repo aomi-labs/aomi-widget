@@ -26,7 +26,6 @@
     "dev": "next dev --turbopack",
     "dev:landing:live": "pnpm run build:lib -- --watch & pnpm --filter landing dev",
     "dev:landing": "pnpm --filter landing dev",
-    "build": "next build",
     "build:lib": "tsup",
     "build:landing": "pnpm --filter landing build",
     "build:registry": "pnpm --filter @aomi-labs/widget-lib build",

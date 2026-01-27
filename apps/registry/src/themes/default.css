@@ -55,7 +55,8 @@
       background-position: -100% 0;
     }
   }
-  --animate-shimmer: shimmer-sweep var(--shimmer-duration, 1000ms) linear infinite both;
+  --animate-shimmer: shimmer-sweep var(--shimmer-duration, 1000ms) linear
+    infinite both;
 }
 
 /* ============================================
@@ -63,10 +64,12 @@
    ============================================ */
 
 :root {
-  --font-geist-sans: "Geist", "Inter", "SF Pro Display", "Segoe UI", system-ui,
-    -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-geist-mono: "Geist Mono", "JetBrains Mono", "IBM Plex Mono",
-    "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-geist-sans:
+    "Geist", "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  --font-geist-mono:
+    "Geist Mono", "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Menlo,
+    Monaco, Consolas, "Liberation Mono", monospace;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);

@@ -17,25 +17,25 @@ npm install @aomi-labs/react
 
 ### Runtime & Providers
 
-| Export | Description |
-|--------|-------------|
-| `AomiRuntimeProvider` | Connects to Aomi backend, manages chat sessions |
-| `ThreadContextProvider` | Thread state management (current thread, messages) |
-| `RuntimeActionsProvider` | Actions for thread operations |
+| Export                   | Description                                        |
+| ------------------------ | -------------------------------------------------- |
+| `AomiRuntimeProvider`    | Connects to Aomi backend, manages chat sessions    |
+| `ThreadContextProvider`  | Thread state management (current thread, messages) |
+| `RuntimeActionsProvider` | Actions for thread operations                      |
 
 ### Hooks
 
-| Hook | Description |
-|------|-------------|
-| `useThreadContext` | Access current thread ID, view key, and actions |
-| `useCurrentThreadMetadata` | Get current thread's title, status, timestamps |
-| `useCurrentThreadMessages` | Access messages in current thread |
-| `useRuntimeActions` | Thread operations (create, delete, switch) |
+| Hook                       | Description                                     |
+| -------------------------- | ----------------------------------------------- |
+| `useThreadContext`         | Access current thread ID, view key, and actions |
+| `useCurrentThreadMetadata` | Get current thread's title, status, timestamps  |
+| `useCurrentThreadMessages` | Access messages in current thread               |
+| `useRuntimeActions`        | Thread operations (create, delete, switch)      |
 
 ### API Client
 
-| Export | Description |
-|--------|-------------|
+| Export       | Description                        |
+| ------------ | ---------------------------------- |
 | `BackendApi` | Direct API client for Aomi backend |
 
 ### Types
@@ -52,12 +52,12 @@ import type {
 
 ### Utilities
 
-| Export | Description |
-|--------|-------------|
-| `cn` | Class name merger (clsx + tailwind-merge) |
+| Export                       | Description                                   |
+| ---------------------------- | --------------------------------------------- |
+| `cn`                         | Class name merger (clsx + tailwind-merge)     |
 | `WalletSystemMessageEmitter` | Emits wallet state changes as system messages |
-| `formatAddress` | Truncates wallet addresses for display |
-| `getNetworkName` | Resolves chain ID to network name |
+| `formatAddress`              | Truncates wallet addresses for display        |
+| `getNetworkName`             | Resolves chain ID to network name             |
 
 ## Basic Usage
 

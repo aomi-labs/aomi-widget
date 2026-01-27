@@ -21,7 +21,9 @@ Displays a button or a component that looks like a button.
 ```tsx
 import { Button } from "@/components/ui/button";
 
-<Button variant="default" size="default">Click me</Button>
+<Button variant="default" size="default">
+  Click me
+</Button>;
 ```
 
 ### Input
@@ -33,7 +35,7 @@ Displays a form input field.
 ```tsx
 import { Input } from "@/components/ui/input";
 
-<Input type="text" placeholder="Enter text..." />
+<Input type="text" placeholder="Enter text..." />;
 ```
 
 ### Label
@@ -45,7 +47,7 @@ Renders an accessible label associated with controls.
 ```tsx
 import { Label } from "@/components/ui/label";
 
-<Label htmlFor="email">Email</Label>
+<Label htmlFor="email">Email</Label>;
 ```
 
 ## Overlays
@@ -74,7 +76,7 @@ import {
       <DialogDescription>This action cannot be undone.</DialogDescription>
     </DialogHeader>
   </DialogContent>
-</Dialog>
+</Dialog>;
 ```
 
 ### Sheet
@@ -103,7 +105,7 @@ import {
       <SheetDescription>Make changes to your profile here.</SheetDescription>
     </SheetHeader>
   </SheetContent>
-</Sheet>
+</Sheet>;
 ```
 
 ### Drawer
@@ -135,7 +137,7 @@ import {
       <DrawerClose>Cancel</DrawerClose>
     </DrawerFooter>
   </DrawerContent>
-</Drawer>
+</Drawer>;
 ```
 
 ### Popover
@@ -154,7 +156,7 @@ import {
 <Popover>
   <PopoverTrigger>Open</PopoverTrigger>
   <PopoverContent>Place content for the popover here.</PopoverContent>
-</Popover>
+</Popover>;
 ```
 
 ## Navigation
@@ -166,12 +168,16 @@ Displays a sidebar navigation component.
 **Install:** `npx shadcn add https://widget.aomi.dev/r/sidebar.json`
 
 ```tsx
-import { Sidebar, SidebarContent, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 
 <Sidebar>
   <SidebarTrigger />
   <SidebarContent>Navigation content</SidebarContent>
-</Sidebar>
+</Sidebar>;
 ```
 
 ### Breadcrumb
@@ -200,7 +206,7 @@ import {
       <BreadcrumbPage>Current</BreadcrumbPage>
     </BreadcrumbItem>
   </BreadcrumbList>
-</Breadcrumb>
+</Breadcrumb>;
 ```
 
 ## Feedback
@@ -221,7 +227,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
   <AlertDescription>
     You can add components and dependencies to your app using the CLI.
   </AlertDescription>
-</Alert>
+</Alert>;
 ```
 
 ### Tooltip
@@ -245,7 +251,7 @@ import {
       <p>Add to library</p>
     </TooltipContent>
   </Tooltip>
-</TooltipProvider>
+</TooltipProvider>;
 ```
 
 ### Sonner
@@ -289,7 +295,7 @@ import {
   </CardHeader>
   <CardContent>Content</CardContent>
   <CardFooter>Footer</CardFooter>
-</Card>
+</Card>;
 ```
 
 ### Badge
@@ -303,7 +309,7 @@ Displays a badge or a component that looks like a badge.
 ```tsx
 import { Badge } from "@/components/ui/badge";
 
-<Badge variant="default">Badge</Badge>
+<Badge variant="default">Badge</Badge>;
 ```
 
 ### Avatar
@@ -318,7 +324,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 <Avatar>
   <AvatarImage src="https://github.com/shadcn.png" />
   <AvatarFallback>CN</AvatarFallback>
-</Avatar>
+</Avatar>;
 ```
 
 ### Skeleton
@@ -330,7 +336,7 @@ Use to show a placeholder while content is loading.
 ```tsx
 import { Skeleton } from "@/components/ui/skeleton";
 
-<Skeleton className="w-[100px] h-[20px] rounded-full" />
+<Skeleton className="h-[20px] w-[100px] rounded-full" />;
 ```
 
 ## Layout
@@ -348,7 +354,7 @@ import { Separator } from "@/components/ui/separator";
   <div>Content 1</div>
   <Separator />
   <div>Content 2</div>
-</div>
+</div>;
 ```
 
 ### Collapsible
@@ -367,7 +373,7 @@ import {
 <Collapsible>
   <CollapsibleTrigger>Toggle</CollapsibleTrigger>
   <CollapsibleContent>Content</CollapsibleContent>
-</Collapsible>
+</Collapsible>;
 ```
 
 ### Accordion
@@ -391,7 +397,7 @@ import {
       Yes. It adheres to the WAI-ARIA design pattern.
     </AccordionContent>
   </AccordionItem>
-</Accordion>
+</Accordion>;
 ```
 
 ## Command
@@ -424,7 +430,7 @@ import {
       <CommandItem>Search Emoji</CommandItem>
     </CommandGroup>
   </CommandList>
-</Command>
+</Command>;
 ```
 
 ## Complete Component List

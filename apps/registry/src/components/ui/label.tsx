@@ -1,6 +1,6 @@
-import * as React from "react"
+import * as React from "react";
 
-import { cn } from "@aomi-labs/react"
+import { cn } from "@aomi-labs/react";
 
 const Label = React.forwardRef<
   HTMLLabelElement,
@@ -10,11 +10,11 @@ const Label = React.forwardRef<
     ref={ref}
     className={cn(
       "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
-      className
+      className,
     )}
     {...props}
   />
-))
-Label.displayName = "Label"
+));
+Label.displayName = "Label";
 
-export { Label }
+export { Label };

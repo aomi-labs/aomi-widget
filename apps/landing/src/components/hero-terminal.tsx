@@ -9,7 +9,7 @@ export function HeroTerminal() {
     "normal" | "minimized" | "expanded" | "closed"
   >("normal");
   const [lastOpenState, setLastOpenState] = useState<"normal" | "expanded">(
-    "normal"
+    "normal",
   );
   const [isMinimizing, setIsMinimizing] = useState(false);
   const [isRestoringFromMinimize, setIsRestoringFromMinimize] = useState(false);
@@ -110,12 +110,12 @@ export function HeroTerminal() {
   return (
     <>
       <div
-        className={`w-full max-w-[1500px] flex flex-col justify-start items-center ${terminalWrapperSpacing}`}
+        className={`flex w-full max-w-[1500px] flex-col items-center justify-start ${terminalWrapperSpacing}`}
       >
         {isTerminalVisible && (
           <div
             id="terminal-container"
-            className={`w-full ${terminalSizeClasses} transition-all duration-300 transform origin-bottom-left ${terminalAnimationClass}`}
+            className={`w-full ${terminalSizeClasses} origin-bottom-left transform transition-all duration-300 ${terminalAnimationClass}`}
           >
             <AomiFrame
               height="100%"
@@ -130,7 +130,7 @@ export function HeroTerminal() {
             <button
               type="button"
               onClick={handleRestoreFromClosed}
-              className="px-8 py-3 rounded-full bg-gray-200 text-gray-900 text-sm font-light font-['Bauhaus_Chez_Display_2.0'] hover:bg-gray-300 transition-colors border border-gray-300"
+              className="rounded-full border border-gray-300 bg-gray-200 px-8 py-3 font-['Bauhaus_Chez_Display_2.0'] text-sm font-light text-gray-900 transition-colors hover:bg-gray-300"
             >
               + New Conversation
             </button>
@@ -143,7 +143,7 @@ export function HeroTerminal() {
           type="button"
           aria-label="Restore terminal"
           onClick={handleRestoreFromMinimized}
-          className="fixed bottom-6 left-6 h-14 w-14 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-xl border border-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400"
+          className="fixed bottom-6 left-6 flex h-14 w-14 items-center justify-center rounded-full border border-gray-700 bg-gray-900 text-white shadow-xl focus:ring-2 focus:ring-gray-400 focus:outline-none"
         >
           <span className="text-2xl">{"\u{1F4AC}"}</span>
         </button>

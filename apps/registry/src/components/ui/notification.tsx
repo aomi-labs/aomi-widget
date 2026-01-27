@@ -13,7 +13,9 @@ export function NotificationToaster() {
   const shownRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const activeIds = new Set(notifications.map((notification) => notification.id));
+    const activeIds = new Set(
+      notifications.map((notification) => notification.id),
+    );
     for (const id of shownRef.current) {
       if (!activeIds.has(id)) {
         shownRef.current.delete(id);
@@ -32,14 +34,12 @@ export function NotificationToaster() {
 
 function showToast(
   notification: Notification,
-  dismissNotification: (id: string) => void
+  dismissNotification: (id: string) => void,
 ) {
-  const duration = notification.duration ?? 5000;
-  const toastDuration = duration <= 0 ? Infinity : duration;
   const options = {
     id: notification.id,
-    description: notification.message,
-    duration: toastDuration,
+    description: notification.title,
+    duration: Infinity,
     onDismiss: () => dismissNotification(notification.id),
   };
 

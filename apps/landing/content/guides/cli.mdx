@@ -87,15 +87,15 @@ echo "Balance: $ETH_BALANCE"
 
 ## Command-Line Options
 
-| Option | Short | Description | Default |
-|--------|-------|-------------|---------|
-| `--prompt <TEXT>` | `-p` | Single prompt mode | - |
-| `--backend <NAME>` | | Select backend | `default` |
-| `--no-docs` | | Skip loading documentation | false |
-| `--skip-mcp` | | Skip MCP connections | false |
-| `--debug-file <PATH>` | | Write debug logs to file | - |
-| `--log-level <LEVEL>` | | Log filter level | `debug` |
-| `--show-tool` | | Show full tool output | false |
+| Option                | Short | Description                | Default   |
+| --------------------- | ----- | -------------------------- | --------- |
+| `--prompt <TEXT>`     | `-p`  | Single prompt mode         | -         |
+| `--backend <NAME>`    |       | Select backend             | `default` |
+| `--no-docs`           |       | Skip loading documentation | false     |
+| `--skip-mcp`          |       | Skip MCP connections       | false     |
+| `--debug-file <PATH>` |       | Write debug logs to file   | -         |
+| `--log-level <LEVEL>` |       | Log filter level           | `debug`   |
+| `--show-tool`         |       | Show full tool output      | false     |
 
 ### Examples
 
@@ -120,12 +120,12 @@ aomi-cli --show-tool
 
 Inside interactive mode, use `:` prefix for commands:
 
-| Command | Description |
-|---------|-------------|
-| `:help` | Show available commands |
+| Command           | Description                          |
+| ----------------- | ------------------------------------ |
+| `:help`           | Show available commands              |
 | `:backend <name>` | Switch backend (default, l2b, forge) |
-| `:test-events` | Emit mock system events (debugging) |
-| `:exit` / `:quit` | Exit the CLI |
+| `:test-events`    | Emit mock system events (debugging)  |
+| `:exit` / `:quit` | Exit the CLI                         |
 
 ### Switching Backends
 
@@ -199,18 +199,18 @@ aomi-cli --backend forge
 
 ### Required
 
-| Variable | Description |
-|----------|-------------|
+| Variable            | Description            |
+| ------------------- | ---------------------- |
 | `ANTHROPIC_API_KEY` | Claude API key for LLM |
 
 ### Optional
 
-| Variable | Description |
-|----------|-------------|
-| `BRAVE_SEARCH_API_KEY` | Enable web search |
-| `ETHERSCAN_API_KEY` | Contract data lookups |
-| `ALCHEMY_API_KEY` | RPC endpoint access |
-| `BAML_SERVER_URL` | Structured AI server |
+| Variable               | Description           |
+| ---------------------- | --------------------- |
+| `BRAVE_SEARCH_API_KEY` | Enable web search     |
+| `ETHERSCAN_API_KEY`    | Contract data lookups |
+| `ALCHEMY_API_KEY`      | RPC endpoint access   |
+| `BAML_SERVER_URL`      | Structured AI server  |
 
 ### Setup
 
