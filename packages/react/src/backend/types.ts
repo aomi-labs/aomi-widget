@@ -67,9 +67,6 @@ export interface ApiThread {
   session_id: string;
   title: string;
   is_archived?: boolean;
-  created_at?: string;
-  updated_at?: string;
-  last_active_at?: string;
 }
 
 /**

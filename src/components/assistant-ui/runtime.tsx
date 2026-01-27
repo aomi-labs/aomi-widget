@@ -280,9 +280,6 @@ export function AomiRuntimeProvider({
           const rawTitle = thread.title ?? "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive =
-            thread.last_active_at ||
-            thread.updated_at ||
-            thread.created_at ||
             newMetadata.get(thread.session_id)?.lastActiveAt ||
             new Date().toISOString();
           newMetadata.set(thread.session_id, {
