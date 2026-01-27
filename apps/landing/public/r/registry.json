@@ -13,14 +13,16 @@
           "path": "components/aomi-frame.tsx"
         }
       ],
-      "dependencies": ["@aomi-labs/react"],
+      "dependencies": [
+        "@aomi-labs/react"
+      ],
       "registryDependencies": [
         "https://widget.aomi.dev/r/assistant-thread.json",
         "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://widget.aomi.dev/r/notification.json",
-        "sidebar",
         "separator",
-        "breadcrumb"
+        "breadcrumb",
+        "sidebar"
       ]
     },
     {
@@ -58,7 +60,10 @@
           "path": "components/assistant-ui/thread-list.tsx"
         }
       ],
-      "dependencies": ["@assistant-ui/react", "lucide-react"],
+      "dependencies": [
+        "@assistant-ui/react",
+        "lucide-react"
+      ],
       "registryDependencies": [
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "button",
@@ -75,7 +80,9 @@
           "path": "components/assistant-ui/threadlist-sidebar.tsx"
         }
       ],
-      "dependencies": ["lucide-react"],
+      "dependencies": [
+        "lucide-react"
+      ],
       "registryDependencies": [
         "https://widget.aomi.dev/r/assistant-thread-list.json",
         "sidebar"
@@ -91,8 +98,13 @@
           "path": "components/assistant-ui/tool-fallback.tsx"
         }
       ],
-      "dependencies": ["@assistant-ui/react", "lucide-react"],
-      "registryDependencies": ["button"]
+      "dependencies": [
+        "@assistant-ui/react",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button"
+      ]
     },
     {
       "name": "notification",
@@ -104,8 +116,13 @@
           "path": "components/ui/notification.tsx"
         }
       ],
-      "dependencies": ["@aomi-labs/react", "sonner"],
-      "registryDependencies": ["https://widget.aomi.dev/r/sonner.json"]
+      "dependencies": [
+        "@aomi-labs/react",
+        "sonner"
+      ],
+      "registryDependencies": [
+        "https://widget.aomi.dev/r/sonner.json"
+      ]
     },
     {
       "name": "sonner",
@@ -117,7 +134,295 @@
           "path": "components/ui/sonner.tsx"
         }
       ],
-      "dependencies": ["sonner"],
+      "dependencies": [
+        "sonner"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "button",
+      "type": "registry:component",
+      "description": "Displays a button or a component that looks like a button.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/button.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-slot",
+        "class-variance-authority"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "input",
+      "type": "registry:component",
+      "description": "Displays a form input field or a component that looks like an input field.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/input.tsx"
+        }
+      ],
+      "dependencies": [],
+      "registryDependencies": []
+    },
+    {
+      "name": "label",
+      "type": "registry:component",
+      "description": "Renders an accessible label associated with controls.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/label.tsx"
+        }
+      ],
+      "dependencies": [],
+      "registryDependencies": []
+    },
+    {
+      "name": "card",
+      "type": "registry:component",
+      "description": "Displays a card with header, content, and footer.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/card.tsx"
+        }
+      ],
+      "dependencies": [],
+      "registryDependencies": []
+    },
+    {
+      "name": "badge",
+      "type": "registry:component",
+      "description": "Displays a badge or a component that looks like a badge.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/badge.tsx"
+        }
+      ],
+      "dependencies": [
+        "class-variance-authority"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "avatar",
+      "type": "registry:component",
+      "description": "An image element with a fallback for representing the user.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/avatar.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-avatar"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "skeleton",
+      "type": "registry:component",
+      "description": "Use to show a placeholder while content is loading.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/skeleton.tsx"
+        }
+      ],
+      "dependencies": [],
+      "registryDependencies": []
+    },
+    {
+      "name": "tooltip",
+      "type": "registry:component",
+      "description": "A popup that displays information related to an element when the element receives keyboard focus or the mouse hovers over it.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/tooltip.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-tooltip"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "separator",
+      "type": "registry:component",
+      "description": "Visually or semantically separates content.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/separator.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-separator"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "breadcrumb",
+      "type": "registry:component",
+      "description": "Displays the path to the current resource using a hierarchy of links.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/breadcrumb.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-slot"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "sidebar",
+      "type": "registry:component",
+      "description": "Displays a sidebar navigation component.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/sidebar.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-slot",
+        "class-variance-authority"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "dialog",
+      "type": "registry:component",
+      "description": "A window overlaid on either the primary window or another dialog window.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/dialog.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-dialog",
+        "lucide-react"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "sheet",
+      "type": "registry:component",
+      "description": "Extends the Dialog component to display content that complements the main content of the screen.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/sheet.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-dialog",
+        "lucide-react"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "collapsible",
+      "type": "registry:component",
+      "description": "An interactive component which expands/collapses a panel.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/collapsible.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-collapsible"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "command",
+      "type": "registry:component",
+      "description": "Fast, composable, unstyled command menu for React.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/command.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-dialog",
+        "cmdk",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "dialog"
+      ]
+    },
+    {
+      "name": "popover",
+      "type": "registry:component",
+      "description": "Displays rich content in a portal, triggered by a button.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/popover.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-popover"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "alert",
+      "type": "registry:component",
+      "description": "Displays a callout for user attention.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/alert.tsx"
+        }
+      ],
+      "dependencies": [
+        "class-variance-authority"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "accordion",
+      "type": "registry:component",
+      "description": "A vertically stacked set of interactive headings that each reveal a section of content.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/accordion.tsx"
+        }
+      ],
+      "dependencies": [
+        "@radix-ui/react-accordion",
+        "lucide-react"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "drawer",
+      "type": "registry:component",
+      "description": "A drawer component for mobile navigation menus and similar interfaces.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/ui/drawer.tsx"
+        }
+      ],
+      "dependencies": [
+        "vaul"
+      ],
       "registryDependencies": []
     }
   ]
