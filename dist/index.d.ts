@@ -8,11 +8,7 @@ interface AomiMessage {
     content?: string;
     timestamp?: string;
     is_streaming?: boolean;
-    tool_stream?: [string, string] | null;
-    tool_result?: [string, string] | {
-        topic?: unknown;
-        content?: unknown;
-    } | null;
+    tool_result?: [string, string] | null;
 }
 /**
  * GET /api/state
@@ -23,10 +19,6 @@ interface ApiStateResponse {
     system_events?: ApiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
-    session_exists?: boolean;
-    session_id?: string;
-    rehydrated?: boolean;
-    state_source?: "db" | "memory" | string;
 }
 /**
  * POST /api/chat
@@ -37,7 +29,6 @@ interface ApiChatResponse {
     system_events?: ApiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
-    session_exists?: boolean;
 }
 /**
  * POST /api/system
@@ -59,9 +50,6 @@ interface ApiThread {
     session_id: string;
     title: string;
     is_archived?: boolean;
-    created_at?: string;
-    updated_at?: string;
-    last_active_at?: string;
 }
 /**
  * POST /api/sessions
@@ -119,7 +107,7 @@ declare function UserContextProvider({ children }: {
 
 declare class BackendApi {
     private readonly backendUrl;
-    private sseConnections;
+    private sseSubscriber;
     constructor(backendUrl: string);
     fetchState(sessionId: string, userState?: UserState): Promise<ApiStateResponse>;
     postChatMessage(sessionId: string, message: string, publicKey?: string): Promise<ApiChatResponse>;
@@ -133,7 +121,7 @@ declare class BackendApi {
     subscribeSSE(sessionId: string, onUpdate: (event: ApiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     fetchThreads(publicKey: string): Promise<ApiThread[]>;
     fetchThread(sessionId: string): Promise<ApiThread>;
-    createThread(publicKey?: string, title?: string): Promise<ApiCreateThreadResponse>;
+    createThread(threadId: string, publicKey?: string): Promise<ApiCreateThreadResponse>;
     archiveThread(sessionId: string): Promise<void>;
     unarchiveThread(sessionId: string): Promise<void>;
     deleteThread(sessionId: string): Promise<void>;

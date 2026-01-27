@@ -7,11 +7,7 @@ export interface AomiMessage {
   content?: string;
   timestamp?: string;
   is_streaming?: boolean;
-  tool_stream?: [string, string] | null;
-  tool_result?:
-    | [string, string]
-    | { topic?: unknown; content?: unknown }
-    | null;
+  tool_result?: [string, string] | null;
 }
 
 // =============================================================================
@@ -27,10 +23,6 @@ export interface ApiStateResponse {
   system_events?: ApiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
-  session_exists?: boolean;
-  session_id?: string;
-  rehydrated?: boolean;
-  state_source?: "db" | "memory" | string;
 }
 
 /**
@@ -42,7 +34,6 @@ export interface ApiChatResponse {
   system_events?: ApiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
-  session_exists?: boolean;
 }
 
 /**

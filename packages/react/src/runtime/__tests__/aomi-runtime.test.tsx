@@ -98,7 +98,6 @@ describe("AomiRuntimeProvider", () => {
   it("allows custom backend URL", () => {
     setBackendApiConfig({
       fetchState: async () => ({
-        session_exists: true,
         is_processing: false,
         messages: [],
       }),
