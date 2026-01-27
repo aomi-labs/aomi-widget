@@ -12,10 +12,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   tsconfig: "tsconfig.json",
-  external: [
-    "react",
-    "react-dom",
-    "react/jsx-runtime",
-    "@assistant-ui/react",
-  ],
+  external: ["react", "react-dom", "react/jsx-runtime", "@assistant-ui/react"],
 });

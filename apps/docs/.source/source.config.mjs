@@ -3,7 +3,7 @@ import {
   defineConfig,
   defineDocs,
   frontmatterSchema,
-  metaSchema
+  metaSchema,
 } from "fumadocs-mdx/config";
 import { rehypeCodeDefaultOptions } from "fumadocs-core/mdx-plugins";
 import { transformerTwoslash } from "fumadocs-twoslash";
@@ -15,32 +15,32 @@ var docs = defineDocs({
   docs: {
     schema: frontmatterSchema,
     postprocess: {
-      includeProcessedMarkdown: true
-    }
+      includeProcessedMarkdown: true,
+    },
   },
   meta: {
     schema: metaSchema.extend({
-      description: z.string().optional()
-    })
-  }
+      description: z.string().optional(),
+    }),
+  },
 });
 var examples = defineDocs({
   dir: "content/examples",
   docs: {
-    schema: frontmatterSchema
+    schema: frontmatterSchema,
   },
   meta: {
-    schema: metaSchema
-  }
+    schema: metaSchema,
+  },
 });
 var api = defineDocs({
   dir: "content/api",
   docs: {
-    schema: frontmatterSchema
+    schema: frontmatterSchema,
   },
   meta: {
-    schema: metaSchema
-  }
+    schema: metaSchema,
+  },
 });
 var source_config_default = defineConfig({
   mdxOptions: {
@@ -50,10 +50,10 @@ var source_config_default = defineConfig({
       langs: ["ts", "js", "html", "tsx", "mdx", "bash", "json"],
       themes: {
         light: "catppuccin-latte",
-        dark: "catppuccin-mocha"
+        dark: "catppuccin-mocha",
       },
       transformers: [
-        ...rehypeCodeDefaultOptions.transformers ?? [],
+        ...(rehypeCodeDefaultOptions.transformers ?? []),
         transformerMetaHighlight(),
         transformerTwoslash({
           typesCache: createFileSystemTypesCache(),
@@ -62,18 +62,13 @@ var source_config_default = defineConfig({
               jsx: 1,
               // JSX preserve
               paths: {
-                "@/*": ["./*"]
-              }
-            }
-          }
-        })
-      ]
-    }
-  }
+                "@/*": ["./*"],
+              },
+            },
+          },
+        }),
+      ],
+    },
+  },
 });
-export {
-  api,
-  source_config_default as default,
-  docs,
-  examples
-};
+export { api, source_config_default as default, docs, examples };

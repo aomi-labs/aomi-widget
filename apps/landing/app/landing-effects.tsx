@@ -4,17 +4,23 @@ import { useEffect } from "react";
 
 export function LandingEffects() {
   useEffect(() => {
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const prefersReduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     const elements = Array.from(document.querySelectorAll(".js-animate"));
     const dimmer = document.getElementById("bg-dim");
 
     const updateDimmer = () => {
       if (!dimmer) return;
-      const maxScroll = Math.max(300, document.body.scrollHeight - window.innerHeight);
+      const maxScroll = Math.max(
+        300,
+        document.body.scrollHeight - window.innerHeight,
+      );
       const progress = Math.min(1, window.scrollY / maxScroll);
       const opacity = 0.45 * progress;
       const blur = 10 * progress;
-      dimmer.style.backgroundColor = "rgba(0, 0, 0, " + opacity.toFixed(3) + ")";
+      dimmer.style.backgroundColor =
+        "rgba(0, 0, 0, " + opacity.toFixed(3) + ")";
       dimmer.style.backdropFilter = "blur(" + blur.toFixed(2) + "px)";
     };
 

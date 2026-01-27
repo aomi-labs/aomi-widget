@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import {
+  useAppKit,
+  useAppKitAccount,
+  useAppKitNetwork,
+} from "@reown/appkit/react";
 import { useEnsName } from "wagmi";
 import {
   Button,
@@ -10,10 +14,10 @@ import {
   SidebarMenuItem,
   formatAddress,
   getNetworkName,
-  type WalletFooterProps,
+  type UserConfig,
 } from "@aomi-labs/widget-lib";
 
-export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
+export function WalletFooter({ user, setUser }: UserConfig) {
   const { address, isConnected } = useAppKitAccount();
   const { chainId } = useAppKitNetwork();
   const { data: ensName } = useEnsName({
@@ -24,27 +28,28 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
   const { open } = useAppKit();
 
   useEffect(() => {
-    const numericChainId = typeof chainId === "string" ? Number(chainId) : chainId;
-    setWallet({
+    const numericChainId =
+      typeof chainId === "string" ? Number(chainId) : chainId;
+    setUser({
       address,
       chainId: numericChainId,
       isConnected,
       ensName: ensName ?? undefined,
     });
-  }, [address, chainId, isConnected, ensName, setWallet]);
+  }, [address, chainId, isConnected, ensName, setUser]);
 
-  const networkName = getNetworkName(wallet.chainId);
+  const networkName = getNetworkName(user.chainId);
 
   const handleClick = () => {
-    if (wallet.isConnected) {
+    if (user.isConnected) {
       void open({ view: "Account" });
     } else {
       void open({ view: "Connect" });
     }
   };
 
-  const label = wallet.isConnected
-    ? wallet.ensName ?? formatAddress(wallet.address)
+  const label = user.isConnected
+    ? (user.ensName ?? formatAddress(user.address))
     : "Connect Wallet";
 
   return (
@@ -52,13 +57,15 @@ export function WalletFooter({ wallet, setWallet }: WalletFooterProps) {
       <SidebarMenuItem>
         <SidebarMenuButton size="lg" asChild>
           <Button
-            className="w-full justify-center rounded-full text-white dark:text-black shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white dark:hover:bg-[var(--muted-foreground)] dark:hover:text-black"
+            className="w-full justify-center rounded-full text-white shadow-lg hover:bg-[var(--muted-foreground)] hover:text-white dark:text-black dark:hover:bg-[var(--muted-foreground)] dark:hover:text-black"
             onClick={handleClick}
           >
             <div className="flex items-center gap-2">
               <span className="text-sm dark:text-black/70">{label}</span>
               {networkName ? (
-                <span className="text-[11px] text-white/80 dark:text-black/70">• {networkName}</span>
+                <span className="text-[11px] text-white/80 dark:text-black/70">
+                  • {networkName}
+                </span>
               ) : null}
             </div>
           </Button>

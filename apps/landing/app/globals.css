@@ -46,7 +46,8 @@
 
 @font-face {
   font-family: "Bauhaus_Chez_Display_2.0";
-  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf") format("opentype");
+  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf")
+    format("opentype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -252,13 +253,14 @@ html {
   }
 
   .landing-button-primary {
-    @apply overflow-hidden transition-all duration-300  hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-semibold text-stone-50 bg-gradient-to-r from-[#733e83] to-[#ec6b83] rounded-full pt-3 pr-8 pb-3 pl-8 relative;
+    @apply relative flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-[#733e83] to-[#ec6b83] pt-3 pr-8 pb-3 pl-8 text-xs font-semibold text-stone-50 transition-all duration-300 hover:scale-105 active:scale-95;
     font-family: "Geist", "Inter", sans-serif;
   }
   .js-animate {
     opacity: 0;
     transform: translateY(40px);
-    transition: opacity 2.5s cubic-bezier(0.22, 1, 0.36, 1),
+    transition:
+      opacity 2.5s cubic-bezier(0.22, 1, 0.36, 1),
       transform 2.5s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform, opacity;
   }
@@ -317,7 +319,8 @@ html {
 }
 
 .docs-prose code:not(pre code) {
-  font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
 

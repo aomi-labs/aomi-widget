@@ -8,11 +8,11 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { ThreadList } from "@/components/assistant-ui/thread-list";
-import { Separator } from "@/components/ui/separator";
+} from "@aomi-labs/widget-lib/components/ui/collapsible";
+import { Button } from "@aomi-labs/widget-lib/components/ui/button";
+import { Separator } from "@aomi-labs/widget-lib/components/ui/separator";
 import { cn } from "@aomi-labs/react";
+import { ThreadList } from "@aomi-labs/widget-lib/components/assistant-ui/thread-list";
 
 type ThreadListCollapsibleProps = {
   /** Optional footer component (e.g., WalletFooter from consumer app) */
@@ -44,7 +44,7 @@ export function ThreadListCollapsible({
         setIsOpen(newOpen);
       }
     },
-    [onOpenChange]
+    [onOpenChange],
   );
 
   const isControlled = open !== undefined;
@@ -55,7 +55,7 @@ export function ThreadListCollapsible({
       className={cn(
         "flex flex-col border-r bg-background transition-all duration-200",
         collapsibleOpen ? "w-64" : "w-16",
-        className
+        className,
       )}
     >
       <Collapsible
@@ -65,13 +65,15 @@ export function ThreadListCollapsible({
       >
         {/* Header */}
         <div className="aomi-collapsible-header flex h-14 shrink-0 items-center gap-2 border-b px-3">
-          <div className="flex items-center justify-between gap-2 w-full">
+          <div className="flex w-full items-center justify-between gap-2">
             <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="shrink-0"
-                aria-label={collapsibleOpen ? "Collapse sidebar" : "Expand sidebar"}
+                aria-label={
+                  collapsibleOpen ? "Collapse sidebar" : "Expand sidebar"
+                }
               >
                 <MenuIcon className="size-5" />
               </Button>
@@ -82,7 +84,7 @@ export function ThreadListCollapsible({
                 href="https://aomi.dev"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent transition-colors"
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
               >
                 <div className="aomi-collapsible-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white">
                   <Image
@@ -90,7 +92,7 @@ export function ThreadListCollapsible({
                     alt="Aomi Logo"
                     width={28}
                     height={28}
-                    className="aomi-collapsible-header-icon size-7 ml-3"
+                    className="aomi-collapsible-header-icon ml-3 size-7"
                     priority
                   />
                 </div>
@@ -107,7 +109,7 @@ export function ThreadListCollapsible({
           {footer && (
             <>
               <Separator />
-              <div className="aomi-collapsible-footer border-t border-sm py-4 px-2">
+              <div className="aomi-collapsible-footer border-sm border-t px-2 py-4">
                 {footer}
               </div>
             </>

@@ -38,10 +38,7 @@ Your content here with full MDX support.
 
 ```json
 {
-  "pages": [
-    "existing-page",
-    "your-new-page"
-  ]
+  "pages": ["existing-page", "your-new-page"]
 }
 ```
 
@@ -53,11 +50,7 @@ Use separators in `meta.json` for visual grouping:
 
 ```json
 {
-  "pages": [
-    "---Section Title---",
-    "page-1",
-    "page-2"
-  ]
+  "pages": ["---Section Title---", "page-1", "page-2"]
 }
 ```
 
@@ -78,31 +71,24 @@ content/docs/
 
 ### Built-in Components
 
-```mdx
+````mdx
 # Callouts
+
 <Callout>This is a callout</Callout>
 
 # Tabs
+
 <Tabs>
-  <Tab title="npm">
-    ```bash
-    npm install
-    ```
-  </Tab>
-  <Tab title="pnpm">
-    ```bash
-    pnpm install
-    ```
-  </Tab>
+  <Tab title="npm">```bash npm install ```</Tab>
+  <Tab title="pnpm">```bash pnpm install ```</Tab>
 </Tabs>
 
 # Accordions
+
 <Accordions>
-  <Accordion title="Question 1">
-    Answer 1
-  </Accordion>
+  <Accordion title="Question 1">Answer 1</Accordion>
 </Accordions>
-```
+````
 
 ### Code Blocks
 
@@ -123,7 +109,7 @@ export default function Page() {
 You can import and use React components directly in MDX:
 
 ```mdx
-import { MyComponent } from '@/components/MyComponent';
+import { MyComponent } from "@/components/MyComponent";
 
 <MyComponent />
 ```

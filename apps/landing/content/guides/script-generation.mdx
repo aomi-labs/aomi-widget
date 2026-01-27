@@ -537,12 +537,12 @@ impl MultiStepApiTool for NextGroups {
 
 ### Common Errors
 
-| Error | Cause | Resolution |
-|-------|-------|------------|
-| `SourceFetchTimeout` | Etherscan rate limited | Retry with backoff |
-| `CompilationFailed` | Invalid Solidity | Check generated script |
-| `SimulationReverted` | Transaction would fail | Review parameters |
-| `DependencyNotMet` | Group executed out of order | Check depends_on |
+| Error                | Cause                       | Resolution             |
+| -------------------- | --------------------------- | ---------------------- |
+| `SourceFetchTimeout` | Etherscan rate limited      | Retry with backoff     |
+| `CompilationFailed`  | Invalid Solidity            | Check generated script |
+| `SimulationReverted` | Transaction would fail      | Review parameters      |
+| `DependencyNotMet`   | Group executed out of order | Check depends_on       |
 
 ### Recovery Strategies
 
