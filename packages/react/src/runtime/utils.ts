@@ -83,11 +83,6 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
 }
 
 function parseToolPayload(msg: AomiMessage): [string, string] | null {
-  if (msg.tool_stream && Array.isArray(msg.tool_stream)) {
-    const [topic, content] = msg.tool_stream;
-    return [String(topic), String(content ?? "")];
-  }
-
   return parseToolResult(msg.tool_result);
 }
 
@@ -108,13 +103,7 @@ function parseToolResult(
 
   if (Array.isArray(toolResult) && toolResult.length === 2) {
     const [topic, content] = toolResult;
-    return [String(topic), content];
-  }
-
-  if (typeof toolResult === "object") {
-    const topic = (toolResult as { topic?: unknown }).topic;
-    const content = (toolResult as { content?: unknown }).content;
-    return topic ? [String(topic), String(content)] : null;
+    return [String(topic), String(content ?? "")];
   }
 
   return null;

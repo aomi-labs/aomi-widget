@@ -88,7 +88,7 @@ vi.mock("../../backend/client", () => {
     fetchState = vi.fn(async (sessionId: string) => {
       return mockState.config.fetchState
         ? await mockState.config.fetchState(sessionId)
-        : { session_exists: true, is_processing: false, messages: [] };
+        : { is_processing: false, messages: [] };
     });
 
     createThread = vi.fn(async (threadId: string, publicKey?: string) => {
@@ -100,7 +100,7 @@ vi.mock("../../backend/client", () => {
     postChatMessage = vi.fn(async (sessionId: string, message: string) => {
       return mockState.config.postChatMessage
         ? await mockState.config.postChatMessage(sessionId, message)
-        : { session_exists: true, is_processing: true, messages: [] };
+        : { is_processing: true, messages: [] };
     });
 
     postSystemMessage = vi.fn(async (sessionId: string, message: string) => {
@@ -112,7 +112,7 @@ vi.mock("../../backend/client", () => {
     postInterrupt = vi.fn(async (sessionId: string) => {
       return mockState.config.postInterrupt
         ? await mockState.config.postInterrupt(sessionId)
-        : { session_exists: true, is_processing: false, messages: [] };
+        : { is_processing: false, messages: [] };
     });
 
     renameThread = vi.fn(async (sessionId: string, title: string) => {

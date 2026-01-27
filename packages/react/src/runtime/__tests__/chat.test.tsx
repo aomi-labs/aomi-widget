@@ -28,7 +28,6 @@ describe("Chat API", () => {
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
         async (): Promise<ApiChatResponse> => ({
-          session_exists: true,
           is_processing: true,
           messages: [],
         }),

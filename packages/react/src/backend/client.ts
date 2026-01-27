@@ -161,7 +161,7 @@ export class BackendApi {
     threadId: string,
     publicKey?: string,
   ): Promise<ApiCreateThreadResponse> {
-    const body: Record<string, string> = { session_id: threadId };
+    const body: Record<string, string> = {};
     if (publicKey) body.public_key = publicKey;
 
     const url = `${this.backendUrl}/api/sessions`;

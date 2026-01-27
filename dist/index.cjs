@@ -58,23 +58,7 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 
-// packages/react/src/backend/client.ts
-var SESSION_ID_HEADER = "X-Session-Id";
-var shouldLogSse = process.env.NODE_ENV !== "production";
-function toQueryString(payload) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === void 0 || value === null) continue;
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
-}
-function withSessionHeader(sessionId, init) {
-  const headers = new Headers(init);
-  headers.set(SESSION_ID_HEADER, sessionId);
-  return headers;
-}
+// packages/react/src/backend/sse.ts
 function extractSseData(rawEvent) {
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
   if (!dataLines.length) return null;
@@ -105,6 +89,177 @@ async function readSseStream(stream, signal, onMessage) {
     reader.releaseLock();
   }
 }
+function createSseSubscriber({
+  backendUrl,
+  getHeaders,
+  shouldLog = process.env.NODE_ENV !== "production"
+}) {
+  const subscriptions = /* @__PURE__ */ new Map();
+  const subscribe2 = (sessionId, onUpdate, onError) => {
+    const existing = subscriptions.get(sessionId);
+    const listener = { onUpdate, onError };
+    if (existing) {
+      existing.listeners.add(listener);
+      if (shouldLog) {
+        console.debug("[aomi][sse] listener added", {
+          sessionId,
+          listeners: existing.listeners.size
+        });
+      }
+      return () => {
+        existing.listeners.delete(listener);
+        if (shouldLog) {
+          console.debug("[aomi][sse] listener removed", {
+            sessionId,
+            listeners: existing.listeners.size
+          });
+        }
+        if (existing.listeners.size === 0) {
+          existing.stop("unsubscribe");
+          if (subscriptions.get(sessionId) === existing) {
+            subscriptions.delete(sessionId);
+          }
+        }
+      };
+    }
+    const subscription = {
+      abortController: null,
+      retries: 0,
+      retryTimer: null,
+      stopped: false,
+      listeners: /* @__PURE__ */ new Set([listener]),
+      stop: (reason) => {
+        var _a;
+        subscription.stopped = true;
+        if (subscription.retryTimer) {
+          clearTimeout(subscription.retryTimer);
+          subscription.retryTimer = null;
+        }
+        (_a = subscription.abortController) == null ? void 0 : _a.abort();
+        subscription.abortController = null;
+        if (shouldLog) {
+          console.debug("[aomi][sse] stop", {
+            sessionId,
+            reason,
+            retries: subscription.retries
+          });
+        }
+      }
+    };
+    const scheduleRetry = () => {
+      if (subscription.stopped) return;
+      subscription.retries += 1;
+      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
+      if (shouldLog) {
+        console.debug("[aomi][sse] retry scheduled", {
+          sessionId,
+          delayMs,
+          retries: subscription.retries
+        });
+      }
+      subscription.retryTimer = setTimeout(() => {
+        void open();
+      }, delayMs);
+    };
+    const open = async () => {
+      var _a;
+      if (subscription.stopped) return;
+      if (subscription.retryTimer) {
+        clearTimeout(subscription.retryTimer);
+        subscription.retryTimer = null;
+      }
+      const controller = new AbortController();
+      subscription.abortController = controller;
+      const openedAt = Date.now();
+      try {
+        const response = await fetch(`${backendUrl}/api/updates`, {
+          headers: getHeaders(sessionId),
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          throw new Error(
+            `SSE HTTP ${response.status}: ${response.statusText}`
+          );
+        }
+        if (!response.body) {
+          throw new Error("SSE response missing body");
+        }
+        subscription.retries = 0;
+        await readSseStream(response.body, controller.signal, (data) => {
+          var _a2, _b;
+          let parsed;
+          try {
+            parsed = JSON.parse(data);
+          } catch (error) {
+            for (const item of subscription.listeners) {
+              (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
+            }
+            return;
+          }
+          for (const item of subscription.listeners) {
+            try {
+              item.onUpdate(parsed);
+            } catch (error) {
+              (_b = item.onError) == null ? void 0 : _b.call(item, error);
+            }
+          }
+        });
+        if (shouldLog) {
+          console.debug("[aomi][sse] stream ended", {
+            sessionId,
+            aborted: controller.signal.aborted,
+            stopped: subscription.stopped,
+            durationMs: Date.now() - openedAt
+          });
+        }
+      } catch (error) {
+        if (!controller.signal.aborted && !subscription.stopped) {
+          for (const item of subscription.listeners) {
+            (_a = item.onError) == null ? void 0 : _a.call(item, error);
+          }
+        }
+      }
+      if (!subscription.stopped) {
+        scheduleRetry();
+      }
+    };
+    subscriptions.set(sessionId, subscription);
+    void open();
+    return () => {
+      subscription.listeners.delete(listener);
+      if (shouldLog) {
+        console.debug("[aomi][sse] listener removed", {
+          sessionId,
+          listeners: subscription.listeners.size
+        });
+      }
+      if (subscription.listeners.size === 0) {
+        subscription.stop("unsubscribe");
+        if (subscriptions.get(sessionId) === subscription) {
+          subscriptions.delete(sessionId);
+        }
+      }
+    };
+  };
+  return { subscribe: subscribe2 };
+}
+
+// packages/react/src/backend/client.ts
+var SESSION_ID_HEADER = "X-Session-Id";
+function toQueryString(payload) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === void 0 || value === null) continue;
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+function withSessionHeader(sessionId, init) {
+  const headers = new Headers(init);
+  headers.set(SESSION_ID_HEADER, sessionId);
+  return headers;
+}
 async function postState(backendUrl, path, payload, sessionId) {
   const query = toQueryString(payload);
   const url = `${backendUrl}${path}${query}`;
@@ -120,7 +275,10 @@ async function postState(backendUrl, path, payload, sessionId) {
 var BackendApi = class {
   constructor(backendUrl) {
     this.backendUrl = backendUrl;
-    this.sseConnections = /* @__PURE__ */ new Map();
+    this.sseSubscriber = createSseSubscriber({
+      backendUrl,
+      getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" })
+    });
   }
   async fetchState(sessionId, userState) {
     const url = new URL("/api/state", this.backendUrl);
@@ -170,152 +328,7 @@ var BackendApi = class {
    * Returns an unsubscribe function.
    */
   subscribeSSE(sessionId, onUpdate, onError) {
-    const existing = this.sseConnections.get(sessionId);
-    const listener = { onUpdate, onError };
-    if (existing) {
-      existing.listeners.add(listener);
-      if (shouldLogSse) {
-        console.debug("[aomi][sse] listener added", {
-          sessionId,
-          listeners: existing.listeners.size
-        });
-      }
-      return () => {
-        existing.listeners.delete(listener);
-        if (shouldLogSse) {
-          console.debug("[aomi][sse] listener removed", {
-            sessionId,
-            listeners: existing.listeners.size
-          });
-        }
-        if (existing.listeners.size === 0) {
-          existing.stop("unsubscribe");
-          if (this.sseConnections.get(sessionId) === existing) {
-            this.sseConnections.delete(sessionId);
-          }
-        }
-      };
-    }
-    const subscription = {
-      abortController: null,
-      retries: 0,
-      retryTimer: null,
-      stopped: false,
-      listeners: /* @__PURE__ */ new Set([listener]),
-      stop: (reason) => {
-        var _a;
-        subscription.stopped = true;
-        if (subscription.retryTimer) {
-          clearTimeout(subscription.retryTimer);
-          subscription.retryTimer = null;
-        }
-        (_a = subscription.abortController) == null ? void 0 : _a.abort();
-        subscription.abortController = null;
-        if (shouldLogSse) {
-          console.debug("[aomi][sse] stop", {
-            sessionId,
-            reason,
-            retries: subscription.retries
-          });
-        }
-      }
-    };
-    const scheduleRetry = () => {
-      if (subscription.stopped) return;
-      subscription.retries += 1;
-      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
-      if (shouldLogSse) {
-        console.debug("[aomi][sse] retry scheduled", {
-          sessionId,
-          delayMs,
-          retries: subscription.retries
-        });
-      }
-      subscription.retryTimer = setTimeout(() => {
-        void open();
-      }, delayMs);
-    };
-    const open = async () => {
-      var _a;
-      if (subscription.stopped) return;
-      if (subscription.retryTimer) {
-        clearTimeout(subscription.retryTimer);
-        subscription.retryTimer = null;
-      }
-      const controller = new AbortController();
-      subscription.abortController = controller;
-      const openedAt = Date.now();
-      try {
-        const response = await fetch(`${this.backendUrl}/api/updates`, {
-          headers: withSessionHeader(sessionId, {
-            Accept: "text/event-stream"
-          }),
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          throw new Error(
-            `SSE HTTP ${response.status}: ${response.statusText}`
-          );
-        }
-        if (!response.body) {
-          throw new Error("SSE response missing body");
-        }
-        subscription.retries = 0;
-        await readSseStream(response.body, controller.signal, (data) => {
-          var _a2, _b;
-          let parsed;
-          try {
-            parsed = JSON.parse(data);
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
-            }
-            return;
-          }
-          for (const item of subscription.listeners) {
-            try {
-              item.onUpdate(parsed);
-            } catch (error) {
-              (_b = item.onError) == null ? void 0 : _b.call(item, error);
-            }
-          }
-        });
-        if (shouldLogSse) {
-          console.debug("[aomi][sse] stream ended", {
-            sessionId,
-            aborted: controller.signal.aborted,
-            stopped: subscription.stopped,
-            durationMs: Date.now() - openedAt
-          });
-        }
-      } catch (error) {
-        if (!controller.signal.aborted && !subscription.stopped) {
-          for (const item of subscription.listeners) {
-            (_a = item.onError) == null ? void 0 : _a.call(item, error);
-          }
-        }
-      }
-      if (!subscription.stopped) {
-        scheduleRetry();
-      }
-    };
-    this.sseConnections.set(sessionId, subscription);
-    void open();
-    return () => {
-      subscription.listeners.delete(listener);
-      if (shouldLogSse) {
-        console.debug("[aomi][sse] listener removed", {
-          sessionId,
-          listeners: subscription.listeners.size
-        });
-      }
-      if (subscription.listeners.size === 0) {
-        subscription.stop("unsubscribe");
-        if (this.sseConnections.get(sessionId) === subscription) {
-          this.sseConnections.delete(sessionId);
-        }
-      }
-    };
+    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
   }
   async fetchThreads(publicKey) {
     const url = `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
@@ -335,14 +348,15 @@ var BackendApi = class {
     }
     return await response.json();
   }
-  async createThread(publicKey, title) {
+  async createThread(threadId, publicKey) {
     const body = {};
     if (publicKey) body.public_key = publicKey;
-    if (title) body.title = title;
     const url = `${this.backendUrl}/api/sessions`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withSessionHeader(threadId, {
+        "Content-Type": "application/json"
+      }),
       body: JSON.stringify(body)
     });
     if (!response.ok) {
@@ -430,109 +444,6 @@ function isAsyncCallback(event) {
   return "AsyncCallback" in event;
 }
 
-// packages/react/src/runtime/utils.ts
-var import_clsx = require("clsx");
-var import_tailwind_merge = require("tailwind-merge");
-function cn(...inputs) {
-  return (0, import_tailwind_merge.twMerge)((0, import_clsx.clsx)(inputs));
-}
-var isTempThreadId = (id) => id.startsWith("temp-");
-var parseTimestamp = (value) => {
-  if (value === void 0 || value === null) return 0;
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
-  }
-  const numeric = Number(value);
-  if (!Number.isNaN(numeric)) {
-    return numeric < 1e12 ? numeric * 1e3 : numeric;
-  }
-  const ts = Date.parse(value);
-  return Number.isNaN(ts) ? 0 : ts;
-};
-var isPlaceholderTitle = (title) => {
-  var _a;
-  const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
-  return !normalized || normalized.startsWith("#[");
-};
-function toInboundMessage(msg) {
-  var _a;
-  if (msg.sender === "system") return null;
-  const content = [];
-  const role = msg.sender === "user" ? "user" : "assistant";
-  if (msg.content) {
-    content.push({ type: "text", text: msg.content });
-  }
-  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
-  if (topic && toolContent) {
-    content.push({
-      type: "tool-call",
-      toolCallId: `tool_${Date.now()}`,
-      toolName: topic,
-      args: void 0,
-      result: (() => {
-        try {
-          return JSON.parse(toolContent);
-        } catch (e) {
-          return { args: toolContent };
-        }
-      })()
-    });
-  }
-  const threadMessage = __spreadValues({
-    role,
-    content: content.length > 0 ? content : [{ type: "text", text: "" }]
-  }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
-  return threadMessage;
-}
-function parseToolPayload(msg) {
-  if (msg.tool_stream && Array.isArray(msg.tool_stream)) {
-    const [topic, content] = msg.tool_stream;
-    return [String(topic), String(content != null ? content : "")];
-  }
-  return parseToolResult(msg.tool_result);
-}
-function parseToolResult(toolResult) {
-  if (!toolResult) return null;
-  if (Array.isArray(toolResult) && toolResult.length === 2) {
-    const [topic, content] = toolResult;
-    return [String(topic), content];
-  }
-  if (typeof toolResult === "object") {
-    const topic = toolResult.topic;
-    const content = toolResult.content;
-    return topic ? [String(topic), String(content)] : null;
-  }
-  return null;
-}
-var getNetworkName = (chainId) => {
-  if (chainId === void 0) return "";
-  const id = typeof chainId === "string" ? Number(chainId) : chainId;
-  switch (id) {
-    case 1:
-      return "ethereum";
-    case 137:
-      return "polygon";
-    case 42161:
-      return "arbitrum";
-    case 8453:
-      return "base";
-    case 10:
-      return "optimism";
-    case 11155111:
-      return "sepolia";
-    case 1337:
-    case 31337:
-      return "testnet";
-    case 59140:
-      return "linea-sepolia";
-    case 59144:
-      return "linea";
-    default:
-      return "testnet";
-  }
-};
-var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-
 // packages/react/src/state/event-buffer.ts
 function createEventBuffer() {
   return {
@@ -601,11 +512,6 @@ function EventContextProvider({
   const buffer = bufferRef.current;
   const [sseStatus, setSseStatus] = (0, import_react.useState)("disconnected");
   (0, import_react.useEffect)(() => {
-    if (isTempThreadId(sessionId)) {
-      setSSEStatus(buffer, "disconnected");
-      setSseStatus("disconnected");
-      return;
-    }
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
     const unsubscribe = backendApi.subscribeSSE(
@@ -1015,10 +921,102 @@ var import_react8 = require("@assistant-ui/react");
 // packages/react/src/runtime/orchestrator.ts
 var import_react5 = require("react");
 
+// packages/react/src/runtime/utils.ts
+var import_clsx = require("clsx");
+var import_tailwind_merge = require("tailwind-merge");
+function cn(...inputs) {
+  return (0, import_tailwind_merge.twMerge)((0, import_clsx.clsx)(inputs));
+}
+var parseTimestamp = (value) => {
+  if (value === void 0 || value === null) return 0;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value < 1e12 ? value * 1e3 : value : 0;
+  }
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric)) {
+    return numeric < 1e12 ? numeric * 1e3 : numeric;
+  }
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+};
+var isPlaceholderTitle = (title) => {
+  var _a;
+  const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
+  return !normalized || normalized.startsWith("#[");
+};
+function toInboundMessage(msg) {
+  var _a;
+  if (msg.sender === "system") return null;
+  const content = [];
+  const role = msg.sender === "user" ? "user" : "assistant";
+  if (msg.content) {
+    content.push({ type: "text", text: msg.content });
+  }
+  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
+  if (topic && toolContent) {
+    content.push({
+      type: "tool-call",
+      toolCallId: `tool_${Date.now()}`,
+      toolName: topic,
+      args: void 0,
+      result: (() => {
+        try {
+          return JSON.parse(toolContent);
+        } catch (e) {
+          return { args: toolContent };
+        }
+      })()
+    });
+  }
+  const threadMessage = __spreadValues({
+    role,
+    content: content.length > 0 ? content : [{ type: "text", text: "" }]
+  }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
+  return threadMessage;
+}
+function parseToolPayload(msg) {
+  return parseToolResult(msg.tool_result);
+}
+function parseToolResult(toolResult) {
+  if (!toolResult) return null;
+  if (Array.isArray(toolResult) && toolResult.length === 2) {
+    const [topic, content] = toolResult;
+    return [String(topic), String(content != null ? content : "")];
+  }
+  return null;
+}
+var getNetworkName = (chainId) => {
+  if (chainId === void 0) return "";
+  const id = typeof chainId === "string" ? Number(chainId) : chainId;
+  switch (id) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 42161:
+      return "arbitrum";
+    case 8453:
+      return "base";
+    case 10:
+      return "optimism";
+    case 11155111:
+      return "sepolia";
+    case 1337:
+    case 31337:
+      return "testnet";
+    case 59140:
+      return "linea-sepolia";
+    case 59144:
+      return "linea";
+    default:
+      return "testnet";
+  }
+};
+var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+
 // packages/react/src/state/backend-state.ts
 function createBackendState() {
   return {
-    tempToBackendId: /* @__PURE__ */ new Map(),
     skipInitialFetch: /* @__PURE__ */ new Set(),
     pendingChat: /* @__PURE__ */ new Map(),
     runningThreads: /* @__PURE__ */ new Set(),
@@ -1027,24 +1025,10 @@ function createBackendState() {
   };
 }
 function resolveThreadId(state, threadId) {
-  var _a;
-  return (_a = state.tempToBackendId.get(threadId)) != null ? _a : threadId;
+  return threadId;
 }
 function isThreadReady(state, threadId) {
-  if (!isTempThreadId(threadId)) return true;
-  return state.tempToBackendId.has(threadId);
-}
-function setBackendMapping(state, tempId, backendId) {
-  state.tempToBackendId.set(tempId, backendId);
-  if (process.env.NODE_ENV !== "production") {
-    console.debug("[aomi][mapping] set", { tempId, backendId });
-  }
-}
-function findTempIdForBackendId(state, backendId) {
-  for (const [tempId, id] of state.tempToBackendId.entries()) {
-    if (id === backendId) return tempId;
-  }
-  return void 0;
+  return state.creatingThreadId !== threadId;
 }
 function markSkipInitialFetch(state, threadId) {
   state.skipInitialFetch.add(threadId);
@@ -1272,10 +1256,6 @@ var PollingController = class {
   }
   handleState(threadId, state) {
     var _a;
-    if (state.session_exists === false) {
-      this.stop(threadId);
-      return;
-    }
     if (((_a = state.system_events) == null ? void 0 : _a.length) && this.config.onSyncEvents) {
       const backendState = this.config.backendStateRef.current;
       const sessionId = resolveThreadId(backendState, threadId);
@@ -1443,7 +1423,6 @@ function buildThreadListAdapter({
         return next;
       });
       backendState.pendingChat.delete(previousPendingId);
-      backendState.tempToBackendId.delete(previousPendingId);
       backendState.skipInitialFetch.delete(previousPendingId);
     }
     backendState.creatingThreadId = threadId;
@@ -1480,27 +1459,30 @@ function buildThreadListAdapter({
       }
       if (backendState.createThreadPromise) {
         preparePendingThread(
-          (_a = backendState.creatingThreadId) != null ? _a : `temp-${crypto.randomUUID()}`
+          (_a = backendState.creatingThreadId) != null ? _a : crypto.randomUUID()
         );
         return;
       }
-      const tempId = `temp-${crypto.randomUUID()}`;
-      preparePendingThread(tempId);
-      const createPromise = backendApiRef.current.createThread(userAddress, void 0).then(async (newThread) => {
+      const threadId = crypto.randomUUID();
+      preparePendingThread(threadId);
+      const createPromise = backendApiRef.current.createThread(threadId, userAddress).then(async (newThread) => {
         var _a2;
-        const uiThreadId = (_a2 = backendState.creatingThreadId) != null ? _a2 : tempId;
+        const uiThreadId = (_a2 = backendState.creatingThreadId) != null ? _a2 : threadId;
         const backendId = newThread.session_id;
-        setBackendMapping(backendState, uiThreadId, backendId);
+        if (uiThreadId !== backendId) {
+          console.warn("[aomi][thread] backend id mismatch", {
+            uiThreadId,
+            backendId
+          });
+        }
         markSkipInitialFetch(backendState, uiThreadId);
-        const backendTitle = newThread.title;
         threadContext.setThreadMetadata((prev) => {
           var _a3, _b;
           const next = new Map(prev);
           const existing = next.get(uiThreadId);
           const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-          const nextTitle = backendTitle && !isPlaceholderTitle(backendTitle) ? backendTitle : (_a3 = existing == null ? void 0 : existing.title) != null ? _a3 : "New Chat";
           next.set(uiThreadId, {
-            title: nextTitle,
+            title: (_a3 = existing == null ? void 0 : existing.title) != null ? _a3 : "New Chat",
             status: nextStatus,
             lastActiveAt: (_b = existing == null ? void 0 : existing.lastActiveAt) != null ? _b : (/* @__PURE__ */ new Date()).toISOString()
           });
@@ -1526,7 +1508,7 @@ function buildThreadListAdapter({
       }).catch((error) => {
         var _a2;
         console.error("Failed to create new thread:", error);
-        const failedId = (_a2 = backendState.creatingThreadId) != null ? _a2 : tempId;
+        const failedId = (_a2 = backendState.creatingThreadId) != null ? _a2 : threadId;
         threadContext.setThreadMetadata((prev) => {
           const next = new Map(prev);
           next.delete(failedId);
@@ -1596,7 +1578,6 @@ function buildThreadListAdapter({
           return next;
         });
         backendState.pendingChat.delete(threadId);
-        backendState.tempToBackendId.delete(threadId);
         backendState.skipInitialFetch.delete(threadId);
         backendState.runningThreads.delete(threadId);
         if (backendState.creatingThreadId === threadId) {
@@ -1720,7 +1701,7 @@ function AomiRuntimeCore({
         for (const thread of threadList) {
           const rawTitle = (_a = thread.title) != null ? _a : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
-          const lastActive = thread.last_active_at || thread.updated_at || thread.created_at || ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
+          const lastActive = ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
@@ -1778,12 +1759,11 @@ function AomiRuntimeCore({
     const unsubscribe = backendApiRef.current.subscribeSSE(
       resolvedSessionId,
       (event) => {
-        var _a;
         const eventType = event.type;
         const sessionId = event.session_id;
         if (eventType === "title_changed") {
           const newTitle = event.new_title;
-          const targetThreadId = (_a = findTempIdForBackendId(backendState, sessionId)) != null ? _a : resolveThreadId(backendState, sessionId);
+          const targetThreadId = resolveThreadId(backendState, sessionId);
           const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
           if (process.env.NODE_ENV !== "production") {
             console.debug("[aomi][sse] title_changed", {
@@ -1797,14 +1777,14 @@ function AomiRuntimeCore({
             });
           }
           threadContextRef.current.setThreadMetadata((prev) => {
-            var _a2;
+            var _a;
             const next = new Map(prev);
             const existing = next.get(targetThreadId);
             const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
             next.set(targetThreadId, {
               title: normalizedTitle,
               status: nextStatus,
-              lastActiveAt: (_a2 = existing == null ? void 0 : existing.lastActiveAt) != null ? _a2 : (/* @__PURE__ */ new Date()).toISOString()
+              lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
             });
             return next;
           });
@@ -1825,7 +1805,6 @@ function AomiRuntimeCore({
   ]);
   (0, import_react7.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
-    if (!isTempThreadId(threadId)) return;
     if (!isThreadReady(backendStateRef.current, threadId)) return;
     void messageController.flushPendingChat(threadId);
   }, [messageController, backendStateRef, threadContext.currentThreadId]);

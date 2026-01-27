@@ -91,11 +91,6 @@ export class PollingController {
   }
 
   private handleState(threadId: string, state: ApiStateResponse) {
-    if (state.session_exists === false) {
-      this.stop(threadId);
-      return;
-    }
-
     // Dispatch system events (wallet_tx_request, errors, etc.)
     if (state.system_events?.length && this.config.onSyncEvents) {
       const backendState = this.config.backendStateRef.current;
