@@ -21,12 +21,12 @@ export const registry: RegistryComponent[] = [
     registryDependencies: [
       // Internal aomi components (customized)
       aomi("assistant-thread"),
-      aomi("assistant-threadlist-collapsible"),
+      aomi("assistant-threadlist-sidebar"),
       aomi("notification"),
       // shadcn primitives
-      "collapsible",
       "separator",
       "breadcrumb",
+      "sidebar",
     ],
     description: "Full assistant shell with thread list and runtime wiring.",
   },
@@ -70,19 +70,7 @@ export const registry: RegistryComponent[] = [
     registryDependencies: [aomi("assistant-thread-list"), "sidebar"],
     description: "Sidebar shell for thread navigation and wallet footer slot.",
   },
-  {
-    name: "assistant-threadlist-collapsible",
-    file: "components/assistant-ui/threadlist-collapsible.tsx",
-    dependencies: ["lucide-react", "next"],
-    registryDependencies: [
-      aomi("assistant-thread-list"),
-      "collapsible",
-      "button",
-      "separator",
-    ],
-    description:
-      "Collapsible shell for thread navigation and wallet footer slot.",
-  },
+
   {
     name: "assistant-tool-fallback",
     file: "components/assistant-ui/tool-fallback.tsx",
