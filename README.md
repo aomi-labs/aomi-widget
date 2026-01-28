@@ -35,6 +35,7 @@ The landing/demo app lives in `apps/landing/` and imports the built library. Re-
 ## Env
 
 Create `.env` with your Web3 Project ID from https://docs.reown.com/ and URL endpoint of your backend:
+
 ```
 NEXT_PUBLIC_PROJECT_ID=000000000000000000000000
 NEXT_PUBLIC_BACKEND_URL=http://example.app.com

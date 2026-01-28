@@ -25,7 +25,7 @@ const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        className="aui-thread-list-new flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start hover:bg-muted data-active:bg-muted"
+        className="aui-thread-list-new hover:bg-muted data-active:bg-muted flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start"
         variant="ghost"
       >
         <PlusIcon />
@@ -65,7 +65,7 @@ const ThreadListSkeleton: FC = () => {
 
 const ThreadListItem: FC = () => {
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item flex items-center gap-2 rounded-lg transition-all hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-muted">
+    <ThreadListItemPrimitive.Root className="aui-thread-list-item hover:bg-muted focus-visible:bg-muted focus-visible:ring-ring data-active:bg-muted flex items-center gap-2 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2">
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex-grow px-3 py-2 text-start">
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
@@ -86,12 +86,12 @@ const ThreadListItemDelete: FC = () => {
   return (
     <ThreadListItemPrimitive.Delete asChild>
       <TooltipIconButton
-        className="aui-thread-list-item-delete mr-3 ml-auto size-4 p-0 text-foreground hover:text-primary"
+        className="aui-thread-list-item-delete text-foreground hover:text-primary ml-auto mr-3 size-4 p-0"
         variant="ghost"
         tooltip="Delete thread"
         onClick={(event) => {
           const confirmed = window.confirm(
-            "Delete this chat? This action cannot be undone."
+            "Delete this chat? This action cannot be undone.",
           );
           if (!confirmed) {
             event.preventDefault();

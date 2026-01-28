@@ -46,7 +46,8 @@
 
 @font-face {
   font-family: "Bauhaus_Chez_Display_2.0";
-  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf") format("opentype");
+  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf")
+    format("opentype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -106,7 +107,7 @@
     rgba(255, 255, 255, 0.05),
     transparent
   );
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 0px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
@@ -250,17 +251,16 @@ html {
   .perspective-1000 {
     perspective: 1000px;
   }
-  .glass-card {
-    @apply flex transition-all duration-300 backdrop-blur-[40px] hover:bg-white/10 cursor-default bg-white/10 border-white/20 border-0 rounded-xl ring-white/20 ring-1 pt-2 pr-4 pb-2 pl-4;
-  }
+
   .landing-button-primary {
-    @apply overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-semibold text-stone-50 bg-gradient-to-r from-[#733e83] to-[#ec6b83] ring-1 rounded-full pt-3 pr-8 pb-3 pl-8 relative shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)];
+    @apply relative flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-[#733e83] to-[#ec6b83] pt-3 pr-8 pb-3 pl-8 text-xs font-semibold text-stone-50 transition-all duration-300 hover:scale-105 active:scale-95;
     font-family: "Geist", "Inter", sans-serif;
   }
   .js-animate {
     opacity: 0;
     transform: translateY(40px);
-    transition: opacity 2.5s cubic-bezier(0.22, 1, 0.36, 1),
+    transition:
+      opacity 2.5s cubic-bezier(0.22, 1, 0.36, 1),
       transform 2.5s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform, opacity;
   }
@@ -319,8 +319,23 @@ html {
 }
 
 .docs-prose code:not(pre code) {
-  font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
+}
+
+/* ============================================
+   Composer Input Text Color Fix
+   ============================================ */
+
+/* Force dark text color for composer input */
+.aui-composer-input,
+.aui-composer-input::placeholder {
+  color: #292524 !important; /* stone-800 */
+}
+
+.aui-composer-input::placeholder {
+  color: #78716c !important; /* stone-500 for placeholder */
 }
 
 /* ============================================

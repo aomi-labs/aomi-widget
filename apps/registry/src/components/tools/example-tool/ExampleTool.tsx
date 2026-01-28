@@ -43,7 +43,7 @@ export const ExampleTool = makeAssistantToolUI<
     return (
       <div className="my-4">
         {/* Show the tool call */}
-        <pre className="text-xs text-muted-foreground mb-2">
+        <pre className="text-muted-foreground mb-2 text-xs">
           example_tool({argsText})
         </pre>
 
@@ -57,7 +57,7 @@ export const ExampleTool = makeAssistantToolUI<
             {/* Loading state */}
             {status.type === "running" && (
               <div className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <div className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
                 <span className="text-sm">
                   Searching for &quot;{args.query}&quot;...
                 </span>
@@ -67,7 +67,7 @@ export const ExampleTool = makeAssistantToolUI<
             {/* Results */}
             {result && (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Found {result.total} results
                   {args.limit && ` (showing top ${args.limit})`}
                 </p>
@@ -76,10 +76,10 @@ export const ExampleTool = makeAssistantToolUI<
                   {result.data.map((item) => (
                     <div
                       key={item.id}
-                      className="rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                      className="hover:bg-muted/50 rounded-lg border p-3 transition-colors"
                     >
                       <h4 className="font-medium">{item.title}</h4>
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <p className="text-muted-foreground mt-1 text-sm">
                         {item.description}
                       </p>
                     </div>
@@ -90,7 +90,7 @@ export const ExampleTool = makeAssistantToolUI<
 
             {/* Error state (if your result includes error) */}
             {status.type === "incomplete" && (
-              <div className="text-sm text-destructive">
+              <div className="text-destructive text-sm">
                 Failed to complete the search
               </div>
             )}

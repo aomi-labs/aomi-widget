@@ -17,7 +17,7 @@ const notFound = () =>
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<RouteParams> }
+  { params }: { params: Promise<RouteParams> },
 ) {
   const { slug } = await params;
   const segments = slug ?? [];
@@ -35,7 +35,8 @@ export async function GET(
     return new NextResponse(content, {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control":
+          "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
       },
     });
   } catch {

@@ -1,5 +1,11 @@
 import type { AppKitNetwork } from "@reown/appkit-common";
-import { mainnet, arbitrum, optimism, base, polygon } from "@reown/appkit/networks";
+import {
+  mainnet,
+  arbitrum,
+  optimism,
+  base,
+  polygon,
+} from "@reown/appkit/networks";
 import { cookieStorage, createStorage } from "wagmi";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 
@@ -37,4 +43,3 @@ export const appKitProviderConfig = {
   },
   features: { analytics: true },
 };
-

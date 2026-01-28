@@ -27,6 +27,7 @@ Review all `.md` files in the repository root and consolidate essential informat
 ## Files to Review
 
 Look for files like:
+
 - `IMPLEMENTATION_COMPLETE.md`
 - `PROBLEM-*.md`
 - `SSE-TITLE-UPDATE.md`
@@ -44,6 +45,7 @@ Look for files like:
 ## Output
 
 After cleanup:
+
 1. List files that were deleted
 2. List files that were kept and why
 3. Summarize what was merged into each spec file

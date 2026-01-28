@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "label",
+  "type": "registry:component",
+  "description": "Renders an accessible label associated with controls.",
+  "files": [
+    {
+      "type": "registry:component",
+      "path": "components/ui/label.tsx",
+      "content": "import * as React from \"react\";\n\nimport { cn } from \"@aomi-labs/react\";\n\nconst Label = React.forwardRef<\n  HTMLLabelElement,\n  React.LabelHTMLAttributes<HTMLLabelElement>\n>(({ className, ...props }, ref) => (\n  <label\n    ref={ref}\n    className={cn(\n      \"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70\",\n      className,\n    )}\n    {...props}\n  />\n));\nLabel.displayName = \"Label\";\n\nexport { Label };\n"
+    }
+  ],
+  "dependencies": [],
+  "registryDependencies": []
+}

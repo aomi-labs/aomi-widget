@@ -20,7 +20,8 @@ export const themes: ThemeMetadata[] = [
   {
     id: "default",
     label: "Default",
-    description: "Neutral finance-friendly palette with soft gradients and AppKit-friendly overrides.",
+    description:
+      "Neutral finance-friendly palette with soft gradients and AppKit-friendly overrides.",
     cssPath: "./themes/default.css",
     preview: {
       background: "oklch(1 0 0)",
@@ -30,7 +31,8 @@ export const themes: ThemeMetadata[] = [
   },
 ];
 
-export const DEFAULT_THEME = themes.find((theme) => theme.isDefault) ?? themes[0];
+export const DEFAULT_THEME =
+  themes.find((theme) => theme.isDefault) ?? themes[0];
 
 export function getTheme(id: string): ThemeMetadata | undefined {
   return themes.find((theme) => theme.id === id);

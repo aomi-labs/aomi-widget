@@ -21,12 +21,12 @@ export const registry: RegistryComponent[] = [
     registryDependencies: [
       // Internal aomi components (customized)
       aomi("assistant-thread"),
-      aomi("assistant-threadlist-collapsible"),
+      aomi("assistant-threadlist-sidebar"),
       aomi("notification"),
       // shadcn primitives
-      "collapsible",
       "separator",
       "breadcrumb",
+      "sidebar",
     ],
     description: "Full assistant shell with thread list and runtime wiring.",
   },
@@ -67,24 +67,10 @@ export const registry: RegistryComponent[] = [
     name: "assistant-threadlist-sidebar",
     file: "components/assistant-ui/threadlist-sidebar.tsx",
     dependencies: ["lucide-react"],
-    registryDependencies: [
-      aomi("assistant-thread-list"),
-      "sidebar",
-    ],
+    registryDependencies: [aomi("assistant-thread-list"), "sidebar"],
     description: "Sidebar shell for thread navigation and wallet footer slot.",
   },
-  {
-    name: "assistant-threadlist-collapsible",
-    file: "components/assistant-ui/threadlist-collapsible.tsx",
-    dependencies: ["lucide-react", "next"],
-    registryDependencies: [
-      aomi("assistant-thread-list"),
-      "collapsible",
-      "button",
-      "separator",
-    ],
-    description: "Collapsible shell for thread navigation and wallet footer slot.",
-  },
+
   {
     name: "assistant-tool-fallback",
     file: "components/assistant-ui/tool-fallback.tsx",
@@ -97,7 +83,8 @@ export const registry: RegistryComponent[] = [
     file: "components/ui/notification.tsx",
     dependencies: ["@aomi-labs/react", "sonner"],
     registryDependencies: [aomi("sonner")],
-    description: "Notification toaster wired to the runtime notification store.",
+    description:
+      "Notification toaster wired to the runtime notification store.",
   },
   {
     name: "sonner",
@@ -116,7 +103,8 @@ export const registry: RegistryComponent[] = [
     name: "input",
     file: "components/ui/input.tsx",
     dependencies: [],
-    description: "Displays a form input field or a component that looks like an input field.",
+    description:
+      "Displays a form input field or a component that looks like an input field.",
   },
   {
     name: "label",
@@ -152,7 +140,8 @@ export const registry: RegistryComponent[] = [
     name: "tooltip",
     file: "components/ui/tooltip.tsx",
     dependencies: ["@radix-ui/react-tooltip"],
-    description: "A popup that displays information related to an element when the element receives keyboard focus or the mouse hovers over it.",
+    description:
+      "A popup that displays information related to an element when the element receives keyboard focus or the mouse hovers over it.",
   },
   {
     name: "separator",
@@ -164,7 +153,8 @@ export const registry: RegistryComponent[] = [
     name: "breadcrumb",
     file: "components/ui/breadcrumb.tsx",
     dependencies: ["@radix-ui/react-slot"],
-    description: "Displays the path to the current resource using a hierarchy of links.",
+    description:
+      "Displays the path to the current resource using a hierarchy of links.",
   },
   {
     name: "sidebar",
@@ -176,13 +166,15 @@ export const registry: RegistryComponent[] = [
     name: "dialog",
     file: "components/ui/dialog.tsx",
     dependencies: ["@radix-ui/react-dialog", "lucide-react"],
-    description: "A window overlaid on either the primary window or another dialog window.",
+    description:
+      "A window overlaid on either the primary window or another dialog window.",
   },
   {
     name: "sheet",
     file: "components/ui/sheet.tsx",
     dependencies: ["@radix-ui/react-dialog", "lucide-react"],
-    description: "Extends the Dialog component to display content that complements the main content of the screen.",
+    description:
+      "Extends the Dialog component to display content that complements the main content of the screen.",
   },
   {
     name: "collapsible",
@@ -213,12 +205,14 @@ export const registry: RegistryComponent[] = [
     name: "accordion",
     file: "components/ui/accordion.tsx",
     dependencies: ["@radix-ui/react-accordion", "lucide-react"],
-    description: "A vertically stacked set of interactive headings that each reveal a section of content.",
+    description:
+      "A vertically stacked set of interactive headings that each reveal a section of content.",
   },
   {
     name: "drawer",
     file: "components/ui/drawer.tsx",
     dependencies: ["vaul"],
-    description: "A drawer component for mobile navigation menus and similar interfaces.",
+    description:
+      "A drawer component for mobile navigation menus and similar interfaces.",
   },
 ];

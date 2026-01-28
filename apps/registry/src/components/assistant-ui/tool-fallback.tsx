@@ -23,7 +23,7 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
         </Button>
       </div>
       {!isCollapsed && (
-        <div className="aui-tool-fallback-content flex flex-col gap-2 border-t pt-2 bg-muted">
+        <div className="aui-tool-fallback-content bg-muted flex flex-col gap-2 border-t pt-2">
           <div className="aui-tool-fallback-args-root px-4">
             <pre className="aui-tool-fallback-args-value whitespace-pre-wrap">
               {argsText}

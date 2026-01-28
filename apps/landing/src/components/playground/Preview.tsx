@@ -14,7 +14,13 @@ type PreviewProps = {
   badge?: string;
 };
 
-export function Preview({ title, description, code, children, badge }: PreviewProps) {
+export function Preview({
+  title,
+  description,
+  code,
+  children,
+  badge,
+}: PreviewProps) {
   const [view, setView] = useState<"preview" | "code">("preview");
 
   return (
@@ -29,7 +35,9 @@ export function Preview({ title, description, code, children, badge }: PreviewPr
               </span>
             ) : null}
           </div>
-          {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+          {description ? (
+            <p className="text-xs text-muted-foreground">{description}</p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -54,7 +62,9 @@ export function Preview({ title, description, code, children, badge }: PreviewPr
       <CardContent className="p-0">
         {view === "preview" ? (
           <div className="relative overflow-hidden rounded-b-2xl bg-muted/30 px-5 py-6">
-            <div className={cn("relative", badge ? "pt-1" : undefined)}>{children}</div>
+            <div className={cn("relative", badge ? "pt-1" : undefined)}>
+              {children}
+            </div>
           </div>
         ) : (
           <pre className="rounded-b-2xl bg-slate-950 px-5 py-4 text-xs leading-relaxed text-slate-100">
