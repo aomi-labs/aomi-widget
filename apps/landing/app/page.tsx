@@ -6,18 +6,24 @@ import { LandingEffects } from "./landing-effects";
 
 export default function HomePage() {
   return (
-    <div className="antialiased min-h-screen overflow-x-hidden selection:bg-stone-500/30 selection:text-white text-stone-200 relative bg-[#1c1917]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#1c1917] text-stone-200 antialiased selection:bg-stone-500/30 selection:text-white">
       <div
-        className="fixed top-0 w-full h-screen bg-cover bg-center z-0 pointer-events-none"
-        style={{ backgroundImage: "url(\"/assets/hero-bg.jpg\")" }}
+        className="pointer-events-none fixed top-0 z-0 h-screen w-full bg-cover bg-center"
+        style={{ backgroundImage: 'url("/assets/hero-bg.jpg")' }}
       ></div>
       <div
         id="bg-dim"
-        className="fixed inset-0 pointer-events-none"
-        style={{ backgroundColor: "rgba(0, 0, 0, 0)", backdropFilter: "blur(0px)" }}
+        className="pointer-events-none fixed inset-0"
+        style={{
+          backgroundColor: "rgba(0, 0, 0, 0)",
+          backdropFilter: "blur(0px)",
+        }}
       ></div>
       <div className="fixed inset-0 bg-gradient-to-b from-transparent via-slate-900/10 to-slate-900/40"></div>
-      <main id="top" className="flex flex-col min-h-screen z-10 w-full relative">
+      <main
+        id="top"
+        className="relative z-10 flex min-h-screen w-full flex-col"
+      >
         <Hero />
         <Technology />
         <Solution />

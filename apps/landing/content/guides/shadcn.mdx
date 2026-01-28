@@ -58,12 +58,12 @@ A shadcn registry is a collection of **static JSON files** that describe compone
 
 When you install `aomi-frame`, dependencies come from three sources:
 
-| Source | What | Why |
-|--------|------|-----|
-| **widget.aomi.dev/r** | Customized components | Aomi-specific features (wallet, branding) |
-| **r.assistant-ui.com** | Unchanged components | Upstream maintenance, bug fixes |
-| **ui.shadcn.com** | Primitives | Button, dialog, tooltip, etc. |
-| **npm** | Packages | `@aomi-labs/react`, `@assistant-ui/react` |
+| Source                 | What                  | Why                                       |
+| ---------------------- | --------------------- | ----------------------------------------- |
+| **widget.aomi.dev/r**  | Customized components | Aomi-specific features (wallet, branding) |
+| **r.assistant-ui.com** | Unchanged components  | Upstream maintenance, bug fixes           |
+| **ui.shadcn.com**      | Primitives            | Button, dialog, tooltip, etc.             |
+| **npm**                | Packages              | `@aomi-labs/react`, `@assistant-ui/react` |
 
 ### Customized vs Upstream
 
@@ -81,10 +81,11 @@ registryDependencies: [
   // shadcn primitives
   "button",
   "sidebar",
-]
+];
 ```
 
 **Why hybrid?**
+
 - Customized components have Aomi-specific features
 - Upstream components get bug fixes automatically
 - You get the best of both worlds
@@ -140,11 +141,11 @@ Each component is described by a JSON file:
 }
 ```
 
-| Field | Purpose |
-|-------|---------|
-| `files` | Component source code and target path |
-| `dependencies` | npm packages to install |
-| `registryDependencies` | Other registry components to fetch |
+| Field                  | Purpose                               |
+| ---------------------- | ------------------------------------- |
+| `files`                | Component source code and target path |
+| `dependencies`         | npm packages to install               |
+| `registryDependencies` | Other registry components to fetch    |
 
 ## Path Resolution
 
@@ -203,11 +204,11 @@ git diff components/
 
 The shadcn approach is about **ownership**:
 
-| Traditional npm | Shadcn Registry |
-|-----------------|-----------------|
+| Traditional npm                    | Shadcn Registry                                   |
+| ---------------------------------- | ------------------------------------------------- |
 | `import { Button } from "library"` | `import { Button } from "@/components/ui/button"` |
-| Can't edit without forking | Edit directly in your project |
-| Wait for library updates | Update when you want |
-| CSS override battles | Full source control |
+| Can't edit without forking         | Edit directly in your project                     |
+| Wait for library updates           | Update when you want                              |
+| CSS override battles               | Full source control                               |
 
 This is why Aomi uses a registry — you own the UI code and can customize freely.

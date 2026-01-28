@@ -3,107 +3,136 @@
 ## Architecture
 
 **Single Sources of Truth:**
-- Session operations → `services/session-service.ts` only (via `useSessionService` hook)
-- Backend API calls → `api/client.ts` (BackendApi class) - used by services only
-- Thread state → `state/thread-context.tsx` only
-- Message conversion → `utils/conversion.ts` only
-- Wallet events → `utils/wallet.ts` → `sendSystemMessage()` only
+
+- User/wallet state → `contexts/user-context.tsx` via `useUser()` hook
+- Thread state → `contexts/thread-context.tsx` via `useThreadContext()`
+- Event dispatching → `contexts/event-context.tsx` via `useEventContext()`
+- Backend API calls → `backend/client.ts` (BackendApi class)
+- Message conversion → `runtime/utils.ts`
+
+**Provider Hierarchy:**
+
+```
+ThreadContextProvider (external - must wrap AomiRuntimeProvider)
+└── AomiRuntimeProvider (shell)
+    └── NotificationContextProvider
+        └── UserContextProvider
+            └── EventContextProvider
+                └── RuntimeActionsProvider
+                    └── AomiRuntimeCore
+                        └── AssistantRuntimeProvider
+                            └── {children}
+```
 
 **Component Hierarchy:**
+
 ```
-AomiFrame (shell)
+AomiFrame (apps/registry)
 ├── ThreadListSidebar (navigation)
-├── AomiRuntimeProvider (backend wiring)
-│   └── ThreadContextProvider (state)
-│       └── Thread (message view)
-└── WalletFooter slot (optional)
+├── Thread (message view)
+└── WalletFooter slot (via render prop)
 ```
 
 ## Do / Don't
 
-| Do | Don't |
-|----|-------|
-| Use `SessionService` for session operations | Direct `BackendApi` calls in runtime/components |
-| Use `useSessionService()` hook to get service | Instantiate `SessionService` directly |
-| Use `useThreadContext()` for thread state | Local state for thread data |
-| Use `sendSystemMessage()` for wallet events | Push wallet text into message arrays |
-| Optimistic UI updates + backend confirm | Wait for backend before updating UI |
-| Call `ensureThreadExists()` before switch | Switch to thread without metadata |
+| Do                                        | Don't                               |
+| ----------------------------------------- | ----------------------------------- |
+| Use `useUser()` for wallet state          | Local wallet state in components    |
+| Use `useThreadContext()` for thread state | Local state for thread data         |
+| Use `useWalletHandler()` for tx requests  | Manual event subscription           |
+| Let runtime auto-sync wallet changes      | Manual `sendSystemMessage()` calls  |
+| Optimistic UI updates + backend confirm   | Wait for backend before updating UI |
 
 ## File Conventions
 
-| Location | Purpose |
-|----------|---------|
-| `components/assistant-ui/*.tsx` | Assistant-specific UI (runtime, thread, attachments) |
-| `components/ui/*.tsx` | Shadcn-style primitives (button, dialog, card) |
-| `api/*.ts` | Backend API client (BackendApi class) - low-level HTTP |
-| `services/*.ts` | Service layer (SessionService) - business logic abstraction |
-| `state/*.tsx` | State management (thread context, stores) |
-| `utils/*.ts` | Helpers (wallet formatting, conversion) |
-| `hooks/*.ts` | Cross-cutting React hooks (useSessionService, etc.) |
-| `runtime/*.tsx` | Runtime orchestration (AomiRuntimeProvider) |
+| Location         | Purpose                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| `backend/*.ts`   | BackendApi HTTP client + API types                             |
+| `contexts/*.tsx` | React contexts (User, Event, Thread, Notification)             |
+| `handlers/*.ts`  | Event handler hooks (useWalletHandler, useNotificationHandler) |
+| `runtime/*.tsx`  | Runtime orchestration (providers, controllers)                 |
+| `state/*.ts`     | State stores (backend-state, thread-store, event-buffer)       |
 
 ## Key Types
 
-| Type | Source |
-|------|--------|
-| `ThreadMessageLike` | `@assistant-ui/react` |
-| `SessionMessage`, `SessionResponsePayload` | `api/types.ts` |
-| `BackendThreadMetadata`, `CreateThreadResponse` | `api/types.ts` |
-| `ThreadMetadata`, `ThreadContextValue` | `state/types.ts` |
-| `SessionService` | `services/session-service.ts` |
+| Type                              | Source                       |
+| --------------------------------- | ---------------------------- |
+| `ThreadMessageLike`               | `@assistant-ui/react`        |
+| `AomiMessage`, `ApiStateResponse` | `backend/types.ts`           |
+| `UserState`                       | `contexts/user-context.tsx`  |
+| `InboundEvent`, `OutboundEvent`   | `state/event-buffer.ts`      |
+| `WalletTxRequest`                 | `handlers/wallet-handler.ts` |
 
 ## Data Flows
 
-**User message:** Composer → `onNew()` → `BackendApi.postChatMessage()` → polling `/api/state` → update context → re-render
+**User message:**
 
-**Thread switch:** Click → `setCurrentThreadId()` → `ensureThreadExists()` → fetch state → apply messages
+```
+Composer → onNew() → MessageController.outbound()
+  → BackendApi.postChatMessage() → PollingController.start()
+  → poll /api/state → MessageController.inbound() → re-render
+```
 
-**Session operations:** Runtime → `useSessionService()` → `SessionService` → `BackendApi` → HTTP → backend
+**Thread switch:**
 
-**Wallet connect:** State change → `WalletSystemMessageEmitter` → `sendSystemMessage()` → backend
+```
+Click → threadListAdapter.onSwitchToThread()
+  → setCurrentThreadId() → ensureInitialState()
+  → fetchState() → apply messages
+```
+
+**Wallet state change:**
+
+```
+External wallet lib → setUser() → onUserStateChange callback
+  → postSystemMessage("wallet:state_changed") → backend
+```
+
+**Inbound system event (e.g., wallet_tx_request):**
+
+```
+Backend → /api/state response → system_events[]
+  → PollingController.handleState() → dispatchInboundSystem()
+  → EventBuffer → dispatch() → useWalletHandler subscription
+  → onTxRequest callback
+```
 
 ## Backend Endpoints
 
-| Endpoint | Query Params | Response |
-|----------|--------------|----------|
-| `POST /api/chat` | `session_id`, `message`, `public_key?` | `SessionResponse` |
-| `GET /api/state` | `session_id` | `SessionResponse` |
-| `POST /api/interrupt` | `session_id` | `SessionResponse` |
-| `POST /api/system` | `session_id`, `message` | `SystemResponse` |
-| `GET /api/updates` | `session_id` | SSE stream (`SystemUpdate`) |
-| `POST /api/sessions` | — | `{ session_id, title? }` |
-| `GET /api/sessions` | — | `ThreadMetadata[]` |
-| `GET /api/sessions/:id` | — | `ThreadMetadata` |
-| `PATCH /api/sessions/:id` | `title` | `ThreadMetadata` |
-| `DELETE /api/sessions/:id` | — | 204 |
-| `POST /api/sessions/:id/archive` | — | 200 |
-| `POST /api/sessions/:id/unarchive` | — | 200 |
+| Endpoint                           | Purpose        | Response                  |
+| ---------------------------------- | -------------- | ------------------------- |
+| `POST /api/chat`                   | Send message   | `ApiChatResponse`         |
+| `GET /api/state`                   | Poll session   | `ApiStateResponse`        |
+| `POST /api/interrupt`              | Cancel         | `ApiInterruptResponse`    |
+| `POST /api/system`                 | System message | `ApiSystemResponse`       |
+| `GET /api/updates`                 | SSE stream     | `ApiSSEEvent`             |
+| `POST /api/sessions`               | Create thread  | `ApiCreateThreadResponse` |
+| `GET /api/sessions`                | List threads   | `ApiThread[]`             |
+| `PATCH /api/sessions/:id`          | Rename         | -                         |
+| `DELETE /api/sessions/:id`         | Delete         | 204                       |
+| `POST /api/sessions/:id/archive`   | Archive        | 200                       |
+| `POST /api/sessions/:id/unarchive` | Unarchive      | 200                       |
 
-`SessionResponse`: `{ messages?, is_processing?, pending_wallet_tx?, title? }`
+**ApiStateResponse:** `{ messages?, system_events?, is_processing?, title?, session_exists? }`
 
 ## Architecture Layers
 
 ```
-UI Components (apps/registry)
-    ↓ uses hooks/context
-Session Service (packages/react/services)
+UI Components (apps/registry - AomiFrame, Thread, etc.)
+    ↓ uses hooks from lib
+Contexts & Handlers (packages/react/contexts, handlers)
     ↓ uses
-BackendApi (packages/react/api)
-    ↓ HTTP calls
+Runtime (packages/react/runtime - orchestrator, controllers)
+    ↓ uses
+BackendApi (packages/react/backend)
+    ↓ HTTP/SSE
 Backend Server
 ```
 
-**Decoupling Rules:**
-- UI components (`apps/registry`) never directly import or use `BackendApi`
-- Runtime layer uses `SessionService` via `useSessionService()` hook
-- `SessionService` encapsulates all session operations (list, get, create, delete, rename, archive, unarchive)
-- `BackendApi` is only used by service layer, not by components or runtime directly
-
 ## Invariants
 
-1. Every thread has metadata + message array before use
+1. `ThreadContextProvider` must wrap `AomiRuntimeProvider`
 2. All components with browser APIs have `"use client"`
-3. Thread titles follow "Chat N" pattern unless backend provides title
+3. Wallet state synced automatically via `onUserStateChange` subscription
 4. Polling stops when `is_processing=false`
-5. Session operations must go through `SessionService`, never direct `BackendApi` calls
+5. System events dispatched to EventBuffer for handler subscription

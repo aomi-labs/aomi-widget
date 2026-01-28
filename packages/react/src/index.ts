@@ -1,63 +1,110 @@
-export { BackendApi } from "./api/client";
+// =============================================================================
+// Backend API Client
+// =============================================================================
+export { BackendApi } from "./backend/client";
 export type {
-  BackendSessionResponse,
-  BackendThreadMetadata,
-  CreateThreadResponse,
-  SessionMessage,
-  SessionResponsePayload,
-  SystemResponsePayload,
-  SystemUpdate,
-  SystemUpdateNotification,
-  SystemEvent,
-} from "./api/types";
+  AomiMessage,
+  ApiChatResponse,
+  ApiCreateThreadResponse,
+  ApiInterruptResponse,
+  ApiSSEEvent,
+  ApiStateResponse,
+  ApiSystemEvent,
+  ApiSystemResponse,
+  ApiThread,
+} from "./backend/types";
 
-export {
-  AomiRuntimeProvider,
-  AomiRuntimeProviderWithNotifications,
-} from "./runtime/aomi-runtime";
+// =============================================================================
+// Runtime Provider
+// =============================================================================
+export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
 export type { AomiRuntimeProviderProps } from "./runtime/aomi-runtime";
-export { useRuntimeActions, RuntimeActionsProvider } from "./runtime/hooks";
-export { SessionService } from "./services/session-service";
-export { useSessionService } from "./hooks/use-session-service";
 
+// =============================================================================
+// Unified Runtime API
+// =============================================================================
+export { useAomiRuntime } from "./interface";
+export type { AomiRuntimeApi } from "./interface";
+
+// =============================================================================
+// Event System (follows RUNTIME-ARCH.md)
+// =============================================================================
 export {
-  ThreadContextProvider,
+  useEventContext,
+  EventContextProvider,
+} from "./contexts/event-context";
+export type {
+  EventContext,
+  EventContextProviderProps,
+} from "./contexts/event-context";
+
+export type {
+  InboundEvent,
+  OutboundEvent,
+  SSEStatus,
+  EventSubscriber,
+  EventBuffer,
+} from "./state/event-buffer";
+
+// =============================================================================
+// Handler Hooks
+// =============================================================================
+export { useWalletHandler } from "./handlers/wallet-handler";
+export { useNotificationHandler } from "./handlers/notification-handler";
+export type {
+  WalletTxRequest,
+  WalletTxComplete,
+  WalletConnectionStatus,
+  WalletHandlerConfig,
+  WalletHanderApi,
+} from "./handlers/wallet-handler";
+export type {
+  Notification as HandlerNotification,
+  NotificationHandlerConfig,
+  NotificationApi,
+} from "./handlers/notification-handler";
+
+// =============================================================================
+// User Context (wallet/user state)
+// =============================================================================
+export {
+  useUser,
+  UserContextProvider,
+  type UserState,
+} from "./contexts/user-context";
+
+// Backwards compatibility alias
+export type { UserState as WalletButtonState } from "./contexts/user-context";
+
+// User config type (for render prop pattern)
+export type { UserConfig } from "./runtime/utils";
+
+// =============================================================================
+// Thread Context (for UI components)
+// =============================================================================
+export {
   useThreadContext,
-  useCurrentThreadMetadata,
   useCurrentThreadMessages,
-} from "./state/thread-context";
-export type { ThreadMetadata, ThreadStatus } from "./state/types";
+  useCurrentThreadMetadata,
+  ThreadContextProvider,
+} from "./contexts/thread-context";
+export type { ThreadContext } from "./contexts/thread-context";
+export type { ThreadMetadata } from "./state/thread-store";
 
-export {
-  toInboundSystem as constructSystemMessage,
-  toInboundMessage as constructThreadMessage,
-} from "./utils/conversion";
-export {
-  WalletSystemMessageEmitter,
-  formatAddress,
-  getNetworkName,
-  normalizeWalletError,
-  toHexQuantity,
-  pickInjectedProvider,
-} from "./utils/wallet";
-export type {
-  WalletButtonState,
-  WalletFooterProps,
-  WalletTxRequestPayload,
-  WalletTxRequestHandler,
-  WalletTxRequestContext,
-  Eip1193Provider,
-} from "./utils/wallet";
+// =============================================================================
+// Utilities
+// =============================================================================
+export { cn, formatAddress, getNetworkName } from "./runtime/utils";
 
-export { cn } from "./lib/utils";
-
-// Notification system (logic only)
+// =============================================================================
+// Notification Context (for toast UI)
+// =============================================================================
 export {
-  NotificationProvider,
   useNotification,
-} from "./lib/notification-context";
-export type {
-  Notification,
-  NotificationType,
-  NotificationIconType,
-} from "./lib/notification-context";
+  NotificationContextProvider,
+  type Notification,
+  type NotificationType,
+  type NotificationData as ShowNotificationParams,
+  type NotificationContextApi as NotificationContextValue,
+  type NotificationContextProviderProps,
+} from "./contexts/notification-context";

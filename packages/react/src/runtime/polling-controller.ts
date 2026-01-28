@@ -1,23 +1,25 @@
 import type { MutableRefObject } from "react";
 
-import type { BackendApi } from "../api/client";
-import type { SessionMessage, SessionResponsePayload } from "../api/types";
+import type { BackendApi } from "../backend/client";
+import type {
+  AomiMessage,
+  ApiStateResponse,
+  ApiSystemEvent,
+} from "../backend/types";
+import type { UserState } from "../contexts/user-context";
 import {
   isThreadReady,
   resolveThreadId,
   setThreadRunning,
-  type BakendState,
-} from "./backend-state";
+  type BackendState,
+} from "../state/backend-state";
 
 type PollingConfig = {
   backendApiRef: MutableRefObject<BackendApi>;
-  backendStateRef: MutableRefObject<BakendState>;
-  applyMessages: (threadId: string, messages?: SessionMessage[] | null) => void;
-  handleSystemEvents?: (
-    sessionId: string,
-    threadId: string,
-    events?: unknown[] | null
-  ) => void;
+  backendStateRef: MutableRefObject<BackendState>;
+  applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
+  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+  getUserState?: () => UserState;
   onStart?: (threadId: string) => void;
   onStop?: (threadId: string) => void;
   intervalMs?: number;
@@ -26,49 +28,35 @@ type PollingConfig = {
 export class PollingController {
   private intervals = new Map<string, ReturnType<typeof setInterval>>();
   private intervalMs: number;
-  private handleSystemEvents?: (
-    sessionId: string,
-    threadId: string,
-    events?: unknown[] | null
-  ) => void;
 
   constructor(private readonly config: PollingConfig) {
     this.intervalMs = config.intervalMs ?? 500;
-    this.handleSystemEvents = config.handleSystemEvents;
-  }
-
-  setSystemEventsHandler(
-    handler?: (sessionId: string, threadId: string, events?: unknown[] | null) => void
-  ) {
-    this.handleSystemEvents = handler;
   }
 
   start(threadId: string) {
     const backendState = this.config.backendStateRef.current;
     if (!isThreadReady(backendState, threadId)) return;
-    // Prevent starting if already polling
-    if (this.intervals.has(threadId)) {
-      return;
-    }
+    if (this.intervals.has(threadId)) return;
 
     const backendThreadId = resolveThreadId(backendState, threadId);
     setThreadRunning(backendState, threadId, true);
 
     const tick = async () => {
-      // Check if polling was stopped before proceeding (handles race conditions)
-      if (!this.intervals.has(threadId)) {
-        return;
-      }
+      if (!this.intervals.has(threadId)) return;
 
       try {
-        console.log("🔵 [PollingController] Fetching state for threadId:", threadId);
-        const state = await this.config.backendApiRef.current.fetchState(backendThreadId);
-        
-        // Check again after async operation (polling might have been stopped)
-        if (!this.intervals.has(threadId)) {
-          return;
-        }
-        
+        console.log(
+          "[PollingController] Fetching state for threadId:",
+          threadId,
+        );
+        const userState = this.config.getUserState?.();
+        const state = await this.config.backendApiRef.current.fetchState(
+          backendThreadId,
+          userState,
+        );
+
+        if (!this.intervals.has(threadId)) return;
+
         this.handleState(threadId, state);
       } catch (error) {
         console.error("Polling error:", error);
@@ -78,11 +66,8 @@ export class PollingController {
 
     const intervalId = setInterval(tick, this.intervalMs);
     this.intervals.set(threadId, intervalId);
-    
-    // Trigger onStart if provided (for setting isRunning state)
-    if (this.config.onStart) {
-      this.config.onStart(threadId);
-    }
+
+    this.config.onStart?.(threadId);
   }
 
   stop(threadId: string) {
@@ -91,7 +76,6 @@ export class PollingController {
       clearInterval(intervalId);
       this.intervals.delete(threadId);
     }
-    // Update state immediately to prevent any queued ticks from proceeding
     setThreadRunning(this.config.backendStateRef.current, threadId, false);
     this.config.onStop?.(threadId);
   }
@@ -106,24 +90,16 @@ export class PollingController {
     }
   }
 
-  private handleState(threadId: string, state: SessionResponsePayload) {
-    if (state.session_exists === false) {
-      this.stop(threadId);
-      return;
-    }
-
-    const backendState = this.config.backendStateRef.current;
-    const backendThreadId = resolveThreadId(backendState, threadId);
-
-    // Handle system events if handler is provided
-    if (this.handleSystemEvents && state.system_events) {
-      this.handleSystemEvents(backendThreadId, threadId, state.system_events);
+  private handleState(threadId: string, state: ApiStateResponse) {
+    // Dispatch system events (wallet_tx_request, errors, etc.)
+    if (state.system_events?.length && this.config.onSyncEvents) {
+      const backendState = this.config.backendStateRef.current;
+      const sessionId = resolveThreadId(backendState, threadId);
+      this.config.onSyncEvents(sessionId, state.system_events);
     }
 
     this.config.applyMessages(threadId, state.messages);
 
-    // Stop polling if backend explicitly indicates processing is complete
-    // or the flag is omitted.
     if (!state.is_processing) {
       this.stop(threadId);
     }

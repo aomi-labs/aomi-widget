@@ -1,8 +1,4 @@
 {
   "title": "Examples",
-  "pages": [
-    "---Frontend Integration---",
-    "metamask",
-    "polymarket"
-  ]
+  "pages": ["---Frontend Integration---", "metamask", "polymarket"]
 }

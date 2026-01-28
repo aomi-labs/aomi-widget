@@ -1,12 +1,14 @@
 # Docs Playground (Phase 2) Plan
 
 ## Objectives
+
 - Replace `apps/landing/` with a production-quality docs/playground app under `apps/docs` (keep `apps/landing/` as a smoke-test workspace until docs cover all demos + a new regression gate exists).
 - Provide live previews + copyable code for every export from `src/index.ts` (frame, assistant UI, UI primitives, wallet utils).
 - Host conceptual guides (environment setup, theming, templates) and marketing landing content in the same app.
 - Keep the docs app tightly coupled to source (hot reloads use local `src/`) so regressions surface immediately.
 
 ## Information Architecture
+
 1. **Landing / Overview**
    - Hero section (reuse content from `apps/landing/app/page.tsx`).
    - CTA buttons (npm install, GitHub) and video/screenshot slots.
@@ -28,6 +30,7 @@
    - Backend API expectations (webhooks, SSE endpoints) referencing `src/lib/backend-api.ts`.
 
 ## Technical Plan
+
 - **Workspace Setup**
   - Create `apps/docs` Next.js (App Router) workspace managed via plain pnpm (no Turborepo yet); update `pnpm-workspace.yaml`, root scripts, and TS path aliases accordingly.
   - Shared ESLint/TS config extends root settings.
@@ -50,6 +53,7 @@
   - Provide guidance on running docs + library concurrently (Turbopack or `pnpm run build:lib -- --watch`).
 
 ## Migration Checklist
+
 - [x] Scaffold `apps/docs` workspace (fonts/assets still to migrate from `apps/landing/public`).
 - [x] Port landing page layout from `apps/landing/app/page.tsx` into React components.
 - [x] Create docs sidebar/nav structure (Getting Started, Guides, Theming).
@@ -59,5 +63,6 @@
 - [ ] Eventually remove `apps/landing/` workspace once docs cover demo needs and a replacement smoke-test (docs previews or CI build) is in place.
 
 ## Open Questions
+
 - Should docs host interactive sandboxes (iframe vs in-page) for embedding third-party tools? (Default: in-page previews only.)
 - Will docs deploy to Vercel using the same project as the library landing page? Need env strategy for backend URLs when demos fetch real data.

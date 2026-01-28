@@ -18,11 +18,11 @@
       ],
       "registryDependencies": [
         "https://widget.aomi.dev/r/assistant-thread.json",
-        "https://widget.aomi.dev/r/assistant-threadlist-collapsible.json",
+        "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://widget.aomi.dev/r/notification.json",
-        "collapsible",
         "separator",
-        "breadcrumb"
+        "breadcrumb",
+        "sidebar"
       ]
     },
     {
@@ -86,27 +86,6 @@
       "registryDependencies": [
         "https://widget.aomi.dev/r/assistant-thread-list.json",
         "sidebar"
-      ]
-    },
-    {
-      "name": "assistant-threadlist-collapsible",
-      "type": "registry:component",
-      "description": "Collapsible shell for thread navigation and wallet footer slot.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "components/assistant-ui/threadlist-collapsible.tsx"
-        }
-      ],
-      "dependencies": [
-        "lucide-react",
-        "next"
-      ],
-      "registryDependencies": [
-        "https://widget.aomi.dev/r/assistant-thread-list.json",
-        "collapsible",
-        "button",
-        "separator"
       ]
     },
     {

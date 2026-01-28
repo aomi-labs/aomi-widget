@@ -1,50 +1,57 @@
 import type { MutableRefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
-import { BackendApi } from "../api/client";
-import type { SessionMessage } from "../api/types";
-import { useThreadContext, type ThreadContext } from "../state/thread-context";
+import type { BackendApi } from "../backend/client";
+import type { AomiMessage, ApiSystemEvent } from "../backend/types";
+import type { UserState } from "../contexts/user-context";
+import {
+  useThreadContext,
+  type ThreadContext,
+} from "../contexts/thread-context";
 import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
 import {
   clearSkipInitialFetch,
-  createBakendState,
+  createBackendState,
   isThreadReady,
   resolveThreadId,
   shouldSkipInitialFetch,
-  type BakendState,
-} from "./backend-state";
+  type BackendState,
+} from "../state/backend-state";
 
-type SystemEventsHandler = (
-  sessionId: string,
-  threadId: string,
-  events?: unknown[] | null
-) => void;
+type OrchestratorOptions = {
+  getPublicKey?: () => string | undefined;
+  getUserState?: () => UserState;
+  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+};
 
 export function useRuntimeOrchestrator(
-  backendUrl: string,
-  options?: { getPublicKey?: () => string | undefined }
+  backendApi: BackendApi,
+  options?: OrchestratorOptions,
 ) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = useRef(new BackendApi(backendUrl));
-  const backendStateRef = useRef<BakendState>(createBakendState());
+  const backendApiRef = useRef(backendApi);
+  backendApiRef.current = backendApi;
+  const backendStateRef = useRef<BackendState>(createBackendState());
 
   const [isRunning, setIsRunning] = useState(false);
 
-  const messageControllerRef: MutableRefObject<MessageController | null> = useRef(null);
+  const messageControllerRef: MutableRefObject<MessageController | null> =
+    useRef(null);
   const pollingRef: MutableRefObject<PollingController | null> = useRef(null);
-  const systemEventsHandlerRef = useRef<SystemEventsHandler | null>(null);
-  const inFlightRef = useRef<Map<string, AbortController>>(new Map());
+  const pendingFetches = useRef<Set<string>>(new Set());
 
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
       backendApiRef,
       backendStateRef,
-      applyMessages: (threadId: string, msgs?: SessionMessage[] | null) => {
+      applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
         messageControllerRef.current?.inbound(threadId, msgs);
       },
+      onSyncEvents: options?.onSyncEvents,
+      getUserState: options?.getUserState,
       onStart: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);
@@ -66,84 +73,62 @@ export function useRuntimeOrchestrator(
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
       getPublicKey: options?.getPublicKey,
+      onSyncEvents: options?.onSyncEvents,
     });
   }
 
-  const setSystemEventsHandler = useCallback((handler: SystemEventsHandler | null) => {
-    systemEventsHandlerRef.current = handler;
-    pollingRef.current?.setSystemEventsHandler(handler ?? undefined);
-  }, []);
+  const ensureInitialState = useCallback(async (threadId: string) => {
+    const backendState = backendStateRef.current;
 
-  useEffect(() => {
-    return () => {
-      for (const controller of inFlightRef.current.values()) {
-        controller.abort();
+    if (shouldSkipInitialFetch(backendState, threadId)) {
+      clearSkipInitialFetch(backendState, threadId);
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
       }
-      inFlightRef.current.clear();
-    };
-  }, []);
+      return;
+    }
 
-  const ensureInitialState = useCallback(
-    async (threadId: string) => {
-      const backendState = backendStateRef.current;
-      if (shouldSkipInitialFetch(backendState, threadId)) {
-        clearSkipInitialFetch(backendState, threadId);
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(false);
-        }
-        return;
+    if (!isThreadReady(backendState, threadId)) {
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
+      }
+      return;
+    }
+
+    // Skip if already fetching this thread
+    if (pendingFetches.current.has(threadId)) return;
+
+    const backendThreadId = resolveThreadId(backendState, threadId);
+    pendingFetches.current.add(threadId);
+
+    try {
+      const userState = options?.getUserState?.();
+      const state = await backendApiRef.current.fetchState(
+        backendThreadId,
+        userState,
+      );
+      messageControllerRef.current?.inbound(threadId, state.messages);
+      if (state.system_events?.length && options?.onSyncEvents) {
+        options.onSyncEvents(backendThreadId, state.system_events);
       }
 
-      if (!isThreadReady(backendState, threadId)) {
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(false);
-        }
-        return;
-      }
-
-      if (inFlightRef.current.has(threadId)) {
-        return;
-      }
-
-      const backendThreadId = resolveThreadId(backendState, threadId);
-      const controller = new AbortController();
-      inFlightRef.current.set(threadId, controller);
-      try {
-        console.log("🔵 [Orchestrator] Fetching initial state for threadId:", threadId);
-        const state = await backendApiRef.current.fetchState(backendThreadId, {
-          signal: controller.signal,
-        });
-        messageControllerRef.current?.inbound(threadId, state.messages);
-        // Handle system events if handler is provided
-        if (systemEventsHandlerRef.current && state.system_events) {
-          systemEventsHandlerRef.current(backendThreadId, threadId, state.system_events);
-        }
+      if (threadContextRef.current.currentThreadId === threadId) {
         if (state.is_processing) {
-          if (threadContextRef.current.currentThreadId === threadId) {
-            setIsRunning(true);
-          }
+          setIsRunning(true);
           pollingRef.current?.start(threadId);
         } else {
-          if (threadContextRef.current.currentThreadId === threadId) {
-            setIsRunning(false);
-          }
-        }
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        console.error("Failed to fetch initial state:", error);
-        if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
-      } finally {
-        if (inFlightRef.current.get(threadId) === controller) {
-          inFlightRef.current.delete(threadId);
-        }
       }
-    },
-    [backendApiRef, backendStateRef, pollingRef, messageControllerRef, setIsRunning]
-  );
+    } catch (error) {
+      console.error("Failed to fetch initial state:", error);
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(false);
+      }
+    } finally {
+      pendingFetches.current.delete(threadId);
+    }
+  }, []);
 
   return {
     backendStateRef,
@@ -152,7 +137,6 @@ export function useRuntimeOrchestrator(
     isRunning,
     setIsRunning,
     ensureInitialState,
-    setSystemEventsHandler,
     backendApiRef,
   };
 }

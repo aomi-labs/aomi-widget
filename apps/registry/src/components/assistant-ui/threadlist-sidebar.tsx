@@ -47,7 +47,7 @@ export function ThreadListSidebar({
                       alt="Logo"
                       width={28}
                       height={28}
-                      className="aomi-sidebar-header-icon size-7 ml-3"
+                      className="aomi-sidebar-header-icon ml-3 size-7"
                       priority
                     />
                   </div>
@@ -62,7 +62,7 @@ export function ThreadListSidebar({
       </SidebarContent>
       <SidebarRail />
       {footer && (
-        <SidebarFooter className="aomi-sidebar-footer border-t border-sm py-4">
+        <SidebarFooter className="aomi-sidebar-footer border-sm border-t py-4">
           {footer}
         </SidebarFooter>
       )}
