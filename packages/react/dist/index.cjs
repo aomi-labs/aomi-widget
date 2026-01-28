@@ -349,7 +349,7 @@ var BackendApi = class {
     return await response.json();
   }
   async createThread(threadId, publicKey) {
-    const body = { session_id: threadId };
+    const body = {};
     if (publicKey) body.public_key = publicKey;
     const url = `${this.backendUrl}/api/sessions`;
     const response = await fetch(url, {
