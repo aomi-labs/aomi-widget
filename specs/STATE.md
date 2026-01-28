@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-2025-01-21 - Event system + modular runtime refactor
+2025-01-27 - Version bumps for publish: @aomi-labs/react 0.1.1, @aomi-labs/widget-lib 0.0.1
 
 ## Recent Changes
 
@@ -54,6 +54,7 @@ ThreadContextProvider (external)
 
 - End-to-end testing of wallet tx request flow
 - SSE event handling verification (SystemNotice, AsyncCallback)
+- Publish @aomi-labs/react@0.1.1 and @aomi-labs/widget-lib@0.0.1 to npm
 
 ## Notes
 
