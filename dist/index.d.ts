@@ -1,5 +1,5 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { ReactNode, SetStateAction, FC } from 'react';
+import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
 import { ClassValue } from 'clsx';
 
@@ -138,7 +138,7 @@ declare class BackendApi {
     /**
      * Set the model selection for a session.
      */
-    setModel(sessionId: string, rig: string, baml: string, namespace?: string): Promise<{
+    setModel(sessionId: string, rig: string, namespace?: string): Promise<{
         success: boolean;
         rig: string;
         baml: string;
@@ -423,13 +423,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, backendApi, sessionId, publicKey, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-type WalletButtonProps = {
-    className?: string;
-    /** Text to show when disconnected */
-    connectLabel?: string;
-    /** Called when connection state changes */
-    onConnectionChange?: (connected: boolean) => void;
-};
-declare const WalletButton: FC<WalletButtonProps>;
-
-export { type AomiMessage, type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification as HandlerNotification, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, WalletButton, type WalletButtonProps, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, formatAddress, getNetworkName, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiMessage, type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification as HandlerNotification, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, formatAddress, getNetworkName, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };

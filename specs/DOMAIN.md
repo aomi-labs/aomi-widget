@@ -7,6 +7,7 @@
 - User/wallet state → `contexts/user-context.tsx` via `useUser()` hook
 - Thread state → `contexts/thread-context.tsx` via `useThreadContext()`
 - Event dispatching → `contexts/event-context.tsx` via `useEventContext()`
+- Control state (model/namespace/apiKey) → `contexts/control-context.tsx` via `useControl()`
 - Backend API calls → `backend/client.ts` (BackendApi class)
 - Message conversion → `runtime/utils.ts`
 
@@ -20,8 +21,9 @@ ThreadContextProvider (external - must wrap AomiRuntimeProvider)
             └── EventContextProvider
                 └── RuntimeActionsProvider
                     └── AomiRuntimeCore
-                        └── AssistantRuntimeProvider
-                            └── {children}
+                        └── ControlContextProvider
+                            └── AssistantRuntimeProvider
+                                └── {children}
 ```
 
 **Component Hierarchy:**
@@ -30,6 +32,10 @@ ThreadContextProvider (external - must wrap AomiRuntimeProvider)
 AomiFrame (apps/registry)
 ├── ThreadListSidebar (navigation)
 ├── Thread (message view)
+├── ControlBar (model/namespace selection)
+│   ├── ModelSelect
+│   ├── NamespaceSelect
+│   └── ApiKeyInput
 └── WalletFooter slot (via render prop)
 ```
 
@@ -48,20 +54,21 @@ AomiFrame (apps/registry)
 | Location         | Purpose                                                        |
 | ---------------- | -------------------------------------------------------------- |
 | `backend/*.ts`   | BackendApi HTTP client + API types                             |
-| `contexts/*.tsx` | React contexts (User, Event, Thread, Notification)             |
+| `contexts/*.tsx` | React contexts (User, Event, Thread, Notification, Control)    |
 | `handlers/*.ts`  | Event handler hooks (useWalletHandler, useNotificationHandler) |
 | `runtime/*.tsx`  | Runtime orchestration (providers, controllers)                 |
 | `state/*.ts`     | State stores (backend-state, thread-store, event-buffer)       |
 
 ## Key Types
 
-| Type                              | Source                       |
-| --------------------------------- | ---------------------------- |
-| `ThreadMessageLike`               | `@assistant-ui/react`        |
-| `AomiMessage`, `ApiStateResponse` | `backend/types.ts`           |
-| `UserState`                       | `contexts/user-context.tsx`  |
-| `InboundEvent`, `OutboundEvent`   | `state/event-buffer.ts`      |
-| `WalletTxRequest`                 | `handlers/wallet-handler.ts` |
+| Type                                | Source                         |
+| ----------------------------------- | ------------------------------ |
+| `ThreadMessageLike`                 | `@assistant-ui/react`          |
+| `AomiMessage`, `ApiStateResponse`   | `backend/types.ts`             |
+| `UserState`                         | `contexts/user-context.tsx`    |
+| `ControlState`, `ControlContextApi` | `contexts/control-context.tsx` |
+| `InboundEvent`, `OutboundEvent`     | `state/event-buffer.ts`        |
+| `WalletTxRequest`                   | `handlers/wallet-handler.ts`   |
 
 ## Data Flows
 
@@ -97,6 +104,23 @@ Backend → /api/state response → system_events[]
   → onTxRequest callback
 ```
 
+**Namespace fetch (on mount or apiKey change):**
+
+```
+ControlContextProvider mounts (or apiKey changes)
+  → useEffect() → backendApi.getNamespaces(sessionId, publicKey, apiKey)
+  → GET /api/control/namespaces → string[]
+  → setStateInternal({ authorizedNamespaces, namespace })
+```
+
+**Model selection:**
+
+```
+User selects model in ModelSelect
+  → onModelSelect(model) → backendApi.setModel(sessionId, rig, namespace)
+  → POST /api/control/model → { success, rig, baml, created }
+```
+
 ## Backend Endpoints
 
 | Endpoint                           | Purpose        | Response                  |
@@ -112,6 +136,9 @@ Backend → /api/state response → system_events[]
 | `DELETE /api/sessions/:id`         | Delete         | 204                       |
 | `POST /api/sessions/:id/archive`   | Archive        | 200                       |
 | `POST /api/sessions/:id/unarchive` | Unarchive      | 200                       |
+| `GET /api/control/namespaces`      | Get namespaces | `string[]`                |
+| `GET /api/control/models`          | Get models     | `string[]`                |
+| `POST /api/control/model`          | Set model      | `{ success, rig, baml }`  |
 
 **ApiStateResponse:** `{ messages?, system_events?, is_processing?, title?, session_exists? }`
 
@@ -136,3 +163,6 @@ Backend Server
 3. Wallet state synced automatically via `onUserStateChange` subscription
 4. Polling stops when `is_processing=false`
 5. System events dispatched to EventBuffer for handler subscription
+6. Control state (apiKey) persisted to localStorage automatically
+7. Namespaces auto-fetched when apiKey changes
+8. Model selection is backend-only (not stored in ControlState)

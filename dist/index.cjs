@@ -44,7 +44,6 @@ __export(index_exports, {
   NotificationContextProvider: () => NotificationContextProvider,
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
-  WalletButton: () => WalletButton,
   cn: () => cn,
   formatAddress: () => formatAddress,
   getNetworkName: () => getNetworkName,
@@ -468,8 +467,8 @@ var BackendApi = class {
   /**
    * Set the model selection for a session.
    */
-  async setModel(sessionId, rig, baml, namespace) {
-    const payload = { rig, baml };
+  async setModel(sessionId, rig, namespace) {
+    const payload = { rig };
     if (namespace) {
       payload.namespace = namespace;
     }
@@ -498,12 +497,20 @@ function ControlContextProvider({
   sessionId,
   publicKey
 }) {
-  const [state, setStateInternal] = (0, import_react.useState)(() => ({
-    namespace: null,
-    apiKey: typeof window !== "undefined" ? localStorage.getItem(API_KEY_STORAGE_KEY) : null,
-    availableModels: [],
-    authorizedNamespaces: []
-  }));
+  const [state, setStateInternal] = (0, import_react.useState)(() => {
+    var _a, _b;
+    let apiKey = null;
+    try {
+      apiKey = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(API_KEY_STORAGE_KEY)) != null ? _b : null;
+    } catch (e) {
+    }
+    return {
+      namespace: null,
+      apiKey,
+      availableModels: [],
+      authorizedNamespaces: []
+    };
+  });
   const stateRef = (0, import_react.useRef)(state);
   stateRef.current = state;
   const backendApiRef = (0, import_react.useRef)(backendApi);
@@ -514,11 +521,14 @@ function ControlContextProvider({
   publicKeyRef.current = publicKey;
   const callbacks = (0, import_react.useRef)(/* @__PURE__ */ new Set());
   (0, import_react.useEffect)(() => {
-    if (typeof window === "undefined") return;
-    if (state.apiKey) {
-      localStorage.setItem(API_KEY_STORAGE_KEY, state.apiKey);
-    } else {
-      localStorage.removeItem(API_KEY_STORAGE_KEY);
+    var _a, _b;
+    try {
+      if (state.apiKey) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(API_KEY_STORAGE_KEY, state.apiKey);
+      } else {
+        (_b = globalThis.localStorage) == null ? void 0 : _b.removeItem(API_KEY_STORAGE_KEY);
+      }
+    } catch (e) {
     }
   }, [state.apiKey]);
   (0, import_react.useEffect)(() => {
@@ -608,7 +618,6 @@ function ControlContextProvider({
     var _a;
     await backendApiRef.current.setModel(
       sessionIdRef.current,
-      model,
       model,
       (_a = stateRef.current.namespace) != null ? _a : void 0
     );
@@ -2358,49 +2367,6 @@ function useNotificationHandler({
     markDone: markHandled
   };
 }
-
-// packages/react/src/components/wallet-button.tsx
-var import_wagmi = require("wagmi");
-var import_react13 = require("react");
-var import_jsx_runtime8 = require("react/jsx-runtime");
-var WalletButton = ({
-  className,
-  connectLabel = "Connect Wallet",
-  onConnectionChange
-}) => {
-  const { address, isConnected, chainId } = (0, import_wagmi.useAccount)();
-  const { connect, connectors } = (0, import_wagmi.useConnect)();
-  const { disconnect } = (0, import_wagmi.useDisconnect)();
-  const { setUser } = useUser();
-  (0, import_react13.useEffect)(() => {
-    setUser({
-      address: address != null ? address : void 0,
-      chainId: chainId != null ? chainId : void 0,
-      isConnected
-    });
-    onConnectionChange == null ? void 0 : onConnectionChange(isConnected);
-  }, [address, chainId, isConnected, setUser, onConnectionChange]);
-  const handleClick = () => {
-    if (isConnected) {
-      disconnect();
-    } else {
-      const connector = connectors[0];
-      if (connector) {
-        connect({ connector });
-      }
-    }
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-    "button",
-    {
-      type: "button",
-      onClick: handleClick,
-      className,
-      "aria-label": isConnected ? "Disconnect wallet" : "Connect wallet",
-      children: isConnected && address ? formatAddress(address) : connectLabel
-    }
-  );
-};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AomiRuntimeProvider,
@@ -2410,7 +2376,6 @@ var WalletButton = ({
   NotificationContextProvider,
   ThreadContextProvider,
   UserContextProvider,
-  WalletButton,
   cn,
   formatAddress,
   getNetworkName,

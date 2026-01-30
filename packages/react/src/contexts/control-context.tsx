@@ -75,15 +75,20 @@ export function ControlContextProvider({
   sessionId,
   publicKey,
 }: ControlContextProviderProps) {
-  const [state, setStateInternal] = useState<ControlState>(() => ({
-    namespace: null,
-    apiKey:
-      typeof window !== "undefined" && typeof localStorage !== "undefined"
-        ? localStorage.getItem(API_KEY_STORAGE_KEY)
-        : null,
-    availableModels: [],
-    authorizedNamespaces: [],
-  }));
+  const [state, setStateInternal] = useState<ControlState>(() => {
+    let apiKey: string | null = null;
+    try {
+      apiKey = globalThis.localStorage?.getItem(API_KEY_STORAGE_KEY) ?? null;
+    } catch {
+      // localStorage not available
+    }
+    return {
+      namespace: null,
+      apiKey,
+      availableModels: [],
+      authorizedNamespaces: [],
+    };
+  });
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -101,12 +106,14 @@ export function ControlContextProvider({
 
   // Persist API key to localStorage
   useEffect(() => {
-    if (typeof window === "undefined" || typeof localStorage === "undefined")
-      return;
-    if (state.apiKey) {
-      localStorage.setItem(API_KEY_STORAGE_KEY, state.apiKey);
-    } else {
-      localStorage.removeItem(API_KEY_STORAGE_KEY);
+    try {
+      if (state.apiKey) {
+        globalThis.localStorage?.setItem(API_KEY_STORAGE_KEY, state.apiKey);
+      } else {
+        globalThis.localStorage?.removeItem(API_KEY_STORAGE_KEY);
+      }
+    } catch {
+      // localStorage not available
     }
   }, [state.apiKey]);
 
@@ -198,7 +205,6 @@ export function ControlContextProvider({
   const onModelSelect = useCallback(async (model: string) => {
     await backendApiRef.current.setModel(
       sessionIdRef.current,
-      model,
       model,
       stateRef.current.namespace ?? undefined,
     );

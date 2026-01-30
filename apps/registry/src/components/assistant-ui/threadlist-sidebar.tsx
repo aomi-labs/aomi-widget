@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { WalletButton, cn } from "@aomi-labs/react";
+import { cn } from "@aomi-labs/react";
 import {
   Sidebar,
   SidebarContent,
@@ -15,6 +15,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
+import { WalletConnect } from "@/components/control-bar/wallet-connect";
 
 type ThreadListSidebarProps = React.ComponentProps<typeof Sidebar> & {
   /** Position of the wallet button: "header" (top), "footer" (bottom), or null (hidden) */
@@ -57,7 +58,7 @@ export function ThreadListSidebar({
             </SidebarMenuItem>
           </SidebarMenu>
           {walletPosition === "header" && (
-            <WalletButton
+            <WalletConnect
               className={cn(
                 "inline-flex items-center justify-center rounded-md text-sm font-medium",
                 "ring-offset-background transition-colors",
