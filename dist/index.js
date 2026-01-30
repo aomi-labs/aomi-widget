@@ -206,6 +206,7 @@ function createSseSubscriber({
 
 // packages/react/src/backend/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
+var API_KEY_HEADER = "X-API-Key";
 function toQueryString(payload) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(payload)) {
@@ -220,12 +221,16 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
-async function postState(backendUrl, path, payload, sessionId) {
+async function postState(backendUrl, path, payload, sessionId, apiKey) {
   const query = toQueryString(payload);
   const url = `${backendUrl}${path}${query}`;
+  const headers = new Headers(withSessionHeader(sessionId));
+  if (apiKey) {
+    headers.set(API_KEY_HEADER, apiKey);
+  }
   const response = await fetch(url, {
     method: "POST",
-    headers: withSessionHeader(sessionId)
+    headers
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -253,15 +258,17 @@ var BackendApi = class {
     }
     return await response.json();
   }
-  async postChatMessage(sessionId, message, publicKey) {
+  async postChatMessage(sessionId, message, namespace, publicKey, apiKey) {
+    const payload = { message, namespace };
+    if (publicKey) {
+      payload.public_key = publicKey;
+    }
     return postState(
       this.backendUrl,
       "/api/chat",
-      {
-        message,
-        public_key: publicKey
-      },
-      sessionId
+      payload,
+      sessionId,
+      apiKey
     );
   }
   async postSystemMessage(sessionId, message) {
@@ -381,7 +388,50 @@ var BackendApi = class {
     }
     return await response.json();
   }
-  // fetchEventsAfter removed: /api/events only supports count now
+  // ===========================================================================
+  // Control API
+  // ===========================================================================
+  /**
+   * Get allowed namespaces for the current request context.
+   */
+  async getNamespaces(sessionId, publicKey, apiKey) {
+    const url = new URL("/api/control/namespaces", this.backendUrl);
+    if (publicKey) {
+      url.searchParams.set("public_key", publicKey);
+    }
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(API_KEY_HEADER, apiKey);
+    }
+    const response = await fetch(url.toString(), { headers });
+    if (!response.ok) {
+      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+  /**
+   * Get available models.
+   */
+  async getModels(sessionId) {
+    const url = new URL("/api/control/models", this.backendUrl);
+    const response = await fetch(url.toString(), {
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to get models: HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+  /**
+   * Set the model selection for a session.
+   */
+  async setModel(sessionId, rig, baml, namespace) {
+    const payload = { rig, baml };
+    if (namespace) {
+      payload.namespace = namespace;
+    }
+    return postState(this.backendUrl, "/api/control/model", payload, sessionId);
+  }
 };
 
 // packages/react/src/runtime/aomi-runtime.tsx
@@ -392,6 +442,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useRef,
   useState,
   useEffect
 } from "react";
@@ -407,18 +458,25 @@ function useControl() {
 }
 function ControlContextProvider({
   children,
-  initialModels = [],
-  initialNamespaces = [],
-  defaultModelId,
-  defaultNamespace
+  backendApi,
+  sessionId,
+  publicKey
 }) {
-  const [state, setState] = useState(() => ({
-    modelId: defaultModelId != null ? defaultModelId : null,
-    availableModels: initialModels,
-    namespace: defaultNamespace != null ? defaultNamespace : null,
-    availableNamespaces: initialNamespaces,
-    apiKey: typeof window !== "undefined" ? localStorage.getItem(API_KEY_STORAGE_KEY) : null
+  const [state, setStateInternal] = useState(() => ({
+    namespace: null,
+    apiKey: typeof window !== "undefined" ? localStorage.getItem(API_KEY_STORAGE_KEY) : null,
+    availableModels: [],
+    authorizedNamespaces: []
   }));
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const backendApiRef = useRef(backendApi);
+  backendApiRef.current = backendApi;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+  const publicKeyRef = useRef(publicKey);
+  publicKeyRef.current = publicKey;
+  const callbacks = useRef(/* @__PURE__ */ new Set());
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (state.apiKey) {
@@ -427,38 +485,119 @@ function ControlContextProvider({
       localStorage.removeItem(API_KEY_STORAGE_KEY);
     }
   }, [state.apiKey]);
-  const setModelId = useCallback((id) => {
-    setState((prev) => __spreadProps(__spreadValues({}, prev), { modelId: id }));
-  }, []);
-  const setAvailableModels = useCallback((models) => {
-    setState((prev) => __spreadProps(__spreadValues({}, prev), { availableModels: models }));
-  }, []);
-  const setNamespace = useCallback((ns) => {
-    setState((prev) => __spreadProps(__spreadValues({}, prev), { namespace: ns }));
-  }, []);
-  const setAvailableNamespaces = useCallback(
-    (namespaces) => {
-      setState((prev) => __spreadProps(__spreadValues({}, prev), { availableNamespaces: namespaces }));
+  useEffect(() => {
+    const fetchNamespaces = async () => {
+      var _a;
+      try {
+        const namespaces = await backendApiRef.current.getNamespaces(
+          sessionIdRef.current,
+          publicKeyRef.current,
+          (_a = stateRef.current.apiKey) != null ? _a : void 0
+        );
+        setStateInternal((prev) => {
+          const next = __spreadProps(__spreadValues({}, prev), { authorizedNamespaces: namespaces });
+          if (!prev.namespace && namespaces.length > 0) {
+            next.namespace = namespaces.includes("default") ? "default" : namespaces[0];
+          }
+          return next;
+        });
+      } catch (error) {
+        console.error("Failed to fetch namespaces:", error);
+        setStateInternal((prev) => {
+          var _a2;
+          return __spreadProps(__spreadValues({}, prev), {
+            authorizedNamespaces: ["default"],
+            namespace: (_a2 = prev.namespace) != null ? _a2 : "default"
+          });
+        });
+      }
+    };
+    void fetchNamespaces();
+  }, [state.apiKey]);
+  const setState = useCallback(
+    (updates) => {
+      setStateInternal((prev) => {
+        var _a, _b;
+        const next = __spreadValues({}, prev);
+        if ("namespace" in updates) next.namespace = (_a = updates.namespace) != null ? _a : null;
+        if ("apiKey" in updates)
+          next.apiKey = updates.apiKey === "" ? null : (_b = updates.apiKey) != null ? _b : null;
+        callbacks.current.forEach((cb) => cb(next));
+        return next;
+      });
     },
     []
   );
-  const setApiKey = useCallback((key) => {
-    setState((prev) => __spreadProps(__spreadValues({}, prev), { apiKey: key }));
+  const getAvailableModels = useCallback(async () => {
+    try {
+      const models = await backendApiRef.current.getModels(
+        sessionIdRef.current
+      );
+      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { availableModels: models }));
+      return models;
+    } catch (error) {
+      console.error("Failed to fetch models:", error);
+      return [];
+    }
   }, []);
-  const clearApiKey = useCallback(() => {
-    setState((prev) => __spreadProps(__spreadValues({}, prev), { apiKey: null }));
+  const getAuthorizedNamespaces = useCallback(async () => {
+    var _a;
+    try {
+      const namespaces = await backendApiRef.current.getNamespaces(
+        sessionIdRef.current,
+        publicKeyRef.current,
+        (_a = stateRef.current.apiKey) != null ? _a : void 0
+      );
+      setStateInternal((prev) => {
+        const next = __spreadProps(__spreadValues({}, prev), { authorizedNamespaces: namespaces });
+        if (!prev.namespace && namespaces.length > 0) {
+          next.namespace = namespaces.includes("default") ? "default" : namespaces[0];
+        }
+        return next;
+      });
+      return namespaces;
+    } catch (error) {
+      console.error("Failed to fetch namespaces:", error);
+      setStateInternal((prev) => {
+        var _a2;
+        return __spreadProps(__spreadValues({}, prev), {
+          authorizedNamespaces: ["default"],
+          namespace: (_a2 = prev.namespace) != null ? _a2 : "default"
+        });
+      });
+      return ["default"];
+    }
   }, []);
+  const onModelSelect = useCallback(async (model) => {
+    var _a;
+    await backendApiRef.current.setModel(
+      sessionIdRef.current,
+      model,
+      model,
+      (_a = stateRef.current.namespace) != null ? _a : void 0
+    );
+  }, []);
+  const getControlState = useCallback(() => stateRef.current, []);
+  const onControlStateChange = useCallback(
+    (callback) => {
+      callbacks.current.add(callback);
+      return () => {
+        callbacks.current.delete(callback);
+      };
+    },
+    []
+  );
   return /* @__PURE__ */ jsx(
     ControlContext.Provider,
     {
       value: {
         state,
-        setModelId,
-        setAvailableModels,
-        setNamespace,
-        setAvailableNamespaces,
-        setApiKey,
-        clearApiKey
+        setState,
+        getAvailableModels,
+        getAuthorizedNamespaces,
+        onModelSelect,
+        getControlState,
+        onControlStateChange
       },
       children
     }
@@ -471,7 +610,7 @@ import {
   useCallback as useCallback2,
   useContext as useContext2,
   useEffect as useEffect2,
-  useRef,
+  useRef as useRef2,
   useState as useState2
 } from "react";
 
@@ -550,7 +689,7 @@ function EventContextProvider({
   backendApi,
   sessionId
 }) {
-  const bufferRef = useRef(null);
+  const bufferRef = useRef2(null);
   if (!bufferRef.current) {
     bufferRef.current = createEventBuffer();
   }
@@ -713,7 +852,7 @@ import {
   createContext as createContext4,
   useContext as useContext4,
   useMemo,
-  useRef as useRef2,
+  useRef as useRef3,
   useSyncExternalStore
 } from "react";
 
@@ -882,7 +1021,7 @@ function ThreadContextProvider({
   children,
   initialThreadId
 }) {
-  const storeRef = useRef2(null);
+  const storeRef = useRef3(null);
   if (!storeRef.current) {
     storeRef.current = new ThreadStore({ initialThreadId });
   }
@@ -914,7 +1053,7 @@ import {
   createContext as createContext5,
   useCallback as useCallback4,
   useContext as useContext5,
-  useRef as useRef3,
+  useRef as useRef4,
   useState as useState4
 } from "react";
 import { jsx as jsx5 } from "react/jsx-runtime";
@@ -938,9 +1077,9 @@ function UserContextProvider({ children }) {
     chainId: void 0,
     ensName: void 0
   });
-  const userRef = useRef3(user);
+  const userRef = useRef4(user);
   userRef.current = user;
-  const StateChangeCallbacks = useRef3(
+  const StateChangeCallbacks = useRef4(
     /* @__PURE__ */ new Set()
   );
   const setUser = useCallback4((data) => {
@@ -977,14 +1116,14 @@ function UserContextProvider({ children }) {
 }
 
 // packages/react/src/runtime/core.tsx
-import { useCallback as useCallback6, useEffect as useEffect3, useMemo as useMemo2, useRef as useRef5 } from "react";
+import { useCallback as useCallback6, useEffect as useEffect3, useMemo as useMemo2, useRef as useRef6 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
 } from "@assistant-ui/react";
 
 // packages/react/src/runtime/orchestrator.ts
-import { useCallback as useCallback5, useRef as useRef4, useState as useState5 } from "react";
+import { useCallback as useCallback5, useRef as useRef5, useState as useState5 } from "react";
 
 // packages/react/src/runtime/utils.ts
 import { clsx } from "clsx";
@@ -1151,7 +1290,7 @@ var MessageController = class {
     this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter(
       (part) => part.type === "text"
@@ -1176,21 +1315,22 @@ var MessageController = class {
       return;
     }
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const namespace = this.config.getNamespace();
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
+    const apiKey = (_e = (_d = (_c = this.config).getApiKey) == null ? void 0 : _d.call(_c)) != null ? _e : void 0;
     try {
       this.markRunning(threadId, true);
-      const response = publicKey ? await this.config.backendApiRef.current.postChatMessage(
+      const response = await this.config.backendApiRef.current.postChatMessage(
         backendThreadId,
         text,
-        publicKey
-      ) : await this.config.backendApiRef.current.postChatMessage(
-        backendThreadId,
-        text
+        namespace,
+        publicKey,
+        apiKey
       );
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
       }
-      if (((_c = response == null ? void 0 : response.system_events) == null ? void 0 : _c.length) && this.config.onSyncEvents) {
+      if (((_f = response == null ? void 0 : response.system_events) == null ? void 0 : _f.length) && this.config.onSyncEvents) {
         this.config.onSyncEvents(backendThreadId, response.system_events);
       }
       if (response == null ? void 0 : response.is_processing) {
@@ -1204,26 +1344,23 @@ var MessageController = class {
     }
   }
   async flushPendingChat(threadId) {
-    var _a, _b;
+    var _a, _b, _c, _d, _e;
     const backendState = this.config.backendStateRef.current;
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const namespace = this.config.getNamespace();
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
+    const apiKey = (_e = (_d = (_c = this.config).getApiKey) == null ? void 0 : _d.call(_c)) != null ? _e : void 0;
     for (const text of pending) {
       try {
-        if (publicKey) {
-          await this.config.backendApiRef.current.postChatMessage(
-            backendThreadId,
-            text,
-            publicKey
-          );
-        } else {
-          await this.config.backendApiRef.current.postChatMessage(
-            backendThreadId,
-            text
-          );
-        }
+        await this.config.backendApiRef.current.postChatMessage(
+          backendThreadId,
+          text,
+          namespace,
+          publicKey,
+          apiKey
+        );
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }
@@ -1336,15 +1473,15 @@ var PollingController = class {
 // packages/react/src/runtime/orchestrator.ts
 function useRuntimeOrchestrator(backendApi, options) {
   const threadContext = useThreadContext();
-  const threadContextRef = useRef4(threadContext);
+  const threadContextRef = useRef5(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = useRef4(backendApi);
+  const backendApiRef = useRef5(backendApi);
   backendApiRef.current = backendApi;
-  const backendStateRef = useRef4(createBackendState());
+  const backendStateRef = useRef5(createBackendState());
   const [isRunning, setIsRunning] = useState5(false);
-  const messageControllerRef = useRef4(null);
-  const pollingRef = useRef4(null);
-  const pendingFetches = useRef4(/* @__PURE__ */ new Set());
+  const messageControllerRef = useRef5(null);
+  const pollingRef = useRef5(null);
+  const pendingFetches = useRef5(/* @__PURE__ */ new Set());
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
       backendApiRef,
@@ -1353,8 +1490,8 @@ function useRuntimeOrchestrator(backendApi, options) {
         var _a;
         (_a = messageControllerRef.current) == null ? void 0 : _a.inbound(threadId, msgs);
       },
-      onSyncEvents: options == null ? void 0 : options.onSyncEvents,
-      getUserState: options == null ? void 0 : options.getUserState,
+      onSyncEvents: options.onSyncEvents,
+      getUserState: options.getUserState,
       onStart: (threadId) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);
@@ -1374,8 +1511,10 @@ function useRuntimeOrchestrator(backendApi, options) {
       threadContextRef,
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
-      getPublicKey: options == null ? void 0 : options.getPublicKey,
-      onSyncEvents: options == null ? void 0 : options.onSyncEvents
+      getPublicKey: options.getPublicKey,
+      getNamespace: options.getNamespace,
+      getApiKey: options.getApiKey,
+      onSyncEvents: options.onSyncEvents
     });
   }
   const ensureInitialState = useCallback5(async (threadId) => {
@@ -1398,13 +1537,13 @@ function useRuntimeOrchestrator(backendApi, options) {
     const backendThreadId = resolveThreadId(backendState, threadId);
     pendingFetches.current.add(threadId);
     try {
-      const userState = (_a = options == null ? void 0 : options.getUserState) == null ? void 0 : _a.call(options);
+      const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
       const state = await backendApiRef.current.fetchState(
         backendThreadId,
         userState
       );
       (_b = messageControllerRef.current) == null ? void 0 : _b.inbound(threadId, state.messages);
-      if (((_c = state.system_events) == null ? void 0 : _c.length) && (options == null ? void 0 : options.onSyncEvents)) {
+      if (((_c = state.system_events) == null ? void 0 : _c.length) && options.onSyncEvents) {
         options.onSyncEvents(backendThreadId, state.system_events);
       }
       if (threadContextRef.current.currentThreadId === threadId) {
@@ -1468,7 +1607,9 @@ function buildThreadListAdapter({
   currentThreadIdRef,
   polling,
   userAddress,
-  setIsRunning
+  setIsRunning,
+  getNamespace,
+  getApiKey
 }) {
   const backendState = backendStateRef.current;
   const { regularThreads, archivedThreads } = buildThreadLists(
@@ -1531,7 +1672,7 @@ function buildThreadListAdapter({
       const threadId = crypto.randomUUID();
       preparePendingThread(threadId);
       const createPromise = backendApiRef.current.createThread(threadId, userAddress).then(async (newThread) => {
-        var _a2;
+        var _a2, _b;
         const uiThreadId = (_a2 = backendState.creatingThreadId) != null ? _a2 : threadId;
         const backendId = newThread.session_id;
         if (uiThreadId !== backendId) {
@@ -1542,14 +1683,14 @@ function buildThreadListAdapter({
         }
         markSkipInitialFetch(backendState, uiThreadId);
         threadContext.setThreadMetadata((prev) => {
-          var _a3, _b;
+          var _a3, _b2;
           const next = new Map(prev);
           const existing = next.get(uiThreadId);
           const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
           next.set(uiThreadId, {
             title: (_a3 = existing == null ? void 0 : existing.title) != null ? _a3 : "New Chat",
             status: nextStatus,
-            lastActiveAt: (_b = existing == null ? void 0 : existing.lastActiveAt) != null ? _b : (/* @__PURE__ */ new Date()).toISOString()
+            lastActiveAt: (_b2 = existing == null ? void 0 : existing.lastActiveAt) != null ? _b2 : (/* @__PURE__ */ new Date()).toISOString()
           });
           return next;
         });
@@ -1559,9 +1700,17 @@ function buildThreadListAdapter({
         const pendingMessages = backendState.pendingChat.get(uiThreadId);
         if (pendingMessages == null ? void 0 : pendingMessages.length) {
           backendState.pendingChat.delete(uiThreadId);
+          const namespace = getNamespace();
+          const apiKey = (_b = getApiKey == null ? void 0 : getApiKey()) != null ? _b : void 0;
           for (const text of pendingMessages) {
             try {
-              await backendApiRef.current.postChatMessage(backendId, text);
+              await backendApiRef.current.postChatMessage(
+                backendId,
+                text,
+                namespace,
+                userAddress,
+                apiKey
+              );
             } catch (error) {
               console.error("Failed to send queued message:", error);
             }
@@ -1700,6 +1849,7 @@ function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
+  const { getControlState } = useControl();
   const {
     backendStateRef,
     polling,
@@ -1711,7 +1861,12 @@ function AomiRuntimeCore({
   } = useRuntimeOrchestrator(backendApi, {
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
-    getUserState
+    getUserState,
+    getNamespace: () => {
+      var _a;
+      return (_a = getControlState().namespace) != null ? _a : "default";
+    },
+    getApiKey: () => getControlState().apiKey
   });
   useEffect3(() => {
     const unsubscribe = onUserStateChange(async (newUser) => {
@@ -1729,9 +1884,9 @@ function AomiRuntimeCore({
     });
     return unsubscribe;
   }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
-  const threadContextRef = useRef5(threadContext);
+  const threadContextRef = useRef6(threadContext);
   threadContextRef.current = threadContext;
-  const currentThreadIdRef = useRef5(threadContext.currentThreadId);
+  const currentThreadIdRef = useRef6(threadContext.currentThreadId);
   useEffect3(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
@@ -1798,7 +1953,12 @@ function AomiRuntimeCore({
       currentThreadIdRef,
       polling,
       userAddress: user.address,
-      setIsRunning
+      setIsRunning,
+      getNamespace: () => {
+        var _a;
+        return (_a = getControlState().namespace) != null ? _a : "default";
+      },
+      getApiKey: () => getControlState().apiKey
     }),
     [
       backendApiRef,
@@ -1808,7 +1968,8 @@ function AomiRuntimeCore({
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
-      threadContext.allThreadsMetadata
+      threadContext.allThreadsMetadata,
+      getControlState
     ]
   );
   useEffect3(() => {
@@ -2038,35 +2199,32 @@ function AomiRuntimeCore({
 import { jsx as jsx7 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
-  backendUrl = "http://localhost:8080",
-  initialModels,
-  initialNamespaces,
-  defaultModelId,
-  defaultNamespace
+  backendUrl = "http://localhost:8080"
 }) {
   const backendApi = useMemo3(() => new BackendApi(backendUrl), [backendUrl]);
-  return /* @__PURE__ */ jsx7(ThreadContextProvider, { children: /* @__PURE__ */ jsx7(NotificationContextProvider, { children: /* @__PURE__ */ jsx7(UserContextProvider, { children: /* @__PURE__ */ jsx7(
-    ControlContextProvider,
-    {
-      initialModels,
-      initialNamespaces,
-      defaultModelId,
-      defaultNamespace,
-      children: /* @__PURE__ */ jsx7(AomiRuntimeInner, { backendApi, children })
-    }
-  ) }) }) });
+  return /* @__PURE__ */ jsx7(ThreadContextProvider, { children: /* @__PURE__ */ jsx7(NotificationContextProvider, { children: /* @__PURE__ */ jsx7(UserContextProvider, { children: /* @__PURE__ */ jsx7(AomiRuntimeInner, { backendApi, children }) }) }) });
 }
 function AomiRuntimeInner({
   children,
   backendApi
 }) {
+  var _a;
   const threadContext = useThreadContext();
+  const { user } = useUser();
   return /* @__PURE__ */ jsx7(
-    EventContextProvider,
+    ControlContextProvider,
     {
       backendApi,
       sessionId: threadContext.currentThreadId,
-      children: /* @__PURE__ */ jsx7(AomiRuntimeCore, { backendApi, children })
+      publicKey: (_a = user.address) != null ? _a : void 0,
+      children: /* @__PURE__ */ jsx7(
+        EventContextProvider,
+        {
+          backendApi,
+          sessionId: threadContext.currentThreadId,
+          children: /* @__PURE__ */ jsx7(AomiRuntimeCore, { backendApi, children })
+        }
+      )
     }
   );
 }

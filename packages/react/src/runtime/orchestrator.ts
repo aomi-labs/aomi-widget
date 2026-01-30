@@ -22,12 +22,14 @@ import {
 type OrchestratorOptions = {
   getPublicKey?: () => string | undefined;
   getUserState?: () => UserState;
+  getNamespace: () => string;
+  getApiKey?: () => string | null;
   onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
 };
 
 export function useRuntimeOrchestrator(
   backendApi: BackendApi,
-  options?: OrchestratorOptions,
+  options: OrchestratorOptions,
 ) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
@@ -50,8 +52,8 @@ export function useRuntimeOrchestrator(
       applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
         messageControllerRef.current?.inbound(threadId, msgs);
       },
-      onSyncEvents: options?.onSyncEvents,
-      getUserState: options?.getUserState,
+      onSyncEvents: options.onSyncEvents,
+      getUserState: options.getUserState,
       onStart: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);
@@ -72,8 +74,10 @@ export function useRuntimeOrchestrator(
       threadContextRef,
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
-      getPublicKey: options?.getPublicKey,
-      onSyncEvents: options?.onSyncEvents,
+      getPublicKey: options.getPublicKey,
+      getNamespace: options.getNamespace,
+      getApiKey: options.getApiKey,
+      onSyncEvents: options.onSyncEvents,
     });
   }
 
@@ -102,13 +106,13 @@ export function useRuntimeOrchestrator(
     pendingFetches.current.add(threadId);
 
     try {
-      const userState = options?.getUserState?.();
+      const userState = options.getUserState?.();
       const state = await backendApiRef.current.fetchState(
         backendThreadId,
         userState,
       );
       messageControllerRef.current?.inbound(threadId, state.messages);
-      if (state.system_events?.length && options?.onSyncEvents) {
+      if (state.system_events?.length && options.onSyncEvents) {
         options.onSyncEvents(backendThreadId, state.system_events);
       }
 

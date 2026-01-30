@@ -118,8 +118,6 @@ export {
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
-  type ModelOption,
-  type NamespaceOption,
 } from "./contexts/control-context";
 
 // =============================================================================

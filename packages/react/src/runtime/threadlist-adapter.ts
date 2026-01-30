@@ -66,6 +66,8 @@ export type ThreadListAdapterConfig = {
   polling: PollingController;
   userAddress?: string;
   setIsRunning: (running: boolean) => void;
+  getNamespace: () => string;
+  getApiKey?: () => string | null;
 };
 
 export function buildThreadListAdapter({
@@ -76,6 +78,8 @@ export function buildThreadListAdapter({
   polling,
   userAddress,
   setIsRunning,
+  getNamespace,
+  getApiKey,
 }: ThreadListAdapterConfig) {
   const backendState = backendStateRef.current;
   const { regularThreads, archivedThreads } = buildThreadLists(
@@ -177,9 +181,17 @@ export function buildThreadListAdapter({
           const pendingMessages = backendState.pendingChat.get(uiThreadId);
           if (pendingMessages?.length) {
             backendState.pendingChat.delete(uiThreadId);
+            const namespace = getNamespace();
+            const apiKey = getApiKey?.() ?? undefined;
             for (const text of pendingMessages) {
               try {
-                await backendApiRef.current.postChatMessage(backendId, text);
+                await backendApiRef.current.postChatMessage(
+                  backendId,
+                  text,
+                  namespace,
+                  userAddress,
+                  apiKey,
+                );
               } catch (error) {
                 console.error("Failed to send queued message:", error);
               }

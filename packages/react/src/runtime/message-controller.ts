@@ -23,6 +23,8 @@ type MessageControllerConfig = {
   polling: PollingController;
   setGlobalIsRunning?: (running: boolean) => void;
   getPublicKey?: () => string | undefined;
+  getNamespace: () => string;
+  getApiKey?: () => string | null;
   onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
 };
 
@@ -88,20 +90,19 @@ export class MessageController {
     }
 
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const namespace = this.config.getNamespace();
     const publicKey = this.config.getPublicKey?.();
+    const apiKey = this.config.getApiKey?.() ?? undefined;
 
     try {
       this.markRunning(threadId, true);
-      const response = publicKey
-        ? await this.config.backendApiRef.current.postChatMessage(
-            backendThreadId,
-            text,
-            publicKey,
-          )
-        : await this.config.backendApiRef.current.postChatMessage(
-            backendThreadId,
-            text,
-          );
+      const response = await this.config.backendApiRef.current.postChatMessage(
+        backendThreadId,
+        text,
+        namespace,
+        publicKey,
+        apiKey,
+      );
 
       // Apply the latest messages immediately so sync tool results appear without waiting for polling.
       if (response?.messages) {
@@ -128,21 +129,19 @@ export class MessageController {
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
+    const namespace = this.config.getNamespace();
     const publicKey = this.config.getPublicKey?.();
+    const apiKey = this.config.getApiKey?.() ?? undefined;
+
     for (const text of pending) {
       try {
-        if (publicKey) {
-          await this.config.backendApiRef.current.postChatMessage(
-            backendThreadId,
-            text,
-            publicKey,
-          );
-        } else {
-          await this.config.backendApiRef.current.postChatMessage(
-            backendThreadId,
-            text,
-          );
-        }
+        await this.config.backendApiRef.current.postChatMessage(
+          backendThreadId,
+          text,
+          namespace,
+          publicKey,
+          apiKey,
+        );
       } catch (error) {
         console.error("Failed to send queued message:", error);
       }
