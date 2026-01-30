@@ -317,7 +317,6 @@ export class BackendApi {
   async setModel(
     sessionId: string,
     rig: string,
-    baml: string,
     namespace?: string,
   ): Promise<{
     success: boolean;
@@ -325,7 +324,7 @@ export class BackendApi {
     baml: string;
     created: boolean;
   }> {
-    const payload: Record<string, unknown> = { rig, baml };
+    const payload: Record<string, unknown> = { rig };
     if (namespace) {
       payload.namespace = namespace;
     }

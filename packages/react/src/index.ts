@@ -119,11 +119,3 @@ export {
   type ControlContextApi,
   type ControlContextProviderProps,
 } from "./contexts/control-context";
-
-// =============================================================================
-// Wallet Button Component
-// =============================================================================
-export {
-  WalletButton,
-  type WalletButtonProps,
-} from "./components/wallet-button";

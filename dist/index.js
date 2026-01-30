@@ -425,8 +425,8 @@ var BackendApi = class {
   /**
    * Set the model selection for a session.
    */
-  async setModel(sessionId, rig, baml, namespace) {
-    const payload = { rig, baml };
+  async setModel(sessionId, rig, namespace) {
+    const payload = { rig };
     if (namespace) {
       payload.namespace = namespace;
     }
@@ -462,12 +462,20 @@ function ControlContextProvider({
   sessionId,
   publicKey
 }) {
-  const [state, setStateInternal] = useState(() => ({
-    namespace: null,
-    apiKey: typeof window !== "undefined" ? localStorage.getItem(API_KEY_STORAGE_KEY) : null,
-    availableModels: [],
-    authorizedNamespaces: []
-  }));
+  const [state, setStateInternal] = useState(() => {
+    var _a, _b;
+    let apiKey = null;
+    try {
+      apiKey = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(API_KEY_STORAGE_KEY)) != null ? _b : null;
+    } catch (e) {
+    }
+    return {
+      namespace: null,
+      apiKey,
+      availableModels: [],
+      authorizedNamespaces: []
+    };
+  });
   const stateRef = useRef(state);
   stateRef.current = state;
   const backendApiRef = useRef(backendApi);
@@ -478,11 +486,14 @@ function ControlContextProvider({
   publicKeyRef.current = publicKey;
   const callbacks = useRef(/* @__PURE__ */ new Set());
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (state.apiKey) {
-      localStorage.setItem(API_KEY_STORAGE_KEY, state.apiKey);
-    } else {
-      localStorage.removeItem(API_KEY_STORAGE_KEY);
+    var _a, _b;
+    try {
+      if (state.apiKey) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(API_KEY_STORAGE_KEY, state.apiKey);
+      } else {
+        (_b = globalThis.localStorage) == null ? void 0 : _b.removeItem(API_KEY_STORAGE_KEY);
+      }
+    } catch (e) {
     }
   }, [state.apiKey]);
   useEffect(() => {
@@ -572,7 +583,6 @@ function ControlContextProvider({
     var _a;
     await backendApiRef.current.setModel(
       sessionIdRef.current,
-      model,
       model,
       (_a = stateRef.current.namespace) != null ? _a : void 0
     );
@@ -2349,49 +2359,6 @@ function useNotificationHandler({
     markDone: markHandled
   };
 }
-
-// packages/react/src/components/wallet-button.tsx
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useEffect as useEffect6 } from "react";
-import { jsx as jsx8 } from "react/jsx-runtime";
-var WalletButton = ({
-  className,
-  connectLabel = "Connect Wallet",
-  onConnectionChange
-}) => {
-  const { address, isConnected, chainId } = useAccount();
-  const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { setUser } = useUser();
-  useEffect6(() => {
-    setUser({
-      address: address != null ? address : void 0,
-      chainId: chainId != null ? chainId : void 0,
-      isConnected
-    });
-    onConnectionChange == null ? void 0 : onConnectionChange(isConnected);
-  }, [address, chainId, isConnected, setUser, onConnectionChange]);
-  const handleClick = () => {
-    if (isConnected) {
-      disconnect();
-    } else {
-      const connector = connectors[0];
-      if (connector) {
-        connect({ connector });
-      }
-    }
-  };
-  return /* @__PURE__ */ jsx8(
-    "button",
-    {
-      type: "button",
-      onClick: handleClick,
-      className,
-      "aria-label": isConnected ? "Disconnect wallet" : "Connect wallet",
-      children: isConnected && address ? formatAddress(address) : connectLabel
-    }
-  );
-};
 export {
   AomiRuntimeProvider,
   BackendApi,
@@ -2400,7 +2367,6 @@ export {
   NotificationContextProvider,
   ThreadContextProvider,
   UserContextProvider,
-  WalletButton,
   cn,
   formatAddress,
   getNetworkName,
