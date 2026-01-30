@@ -76,7 +76,7 @@ export function ThreadListSidebar({
       <SidebarRail />
       {walletPosition === "footer" && (
         <SidebarFooter className="aomi-sidebar-footer border-t py-4">
-          <WalletButton
+          <WalletConnect
             className={cn(
               "inline-flex w-full items-center justify-center rounded-md text-sm font-medium",
               "ring-offset-background transition-colors",
