@@ -108,3 +108,24 @@ export {
   type NotificationContextApi as NotificationContextValue,
   type NotificationContextProviderProps,
 } from "./contexts/notification-context";
+
+// =============================================================================
+// Control Context (model/namespace/api-key state)
+// =============================================================================
+export {
+  useControl,
+  ControlContextProvider,
+  type ControlState,
+  type ControlContextApi,
+  type ControlContextProviderProps,
+  type ModelOption,
+  type NamespaceOption,
+} from "./contexts/control-context";
+
+// =============================================================================
+// Wallet Button Component
+// =============================================================================
+export {
+  WalletButton,
+  type WalletButtonProps,
+} from "./components/wallet-button";

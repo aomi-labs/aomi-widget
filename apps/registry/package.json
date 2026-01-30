@@ -8,8 +8,10 @@
     ".": "./src/index.ts",
     "./aomi-frame": "./src/components/aomi-frame.tsx",
     "./aomi-frame-collapsible": "./src/components/aomi-frame-collapsible.tsx",
+    "./control-bar": "./src/components/control-bar/index.tsx",
     "./components/ui/*": "./src/components/ui/*.tsx",
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
+    "./components/control-bar/*": "./src/components/control-bar/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./styles.css": "./src/themes/default.css",
     "./themes/*.css": "./src/themes/*.css"
