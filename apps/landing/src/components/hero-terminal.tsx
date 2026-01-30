@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import { WalletFooter } from "@/components/wallet-footer";
 
 export function HeroTerminal() {
   const [terminalState, setTerminalState] = useState<
@@ -117,11 +116,7 @@ export function HeroTerminal() {
             id="terminal-container"
             className={`w-full ${terminalSizeClasses} origin-bottom-left transform transition-all duration-300 ${terminalAnimationClass}`}
           >
-            <AomiFrame
-              height="100%"
-              width="100%"
-              walletFooter={(props) => <WalletFooter {...props} />}
-            />
+            <AomiFrame height="100%" width="100%" walletPosition="footer" />
           </div>
         )}
 

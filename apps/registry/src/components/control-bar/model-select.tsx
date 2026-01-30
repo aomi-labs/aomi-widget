@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FC } from "react";
+import { useState, useEffect, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useControl, cn, type ModelOption } from "@aomi-labs/react";
+import { useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -19,14 +19,17 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   className,
   placeholder = "Select model",
 }) => {
-  const { state, setModelId } = useControl();
+  const { state, getAvailableModels, onModelSelect } = useControl();
   const [open, setOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
-  if (state.availableModels.length === 0) return null;
+  useEffect(() => {
+    void getAvailableModels();
+  }, [getAvailableModels]);
 
-  const selectedModel = state.availableModels.find(
-    (m: ModelOption) => m.id === state.modelId,
-  );
+  const models = state.availableModels;
+
+  if (models.length === 0) return null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -37,37 +40,29 @@ export const ModelSelect: FC<ModelSelectProps> = ({
           aria-expanded={open}
           className={cn("w-[180px] justify-between", className)}
         >
-          <span className="truncate">
-            {selectedModel?.label ?? placeholder}
-          </span>
+          <span className="truncate">{selectedModel ?? placeholder}</span>
           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-1">
         <div className="flex flex-col gap-0.5">
-          {state.availableModels.map((model: ModelOption) => (
+          {models.map((model) => (
             <button
-              key={model.id}
+              key={model}
               onClick={() => {
-                setModelId(model.id);
+                setSelectedModel(model);
                 setOpen(false);
+                void onModelSelect(model);
               }}
               className={cn(
                 "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:bg-accent focus:text-accent-foreground",
-                state.modelId === model.id && "bg-accent",
+                selectedModel === model && "bg-accent",
               )}
             >
-              <span className="flex flex-col items-start">
-                <span>{model.label}</span>
-                {model.provider && (
-                  <span className="text-muted-foreground text-xs">
-                    {model.provider}
-                  </span>
-                )}
-              </span>
-              {state.modelId === model.id && <CheckIcon className="h-4 w-4" />}
+              <span>{model}</span>
+              {selectedModel === model && <CheckIcon className="h-4 w-4" />}
             </button>
           ))}
         </div>

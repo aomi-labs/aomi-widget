@@ -4,18 +4,14 @@ import { useMemo } from "react";
 import type { ReactNode } from "react";
 
 import { BackendApi } from "../backend/client";
-import {
-  ControlContextProvider,
-  type ModelOption,
-  type NamespaceOption,
-} from "../contexts/control-context";
+import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
 import {
   ThreadContextProvider,
   useThreadContext,
 } from "../contexts/thread-context";
-import { UserContextProvider } from "../contexts/user-context";
+import { UserContextProvider, useUser } from "../contexts/user-context";
 import { AomiRuntimeCore } from "./core";
 
 // =============================================================================
@@ -25,14 +21,6 @@ import { AomiRuntimeCore } from "./core";
 export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
-  /** Initial models for the control bar */
-  initialModels?: ModelOption[];
-  /** Initial namespaces (agents) for the control bar */
-  initialNamespaces?: NamespaceOption[];
-  /** Default model ID to select */
-  defaultModelId?: string;
-  /** Default namespace ID to select */
-  defaultNamespace?: string;
 };
 
 // =============================================================================
@@ -42,10 +30,6 @@ export type AomiRuntimeProviderProps = {
 export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
-  initialModels,
-  initialNamespaces,
-  defaultModelId,
-  defaultNamespace,
 }: Readonly<AomiRuntimeProviderProps>) {
   const backendApi = useMemo(() => new BackendApi(backendUrl), [backendUrl]);
 
@@ -53,16 +37,9 @@ export function AomiRuntimeProvider({
     <ThreadContextProvider>
       <NotificationContextProvider>
         <UserContextProvider>
-          <ControlContextProvider
-            initialModels={initialModels}
-            initialNamespaces={initialNamespaces}
-            defaultModelId={defaultModelId}
-            defaultNamespace={defaultNamespace}
-          >
-            <AomiRuntimeInner backendApi={backendApi}>
-              {children}
-            </AomiRuntimeInner>
-          </ControlContextProvider>
+          <AomiRuntimeInner backendApi={backendApi}>
+            {children}
+          </AomiRuntimeInner>
         </UserContextProvider>
       </NotificationContextProvider>
     </ThreadContextProvider>
@@ -70,7 +47,7 @@ export function AomiRuntimeProvider({
 }
 
 // =============================================================================
-// Inner Provider (needs ThreadContext)
+// Inner Provider (needs ThreadContext and UserContext)
 // =============================================================================
 
 type AomiRuntimeInnerProps = {
@@ -83,13 +60,20 @@ function AomiRuntimeInner({
   backendApi,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
+  const { user } = useUser();
 
   return (
-    <EventContextProvider
+    <ControlContextProvider
       backendApi={backendApi}
       sessionId={threadContext.currentThreadId}
+      publicKey={user.address ?? undefined}
     >
-      <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
-    </EventContextProvider>
+      <EventContextProvider
+        backendApi={backendApi}
+        sessionId={threadContext.currentThreadId}
+      >
+        <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
+      </EventContextProvider>
+    </ControlContextProvider>
   );
 }

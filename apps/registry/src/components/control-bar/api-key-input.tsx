@@ -18,9 +18,7 @@ import {
 
 export type ApiKeyInputProps = {
   className?: string;
-  /** Label for the dialog title */
   title?: string;
-  /** Description shown in the dialog */
   description?: string;
 };
 
@@ -29,23 +27,10 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
   title = "Aomi API Key",
   description = "Enter your API key to authenticate with Aomi services.",
 }) => {
-  const { state, setApiKey, clearApiKey } = useControl();
+  const { state, setState } = useControl();
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [showKey, setShowKey] = useState(false);
-
-  const handleSave = () => {
-    if (inputValue.trim()) {
-      setApiKey(inputValue.trim());
-      setOpen(false);
-      setInputValue("");
-    }
-  };
-
-  const handleClear = () => {
-    clearApiKey();
-    setInputValue("");
-  };
 
   const hasApiKey = Boolean(state.apiKey);
 
@@ -106,11 +91,26 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
         </div>
         <DialogFooter>
           {hasApiKey && (
-            <Button variant="outline" onClick={handleClear}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setState({ apiKey: null });
+                setInputValue("");
+              }}
+            >
               Clear
             </Button>
           )}
-          <Button onClick={handleSave} disabled={!inputValue.trim()}>
+          <Button
+            onClick={() => {
+              if (inputValue.trim()) {
+                setState({ apiKey: inputValue.trim() });
+                setOpen(false);
+                setInputValue("");
+              }
+            }}
+            disabled={!inputValue.trim()}
+          >
             Save
           </Button>
         </DialogFooter>

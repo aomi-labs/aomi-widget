@@ -2,28 +2,26 @@
 
 import { AomiFrame, NotificationToaster } from "@aomi-labs/widget-lib";
 import { Preview } from "@/components/playground/Preview";
-import { WalletFooter } from "@/components/wallet-footer";
 
 const widgetCode = `import { AomiFrame, NotificationToaster } from "@aomi-labs/widget-lib";
-import { WalletFooter } from "@/components/wallet-footer";
 
 export function WidgetDemo() {
   return (
-    <AomiFrame height="560px" width="100%" walletFooter={(props) => <WalletFooter {...props} />}>
+    <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
+      <AomiFrame.Header withControl />
+      <AomiFrame.Composer />
       <NotificationToaster />
-    </AomiFrame>
+    </AomiFrame.Root>
   );
 }`;
 
 export function WidgetFrame() {
   return (
-    <AomiFrame
-      height="560px"
-      width="100%"
-      walletFooter={(props) => <WalletFooter {...props} />}
-    >
+    <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
+      <AomiFrame.Header withControl />
+      <AomiFrame.Composer />
       <NotificationToaster />
-    </AomiFrame>
+    </AomiFrame.Root>
   );
 }
 
@@ -31,7 +29,7 @@ export function WidgetDemo() {
   return (
     <Preview
       title="AomiFrame live demo"
-      description="Chat surface, thread list, and composer running with the Reown wallet footer."
+      description="Chat surface, thread list, and composer running with wallet integration in sidebar footer."
       code={widgetCode}
       badge="Live"
     >

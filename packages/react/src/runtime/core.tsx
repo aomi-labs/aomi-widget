@@ -9,6 +9,7 @@ import {
 } from "@assistant-ui/react";
 
 import type { BackendApi } from "../backend/client";
+import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/user-context";
 import { useThreadContext } from "../contexts/thread-context";
@@ -45,6 +46,7 @@ export function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
+  const { getControlState } = useControl();
 
   const {
     backendStateRef,
@@ -58,6 +60,8 @@ export function AomiRuntimeCore({
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
+    getNamespace: () => getControlState().namespace ?? "default",
+    getApiKey: () => getControlState().apiKey,
   });
 
   // ---------------------------------------------------------------------------
@@ -178,6 +182,8 @@ export function AomiRuntimeCore({
         polling,
         userAddress: user.address,
         setIsRunning,
+        getNamespace: () => getControlState().namespace ?? "default",
+        getApiKey: () => getControlState().apiKey,
       }),
     [
       backendApiRef,
@@ -188,6 +194,7 @@ export function AomiRuntimeCore({
       threadContext,
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
+      getControlState,
     ],
   );
 

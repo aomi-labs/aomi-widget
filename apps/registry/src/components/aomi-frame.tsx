@@ -1,13 +1,7 @@
 "use client";
 
 import { type CSSProperties, type ReactNode, type FC } from "react";
-import {
-  AomiRuntimeProvider,
-  cn,
-  useAomiRuntime,
-  type ModelOption,
-  type NamespaceOption,
-} from "@aomi-labs/react";
+import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import {
@@ -37,14 +31,6 @@ type RootProps = {
   walletPosition?: "header" | "footer" | null;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
-  /** Initial models for the control bar */
-  initialModels?: ModelOption[];
-  /** Initial namespaces (agents) for the control bar */
-  initialNamespaces?: NamespaceOption[];
-  /** Default model ID to select */
-  defaultModelId?: string;
-  /** Default namespace ID to select */
-  defaultNamespace?: string;
 };
 
 type HeaderProps = {
@@ -82,10 +68,6 @@ const Root: FC<RootProps> = ({
   style,
   walletPosition = "footer",
   backendUrl,
-  initialModels,
-  initialNamespaces,
-  defaultModelId,
-  defaultNamespace,
 }) => {
   const resolvedBackendUrl =
     backendUrl ??
@@ -94,13 +76,7 @@ const Root: FC<RootProps> = ({
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <AomiRuntimeProvider
-      backendUrl={resolvedBackendUrl}
-      initialModels={initialModels}
-      initialNamespaces={initialNamespaces}
-      defaultModelId={defaultModelId}
-      defaultNamespace={defaultNamespace}
-    >
+    <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
       <SidebarProvider>
         <div
           className={cn(
