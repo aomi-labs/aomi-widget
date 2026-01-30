@@ -113,13 +113,13 @@ export function buildThreadListAdapter({
     threadContext.bumpThreadViewKey();
   };
 
-    const findPendingThreadId = () => {
-      if (backendState.creatingThreadId) return backendState.creatingThreadId;
-      for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
-        if (meta.status === "pending") return id;
-      }
-      return null;
-    };
+  const findPendingThreadId = () => {
+    if (backendState.creatingThreadId) return backendState.creatingThreadId;
+    for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
+      if (meta.status === "pending") return id;
+    }
+    return null;
+  };
 
   return {
     threadId: threadContext.currentThreadId,

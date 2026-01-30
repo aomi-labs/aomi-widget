@@ -1,5 +1,5 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { ReactNode, SetStateAction } from 'react';
+import { ReactNode, SetStateAction, FC } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
 import { ClassValue } from 'clsx';
 
@@ -129,11 +129,59 @@ declare class BackendApi {
     getSystemEvents(sessionId: string, count?: number): Promise<ApiSystemEvent[]>;
 }
 
+type ModelOption = {
+    id: string;
+    label: string;
+    provider?: string;
+};
+type NamespaceOption = {
+    id: string;
+    label: string;
+    description?: string;
+};
+type ControlState = {
+    modelId: string | null;
+    availableModels: ModelOption[];
+    namespace: string | null;
+    availableNamespaces: NamespaceOption[];
+    apiKey: string | null;
+};
+type ControlContextApi = {
+    state: ControlState;
+    setModelId: (id: string) => void;
+    setAvailableModels: (models: ModelOption[]) => void;
+    setNamespace: (ns: string) => void;
+    setAvailableNamespaces: (namespaces: NamespaceOption[]) => void;
+    setApiKey: (key: string) => void;
+    clearApiKey: () => void;
+};
+declare function useControl(): ControlContextApi;
+type ControlContextProviderProps = {
+    children: ReactNode;
+    /** Initial models to populate the selector */
+    initialModels?: ModelOption[];
+    /** Initial namespaces to populate the selector */
+    initialNamespaces?: NamespaceOption[];
+    /** Default model ID to select */
+    defaultModelId?: string | null;
+    /** Default namespace ID to select */
+    defaultNamespace?: string | null;
+};
+declare function ControlContextProvider({ children, initialModels, initialNamespaces, defaultModelId, defaultNamespace, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
+
 type AomiRuntimeProviderProps = {
     children: ReactNode;
     backendUrl?: string;
+    /** Initial models for the control bar */
+    initialModels?: ModelOption[];
+    /** Initial namespaces (agents) for the control bar */
+    initialNamespaces?: NamespaceOption[];
+    /** Default model ID to select */
+    defaultModelId?: string;
+    /** Default namespace ID to select */
+    defaultNamespace?: string;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, initialModels, initialNamespaces, defaultModelId, defaultNamespace, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 type ThreadContext = {
     currentThreadId: string;
@@ -382,4 +430,13 @@ type UserConfig = {
 declare const getNetworkName: (chainId: number | string | undefined) => string;
 declare const formatAddress: (addr?: string) => string;
 
-export { type AomiMessage, type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification as HandlerNotification, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, formatAddress, getNetworkName, useAomiRuntime, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+type WalletButtonProps = {
+    className?: string;
+    /** Text to show when disconnected */
+    connectLabel?: string;
+    /** Called when connection state changes */
+    onConnectionChange?: (connected: boolean) => void;
+};
+declare const WalletButton: FC<WalletButtonProps>;
+
+export { type AomiMessage, type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification as HandlerNotification, type InboundEvent, type ModelOption, type NamespaceOption, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, WalletButton, type WalletButtonProps, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, formatAddress, getNetworkName, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
