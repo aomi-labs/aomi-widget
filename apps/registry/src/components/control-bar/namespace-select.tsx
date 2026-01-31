@@ -49,7 +49,7 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[220px] p-1">
+      <PopoverContent className="w-[220px] rounded-xl border p-1 shadow-none">
         <div className="flex flex-col gap-0.5">
           {namespaces.map((ns) => (
             <button
@@ -59,7 +59,7 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
                 setOpen(false);
               }}
               className={cn(
-                "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none",
+                "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm outline-none",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:bg-accent focus:text-accent-foreground",
                 state.namespace === ns && "bg-accent",

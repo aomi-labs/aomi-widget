@@ -13,23 +13,26 @@ import {
 export type ModelSelectProps = {
   className?: string;
   placeholder?: string;
+  defaultModel?: string;
 };
+
+const DEFAULT_MODEL = "Claude Opus 4";
 
 export const ModelSelect: FC<ModelSelectProps> = ({
   className,
   placeholder = "Select model",
+  defaultModel = DEFAULT_MODEL,
 }) => {
   const { state, getAvailableModels, onModelSelect } = useControl();
   const [open, setOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
 
   useEffect(() => {
     void getAvailableModels();
   }, [getAvailableModels]);
 
-  const models = state.availableModels;
-
-  if (models.length === 0) return null;
+  const models =
+    state.availableModels.length > 0 ? state.availableModels : [defaultModel];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -40,11 +43,11 @@ export const ModelSelect: FC<ModelSelectProps> = ({
           aria-expanded={open}
           className={cn("w-[180px] justify-between", className)}
         >
-          <span className="truncate">{selectedModel ?? placeholder}</span>
+          <span className="truncate">{selectedModel || placeholder}</span>
           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-1">
+      <PopoverContent className="w-[200px] rounded-xl border p-1 shadow-none">
         <div className="flex flex-col gap-0.5">
           {models.map((model) => (
             <button
@@ -55,7 +58,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
                 void onModelSelect(model);
               }}
               className={cn(
-                "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none",
+                "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm outline-none",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:bg-accent focus:text-accent-foreground",
                 selectedModel === model && "bg-accent",
