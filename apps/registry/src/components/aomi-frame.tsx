@@ -116,15 +116,17 @@ const Header: FC<HeaderProps> = ({
     >
       <SidebarTrigger />
       <Separator orientation="vertical" className="mr-2 h-4" />
-      {withControl && <ControlBar {...controlBarProps} />}
-      <Breadcrumb className="ml-auto">
+      <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem className="hidden md:block">
             {currentTitle}
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      {children}
+      <div className="ml-auto flex items-center gap-2">
+        {withControl && <ControlBar {...controlBarProps} />}
+        {children}
+      </div>
     </header>
   );
 };
@@ -169,11 +171,23 @@ type DefaultLayoutProps = Omit<RootProps, "children">;
 /**
  * Default layout with ControlBar in header
  * Usage: <AomiFrame /> or <AomiFrame walletPosition="header" />
+ *
+ * When walletPosition is set (not null), the wallet button in ControlBar
+ * is hidden by default to avoid duplication with the sidebar wallet.
  */
-const DefaultLayout: FC<DefaultLayoutProps> = (props) => {
+const DefaultLayout: FC<DefaultLayoutProps> = ({
+  walletPosition = "footer",
+  ...props
+}) => {
+  // Hide wallet in ControlBar when it's shown in sidebar
+  const hideWalletInControlBar = walletPosition !== null;
+
   return (
-    <Root {...props}>
-      <Header withControl />
+    <Root walletPosition={walletPosition} {...props}>
+      <Header
+        withControl
+        controlBarProps={{ hideWallet: hideWalletInControlBar }}
+      />
       <Composer />
     </Root>
   );

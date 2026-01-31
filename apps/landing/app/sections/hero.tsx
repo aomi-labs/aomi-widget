@@ -1,7 +1,7 @@
 "use client";
 
-import { HeroTerminal } from "@/components/hero-terminal";
 import { useState, type CSSProperties } from "react";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -242,7 +242,14 @@ export function Hero() {
             <span className="relative z-10">Documentation</span>
           </a>
         </div>
-        <HeroTerminal />
+        <div className="flex w-full max-w-[1500px] flex-col items-center justify-start pt-10 pb-10">
+          <div
+            id="terminal-container"
+            className="h-[680px] w-full max-w-[900px] origin-bottom-left transform transition-all duration-300"
+          >
+            <AomiFrame height="100%" width="100%" walletPosition="footer" />
+          </div>
+        </div>
       </div>
 
       <section className="relative z-10 bg-stone-100 pt-20" id="client-ticker">

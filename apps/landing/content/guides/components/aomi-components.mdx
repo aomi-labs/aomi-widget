@@ -15,14 +15,14 @@ Full assistant shell with thread list and runtime wiring. This is the main compo
 
 ### Props
 
-| Prop           | Type                                      | Default  | Description               |
-| -------------- | ----------------------------------------- | -------- | ------------------------- |
-| `width`        | `CSSProperties["width"]`                  | `"100%"` | Frame width               |
-| `height`       | `CSSProperties["height"]`                 | `"80vh"` | Frame height              |
-| `className`    | `string`                                  | —        | Additional CSS classes    |
-| `style`        | `CSSProperties`                           | —        | Inline styles             |
-| `walletFooter` | `(props: WalletFooterProps) => ReactNode` | —        | Render prop for wallet UI |
-| `children`     | `ReactNode`                               | —        | Additional content        |
+| Prop             | Type                      | Default  | Description            |
+| ---------------- | ------------------------- | -------- | ---------------------- | ---------- | ---------------------------------- |
+| `width`          | `CSSProperties["width"]`  | `"100%"` | Frame width            |
+| `height`         | `CSSProperties["height"]` | `"80vh"` | Frame height           |
+| `className`      | `string`                  | —        | Additional CSS classes |
+| `style`          | `CSSProperties`           | —        | Inline styles          |
+| `walletPosition` | `"header"                 | "footer" | null`                  | `"footer"` | Wallet button placement in sidebar |
+| `children`       | `ReactNode`               | —        | Additional content     |
 
 ### Usage
 
@@ -30,14 +30,7 @@ Full assistant shell with thread list and runtime wiring. This is the main compo
 import { AomiFrame } from "@/components/aomi-frame";
 
 export default function ChatPage() {
-  return (
-    <AomiFrame
-      height="600px"
-      walletFooter={({ wallet, setWallet }) => (
-        <YourWalletButton wallet={wallet} setWallet={setWallet} />
-      )}
-    />
-  );
+  return <AomiFrame height="600px" walletPosition="footer" />;
 }
 ```
 

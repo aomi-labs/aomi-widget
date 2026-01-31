@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { cn } from "@aomi-labs/react";
 import {
   Sidebar,
   SidebarContent,
@@ -57,17 +56,7 @@ export function ThreadListSidebar({
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-          {walletPosition === "header" && (
-            <WalletConnect
-              className={cn(
-                "inline-flex items-center justify-center rounded-md text-sm font-medium",
-                "ring-offset-background transition-colors",
-                "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-                "hover:bg-accent hover:text-accent-foreground",
-                "h-8 px-3",
-              )}
-            />
-          )}
+          {walletPosition === "header" && <WalletConnect />}
         </div>
       </SidebarHeader>
       <SidebarContent className="aomi-sidebar-content">
@@ -76,15 +65,7 @@ export function ThreadListSidebar({
       <SidebarRail />
       {walletPosition === "footer" && (
         <SidebarFooter className="aomi-sidebar-footer border-t py-4">
-          <WalletConnect
-            className={cn(
-              "inline-flex w-full items-center justify-center rounded-md text-sm font-medium",
-              "ring-offset-background transition-colors",
-              "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-              "border-input bg-background hover:bg-accent hover:text-accent-foreground border",
-              "h-10 px-4",
-            )}
-          />
+          <WalletConnect className="w-full" />
         </SidebarFooter>
       )}
     </Sidebar>

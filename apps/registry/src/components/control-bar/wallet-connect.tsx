@@ -2,7 +2,7 @@
 
 import { useEffect, type FC } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { cn, formatAddress, useUser } from "@aomi-labs/react";
+import { cn, formatAddress, getNetworkName, useUser } from "@aomi-labs/react";
 
 export type WalletConnectProps = {
   className?: string;
@@ -41,22 +41,31 @@ export const WalletConnect: FC<WalletConnectProps> = ({
     }
   };
 
+  const networkName = getNetworkName(chainId);
+
   return (
     <button
       type="button"
       onClick={handleClick}
       className={cn(
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium",
-        "ring-offset-background transition-colors",
+        "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium",
+        "rounded-full px-5 py-2.5",
+        "bg-neutral-900 text-white",
+        "hover:bg-neutral-800",
+        "dark:bg-neutral-100 dark:text-neutral-900",
+        "dark:hover:bg-neutral-200",
+        "transition-colors",
         "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
-        "hover:bg-accent hover:text-accent-foreground",
-        "h-9 px-3",
         className,
       )}
       aria-label={isConnected ? "Disconnect wallet" : "Connect wallet"}
     >
-      {isConnected && address ? formatAddress(address) : connectLabel}
+      <span>
+        {isConnected && address ? formatAddress(address) : connectLabel}
+      </span>
+      <span className="opacity-60">•</span>
+      <span className="opacity-60">{networkName}</span>
     </button>
   );
 };
