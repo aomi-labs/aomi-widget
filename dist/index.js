@@ -639,6 +639,18 @@ import {
   useSyncExternalStore
 } from "react";
 
+// packages/react/src/utils/uuid.ts
+function generateUUID() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === "x" ? r : r & 3 | 8;
+    return v.toString(16);
+  });
+}
+
 // packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
@@ -720,7 +732,7 @@ var ThreadStore = class {
       this.updateState({ threadMetadata: nextMetadata });
     };
     var _a;
-    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : crypto.randomUUID();
+    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : generateUUID();
     this.state = {
       currentThreadId: initialThreadId,
       threadViewKey: 0,
@@ -1446,11 +1458,11 @@ function buildThreadListAdapter({
       }
       if (backendState.createThreadPromise) {
         preparePendingThread(
-          (_a = backendState.creatingThreadId) != null ? _a : crypto.randomUUID()
+          (_a = backendState.creatingThreadId) != null ? _a : generateUUID()
         );
         return;
       }
-      const threadId = crypto.randomUUID();
+      const threadId = generateUUID();
       preparePendingThread(threadId);
       const createPromise = backendApiRef.current.createThread(threadId, userAddress).then(async (newThread) => {
         var _a2;
