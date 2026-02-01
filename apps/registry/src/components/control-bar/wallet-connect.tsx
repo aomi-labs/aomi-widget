@@ -52,8 +52,8 @@ export const WalletConnect: FC<WalletConnectProps> = ({
         "rounded-full px-5 py-2.5",
         "bg-neutral-900 text-white",
         "hover:bg-neutral-800",
-        "dark:bg-neutral-100 dark:text-neutral-900",
-        "dark:hover:bg-neutral-200",
+        "dark:bg-neutral-900 dark:text-white",
+        "dark:hover:bg-neutral-800",
         "transition-colors",
         "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
@@ -64,8 +64,12 @@ export const WalletConnect: FC<WalletConnectProps> = ({
       <span>
         {isConnected && address ? formatAddress(address) : connectLabel}
       </span>
-      <span className="opacity-60">•</span>
-      <span className="opacity-60">{networkName}</span>
+      {isConnected && networkName && (
+        <>
+          <span className="opacity-50">•</span>
+          <span className="opacity-50">{networkName}</span>
+        </>
+      )}
     </button>
   );
 };

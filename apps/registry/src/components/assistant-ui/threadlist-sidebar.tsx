@@ -33,29 +33,22 @@ export function ThreadListSidebar({
       {...props}
     >
       <SidebarHeader className="aomi-sidebar-header">
-        <div className="aomi-sidebar-header-content flex items-center justify-between">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <Link
-                  href="https://aomi.dev"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="aomi-sidebar-header-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-white">
-                    <Image
-                      src="/assets/images/bubble.svg"
-                      alt="Logo"
-                      width={28}
-                      height={28}
-                      className="aomi-sidebar-header-icon ml-3 size-7"
-                      priority
-                    />
-                  </div>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+        <div className="aomi-sidebar-header-content mt-5 mb-5 ml-5 flex items-center justify-between">
+          <Link
+            href="https://aomi.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center"
+          >
+            <Image
+              src="/assets/images/bubble.svg"
+              alt="Logo"
+              width={25}
+              height={25}
+              className="aomi-sidebar-header-icon size-6"
+              priority
+            />
+          </Link>
           {walletPosition === "header" && <WalletConnect />}
         </div>
       </SidebarHeader>
@@ -64,7 +57,7 @@ export function ThreadListSidebar({
       </SidebarContent>
       <SidebarRail />
       {walletPosition === "footer" && (
-        <SidebarFooter className="aomi-sidebar-footer border-t py-4">
+        <SidebarFooter className="aomi-sidebar-footer border-0 mx-5 mb-5">
           <WalletConnect className="w-full" />
         </SidebarFooter>
       )}

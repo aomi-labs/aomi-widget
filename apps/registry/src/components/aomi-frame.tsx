@@ -10,6 +10,7 @@ import {
 import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
+import { NotificationToaster } from "@/components/ui/notification";
 import {
   SidebarInset,
   SidebarProvider,
@@ -92,7 +93,7 @@ const Root: FC<RootProps> = ({
       <SidebarProvider>
         <div
           className={cn(
-            "flex h-full w-full overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-950",
+            "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
             className,
           )}
           style={frameStyle}
@@ -101,6 +102,7 @@ const Root: FC<RootProps> = ({
           <SidebarInset className="relative flex flex-col">
             {children}
           </SidebarInset>
+          <NotificationToaster />
         </div>
       </SidebarProvider>
     </AomiRuntimeProvider>
@@ -122,7 +124,7 @@ const Header: FC<HeaderProps> = ({
   return (
     <header
       className={cn(
-        "mt-1 flex h-14 shrink-0 items-center gap-2 border-b px-3",
+        "mt-1 flex h-14 shrink-0 items-center gap-2 px-3",
         className,
       )}
     >

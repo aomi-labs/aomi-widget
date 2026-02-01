@@ -68,7 +68,7 @@ export const Thread: FC = () => {
             ["--thread-max-width" as string]: "44rem",
           }}
         >
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-4">
+          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-2">
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
@@ -177,10 +177,10 @@ const ThreadSuggestions: FC = () => {
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm"
+              className="aui-thread-welcome-suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm font-normal"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 font-medium">
+              <span className="aui-thread-welcome-suggestion-text-1">
                 {suggestedAction.title}
               </span>
               <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground">
@@ -198,7 +198,7 @@ const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-background sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl pb-4 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-card text-card-foreground relative flex w-full flex-col border px-1 pt-2 shadow-sm">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground relative flex w-full flex-col px-1 pt-2">
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Send a message..."
@@ -221,12 +221,12 @@ const ComposerAction: FC = () => {
       {/* Show attachment button only when inline controls are hidden */}
       {!showInlineControls && <ComposerAddAttachment />}
 
-      {/* Inline controls: [🔑] [Model ▾] [Agent ▾] */}
+      {/* Inline controls: [Model ▾] [Agent ▾] [🔑] */}
       {showInlineControls && (
-        <div className="ml-2 flex items-center gap-1">
-          <ApiKeyInput className="text-muted-foreground h-8 w-8" />
-          <ModelSelect className="text-muted-foreground hover:bg-accent h-8 w-auto min-w-[120px] rounded-full border-none bg-transparent px-3 text-xs shadow-none" />
-          <NamespaceSelect className="text-muted-foreground hover:bg-accent h-8 w-auto min-w-[100px] rounded-full border-none bg-transparent px-3 text-xs shadow-none" />
+        <div className="ml-2 flex items-center gap-2">
+          <ModelSelect />
+          <NamespaceSelect />
+          <ApiKeyInput />
         </div>
       )}
 

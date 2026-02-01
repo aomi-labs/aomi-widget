@@ -81,6 +81,86 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Custom scrollbar styling - thin, transparent, muted */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  *:hover,
+  *:focus-within {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+    border: none;
+    margin: 0;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+  }
+
+  *:hover::-webkit-scrollbar-thumb,
+  *:focus-within::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.2);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Sidebar scrollbar - ultra thin, only visible on hover */
+  [data-sidebar="content"] {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar {
+    width: 0;
+    display: none;
+  }
+
+  /* Thread viewport scrollbar - thin, muted, only on hover */
+  .aui-thread-viewport {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  .aui-thread-viewport:hover {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.15) transparent;
+  }
+
+  .aui-thread-viewport::-webkit-scrollbar {
+    width: 3px;
+    background: transparent;
+  }
+
+  .aui-thread-viewport::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .aui-thread-viewport::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+  }
+
+  .aui-thread-viewport:hover::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.15);
+  }
 }
 
 @layer base {
@@ -390,4 +470,33 @@ html {
   text-align: left !important;
   margin-left: 0 !important;
   margin-right: auto !important;
+}
+
+/* ============================================
+   Sidebar Logo Dark Mode Fix
+   ============================================ */
+
+/* Make sidebar header icon white in dark mode */
+.dark .aomi-sidebar-header-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* ============================================
+   Widget Isolation from Fumadocs Styles
+   ============================================ */
+
+/* Reset fumadocs list styles within the widget */
+.aui-thread-list-root,
+.aui-thread-list-root li,
+[data-sidebar] ul,
+[data-sidebar] li {
+  list-style: none !important;
+  margin: 0 !important;
+}
+
+/* Reset fumadocs padding on sidebar elements */
+[data-sidebar="menu"],
+[data-sidebar="menu-item"],
+[data-sidebar="content"] {
+  padding-left: 0 !important;
 }

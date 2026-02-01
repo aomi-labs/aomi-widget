@@ -41,9 +41,9 @@ export const ControlBar: FC<ControlBarProps> = ({
     <div className={cn("flex items-center gap-2", className)}>
       {!hideModel && <ModelSelect />}
       {!hideNamespace && <NamespaceSelect />}
-      {!hideApiKey && <ApiKeyInput />}
       {!hideWallet && <WalletConnect />}
       {children}
+      {!hideApiKey && <ApiKeyInput />}
     </div>
   );
 };
