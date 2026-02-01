@@ -1,4 +1,3 @@
-import { generateUUID } from "../utils/uuid";
 import type { MutableRefObject } from "react";
 import type { ExternalStoreThreadData } from "@assistant-ui/react";
 
@@ -136,12 +135,12 @@ export function buildThreadListAdapter({
 
       if (backendState.createThreadPromise) {
         preparePendingThread(
-          backendState.creatingThreadId ?? generateUUID(),
+          backendState.creatingThreadId ?? crypto.randomUUID(),
         );
         return;
       }
 
-      const threadId = generateUUID();
+      const threadId = crypto.randomUUID();
       preparePendingThread(threadId);
 
       const createPromise = backendApiRef.current
