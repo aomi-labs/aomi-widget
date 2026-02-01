@@ -38,16 +38,24 @@ export const ModelSelect: FC<ModelSelectProps> = ({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-[180px] justify-between", className)}
+          className={cn(
+            "h-8 w-auto min-w-[100px] justify-between rounded-full px-2 text-xs",
+            "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            className,
+          )}
         >
           <span className="truncate">{selectedModel || placeholder}</span>
           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] rounded-xl border p-1 shadow-none">
+      <PopoverContent
+        align="center"
+        sideOffset={-40}
+        className="w-[180px] rounded-full p-1 shadow-none"
+      >
         <div className="flex flex-col gap-0.5">
           {models.map((model) => (
             <button
@@ -58,7 +66,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
                 void onModelSelect(model);
               }}
               className={cn(
-                "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm outline-none",
+                "flex w-full items-center justify-between gap-2 rounded-full px-3 py-2 text-sm outline-none",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:bg-accent focus:text-accent-foreground",
                 selectedModel === model && "bg-accent",

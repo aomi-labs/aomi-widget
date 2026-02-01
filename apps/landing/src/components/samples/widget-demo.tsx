@@ -1,16 +1,15 @@
 "use client";
 
-import { AomiFrame, NotificationToaster } from "@aomi-labs/widget-lib";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 import { Preview } from "@/components/playground/Preview";
 
-const widgetCode = `import { AomiFrame, NotificationToaster } from "@aomi-labs/widget-lib";
+const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib";
 
 export function WidgetDemo() {
   return (
     <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
       <AomiFrame.Header withControl />
       <AomiFrame.Composer />
-      <NotificationToaster />
     </AomiFrame.Root>
   );
 }`;
@@ -20,7 +19,6 @@ export function WidgetFrame() {
     <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
       <AomiFrame.Header withControl />
       <AomiFrame.Composer />
-      <NotificationToaster />
     </AomiFrame.Root>
   );
 }

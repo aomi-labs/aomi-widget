@@ -40,7 +40,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
         <Button
           variant="ghost"
           size="icon"
-          className={cn("relative", className)}
+          className={cn("relative rounded-full", className)}
           aria-label={hasApiKey ? "API key configured" : "Set API key"}
         >
           <KeyIcon className={cn("h-4 w-4", hasApiKey && "text-green-500")} />
@@ -49,14 +49,16 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
+      <DialogContent className="max-w-[280px] pl-4">
+        <DialogHeader className="border-0">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="api-key">API Key</Label>
+            <Label htmlFor="api-key" className="mb-2">
+              API Key
+            </Label>
             <div className="relative">
               <Input
                 id="api-key"
@@ -64,7 +66,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
                 placeholder={hasApiKey ? "********" : "Enter your API key"}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                className="pr-10"
+                className="rounded-full pr-10"
               />
               <Button
                 type="button"
@@ -75,9 +77,9 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
                 aria-label={showKey ? "Hide API key" : "Show API key"}
               >
                 {showKey ? (
-                  <EyeOffIcon className="h-4 w-4" />
-                ) : (
                   <EyeIcon className="h-4 w-4" />
+                ) : (
+                  <EyeOffIcon className="h-4 w-4" />
                 )}
               </Button>
             </div>
