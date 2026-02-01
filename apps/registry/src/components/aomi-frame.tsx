@@ -1,6 +1,12 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, type FC } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  type FC,
+  createContext,
+  useContext,
+} from "react";
 import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
@@ -16,6 +22,14 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+
+// =============================================================================
+// Composer Control Context - signals Thread to show inline controls
+// =============================================================================
+
+const ComposerControlContext = createContext<boolean>(false);
+
+export const useComposerControl = () => useContext(ComposerControlContext);
 
 // =============================================================================
 // Types
@@ -44,10 +58,8 @@ type HeaderProps = {
 
 type ComposerProps = {
   children?: ReactNode;
-  /** Show the control bar above the composer */
+  /** Show inline controls in the composer input area */
   withControl?: boolean;
-  /** Props to pass to the ControlBar when withControl is true */
-  controlBarProps?: Omit<ControlBarProps, "children">;
   className?: string;
 };
 
@@ -100,7 +112,7 @@ const Root: FC<RootProps> = ({
  */
 const Header: FC<HeaderProps> = ({
   children,
-  withControl = true,
+  withControl,
   controlBarProps,
   className,
 }) => {
@@ -132,26 +144,23 @@ const Header: FC<HeaderProps> = ({
 };
 
 /**
- * Composer component - renders the thread with optional control bar above
+ * Composer component - renders the thread with optional inline controls
+ * When withControl={true}, controls appear inline in the composer input area
  */
 const Composer: FC<ComposerProps> = ({
   children,
   withControl = false,
-  controlBarProps,
   className,
 }) => {
   const { currentThreadId, threadViewKey } = useAomiRuntime();
 
   return (
-    <div className={cn("flex flex-1 flex-col overflow-hidden", className)}>
-      {withControl && (
-        <div className="border-b px-4 py-2">
-          <ControlBar {...controlBarProps} />
-        </div>
-      )}
-      <Thread key={`${currentThreadId}-${threadViewKey}`} />
-      {children}
-    </div>
+    <ComposerControlContext.Provider value={withControl}>
+      <div className={cn("flex flex-1 flex-col overflow-hidden", className)}>
+        <Thread key={`${currentThreadId}-${threadViewKey}`} />
+        {children}
+      </div>
+    </ComposerControlContext.Provider>
   );
 };
 
@@ -169,11 +178,8 @@ const FrameControlBar: FC<FrameControlBarProps> = (props) => {
 type DefaultLayoutProps = Omit<RootProps, "children">;
 
 /**
- * Default layout with ControlBar in header
+ * Default layout - controls are inline in the composer input area
  * Usage: <AomiFrame /> or <AomiFrame walletPosition="header" />
- *
- * When walletPosition is set (not null), the wallet button in ControlBar
- * is hidden by default to avoid duplication with the sidebar wallet.
  */
 const DefaultLayout: FC<DefaultLayoutProps> = ({
   walletPosition = "footer",

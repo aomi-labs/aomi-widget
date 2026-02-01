@@ -37,6 +37,10 @@ import {
 } from "@/components/assistant-ui/attachment";
 
 import { cn, useNotification, useThreadContext } from "@aomi-labs/react";
+import { useComposerControl } from "@/components/aomi-frame";
+import { ModelSelect } from "@/components/control-bar/model-select";
+import { NamespaceSelect } from "@/components/control-bar/namespace-select";
+import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { useAssistantApi, useMessage } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
@@ -194,11 +198,11 @@ const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-background sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl pb-4 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl dark:border-muted-foreground/15 relative flex w-full flex-col border bg-white px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)]">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-card text-card-foreground relative flex w-full flex-col border px-1 pt-2 shadow-sm">
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm text-stone-800 outline-none"
+          className="aui-composer-input text-foreground placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm outline-none"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -210,9 +214,24 @@ const Composer: FC = () => {
 };
 
 const ComposerAction: FC = () => {
+  const showInlineControls = useComposerControl();
+
   return (
-    <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center justify-between">
-      <ComposerAddAttachment />
+    <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center">
+      {/* Show attachment button only when inline controls are hidden */}
+      {!showInlineControls && <ComposerAddAttachment />}
+
+      {/* Inline controls: [🔑] [Model ▾] [Agent ▾] */}
+      {showInlineControls && (
+        <div className="ml-2 flex items-center gap-1">
+          <ApiKeyInput className="text-muted-foreground h-8 w-8" />
+          <ModelSelect className="text-muted-foreground hover:bg-accent h-8 w-auto min-w-[120px] rounded-full border-none bg-transparent px-3 text-xs shadow-none" />
+          <NamespaceSelect className="text-muted-foreground hover:bg-accent h-8 w-auto min-w-[100px] rounded-full border-none bg-transparent px-3 text-xs shadow-none" />
+        </div>
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
 
       <ThreadPrimitive.If running={false}>
         <ComposerPrimitive.Send asChild>
