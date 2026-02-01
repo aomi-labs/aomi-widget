@@ -1,18 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
-import dynamic from "next/dynamic";
-
-// Dynamic import with SSR disabled to avoid @assistant-ui/react provider issues
-const AomiFrame = dynamic(
-  () => import("@aomi-labs/widget-lib").then((mod) => mod.AomiFrame),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="h-full w-full animate-pulse rounded-2xl bg-white/10 backdrop-blur" />
-    )
-  }
-);
+import { AomiFrame } from "@aomi-labs/widget-lib";
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

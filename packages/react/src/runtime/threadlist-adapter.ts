@@ -3,7 +3,7 @@ import type { ExternalStoreThreadData } from "@assistant-ui/react";
 
 import type { BackendApi } from "../backend/client";
 import type { ThreadContext } from "../contexts/thread-context";
-import { generateUUID, type ThreadMetadata } from "../state/thread-store";
+import type { ThreadMetadata } from "../state/thread-store";
 import {
   markSkipInitialFetch,
   type BackendState,
@@ -139,12 +139,12 @@ export function buildThreadListAdapter({
 
       if (backendState.createThreadPromise) {
         preparePendingThread(
-          backendState.creatingThreadId ?? generateUUID(),
+          backendState.creatingThreadId ?? crypto.randomUUID(),
         );
         return;
       }
 
-      const threadId = generateUUID();
+      const threadId = crypto.randomUUID();
       preparePendingThread(threadId);
 
       const createPromise = backendApiRef.current
