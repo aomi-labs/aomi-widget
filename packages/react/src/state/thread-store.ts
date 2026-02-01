@@ -1,3 +1,4 @@
+import { generateUUID } from "../utils/uuid";
 import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import { ThreadContext } from "../contexts/thread-context";
@@ -51,7 +52,7 @@ export class ThreadStore {
   private snapshot: ThreadContext;
 
   constructor(options?: ThreadStoreOptions) {
-    const initialThreadId = options?.initialThreadId ?? crypto.randomUUID();
+    const initialThreadId = options?.initialThreadId ?? generateUUID();
     this.state = {
       currentThreadId: initialThreadId,
       threadViewKey: 0,
