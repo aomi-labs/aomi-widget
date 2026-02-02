@@ -48,7 +48,7 @@ export type ThreadMetadata = {
 };
 
 /** Create default control state for a new thread */
-export function createDefaultControlState(): ThreadControlState {
+export function initThreadControl(): ThreadControlState {
   return {
     model: null,
     namespace: null,
@@ -88,7 +88,7 @@ export class ThreadStore {
             title: "New Chat",
             status: "pending",
             lastActiveAt: new Date().toISOString(),
-            control: createDefaultControlState(),
+            control: initThreadControl(),
           },
         ],
       ]),
@@ -125,7 +125,7 @@ export class ThreadStore {
         title: "New Chat",
         status: "regular",
         lastActiveAt: new Date().toISOString(),
-        control: createDefaultControlState(),
+        control: initThreadControl(),
       });
       this.state = { ...this.state, threadMetadata: nextMetadata };
     }

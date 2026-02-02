@@ -23,7 +23,7 @@ import {
 import { isPlaceholderTitle } from "./utils";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
-import { createDefaultControlState } from "../state/thread-store";
+import { initThreadControl } from "../state/thread-store";
 
 // =============================================================================
 // Core Props
@@ -165,7 +165,7 @@ export function AomiRuntimeCore({
             title,
             status: thread.is_archived ? "archived" : "regular",
             lastActiveAt: lastActive,
-            control: existingControl ?? createDefaultControlState(),
+            control: existingControl ?? initThreadControl(),
           });
 
           const match = title.match(/^Chat (\d+)$/);
@@ -268,7 +268,7 @@ export function AomiRuntimeCore({
               title: normalizedTitle,
               status: nextStatus,
               lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
-              control: existing?.control ?? createDefaultControlState(),
+              control: existing?.control ?? initThreadControl(),
             });
             return next;
           });
