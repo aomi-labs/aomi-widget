@@ -202,7 +202,7 @@ const Composer: FC = () => {
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input text-foreground placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm outline-none"
+          className="aui-composer-input text-foreground dark:text-white placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm outline-none"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -374,7 +374,7 @@ const EditComposer: FC = () => {
     <div className="aui-edit-composer-wrapper mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 px-2 first:mt-4">
       <ComposerPrimitive.Root className="aui-edit-composer-root max-w-7/8 bg-muted ml-auto flex w-full flex-col rounded-xl">
         <ComposerPrimitive.Input
-          className="aui-edit-composer-input text-foreground flex min-h-[60px] w-full resize-none bg-transparent p-4 outline-none"
+          className="aui-edit-composer-input text-foreground dark:text-white flex min-h-[60px] w-full resize-none bg-transparent p-4 outline-none"
           autoFocus
         />
 
