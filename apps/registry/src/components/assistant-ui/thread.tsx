@@ -37,6 +37,10 @@ import {
 } from "@/components/assistant-ui/attachment";
 
 import { cn, useNotification, useThreadContext } from "@aomi-labs/react";
+import { useComposerControl } from "@/components/aomi-frame";
+import { ModelSelect } from "@/components/control-bar/model-select";
+import { NamespaceSelect } from "@/components/control-bar/namespace-select";
+import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { useAssistantApi, useMessage } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
@@ -64,7 +68,7 @@ export const Thread: FC = () => {
             ["--thread-max-width" as string]: "44rem",
           }}
         >
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-4">
+          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-2">
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
@@ -173,10 +177,10 @@ const ThreadSuggestions: FC = () => {
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm"
+              className="aui-thread-welcome-suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm font-normal"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 font-medium">
+              <span className="aui-thread-welcome-suggestion-text-1">
                 {suggestedAction.title}
               </span>
               <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground">
@@ -194,11 +198,11 @@ const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-background sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl pb-4 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl dark:border-muted-foreground/15 relative flex w-full flex-col border bg-white px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)]">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground relative flex w-full flex-col px-1 pt-2">
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm text-stone-800 outline-none"
+          className="aui-composer-input text-foreground dark:text-white placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm outline-none"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -210,9 +214,24 @@ const Composer: FC = () => {
 };
 
 const ComposerAction: FC = () => {
+  const showInlineControls = useComposerControl();
+
   return (
-    <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center justify-between">
-      <ComposerAddAttachment />
+    <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center">
+      {/* Show attachment button only when inline controls are hidden */}
+      {!showInlineControls && <ComposerAddAttachment />}
+
+      {/* Inline controls: [Model ▾] [Agent ▾] [🔑] */}
+      {showInlineControls && (
+        <div className="ml-2 flex items-center gap-2">
+          <ModelSelect />
+          <NamespaceSelect />
+          <ApiKeyInput />
+        </div>
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
 
       <ThreadPrimitive.If running={false}>
         <ComposerPrimitive.Send asChild>
@@ -355,7 +374,7 @@ const EditComposer: FC = () => {
     <div className="aui-edit-composer-wrapper mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 px-2 first:mt-4">
       <ComposerPrimitive.Root className="aui-edit-composer-root max-w-7/8 bg-muted ml-auto flex w-full flex-col rounded-xl">
         <ComposerPrimitive.Input
-          className="aui-edit-composer-input text-foreground flex min-h-[60px] w-full resize-none bg-transparent p-4 outline-none"
+          className="aui-edit-composer-input text-foreground dark:text-white flex min-h-[60px] w-full resize-none bg-transparent p-4 outline-none"
           autoFocus
         />
 

@@ -89,7 +89,8 @@ export {
   ThreadContextProvider,
 } from "./contexts/thread-context";
 export type { ThreadContext } from "./contexts/thread-context";
-export type { ThreadMetadata } from "./state/thread-store";
+export type { ThreadMetadata, ThreadControlState } from "./state/thread-store";
+export { initThreadControl } from "./state/thread-store";
 
 // =============================================================================
 // Utilities
@@ -108,3 +109,14 @@ export {
   type NotificationContextApi as NotificationContextValue,
   type NotificationContextProviderProps,
 } from "./contexts/notification-context";
+
+// =============================================================================
+// Control Context (model/namespace/api-key state)
+// =============================================================================
+export {
+  useControl,
+  ControlContextProvider,
+  type ControlState,
+  type ControlContextApi,
+  type ControlContextProviderProps,
+} from "./contexts/control-context";

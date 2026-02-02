@@ -121,7 +121,10 @@ export function AomiRuntimeProvider({
   const skipInitialFetchRef = useRef<Set<string>>(new Set());
 
   // Helper to resolve a thread ID to its backend ID
-  const resolveThreadId = useCallback((threadId: string): string => threadId, []);
+  const resolveThreadId = useCallback(
+    (threadId: string): string => threadId,
+    [],
+  );
 
   // Check if a thread is ready for API calls
   const isThreadReady = useCallback(

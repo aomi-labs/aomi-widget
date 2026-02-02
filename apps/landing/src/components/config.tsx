@@ -16,9 +16,26 @@ if (!projectId) {
   throw new Error("Project ID is not defined");
 }
 
-export const networks = [mainnet, arbitrum, optimism, base, polygon];
+// Enable localhost/Anvil network for E2E testing with `pnpm --filter landing dev:localhost`
+const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
 
-const appKitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [mainnet, arbitrum];
+// Custom localhost network for Anvil (local testing)
+const localhost = {
+  id: 31337,
+  name: "Localhost",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["http://127.0.0.1:8545"] },
+  },
+} as const satisfies AppKitNetwork;
+
+export const networks = useLocalhost
+  ? [mainnet, arbitrum, optimism, base, polygon, localhost]
+  : [mainnet, arbitrum, optimism, base, polygon];
+
+const appKitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = useLocalhost
+  ? [localhost, mainnet, arbitrum]
+  : [mainnet, arbitrum];
 
 // Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({
@@ -34,12 +51,12 @@ export const appKitProviderConfig = {
   adapters: [wagmiAdapter],
   projectId,
   networks: appKitNetworks,
-  defaultNetwork: mainnet,
+  defaultNetwork: useLocalhost ? localhost : mainnet,
   metadata: {
     name: "aomi-widget-docs",
     description: "Aomi widget docs demo",
     url: "https://appkitexampleapp.com", // origin must match your domain & subdomain
     icons: ["https://avatars.githubusercontent.com/u/179229932"],
   },
-  features: { analytics: true },
+  features: { analytics: !useLocalhost },
 };

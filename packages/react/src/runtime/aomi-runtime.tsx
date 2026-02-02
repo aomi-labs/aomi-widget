@@ -4,13 +4,14 @@ import { useMemo } from "react";
 import type { ReactNode } from "react";
 
 import { BackendApi } from "../backend/client";
+import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
 import {
   ThreadContextProvider,
   useThreadContext,
 } from "../contexts/thread-context";
-import { UserContextProvider } from "../contexts/user-context";
+import { UserContextProvider, useUser } from "../contexts/user-context";
 import { AomiRuntimeCore } from "./core";
 
 // =============================================================================
@@ -46,7 +47,7 @@ export function AomiRuntimeProvider({
 }
 
 // =============================================================================
-// Inner Provider (needs ThreadContext)
+// Inner Provider (needs ThreadContext and UserContext)
 // =============================================================================
 
 type AomiRuntimeInnerProps = {
@@ -59,13 +60,22 @@ function AomiRuntimeInner({
   backendApi,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
+  const { user } = useUser();
 
   return (
-    <EventContextProvider
+    <ControlContextProvider
       backendApi={backendApi}
       sessionId={threadContext.currentThreadId}
+      publicKey={user.address ?? undefined}
+      getThreadMetadata={threadContext.getThreadMetadata}
+      updateThreadMetadata={threadContext.updateThreadMetadata}
     >
-      <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
-    </EventContextProvider>
+      <EventContextProvider
+        backendApi={backendApi}
+        sessionId={threadContext.currentThreadId}
+      >
+        <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
+      </EventContextProvider>
+    </ControlContextProvider>
   );
 }

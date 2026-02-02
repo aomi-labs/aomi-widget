@@ -35,6 +35,18 @@ export type BackendApiConfig = {
   archiveThread?: (sessionId: string) => Promise<void>;
   unarchiveThread?: (sessionId: string) => Promise<void>;
   deleteThread?: (sessionId: string) => Promise<void>;
+  // Control API
+  getNamespaces?: (
+    sessionId: string,
+    publicKey?: string,
+    apiKey?: string,
+  ) => Promise<string[]>;
+  getModels?: (sessionId: string) => Promise<string[]>;
+  setModel?: (
+    sessionId: string,
+    rig: string,
+    namespace?: string,
+  ) => Promise<{ rig: string; namespace?: string }>;
 };
 
 // Global state for mock configuration
@@ -55,6 +67,10 @@ export type MockBackendApiInstance = {
   archiveThread: ReturnType<typeof vi.fn>;
   unarchiveThread: ReturnType<typeof vi.fn>;
   deleteThread: ReturnType<typeof vi.fn>;
+  // Control API
+  getNamespaces: ReturnType<typeof vi.fn>;
+  getModels: ReturnType<typeof vi.fn>;
+  setModel: ReturnType<typeof vi.fn>;
 };
 
 export const setBackendApiConfig = (config: BackendApiConfig) => {
@@ -138,6 +154,29 @@ vi.mock("../../backend/client", () => {
         await mockState.config.deleteThread(sessionId);
       }
     });
+
+    // Control API
+    getNamespaces = vi.fn(
+      async (sessionId: string, publicKey?: string, apiKey?: string) => {
+        return mockState.config.getNamespaces
+          ? await mockState.config.getNamespaces(sessionId, publicKey, apiKey)
+          : [];
+      },
+    );
+
+    getModels = vi.fn(async (sessionId: string) => {
+      return mockState.config.getModels
+        ? await mockState.config.getModels(sessionId)
+        : [];
+    });
+
+    setModel = vi.fn(
+      async (sessionId: string, rig: string, namespace?: string) => {
+        return mockState.config.setModel
+          ? await mockState.config.setModel(sessionId, rig, namespace)
+          : { rig, namespace };
+      },
+    );
 
     subscribeSSE = (
       _sessionId: string,
