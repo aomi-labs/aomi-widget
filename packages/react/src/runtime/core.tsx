@@ -23,6 +23,7 @@ import {
 import { isPlaceholderTitle } from "./utils";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
+import { createDefaultControlState } from "../state/thread-store";
 
 // =============================================================================
 // Core Props
@@ -46,7 +47,7 @@ export function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState } = useControl();
+  const { getControlState, getCurrentThreadControl } = useControl();
 
   const {
     backendStateRef,
@@ -60,7 +61,10 @@ export function AomiRuntimeCore({
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
-    getNamespace: () => getControlState().namespace ?? "default",
+    getNamespace: () =>
+      getCurrentThreadControl().namespace ??
+      getControlState().defaultNamespace ??
+      "default",
     getApiKey: () => getControlState().apiKey,
   });
 
@@ -142,10 +146,12 @@ export function AomiRuntimeCore({
           const lastActive =
             newMetadata.get(thread.session_id)?.lastActiveAt ||
             new Date().toISOString();
+          const existingControl = newMetadata.get(thread.session_id)?.control;
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
             lastActiveAt: lastActive,
+            control: existingControl ?? createDefaultControlState(),
           });
 
           const match = title.match(/^Chat (\d+)$/);
@@ -182,7 +188,10 @@ export function AomiRuntimeCore({
         polling,
         userAddress: user.address,
         setIsRunning,
-        getNamespace: () => getControlState().namespace ?? "default",
+        getNamespace: () =>
+          getCurrentThreadControl().namespace ??
+          getControlState().defaultNamespace ??
+          "default",
         getApiKey: () => getControlState().apiKey,
       }),
     [
@@ -245,6 +254,7 @@ export function AomiRuntimeCore({
               title: normalizedTitle,
               status: nextStatus,
               lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+              control: existing?.control ?? createDefaultControlState(),
             });
             return next;
           });

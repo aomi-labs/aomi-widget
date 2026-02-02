@@ -19,15 +19,28 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
   className,
   placeholder = "Select agent",
 }) => {
-  const { state, setState, getAuthorizedNamespaces } = useControl();
+  const {
+    state,
+    getAuthorizedNamespaces,
+    getCurrentThreadControl,
+    onNamespaceSelect,
+    isProcessing,
+  } = useControl();
   const [open, setOpen] = useState(false);
 
+  // Fetch authorized namespaces on mount
   useEffect(() => {
     void getAuthorizedNamespaces();
   }, [getAuthorizedNamespaces]);
 
+  // Get current thread's selected namespace (or fall back to default)
+  const threadControl = getCurrentThreadControl();
+  const selectedNamespace =
+    threadControl.namespace ?? state.defaultNamespace ?? "default";
+
   const namespaces = state.authorizedNamespaces;
 
+  // Show loading state if no namespaces yet
   if (namespaces.length === 0) {
     return (
       <Button
@@ -39,7 +52,7 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
           className,
         )}
       >
-        <span className="truncate">{state.namespace ?? "default"}</span>
+        <span className="truncate">{selectedNamespace}</span>
       </Button>
     );
   }
@@ -51,13 +64,15 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
           variant="ghost"
           role="combobox"
           aria-expanded={open}
+          disabled={isProcessing}
           className={cn(
             "h-8 w-auto min-w-[100px] justify-between rounded-full px-3 text-xs",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            isProcessing && "cursor-not-allowed opacity-50",
             className,
           )}
         >
-          <span className="truncate">{state.namespace ?? placeholder}</span>
+          <span className="truncate">{selectedNamespace ?? placeholder}</span>
           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -67,22 +82,32 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
         className="w-[180px] rounded-3xl p-1 shadow-none"
       >
         <div className="flex flex-col gap-0.5">
-          {namespaces.map((ns) => (
+          {namespaces.map((ns: string) => (
             <button
               key={ns}
+              disabled={isProcessing}
               onClick={() => {
-                setState({ namespace: ns });
+                console.log("[NamespaceSelect] clicked", { ns, isProcessing });
+                if (isProcessing) return;
+                console.log("[NamespaceSelect] calling onNamespaceSelect", {
+                  ns,
+                });
+                onNamespaceSelect(ns);
                 setOpen(false);
+                console.log("[NamespaceSelect] onNamespaceSelect completed", {
+                  ns,
+                });
               }}
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-full px-3 py-2 text-sm outline-none",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:bg-accent focus:text-accent-foreground",
-                state.namespace === ns && "bg-accent",
+                selectedNamespace === ns && "bg-accent",
+                isProcessing && "cursor-not-allowed opacity-50",
               )}
             >
               <span>{ns}</span>
-              {state.namespace === ns && <CheckIcon className="h-4 w-4" />}
+              {selectedNamespace === ns && <CheckIcon className="h-4 w-4" />}
             </button>
           ))}
         </div>

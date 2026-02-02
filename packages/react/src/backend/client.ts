@@ -280,6 +280,13 @@ export class BackendApi {
       url.searchParams.set("public_key", publicKey);
     }
 
+    console.log("[BackendApi.getNamespaces]", {
+      backendUrl: this.backendUrl,
+      fullUrl: url.toString(),
+      sessionId,
+      publicKey,
+    });
+
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
@@ -300,6 +307,12 @@ export class BackendApi {
   async getModels(sessionId: string): Promise<string[]> {
     const url = new URL("/api/control/models", this.backendUrl);
 
+    console.log("[BackendApi.getModels]", {
+      backendUrl: this.backendUrl,
+      fullUrl: url.toString(),
+      sessionId,
+    });
+
     const response = await fetch(url.toString(), {
       headers: withSessionHeader(sessionId),
     });
@@ -318,6 +331,7 @@ export class BackendApi {
     sessionId: string,
     rig: string,
     namespace?: string,
+    apiKey?: string,
   ): Promise<{
     success: boolean;
     rig: string;
@@ -334,6 +348,6 @@ export class BackendApi {
       rig: string;
       baml: string;
       created: boolean;
-    }>(this.backendUrl, "/api/control/model", payload, sessionId);
+    }>(this.backendUrl, "/api/control/model", payload, sessionId, apiKey);
   }
 }

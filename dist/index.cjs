@@ -45,6 +45,7 @@ __export(index_exports, {
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
   cn: () => cn,
+  createDefaultControlState: () => createDefaultControlState,
   formatAddress: () => formatAddress,
   getNetworkName: () => getNetworkName,
   useAomiRuntime: () => useAomiRuntime,
@@ -441,6 +442,12 @@ var BackendApi = class {
     if (publicKey) {
       url.searchParams.set("public_key", publicKey);
     }
+    console.log("[BackendApi.getNamespaces]", {
+      backendUrl: this.backendUrl,
+      fullUrl: url.toString(),
+      sessionId,
+      publicKey
+    });
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
@@ -456,6 +463,11 @@ var BackendApi = class {
    */
   async getModels(sessionId) {
     const url = new URL("/api/control/models", this.backendUrl);
+    console.log("[BackendApi.getModels]", {
+      backendUrl: this.backendUrl,
+      fullUrl: url.toString(),
+      sessionId
+    });
     const response = await fetch(url.toString(), {
       headers: withSessionHeader(sessionId)
     });
@@ -467,12 +479,12 @@ var BackendApi = class {
   /**
    * Set the model selection for a session.
    */
-  async setModel(sessionId, rig, namespace) {
+  async setModel(sessionId, rig, namespace, apiKey) {
     const payload = { rig };
     if (namespace) {
       payload.namespace = namespace;
     }
-    return postState(this.backendUrl, "/api/control/model", payload, sessionId);
+    return postState(this.backendUrl, "/api/control/model", payload, sessionId, apiKey);
   }
 };
 
@@ -481,6 +493,178 @@ var import_react10 = require("react");
 
 // packages/react/src/contexts/control-context.tsx
 var import_react = require("react");
+
+// packages/react/src/utils/uuid.ts
+function generateUUID() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === "x" ? r : r & 3 | 8;
+    return v.toString(16);
+  });
+}
+
+// packages/react/src/state/thread-store.ts
+var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
+var logThreadMetadataChange = (source, threadId, prev, next) => {
+  if (!shouldLogThreadUpdates) return;
+  if (!prev && !next) return;
+  if (!prev || !next) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+    return;
+  }
+  if (prev.title !== next.title || prev.status !== next.status || prev.lastActiveAt !== next.lastActiveAt) {
+    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
+  }
+};
+function createDefaultControlState() {
+  return {
+    model: null,
+    namespace: null,
+    controlDirty: false
+  };
+}
+var ThreadStore = class {
+  constructor(options) {
+    this.listeners = /* @__PURE__ */ new Set();
+    this.subscribe = (listener) => {
+      this.listeners.add(listener);
+      return () => {
+        this.listeners.delete(listener);
+      };
+    };
+    this.getSnapshot = () => this.snapshot;
+    this.setCurrentThreadId = (threadId) => {
+      this.ensureThreadExists(threadId);
+      this.updateState({ currentThreadId: threadId });
+    };
+    this.bumpThreadViewKey = () => {
+      this.updateState({ threadViewKey: this.state.threadViewKey + 1 });
+    };
+    this.setThreadCnt = (updater) => {
+      const nextCnt = this.resolveStateAction(updater, this.state.threadCnt);
+      this.updateState({ threadCnt: nextCnt });
+    };
+    this.setThreads = (updater) => {
+      const nextThreads = this.resolveStateAction(updater, this.state.threads);
+      this.updateState({ threads: new Map(nextThreads) });
+    };
+    this.setThreadMetadata = (updater) => {
+      const prevMetadata = this.state.threadMetadata;
+      const nextMetadata = this.resolveStateAction(updater, prevMetadata);
+      for (const [threadId, next] of nextMetadata.entries()) {
+        logThreadMetadataChange(
+          "setThreadMetadata",
+          threadId,
+          prevMetadata.get(threadId),
+          next
+        );
+      }
+      for (const [threadId, prev] of prevMetadata.entries()) {
+        if (!nextMetadata.has(threadId)) {
+          logThreadMetadataChange("setThreadMetadata", threadId, prev, void 0);
+        }
+      }
+      this.updateState({ threadMetadata: new Map(nextMetadata) });
+    };
+    this.setThreadMessages = (threadId, messages) => {
+      this.ensureThreadExists(threadId);
+      const nextThreads = new Map(this.state.threads);
+      nextThreads.set(threadId, messages);
+      this.updateState({ threads: nextThreads });
+    };
+    this.getThreadMessages = (threadId) => {
+      var _a;
+      return (_a = this.state.threads.get(threadId)) != null ? _a : [];
+    };
+    this.getThreadMetadata = (threadId) => {
+      return this.state.threadMetadata.get(threadId);
+    };
+    this.updateThreadMetadata = (threadId, updates) => {
+      const existing = this.state.threadMetadata.get(threadId);
+      if (!existing) {
+        return;
+      }
+      const next = __spreadValues(__spreadValues({}, existing), updates);
+      const nextMetadata = new Map(this.state.threadMetadata);
+      nextMetadata.set(threadId, next);
+      logThreadMetadataChange("updateThreadMetadata", threadId, existing, next);
+      this.updateState({ threadMetadata: nextMetadata });
+    };
+    var _a;
+    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : generateUUID();
+    this.state = {
+      currentThreadId: initialThreadId,
+      threadViewKey: 0,
+      threadCnt: 1,
+      threads: /* @__PURE__ */ new Map([[initialThreadId, []]]),
+      threadMetadata: /* @__PURE__ */ new Map([
+        [
+          initialThreadId,
+          {
+            title: "New Chat",
+            status: "pending",
+            lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
+            control: createDefaultControlState()
+          }
+        ]
+      ])
+    };
+    this.snapshot = this.buildSnapshot();
+  }
+  emit() {
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+  resolveStateAction(updater, current) {
+    return typeof updater === "function" ? updater(current) : updater;
+  }
+  ensureThreadExists(threadId) {
+    if (!this.state.threadMetadata.has(threadId)) {
+      const nextMetadata = new Map(this.state.threadMetadata);
+      nextMetadata.set(threadId, {
+        title: "New Chat",
+        status: "regular",
+        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
+        control: createDefaultControlState()
+      });
+      this.state = __spreadProps(__spreadValues({}, this.state), { threadMetadata: nextMetadata });
+    }
+    if (!this.state.threads.has(threadId)) {
+      const nextThreads = new Map(this.state.threads);
+      nextThreads.set(threadId, []);
+      this.state = __spreadProps(__spreadValues({}, this.state), { threads: nextThreads });
+    }
+  }
+  updateState(partial) {
+    this.state = __spreadValues(__spreadValues({}, this.state), partial);
+    this.snapshot = this.buildSnapshot();
+    this.emit();
+  }
+  buildSnapshot() {
+    return {
+      currentThreadId: this.state.currentThreadId,
+      setCurrentThreadId: this.setCurrentThreadId,
+      threadViewKey: this.state.threadViewKey,
+      bumpThreadViewKey: this.bumpThreadViewKey,
+      allThreads: this.state.threads,
+      setThreads: this.setThreads,
+      allThreadsMetadata: this.state.threadMetadata,
+      setThreadMetadata: this.setThreadMetadata,
+      threadCnt: this.state.threadCnt,
+      setThreadCnt: this.setThreadCnt,
+      getThreadMessages: this.getThreadMessages,
+      setThreadMessages: this.setThreadMessages,
+      getThreadMetadata: this.getThreadMetadata,
+      updateThreadMetadata: this.updateThreadMetadata
+    };
+  }
+};
+
+// packages/react/src/contexts/control-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var ControlContext = (0, import_react.createContext)(null);
@@ -495,22 +679,18 @@ function ControlContextProvider({
   children,
   backendApi,
   sessionId,
-  publicKey
+  publicKey,
+  getThreadMetadata,
+  updateThreadMetadata,
+  isProcessing = false
 }) {
-  const [state, setStateInternal] = (0, import_react.useState)(() => {
-    var _a, _b;
-    let apiKey = null;
-    try {
-      apiKey = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(API_KEY_STORAGE_KEY)) != null ? _b : null;
-    } catch (e) {
-    }
-    return {
-      namespace: null,
-      apiKey,
-      availableModels: [],
-      authorizedNamespaces: []
-    };
-  });
+  const [state, setStateInternal] = (0, import_react.useState)(() => ({
+    apiKey: null,
+    availableModels: [],
+    authorizedNamespaces: [],
+    defaultModel: null,
+    defaultNamespace: null
+  }));
   const stateRef = (0, import_react.useRef)(state);
   stateRef.current = state;
   const backendApiRef = (0, import_react.useRef)(backendApi);
@@ -519,7 +699,21 @@ function ControlContextProvider({
   sessionIdRef.current = sessionId;
   const publicKeyRef = (0, import_react.useRef)(publicKey);
   publicKeyRef.current = publicKey;
+  const getThreadMetadataRef = (0, import_react.useRef)(getThreadMetadata);
+  getThreadMetadataRef.current = getThreadMetadata;
+  const updateThreadMetadataRef = (0, import_react.useRef)(updateThreadMetadata);
+  updateThreadMetadataRef.current = updateThreadMetadata;
   const callbacks = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+  (0, import_react.useEffect)(() => {
+    var _a, _b;
+    try {
+      const storedApiKey = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(API_KEY_STORAGE_KEY)) != null ? _b : null;
+      if (storedApiKey) {
+        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { apiKey: storedApiKey }));
+      }
+    } catch (e) {
+    }
+  }, []);
   (0, import_react.useEffect)(() => {
     var _a, _b;
     try {
@@ -533,53 +727,66 @@ function ControlContextProvider({
   }, [state.apiKey]);
   (0, import_react.useEffect)(() => {
     const fetchNamespaces = async () => {
-      var _a;
+      var _a, _b;
       try {
         const namespaces = await backendApiRef.current.getNamespaces(
           sessionIdRef.current,
           publicKeyRef.current,
           (_a = stateRef.current.apiKey) != null ? _a : void 0
         );
-        setStateInternal((prev) => {
-          const next = __spreadProps(__spreadValues({}, prev), { authorizedNamespaces: namespaces });
-          if (!prev.namespace && namespaces.length > 0) {
-            next.namespace = namespaces.includes("default") ? "default" : namespaces[0];
-          }
-          return next;
-        });
+        const defaultNs = namespaces.includes("default") ? "default" : (_b = namespaces[0]) != null ? _b : null;
+        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
+          authorizedNamespaces: namespaces,
+          defaultNamespace: defaultNs
+        }));
       } catch (error) {
         console.error("Failed to fetch namespaces:", error);
-        setStateInternal((prev) => {
-          var _a2;
-          return __spreadProps(__spreadValues({}, prev), {
-            authorizedNamespaces: ["default"],
-            namespace: (_a2 = prev.namespace) != null ? _a2 : "default"
-          });
-        });
+        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
+          authorizedNamespaces: ["default"],
+          defaultNamespace: "default"
+        }));
       }
     };
     void fetchNamespaces();
   }, [state.apiKey]);
-  const setState = (0, import_react.useCallback)(
-    (updates) => {
-      setStateInternal((prev) => {
-        var _a, _b;
-        const next = __spreadValues({}, prev);
-        if ("namespace" in updates) next.namespace = (_a = updates.namespace) != null ? _a : null;
-        if ("apiKey" in updates)
-          next.apiKey = updates.apiKey === "" ? null : (_b = updates.apiKey) != null ? _b : null;
-        callbacks.current.forEach((cb) => cb(next));
-        return next;
-      });
-    },
-    []
-  );
+  (0, import_react.useEffect)(() => {
+    const fetchModels = async () => {
+      try {
+        const models = await backendApiRef.current.getModels(
+          sessionIdRef.current
+        );
+        setStateInternal((prev) => {
+          var _a;
+          return __spreadProps(__spreadValues({}, prev), {
+            availableModels: models,
+            defaultModel: (_a = models[0]) != null ? _a : null
+          });
+        });
+      } catch (error) {
+        console.error("Failed to fetch models:", error);
+      }
+    };
+    void fetchModels();
+  }, []);
+  const setApiKey = (0, import_react.useCallback)((apiKey) => {
+    setStateInternal((prev) => {
+      const next = __spreadProps(__spreadValues({}, prev), { apiKey: apiKey === "" ? null : apiKey });
+      callbacks.current.forEach((cb) => cb(next));
+      return next;
+    });
+  }, []);
   const getAvailableModels = (0, import_react.useCallback)(async () => {
     try {
       const models = await backendApiRef.current.getModels(
         sessionIdRef.current
       );
-      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { availableModels: models }));
+      setStateInternal((prev) => {
+        var _a, _b;
+        return __spreadProps(__spreadValues({}, prev), {
+          availableModels: models,
+          defaultModel: (_b = (_a = prev.defaultModel) != null ? _a : models[0]) != null ? _b : null
+        });
+      });
       return models;
     } catch (error) {
       console.error("Failed to fetch models:", error);
@@ -587,40 +794,124 @@ function ControlContextProvider({
     }
   }, []);
   const getAuthorizedNamespaces = (0, import_react.useCallback)(async () => {
-    var _a;
+    var _a, _b;
     try {
       const namespaces = await backendApiRef.current.getNamespaces(
         sessionIdRef.current,
         publicKeyRef.current,
         (_a = stateRef.current.apiKey) != null ? _a : void 0
       );
-      setStateInternal((prev) => {
-        const next = __spreadProps(__spreadValues({}, prev), { authorizedNamespaces: namespaces });
-        if (!prev.namespace && namespaces.length > 0) {
-          next.namespace = namespaces.includes("default") ? "default" : namespaces[0];
-        }
-        return next;
-      });
+      const defaultNs = namespaces.includes("default") ? "default" : (_b = namespaces[0]) != null ? _b : null;
+      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
+        authorizedNamespaces: namespaces,
+        defaultNamespace: defaultNs
+      }));
       return namespaces;
     } catch (error) {
       console.error("Failed to fetch namespaces:", error);
-      setStateInternal((prev) => {
-        var _a2;
-        return __spreadProps(__spreadValues({}, prev), {
-          authorizedNamespaces: ["default"],
-          namespace: (_a2 = prev.namespace) != null ? _a2 : "default"
-        });
-      });
+      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
+        authorizedNamespaces: ["default"],
+        defaultNamespace: "default"
+      }));
       return ["default"];
     }
   }, []);
-  const onModelSelect = (0, import_react.useCallback)(async (model) => {
+  const getCurrentThreadControl = (0, import_react.useCallback)(() => {
     var _a;
-    await backendApiRef.current.setModel(
-      sessionIdRef.current,
-      model,
-      (_a = stateRef.current.namespace) != null ? _a : void 0
-    );
+    const metadata = getThreadMetadataRef.current(sessionIdRef.current);
+    return (_a = metadata == null ? void 0 : metadata.control) != null ? _a : createDefaultControlState();
+  }, []);
+  const onModelSelect = (0, import_react.useCallback)(
+    async (model) => {
+      var _a, _b, _c, _d, _e;
+      console.log("[control-context] onModelSelect called", {
+        model,
+        isProcessing,
+        threadId: sessionIdRef.current
+      });
+      if (isProcessing) {
+        console.warn("[control-context] Cannot switch model while processing");
+        return;
+      }
+      const threadId = sessionIdRef.current;
+      const currentControl = (_b = (_a = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a.control) != null ? _b : createDefaultControlState();
+      const namespace = (_d = (_c = currentControl.namespace) != null ? _c : stateRef.current.defaultNamespace) != null ? _d : "default";
+      console.log("[control-context] onModelSelect updating metadata", {
+        threadId,
+        model,
+        namespace,
+        currentControl
+      });
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          model,
+          namespace,
+          controlDirty: true
+        })
+      });
+      console.log("[control-context] onModelSelect calling backend setModel", {
+        threadId,
+        model,
+        namespace,
+        backendUrl: backendApiRef.current
+      });
+      try {
+        const result = await backendApiRef.current.setModel(
+          threadId,
+          model,
+          namespace,
+          (_e = stateRef.current.apiKey) != null ? _e : void 0
+        );
+        console.log("[control-context] onModelSelect backend result", result);
+      } catch (err) {
+        console.error("[control-context] setModel failed:", err);
+        throw err;
+      }
+    },
+    [isProcessing]
+  );
+  const onNamespaceSelect = (0, import_react.useCallback)(
+    (namespace) => {
+      var _a, _b;
+      console.log("[control-context] onNamespaceSelect called", {
+        namespace,
+        isProcessing,
+        threadId: sessionIdRef.current
+      });
+      if (isProcessing) {
+        console.warn(
+          "[control-context] Cannot switch namespace while processing"
+        );
+        return;
+      }
+      const threadId = sessionIdRef.current;
+      const currentControl = (_b = (_a = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a.control) != null ? _b : createDefaultControlState();
+      console.log("[control-context] onNamespaceSelect updating metadata", {
+        threadId,
+        namespace,
+        currentControl
+      });
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          namespace,
+          controlDirty: true
+        })
+      });
+      console.log("[control-context] onNamespaceSelect metadata updated");
+    },
+    [isProcessing]
+  );
+  const markControlSynced = (0, import_react.useCallback)(() => {
+    var _a, _b;
+    const threadId = sessionIdRef.current;
+    const currentControl = (_b = (_a = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a.control) != null ? _b : createDefaultControlState();
+    if (currentControl.controlDirty) {
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          controlDirty: false
+        })
+      });
+    }
   }, []);
   const getControlState = (0, import_react.useCallback)(() => stateRef.current, []);
   const onControlStateChange = (0, import_react.useCallback)(
@@ -632,17 +923,34 @@ function ControlContextProvider({
     },
     []
   );
+  const setState = (0, import_react.useCallback)(
+    (updates) => {
+      var _a;
+      if ("apiKey" in updates) {
+        setApiKey((_a = updates.apiKey) != null ? _a : null);
+      }
+      if ("namespace" in updates && updates.namespace !== void 0 && updates.namespace !== null) {
+        onNamespaceSelect(updates.namespace);
+      }
+    },
+    [setApiKey, onNamespaceSelect]
+  );
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
     ControlContext.Provider,
     {
       value: {
         state,
-        setState,
+        setApiKey,
         getAvailableModels,
         getAuthorizedNamespaces,
+        getCurrentThreadControl,
         onModelSelect,
+        onNamespaceSelect,
+        isProcessing,
+        markControlSynced,
         getControlState,
-        onControlStateChange
+        onControlStateChange,
+        setState
       },
       children
     }
@@ -882,157 +1190,6 @@ function NotificationContextProvider({
 
 // packages/react/src/contexts/thread-context.tsx
 var import_react4 = require("react");
-
-// packages/react/src/state/thread-store.ts
-var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
-var logThreadMetadataChange = (source, threadId, prev, next) => {
-  if (!shouldLogThreadUpdates) return;
-  if (!prev && !next) return;
-  if (!prev || !next) {
-    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
-    return;
-  }
-  if (prev.title !== next.title || prev.status !== next.status || prev.lastActiveAt !== next.lastActiveAt) {
-    console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
-  }
-};
-var ThreadStore = class {
-  constructor(options) {
-    this.listeners = /* @__PURE__ */ new Set();
-    this.subscribe = (listener) => {
-      this.listeners.add(listener);
-      return () => {
-        this.listeners.delete(listener);
-      };
-    };
-    this.getSnapshot = () => this.snapshot;
-    this.setCurrentThreadId = (threadId) => {
-      this.ensureThreadExists(threadId);
-      this.updateState({ currentThreadId: threadId });
-    };
-    this.bumpThreadViewKey = () => {
-      this.updateState({ threadViewKey: this.state.threadViewKey + 1 });
-    };
-    this.setThreadCnt = (updater) => {
-      const nextCnt = this.resolveStateAction(updater, this.state.threadCnt);
-      this.updateState({ threadCnt: nextCnt });
-    };
-    this.setThreads = (updater) => {
-      const nextThreads = this.resolveStateAction(updater, this.state.threads);
-      this.updateState({ threads: new Map(nextThreads) });
-    };
-    this.setThreadMetadata = (updater) => {
-      const prevMetadata = this.state.threadMetadata;
-      const nextMetadata = this.resolveStateAction(updater, prevMetadata);
-      for (const [threadId, next] of nextMetadata.entries()) {
-        logThreadMetadataChange(
-          "setThreadMetadata",
-          threadId,
-          prevMetadata.get(threadId),
-          next
-        );
-      }
-      for (const [threadId, prev] of prevMetadata.entries()) {
-        if (!nextMetadata.has(threadId)) {
-          logThreadMetadataChange("setThreadMetadata", threadId, prev, void 0);
-        }
-      }
-      this.updateState({ threadMetadata: new Map(nextMetadata) });
-    };
-    this.setThreadMessages = (threadId, messages) => {
-      this.ensureThreadExists(threadId);
-      const nextThreads = new Map(this.state.threads);
-      nextThreads.set(threadId, messages);
-      this.updateState({ threads: nextThreads });
-    };
-    this.getThreadMessages = (threadId) => {
-      var _a;
-      return (_a = this.state.threads.get(threadId)) != null ? _a : [];
-    };
-    this.getThreadMetadata = (threadId) => {
-      return this.state.threadMetadata.get(threadId);
-    };
-    this.updateThreadMetadata = (threadId, updates) => {
-      const existing = this.state.threadMetadata.get(threadId);
-      if (!existing) {
-        return;
-      }
-      const next = __spreadValues(__spreadValues({}, existing), updates);
-      const nextMetadata = new Map(this.state.threadMetadata);
-      nextMetadata.set(threadId, next);
-      logThreadMetadataChange("updateThreadMetadata", threadId, existing, next);
-      this.updateState({ threadMetadata: nextMetadata });
-    };
-    var _a;
-    const initialThreadId = (_a = options == null ? void 0 : options.initialThreadId) != null ? _a : crypto.randomUUID();
-    this.state = {
-      currentThreadId: initialThreadId,
-      threadViewKey: 0,
-      threadCnt: 1,
-      threads: /* @__PURE__ */ new Map([[initialThreadId, []]]),
-      threadMetadata: /* @__PURE__ */ new Map([
-        [
-          initialThreadId,
-          {
-            title: "New Chat",
-            status: "pending",
-            lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-          }
-        ]
-      ])
-    };
-    this.snapshot = this.buildSnapshot();
-  }
-  emit() {
-    for (const listener of this.listeners) {
-      listener();
-    }
-  }
-  resolveStateAction(updater, current) {
-    return typeof updater === "function" ? updater(current) : updater;
-  }
-  ensureThreadExists(threadId) {
-    if (!this.state.threadMetadata.has(threadId)) {
-      const nextMetadata = new Map(this.state.threadMetadata);
-      nextMetadata.set(threadId, {
-        title: "New Chat",
-        status: "regular",
-        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-      this.state = __spreadProps(__spreadValues({}, this.state), { threadMetadata: nextMetadata });
-    }
-    if (!this.state.threads.has(threadId)) {
-      const nextThreads = new Map(this.state.threads);
-      nextThreads.set(threadId, []);
-      this.state = __spreadProps(__spreadValues({}, this.state), { threads: nextThreads });
-    }
-  }
-  updateState(partial) {
-    this.state = __spreadValues(__spreadValues({}, this.state), partial);
-    this.snapshot = this.buildSnapshot();
-    this.emit();
-  }
-  buildSnapshot() {
-    return {
-      currentThreadId: this.state.currentThreadId,
-      setCurrentThreadId: this.setCurrentThreadId,
-      threadViewKey: this.state.threadViewKey,
-      bumpThreadViewKey: this.bumpThreadViewKey,
-      allThreads: this.state.threads,
-      setThreads: this.setThreads,
-      allThreadsMetadata: this.state.threadMetadata,
-      setThreadMetadata: this.setThreadMetadata,
-      threadCnt: this.state.threadCnt,
-      setThreadCnt: this.setThreadCnt,
-      getThreadMessages: this.getThreadMessages,
-      setThreadMessages: this.setThreadMessages,
-      getThreadMetadata: this.getThreadMetadata,
-      updateThreadMetadata: this.updateThreadMetadata
-    };
-  }
-};
-
-// packages/react/src/contexts/thread-context.tsx
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var ThreadContextState = (0, import_react4.createContext)(null);
 function useThreadContext() {
@@ -1655,7 +1812,8 @@ function buildThreadListAdapter({
       (prev) => new Map(prev).set(threadId, {
         title: "New Chat",
         status: "pending",
-        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
+        control: createDefaultControlState()
       })
     );
     threadContext.setThreadMessages(threadId, []);
@@ -1682,12 +1840,10 @@ function buildThreadListAdapter({
         return;
       }
       if (backendState.createThreadPromise) {
-        preparePendingThread(
-          (_a = backendState.creatingThreadId) != null ? _a : crypto.randomUUID()
-        );
+        preparePendingThread((_a = backendState.creatingThreadId) != null ? _a : generateUUID());
         return;
       }
-      const threadId = crypto.randomUUID();
+      const threadId = generateUUID();
       preparePendingThread(threadId);
       const createPromise = backendApiRef.current.createThread(threadId, userAddress).then(async (newThread) => {
         var _a2, _b;
@@ -1701,14 +1857,15 @@ function buildThreadListAdapter({
         }
         markSkipInitialFetch(backendState, uiThreadId);
         threadContext.setThreadMetadata((prev) => {
-          var _a3, _b2;
+          var _a3, _b2, _c;
           const next = new Map(prev);
           const existing = next.get(uiThreadId);
           const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
           next.set(uiThreadId, {
             title: (_a3 = existing == null ? void 0 : existing.title) != null ? _a3 : "New Chat",
             status: nextStatus,
-            lastActiveAt: (_b2 = existing == null ? void 0 : existing.lastActiveAt) != null ? _b2 : (/* @__PURE__ */ new Date()).toISOString()
+            lastActiveAt: (_b2 = existing == null ? void 0 : existing.lastActiveAt) != null ? _b2 : (/* @__PURE__ */ new Date()).toISOString(),
+            control: (_c = existing == null ? void 0 : existing.control) != null ? _c : createDefaultControlState()
           });
           return next;
         });
@@ -1827,7 +1984,8 @@ function buildThreadListAdapter({
               (prev) => new Map(prev).set(defaultId, {
                 title: "New Chat",
                 status: "regular",
-                lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+                lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
+                control: createDefaultControlState()
               })
             );
             threadContext.setThreadMessages(defaultId, []);
@@ -1867,7 +2025,7 @@ function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState } = useControl();
+  const { getControlState, getCurrentThreadControl } = useControl();
   const {
     backendStateRef,
     polling,
@@ -1881,8 +2039,8 @@ function AomiRuntimeCore({
     getPublicKey: () => getUserState().address,
     getUserState,
     getNamespace: () => {
-      var _a;
-      return (_a = getControlState().namespace) != null ? _a : "default";
+      var _a, _b;
+      return (_b = (_a = getCurrentThreadControl().namespace) != null ? _a : getControlState().defaultNamespace) != null ? _b : "default";
     },
     getApiKey: () => getControlState().apiKey
   });
@@ -1930,7 +2088,7 @@ function AomiRuntimeCore({
     const userAddress = user.address;
     if (!userAddress) return;
     const fetchThreadList = async () => {
-      var _a, _b;
+      var _a, _b, _c;
       try {
         const threadList = await backendApiRef.current.fetchThreads(userAddress);
         const currentContext = threadContextRef.current;
@@ -1940,10 +2098,12 @@ function AomiRuntimeCore({
           const rawTitle = (_a = thread.title) != null ? _a : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive = ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
+          const existingControl = (_c = newMetadata.get(thread.session_id)) == null ? void 0 : _c.control;
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
-            lastActiveAt: lastActive
+            lastActiveAt: lastActive,
+            control: existingControl != null ? existingControl : createDefaultControlState()
           });
           const match = title.match(/^Chat (\d+)$/);
           if (match) {
@@ -1973,8 +2133,8 @@ function AomiRuntimeCore({
       userAddress: user.address,
       setIsRunning,
       getNamespace: () => {
-        var _a;
-        return (_a = getControlState().namespace) != null ? _a : "default";
+        var _a, _b;
+        return (_b = (_a = getCurrentThreadControl().namespace) != null ? _a : getControlState().defaultNamespace) != null ? _b : "default";
       },
       getApiKey: () => getControlState().apiKey
     }),
@@ -2021,14 +2181,15 @@ function AomiRuntimeCore({
             });
           }
           threadContextRef.current.setThreadMetadata((prev) => {
-            var _a;
+            var _a, _b;
             const next = new Map(prev);
             const existing = next.get(targetThreadId);
             const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
             next.set(targetThreadId, {
               title: normalizedTitle,
               status: nextStatus,
-              lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString()
+              lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString(),
+              control: (_b = existing == null ? void 0 : existing.control) != null ? _b : createDefaultControlState()
             });
             return next;
           });
@@ -2235,6 +2396,8 @@ function AomiRuntimeInner({
       backendApi,
       sessionId: threadContext.currentThreadId,
       publicKey: (_a = user.address) != null ? _a : void 0,
+      getThreadMetadata: threadContext.getThreadMetadata,
+      updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
         EventContextProvider,
         {
@@ -2377,6 +2540,7 @@ function useNotificationHandler({
   ThreadContextProvider,
   UserContextProvider,
   cn,
+  createDefaultControlState,
   formatAddress,
   getNetworkName,
   useAomiRuntime,

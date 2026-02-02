@@ -138,7 +138,7 @@ declare class BackendApi {
     /**
      * Set the model selection for a session.
      */
-    setModel(sessionId: string, rig: string, namespace?: string): Promise<{
+    setModel(sessionId: string, rig: string, namespace?: string, apiKey?: string): Promise<{
         success: boolean;
         rig: string;
         baml: string;
@@ -178,11 +178,23 @@ declare function useCurrentThreadMessages(): ThreadMessageLike[];
 declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
 
 type ThreadStatus = "regular" | "archived" | "pending";
+type ThreadControlState = {
+    /** Selected model for this thread (human-readable label) */
+    model: string | null;
+    /** Selected namespace for this thread */
+    namespace: string | null;
+    /** Whether control state has changed but chat hasn't started yet */
+    controlDirty: boolean;
+};
 type ThreadMetadata = {
     title: string;
     status: ThreadStatus;
     lastActiveAt?: string | number;
+    /** Per-thread control state (model, namespace selection) */
+    control: ThreadControlState;
 };
+/** Create default control state for a new thread */
+declare function createDefaultControlState(): ThreadControlState;
 
 type InboundEvent = {
     type: string;
@@ -399,20 +411,47 @@ type UserConfig = {
 declare const getNetworkName: (chainId: number | string | undefined) => string;
 declare const formatAddress: (addr?: string) => string;
 
+/** Global control state (shared across all threads) */
 type ControlState = {
-    namespace: string | null;
+    /** API key for authenticated requests */
     apiKey: string | null;
+    /** Available models fetched from backend */
     availableModels: string[];
+    /** Authorized namespaces fetched from backend */
     authorizedNamespaces: string[];
+    /** Default model (first from availableModels) */
+    defaultModel: string | null;
+    /** Default namespace (from authorizedNamespaces) */
+    defaultNamespace: string | null;
 };
 type ControlContextApi = {
+    /** Global state (apiKey, available models/namespaces) */
     state: ControlState;
-    setState: (updates: Partial<Pick<ControlState, "namespace" | "apiKey">>) => void;
+    /** Update global state (apiKey only) */
+    setApiKey: (apiKey: string | null) => void;
+    /** Fetch available models from backend */
     getAvailableModels: () => Promise<string[]>;
+    /** Fetch authorized namespaces from backend */
     getAuthorizedNamespaces: () => Promise<string[]>;
+    /** Get current thread's control state */
+    getCurrentThreadControl: () => ThreadControlState;
+    /** Select a model for the current thread (updates metadata + calls backend) */
     onModelSelect: (model: string) => Promise<void>;
+    /** Select a namespace for the current thread (updates metadata only) */
+    onNamespaceSelect: (namespace: string) => void;
+    /** Whether the current thread is processing (disables control switching) */
+    isProcessing: boolean;
+    /** Mark control state as synced (called after chat starts) */
+    markControlSynced: () => void;
+    /** Get global control state */
     getControlState: () => ControlState;
+    /** Subscribe to global state changes */
     onControlStateChange: (callback: (state: ControlState) => void) => () => void;
+    /** @deprecated Use getCurrentThreadControl().namespace instead */
+    setState: (updates: Partial<{
+        namespace: string | null;
+        apiKey: string | null;
+    }>) => void;
 };
 declare function useControl(): ControlContextApi;
 type ControlContextProviderProps = {
@@ -420,7 +459,13 @@ type ControlContextProviderProps = {
     backendApi: BackendApi;
     sessionId: string;
     publicKey?: string;
+    /** Get metadata for a thread */
+    getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
+    /** Update metadata for a thread */
+    updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+    /** Whether the current thread is processing */
+    isProcessing?: boolean;
 };
-declare function ControlContextProvider({ children, backendApi, sessionId, publicKey, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
+declare function ControlContextProvider({ children, backendApi, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, isProcessing, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiMessage, type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification as HandlerNotification, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, formatAddress, getNetworkName, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiMessage, type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type Notification as HandlerNotification, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type UserState as WalletButtonState, type WalletConnectionStatus, type WalletHanderApi, type WalletHandlerConfig, type WalletTxComplete, type WalletTxRequest, cn, createDefaultControlState, formatAddress, getNetworkName, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
