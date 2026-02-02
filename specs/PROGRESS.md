@@ -9,6 +9,16 @@ Control Context refactor: Simplified model/namespace selection with backend-driv
 - **Current Branch:** `component-improve`
 - **Focus:** ControlContext architecture for model/namespace/apiKey management
 
+### Recent Commits
+
+| Hash    | Description                                  |
+| ------- | -------------------------------------------- |
+| e3d9183 | initThreadControl                            |
+| fb89802 | isProcessing in ThreadControlState           |
+| a13315a | Working state                                |
+| 1caba26 | Small UI fixes                               |
+| a1534a7 | fix: add UUID polyfill for Safari/older browsers |
+
 ## Control System Architecture
 
 ### Component & Context Design
@@ -168,6 +178,10 @@ sequenceDiagram
 
 | Task                          | Description                                                              | Key Changes                                                                                               |
 | ----------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| ThreadControl Init            | Added initThreadControl for thread initialization                        | `runtime/core.tsx`, `contexts/control-context.tsx` - thread control state management                      |
+| isProcessing State            | Added isProcessing to ThreadControlState                                 | Tracks processing state per thread for UI feedback                                                        |
+| UUID Polyfill                 | Safari/older browser compatibility                                       | `packages/react/src/utils/uuid.ts` - crypto.randomUUID polyfill                                           |
+| UI Fixes                      | Small UI improvements to control bar components                          | `control-bar/*.tsx` - model-select, namespace-select, api-key-input                                       |
 | ControlContext Refactor       | Simplified model/namespace/apiKey management                             | `packages/react/src/contexts/control-context.tsx` - unified setState, backend-driven model selection      |
 | Control API Endpoints         | Backend API for control operations                                       | `BackendApi.getNamespaces()`, `getModels()`, `setModel()` in `backend/client.ts`                          |
 | Control Bar Components        | UI components for model/namespace selection                              | `apps/registry/src/components/control-bar/` - simplified, no more props                                   |
@@ -198,6 +212,7 @@ sequenceDiagram
 - `packages/react/src/state/event-buffer.ts` - EventBuffer class
 - `packages/react/src/runtime/threadlist-adapter.ts` - ThreadListAdapter
 - `packages/react/src/runtime/core.tsx` - Core runtime utilities
+- `packages/react/src/utils/uuid.ts` - UUID polyfill for Safari/older browsers
 - `specs/RUNTIME-ARCH.md` - Comprehensive architecture documentation
 
 ### Refactored Files
@@ -235,9 +250,10 @@ sequenceDiagram
 - `apps/registry/src/components/aomi-frame.tsx` - Updated for new providers
 - `apps/registry/src/components/aomi-frame-collapsible.tsx` - Updated for new providers
 - `apps/registry/src/components/control-bar/index.tsx` - Simplified (no props needed)
-- `apps/registry/src/components/control-bar/model-select.tsx` - Uses useControl()
-- `apps/registry/src/components/control-bar/namespace-select.tsx` - Uses useControl()
-- `apps/registry/src/components/control-bar/api-key-input.tsx` - Uses setState({ apiKey })
+- `apps/registry/src/components/control-bar/model-select.tsx` - Uses useControl(), UI fixes
+- `apps/registry/src/components/control-bar/namespace-select.tsx` - Uses useControl(), UI fixes
+- `apps/registry/src/components/control-bar/api-key-input.tsx` - Uses setState({ apiKey }), UI fixes
+- `apps/landing/app/sections/hero.tsx` - Updated for new architecture
 
 ## Pending Tasks
 
@@ -296,6 +312,7 @@ State:
 - BackendState (mutable ref) - Backend sync coordination
 - EventBuffer (mutable ref) - Inbound/outbound event queues
 - ControlState (reactive) - namespace, apiKey, availableModels, authorizedNamespaces
+- ThreadControlState (reactive) - per-thread state including isProcessing
 ```
 
 ### Control Context Pattern
@@ -309,8 +326,17 @@ type ControlState = {
   authorizedNamespaces: string[];
 };
 
+// ThreadControlState - per-thread control state
+type ThreadControlState = {
+  isProcessing: boolean;
+  // ... other per-thread state
+};
+
 // Usage in components
-const { state, setState, getAvailableModels, onModelSelect } = useControl();
+const { state, setState, getAvailableModels, onModelSelect, initThreadControl } = useControl();
+
+// Initialize thread control (called when switching threads)
+initThreadControl(threadId);
 
 // Update namespace or apiKey
 setState({ namespace: "production" });
