@@ -90,7 +90,7 @@ export {
 } from "./contexts/thread-context";
 export type { ThreadContext } from "./contexts/thread-context";
 export type { ThreadMetadata, ThreadControlState } from "./state/thread-store";
-export { createDefaultControlState } from "./state/thread-store";
+export { initThreadControl } from "./state/thread-store";
 
 // =============================================================================
 // Utilities

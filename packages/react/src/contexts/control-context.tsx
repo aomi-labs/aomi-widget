@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { BackendApi } from "../backend/client";
 import type { ThreadMetadata, ThreadControlState } from "../state/thread-store";
-import { createDefaultControlState } from "../state/thread-store";
+import { initThreadControl } from "../state/thread-store";
 
 // =============================================================================
 // Types
@@ -281,14 +281,14 @@ export function ControlContextProvider({
   // ---------------------------------------------------------------------------
   const getCurrentThreadControl = useCallback((): ThreadControlState => {
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
-    return metadata?.control ?? createDefaultControlState();
+    return metadata?.control ?? initThreadControl();
   }, []);
 
   const onModelSelect = useCallback(async (model: string) => {
     const threadId = sessionIdRef.current;
     const currentControl =
       getThreadMetadataRef.current(threadId)?.control ??
-      createDefaultControlState();
+      initThreadControl();
     const isProcessing = currentControl.isProcessing;
 
     console.log("[control-context] onModelSelect called", {
@@ -349,7 +349,7 @@ export function ControlContextProvider({
     const threadId = sessionIdRef.current;
     const currentControl =
       getThreadMetadataRef.current(threadId)?.control ??
-      createDefaultControlState();
+      initThreadControl();
     const isProcessing = currentControl.isProcessing;
 
     console.log("[control-context] onNamespaceSelect called", {
@@ -387,7 +387,7 @@ export function ControlContextProvider({
     const threadId = sessionIdRef.current;
     const currentControl =
       getThreadMetadataRef.current(threadId)?.control ??
-      createDefaultControlState();
+      initThreadControl();
 
     if (currentControl.controlDirty) {
       updateThreadMetadataRef.current(threadId, {

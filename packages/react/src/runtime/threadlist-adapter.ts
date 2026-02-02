@@ -5,7 +5,7 @@ import type { ExternalStoreThreadData } from "@assistant-ui/react";
 import type { BackendApi } from "../backend/client";
 import type { ThreadContext } from "../contexts/thread-context";
 import {
-  createDefaultControlState,
+  initThreadControl,
   type ThreadMetadata,
 } from "../state/thread-store";
 import {
@@ -113,7 +113,7 @@ export function buildThreadListAdapter({
         title: "New Chat",
         status: "pending",
         lastActiveAt: new Date().toISOString(),
-        control: createDefaultControlState(),
+        control: initThreadControl(),
       }),
     );
     threadContext.setThreadMessages(threadId, []);
@@ -173,7 +173,7 @@ export function buildThreadListAdapter({
               title: existing?.title ?? "New Chat",
               status: nextStatus,
               lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
-              control: existing?.control ?? createDefaultControlState(),
+              control: existing?.control ?? initThreadControl(),
             });
             return next;
           });
@@ -308,7 +308,7 @@ export function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: new Date().toISOString(),
-                control: createDefaultControlState(),
+                control: initThreadControl(),
               }),
             );
             threadContext.setThreadMessages(defaultId, []);
