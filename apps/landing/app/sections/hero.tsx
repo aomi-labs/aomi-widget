@@ -248,6 +248,7 @@ export function Hero() {
             className="h-[680px] w-full max-w-[900px] origin-bottom-left transform transition-all duration-300"
           >
             <AomiFrame.Root height="100%" width="100%" walletPosition="footer">
+              <AomiFrame.Header />
               <AomiFrame.Composer withControl />
             </AomiFrame.Root>
           </div>

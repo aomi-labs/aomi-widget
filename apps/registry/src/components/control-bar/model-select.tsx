@@ -54,7 +54,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
       <PopoverContent
         align="center"
         sideOffset={-40}
-        className="w-[180px] rounded-full p-1 shadow-none"
+        className="w-[180px] rounded-3xl p-1 shadow-none"
       >
         <div className="flex flex-col gap-0.5">
           {models.map((model) => (
