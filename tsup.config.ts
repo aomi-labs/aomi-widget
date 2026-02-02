@@ -2,6 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: ["packages/react/src/index.ts"],
+  outDir: "packages/react/dist",
   format: ["esm", "cjs"],
   dts: {
     compilerOptions: {
