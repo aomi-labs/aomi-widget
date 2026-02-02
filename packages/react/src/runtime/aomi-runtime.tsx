@@ -67,6 +67,8 @@ function AomiRuntimeInner({
       backendApi={backendApi}
       sessionId={threadContext.currentThreadId}
       publicKey={user.address ?? undefined}
+      getThreadMetadata={threadContext.getThreadMetadata}
+      updateThreadMetadata={threadContext.updateThreadMetadata}
     >
       <EventContextProvider
         backendApi={backendApi}

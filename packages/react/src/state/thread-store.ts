@@ -28,11 +28,31 @@ const logThreadMetadataChange = (
 
 export type ThreadStatus = "regular" | "archived" | "pending";
 
+export type ThreadControlState = {
+  /** Selected model for this thread (human-readable label) */
+  model: string | null;
+  /** Selected namespace for this thread */
+  namespace: string | null;
+  /** Whether control state has changed but chat hasn't started yet */
+  controlDirty: boolean;
+};
+
 export type ThreadMetadata = {
   title: string;
   status: ThreadStatus;
   lastActiveAt?: string | number;
+  /** Per-thread control state (model, namespace selection) */
+  control: ThreadControlState;
 };
+
+/** Create default control state for a new thread */
+export function createDefaultControlState(): ThreadControlState {
+  return {
+    model: null,
+    namespace: null,
+    controlDirty: false,
+  };
+}
 
 type ThreadStoreState = {
   currentThreadId: string;
@@ -65,6 +85,7 @@ export class ThreadStore {
             title: "New Chat",
             status: "pending",
             lastActiveAt: new Date().toISOString(),
+            control: createDefaultControlState(),
           },
         ],
       ]),
@@ -101,6 +122,7 @@ export class ThreadStore {
         title: "New Chat",
         status: "regular",
         lastActiveAt: new Date().toISOString(),
+        control: createDefaultControlState(),
       });
       this.state = { ...this.state, threadMetadata: nextMetadata };
     }

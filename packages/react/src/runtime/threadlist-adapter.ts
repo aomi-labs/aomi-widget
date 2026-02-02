@@ -4,7 +4,10 @@ import type { ExternalStoreThreadData } from "@assistant-ui/react";
 
 import type { BackendApi } from "../backend/client";
 import type { ThreadContext } from "../contexts/thread-context";
-import type { ThreadMetadata } from "../state/thread-store";
+import {
+  createDefaultControlState,
+  type ThreadMetadata,
+} from "../state/thread-store";
 import {
   markSkipInitialFetch,
   type BackendState,
@@ -110,6 +113,7 @@ export function buildThreadListAdapter({
         title: "New Chat",
         status: "pending",
         lastActiveAt: new Date().toISOString(),
+        control: createDefaultControlState(),
       }),
     );
     threadContext.setThreadMessages(threadId, []);
@@ -139,9 +143,7 @@ export function buildThreadListAdapter({
       }
 
       if (backendState.createThreadPromise) {
-        preparePendingThread(
-          backendState.creatingThreadId ?? generateUUID(),
-        );
+        preparePendingThread(backendState.creatingThreadId ?? generateUUID());
         return;
       }
 
@@ -171,6 +173,7 @@ export function buildThreadListAdapter({
               title: existing?.title ?? "New Chat",
               status: nextStatus,
               lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+              control: existing?.control ?? createDefaultControlState(),
             });
             return next;
           });
@@ -305,6 +308,7 @@ export function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: new Date().toISOString(),
+                control: createDefaultControlState(),
               }),
             );
             threadContext.setThreadMessages(defaultId, []);
