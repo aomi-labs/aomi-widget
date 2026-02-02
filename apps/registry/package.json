@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
   "main": "./src/index.ts",
@@ -16,6 +16,10 @@
     "./styles.css": "./src/themes/default.css",
     "./themes/*.css": "./src/themes/*.css"
   },
+  "files": [
+    "src",
+    "dist"
+  ],
   "scripts": {
     "build": "tsx scripts/build-registry.js"
   },
