@@ -49,7 +49,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[280px] pl-4">
+      <DialogContent className="max-w-[280px] pl-4 rounded-3xl">
         <DialogHeader className="border-0">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
