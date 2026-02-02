@@ -15,7 +15,7 @@ import { cn } from "@aomi-labs/react";
 import { ThreadList } from "@aomi-labs/widget-lib/components/assistant-ui/thread-list";
 
 type ThreadListCollapsibleProps = {
-  /** Optional footer component (e.g., WalletFooter from consumer app) */
+  /** Optional footer component (e.g., wallet UI from consumer app) */
   footer?: React.ReactNode;
   /** Default open state */
   defaultOpen?: boolean;

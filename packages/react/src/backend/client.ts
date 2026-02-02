@@ -12,6 +12,7 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 import type { UserState } from "../contexts/user-context";
 
 const SESSION_ID_HEADER = "X-Session-Id";
+const API_KEY_HEADER = "X-API-Key";
 
 function toQueryString(payload: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -34,13 +35,19 @@ async function postState<T>(
   path: string,
   payload: Record<string, unknown>,
   sessionId: string,
+  apiKey?: string,
 ): Promise<T> {
   const query = toQueryString(payload);
   const url = `${backendUrl}${path}${query}`;
 
+  const headers = new Headers(withSessionHeader(sessionId));
+  if (apiKey) {
+    headers.set(API_KEY_HEADER, apiKey);
+  }
+
   const response = await fetch(url, {
     method: "POST",
-    headers: withSessionHeader(sessionId),
+    headers,
   });
 
   if (!response.ok) {
@@ -84,16 +91,21 @@ export class BackendApi {
   async postChatMessage(
     sessionId: string,
     message: string,
+    namespace: string,
     publicKey?: string,
+    apiKey?: string,
   ): Promise<ApiChatResponse> {
+    const payload: Record<string, unknown> = { message, namespace };
+    if (publicKey) {
+      payload.public_key = publicKey;
+    }
+
     return postState<ApiChatResponse>(
       this.backendUrl,
       "/api/chat",
-      {
-        message,
-        public_key: publicKey,
-      },
+      payload,
       sessionId,
+      apiKey,
     );
   }
 
@@ -251,5 +263,91 @@ export class BackendApi {
     return (await response.json()) as ApiSystemEvent[];
   }
 
-  // fetchEventsAfter removed: /api/events only supports count now
+  // ===========================================================================
+  // Control API
+  // ===========================================================================
+
+  /**
+   * Get allowed namespaces for the current request context.
+   */
+  async getNamespaces(
+    sessionId: string,
+    publicKey?: string,
+    apiKey?: string,
+  ): Promise<string[]> {
+    const url = new URL("/api/control/namespaces", this.backendUrl);
+    if (publicKey) {
+      url.searchParams.set("public_key", publicKey);
+    }
+
+    console.log("[BackendApi.getNamespaces]", {
+      backendUrl: this.backendUrl,
+      fullUrl: url.toString(),
+      sessionId,
+      publicKey,
+    });
+
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(API_KEY_HEADER, apiKey);
+    }
+
+    const response = await fetch(url.toString(), { headers });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as string[];
+  }
+
+  /**
+   * Get available models.
+   */
+  async getModels(sessionId: string): Promise<string[]> {
+    const url = new URL("/api/control/models", this.backendUrl);
+
+    console.log("[BackendApi.getModels]", {
+      backendUrl: this.backendUrl,
+      fullUrl: url.toString(),
+      sessionId,
+    });
+
+    const response = await fetch(url.toString(), {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get models: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as string[];
+  }
+
+  /**
+   * Set the model selection for a session.
+   */
+  async setModel(
+    sessionId: string,
+    rig: string,
+    namespace?: string,
+    apiKey?: string,
+  ): Promise<{
+    success: boolean;
+    rig: string;
+    baml: string;
+    created: boolean;
+  }> {
+    const payload: Record<string, unknown> = { rig };
+    if (namespace) {
+      payload.namespace = namespace;
+    }
+
+    return postState<{
+      success: boolean;
+      rig: string;
+      baml: string;
+      created: boolean;
+    }>(this.backendUrl, "/api/control/model", payload, sessionId, apiKey);
+  }
 }

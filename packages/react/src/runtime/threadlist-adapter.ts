@@ -1,9 +1,13 @@
+import { generateUUID } from "../utils/uuid";
 import type { MutableRefObject } from "react";
 import type { ExternalStoreThreadData } from "@assistant-ui/react";
 
 import type { BackendApi } from "../backend/client";
 import type { ThreadContext } from "../contexts/thread-context";
-import type { ThreadMetadata } from "../state/thread-store";
+import {
+  initThreadControl,
+  type ThreadMetadata,
+} from "../state/thread-store";
 import {
   markSkipInitialFetch,
   type BackendState,
@@ -66,6 +70,8 @@ export type ThreadListAdapterConfig = {
   polling: PollingController;
   userAddress?: string;
   setIsRunning: (running: boolean) => void;
+  getNamespace: () => string;
+  getApiKey?: () => string | null;
 };
 
 export function buildThreadListAdapter({
@@ -76,6 +82,8 @@ export function buildThreadListAdapter({
   polling,
   userAddress,
   setIsRunning,
+  getNamespace,
+  getApiKey,
 }: ThreadListAdapterConfig) {
   const backendState = backendStateRef.current;
   const { regularThreads, archivedThreads } = buildThreadLists(
@@ -105,6 +113,7 @@ export function buildThreadListAdapter({
         title: "New Chat",
         status: "pending",
         lastActiveAt: new Date().toISOString(),
+        control: initThreadControl(),
       }),
     );
     threadContext.setThreadMessages(threadId, []);
@@ -113,13 +122,13 @@ export function buildThreadListAdapter({
     threadContext.bumpThreadViewKey();
   };
 
-    const findPendingThreadId = () => {
-      if (backendState.creatingThreadId) return backendState.creatingThreadId;
-      for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
-        if (meta.status === "pending") return id;
-      }
-      return null;
-    };
+  const findPendingThreadId = () => {
+    if (backendState.creatingThreadId) return backendState.creatingThreadId;
+    for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
+      if (meta.status === "pending") return id;
+    }
+    return null;
+  };
 
   return {
     threadId: threadContext.currentThreadId,
@@ -134,13 +143,11 @@ export function buildThreadListAdapter({
       }
 
       if (backendState.createThreadPromise) {
-        preparePendingThread(
-          backendState.creatingThreadId ?? crypto.randomUUID(),
-        );
+        preparePendingThread(backendState.creatingThreadId ?? generateUUID());
         return;
       }
 
-      const threadId = crypto.randomUUID();
+      const threadId = generateUUID();
       preparePendingThread(threadId);
 
       const createPromise = backendApiRef.current
@@ -166,6 +173,7 @@ export function buildThreadListAdapter({
               title: existing?.title ?? "New Chat",
               status: nextStatus,
               lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+              control: existing?.control ?? initThreadControl(),
             });
             return next;
           });
@@ -177,9 +185,17 @@ export function buildThreadListAdapter({
           const pendingMessages = backendState.pendingChat.get(uiThreadId);
           if (pendingMessages?.length) {
             backendState.pendingChat.delete(uiThreadId);
+            const namespace = getNamespace();
+            const apiKey = getApiKey?.() ?? undefined;
             for (const text of pendingMessages) {
               try {
-                await backendApiRef.current.postChatMessage(backendId, text);
+                await backendApiRef.current.postChatMessage(
+                  backendId,
+                  text,
+                  namespace,
+                  userAddress,
+                  apiKey,
+                );
               } catch (error) {
                 console.error("Failed to send queued message:", error);
               }
@@ -292,6 +308,7 @@ export function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: new Date().toISOString(),
+                control: initThreadControl(),
               }),
             );
             threadContext.setThreadMessages(defaultId, []);

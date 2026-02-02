@@ -1,3 +1,4 @@
+import { generateUUID } from "../utils/uuid";
 import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import { ThreadContext } from "../contexts/thread-context";
@@ -27,11 +28,34 @@ const logThreadMetadataChange = (
 
 export type ThreadStatus = "regular" | "archived" | "pending";
 
+export type ThreadControlState = {
+  /** Selected model for this thread (human-readable label) */
+  model: string | null;
+  /** Selected namespace for this thread */
+  namespace: string | null;
+  /** Whether control state has changed but chat hasn't started yet */
+  controlDirty: boolean;
+  /** Whether this thread is currently processing (assistant generating) */
+  isProcessing: boolean;
+};
+
 export type ThreadMetadata = {
   title: string;
   status: ThreadStatus;
   lastActiveAt?: string | number;
+  /** Per-thread control state (model, namespace selection) */
+  control: ThreadControlState;
 };
+
+/** Create default control state for a new thread */
+export function initThreadControl(): ThreadControlState {
+  return {
+    model: null,
+    namespace: null,
+    controlDirty: false,
+    isProcessing: false,
+  };
+}
 
 type ThreadStoreState = {
   currentThreadId: string;
@@ -51,7 +75,7 @@ export class ThreadStore {
   private snapshot: ThreadContext;
 
   constructor(options?: ThreadStoreOptions) {
-    const initialThreadId = options?.initialThreadId ?? crypto.randomUUID();
+    const initialThreadId = options?.initialThreadId ?? generateUUID();
     this.state = {
       currentThreadId: initialThreadId,
       threadViewKey: 0,
@@ -64,6 +88,7 @@ export class ThreadStore {
             title: "New Chat",
             status: "pending",
             lastActiveAt: new Date().toISOString(),
+            control: initThreadControl(),
           },
         ],
       ]),
@@ -100,6 +125,7 @@ export class ThreadStore {
         title: "New Chat",
         status: "regular",
         lastActiveAt: new Date().toISOString(),
+        control: initThreadControl(),
       });
       this.state = { ...this.state, threadMetadata: nextMetadata };
     }
