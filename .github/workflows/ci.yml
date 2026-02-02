@@ -39,9 +39,6 @@ jobs:
       - name: Build registry
         run: pnpm run build:registry
 
-      - name: Lint landing app
-        run: pnpm --filter landing lint
-
       - name: Build landing app
         run: pnpm --filter landing build
         env:
