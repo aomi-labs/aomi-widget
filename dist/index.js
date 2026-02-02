@@ -483,7 +483,7 @@ var logThreadMetadataChange = (source, threadId, prev, next) => {
     console.debug(`[aomi][thread:${source}]`, { threadId, prev, next });
   }
 };
-function createDefaultControlState() {
+function initThreadControl() {
   return {
     model: null,
     namespace: null,
@@ -572,7 +572,7 @@ var ThreadStore = class {
             title: "New Chat",
             status: "pending",
             lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-            control: createDefaultControlState()
+            control: initThreadControl()
           }
         ]
       ])
@@ -594,7 +594,7 @@ var ThreadStore = class {
         title: "New Chat",
         status: "regular",
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-        control: createDefaultControlState()
+        control: initThreadControl()
       });
       this.state = __spreadProps(__spreadValues({}, this.state), { threadMetadata: nextMetadata });
     }
@@ -786,12 +786,12 @@ function ControlContextProvider({
   const getCurrentThreadControl = useCallback(() => {
     var _a2;
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
-    return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : createDefaultControlState();
+    return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : initThreadControl();
   }, []);
   const onModelSelect = useCallback(async (model) => {
     var _a2, _b2, _c, _d, _e;
     const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : createDefaultControlState();
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     const isProcessing2 = currentControl.isProcessing;
     console.log("[control-context] onModelSelect called", {
       model,
@@ -838,7 +838,7 @@ function ControlContextProvider({
   const onNamespaceSelect = useCallback((namespace) => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : createDefaultControlState();
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     const isProcessing2 = currentControl.isProcessing;
     console.log("[control-context] onNamespaceSelect called", {
       namespace,
@@ -867,7 +867,7 @@ function ControlContextProvider({
   const markControlSynced = useCallback(() => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : createDefaultControlState();
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     if (currentControl.controlDirty) {
       updateThreadMetadataRef.current(threadId, {
         control: __spreadProps(__spreadValues({}, currentControl), {
@@ -1803,7 +1803,7 @@ function buildThreadListAdapter({
         title: "New Chat",
         status: "pending",
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-        control: createDefaultControlState()
+        control: initThreadControl()
       })
     );
     threadContext.setThreadMessages(threadId, []);
@@ -1855,7 +1855,7 @@ function buildThreadListAdapter({
             title: (_a3 = existing == null ? void 0 : existing.title) != null ? _a3 : "New Chat",
             status: nextStatus,
             lastActiveAt: (_b2 = existing == null ? void 0 : existing.lastActiveAt) != null ? _b2 : (/* @__PURE__ */ new Date()).toISOString(),
-            control: (_c = existing == null ? void 0 : existing.control) != null ? _c : createDefaultControlState()
+            control: (_c = existing == null ? void 0 : existing.control) != null ? _c : initThreadControl()
           });
           return next;
         });
@@ -1975,7 +1975,7 @@ function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-                control: createDefaultControlState()
+                control: initThreadControl()
               })
             );
             threadContext.setThreadMessages(defaultId, []);
@@ -2104,7 +2104,7 @@ function AomiRuntimeCore({
             title,
             status: thread.is_archived ? "archived" : "regular",
             lastActiveAt: lastActive,
-            control: existingControl != null ? existingControl : createDefaultControlState()
+            control: existingControl != null ? existingControl : initThreadControl()
           });
           const match = title.match(/^Chat (\d+)$/);
           if (match) {
@@ -2190,7 +2190,7 @@ function AomiRuntimeCore({
               title: normalizedTitle,
               status: nextStatus,
               lastActiveAt: (_a = existing == null ? void 0 : existing.lastActiveAt) != null ? _a : (/* @__PURE__ */ new Date()).toISOString(),
-              control: (_b = existing == null ? void 0 : existing.control) != null ? _b : createDefaultControlState()
+              control: (_b = existing == null ? void 0 : existing.control) != null ? _b : initThreadControl()
             });
             return next;
           });
@@ -2243,11 +2243,6 @@ function AomiRuntimeCore({
     const unsubscribe = eventContext.subscribe("system_notice", (event) => {
       const payload = event.payload;
       const message = payload == null ? void 0 : payload.message;
-      notificationContext.showNotification({
-        type: "notice",
-        title: "System notice",
-        message
-      });
     });
     return unsubscribe;
   }, [eventContext, notificationContext]);
@@ -2540,9 +2535,9 @@ export {
   ThreadContextProvider,
   UserContextProvider,
   cn,
-  createDefaultControlState,
   formatAddress,
   getNetworkName,
+  initThreadControl,
   useAomiRuntime,
   useControl,
   useCurrentThreadMessages,
