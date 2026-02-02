@@ -112,6 +112,20 @@ export function AomiRuntimeCore({
     setIsRunning(isThreadRunning(backendStateRef.current, threadId));
   }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
 
+  // Sync isRunning to thread metadata for control context
+  useEffect(() => {
+    const threadId = threadContext.currentThreadId;
+    const currentMeta = threadContext.getThreadMetadata(threadId);
+    if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
+      threadContext.updateThreadMetadata(threadId, {
+        control: {
+          ...currentMeta.control,
+          isProcessing: isRunning,
+        },
+      });
+    }
+  }, [isRunning, threadContext]);
+
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId,
   );
@@ -341,11 +355,12 @@ export function AomiRuntimeCore({
       const payload = event.payload as { message?: string } | undefined;
       const message = payload?.message;
 
-      notificationContext.showNotification({
-        type: "notice",
-        title: "System notice",
-        message,
-      });
+      // TODO: Disable it for now, we don't need async execution
+      // notificationContext.showNotification({
+      //   type: "notice",
+      //   title: "System notice",
+      //   message,
+      // });
     });
 
     return unsubscribe;

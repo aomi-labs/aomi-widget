@@ -102,8 +102,6 @@ export type ControlContextProviderProps = {
     threadId: string,
     updates: Partial<ThreadMetadata>,
   ) => void;
-  /** Whether the current thread is processing */
-  isProcessing?: boolean;
 };
 
 export function ControlContextProvider({
@@ -113,7 +111,6 @@ export function ControlContextProvider({
   publicKey,
   getThreadMetadata,
   updateThreadMetadata,
-  isProcessing = false,
 }: ControlContextProviderProps) {
   const [state, setStateInternal] = useState<ControlState>(() => ({
     apiKey: null,
@@ -142,6 +139,10 @@ export function ControlContextProvider({
   updateThreadMetadataRef.current = updateThreadMetadata;
 
   const callbacks = useRef<Set<(state: ControlState) => void>>(new Set());
+
+  // Compute isProcessing from current thread's control state
+  const currentThreadMetadata = getThreadMetadata(sessionId);
+  const isProcessing = currentThreadMetadata?.control?.isProcessing ?? false;
 
   // Load API key from localStorage on mount
   useEffect(() => {
@@ -283,107 +284,104 @@ export function ControlContextProvider({
     return metadata?.control ?? createDefaultControlState();
   }, []);
 
-  const onModelSelect = useCallback(
-    async (model: string) => {
-      console.log("[control-context] onModelSelect called", {
+  const onModelSelect = useCallback(async (model: string) => {
+    const threadId = sessionIdRef.current;
+    const currentControl =
+      getThreadMetadataRef.current(threadId)?.control ??
+      createDefaultControlState();
+    const isProcessing = currentControl.isProcessing;
+
+    console.log("[control-context] onModelSelect called", {
+      model,
+      isProcessing,
+      threadId,
+    });
+
+    if (isProcessing) {
+      console.warn("[control-context] Cannot switch model while processing");
+      return;
+    }
+
+    const namespace =
+      currentControl.namespace ??
+      stateRef.current.defaultNamespace ??
+      "default";
+
+    console.log("[control-context] onModelSelect updating metadata", {
+      threadId,
+      model,
+      namespace,
+      currentControl,
+    });
+
+    // Update thread metadata with new model and mark as dirty
+    updateThreadMetadataRef.current(threadId, {
+      control: {
+        ...currentControl,
         model,
-        isProcessing,
-        threadId: sessionIdRef.current,
-      });
+        namespace,
+        controlDirty: true,
+      },
+    });
 
-      if (isProcessing) {
-        console.warn("[control-context] Cannot switch model while processing");
-        return;
-      }
+    console.log("[control-context] onModelSelect calling backend setModel", {
+      threadId,
+      model,
+      namespace,
+      backendUrl: backendApiRef.current,
+    });
 
-      const threadId = sessionIdRef.current;
-      const currentControl =
-        getThreadMetadataRef.current(threadId)?.control ??
-        createDefaultControlState();
-      const namespace =
-        currentControl.namespace ??
-        stateRef.current.defaultNamespace ??
-        "default";
-
-      console.log("[control-context] onModelSelect updating metadata", {
+    try {
+      const result = await backendApiRef.current.setModel(
         threadId,
         model,
         namespace,
-        currentControl,
-      });
+        stateRef.current.apiKey ?? undefined,
+      );
+      console.log("[control-context] onModelSelect backend result", result);
+    } catch (err) {
+      console.error("[control-context] setModel failed:", err);
+      throw err;
+    }
+  }, []);
 
-      // Update thread metadata with new model and mark as dirty
-      updateThreadMetadataRef.current(threadId, {
-        control: {
-          ...currentControl,
-          model,
-          namespace,
-          controlDirty: true,
-        },
-      });
+  const onNamespaceSelect = useCallback((namespace: string) => {
+    const threadId = sessionIdRef.current;
+    const currentControl =
+      getThreadMetadataRef.current(threadId)?.control ??
+      createDefaultControlState();
+    const isProcessing = currentControl.isProcessing;
 
-      console.log("[control-context] onModelSelect calling backend setModel", {
-        threadId,
-        model,
+    console.log("[control-context] onNamespaceSelect called", {
+      namespace,
+      isProcessing,
+      threadId,
+    });
+
+    if (isProcessing) {
+      console.warn(
+        "[control-context] Cannot switch namespace while processing",
+      );
+      return;
+    }
+
+    console.log("[control-context] onNamespaceSelect updating metadata", {
+      threadId,
+      namespace,
+      currentControl,
+    });
+
+    // Update thread metadata with new namespace and mark as dirty
+    updateThreadMetadataRef.current(threadId, {
+      control: {
+        ...currentControl,
         namespace,
-        backendUrl: backendApiRef.current,
-      });
+        controlDirty: true,
+      },
+    });
 
-      try {
-        const result = await backendApiRef.current.setModel(
-          threadId,
-          model,
-          namespace,
-          stateRef.current.apiKey ?? undefined,
-        );
-        console.log("[control-context] onModelSelect backend result", result);
-      } catch (err) {
-        console.error("[control-context] setModel failed:", err);
-        throw err;
-      }
-    },
-    [isProcessing],
-  );
-
-  const onNamespaceSelect = useCallback(
-    (namespace: string) => {
-      console.log("[control-context] onNamespaceSelect called", {
-        namespace,
-        isProcessing,
-        threadId: sessionIdRef.current,
-      });
-
-      if (isProcessing) {
-        console.warn(
-          "[control-context] Cannot switch namespace while processing",
-        );
-        return;
-      }
-
-      const threadId = sessionIdRef.current;
-      const currentControl =
-        getThreadMetadataRef.current(threadId)?.control ??
-        createDefaultControlState();
-
-      console.log("[control-context] onNamespaceSelect updating metadata", {
-        threadId,
-        namespace,
-        currentControl,
-      });
-
-      // Update thread metadata with new namespace and mark as dirty
-      updateThreadMetadataRef.current(threadId, {
-        control: {
-          ...currentControl,
-          namespace,
-          controlDirty: true,
-        },
-      });
-
-      console.log("[control-context] onNamespaceSelect metadata updated");
-    },
-    [isProcessing],
-  );
+    console.log("[control-context] onNamespaceSelect metadata updated");
+  }, []);
 
   const markControlSynced = useCallback(() => {
     const threadId = sessionIdRef.current;
