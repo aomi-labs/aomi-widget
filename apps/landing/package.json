@@ -9,7 +9,7 @@
     "dev:localhost": "NEXT_PUBLIC_USE_LOCALHOST=true next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint --dir ."
   },
   "prettier": {
     "plugins": [
