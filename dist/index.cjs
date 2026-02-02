@@ -523,7 +523,8 @@ function createDefaultControlState() {
   return {
     model: null,
     namespace: null,
-    controlDirty: false
+    controlDirty: false,
+    isProcessing: false
   };
 }
 var ThreadStore = class {
@@ -681,9 +682,9 @@ function ControlContextProvider({
   sessionId,
   publicKey,
   getThreadMetadata,
-  updateThreadMetadata,
-  isProcessing = false
+  updateThreadMetadata
 }) {
+  var _a, _b;
   const [state, setStateInternal] = (0, import_react.useState)(() => ({
     apiKey: null,
     availableModels: [],
@@ -704,10 +705,12 @@ function ControlContextProvider({
   const updateThreadMetadataRef = (0, import_react.useRef)(updateThreadMetadata);
   updateThreadMetadataRef.current = updateThreadMetadata;
   const callbacks = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+  const currentThreadMetadata = getThreadMetadata(sessionId);
+  const isProcessing = (_b = (_a = currentThreadMetadata == null ? void 0 : currentThreadMetadata.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
   (0, import_react.useEffect)(() => {
-    var _a, _b;
+    var _a2, _b2;
     try {
-      const storedApiKey = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(API_KEY_STORAGE_KEY)) != null ? _b : null;
+      const storedApiKey = (_b2 = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(API_KEY_STORAGE_KEY)) != null ? _b2 : null;
       if (storedApiKey) {
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { apiKey: storedApiKey }));
       }
@@ -715,26 +718,26 @@ function ControlContextProvider({
     }
   }, []);
   (0, import_react.useEffect)(() => {
-    var _a, _b;
+    var _a2, _b2;
     try {
       if (state.apiKey) {
-        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(API_KEY_STORAGE_KEY, state.apiKey);
+        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(API_KEY_STORAGE_KEY, state.apiKey);
       } else {
-        (_b = globalThis.localStorage) == null ? void 0 : _b.removeItem(API_KEY_STORAGE_KEY);
+        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(API_KEY_STORAGE_KEY);
       }
     } catch (e) {
     }
   }, [state.apiKey]);
   (0, import_react.useEffect)(() => {
     const fetchNamespaces = async () => {
-      var _a, _b;
+      var _a2, _b2;
       try {
         const namespaces = await backendApiRef.current.getNamespaces(
           sessionIdRef.current,
           publicKeyRef.current,
-          (_a = stateRef.current.apiKey) != null ? _a : void 0
+          (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
         );
-        const defaultNs = namespaces.includes("default") ? "default" : (_b = namespaces[0]) != null ? _b : null;
+        const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
           authorizedNamespaces: namespaces,
           defaultNamespace: defaultNs
@@ -756,10 +759,10 @@ function ControlContextProvider({
           sessionIdRef.current
         );
         setStateInternal((prev) => {
-          var _a;
+          var _a2;
           return __spreadProps(__spreadValues({}, prev), {
             availableModels: models,
-            defaultModel: (_a = models[0]) != null ? _a : null
+            defaultModel: (_a2 = models[0]) != null ? _a2 : null
           });
         });
       } catch (error) {
@@ -781,10 +784,10 @@ function ControlContextProvider({
         sessionIdRef.current
       );
       setStateInternal((prev) => {
-        var _a, _b;
+        var _a2, _b2;
         return __spreadProps(__spreadValues({}, prev), {
           availableModels: models,
-          defaultModel: (_b = (_a = prev.defaultModel) != null ? _a : models[0]) != null ? _b : null
+          defaultModel: (_b2 = (_a2 = prev.defaultModel) != null ? _a2 : models[0]) != null ? _b2 : null
         });
       });
       return models;
@@ -794,14 +797,14 @@ function ControlContextProvider({
     }
   }, []);
   const getAuthorizedNamespaces = (0, import_react.useCallback)(async () => {
-    var _a, _b;
+    var _a2, _b2;
     try {
       const namespaces = await backendApiRef.current.getNamespaces(
         sessionIdRef.current,
         publicKeyRef.current,
-        (_a = stateRef.current.apiKey) != null ? _a : void 0
+        (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
       );
-      const defaultNs = namespaces.includes("default") ? "default" : (_b = namespaces[0]) != null ? _b : null;
+      const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
         authorizedNamespaces: namespaces,
         defaultNamespace: defaultNs
@@ -817,94 +820,90 @@ function ControlContextProvider({
     }
   }, []);
   const getCurrentThreadControl = (0, import_react.useCallback)(() => {
-    var _a;
+    var _a2;
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
-    return (_a = metadata == null ? void 0 : metadata.control) != null ? _a : createDefaultControlState();
+    return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : createDefaultControlState();
   }, []);
-  const onModelSelect = (0, import_react.useCallback)(
-    async (model) => {
-      var _a, _b, _c, _d, _e;
-      console.log("[control-context] onModelSelect called", {
-        model,
-        isProcessing,
-        threadId: sessionIdRef.current
-      });
-      if (isProcessing) {
-        console.warn("[control-context] Cannot switch model while processing");
-        return;
-      }
-      const threadId = sessionIdRef.current;
-      const currentControl = (_b = (_a = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a.control) != null ? _b : createDefaultControlState();
-      const namespace = (_d = (_c = currentControl.namespace) != null ? _c : stateRef.current.defaultNamespace) != null ? _d : "default";
-      console.log("[control-context] onModelSelect updating metadata", {
-        threadId,
-        model,
-        namespace,
-        currentControl
-      });
-      updateThreadMetadataRef.current(threadId, {
-        control: __spreadProps(__spreadValues({}, currentControl), {
-          model,
-          namespace,
-          controlDirty: true
-        })
-      });
-      console.log("[control-context] onModelSelect calling backend setModel", {
-        threadId,
-        model,
-        namespace,
-        backendUrl: backendApiRef.current
-      });
-      try {
-        const result = await backendApiRef.current.setModel(
-          threadId,
-          model,
-          namespace,
-          (_e = stateRef.current.apiKey) != null ? _e : void 0
-        );
-        console.log("[control-context] onModelSelect backend result", result);
-      } catch (err) {
-        console.error("[control-context] setModel failed:", err);
-        throw err;
-      }
-    },
-    [isProcessing]
-  );
-  const onNamespaceSelect = (0, import_react.useCallback)(
-    (namespace) => {
-      var _a, _b;
-      console.log("[control-context] onNamespaceSelect called", {
-        namespace,
-        isProcessing,
-        threadId: sessionIdRef.current
-      });
-      if (isProcessing) {
-        console.warn(
-          "[control-context] Cannot switch namespace while processing"
-        );
-        return;
-      }
-      const threadId = sessionIdRef.current;
-      const currentControl = (_b = (_a = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a.control) != null ? _b : createDefaultControlState();
-      console.log("[control-context] onNamespaceSelect updating metadata", {
-        threadId,
-        namespace,
-        currentControl
-      });
-      updateThreadMetadataRef.current(threadId, {
-        control: __spreadProps(__spreadValues({}, currentControl), {
-          namespace,
-          controlDirty: true
-        })
-      });
-      console.log("[control-context] onNamespaceSelect metadata updated");
-    },
-    [isProcessing]
-  );
-  const markControlSynced = (0, import_react.useCallback)(() => {
-    var _a, _b;
+  const onModelSelect = (0, import_react.useCallback)(async (model) => {
+    var _a2, _b2, _c, _d, _e;
     const threadId = sessionIdRef.current;
-    const currentControl = (_b = (_a = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a.control) != null ? _b : createDefaultControlState();
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : createDefaultControlState();
+    const isProcessing2 = currentControl.isProcessing;
+    console.log("[control-context] onModelSelect called", {
+      model,
+      isProcessing: isProcessing2,
+      threadId
+    });
+    if (isProcessing2) {
+      console.warn("[control-context] Cannot switch model while processing");
+      return;
+    }
+    const namespace = (_d = (_c = currentControl.namespace) != null ? _c : stateRef.current.defaultNamespace) != null ? _d : "default";
+    console.log("[control-context] onModelSelect updating metadata", {
+      threadId,
+      model,
+      namespace,
+      currentControl
+    });
+    updateThreadMetadataRef.current(threadId, {
+      control: __spreadProps(__spreadValues({}, currentControl), {
+        model,
+        namespace,
+        controlDirty: true
+      })
+    });
+    console.log("[control-context] onModelSelect calling backend setModel", {
+      threadId,
+      model,
+      namespace,
+      backendUrl: backendApiRef.current
+    });
+    try {
+      const result = await backendApiRef.current.setModel(
+        threadId,
+        model,
+        namespace,
+        (_e = stateRef.current.apiKey) != null ? _e : void 0
+      );
+      console.log("[control-context] onModelSelect backend result", result);
+    } catch (err) {
+      console.error("[control-context] setModel failed:", err);
+      throw err;
+    }
+  }, []);
+  const onNamespaceSelect = (0, import_react.useCallback)((namespace) => {
+    var _a2, _b2;
+    const threadId = sessionIdRef.current;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : createDefaultControlState();
+    const isProcessing2 = currentControl.isProcessing;
+    console.log("[control-context] onNamespaceSelect called", {
+      namespace,
+      isProcessing: isProcessing2,
+      threadId
+    });
+    if (isProcessing2) {
+      console.warn(
+        "[control-context] Cannot switch namespace while processing"
+      );
+      return;
+    }
+    console.log("[control-context] onNamespaceSelect updating metadata", {
+      threadId,
+      namespace,
+      currentControl
+    });
+    updateThreadMetadataRef.current(threadId, {
+      control: __spreadProps(__spreadValues({}, currentControl), {
+        namespace,
+        controlDirty: true
+      })
+    });
+    console.log("[control-context] onNamespaceSelect metadata updated");
+  }, []);
+  const markControlSynced = (0, import_react.useCallback)(() => {
+    var _a2, _b2;
+    const threadId = sessionIdRef.current;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : createDefaultControlState();
     if (currentControl.controlDirty) {
       updateThreadMetadataRef.current(threadId, {
         control: __spreadProps(__spreadValues({}, currentControl), {
@@ -925,9 +924,9 @@ function ControlContextProvider({
   );
   const setState = (0, import_react.useCallback)(
     (updates) => {
-      var _a;
+      var _a2;
       if ("apiKey" in updates) {
-        setApiKey((_a = updates.apiKey) != null ? _a : null);
+        setApiKey((_a2 = updates.apiKey) != null ? _a2 : null);
       }
       if ("namespace" in updates && updates.namespace !== void 0 && updates.namespace !== null) {
         onNamespaceSelect(updates.namespace);
@@ -2073,6 +2072,17 @@ function AomiRuntimeCore({
     const threadId = threadContext.currentThreadId;
     setIsRunning(isThreadRunning(backendStateRef.current, threadId));
   }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
+  (0, import_react8.useEffect)(() => {
+    const threadId = threadContext.currentThreadId;
+    const currentMeta = threadContext.getThreadMetadata(threadId);
+    if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
+      threadContext.updateThreadMetadata(threadId, {
+        control: __spreadProps(__spreadValues({}, currentMeta.control), {
+          isProcessing: isRunning
+        })
+      });
+    }
+  }, [isRunning, threadContext]);
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId
   );

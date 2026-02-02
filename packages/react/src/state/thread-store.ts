@@ -35,6 +35,8 @@ export type ThreadControlState = {
   namespace: string | null;
   /** Whether control state has changed but chat hasn't started yet */
   controlDirty: boolean;
+  /** Whether this thread is currently processing (assistant generating) */
+  isProcessing: boolean;
 };
 
 export type ThreadMetadata = {
@@ -51,6 +53,7 @@ export function createDefaultControlState(): ThreadControlState {
     model: null,
     namespace: null,
     controlDirty: false,
+    isProcessing: false,
   };
 }
 
