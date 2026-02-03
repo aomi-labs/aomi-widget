@@ -110,7 +110,7 @@ declare class BackendApi {
     private sseSubscriber;
     constructor(backendUrl: string);
     fetchState(sessionId: string, userState?: UserState): Promise<ApiStateResponse>;
-    postChatMessage(sessionId: string, message: string, namespace: string, publicKey?: string, apiKey?: string): Promise<ApiChatResponse>;
+    postChatMessage(sessionId: string, message: string, namespace: string, publicKey?: string, apiKey?: string, userState?: UserState): Promise<ApiChatResponse>;
     postSystemMessage(sessionId: string, message: string): Promise<ApiSystemResponse>;
     postInterrupt(sessionId: string): Promise<ApiInterruptResponse>;
     /**

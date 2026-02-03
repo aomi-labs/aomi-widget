@@ -207,6 +207,7 @@ export function AomiRuntimeCore({
           getControlState().defaultNamespace ??
           "default",
         getApiKey: () => getControlState().apiKey,
+        getUserState,
       }),
     [
       backendApiRef,
@@ -218,6 +219,7 @@ export function AomiRuntimeCore({
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
       getControlState,
+      getUserState,
     ],
   );
 

@@ -77,6 +77,7 @@ export function useRuntimeOrchestrator(
       getPublicKey: options.getPublicKey,
       getNamespace: options.getNamespace,
       getApiKey: options.getApiKey,
+      getUserState: options.getUserState,
       onSyncEvents: options.onSyncEvents,
     });
   }
