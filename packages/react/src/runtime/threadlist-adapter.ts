@@ -4,6 +4,7 @@ import type { ExternalStoreThreadData } from "@assistant-ui/react";
 
 import type { BackendApi } from "../backend/client";
 import type { ThreadContext } from "../contexts/thread-context";
+import type { UserState } from "../contexts/user-context";
 import {
   initThreadControl,
   type ThreadMetadata,
@@ -72,6 +73,7 @@ export type ThreadListAdapterConfig = {
   setIsRunning: (running: boolean) => void;
   getNamespace: () => string;
   getApiKey?: () => string | null;
+  getUserState?: () => UserState;
 };
 
 export function buildThreadListAdapter({
@@ -84,6 +86,7 @@ export function buildThreadListAdapter({
   setIsRunning,
   getNamespace,
   getApiKey,
+  getUserState,
 }: ThreadListAdapterConfig) {
   const backendState = backendStateRef.current;
   const { regularThreads, archivedThreads } = buildThreadLists(
@@ -187,6 +190,7 @@ export function buildThreadListAdapter({
             backendState.pendingChat.delete(uiThreadId);
             const namespace = getNamespace();
             const apiKey = getApiKey?.() ?? undefined;
+            const userState = getUserState?.();
             for (const text of pendingMessages) {
               try {
                 await backendApiRef.current.postChatMessage(
@@ -195,6 +199,7 @@ export function buildThreadListAdapter({
                   namespace,
                   userAddress,
                   apiKey,
+                  userState,
                 );
               } catch (error) {
                 console.error("Failed to send queued message:", error);

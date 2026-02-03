@@ -94,10 +94,14 @@ export class BackendApi {
     namespace: string,
     publicKey?: string,
     apiKey?: string,
+    userState?: UserState,
   ): Promise<ApiChatResponse> {
     const payload: Record<string, unknown> = { message, namespace };
     if (publicKey) {
       payload.public_key = publicKey;
+    }
+    if (userState) {
+      payload.user_state = JSON.stringify(userState);
     }
 
     return postState<ApiChatResponse>(

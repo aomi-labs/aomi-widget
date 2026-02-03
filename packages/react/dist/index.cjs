@@ -301,10 +301,13 @@ var BackendApi = class {
     }
     return await response.json();
   }
-  async postChatMessage(sessionId, message, namespace, publicKey, apiKey) {
+  async postChatMessage(sessionId, message, namespace, publicKey, apiKey, userState) {
     const payload = { message, namespace };
     if (publicKey) {
       payload.public_key = publicKey;
+    }
+    if (userState) {
+      payload.user_state = JSON.stringify(userState);
     }
     return postState(
       this.backendUrl,
@@ -1464,7 +1467,7 @@ var MessageController = class {
     this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter(
       (part) => part.type === "text"
@@ -1492,6 +1495,7 @@ var MessageController = class {
     const namespace = this.config.getNamespace();
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     const apiKey = (_e = (_d = (_c = this.config).getApiKey) == null ? void 0 : _d.call(_c)) != null ? _e : void 0;
+    const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
     try {
       this.markRunning(threadId, true);
       const response = await this.config.backendApiRef.current.postChatMessage(
@@ -1499,12 +1503,13 @@ var MessageController = class {
         text,
         namespace,
         publicKey,
-        apiKey
+        apiKey,
+        userState
       );
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
       }
-      if (((_f = response == null ? void 0 : response.system_events) == null ? void 0 : _f.length) && this.config.onSyncEvents) {
+      if (((_h = response == null ? void 0 : response.system_events) == null ? void 0 : _h.length) && this.config.onSyncEvents) {
         this.config.onSyncEvents(backendThreadId, response.system_events);
       }
       if (response == null ? void 0 : response.is_processing) {
@@ -1518,7 +1523,7 @@ var MessageController = class {
     }
   }
   async flushPendingChat(threadId) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     const backendState = this.config.backendStateRef.current;
     const pending = dequeuePendingChat(backendState, threadId);
     if (!pending.length) return;
@@ -1526,6 +1531,7 @@ var MessageController = class {
     const namespace = this.config.getNamespace();
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     const apiKey = (_e = (_d = (_c = this.config).getApiKey) == null ? void 0 : _d.call(_c)) != null ? _e : void 0;
+    const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
     for (const text of pending) {
       try {
         await this.config.backendApiRef.current.postChatMessage(
@@ -1533,7 +1539,8 @@ var MessageController = class {
           text,
           namespace,
           publicKey,
-          apiKey
+          apiKey,
+          userState
         );
       } catch (error) {
         console.error("Failed to send queued message:", error);
@@ -1688,6 +1695,7 @@ function useRuntimeOrchestrator(backendApi, options) {
       getPublicKey: options.getPublicKey,
       getNamespace: options.getNamespace,
       getApiKey: options.getApiKey,
+      getUserState: options.getUserState,
       onSyncEvents: options.onSyncEvents
     });
   }
@@ -1783,7 +1791,8 @@ function buildThreadListAdapter({
   userAddress,
   setIsRunning,
   getNamespace,
-  getApiKey
+  getApiKey,
+  getUserState
 }) {
   const backendState = backendStateRef.current;
   const { regularThreads, archivedThreads } = buildThreadLists(
@@ -1876,6 +1885,7 @@ function buildThreadListAdapter({
           backendState.pendingChat.delete(uiThreadId);
           const namespace = getNamespace();
           const apiKey = (_b = getApiKey == null ? void 0 : getApiKey()) != null ? _b : void 0;
+          const userState = getUserState == null ? void 0 : getUserState();
           for (const text of pendingMessages) {
             try {
               await backendApiRef.current.postChatMessage(
@@ -1883,7 +1893,8 @@ function buildThreadListAdapter({
                 text,
                 namespace,
                 userAddress,
-                apiKey
+                apiKey,
+                userState
               );
             } catch (error) {
               console.error("Failed to send queued message:", error);
@@ -2146,7 +2157,8 @@ function AomiRuntimeCore({
         var _a, _b;
         return (_b = (_a = getCurrentThreadControl().namespace) != null ? _a : getControlState().defaultNamespace) != null ? _b : "default";
       },
-      getApiKey: () => getControlState().apiKey
+      getApiKey: () => getControlState().apiKey,
+      getUserState
     }),
     [
       backendApiRef,
@@ -2157,7 +2169,8 @@ function AomiRuntimeCore({
       threadContext,
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
-      getControlState
+      getControlState,
+      getUserState
     ]
   );
   (0, import_react8.useEffect)(() => {
