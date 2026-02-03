@@ -36,10 +36,47 @@ jobs:
       - name: Run library tests
         run: pnpm run test
 
-      - name: Lint example app
-        run: pnpm --filter example lint
+      - name: Build registry
+        run: pnpm run build:registry
 
-      - name: Build example app
-        run: pnpm --filter example build
+      - name: Build landing app
+        run: pnpm --filter landing build
         env:
           NEXT_PUBLIC_PROJECT_ID: 000000000000000000000000000000000000000000
+
+  publish:
+    needs: build-and-lint
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @aomi-labs/react
+        run: pnpm run build:lib
+
+      - name: Build @aomi-labs/widget-lib (shadcn registry)
+        run: pnpm run build:registry
+
+      - name: Publish @aomi-labs/react
+        run: pnpm --filter @aomi-labs/react publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @aomi-labs/widget-lib
+        run: pnpm --filter @aomi-labs/widget-lib publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
