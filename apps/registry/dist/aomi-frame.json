@@ -14,9 +14,9 @@
     "@aomi-labs/react"
   ],
   "registryDependencies": [
-    "https://widget.aomi.dev/r/assistant-thread.json",
-    "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
-    "https://widget.aomi.dev/r/notification.json",
+    "https://aomi.dev/r/assistant-thread.json",
+    "https://aomi.dev/r/assistant-threadlist-sidebar.json",
+    "https://aomi.dev/r/notification.json",
     "separator",
     "breadcrumb",
     "sidebar"
