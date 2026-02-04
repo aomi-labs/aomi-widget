@@ -287,8 +287,7 @@ export function ControlContextProvider({
   const onModelSelect = useCallback(async (model: string) => {
     const threadId = sessionIdRef.current;
     const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ??
-      initThreadControl();
+      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
     const isProcessing = currentControl.isProcessing;
 
     console.log("[control-context] onModelSelect called", {
@@ -348,8 +347,7 @@ export function ControlContextProvider({
   const onNamespaceSelect = useCallback((namespace: string) => {
     const threadId = sessionIdRef.current;
     const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ??
-      initThreadControl();
+      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
     const isProcessing = currentControl.isProcessing;
 
     console.log("[control-context] onNamespaceSelect called", {
@@ -386,8 +384,7 @@ export function ControlContextProvider({
   const markControlSynced = useCallback(() => {
     const threadId = sessionIdRef.current;
     const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ??
-      initThreadControl();
+      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
 
     if (currentControl.controlDirty) {
       updateThreadMetadataRef.current(threadId, {

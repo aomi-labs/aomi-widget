@@ -11,7 +11,7 @@ pnpm install @aomi-labs/react
 Or install via shadcn registry:
 
 ```bash
-npx shadcn add https://widget.aomi.dev/r/aomi-frame.json
+npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
 ## Quick Start

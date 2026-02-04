@@ -6,7 +6,7 @@ export type RegistryComponent = {
   description?: string;
 };
 
-const REGISTRY_BASE_URL = "https://widget.aomi.dev/r";
+const REGISTRY_BASE_URL = "https://aomi.dev/r";
 
 // Helper to create registry dependency URLs
 const aomi = (name: string) => `${REGISTRY_BASE_URL}/${name}.json`;
