@@ -45,3 +45,4 @@ apps/registry/dist
 next-env.d.ts
 
 **/.specstory/*
+.env*.local
