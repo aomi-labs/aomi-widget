@@ -11,12 +11,12 @@ Control Context refactor: Simplified model/namespace selection with backend-driv
 
 ### Recent Commits
 
-| Hash    | Description                                  |
-| ------- | -------------------------------------------- |
-| e3d9183 | initThreadControl                            |
-| fb89802 | isProcessing in ThreadControlState           |
-| a13315a | Working state                                |
-| 1caba26 | Small UI fixes                               |
+| Hash    | Description                                      |
+| ------- | ------------------------------------------------ |
+| e3d9183 | initThreadControl                                |
+| fb89802 | isProcessing in ThreadControlState               |
+| a13315a | Working state                                    |
+| 1caba26 | Small UI fixes                                   |
 | a1534a7 | fix: add UUID polyfill for Safari/older browsers |
 
 ## Control System Architecture
@@ -333,7 +333,13 @@ type ThreadControlState = {
 };
 
 // Usage in components
-const { state, setState, getAvailableModels, onModelSelect, initThreadControl } = useControl();
+const {
+  state,
+  setState,
+  getAvailableModels,
+  onModelSelect,
+  initThreadControl,
+} = useControl();
 
 // Initialize thread control (called when switching threads)
 initThreadControl(threadId);
