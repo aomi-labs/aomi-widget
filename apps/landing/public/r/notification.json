@@ -11,5 +11,5 @@
     }
   ],
   "dependencies": ["@aomi-labs/react", "sonner"],
-  "registryDependencies": ["https://widget.aomi.dev/r/sonner.json"]
+  "registryDependencies": ["https://aomi.dev/r/sonner.json"]
 }

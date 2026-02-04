@@ -6,6 +6,7 @@ import type { AomiMessage, ApiSystemEvent } from "../backend/types";
 import { toInboundMessage } from "./utils";
 import type { ThreadContext } from "../contexts/thread-context";
 import type { PollingController } from "./polling-controller";
+import type { UserState } from "../contexts/user-context";
 import {
   dequeuePendingChat,
   enqueuePendingChat,
@@ -25,6 +26,7 @@ type MessageControllerConfig = {
   getPublicKey?: () => string | undefined;
   getNamespace: () => string;
   getApiKey?: () => string | null;
+  getUserState?: () => UserState;
   onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
 };
 
@@ -93,6 +95,7 @@ export class MessageController {
     const namespace = this.config.getNamespace();
     const publicKey = this.config.getPublicKey?.();
     const apiKey = this.config.getApiKey?.() ?? undefined;
+    const userState = this.config.getUserState?.();
 
     try {
       this.markRunning(threadId, true);
@@ -102,6 +105,7 @@ export class MessageController {
         namespace,
         publicKey,
         apiKey,
+        userState,
       );
 
       // Apply the latest messages immediately so sync tool results appear without waiting for polling.
@@ -132,6 +136,7 @@ export class MessageController {
     const namespace = this.config.getNamespace();
     const publicKey = this.config.getPublicKey?.();
     const apiKey = this.config.getApiKey?.() ?? undefined;
+    const userState = this.config.getUserState?.();
 
     for (const text of pending) {
       try {
@@ -141,6 +146,7 @@ export class MessageController {
           namespace,
           publicKey,
           apiKey,
+          userState,
         );
       } catch (error) {
         console.error("Failed to send queued message:", error);
