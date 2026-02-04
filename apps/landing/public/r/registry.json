@@ -13,11 +13,13 @@
           "path": "components/aomi-frame.tsx"
         }
       ],
-      "dependencies": ["@aomi-labs/react"],
+      "dependencies": [
+        "@aomi-labs/react"
+      ],
       "registryDependencies": [
-        "https://widget.aomi.dev/r/assistant-thread.json",
-        "https://widget.aomi.dev/r/assistant-threadlist-sidebar.json",
-        "https://widget.aomi.dev/r/notification.json",
+        "https://aomi.dev/r/assistant-thread.json",
+        "https://aomi.dev/r/assistant-threadlist-sidebar.json",
+        "https://aomi.dev/r/notification.json",
         "separator",
         "breadcrumb",
         "sidebar"
@@ -44,7 +46,7 @@
         "https://r.assistant-ui.com/markdown-text.json",
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "https://r.assistant-ui.com/attachment.json",
-        "https://widget.aomi.dev/r/assistant-tool-fallback.json",
+        "https://aomi.dev/r/assistant-tool-fallback.json",
         "button"
       ]
     },
@@ -58,7 +60,10 @@
           "path": "components/assistant-ui/thread-list.tsx"
         }
       ],
-      "dependencies": ["@assistant-ui/react", "lucide-react"],
+      "dependencies": [
+        "@assistant-ui/react",
+        "lucide-react"
+      ],
       "registryDependencies": [
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "button",
@@ -75,9 +80,11 @@
           "path": "components/assistant-ui/threadlist-sidebar.tsx"
         }
       ],
-      "dependencies": ["lucide-react"],
+      "dependencies": [
+        "lucide-react"
+      ],
       "registryDependencies": [
-        "https://widget.aomi.dev/r/assistant-thread-list.json",
+        "https://aomi.dev/r/assistant-thread-list.json",
         "sidebar"
       ]
     },
@@ -91,8 +98,13 @@
           "path": "components/assistant-ui/tool-fallback.tsx"
         }
       ],
-      "dependencies": ["@assistant-ui/react", "lucide-react"],
-      "registryDependencies": ["button"]
+      "dependencies": [
+        "@assistant-ui/react",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button"
+      ]
     },
     {
       "name": "notification",
@@ -104,8 +116,13 @@
           "path": "components/ui/notification.tsx"
         }
       ],
-      "dependencies": ["@aomi-labs/react", "sonner"],
-      "registryDependencies": ["https://widget.aomi.dev/r/sonner.json"]
+      "dependencies": [
+        "@aomi-labs/react",
+        "sonner"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/sonner.json"
+      ]
     },
     {
       "name": "sonner",
@@ -117,7 +134,9 @@
           "path": "components/ui/sonner.tsx"
         }
       ],
-      "dependencies": ["sonner"],
+      "dependencies": [
+        "sonner"
+      ],
       "registryDependencies": []
     },
     {
@@ -130,7 +149,10 @@
           "path": "components/ui/button.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-slot", "class-variance-authority"],
+      "dependencies": [
+        "@radix-ui/react-slot",
+        "class-variance-authority"
+      ],
       "registryDependencies": []
     },
     {
@@ -182,7 +204,9 @@
           "path": "components/ui/badge.tsx"
         }
       ],
-      "dependencies": ["class-variance-authority"],
+      "dependencies": [
+        "class-variance-authority"
+      ],
       "registryDependencies": []
     },
     {
@@ -195,7 +219,9 @@
           "path": "components/ui/avatar.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-avatar"],
+      "dependencies": [
+        "@radix-ui/react-avatar"
+      ],
       "registryDependencies": []
     },
     {
@@ -221,7 +247,9 @@
           "path": "components/ui/tooltip.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-tooltip"],
+      "dependencies": [
+        "@radix-ui/react-tooltip"
+      ],
       "registryDependencies": []
     },
     {
@@ -234,7 +262,9 @@
           "path": "components/ui/separator.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-separator"],
+      "dependencies": [
+        "@radix-ui/react-separator"
+      ],
       "registryDependencies": []
     },
     {
@@ -247,7 +277,9 @@
           "path": "components/ui/breadcrumb.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-slot"],
+      "dependencies": [
+        "@radix-ui/react-slot"
+      ],
       "registryDependencies": []
     },
     {
@@ -260,7 +292,10 @@
           "path": "components/ui/sidebar.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-slot", "class-variance-authority"],
+      "dependencies": [
+        "@radix-ui/react-slot",
+        "class-variance-authority"
+      ],
       "registryDependencies": []
     },
     {
@@ -273,7 +308,10 @@
           "path": "components/ui/dialog.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-dialog", "lucide-react"],
+      "dependencies": [
+        "@radix-ui/react-dialog",
+        "lucide-react"
+      ],
       "registryDependencies": []
     },
     {
@@ -286,7 +324,10 @@
           "path": "components/ui/sheet.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-dialog", "lucide-react"],
+      "dependencies": [
+        "@radix-ui/react-dialog",
+        "lucide-react"
+      ],
       "registryDependencies": []
     },
     {
@@ -299,7 +340,9 @@
           "path": "components/ui/collapsible.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-collapsible"],
+      "dependencies": [
+        "@radix-ui/react-collapsible"
+      ],
       "registryDependencies": []
     },
     {
@@ -312,8 +355,14 @@
           "path": "components/ui/command.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-dialog", "cmdk", "lucide-react"],
-      "registryDependencies": ["dialog"]
+      "dependencies": [
+        "@radix-ui/react-dialog",
+        "cmdk",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "dialog"
+      ]
     },
     {
       "name": "popover",
@@ -325,7 +374,9 @@
           "path": "components/ui/popover.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-popover"],
+      "dependencies": [
+        "@radix-ui/react-popover"
+      ],
       "registryDependencies": []
     },
     {
@@ -338,7 +389,9 @@
           "path": "components/ui/alert.tsx"
         }
       ],
-      "dependencies": ["class-variance-authority"],
+      "dependencies": [
+        "class-variance-authority"
+      ],
       "registryDependencies": []
     },
     {
@@ -351,7 +404,10 @@
           "path": "components/ui/accordion.tsx"
         }
       ],
-      "dependencies": ["@radix-ui/react-accordion", "lucide-react"],
+      "dependencies": [
+        "@radix-ui/react-accordion",
+        "lucide-react"
+      ],
       "registryDependencies": []
     },
     {
@@ -364,7 +420,9 @@
           "path": "components/ui/drawer.tsx"
         }
       ],
-      "dependencies": ["vaul"],
+      "dependencies": [
+        "vaul"
+      ],
       "registryDependencies": []
     }
   ]
