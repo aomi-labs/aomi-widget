@@ -44,9 +44,6 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
           aria-label={hasApiKey ? "API key configured" : "Set API key"}
         >
           <KeyIcon className={cn("h-4 w-4", hasApiKey && "text-green-500")} />
-          {hasApiKey && (
-            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500" />
-          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-[280px] rounded-3xl pl-4">
@@ -95,6 +92,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
           {hasApiKey && (
             <Button
               variant="outline"
+              className="rounded-full"
               onClick={() => {
                 setState({ apiKey: null });
                 setInputValue("");
@@ -104,6 +102,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
             </Button>
           )}
           <Button
+            className="rounded-full"
             onClick={() => {
               if (inputValue.trim()) {
                 setState({ apiKey: inputValue.trim() });
