@@ -25,10 +25,17 @@ import {
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
 
 // =============================================================================
-// Composer Control Context - signals Thread to show inline controls
+// Contexts
 // =============================================================================
 
-const ComposerControlContext = createContext<boolean>(false);
+type ComposerControlContextValue = {
+  enabled: boolean;
+  controlBarProps?: Omit<ControlBarProps, "children">;
+};
+
+const ComposerControlContext = createContext<ComposerControlContextValue>({
+  enabled: false,
+});
 
 export const useComposerControl = () => useContext(ComposerControlContext);
 
@@ -61,6 +68,8 @@ type ComposerProps = {
   children?: ReactNode;
   /** Show inline controls in the composer input area */
   withControl?: boolean;
+  /** Props to pass to the ControlBar when withControl is true */
+  controlBarProps?: Omit<ControlBarProps, "children">;
   className?: string;
 };
 
@@ -90,7 +99,7 @@ const Root: FC<RootProps> = ({
 
   return (
     <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
-      <SidebarProvider>
+      <SidebarProvider className="h-full min-h-0">
         <div
           className={cn(
             "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
@@ -99,7 +108,7 @@ const Root: FC<RootProps> = ({
           style={frameStyle}
         >
           <ThreadListSidebar walletPosition={walletPosition} />
-          <SidebarInset className="relative flex flex-col">
+          <SidebarInset className="relative flex min-h-0 flex-col">
             {children}
           </SidebarInset>
           <NotificationToaster />
@@ -152,12 +161,15 @@ const Header: FC<HeaderProps> = ({
 const Composer: FC<ComposerProps> = ({
   children,
   withControl = false,
+  controlBarProps,
   className,
 }) => {
   const { currentThreadId, threadViewKey } = useAomiRuntime();
 
   return (
-    <ComposerControlContext.Provider value={withControl}>
+    <ComposerControlContext.Provider
+      value={{ enabled: withControl, controlBarProps }}
+    >
       <div className={cn("flex flex-1 flex-col overflow-hidden", className)}>
         <Thread key={`${currentThreadId}-${threadViewKey}`} />
         {children}
