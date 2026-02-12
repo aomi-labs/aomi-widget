@@ -39,7 +39,8 @@
     "prettier:fix": "prettier --write .",
     "test": "vitest",
     "generate:theme": "node ./scripts/generate-theme.mjs",
-    "prepublishOnly": "pnpm run build:lib"
+    "prepublishOnly": "pnpm run build:lib",
+    "deploy:registry": "./scripts/deploy-registry.sh"
   },
   "prettier": {
     "plugins": [
