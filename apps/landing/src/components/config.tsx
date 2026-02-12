@@ -5,6 +5,7 @@ import {
   optimism,
   base,
   polygon,
+  sepolia,
 } from "@reown/appkit/networks";
 import { cookieStorage, createStorage } from "wagmi";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
@@ -30,12 +31,12 @@ const localhost = {
 } as const satisfies AppKitNetwork;
 
 export const networks = useLocalhost
-  ? [mainnet, arbitrum, optimism, base, polygon, localhost]
-  : [mainnet, arbitrum, optimism, base, polygon];
+  ? [mainnet, arbitrum, optimism, base, polygon, sepolia, localhost]
+  : [mainnet, arbitrum, optimism, base, polygon, sepolia];
 
 const appKitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = useLocalhost
-  ? [localhost, mainnet, arbitrum]
-  : [mainnet, arbitrum];
+  ? [localhost, mainnet, arbitrum, optimism, base, polygon, sepolia]
+  : [mainnet, arbitrum, optimism, base, polygon, sepolia];
 
 // Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({

@@ -36,6 +36,8 @@ import { useComposerControl } from "@/components/aomi-frame";
 import { ModelSelect } from "@/components/control-bar/model-select";
 import { NamespaceSelect } from "@/components/control-bar/namespace-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
+import { NetworkSelect } from "@/components/control-bar/network-select";
+import { WalletConnect } from "@/components/control-bar/wallet-connect";
 import { useAssistantApi, useMessage } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
@@ -207,16 +209,24 @@ const Composer: FC = () => {
 };
 
 const ComposerAction: FC = () => {
-  const showInlineControls = useComposerControl();
+  const composerControl = useComposerControl();
+  const controlBarProps = composerControl.controlBarProps ?? {};
+  const hideModel = controlBarProps.hideModel ?? false;
+  const hideNamespace = controlBarProps.hideNamespace ?? false;
+  const hideApiKey = controlBarProps.hideApiKey ?? false;
+  const hideWallet = controlBarProps.hideWallet ?? true;
+  const hideNetwork = controlBarProps.hideNetwork ?? true;
 
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center">
       {/* Inline controls: [Model ▾] [Agent ▾] [🔑] */}
-      {showInlineControls && (
+      {composerControl.enabled && (
         <div className="ml-2 flex items-center gap-2">
-          <ModelSelect />
-          <NamespaceSelect />
-          <ApiKeyInput />
+          {!hideNetwork && <NetworkSelect />}
+          {!hideModel && <ModelSelect />}
+          {!hideNamespace && <NamespaceSelect />}
+          {!hideWallet && <WalletConnect />}
+          {!hideApiKey && <ApiKeyInput />}
         </div>
       )}
 
