@@ -95,7 +95,14 @@ export { initThreadControl } from "./state/thread-store";
 // =============================================================================
 // Utilities
 // =============================================================================
-export { cn, formatAddress, getNetworkName } from "./runtime/utils";
+export {
+  cn,
+  formatAddress,
+  getNetworkName,
+  getChainInfo,
+  SUPPORTED_CHAINS,
+  type ChainInfo,
+} from "./runtime/utils";
 
 // =============================================================================
 // Notification Context (for toast UI)

@@ -42,10 +42,12 @@ __export(index_exports, {
   ControlContextProvider: () => ControlContextProvider,
   EventContextProvider: () => EventContextProvider,
   NotificationContextProvider: () => NotificationContextProvider,
+  SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
   cn: () => cn,
   formatAddress: () => formatAddress,
+  getChainInfo: () => getChainInfo,
   getNetworkName: () => getNetworkName,
   initThreadControl: () => initThreadControl,
   useAomiRuntime: () => useAomiRuntime,
@@ -1394,6 +1396,15 @@ var getNetworkName = (chainId) => {
   }
 };
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
+var SUPPORTED_CHAINS = [
+  { id: 1, name: "Ethereum", ticker: "ETH" },
+  { id: 137, name: "Polygon", ticker: "MATIC" },
+  { id: 42161, name: "Arbitrum", ticker: "ARB" },
+  { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 10, name: "Optimism", ticker: "OP" },
+  { id: 11155111, name: "Sepolia", ticker: "SEP" }
+];
+var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
 // packages/react/src/state/backend-state.ts
 function createBackendState() {
@@ -2555,10 +2566,12 @@ function useNotificationHandler({
   ControlContextProvider,
   EventContextProvider,
   NotificationContextProvider,
+  SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
   cn,
   formatAddress,
+  getChainInfo,
   getNetworkName,
   initThreadControl,
   useAomiRuntime,

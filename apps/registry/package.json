@@ -21,10 +21,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsx scripts/build-registry.js"
+    "build": "tsx scripts/build-registry.js",
+    "clean:dist": "rm -rf dist"
   },
   "dependencies": {
-    "@aomi-labs/react": "^0.2.2",
+    "@aomi-labs/react": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
     "@radix-ui/react-accordion": "^1.2.3",
