@@ -30,13 +30,12 @@ const localhost = {
   },
 } as const satisfies AppKitNetwork;
 
-export const networks = useLocalhost
-  ? [mainnet, arbitrum, optimism, base, polygon, sepolia, localhost]
-  : [mainnet, arbitrum, optimism, base, polygon, sepolia];
-
-const appKitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = useLocalhost
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = useLocalhost
   ? [localhost, mainnet, arbitrum, optimism, base, polygon, sepolia]
   : [mainnet, arbitrum, optimism, base, polygon, sepolia];
+
+// Keep AppKit network gating aligned with wagmi adapter networks.
+const appKitNetworks = networks;
 
 // Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({
