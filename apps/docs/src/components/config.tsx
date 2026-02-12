@@ -16,9 +16,16 @@ if (!projectId) {
   throw new Error("Project ID is not defined");
 }
 
-export const networks = [mainnet, arbitrum, optimism, base, polygon];
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  mainnet,
+  arbitrum,
+  optimism,
+  base,
+  polygon,
+];
 
-const appKitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [mainnet, arbitrum];
+// Keep AppKit network gating aligned with wagmi adapter networks.
+const appKitNetworks = networks;
 
 // Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({

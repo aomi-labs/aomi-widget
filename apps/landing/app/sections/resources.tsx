@@ -204,12 +204,6 @@ export function Resources() {
                 </a>
                 <a
                   href="#"
-                  className="font-geist text-xs text-stone-100 transition-colors hover:text-white"
-                >
-                  Pricing
-                </a>
-                <a
-                  href="#"
                   className="font-geist text-xs text-stone-100 transition-colors hover:text-stone-100"
                 >
                   Changelog
@@ -226,13 +220,17 @@ export function Resources() {
                   About
                 </a>
                 <a
-                  href="#"
+                  href="https://substack.com/@aomilabs"
+                  target="_blank"
+                  rel="noreferrer"
                   className="font-geist text-xs text-stone-100 transition-colors hover:text-stone-400"
                 >
                   Blog
                 </a>
                 <a
-                  href="#"
+                  href="https://www.linkedin.com/company/aomi-labs/"
+                  target="_blank"
+                  rel="noreferrer"
                   className="font-geist text-xs text-stone-100 transition-colors hover:text-stone-400"
                 >
                   Careers
@@ -265,33 +263,30 @@ export function Resources() {
           </div>
           <div className="flex w-full items-center justify-between border-t border-white/5 py-6">
             <span className="font-geist text-[10px] text-neutral-200">
-              (c) 2024 Aomi Inc. All rights reserved.
+              (c) 2025 Aomi Inc. All rights reserved.
             </span>
             <div className="flex items-center gap-4">
               <a
-                href="https://github.com/aomi-labs"
+                href="https://x.com/aomi_labs"
                 target="_blank"
                 rel="noreferrer"
                 className="text-neutral-200 transition-colors hover:text-white"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
+                  width="16"
+                  height="16"
                   viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  data-lucide="twitter"
-                  className="lucide lucide-twitter h-4 w-4"
+                  fill="currentColor"
+                  className="h-4 w-4"
                 >
-                  <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path>
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
                 </svg>
               </a>
               <a
-                href="#"
+                href="https://github.com/aomi-labs"
+                target="_blank"
+                rel="noreferrer"
                 className="text-neutral-200 transition-colors hover:text-white"
               >
                 <svg
