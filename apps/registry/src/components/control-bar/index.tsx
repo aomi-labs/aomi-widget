@@ -2,6 +2,7 @@
 
 import type { ReactNode, FC } from "react";
 import { cn } from "@aomi-labs/react";
+import { NetworkSelect } from "./network-select";
 import { ModelSelect } from "./model-select";
 import { NamespaceSelect } from "./namespace-select";
 import { ApiKeyInput } from "./api-key-input";
@@ -23,6 +24,8 @@ export type ControlBarProps = {
   hideApiKey?: boolean;
   /** Hide the wallet connect button (default: true) */
   hideWallet?: boolean;
+  /** Hide the network selector (default: true) */
+  hideNetwork?: boolean;
 };
 
 // =============================================================================
@@ -36,9 +39,11 @@ export const ControlBar: FC<ControlBarProps> = ({
   hideNamespace = false,
   hideApiKey = false,
   hideWallet = true,
+  hideNetwork = true,
 }) => {
   return (
     <div className={cn("flex items-center gap-2", className)}>
+      {!hideNetwork && <NetworkSelect />}
       {!hideModel && <ModelSelect />}
       {!hideNamespace && <NamespaceSelect />}
       {!hideWallet && <WalletConnect />}
@@ -56,3 +61,4 @@ export { ModelSelect, type ModelSelectProps } from "./model-select";
 export { NamespaceSelect, type NamespaceSelectProps } from "./namespace-select";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
 export { WalletConnect, type WalletConnectProps } from "./wallet-connect";
+export { NetworkSelect, type NetworkSelectProps } from "./network-select";
