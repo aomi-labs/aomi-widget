@@ -20,7 +20,7 @@
   "registryDependencies": [
     "https://r.assistant-ui.com/markdown-text.json",
     "https://r.assistant-ui.com/tooltip-icon-button.json",
-    "https://r.assistant-ui.com/attachment.json",
+    "https://aomi.dev/r/attachment.json",
     "https://aomi.dev/r/assistant-tool-fallback.json",
     "button"
   ]
