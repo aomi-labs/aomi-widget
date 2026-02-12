@@ -11,22 +11,28 @@ const baseDir = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(baseDir, "../dist");
 const srcDir = path.resolve(baseDir, "../src");
 
+function resolveFileType(filePath) {
+  if (filePath.endsWith(".css")) return "registry:style";
+  if (filePath.includes("/hooks/")) return "registry:hook";
+  if (filePath.includes("/lib/")) return "registry:lib";
+  return "registry:component";
+}
+
 function buildComponent(entry) {
-  const filePath = path.join(srcDir, entry.file);
-  const content = readFileSync(filePath, "utf8");
+  // Support single file (string) or multiple files (array)
+  const filePaths = Array.isArray(entry.file) ? entry.file : [entry.file];
+
+  const files = filePaths.map((f) => {
+    const content = readFileSync(path.join(srcDir, f), "utf8");
+    return { type: resolveFileType(f), path: f, content };
+  });
 
   const payload = {
     $schema: "https://ui.shadcn.com/schema/registry-item.json",
     name: entry.name,
-    type: "registry:component",
+    type: entry.type ?? "registry:component",
     description: entry.description,
-    files: [
-      {
-        type: "registry:component",
-        path: entry.file,
-        content,
-      },
-    ],
+    files,
     dependencies: entry.dependencies ?? [],
     registryDependencies: entry.registryDependencies ?? [],
   };
@@ -37,14 +43,9 @@ function buildComponent(entry) {
   // Return item for registry.json (without content)
   return {
     name: entry.name,
-    type: "registry:component",
+    type: entry.type ?? "registry:component",
     description: entry.description,
-    files: [
-      {
-        type: "registry:component",
-        path: entry.file,
-      },
-    ],
+    files: files.map(({ type, path: p }) => ({ type, path: p })),
     dependencies: entry.dependencies ?? [],
     registryDependencies: entry.registryDependencies ?? [],
   };
