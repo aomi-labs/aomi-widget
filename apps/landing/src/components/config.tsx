@@ -5,6 +5,7 @@ import {
   optimism,
   base,
   polygon,
+  sepolia,
 } from "@reown/appkit/networks";
 import { cookieStorage, createStorage } from "wagmi";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
@@ -30,8 +31,8 @@ const localhost = {
 } as const satisfies AppKitNetwork;
 
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = useLocalhost
-  ? [localhost, mainnet, arbitrum, optimism, base, polygon]
-  : [mainnet, arbitrum, optimism, base, polygon];
+  ? [localhost, mainnet, arbitrum, optimism, base, polygon, sepolia]
+  : [mainnet, arbitrum, optimism, base, polygon, sepolia];
 
 // Keep AppKit network gating aligned with wagmi adapter networks.
 const appKitNetworks = networks;

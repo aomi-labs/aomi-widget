@@ -249,7 +249,10 @@ export function Hero() {
           >
             <AomiFrame.Root height="100%" width="100%" walletPosition="footer">
               <AomiFrame.Header />
-              <AomiFrame.Composer withControl />
+              <AomiFrame.Composer
+                withControl
+                controlBarProps={{ hideApiKey: true, hideNetwork: false }}
+              />
             </AomiFrame.Root>
           </div>
         </div>

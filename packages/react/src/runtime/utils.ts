@@ -157,6 +157,29 @@ export const getNetworkName = (
 export const formatAddress = (addr?: string): string =>
   addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
 
+// ==================== Chain Metadata ====================
+
+/** Static metadata for a supported chain */
+export type ChainInfo = { id: number; name: string; ticker: string };
+
+/** All chains supported by the application. Single source of truth. */
+export const SUPPORTED_CHAINS: ChainInfo[] = [
+  { id: 1, name: "Ethereum", ticker: "ETH" },
+  { id: 137, name: "Polygon", ticker: "MATIC" },
+  { id: 42161, name: "Arbitrum", ticker: "ARB" },
+  { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 10, name: "Optimism", ticker: "OP" },
+  { id: 11155111, name: "Sepolia", ticker: "SEP" },
+];
+
+/** Look up ChainInfo by chain ID. Returns undefined for unknown chains. */
+export const getChainInfo = (
+  chainId: number | undefined,
+): ChainInfo | undefined =>
+  chainId === undefined
+    ? undefined
+    : SUPPORTED_CHAINS.find((c) => c.id === chainId);
+
 export function normalizeWalletError(error: unknown): {
   rejected: boolean;
   message: string;

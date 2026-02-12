@@ -8,7 +8,7 @@ const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib";
 export function WidgetDemo() {
   return (
     <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
-      <AomiFrame.Header withControl />
+      <AomiFrame.Header withControl controlBarProps={{ hideNetwork: false }} />
       <AomiFrame.Composer />
     </AomiFrame.Root>
   );
@@ -17,7 +17,7 @@ export function WidgetDemo() {
 export function WidgetFrame() {
   return (
     <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
-      <AomiFrame.Header withControl />
+      <AomiFrame.Header withControl controlBarProps={{ hideNetwork: false }} />
       <AomiFrame.Composer />
     </AomiFrame.Root>
   );
