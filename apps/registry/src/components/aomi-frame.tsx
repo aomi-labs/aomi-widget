@@ -25,7 +25,7 @@ import {
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
 
 // =============================================================================
-// Contexts
+// Composer Control Context - signals Thread to show inline controls
 // =============================================================================
 
 type ComposerControlContextValue = {
@@ -99,7 +99,7 @@ const Root: FC<RootProps> = ({
 
   return (
     <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
-      <SidebarProvider className="h-full min-h-0">
+      <SidebarProvider className="h-full min-h-0!">
         <div
           className={cn(
             "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
@@ -108,7 +108,7 @@ const Root: FC<RootProps> = ({
           style={frameStyle}
         >
           <ThreadListSidebar walletPosition={walletPosition} />
-          <SidebarInset className="relative flex min-h-0 flex-col">
+          <SidebarInset className="relative flex flex-col">
             {children}
           </SidebarInset>
           <NotificationToaster />
@@ -206,7 +206,7 @@ const DefaultLayout: FC<DefaultLayoutProps> = ({
     <Root walletPosition={walletPosition} {...props}>
       <Header
         withControl
-        controlBarProps={{ hideWallet: hideWalletInControlBar }}
+        controlBarProps={{ hideWallet: hideWalletInControlBar, hideNetwork: false }}
       />
       <Composer />
     </Root>

@@ -64,6 +64,10 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/wallet-connect.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/network-select.tsx"
         }
       ],
       "dependencies": [
@@ -227,7 +231,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-slot",
+        "radix-ui",
         "class-variance-authority"
       ],
       "registryDependencies": []
@@ -255,7 +259,9 @@
           "path": "components/ui/label.tsx"
         }
       ],
-      "dependencies": [],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     {
@@ -297,7 +303,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-avatar"
+        "radix-ui"
       ],
       "registryDependencies": []
     },
@@ -386,10 +392,12 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-dialog",
+        "radix-ui",
         "lucide-react"
       ],
-      "registryDependencies": []
+      "registryDependencies": [
+        "button"
+      ]
     },
     {
       "name": "sheet",
@@ -402,7 +410,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-dialog",
+        "radix-ui",
         "lucide-react"
       ],
       "registryDependencies": []
@@ -452,7 +460,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-popover"
+        "radix-ui"
       ],
       "registryDependencies": []
     },

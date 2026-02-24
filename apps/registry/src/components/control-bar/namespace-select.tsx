@@ -87,16 +87,9 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
               key={ns}
               disabled={isProcessing}
               onClick={() => {
-                console.log("[NamespaceSelect] clicked", { ns, isProcessing });
                 if (isProcessing) return;
-                console.log("[NamespaceSelect] calling onNamespaceSelect", {
-                  ns,
-                });
                 onNamespaceSelect(ns);
                 setOpen(false);
-                console.log("[NamespaceSelect] onNamespaceSelect completed", {
-                  ns,
-                });
               }}
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-full px-3 py-2 text-sm outline-none",
