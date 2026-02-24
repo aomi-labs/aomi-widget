@@ -39,7 +39,7 @@ export const ControlBar: FC<ControlBarProps> = ({
   hideNamespace = false,
   hideApiKey = false,
   hideWallet = true,
-  hideNetwork = true,
+  hideNetwork = false,
 }) => {
   return (
     <div className={cn("flex items-center gap-2", className)}>
