@@ -8,10 +8,6 @@ import type { ThreadContext } from "../contexts/thread-context";
 import type { PollingController } from "./polling-controller";
 import type { UserState } from "../contexts/user-context";
 import {
-  dequeuePendingChat,
-  enqueuePendingChat,
-  hasPendingChat,
-  isThreadReady,
   resolveThreadId,
   setThreadRunning,
   type BackendState,
@@ -39,12 +35,7 @@ export class MessageController {
   constructor(private readonly config: MessageControllerConfig) {}
 
   inbound(threadId: string, msgs?: AomiMessage[] | null) {
-    const backendState = this.config.backendStateRef.current;
     if (!msgs) return;
-    if (hasPendingChat(backendState, threadId)) {
-      // Avoid overwriting optimistic UI when pending user messages exist.
-      return;
-    }
 
     const threadMessages: ThreadMessageLike[] = [];
     for (const msg of msgs) {
@@ -85,12 +76,6 @@ export class MessageController {
       lastActiveAt: new Date().toISOString(),
     });
 
-    if (!isThreadReady(backendState, threadId)) {
-      this.markRunning(threadId, true);
-      enqueuePendingChat(backendState, threadId, text);
-      return;
-    }
-
     const backendThreadId = resolveThreadId(backendState, threadId);
     const namespace = this.config.getNamespace();
     const publicKey = this.config.getPublicKey?.();
@@ -128,37 +113,9 @@ export class MessageController {
     }
   }
 
-  async flushPendingChat(threadId: string) {
-    const backendState = this.config.backendStateRef.current;
-    const pending = dequeuePendingChat(backendState, threadId);
-    if (!pending.length) return;
-    const backendThreadId = resolveThreadId(backendState, threadId);
-    const namespace = this.config.getNamespace();
-    const publicKey = this.config.getPublicKey?.();
-    const apiKey = this.config.getApiKey?.() ?? undefined;
-    const userState = this.config.getUserState?.();
-
-    for (const text of pending) {
-      try {
-        await this.config.backendApiRef.current.postChatMessage(
-          backendThreadId,
-          text,
-          namespace,
-          publicKey,
-          apiKey,
-          userState,
-        );
-      } catch (error) {
-        console.error("Failed to send queued message:", error);
-      }
-    }
-    this.config.polling.start(threadId);
-  }
-
   async cancel(threadId: string) {
-    const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
     this.config.polling.stop(threadId);
+    const backendState = this.config.backendStateRef.current;
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
       const response =

@@ -24,7 +24,7 @@ export type ControlBarProps = {
   hideApiKey?: boolean;
   /** Hide the wallet connect button (default: true) */
   hideWallet?: boolean;
-  /** Hide the network selector (default: true) */
+  /** Hide the network selector (default: false) */
   hideNetwork?: boolean;
 };
 
@@ -39,7 +39,7 @@ export const ControlBar: FC<ControlBarProps> = ({
   hideNamespace = false,
   hideApiKey = false,
   hideWallet = true,
-  hideNetwork = true,
+  hideNetwork = false,
 }) => {
   return (
     <div className={cn("flex items-center gap-2", className)}>

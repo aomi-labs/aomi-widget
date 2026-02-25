@@ -26,7 +26,7 @@ const logThreadMetadataChange = (
   }
 };
 
-export type ThreadStatus = "regular" | "archived" | "pending";
+export type ThreadStatus = "regular" | "archived";
 
 export type ThreadControlState = {
   /** Selected model for this thread (human-readable label) */
@@ -86,7 +86,7 @@ export class ThreadStore {
           initialThreadId,
           {
             title: "New Chat",
-            status: "pending",
+            status: "regular",
             lastActiveAt: new Date().toISOString(),
             control: initThreadControl(),
           },

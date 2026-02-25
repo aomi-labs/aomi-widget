@@ -215,7 +215,7 @@ const ComposerAction: FC = () => {
   const hideNamespace = controlBarProps.hideNamespace ?? false;
   const hideApiKey = controlBarProps.hideApiKey ?? false;
   const hideWallet = controlBarProps.hideWallet ?? true;
-  const hideNetwork = controlBarProps.hideNetwork ?? true;
+  const hideNetwork = controlBarProps.hideNetwork ?? false;
 
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center">

@@ -1,152 +1,187 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useEventContext } from "../contexts/event-context";
-import { useUser } from "../contexts/user-context";
 import type { InboundEvent } from "../state/event-buffer";
+import {
+  createWalletBuffer,
+  enqueue,
+  dequeue,
+  markProcessing,
+  getAll,
+  type WalletBuffer,
+  type WalletRequest,
+  type WalletTxPayload,
+  type WalletEip712Payload,
+} from "../state/wallet-buffer";
 
-export type WalletTxRequest = {
-  to: string;
-  value?: string;
-  data?: string;
-  chainId?: number;
-};
+// Re-export types consumers need
+export type { WalletRequest, WalletTxPayload, WalletEip712Payload };
+export type {
+  WalletRequestKind,
+  WalletRequestStatus,
+} from "../state/wallet-buffer";
 
-export type WalletTxComplete = {
-  txHash: string;
-  status: "success" | "failed";
+export type WalletRequestResult = {
+  txHash?: string;
+  signature?: string;
   amount?: string;
-  token?: string;
 };
-
-export type WalletConnectionStatus = "connected" | "disconnected";
 
 export type WalletHandlerConfig = {
   sessionId: string;
-  onTxRequest?: (request: WalletTxRequest) => void;
+  /** Called after a wallet request is resolved/rejected and the outbound event is sent.
+   *  Used by core.tsx to start polling for the AI's response. */
+  onRequestComplete?: () => void;
 };
 
-export type WalletHanderApi = {
-  /** Send transaction completion event to backend */
-  sendTxComplete: (tx: WalletTxComplete) => void;
-  /** Send wallet connection status change and update user state */
-  sendConnectionChange: (
-    status: WalletConnectionStatus,
-    address?: string,
-    chainId?: number,
+export type WalletHandlerApi = {
+  /** All queued wallet requests (tx + eip712) */
+  pendingRequests: WalletRequest[];
+  /** Mark a request as being processed */
+  startProcessing: (id: string) => void;
+  /** Complete a request successfully — dequeues + sends response to backend */
+  resolveRequest: (
+    id: string,
+    result: WalletRequestResult,
   ) => void;
-  /** Pending transaction requests from AI */
-  pendingTxRequests: WalletTxRequest[];
-  /** Clear a pending request after handling */
-  clearTxRequest: (index: number) => void;
+  /** Fail a request — dequeues + sends error to backend */
+  rejectRequest: (id: string, error?: string) => void;
 };
 
 export function useWalletHandler({
   sessionId,
-  onTxRequest,
-}: WalletHandlerConfig): WalletHanderApi {
+  onRequestComplete,
+}: WalletHandlerConfig): WalletHandlerApi {
   const { subscribe, sendOutboundSystem: sendOutbound } = useEventContext();
-  const { setUser, getUserState } = useUser();
-  const [pendingTxRequests, setPendingTxRequests] = useState<WalletTxRequest[]>(
-    [],
-  );
+  const bufferRef = useRef<WalletBuffer>(createWalletBuffer());
+  const [pendingRequests, setPendingRequests] = useState<WalletRequest[]>([]);
+
+  // Sync React state from buffer
+  const syncState = useCallback(() => {
+    setPendingRequests(getAll(bufferRef.current));
+  }, []);
 
   // ---------------------------------------------------------------------------
-  // Subscribe to wallet-related inbound events
-  // Backend sends InlineCall with type: "wallet_tx_request"
+  // Subscribe to wallet_tx_request events
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const unsubscribe = subscribe(
       "wallet_tx_request",
       (event: InboundEvent) => {
-        const request = event.payload as WalletTxRequest;
-
-        // Add to pending requests
-        setPendingTxRequests((prev) => [...prev, request]);
-
-        // Call optional callback
-        onTxRequest?.(request);
+        const payload = event.payload as WalletTxPayload;
+        enqueue(bufferRef.current, "transaction", payload);
+        syncState();
       },
     );
-
     return unsubscribe;
-  }, [subscribe, onTxRequest]);
+  }, [subscribe, syncState]);
 
   // ---------------------------------------------------------------------------
-  // Subscribe to wallet-related inbound events
-  // Backend sends InlineCall with type: "user_state_response"
+  // Subscribe to EIP-712 signing requests
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const unsubscribe = subscribe(
-      "user_state_request",
+      "wallet_eip712_request",
       (event: InboundEvent) => {
-        sendOutbound({
-          type: "user_state_response",
-          sessionId,
-          payload: getUserState(),
-        });
+        const payload = (event.payload ?? {}) as WalletEip712Payload;
+        enqueue(bufferRef.current, "eip712_sign", payload);
+        syncState();
       },
     );
-
     return unsubscribe;
-  }, [subscribe, onTxRequest]);
+  }, [subscribe, syncState]);
 
   // ---------------------------------------------------------------------------
-  // Outbound: Send transaction completion
+  // Mark a request as processing
   // ---------------------------------------------------------------------------
-  const sendTxComplete = useCallback(
-    (tx: WalletTxComplete) => {
-      sendOutbound({
-        type: "wallet:tx_complete",
-        sessionId,
-        payload: tx,
-      });
+  const startProcessingCb = useCallback(
+    (id: string) => {
+      markProcessing(bufferRef.current, id);
+      syncState();
     },
-    [sendOutbound, sessionId],
+    [syncState],
   );
 
   // ---------------------------------------------------------------------------
-  // Outbound: Send connection status change and update user state
+  // Resolve a request — dequeues + sends appropriate backend response
   // ---------------------------------------------------------------------------
-  const sendConnectionChange = useCallback(
-    (status: WalletConnectionStatus, address?: string, chainId?: number) => {
-      // Update user state
-      if (status === "connected") {
-        setUser({
-          isConnected: true,
-          address,
-          chainId,
+  const resolveRequest = useCallback(
+    (id: string, result: WalletRequestResult) => {
+      const removed = dequeue(bufferRef.current, id);
+      if (!removed) return;
+
+      let outbound: Promise<void>;
+      if (removed.kind === "transaction") {
+        outbound = sendOutbound({
+          type: "wallet:tx_complete",
+          sessionId,
+          payload: {
+            txHash: result.txHash ?? "",
+            status: "success",
+            amount: result.amount,
+          },
         });
       } else {
-        setUser({
-          isConnected: false,
-          address: undefined,
-          chainId: undefined,
+        const eip712Payload = removed.payload as WalletEip712Payload;
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
+          sessionId,
+          payload: {
+            status: "success",
+            signature: result.signature,
+            description: eip712Payload.description,
+          },
         });
       }
 
-      // Send event to backend (optional - only if you still want events)
-      sendOutbound({
-        type:
-          status === "connected" ? "wallet:connected" : "wallet:disconnected",
-        sessionId,
-        payload: { status, address },
-      });
+      outbound.then(() => onRequestComplete?.());
+      syncState();
     },
-    [setUser, sendOutbound, sessionId],
+    [sendOutbound, sessionId, syncState, onRequestComplete],
   );
 
   // ---------------------------------------------------------------------------
-  // Clear handled request
+  // Reject a request — dequeues + sends error to backend
   // ---------------------------------------------------------------------------
-  const clearTxRequest = useCallback((index: number) => {
-    setPendingTxRequests((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+  const rejectRequest = useCallback(
+    (id: string, error?: string) => {
+      const removed = dequeue(bufferRef.current, id);
+      if (!removed) return;
+
+      let outbound: Promise<void>;
+      if (removed.kind === "transaction") {
+        outbound = sendOutbound({
+          type: "wallet:tx_complete",
+          sessionId,
+          payload: {
+            txHash: "",
+            status: "failed",
+          },
+        });
+      } else {
+        const eip712Payload = removed.payload as WalletEip712Payload;
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
+          sessionId,
+          payload: {
+            status: "failed",
+            error: error ?? "EIP-712 signing failed",
+            description: eip712Payload.description,
+          },
+        });
+      }
+
+      outbound.then(() => onRequestComplete?.());
+      syncState();
+    },
+    [sendOutbound, sessionId, syncState, onRequestComplete],
+  );
 
   return {
-    sendTxComplete,
-    sendConnectionChange,
-    pendingTxRequests,
-    clearTxRequest,
+    pendingRequests,
+    startProcessing: startProcessingCb,
+    resolveRequest,
+    rejectRequest,
   };
 }

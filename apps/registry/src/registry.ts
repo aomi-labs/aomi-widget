@@ -24,7 +24,7 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-frame",
     file: "components/aomi-frame.tsx",
-    dependencies: ["@aomi-labs/react"],
+    dependencies: ["@aomi-labs/react", "wagmi"],
     registryDependencies: [
       // Theme (CSS variables required by all components)
       aomi("aomi-theme"),
@@ -33,6 +33,7 @@ export const registry: RegistryComponent[] = [
       aomi("assistant-threadlist-sidebar"),
       aomi("control-bar"),
       aomi("notification"),
+      aomi("wallet-tx-handler"),
       // shadcn primitives
       "separator",
       "breadcrumb",
@@ -48,6 +49,7 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/namespace-select.tsx",
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/wallet-connect.tsx",
+      "components/control-bar/network-select.tsx",
     ],
     dependencies: ["@aomi-labs/react", "wagmi", "lucide-react"],
     registryDependencies: ["button", "popover", "dialog", "input", "label"],
@@ -128,11 +130,18 @@ export const registry: RegistryComponent[] = [
     dependencies: ["sonner"],
     description: "Shadcn wrapper for Sonner toasts.",
   },
+  {
+    name: "wallet-tx-handler",
+    file: "components/wallet-tx-handler.tsx",
+    dependencies: ["@aomi-labs/react", "wagmi"],
+    description:
+      "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
+  },
   // === SHADCN UI PRIMITIVES ===
   {
     name: "button",
     file: "components/ui/button.tsx",
-    dependencies: ["@radix-ui/react-slot", "class-variance-authority"],
+    dependencies: ["radix-ui", "class-variance-authority"],
     description: "Displays a button or a component that looks like a button.",
   },
   {
@@ -145,7 +154,7 @@ export const registry: RegistryComponent[] = [
   {
     name: "label",
     file: "components/ui/label.tsx",
-    dependencies: [],
+    dependencies: ["radix-ui"],
     description: "Renders an accessible label associated with controls.",
   },
   {
@@ -163,7 +172,7 @@ export const registry: RegistryComponent[] = [
   {
     name: "avatar",
     file: "components/ui/avatar.tsx",
-    dependencies: ["@radix-ui/react-avatar"],
+    dependencies: ["radix-ui"],
     description: "An image element with a fallback for representing the user.",
   },
   {
@@ -201,14 +210,15 @@ export const registry: RegistryComponent[] = [
   {
     name: "dialog",
     file: "components/ui/dialog.tsx",
-    dependencies: ["@radix-ui/react-dialog", "lucide-react"],
+    dependencies: ["radix-ui", "lucide-react"],
+    registryDependencies: ["button"],
     description:
       "A window overlaid on either the primary window or another dialog window.",
   },
   {
     name: "sheet",
     file: "components/ui/sheet.tsx",
-    dependencies: ["@radix-ui/react-dialog", "lucide-react"],
+    dependencies: ["radix-ui", "lucide-react"],
     description:
       "Extends the Dialog component to display content that complements the main content of the screen.",
   },
@@ -228,7 +238,7 @@ export const registry: RegistryComponent[] = [
   {
     name: "popover",
     file: "components/ui/popover.tsx",
-    dependencies: ["@radix-ui/react-popover"],
+    dependencies: ["radix-ui"],
     description: "Displays rich content in a portal, triggered by a button.",
   },
   {
