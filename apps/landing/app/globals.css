@@ -3,10 +3,10 @@
 @import "tw-animate-css";
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
-@import "@aomi-labs/widget-lib/styles.css";
+@import "../../registry/src/themes/default.css";
 
 /* Scan the npm package dist so Tailwind picks up component classes */
-@source "../node_modules/@aomi-labs/widget-lib/dist";
+@source "../../registry/src";
 
 /* ============================================
    Custom Font Faces - Bauhaus

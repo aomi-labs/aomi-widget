@@ -11,11 +11,8 @@ import {
 import { MessageController } from "./message-controller";
 import { PollingController } from "./polling-controller";
 import {
-  clearSkipInitialFetch,
   createBackendState,
-  isThreadReady,
   resolveThreadId,
-  shouldSkipInitialFetch,
   type BackendState,
 } from "../state/backend-state";
 
@@ -83,27 +80,10 @@ export function useRuntimeOrchestrator(
   }
 
   const ensureInitialState = useCallback(async (threadId: string) => {
-    const backendState = backendStateRef.current;
-
-    if (shouldSkipInitialFetch(backendState, threadId)) {
-      clearSkipInitialFetch(backendState, threadId);
-      if (threadContextRef.current.currentThreadId === threadId) {
-        setIsRunning(false);
-      }
-      return;
-    }
-
-    if (!isThreadReady(backendState, threadId)) {
-      if (threadContextRef.current.currentThreadId === threadId) {
-        setIsRunning(false);
-      }
-      return;
-    }
-
     // Skip if already fetching this thread
     if (pendingFetches.current.has(threadId)) return;
 
-    const backendThreadId = resolveThreadId(backendState, threadId);
+    const backendThreadId = resolveThreadId(backendStateRef.current, threadId);
     pendingFetches.current.add(threadId);
 
     try {

@@ -8,7 +8,6 @@ import type {
 } from "../backend/types";
 import type { UserState } from "../contexts/user-context";
 import {
-  isThreadReady,
   resolveThreadId,
   setThreadRunning,
   type BackendState,
@@ -35,7 +34,6 @@ export class PollingController {
 
   start(threadId: string) {
     const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
     if (this.intervals.has(threadId)) return;
 
     const backendThreadId = resolveThreadId(backendState, threadId);

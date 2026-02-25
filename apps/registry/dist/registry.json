@@ -4,6 +4,19 @@
   "homepage": "https://r.aomi.dev",
   "items": [
     {
+      "name": "aomi-theme",
+      "type": "registry:style",
+      "description": "Shadcn-compatible theme variables (light + dark) for Aomi components.",
+      "files": [
+        {
+          "type": "registry:style",
+          "path": "themes/default.css"
+        }
+      ],
+      "dependencies": [],
+      "registryDependencies": []
+    },
+    {
       "name": "aomi-frame",
       "type": "registry:component",
       "description": "Full assistant shell with thread list and runtime wiring.",
@@ -14,15 +27,62 @@
         }
       ],
       "dependencies": [
-        "@aomi-labs/react"
+        "@aomi-labs/react",
+        "wagmi"
       ],
       "registryDependencies": [
+        "https://aomi.dev/r/aomi-theme.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
+        "https://aomi.dev/r/control-bar.json",
         "https://aomi.dev/r/notification.json",
+        "https://aomi.dev/r/wallet-tx-handler.json",
         "separator",
         "breadcrumb",
         "sidebar"
+      ]
+    },
+    {
+      "name": "control-bar",
+      "type": "registry:component",
+      "description": "Control bar with model/namespace selectors, API key input, and wallet connect.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/model-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/namespace-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/api-key-input.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/wallet-connect.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/network-select.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "wagmi",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button",
+        "popover",
+        "dialog",
+        "input",
+        "label"
       ]
     },
     {
@@ -45,7 +105,7 @@
       "registryDependencies": [
         "https://r.assistant-ui.com/markdown-text.json",
         "https://r.assistant-ui.com/tooltip-icon-button.json",
-        "https://r.assistant-ui.com/attachment.json",
+        "https://aomi.dev/r/attachment.json",
         "https://aomi.dev/r/assistant-tool-fallback.json",
         "button"
       ]
@@ -107,6 +167,29 @@
       ]
     },
     {
+      "name": "attachment",
+      "type": "registry:component",
+      "description": "Attachment renderer compatible with @assistant-ui/react 0.11.x.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/attachment.tsx"
+        }
+      ],
+      "dependencies": [
+        "@assistant-ui/react",
+        "@aomi-labs/react",
+        "lucide-react",
+        "zustand"
+      ],
+      "registryDependencies": [
+        "https://r.assistant-ui.com/tooltip-icon-button.json",
+        "tooltip",
+        "dialog",
+        "avatar"
+      ]
+    },
+    {
       "name": "notification",
       "type": "registry:component",
       "description": "Notification toaster wired to the runtime notification store.",
@@ -140,6 +223,22 @@
       "registryDependencies": []
     },
     {
+      "name": "wallet-tx-handler",
+      "type": "registry:component",
+      "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/wallet-tx-handler.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "wagmi"
+      ],
+      "registryDependencies": []
+    },
+    {
       "name": "button",
       "type": "registry:component",
       "description": "Displays a button or a component that looks like a button.",
@@ -150,7 +249,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-slot",
+        "radix-ui",
         "class-variance-authority"
       ],
       "registryDependencies": []
@@ -178,7 +277,9 @@
           "path": "components/ui/label.tsx"
         }
       ],
-      "dependencies": [],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     {
@@ -220,7 +321,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-avatar"
+        "radix-ui"
       ],
       "registryDependencies": []
     },
@@ -309,10 +410,12 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-dialog",
+        "radix-ui",
         "lucide-react"
       ],
-      "registryDependencies": []
+      "registryDependencies": [
+        "button"
+      ]
     },
     {
       "name": "sheet",
@@ -325,7 +428,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-dialog",
+        "radix-ui",
         "lucide-react"
       ],
       "registryDependencies": []
@@ -375,7 +478,7 @@
         }
       ],
       "dependencies": [
-        "@radix-ui/react-popover"
+        "radix-ui"
       ],
       "registryDependencies": []
     },
