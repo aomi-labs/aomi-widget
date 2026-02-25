@@ -14,6 +14,10 @@ import type {
   Notification,
   NotificationData,
 } from "./contexts/notification-context";
+import type {
+  WalletRequest,
+  WalletRequestResult,
+} from "./handlers/wallet-handler";
 
 // =============================================================================
 // AomiRuntimeApi Type
@@ -79,12 +83,24 @@ export type AomiRuntimeApi = {
   clearAllNotifications: () => void;
 
   // -------------------------------------------------------------------------
+  // WALLET API
+  // -------------------------------------------------------------------------
+  /** All queued wallet requests (tx + eip712 signing) */
+  pendingWalletRequests: WalletRequest[];
+  /** Mark a wallet request as being processed */
+  startWalletRequest: (id: string) => void;
+  /** Complete a wallet request — dequeues + sends response to backend */
+  resolveWalletRequest: (id: string, result: WalletRequestResult) => void;
+  /** Fail a wallet request — dequeues + sends error to backend */
+  rejectWalletRequest: (id: string, error?: string) => void;
+
+  // -------------------------------------------------------------------------
   // EVENT API
   // -------------------------------------------------------------------------
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send a system command to the backend */
-  sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => void;
+  sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };

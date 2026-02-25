@@ -46,20 +46,26 @@ export type {
   EventBuffer,
 } from "./state/event-buffer";
 
+export type {
+  WalletBuffer,
+} from "./state/wallet-buffer";
+
 // =============================================================================
 // Handler Hooks
 // =============================================================================
 export { useWalletHandler } from "./handlers/wallet-handler";
 export { useNotificationHandler } from "./handlers/notification-handler";
 export type {
-  WalletTxRequest,
-  WalletTxComplete,
-  WalletConnectionStatus,
+  WalletRequest,
+  WalletTxPayload,
+  WalletEip712Payload,
+  WalletRequestKind,
+  WalletRequestStatus,
+  WalletRequestResult,
   WalletHandlerConfig,
-  WalletHanderApi,
+  WalletHandlerApi,
 } from "./handlers/wallet-handler";
 export type {
-  Notification as HandlerNotification,
   NotificationHandlerConfig,
   NotificationApi,
 } from "./handlers/notification-handler";
@@ -72,9 +78,6 @@ export {
   UserContextProvider,
   type UserState,
 } from "./contexts/user-context";
-
-// Backwards compatibility alias
-export type { UserState as WalletButtonState } from "./contexts/user-context";
 
 // User config type (for render prop pattern)
 export type { UserConfig } from "./runtime/utils";
@@ -95,7 +98,14 @@ export { initThreadControl } from "./state/thread-store";
 // =============================================================================
 // Utilities
 // =============================================================================
-export { cn, formatAddress, getNetworkName } from "./runtime/utils";
+export {
+  cn,
+  formatAddress,
+  getNetworkName,
+  getChainInfo,
+  SUPPORTED_CHAINS,
+  type ChainInfo,
+} from "./runtime/utils";
 
 // =============================================================================
 // Notification Context (for toast UI)

@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/react",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Runtime, state, and utilities for the Aomi widget.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -22,7 +22,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup"
+    "build": "tsup",
+    "clean:dist": "rm -rf dist"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -38,7 +38,7 @@ export type EventContext = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send an outbound event to backend immediately */
-  sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => void;
+  sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
   /** Dispatch system events from HTTP polling into the event buffer */
   dispatchInboundSystem: (sessionId: string, events: ApiSystemEvent[]) => void;
   /** Current SSE connection status */

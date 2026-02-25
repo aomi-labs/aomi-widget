@@ -17,13 +17,13 @@ import { useNotification } from "../contexts/notification-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
   isThreadRunning,
-  isThreadReady,
   resolveThreadId,
 } from "../state/backend-state";
 import { isPlaceholderTitle } from "./utils";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
 import { initThreadControl } from "../state/thread-store";
+import { useWalletHandler } from "../handlers/wallet-handler";
 
 // =============================================================================
 // Core Props
@@ -99,6 +99,35 @@ export function AomiRuntimeCore({
   useEffect(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
+
+  // ---------------------------------------------------------------------------
+  // Wallet handler (queue management for tx + eip712 requests)
+  // ---------------------------------------------------------------------------
+  const onWalletRequestComplete = useCallback(() => {
+    polling.start(currentThreadIdRef.current);
+  }, [polling]);
+
+  const walletHandler = useWalletHandler({
+    sessionId: threadContext.currentThreadId,
+    onRequestComplete: onWalletRequestComplete,
+  });
+
+  // ---------------------------------------------------------------------------
+  // Respond to user_state_request from backend
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const unsubscribe = eventContext.subscribe(
+      "user_state_request",
+      () => {
+        eventContext.sendOutboundSystem({
+          type: "user_state_response",
+          sessionId: threadContext.currentThreadId,
+          payload: getUserState(),
+        });
+      },
+    );
+    return unsubscribe;
+  }, [eventContext, threadContext.currentThreadId, getUserState]);
 
   // ---------------------------------------------------------------------------
   // Initial state fetch on thread change
@@ -257,7 +286,6 @@ export function AomiRuntimeCore({
               currentThreadId: threadContextRef.current.currentThreadId,
               targetThreadId,
               hasMapping: sessionId !== targetThreadId,
-              creatingThreadId: backendState.creatingThreadId,
             });
           }
 
@@ -274,12 +302,6 @@ export function AomiRuntimeCore({
             });
             return next;
           });
-          if (
-            !isPlaceholderTitle(newTitle) &&
-            backendState.creatingThreadId === targetThreadId
-          ) {
-            backendState.creatingThreadId = null;
-          }
         }
       },
     );
@@ -293,15 +315,6 @@ export function AomiRuntimeCore({
     threadContext.currentThreadId,
     resolvedSessionId,
   ]);
-
-  // ---------------------------------------------------------------------------
-  // Flush pending chat when thread becomes ready
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    if (!isThreadReady(backendStateRef.current, threadId)) return;
-    void messageController.flushPendingChat(threadId);
-  }, [messageController, backendStateRef, threadContext.currentThreadId]);
 
   // ---------------------------------------------------------------------------
   // Show notifications for tool updates/completions (SSE events)
@@ -495,6 +508,12 @@ export function AomiRuntimeCore({
       dismissNotification: notificationContext.dismissNotification,
       clearAllNotifications: notificationContext.clearAll,
 
+      // Wallet API
+      pendingWalletRequests: walletHandler.pendingRequests,
+      startWalletRequest: walletHandler.startProcessing,
+      resolveWalletRequest: walletHandler.resolveRequest,
+      rejectWalletRequest: walletHandler.rejectRequest,
+
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
@@ -516,6 +535,7 @@ export function AomiRuntimeCore({
       sendMessage,
       cancelGeneration,
       notificationContext,
+      walletHandler,
       eventContext,
     ],
   );
