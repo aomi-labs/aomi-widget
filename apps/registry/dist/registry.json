@@ -27,7 +27,8 @@
         }
       ],
       "dependencies": [
-        "@aomi-labs/react"
+        "@aomi-labs/react",
+        "wagmi"
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
@@ -35,6 +36,7 @@
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
         "https://aomi.dev/r/notification.json",
+        "https://aomi.dev/r/wallet-tx-handler.json",
         "separator",
         "breadcrumb",
         "sidebar"
@@ -217,6 +219,22 @@
       ],
       "dependencies": [
         "sonner"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "wallet-tx-handler",
+      "type": "registry:component",
+      "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/wallet-tx-handler.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "wagmi"
       ],
       "registryDependencies": []
     },

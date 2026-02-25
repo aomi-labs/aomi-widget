@@ -14,6 +14,10 @@ import type {
   Notification,
   NotificationData,
 } from "./contexts/notification-context";
+import type {
+  WalletRequest,
+  WalletRequestResult,
+} from "./handlers/wallet-handler";
 
 // =============================================================================
 // AomiRuntimeApi Type
@@ -77,6 +81,18 @@ export type AomiRuntimeApi = {
   dismissNotification: (id: string) => void;
   /** Clear all notifications */
   clearAllNotifications: () => void;
+
+  // -------------------------------------------------------------------------
+  // WALLET API
+  // -------------------------------------------------------------------------
+  /** All queued wallet requests (tx + eip712 signing) */
+  pendingWalletRequests: WalletRequest[];
+  /** Mark a wallet request as being processed */
+  startWalletRequest: (id: string) => void;
+  /** Complete a wallet request — dequeues + sends response to backend */
+  resolveWalletRequest: (id: string, result: WalletRequestResult) => void;
+  /** Fail a wallet request — dequeues + sends error to backend */
+  rejectWalletRequest: (id: string, error?: string) => void;
 
   // -------------------------------------------------------------------------
   // EVENT API

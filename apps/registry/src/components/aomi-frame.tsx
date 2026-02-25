@@ -11,6 +11,7 @@ import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
+import { WalletTxHandler } from "@/components/wallet-tx-handler";
 import {
   SidebarInset,
   SidebarProvider,
@@ -112,6 +113,7 @@ const Root: FC<RootProps> = ({
             {children}
           </SidebarInset>
           <NotificationToaster />
+          <WalletTxHandler />
         </div>
       </SidebarProvider>
     </AomiRuntimeProvider>
