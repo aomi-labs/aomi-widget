@@ -92,7 +92,7 @@ describe("AomiRuntimeProvider", () => {
     const metadata = api.getThreadMetadata(api.currentThreadId);
     expect(metadata).toBeDefined();
     expect(metadata?.title).toBe("New Chat");
-    expect(metadata?.status).toBe("pending");
+    expect(metadata?.status).toBe("regular");
   });
 
   it("allows custom backend URL", () => {
