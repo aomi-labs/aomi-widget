@@ -78,7 +78,7 @@ export function useWalletHandler({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const unsubscribe = subscribe(
-      "walelt_eip712_request",
+      "wallet_eip712_request",
       (event: InboundEvent) => {
         const payload = (event.payload ?? {}) as WalletEip712Payload;
         enqueue(bufferRef.current, "eip712_sign", payload);
@@ -120,7 +120,7 @@ export function useWalletHandler({
       } else {
         const eip712Payload = removed.payload as WalletEip712Payload;
         sendOutbound({
-          type: "walelt_eip712_response",
+          type: "wallet_eip712_response",
           sessionId,
           payload: {
             status: "success",
@@ -155,7 +155,7 @@ export function useWalletHandler({
       } else {
         const eip712Payload = removed.payload as WalletEip712Payload;
         sendOutbound({
-          type: "walelt_eip712_response",
+          type: "wallet_eip712_response",
           sessionId,
           payload: {
             status: "failed",

@@ -24,7 +24,7 @@ export type ControlBarProps = {
   hideApiKey?: boolean;
   /** Hide the wallet connect button (default: true) */
   hideWallet?: boolean;
-  /** Hide the network selector (default: true) */
+  /** Hide the network selector (default: false) */
   hideNetwork?: boolean;
 };
 
