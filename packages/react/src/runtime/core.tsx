@@ -91,10 +91,26 @@ export function AomiRuntimeCore({
   }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
 
   // ---------------------------------------------------------------------------
+  // Refs for stable access
+  // ---------------------------------------------------------------------------
+  const threadContextRef = useRef(threadContext);
+  threadContextRef.current = threadContext;
+
+  const currentThreadIdRef = useRef(threadContext.currentThreadId);
+  useEffect(() => {
+    currentThreadIdRef.current = threadContext.currentThreadId;
+  }, [threadContext.currentThreadId]);
+
+  // ---------------------------------------------------------------------------
   // Wallet handler (queue management for tx + eip712 requests)
   // ---------------------------------------------------------------------------
+  const onWalletRequestComplete = useCallback(() => {
+    polling.start(currentThreadIdRef.current);
+  }, [polling]);
+
   const walletHandler = useWalletHandler({
     sessionId: threadContext.currentThreadId,
+    onRequestComplete: onWalletRequestComplete,
   });
 
   // ---------------------------------------------------------------------------
@@ -113,17 +129,6 @@ export function AomiRuntimeCore({
     );
     return unsubscribe;
   }, [eventContext, threadContext.currentThreadId, getUserState]);
-
-  // ---------------------------------------------------------------------------
-  // Refs for stable access
-  // ---------------------------------------------------------------------------
-  const threadContextRef = useRef(threadContext);
-  threadContextRef.current = threadContext;
-
-  const currentThreadIdRef = useRef(threadContext.currentThreadId);
-  useEffect(() => {
-    currentThreadIdRef.current = threadContext.currentThreadId;
-  }, [threadContext.currentThreadId]);
 
   // ---------------------------------------------------------------------------
   // Initial state fetch on thread change

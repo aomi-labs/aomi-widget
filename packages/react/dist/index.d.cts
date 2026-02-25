@@ -288,6 +288,9 @@ type WalletRequestResult = {
 };
 type WalletHandlerConfig = {
     sessionId: string;
+    /** Called after a wallet request is resolved/rejected and the outbound event is sent.
+     *  Used by core.tsx to start polling for the AI's response. */
+    onRequestComplete?: () => void;
 };
 type WalletHandlerApi = {
     /** All queued wallet requests (tx + eip712) */
@@ -299,7 +302,7 @@ type WalletHandlerApi = {
     /** Fail a request — dequeues + sends error to backend */
     rejectRequest: (id: string, error?: string) => void;
 };
-declare function useWalletHandler({ sessionId, }: WalletHandlerConfig): WalletHandlerApi;
+declare function useWalletHandler({ sessionId, onRequestComplete, }: WalletHandlerConfig): WalletHandlerApi;
 
 type AomiRuntimeApi = {
     /** Current user state (wallet connection, address, chain, etc.) */
@@ -355,7 +358,7 @@ type AomiRuntimeApi = {
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
     subscribe: (type: string, callback: EventSubscriber) => () => void;
     /** Send a system command to the backend */
-    sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => void;
+    sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };
@@ -393,7 +396,7 @@ type EventContext = {
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
     subscribe: (type: string, callback: EventSubscriber) => () => void;
     /** Send an outbound event to backend immediately */
-    sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => void;
+    sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
     /** Dispatch system events from HTTP polling into the event buffer */
     dispatchInboundSystem: (sessionId: string, events: ApiSystemEvent[]) => void;
     /** Current SSE connection status */
