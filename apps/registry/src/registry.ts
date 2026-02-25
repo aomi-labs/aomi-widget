@@ -24,7 +24,7 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-frame",
     file: "components/aomi-frame.tsx",
-    dependencies: ["@aomi-labs/react"],
+    dependencies: ["@aomi-labs/react", "wagmi"],
     registryDependencies: [
       // Theme (CSS variables required by all components)
       aomi("aomi-theme"),
@@ -33,6 +33,7 @@ export const registry: RegistryComponent[] = [
       aomi("assistant-threadlist-sidebar"),
       aomi("control-bar"),
       aomi("notification"),
+      aomi("wallet-tx-handler"),
       // shadcn primitives
       "separator",
       "breadcrumb",
@@ -128,6 +129,13 @@ export const registry: RegistryComponent[] = [
     file: "components/ui/sonner.tsx",
     dependencies: ["sonner"],
     description: "Shadcn wrapper for Sonner toasts.",
+  },
+  {
+    name: "wallet-tx-handler",
+    file: "components/wallet-tx-handler.tsx",
+    dependencies: ["@aomi-labs/react", "wagmi"],
+    description:
+      "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
   },
   // === SHADCN UI PRIMITIVES ===
   {
