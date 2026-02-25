@@ -30,6 +30,9 @@ export type WalletRequestResult = {
 
 export type WalletHandlerConfig = {
   sessionId: string;
+  /** Called after a wallet request is resolved/rejected and the outbound event is sent.
+   *  Used by core.tsx to start polling for the AI's response. */
+  onRequestComplete?: () => void;
 };
 
 export type WalletHandlerApi = {
@@ -48,6 +51,7 @@ export type WalletHandlerApi = {
 
 export function useWalletHandler({
   sessionId,
+  onRequestComplete,
 }: WalletHandlerConfig): WalletHandlerApi {
   const { subscribe, sendOutboundSystem: sendOutbound } = useEventContext();
   const bufferRef = useRef<WalletBuffer>(createWalletBuffer());
@@ -107,8 +111,9 @@ export function useWalletHandler({
       const removed = dequeue(bufferRef.current, id);
       if (!removed) return;
 
+      let outbound: Promise<void>;
       if (removed.kind === "transaction") {
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet:tx_complete",
           sessionId,
           payload: {
@@ -119,7 +124,7 @@ export function useWalletHandler({
         });
       } else {
         const eip712Payload = removed.payload as WalletEip712Payload;
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet_eip712_response",
           sessionId,
           payload: {
@@ -130,9 +135,10 @@ export function useWalletHandler({
         });
       }
 
+      outbound.then(() => onRequestComplete?.());
       syncState();
     },
-    [sendOutbound, sessionId, syncState],
+    [sendOutbound, sessionId, syncState, onRequestComplete],
   );
 
   // ---------------------------------------------------------------------------
@@ -143,8 +149,9 @@ export function useWalletHandler({
       const removed = dequeue(bufferRef.current, id);
       if (!removed) return;
 
+      let outbound: Promise<void>;
       if (removed.kind === "transaction") {
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet:tx_complete",
           sessionId,
           payload: {
@@ -154,7 +161,7 @@ export function useWalletHandler({
         });
       } else {
         const eip712Payload = removed.payload as WalletEip712Payload;
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet_eip712_response",
           sessionId,
           payload: {
@@ -165,9 +172,10 @@ export function useWalletHandler({
         });
       }
 
+      outbound.then(() => onRequestComplete?.());
       syncState();
     },
-    [sendOutbound, sessionId, syncState],
+    [sendOutbound, sessionId, syncState, onRequestComplete],
   );
 
   return {

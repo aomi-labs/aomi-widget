@@ -100,7 +100,7 @@ export type AomiRuntimeApi = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send a system command to the backend */
-  sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => void;
+  sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };

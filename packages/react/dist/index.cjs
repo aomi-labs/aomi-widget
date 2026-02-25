@@ -2070,7 +2070,8 @@ function getAll(buffer) {
 
 // src/handlers/wallet-handler.ts
 function useWalletHandler({
-  sessionId
+  sessionId,
+  onRequestComplete
 }) {
   const { subscribe: subscribe2, sendOutboundSystem: sendOutbound } = useEventContext();
   const bufferRef = (0, import_react8.useRef)(createWalletBuffer());
@@ -2091,7 +2092,7 @@ function useWalletHandler({
   }, [subscribe2, syncState]);
   (0, import_react8.useEffect)(() => {
     const unsubscribe = subscribe2(
-      "walelt_eip712_request",
+      "wallet_eip712_request",
       (event) => {
         var _a;
         const payload = (_a = event.payload) != null ? _a : {};
@@ -2113,8 +2114,9 @@ function useWalletHandler({
       var _a;
       const removed = dequeue(bufferRef.current, id);
       if (!removed) return;
+      let outbound;
       if (removed.kind === "transaction") {
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet:tx_complete",
           sessionId,
           payload: {
@@ -2125,8 +2127,8 @@ function useWalletHandler({
         });
       } else {
         const eip712Payload = removed.payload;
-        sendOutbound({
-          type: "walelt_eip712_response",
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
           sessionId,
           payload: {
             status: "success",
@@ -2135,16 +2137,18 @@ function useWalletHandler({
           }
         });
       }
+      outbound.then(() => onRequestComplete == null ? void 0 : onRequestComplete());
       syncState();
     },
-    [sendOutbound, sessionId, syncState]
+    [sendOutbound, sessionId, syncState, onRequestComplete]
   );
   const rejectRequest = (0, import_react8.useCallback)(
     (id, error) => {
       const removed = dequeue(bufferRef.current, id);
       if (!removed) return;
+      let outbound;
       if (removed.kind === "transaction") {
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet:tx_complete",
           sessionId,
           payload: {
@@ -2154,8 +2158,8 @@ function useWalletHandler({
         });
       } else {
         const eip712Payload = removed.payload;
-        sendOutbound({
-          type: "walelt_eip712_response",
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
           sessionId,
           payload: {
             status: "failed",
@@ -2164,9 +2168,10 @@ function useWalletHandler({
           }
         });
       }
+      outbound.then(() => onRequestComplete == null ? void 0 : onRequestComplete());
       syncState();
     },
-    [sendOutbound, sessionId, syncState]
+    [sendOutbound, sessionId, syncState, onRequestComplete]
   );
   return {
     pendingRequests,
@@ -2222,8 +2227,18 @@ function AomiRuntimeCore({
     });
     return unsubscribe;
   }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
+  const threadContextRef = (0, import_react9.useRef)(threadContext);
+  threadContextRef.current = threadContext;
+  const currentThreadIdRef = (0, import_react9.useRef)(threadContext.currentThreadId);
+  (0, import_react9.useEffect)(() => {
+    currentThreadIdRef.current = threadContext.currentThreadId;
+  }, [threadContext.currentThreadId]);
+  const onWalletRequestComplete = (0, import_react9.useCallback)(() => {
+    polling.start(currentThreadIdRef.current);
+  }, [polling]);
   const walletHandler = useWalletHandler({
-    sessionId: threadContext.currentThreadId
+    sessionId: threadContext.currentThreadId,
+    onRequestComplete: onWalletRequestComplete
   });
   (0, import_react9.useEffect)(() => {
     const unsubscribe = eventContext.subscribe(
@@ -2238,12 +2253,6 @@ function AomiRuntimeCore({
     );
     return unsubscribe;
   }, [eventContext, threadContext.currentThreadId, getUserState]);
-  const threadContextRef = (0, import_react9.useRef)(threadContext);
-  threadContextRef.current = threadContext;
-  const currentThreadIdRef = (0, import_react9.useRef)(threadContext.currentThreadId);
-  (0, import_react9.useEffect)(() => {
-    currentThreadIdRef.current = threadContext.currentThreadId;
-  }, [threadContext.currentThreadId]);
   (0, import_react9.useEffect)(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);

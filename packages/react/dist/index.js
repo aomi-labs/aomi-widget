@@ -2059,7 +2059,8 @@ function getAll(buffer) {
 
 // src/handlers/wallet-handler.ts
 function useWalletHandler({
-  sessionId
+  sessionId,
+  onRequestComplete
 }) {
   const { subscribe: subscribe2, sendOutboundSystem: sendOutbound } = useEventContext();
   const bufferRef = useRef6(createWalletBuffer());
@@ -2080,7 +2081,7 @@ function useWalletHandler({
   }, [subscribe2, syncState]);
   useEffect3(() => {
     const unsubscribe = subscribe2(
-      "walelt_eip712_request",
+      "wallet_eip712_request",
       (event) => {
         var _a;
         const payload = (_a = event.payload) != null ? _a : {};
@@ -2102,8 +2103,9 @@ function useWalletHandler({
       var _a;
       const removed = dequeue(bufferRef.current, id);
       if (!removed) return;
+      let outbound;
       if (removed.kind === "transaction") {
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet:tx_complete",
           sessionId,
           payload: {
@@ -2114,8 +2116,8 @@ function useWalletHandler({
         });
       } else {
         const eip712Payload = removed.payload;
-        sendOutbound({
-          type: "walelt_eip712_response",
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
           sessionId,
           payload: {
             status: "success",
@@ -2124,16 +2126,18 @@ function useWalletHandler({
           }
         });
       }
+      outbound.then(() => onRequestComplete == null ? void 0 : onRequestComplete());
       syncState();
     },
-    [sendOutbound, sessionId, syncState]
+    [sendOutbound, sessionId, syncState, onRequestComplete]
   );
   const rejectRequest = useCallback6(
     (id, error) => {
       const removed = dequeue(bufferRef.current, id);
       if (!removed) return;
+      let outbound;
       if (removed.kind === "transaction") {
-        sendOutbound({
+        outbound = sendOutbound({
           type: "wallet:tx_complete",
           sessionId,
           payload: {
@@ -2143,8 +2147,8 @@ function useWalletHandler({
         });
       } else {
         const eip712Payload = removed.payload;
-        sendOutbound({
-          type: "walelt_eip712_response",
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
           sessionId,
           payload: {
             status: "failed",
@@ -2153,9 +2157,10 @@ function useWalletHandler({
           }
         });
       }
+      outbound.then(() => onRequestComplete == null ? void 0 : onRequestComplete());
       syncState();
     },
-    [sendOutbound, sessionId, syncState]
+    [sendOutbound, sessionId, syncState, onRequestComplete]
   );
   return {
     pendingRequests,
@@ -2211,8 +2216,18 @@ function AomiRuntimeCore({
     });
     return unsubscribe;
   }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
+  const threadContextRef = useRef7(threadContext);
+  threadContextRef.current = threadContext;
+  const currentThreadIdRef = useRef7(threadContext.currentThreadId);
+  useEffect4(() => {
+    currentThreadIdRef.current = threadContext.currentThreadId;
+  }, [threadContext.currentThreadId]);
+  const onWalletRequestComplete = useCallback7(() => {
+    polling.start(currentThreadIdRef.current);
+  }, [polling]);
   const walletHandler = useWalletHandler({
-    sessionId: threadContext.currentThreadId
+    sessionId: threadContext.currentThreadId,
+    onRequestComplete: onWalletRequestComplete
   });
   useEffect4(() => {
     const unsubscribe = eventContext.subscribe(
@@ -2227,12 +2242,6 @@ function AomiRuntimeCore({
     );
     return unsubscribe;
   }, [eventContext, threadContext.currentThreadId, getUserState]);
-  const threadContextRef = useRef7(threadContext);
-  threadContextRef.current = threadContext;
-  const currentThreadIdRef = useRef7(threadContext.currentThreadId);
-  useEffect4(() => {
-    currentThreadIdRef.current = threadContext.currentThreadId;
-  }, [threadContext.currentThreadId]);
   useEffect4(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
