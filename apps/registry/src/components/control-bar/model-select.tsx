@@ -87,19 +87,11 @@ export const ModelSelect: FC<ModelSelectProps> = ({
               key={model}
               disabled={isProcessing}
               onClick={() => {
-                console.log("[ModelSelect] clicked", { model, isProcessing });
                 if (isProcessing) return;
                 setOpen(false);
-                console.log("[ModelSelect] calling onModelSelect", { model });
-                void onModelSelect(model)
-                  .then(() => {
-                    console.log("[ModelSelect] onModelSelect completed", {
-                      model,
-                    });
-                  })
-                  .catch((err) => {
-                    console.error("[ModelSelect] onModelSelect failed:", err);
-                  });
+                void onModelSelect(model).catch((err) => {
+                  console.error("[ModelSelect] onModelSelect failed:", err);
+                });
               }}
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-full px-3 py-2 text-sm outline-none",

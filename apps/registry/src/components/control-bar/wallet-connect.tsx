@@ -2,7 +2,7 @@
 
 import { useEffect, type FC } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { cn, formatAddress, getNetworkName, useUser } from "@aomi-labs/react";
+import { cn, getChainInfo, useUser } from "@aomi-labs/react";
 
 export type WalletConnectProps = {
   className?: string;
@@ -41,7 +41,7 @@ export const WalletConnect: FC<WalletConnectProps> = ({
     }
   };
 
-  const networkName = getNetworkName(chainId);
+  const ticker = chainId ? getChainInfo(chainId)?.ticker : undefined;
 
   return (
     <button
@@ -52,8 +52,8 @@ export const WalletConnect: FC<WalletConnectProps> = ({
         "rounded-full px-5 py-2.5",
         "bg-neutral-900 text-white",
         "hover:bg-neutral-800",
-        "dark:bg-neutral-900 dark:text-white",
-        "dark:hover:bg-neutral-800",
+        "dark:bg-white dark:text-black",
+        "dark:hover:bg-neutral-200",
         "transition-colors",
         "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
@@ -62,13 +62,12 @@ export const WalletConnect: FC<WalletConnectProps> = ({
       aria-label={isConnected ? "Disconnect wallet" : "Connect wallet"}
     >
       <span>
-        {isConnected && address ? formatAddress(address) : connectLabel}
+        {isConnected && address
+          ? `${address.slice(0, 5)}..${address.slice(-2)}`
+          : connectLabel}
       </span>
-      {isConnected && networkName && (
-        <>
-          <span className="opacity-50">•</span>
-          <span className="opacity-50">{networkName}</span>
-        </>
+      {isConnected && ticker && (
+        <span className="opacity-50">{ticker}</span>
       )}
     </button>
   );

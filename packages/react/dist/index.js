@@ -573,7 +573,7 @@ var ThreadStore = class {
           initialThreadId,
           {
             title: "New Chat",
-            status: "pending",
+            status: "regular",
             lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
             control: initThreadControl()
           }
@@ -1284,7 +1284,7 @@ function UserContextProvider({ children }) {
 }
 
 // packages/react/src/runtime/core.tsx
-import { useCallback as useCallback6, useEffect as useEffect3, useMemo as useMemo2, useRef as useRef6 } from "react";
+import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef7 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -1398,27 +1398,11 @@ var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.f
 // packages/react/src/state/backend-state.ts
 function createBackendState() {
   return {
-    skipInitialFetch: /* @__PURE__ */ new Set(),
-    pendingChat: /* @__PURE__ */ new Map(),
-    runningThreads: /* @__PURE__ */ new Set(),
-    creatingThreadId: null,
-    createThreadPromise: null
+    runningThreads: /* @__PURE__ */ new Set()
   };
 }
-function resolveThreadId(state, threadId) {
+function resolveThreadId(_state, threadId) {
   return threadId;
-}
-function isThreadReady(state, threadId) {
-  return state.creatingThreadId !== threadId;
-}
-function markSkipInitialFetch(state, threadId) {
-  state.skipInitialFetch.add(threadId);
-}
-function shouldSkipInitialFetch(state, threadId) {
-  return state.skipInitialFetch.has(threadId);
-}
-function clearSkipInitialFetch(state, threadId) {
-  state.skipInitialFetch.delete(threadId);
 }
 function setThreadRunning(state, threadId, running) {
   if (running) {
@@ -1430,21 +1414,6 @@ function setThreadRunning(state, threadId, running) {
 function isThreadRunning(state, threadId) {
   return state.runningThreads.has(threadId);
 }
-function enqueuePendingChat(state, threadId, text) {
-  var _a;
-  const existing = (_a = state.pendingChat.get(threadId)) != null ? _a : [];
-  state.pendingChat.set(threadId, [...existing, text]);
-}
-function dequeuePendingChat(state, threadId) {
-  var _a;
-  const pending = (_a = state.pendingChat.get(threadId)) != null ? _a : [];
-  state.pendingChat.delete(threadId);
-  return pending;
-}
-function hasPendingChat(state, threadId) {
-  var _a, _b;
-  return ((_b = (_a = state.pendingChat.get(threadId)) == null ? void 0 : _a.length) != null ? _b : 0) > 0;
-}
 
 // packages/react/src/runtime/message-controller.ts
 var MessageController = class {
@@ -1452,11 +1421,7 @@ var MessageController = class {
     this.config = config;
   }
   inbound(threadId, msgs) {
-    const backendState = this.config.backendStateRef.current;
     if (!msgs) return;
-    if (hasPendingChat(backendState, threadId)) {
-      return;
-    }
     const threadMessages = [];
     for (const msg of msgs) {
       const threadMessage = toInboundMessage(msg);
@@ -1486,11 +1451,6 @@ var MessageController = class {
     threadState.updateThreadMetadata(threadId, {
       lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
     });
-    if (!isThreadReady(backendState, threadId)) {
-      this.markRunning(threadId, true);
-      enqueuePendingChat(backendState, threadId, text);
-      return;
-    }
     const backendThreadId = resolveThreadId(backendState, threadId);
     const namespace = this.config.getNamespace();
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
@@ -1522,37 +1482,10 @@ var MessageController = class {
       this.markRunning(threadId, false);
     }
   }
-  async flushPendingChat(threadId) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const backendState = this.config.backendStateRef.current;
-    const pending = dequeuePendingChat(backendState, threadId);
-    if (!pending.length) return;
-    const backendThreadId = resolveThreadId(backendState, threadId);
-    const namespace = this.config.getNamespace();
-    const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
-    const apiKey = (_e = (_d = (_c = this.config).getApiKey) == null ? void 0 : _d.call(_c)) != null ? _e : void 0;
-    const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
-    for (const text of pending) {
-      try {
-        await this.config.backendApiRef.current.postChatMessage(
-          backendThreadId,
-          text,
-          namespace,
-          publicKey,
-          apiKey,
-          userState
-        );
-      } catch (error) {
-        console.error("Failed to send queued message:", error);
-      }
-    }
-    this.config.polling.start(threadId);
-  }
   async cancel(threadId) {
     var _a;
-    const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
     this.config.polling.stop(threadId);
+    const backendState = this.config.backendStateRef.current;
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
       const response = await this.config.backendApiRef.current.postInterrupt(backendThreadId);
@@ -1591,7 +1524,6 @@ var PollingController = class {
   start(threadId) {
     var _a, _b;
     const backendState = this.config.backendStateRef.current;
-    if (!isThreadReady(backendState, threadId)) return;
     if (this.intervals.has(threadId)) return;
     const backendThreadId = resolveThreadId(backendState, threadId);
     setThreadRunning(backendState, threadId, true);
@@ -1701,22 +1633,8 @@ function useRuntimeOrchestrator(backendApi, options) {
   }
   const ensureInitialState = useCallback5(async (threadId) => {
     var _a, _b, _c, _d;
-    const backendState = backendStateRef.current;
-    if (shouldSkipInitialFetch(backendState, threadId)) {
-      clearSkipInitialFetch(backendState, threadId);
-      if (threadContextRef.current.currentThreadId === threadId) {
-        setIsRunning(false);
-      }
-      return;
-    }
-    if (!isThreadReady(backendState, threadId)) {
-      if (threadContextRef.current.currentThreadId === threadId) {
-        setIsRunning(false);
-      }
-      return;
-    }
     if (pendingFetches.current.has(threadId)) return;
-    const backendThreadId = resolveThreadId(backendState, threadId);
+    const backendThreadId = resolveThreadId(backendStateRef.current, threadId);
     pendingFetches.current.add(threadId);
     try {
       const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
@@ -1783,148 +1701,31 @@ function buildThreadLists(threadMetadata) {
   return { regularThreads, archivedThreads };
 }
 function buildThreadListAdapter({
-  backendStateRef,
   backendApiRef,
   threadContext,
-  currentThreadIdRef,
-  polling,
-  userAddress,
-  setIsRunning,
-  getNamespace,
-  getApiKey,
-  getUserState
+  setIsRunning
 }) {
-  const backendState = backendStateRef.current;
   const { regularThreads, archivedThreads } = buildThreadLists(
     threadContext.allThreadsMetadata
   );
-  const preparePendingThread = (threadId) => {
-    const previousPendingId = backendState.creatingThreadId;
-    if (previousPendingId && previousPendingId !== threadId) {
-      threadContext.setThreadMetadata((prev) => {
-        const next = new Map(prev);
-        next.delete(previousPendingId);
-        return next;
-      });
-      threadContext.setThreads((prev) => {
-        const next = new Map(prev);
-        next.delete(previousPendingId);
-        return next;
-      });
-      backendState.pendingChat.delete(previousPendingId);
-      backendState.skipInitialFetch.delete(previousPendingId);
-    }
-    backendState.creatingThreadId = threadId;
-    backendState.pendingChat.delete(threadId);
-    threadContext.setThreadMetadata(
-      (prev) => new Map(prev).set(threadId, {
-        title: "New Chat",
-        status: "pending",
-        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-        control: initThreadControl()
-      })
-    );
-    threadContext.setThreadMessages(threadId, []);
-    threadContext.setCurrentThreadId(threadId);
-    setIsRunning(false);
-    threadContext.bumpThreadViewKey();
-  };
-  const findPendingThreadId = () => {
-    if (backendState.creatingThreadId) return backendState.creatingThreadId;
-    for (const [id, meta] of threadContext.allThreadsMetadata.entries()) {
-      if (meta.status === "pending") return id;
-    }
-    return null;
-  };
   return {
     threadId: threadContext.currentThreadId,
     threads: regularThreads,
     archivedThreads,
-    onSwitchToNewThread: async () => {
-      var _a;
-      const pendingId = findPendingThreadId();
-      if (pendingId) {
-        preparePendingThread(pendingId);
-        return;
-      }
-      if (backendState.createThreadPromise) {
-        preparePendingThread((_a = backendState.creatingThreadId) != null ? _a : generateUUID());
-        return;
-      }
+    onSwitchToNewThread: () => {
       const threadId = generateUUID();
-      preparePendingThread(threadId);
-      const createPromise = backendApiRef.current.createThread(threadId, userAddress).then(async (newThread) => {
-        var _a2, _b;
-        const uiThreadId = (_a2 = backendState.creatingThreadId) != null ? _a2 : threadId;
-        const backendId = newThread.session_id;
-        if (uiThreadId !== backendId) {
-          console.warn("[aomi][thread] backend id mismatch", {
-            uiThreadId,
-            backendId
-          });
-        }
-        markSkipInitialFetch(backendState, uiThreadId);
-        threadContext.setThreadMetadata((prev) => {
-          var _a3, _b2, _c;
-          const next = new Map(prev);
-          const existing = next.get(uiThreadId);
-          const nextStatus = (existing == null ? void 0 : existing.status) === "archived" ? "archived" : "regular";
-          next.set(uiThreadId, {
-            title: (_a3 = existing == null ? void 0 : existing.title) != null ? _a3 : "New Chat",
-            status: nextStatus,
-            lastActiveAt: (_b2 = existing == null ? void 0 : existing.lastActiveAt) != null ? _b2 : (/* @__PURE__ */ new Date()).toISOString(),
-            control: (_c = existing == null ? void 0 : existing.control) != null ? _c : initThreadControl()
-          });
-          return next;
-        });
-        if (backendState.creatingThreadId === uiThreadId) {
-          backendState.creatingThreadId = null;
-        }
-        const pendingMessages = backendState.pendingChat.get(uiThreadId);
-        if (pendingMessages == null ? void 0 : pendingMessages.length) {
-          backendState.pendingChat.delete(uiThreadId);
-          const namespace = getNamespace();
-          const apiKey = (_b = getApiKey == null ? void 0 : getApiKey()) != null ? _b : void 0;
-          const userState = getUserState == null ? void 0 : getUserState();
-          for (const text of pendingMessages) {
-            try {
-              await backendApiRef.current.postChatMessage(
-                backendId,
-                text,
-                namespace,
-                userAddress,
-                apiKey,
-                userState
-              );
-            } catch (error) {
-              console.error("Failed to send queued message:", error);
-            }
-          }
-          if (currentThreadIdRef.current === uiThreadId) {
-            polling == null ? void 0 : polling.start(uiThreadId);
-          }
-        }
-      }).catch((error) => {
-        var _a2;
-        console.error("Failed to create new thread:", error);
-        const failedId = (_a2 = backendState.creatingThreadId) != null ? _a2 : threadId;
-        threadContext.setThreadMetadata((prev) => {
-          const next = new Map(prev);
-          next.delete(failedId);
-          return next;
-        });
-        threadContext.setThreads((prev) => {
-          const next = new Map(prev);
-          next.delete(failedId);
-          return next;
-        });
-        if (backendState.creatingThreadId === failedId) {
-          backendState.creatingThreadId = null;
-        }
-      }).finally(() => {
-        backendState.createThreadPromise = null;
-      });
-      backendState.createThreadPromise = createPromise;
+      threadContext.setThreadMetadata(
+        (prev) => new Map(prev).set(threadId, {
+          title: "New Chat",
+          status: "regular",
+          lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
+          control: initThreadControl()
+        })
+      );
+      threadContext.setThreadMessages(threadId, []);
+      threadContext.setCurrentThreadId(threadId);
+      setIsRunning(false);
+      threadContext.bumpThreadViewKey();
     },
     onSwitchToThread: (threadId) => {
       threadContext.setCurrentThreadId(threadId);
@@ -1976,12 +1777,6 @@ function buildThreadListAdapter({
           next.delete(threadId);
           return next;
         });
-        backendState.pendingChat.delete(threadId);
-        backendState.skipInitialFetch.delete(threadId);
-        backendState.runningThreads.delete(threadId);
-        if (backendState.creatingThreadId === threadId) {
-          backendState.creatingThreadId = null;
-        }
         if (threadContext.currentThreadId === threadId) {
           const firstRegularThread = Array.from(
             threadContext.allThreadsMetadata.entries()
@@ -2024,6 +1819,152 @@ function useAomiRuntime() {
   return context;
 }
 
+// packages/react/src/handlers/wallet-handler.ts
+import { useCallback as useCallback6, useEffect as useEffect3, useRef as useRef6, useState as useState6 } from "react";
+
+// packages/react/src/state/wallet-buffer.ts
+function createWalletBuffer() {
+  return { queue: [], nextId: 1 };
+}
+function enqueue(buffer, kind, payload) {
+  const request = {
+    id: `wreq-${buffer.nextId++}`,
+    kind,
+    payload,
+    status: "pending",
+    timestamp: Date.now()
+  };
+  buffer.queue.push(request);
+  return request;
+}
+function dequeue(buffer, id) {
+  const index = buffer.queue.findIndex((r) => r.id === id);
+  if (index === -1) return null;
+  return buffer.queue.splice(index, 1)[0];
+}
+function markProcessing(buffer, id) {
+  const request = buffer.queue.find((r) => r.id === id);
+  if (!request || request.status !== "pending") return false;
+  request.status = "processing";
+  return true;
+}
+function getAll(buffer) {
+  return [...buffer.queue];
+}
+
+// packages/react/src/handlers/wallet-handler.ts
+function useWalletHandler({
+  sessionId,
+  onRequestComplete
+}) {
+  const { subscribe: subscribe2, sendOutboundSystem: sendOutbound } = useEventContext();
+  const bufferRef = useRef6(createWalletBuffer());
+  const [pendingRequests, setPendingRequests] = useState6([]);
+  const syncState = useCallback6(() => {
+    setPendingRequests(getAll(bufferRef.current));
+  }, []);
+  useEffect3(() => {
+    const unsubscribe = subscribe2(
+      "wallet_tx_request",
+      (event) => {
+        const payload = event.payload;
+        enqueue(bufferRef.current, "transaction", payload);
+        syncState();
+      }
+    );
+    return unsubscribe;
+  }, [subscribe2, syncState]);
+  useEffect3(() => {
+    const unsubscribe = subscribe2(
+      "wallet_eip712_request",
+      (event) => {
+        var _a;
+        const payload = (_a = event.payload) != null ? _a : {};
+        enqueue(bufferRef.current, "eip712_sign", payload);
+        syncState();
+      }
+    );
+    return unsubscribe;
+  }, [subscribe2, syncState]);
+  const startProcessingCb = useCallback6(
+    (id) => {
+      markProcessing(bufferRef.current, id);
+      syncState();
+    },
+    [syncState]
+  );
+  const resolveRequest = useCallback6(
+    (id, result) => {
+      var _a;
+      const removed = dequeue(bufferRef.current, id);
+      if (!removed) return;
+      let outbound;
+      if (removed.kind === "transaction") {
+        outbound = sendOutbound({
+          type: "wallet:tx_complete",
+          sessionId,
+          payload: {
+            txHash: (_a = result.txHash) != null ? _a : "",
+            status: "success",
+            amount: result.amount
+          }
+        });
+      } else {
+        const eip712Payload = removed.payload;
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
+          sessionId,
+          payload: {
+            status: "success",
+            signature: result.signature,
+            description: eip712Payload.description
+          }
+        });
+      }
+      outbound.then(() => onRequestComplete == null ? void 0 : onRequestComplete());
+      syncState();
+    },
+    [sendOutbound, sessionId, syncState, onRequestComplete]
+  );
+  const rejectRequest = useCallback6(
+    (id, error) => {
+      const removed = dequeue(bufferRef.current, id);
+      if (!removed) return;
+      let outbound;
+      if (removed.kind === "transaction") {
+        outbound = sendOutbound({
+          type: "wallet:tx_complete",
+          sessionId,
+          payload: {
+            txHash: "",
+            status: "failed"
+          }
+        });
+      } else {
+        const eip712Payload = removed.payload;
+        outbound = sendOutbound({
+          type: "wallet_eip712_response",
+          sessionId,
+          payload: {
+            status: "failed",
+            error: error != null ? error : "EIP-712 signing failed",
+            description: eip712Payload.description
+          }
+        });
+      }
+      outbound.then(() => onRequestComplete == null ? void 0 : onRequestComplete());
+      syncState();
+    },
+    [sendOutbound, sessionId, syncState, onRequestComplete]
+  );
+  return {
+    pendingRequests,
+    startProcessing: startProcessingCb,
+    resolveRequest,
+    rejectRequest
+  };
+}
+
 // packages/react/src/runtime/core.tsx
 import { jsx as jsx6 } from "react/jsx-runtime";
 function AomiRuntimeCore({
@@ -2054,7 +1995,7 @@ function AomiRuntimeCore({
     },
     getApiKey: () => getControlState().apiKey
   });
-  useEffect3(() => {
+  useEffect4(() => {
     const unsubscribe = onUserStateChange(async (newUser) => {
       const sessionId = threadContext.currentThreadId;
       const message = JSON.stringify({
@@ -2070,20 +2011,40 @@ function AomiRuntimeCore({
     });
     return unsubscribe;
   }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
-  const threadContextRef = useRef6(threadContext);
+  const threadContextRef = useRef7(threadContext);
   threadContextRef.current = threadContext;
-  const currentThreadIdRef = useRef6(threadContext.currentThreadId);
-  useEffect3(() => {
+  const currentThreadIdRef = useRef7(threadContext.currentThreadId);
+  useEffect4(() => {
     currentThreadIdRef.current = threadContext.currentThreadId;
   }, [threadContext.currentThreadId]);
-  useEffect3(() => {
+  const onWalletRequestComplete = useCallback7(() => {
+    polling.start(currentThreadIdRef.current);
+  }, [polling]);
+  const walletHandler = useWalletHandler({
+    sessionId: threadContext.currentThreadId,
+    onRequestComplete: onWalletRequestComplete
+  });
+  useEffect4(() => {
+    const unsubscribe = eventContext.subscribe(
+      "user_state_request",
+      () => {
+        eventContext.sendOutboundSystem({
+          type: "user_state_response",
+          sessionId: threadContext.currentThreadId,
+          payload: getUserState()
+        });
+      }
+    );
+    return unsubscribe;
+  }, [eventContext, threadContext.currentThreadId, getUserState]);
+  useEffect4(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-  useEffect3(() => {
+  useEffect4(() => {
     const threadId = threadContext.currentThreadId;
     setIsRunning(isThreadRunning(backendStateRef.current, threadId));
   }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
-  useEffect3(() => {
+  useEffect4(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
     if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
@@ -2105,7 +2066,7 @@ function AomiRuntimeCore({
       threadContext.allThreadsMetadata
     ]
   );
-  useEffect3(() => {
+  useEffect4(() => {
     const userAddress = user.address;
     if (!userAddress) return;
     const fetchThreadList = async () => {
@@ -2173,7 +2134,7 @@ function AomiRuntimeCore({
       getUserState
     ]
   );
-  useEffect3(() => {
+  useEffect4(() => {
     const backendState = backendStateRef.current;
     const currentSessionId = threadContext.currentThreadId;
     if (process.env.NODE_ENV !== "production") {
@@ -2199,8 +2160,7 @@ function AomiRuntimeCore({
               normalizedTitle,
               currentThreadId: threadContextRef.current.currentThreadId,
               targetThreadId,
-              hasMapping: sessionId !== targetThreadId,
-              creatingThreadId: backendState.creatingThreadId
+              hasMapping: sessionId !== targetThreadId
             });
           }
           threadContextRef.current.setThreadMetadata((prev) => {
@@ -2216,9 +2176,6 @@ function AomiRuntimeCore({
             });
             return next;
           });
-          if (!isPlaceholderTitle(newTitle) && backendState.creatingThreadId === targetThreadId) {
-            backendState.creatingThreadId = null;
-          }
         }
       }
     );
@@ -2231,12 +2188,7 @@ function AomiRuntimeCore({
     threadContext.currentThreadId,
     resolvedSessionId
   ]);
-  useEffect3(() => {
-    const threadId = threadContext.currentThreadId;
-    if (!isThreadReady(backendStateRef.current, threadId)) return;
-    void messageController.flushPendingChat(threadId);
-  }, [messageController, backendStateRef, threadContext.currentThreadId]);
-  useEffect3(() => {
+  useEffect4(() => {
     const showToolNotification = (eventType) => (event) => {
       const payload = event.payload;
       const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
@@ -2261,7 +2213,7 @@ function AomiRuntimeCore({
       unsubscribeComplete();
     };
   }, [eventContext, notificationContext]);
-  useEffect3(() => {
+  useEffect4(() => {
     const unsubscribe = eventContext.subscribe("system_notice", (event) => {
       const payload = event.payload;
       const message = payload == null ? void 0 : payload.message;
@@ -2277,13 +2229,13 @@ function AomiRuntimeCore({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  useEffect3(() => {
+  useEffect4(() => {
     return () => {
       polling.stopAll();
     };
   }, [polling]);
   const userContext = useUser();
-  const sendMessage = useCallback6(
+  const sendMessage = useCallback7(
     async (text) => {
       const appendMessage = {
         role: "user",
@@ -2296,39 +2248,39 @@ function AomiRuntimeCore({
     },
     [messageController, threadContext.currentThreadId]
   );
-  const cancelGeneration = useCallback6(() => {
+  const cancelGeneration = useCallback7(() => {
     messageController.cancel(threadContext.currentThreadId);
   }, [messageController, threadContext.currentThreadId]);
-  const getMessages = useCallback6(
+  const getMessages = useCallback7(
     (threadId) => {
       const id = threadId != null ? threadId : threadContext.currentThreadId;
       return threadContext.getThreadMessages(id);
     },
     [threadContext]
   );
-  const createThread = useCallback6(async () => {
+  const createThread = useCallback7(async () => {
     await threadListAdapter.onSwitchToNewThread();
     return threadContextRef.current.currentThreadId;
   }, [threadListAdapter]);
-  const deleteThread = useCallback6(
+  const deleteThread = useCallback7(
     async (threadId) => {
       await threadListAdapter.onDelete(threadId);
     },
     [threadListAdapter]
   );
-  const renameThread = useCallback6(
+  const renameThread = useCallback7(
     async (threadId, title) => {
       await threadListAdapter.onRename(threadId, title);
     },
     [threadListAdapter]
   );
-  const archiveThread = useCallback6(
+  const archiveThread = useCallback7(
     async (threadId) => {
       await threadListAdapter.onArchive(threadId);
     },
     [threadListAdapter]
   );
-  const selectThread = useCallback6(
+  const selectThread = useCallback7(
     (threadId) => {
       if (threadContext.allThreadsMetadata.has(threadId)) {
         threadListAdapter.onSwitchToThread(threadId);
@@ -2365,6 +2317,11 @@ function AomiRuntimeCore({
       showNotification: notificationContext.showNotification,
       dismissNotification: notificationContext.dismissNotification,
       clearAllNotifications: notificationContext.clearAll,
+      // Wallet API
+      pendingWalletRequests: walletHandler.pendingRequests,
+      startWalletRequest: walletHandler.startProcessing,
+      resolveWalletRequest: walletHandler.resolveRequest,
+      rejectWalletRequest: walletHandler.rejectRequest,
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
@@ -2386,6 +2343,7 @@ function AomiRuntimeCore({
       sendMessage,
       cancelGeneration,
       notificationContext,
+      walletHandler,
       eventContext
     ]
   );
@@ -2426,85 +2384,6 @@ function AomiRuntimeInner({
       )
     }
   );
-}
-
-// packages/react/src/handlers/wallet-handler.ts
-import { useCallback as useCallback7, useEffect as useEffect4, useState as useState6 } from "react";
-function useWalletHandler({
-  sessionId,
-  onTxRequest
-}) {
-  const { subscribe: subscribe2, sendOutboundSystem: sendOutbound } = useEventContext();
-  const { setUser, getUserState } = useUser();
-  const [pendingTxRequests, setPendingTxRequests] = useState6(
-    []
-  );
-  useEffect4(() => {
-    const unsubscribe = subscribe2(
-      "wallet_tx_request",
-      (event) => {
-        const request = event.payload;
-        setPendingTxRequests((prev) => [...prev, request]);
-        onTxRequest == null ? void 0 : onTxRequest(request);
-      }
-    );
-    return unsubscribe;
-  }, [subscribe2, onTxRequest]);
-  useEffect4(() => {
-    const unsubscribe = subscribe2(
-      "user_state_request",
-      (event) => {
-        sendOutbound({
-          type: "user_state_response",
-          sessionId,
-          payload: getUserState()
-        });
-      }
-    );
-    return unsubscribe;
-  }, [subscribe2, onTxRequest]);
-  const sendTxComplete = useCallback7(
-    (tx) => {
-      sendOutbound({
-        type: "wallet:tx_complete",
-        sessionId,
-        payload: tx
-      });
-    },
-    [sendOutbound, sessionId]
-  );
-  const sendConnectionChange = useCallback7(
-    (status, address, chainId) => {
-      if (status === "connected") {
-        setUser({
-          isConnected: true,
-          address,
-          chainId
-        });
-      } else {
-        setUser({
-          isConnected: false,
-          address: void 0,
-          chainId: void 0
-        });
-      }
-      sendOutbound({
-        type: status === "connected" ? "wallet:connected" : "wallet:disconnected",
-        sessionId,
-        payload: { status, address }
-      });
-    },
-    [setUser, sendOutbound, sessionId]
-  );
-  const clearTxRequest = useCallback7((index) => {
-    setPendingTxRequests((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-  return {
-    sendTxComplete,
-    sendConnectionChange,
-    pendingTxRequests,
-    clearTxRequest
-  };
 }
 
 // packages/react/src/handlers/notification-handler.ts
