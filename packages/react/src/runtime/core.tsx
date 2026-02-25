@@ -17,7 +17,6 @@ import { useNotification } from "../contexts/notification-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
 import {
   isThreadRunning,
-  isThreadReady,
   resolveThreadId,
 } from "../state/backend-state";
 import { isPlaceholderTitle } from "./utils";
@@ -257,7 +256,6 @@ export function AomiRuntimeCore({
               currentThreadId: threadContextRef.current.currentThreadId,
               targetThreadId,
               hasMapping: sessionId !== targetThreadId,
-              creatingThreadId: backendState.creatingThreadId,
             });
           }
 
@@ -274,12 +272,6 @@ export function AomiRuntimeCore({
             });
             return next;
           });
-          if (
-            !isPlaceholderTitle(newTitle) &&
-            backendState.creatingThreadId === targetThreadId
-          ) {
-            backendState.creatingThreadId = null;
-          }
         }
       },
     );
@@ -293,15 +285,6 @@ export function AomiRuntimeCore({
     threadContext.currentThreadId,
     resolvedSessionId,
   ]);
-
-  // ---------------------------------------------------------------------------
-  // Flush pending chat when thread becomes ready
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    if (!isThreadReady(backendStateRef.current, threadId)) return;
-    void messageController.flushPendingChat(threadId);
-  }, [messageController, backendStateRef, threadContext.currentThreadId]);
 
   // ---------------------------------------------------------------------------
   // Show notifications for tool updates/completions (SSE events)

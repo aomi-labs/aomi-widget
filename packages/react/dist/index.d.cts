@@ -177,7 +177,7 @@ declare function ThreadContextProvider({ children, initialThreadId, }: ThreadCon
 declare function useCurrentThreadMessages(): ThreadMessageLike[];
 declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
 
-type ThreadStatus = "regular" | "archived" | "pending";
+type ThreadStatus = "regular" | "archived";
 type ThreadControlState = {
     /** Selected model for this thread (human-readable label) */
     model: string | null;
