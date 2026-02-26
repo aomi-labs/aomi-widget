@@ -11,7 +11,7 @@
     }
   ],
   "dependencies": [
-    "@assistant-ui/react",
+    "@assistant-ui/react@~0.11.28",
     "@aomi-labs/react",
     "lucide-react",
     "zustand"

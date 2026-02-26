@@ -97,8 +97,8 @@
       ],
       "dependencies": [
         "@aomi-labs/react",
-        "@assistant-ui/react",
-        "@assistant-ui/react-markdown",
+        "@assistant-ui/react@~0.11.28",
+        "@assistant-ui/react-markdown@~0.11.1",
         "lucide-react",
         "remark-gfm"
       ],
@@ -121,7 +121,7 @@
         }
       ],
       "dependencies": [
-        "@assistant-ui/react",
+        "@assistant-ui/react@~0.11.28",
         "lucide-react"
       ],
       "registryDependencies": [
@@ -159,7 +159,7 @@
         }
       ],
       "dependencies": [
-        "@assistant-ui/react",
+        "@assistant-ui/react@~0.11.28",
         "lucide-react"
       ],
       "registryDependencies": [
@@ -177,7 +177,7 @@
         }
       ],
       "dependencies": [
-        "@assistant-ui/react",
+        "@assistant-ui/react@~0.11.28",
         "@aomi-labs/react",
         "lucide-react",
         "zustand"

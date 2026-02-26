@@ -12,8 +12,8 @@
   ],
   "dependencies": [
     "@aomi-labs/react",
-    "@assistant-ui/react",
-    "@assistant-ui/react-markdown",
+    "@assistant-ui/react@~0.11.28",
+    "@assistant-ui/react-markdown@~0.11.1",
     "lucide-react",
     "remark-gfm"
   ],
