@@ -60,9 +60,10 @@ export const registry: RegistryComponent[] = [
     file: "components/assistant-ui/thread.tsx",
     dependencies: [
       "@aomi-labs/react",
-      "@assistant-ui/react",
-      "@assistant-ui/react-markdown",
+      "@assistant-ui/react@~0.11.28",
+      "@assistant-ui/react-markdown@~0.11.1",
       "lucide-react",
+      "motion",
       "remark-gfm",
     ],
     registryDependencies: [
@@ -81,7 +82,7 @@ export const registry: RegistryComponent[] = [
   {
     name: "assistant-thread-list",
     file: "components/assistant-ui/thread-list.tsx",
-    dependencies: ["@assistant-ui/react", "lucide-react"],
+    dependencies: ["@assistant-ui/react@~0.11.28", "lucide-react"],
     registryDependencies: [
       assistantUI("tooltip-icon-button"),
       "button",
@@ -100,14 +101,14 @@ export const registry: RegistryComponent[] = [
   {
     name: "assistant-tool-fallback",
     file: "components/assistant-ui/tool-fallback.tsx",
-    dependencies: ["@assistant-ui/react", "lucide-react"],
+    dependencies: ["@assistant-ui/react@~0.11.28", "lucide-react"],
     registryDependencies: ["button"],
     description: "Fallback renderer for assistant tool calls.",
   },
   {
     name: "attachment",
     file: "components/assistant-ui/attachment.tsx",
-    dependencies: ["@assistant-ui/react", "@aomi-labs/react", "lucide-react", "zustand"],
+    dependencies: ["@assistant-ui/react@~0.11.28", "@aomi-labs/react", "lucide-react", "zustand"],
     registryDependencies: [
       assistantUI("tooltip-icon-button"),
       "tooltip",
