@@ -4,9 +4,36 @@ import { Provider } from "./provider";
 
 export const metadata: Metadata = {
   title: "Aomi Labs",
-  description: "Docs, guides, and live previews for @aomi-labs/react.",
+  description:
+    "Your agentic terminal for blockchain automation. Transform natural language into secure, multi-chain transactions.",
   icons: {
     icon: "/assets/images/bubble.svg",
+  },
+  metadataBase: new URL("https://aomi.dev"),
+  openGraph: {
+    title: "Aomi Labs",
+    description:
+      "Your agentic terminal for blockchain automation. Transform natural language into secure, multi-chain transactions.",
+    url: "https://aomi.dev",
+    siteName: "Aomi Labs",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Aomi Labs - AI-powered blockchain automation",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Aomi Labs",
+    description:
+      "Your agentic terminal for blockchain automation. Transform natural language into secure, multi-chain transactions.",
+    images: ["/og-image.png"],
+    creator: "@aomi_labs",
   },
 };
 
