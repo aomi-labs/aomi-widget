@@ -63,6 +63,7 @@ export const registry: RegistryComponent[] = [
       "@assistant-ui/react@~0.11.28",
       "@assistant-ui/react-markdown@~0.11.1",
       "lucide-react",
+      "motion",
       "remark-gfm",
     ],
     registryDependencies: [
