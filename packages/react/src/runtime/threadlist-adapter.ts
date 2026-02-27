@@ -102,6 +102,7 @@ export function buildThreadListAdapter({
 
     onSwitchToThread: (threadId: string) => {
       threadContext.setCurrentThreadId(threadId);
+      threadContext.bumpThreadViewKey();
     },
 
     onRename: async (threadId: string, newTitle: string) => {
