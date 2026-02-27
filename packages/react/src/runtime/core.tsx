@@ -158,15 +158,6 @@ export function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId,
   );
-  const resolvedSessionId = useMemo(
-    () =>
-      resolveThreadId(backendStateRef.current, threadContext.currentThreadId),
-    [
-      backendStateRef,
-      threadContext.currentThreadId,
-      threadContext.allThreadsMetadata,
-    ],
-  );
 
   // ---------------------------------------------------------------------------
   // Fetch thread list when user connects
@@ -253,68 +244,47 @@ export function AomiRuntimeCore({
   );
 
   // ---------------------------------------------------------------------------
-  // SSE subscription for title changes
+  // Listen for title changes via EventContext (shares the single SSE connection)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const backendState = backendStateRef.current;
-    const currentSessionId = threadContext.currentThreadId;
 
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("[aomi][sse] subscribe", {
-        currentSessionId,
-        resolvedSessionId,
-        hasMapping: currentSessionId !== resolvedSessionId,
+    const unsubscribe = eventContext.subscribe("title_changed", (event) => {
+      const sessionId = event.sessionId;
+      const payload = event.payload as { new_title?: string } | undefined;
+      const newTitle = payload?.new_title;
+      if (typeof newTitle !== "string") return;
+
+      const targetThreadId = resolveThreadId(backendState, sessionId);
+      const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
+
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[aomi][sse] title_changed", {
+          sessionId,
+          newTitle,
+          normalizedTitle,
+          currentThreadId: threadContextRef.current.currentThreadId,
+          targetThreadId,
+        });
+      }
+
+      threadContextRef.current.setThreadMetadata((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(targetThreadId);
+        const nextStatus =
+          existing?.status === "archived" ? "archived" : "regular";
+        next.set(targetThreadId, {
+          title: normalizedTitle,
+          status: nextStatus,
+          lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
+          control: existing?.control ?? initThreadControl(),
+        });
+        return next;
       });
-    }
+    });
 
-    const unsubscribe = backendApiRef.current.subscribeSSE(
-      resolvedSessionId,
-      (event) => {
-        const eventType = event.type as string;
-        const sessionId = event.session_id;
-
-        if (eventType === "title_changed") {
-          const newTitle = event.new_title as string;
-          const targetThreadId = resolveThreadId(backendState, sessionId);
-          const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-
-          if (process.env.NODE_ENV !== "production") {
-            console.debug("[aomi][sse] title_changed", {
-              sessionId,
-              newTitle,
-              normalizedTitle,
-              currentThreadId: threadContextRef.current.currentThreadId,
-              targetThreadId,
-              hasMapping: sessionId !== targetThreadId,
-            });
-          }
-
-          threadContextRef.current.setThreadMetadata((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(targetThreadId);
-            const nextStatus =
-              existing?.status === "archived" ? "archived" : "regular";
-            next.set(targetThreadId, {
-              title: normalizedTitle,
-              status: nextStatus,
-              lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
-              control: existing?.control ?? initThreadControl(),
-            });
-            return next;
-          });
-        }
-      },
-    );
-
-    return () => {
-      unsubscribe?.();
-    };
-  }, [
-    backendApiRef,
-    backendStateRef,
-    threadContext.currentThreadId,
-    resolvedSessionId,
-  ]);
+    return unsubscribe;
+  }, [eventContext, backendStateRef]);
 
   // ---------------------------------------------------------------------------
   // Show notifications for tool updates/completions (SSE events)
