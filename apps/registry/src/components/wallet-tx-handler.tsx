@@ -46,6 +46,7 @@ export function WalletTxHandler() {
   const processingRef = useRef(false);
 
   useEffect(() => {
+    if (!pendingWalletRequests) return;
     const next = pendingWalletRequests.find((r) => r.status === "pending");
     if (!next || processingRef.current) return;
 
