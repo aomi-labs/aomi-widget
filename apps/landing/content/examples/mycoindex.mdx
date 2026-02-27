@@ -1,0 +1,168 @@
+---
+title: MyCoinDex Integration
+description: End-to-end example of integrating an AI assistant into a crypto exchange.
+---
+
+# MyCoinDex Integration
+
+This example walks through a complete integration of an Aomi AI assistant into MyCoinDex, a fictional crypto exchange. The AI can check prices, view portfolios, and execute trades on behalf of users.
+
+## Scenario
+
+MyCoinDex wants to add an AI assistant to their web application that can:
+
+- Answer questions about token prices
+- Show the user's portfolio
+- Execute trades with user approval
+
+## Step 1: Wrap MyCoinDex APIs as Tools
+
+On the backend, MyCoinDex's existing REST APIs are registered as Aomi tools. This is done in Rust when configuring the namespace:
+
+```rust
+// Backend: register MyCoinDex tools
+let app = ChatAppBuilder::new(&preamble).await?
+    .add_tool(GetPrices)?         // Wraps MyCoinDex /api/prices
+    .add_tool(GetPortfolio)?      // Wraps MyCoinDex /api/portfolio
+    .add_tool(ExecuteTrade)?      // Wraps MyCoinDex /api/trade
+    .build(skip_mcp, system_events, sender).await?;
+```
+
+Each tool maps to an existing MyCoinDex API endpoint:
+
+| Tool | API Endpoint | Description |
+| --- | --- | --- |
+| `getPrices` | `GET /api/prices?symbols=ETH,BTC` | Fetch current token prices |
+| `getPortfolio` | `GET /api/portfolio/:address` | Get user's holdings |
+| `executeTrade` | `POST /api/trade` | Execute a swap (requires wallet signature) |
+
+## Step 2: Configure the Namespace
+
+Create a namespace called `mycoindex` with a trading-focused system prompt:
+
+```
+You are MyCoinDex Assistant, an AI that helps users trade
+cryptocurrency. You can check prices, view portfolios, and
+execute trades. Always show the user what you're about to do
+before executing any trade. When executing trades, simulate
+first and show the expected outcome.
+```
+
+The namespace is configured to require an API key for access and restricts the available tools to only MyCoinDex's endpoints.
+
+## Step 3: Frontend Integration
+
+Install the widget:
+
+```bash
+npx shadcn add https://aomi.dev/r/aomi-frame.json
+```
+
+### Environment Variables
+
+```bash
+# .env.local
+NEXT_PUBLIC_BACKEND_URL=https://api.mycoindex.com/aomi
+NEXT_PUBLIC_PROJECT_ID=your_reown_project_id
+```
+
+### Page Component
+
+```tsx
+// app/assistant/page.tsx
+"use client";
+
+import { AomiFrame } from "@/components/aomi-frame";
+
+export default function AssistantPage() {
+  return (
+    <div className="container mx-auto py-8">
+      <h1 className="text-2xl font-bold mb-4">MyCoinDex Assistant</h1>
+
+      <AomiFrame
+        height="calc(100vh - 160px)"
+        backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}
+        walletPosition="header"
+      />
+    </div>
+  );
+}
+```
+
+### Pre-configured with API Key and Namespace
+
+To skip the user having to enter an API key and select a namespace, configure the widget to use fixed values:
+
+```tsx
+// app/assistant/page.tsx
+"use client";
+
+import { AomiFrame } from "@/components/aomi-frame";
+import { useEffect } from "react";
+import { useControl } from "@aomi-labs/react";
+
+function AssistantWithConfig() {
+  const { setApiKey, onNamespaceSelect } = useControl();
+
+  useEffect(() => {
+    setApiKey(process.env.NEXT_PUBLIC_MYCOINDEX_API_KEY!);
+    onNamespaceSelect("mycoindex");
+  }, [setApiKey, onNamespaceSelect]);
+
+  return null;
+}
+
+export default function AssistantPage() {
+  return (
+    <AomiFrame.Root
+      height="calc(100vh - 160px)"
+      backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}
+      walletPosition="header"
+    >
+      <AssistantWithConfig />
+      <AomiFrame.Header
+        withControl
+        controlBarProps={{
+          hideNamespace: true,
+          hideApiKey: true,
+          hideModel: false,
+          hideWallet: false,
+        }}
+      />
+      <AomiFrame.Composer />
+    </AomiFrame.Root>
+  );
+}
+```
+
+## Example Conversation
+
+The following illustrates a typical interaction:
+
+**User:** What is the price of ETH?
+
+The AI calls the `getPrices` tool with `symbols: ["ETH"]`, receives the result from the MyCoinDex API, and responds with a formatted price:
+
+**Assistant:** ETH is currently trading at $3,245.67, up 2.3% in the last 24 hours.
+
+**User:** Show me my portfolio.
+
+The AI calls `getPortfolio` with the user's connected wallet address:
+
+**Assistant:** Your MyCoinDex portfolio:
+- 2.5 ETH ($8,114.18)
+- 1,500 USDC ($1,500.00)
+- 0.15 BTC ($9,876.54)
+- Total: $19,490.72
+
+**User:** Swap 0.5 ETH for USDC.
+
+The AI builds a trade, simulates it first, and then requests wallet approval via the transaction signing flow:
+
+**Assistant:** I'll swap 0.5 ETH for approximately 1,622 USDC on MyCoinDex. The estimated gas cost is 0.003 ETH. Please approve the transaction in your wallet.
+
+## Next Steps
+
+- [Widget Installation](/docs/guides/integration/widget/install) -- Full install guide
+- [Configuration](/docs/guides/integration/widget/configuration) -- Environment variables and props
+- [Wallet Integration](/docs/guides/integration/wallet-integration) -- Transaction signing details

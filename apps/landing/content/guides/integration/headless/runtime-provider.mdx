@@ -1,0 +1,142 @@
+---
+title: Runtime Provider
+description: Set up AomiRuntimeProvider to connect your app to the Aomi backend.
+---
+
+# Runtime Provider
+
+`AomiRuntimeProvider` is the top-level provider that connects your React app to the Aomi backend. It sets up all contexts needed for chat, threads, user state, notifications, and events.
+
+## Setup
+
+```tsx
+import { AomiRuntimeProvider } from "@aomi-labs/react";
+
+export default function App() {
+  return (
+    <AomiRuntimeProvider backendUrl="https://api.aomi.dev">
+      <YourApp />
+    </AomiRuntimeProvider>
+  );
+}
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `backendUrl` | `string` | `"http://localhost:8080"` | URL of the Aomi backend API |
+| `children` | `ReactNode` | -- | Your application components |
+
+## What It Provides
+
+`AomiRuntimeProvider` wraps your app with a hierarchy of context providers:
+
+```
+AomiRuntimeProvider
+├── ThreadContextProvider      ← Thread state (messages, metadata, switching)
+│   └── NotificationContextProvider  ← Toast notifications
+│       └── UserContextProvider      ← Wallet/user state
+│           └── ControlContextProvider  ← Model/namespace/API key
+│               └── EventContextProvider  ← SSE + system events
+│                   └── AomiRuntimeCore  ← Orchestration + unified API
+│                       └── {children}
+```
+
+Each layer provides specific functionality through its own hook:
+
+| Context | Hook | Provides |
+| --- | --- | --- |
+| Thread | `useThreadContext` | Thread ID, messages, metadata, thread operations |
+| User | `useUser` | Wallet address, chain ID, connection status |
+| Notification | `useNotification` | Show/dismiss notifications |
+| Control | `useControl` | Model selection, namespace, API key |
+| Event | `useEventContext` | SSE subscription, outbound events |
+| **Unified** | `useAomiRuntime` | **All of the above in one hook** |
+
+## Typical Provider Hierarchy
+
+In a Next.js App Router project, place `AomiRuntimeProvider` inside your wagmi and query providers:
+
+```tsx
+// app/providers.tsx
+"use client";
+
+import { WagmiProvider } from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AomiRuntimeProvider } from "@aomi-labs/react";
+import { wagmiConfig } from "./wagmi-config";
+
+const queryClient = new QueryClient();
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <AomiRuntimeProvider
+          backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}
+        >
+          {children}
+        </AomiRuntimeProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+}
+```
+
+```tsx
+// app/layout.tsx
+import { Providers } from "./providers";
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+## Without Wallet Support
+
+If your application does not need wallet functionality, skip the wagmi providers entirely:
+
+```tsx
+import { AomiRuntimeProvider } from "@aomi-labs/react";
+
+export function Providers({ children }) {
+  return (
+    <AomiRuntimeProvider backendUrl="https://api.aomi.dev">
+      {children}
+    </AomiRuntimeProvider>
+  );
+}
+```
+
+The `WalletConnect` control and wallet transaction handler will simply be inactive.
+
+## Using BackendApi Directly
+
+For non-React code or server-side use, you can use the `BackendApi` class without any providers:
+
+```ts
+import { BackendApi } from "@aomi-labs/react";
+
+const api = new BackendApi("https://api.aomi.dev");
+
+// List threads
+const threads = await api.getThreads(sessionId, publicKey);
+
+// Send a message
+await api.chat(sessionId, message, namespace, apiKey);
+
+// Get available models
+const models = await api.getModels(sessionId);
+```
+
+## Next Steps
+
+- [Hooks Reference](/docs/guides/integration/headless/hooks) -- Complete API for all hooks
+- [Building Custom UI](/docs/guides/integration/headless/build-custom-ui) -- Full example from scratch

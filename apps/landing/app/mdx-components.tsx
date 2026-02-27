@@ -11,12 +11,15 @@ import {
 } from "fumadocs-ui/components/codeblock";
 import * as Twoslash from "fumadocs-twoslash/ui";
 
+import { WidgetDemo } from "@/components/samples/widget-demo";
+
 import "fumadocs-twoslash/twoslash.css";
 
 export function getMDXComponents(components: MDXComponents): MDXComponents {
   return {
     ...defaultComponents,
     ...Twoslash,
+    WidgetDemo,
     pre: (props: CodeBlockProps) => (
       <CodeBlock {...props}>
         <Pre className="max-h-[400px]">{props.children}</Pre>

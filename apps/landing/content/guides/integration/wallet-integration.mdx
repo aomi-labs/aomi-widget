@@ -1,0 +1,232 @@
+---
+title: Wallet Integration
+description: Connect wallets, sign transactions, and switch networks.
+---
+
+# Wallet Integration
+
+Aomi integrates with wallets via Reown AppKit (built on wagmi and viem). Users can connect wallets, sign transactions requested by the AI, and switch networks.
+
+## Setup
+
+### Install Dependencies
+
+```bash
+npm install @reown/appkit @reown/appkit-adapter-wagmi wagmi viem @tanstack/react-query
+```
+
+### Configure AppKit
+
+```tsx
+// lib/wagmi-config.ts
+import { createAppKit } from "@reown/appkit/react";
+import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import { mainnet, polygon, arbitrum, base } from "@reown/appkit/networks";
+
+const projectId = process.env.NEXT_PUBLIC_PROJECT_ID!;
+
+const metadata = {
+  name: "Your App",
+  description: "Your app description",
+  url: "https://your-app.com",
+  icons: ["https://your-app.com/icon.png"],
+};
+
+export const wagmiAdapter = new WagmiAdapter({
+  networks: [mainnet, polygon, arbitrum, base],
+  projectId,
+});
+
+createAppKit({
+  adapters: [wagmiAdapter],
+  networks: [mainnet, polygon, arbitrum, base],
+  projectId,
+  metadata,
+});
+
+export const wagmiConfig = wagmiAdapter.wagmiConfig;
+```
+
+### Provider Setup
+
+```tsx
+// app/providers.tsx
+"use client";
+
+import { WagmiProvider } from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AomiRuntimeProvider } from "@aomi-labs/react";
+import { wagmiConfig } from "@/lib/wagmi-config";
+
+const queryClient = new QueryClient();
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <AomiRuntimeProvider backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL!}>
+          {children}
+        </AomiRuntimeProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+}
+```
+
+## Supported Chains
+
+Configure which chains are available by passing them to the WagmiAdapter:
+
+```tsx
+import { mainnet, polygon, arbitrum, base, optimism } from "@reown/appkit/networks";
+
+const wagmiAdapter = new WagmiAdapter({
+  networks: [mainnet, polygon, arbitrum, base, optimism],
+  projectId,
+});
+```
+
+The `NetworkSelect` component in the widget (or `getChainInfo` / `SUPPORTED_CHAINS` in the headless library) will reflect the configured chains.
+
+## Transaction Signing Flow
+
+When the AI assistant determines a transaction is needed, the following flow occurs:
+
+```
+1. LLM emits wallet_tx_request tool call
+2. Backend sends wallet_tx_request event via SSE
+3. Frontend receives event via useWalletHandler
+4. UI prompts user to review and sign
+5. User signs with their wallet (wagmi)
+6. Frontend sends wallet:tx_complete event back to backend
+7. Backend injects transaction result into LLM context
+8. LLM continues the conversation with the result
+```
+
+### In the Widget
+
+The widget includes `WalletTxHandler` automatically. When a transaction request arrives, it prompts the user to sign.
+
+### In the Headless Library
+
+Handle transaction requests manually:
+
+```tsx
+import { useWalletHandler, useAomiRuntime } from "@aomi-labs/react";
+import { useSendTransaction, useSignTypedData } from "wagmi";
+
+function WalletRequestHandler() {
+  const { currentThreadId } = useAomiRuntime();
+  const { pendingRequests, startProcessing, resolveRequest, rejectRequest } =
+    useWalletHandler({ sessionId: currentThreadId });
+
+  const { sendTransactionAsync } = useSendTransaction();
+  const { signTypedDataAsync } = useSignTypedData();
+
+  const handleRequest = async (request: WalletRequest) => {
+    startProcessing(request.id);
+
+    try {
+      if (request.kind === "transaction") {
+        const payload = request.payload as WalletTxPayload;
+        const hash = await sendTransactionAsync({
+          to: payload.to,
+          value: BigInt(payload.value ?? "0"),
+          data: payload.data,
+        });
+        resolveRequest(request.id, { txHash: hash });
+      }
+
+      if (request.kind === "eip712_sign") {
+        const payload = request.payload as WalletEip712Payload;
+        const signature = await signTypedDataAsync(payload.typedData);
+        resolveRequest(request.id, { signature });
+      }
+    } catch (error) {
+      rejectRequest(request.id, error.message);
+    }
+  };
+
+  return (
+    <div>
+      {pendingRequests.map((req) => (
+        <div key={req.id}>
+          <p>Transaction request: {req.kind}</p>
+          <button onClick={() => handleRequest(req)}>Approve</button>
+          <button onClick={() => rejectRequest(req.id, "User rejected")}>
+            Reject
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## EIP-712 Typed Data Signing
+
+The AI can also request EIP-712 typed data signatures (used for gasless transactions, permit approvals, etc.). The flow is identical to transaction signing but uses `signTypedData` instead of `sendTransaction`.
+
+## Network Switching
+
+### In the Widget
+
+The `NetworkSelect` component provides a dropdown for switching chains. When the user selects a network, it calls `useSwitchChain` from wagmi and updates the Aomi runtime.
+
+### Programmatically
+
+```tsx
+import { useSwitchChain } from "wagmi";
+import { useUser } from "@aomi-labs/react";
+
+function NetworkSwitcher() {
+  const { switchChain } = useSwitchChain();
+  const { setUser } = useUser();
+
+  const handleSwitch = async (chainId: number) => {
+    await switchChain({ chainId });
+    // WalletConnect component auto-syncs, but you can also set manually:
+    setUser({ chainId });
+  };
+}
+```
+
+## WalletConnect Component (Widget)
+
+The widget's `WalletConnect` component handles the full lifecycle:
+
+1. Renders a connect/disconnect button
+2. On connect: opens Reown AppKit modal
+3. On successful connection: syncs address, chainId, and connection status to `useUser`
+4. On disconnect: clears user state
+
+```tsx
+import { WalletConnect } from "@/components/control-bar";
+
+<WalletConnect
+  connectLabel="Connect Wallet"
+  onConnectionChange={(isConnected) => {
+    console.log("Wallet connected:", isConnected);
+  }}
+/>
+```
+
+## Utilities
+
+The headless library provides wallet-related utilities:
+
+```tsx
+import { formatAddress, getNetworkName, getChainInfo, SUPPORTED_CHAINS } from "@aomi-labs/react";
+
+formatAddress("0x1234567890abcdef1234567890abcdef12345678");
+// "0x1234...5678"
+
+getNetworkName(1);
+// "Ethereum"
+
+getChainInfo(137);
+// { name: "Polygon", ticker: "POL", ... }
+
+SUPPORTED_CHAINS;
+// [{ chainId: 1, name: "Ethereum", ... }, ...]
+```
