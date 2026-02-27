@@ -1,0 +1,222 @@
+---
+title: How It Works
+description: From your APIs to a deployed AI assistant — the Aomi platform pipeline.
+---
+
+# How It Works
+
+This page walks through the full lifecycle of an Aomi-powered AI assistant, from API integration to deployed product. We use **MyCoinDex**, a crypto exchange, as the running example.
+
+## The Pipeline
+
+```mermaid
+flowchart TB
+    subgraph "1. Your APIs"
+        API1[GET /prices/eth]
+        API2[POST /trades]
+        API3[GET /portfolio/user123]
+    end
+
+    subgraph "2. Aomi Tool Layer"
+        T1[GetTokenPrice]
+        T2[ExecuteTrade]
+        T3[GetPortfolio]
+    end
+
+    subgraph "3. AomiApp Configuration"
+        PREAMBLE[Preamble]
+        MODEL[Model Selection]
+        RAG[RAG Docs]
+    end
+
+    subgraph "4. Deployed Namespace"
+        NS[mycoindex]
+    end
+
+    subgraph "5. Client Integration"
+        WIDGET[Widget / Headless / Telegram]
+    end
+
+    API1 --> T1
+    API2 --> T2
+    API3 --> T3
+
+    T1 --> PREAMBLE
+    T2 --> PREAMBLE
+    T3 --> PREAMBLE
+    MODEL --> NS
+    RAG --> NS
+    PREAMBLE --> NS
+
+    NS --> WIDGET
+```
+
+## 1. MyCoinDex Has REST APIs
+
+MyCoinDex exposes standard HTTP endpoints:
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/prices/{symbol}` | GET | Current token price |
+| `/trades` | POST | Execute a trade |
+| `/portfolio/{userId}` | GET | User portfolio and P&L |
+| `/markets` | GET | Available trading pairs |
+| `/orderbook/{pair}` | GET | Order book depth |
+
+These APIs continue to work as before. Aomi does not modify them.
+
+## 2. APIs Become AI Tools
+
+Aomi wraps each API as a tool -- a function the AI model can invoke during a conversation. Each tool has a name, a description (so the model knows when to use it), and typed parameters.
+
+When a user asks "What's ETH trading at?", the model decides to call `GetTokenPrice` with `{ symbol: "ETH" }`. The tool calls MyCoinDex's `/prices/eth` endpoint, returns the result, and the model uses it to compose a response.
+
+Tools can execute concurrently. If the model needs both a price and a portfolio balance, it calls both tools in parallel.
+
+## 3. Configuring the AomiApp
+
+Three things define the assistant's behavior:
+
+### Preamble
+
+The system prompt that shapes the assistant's personality and rules:
+
+```
+You are the MyCoinDex trading assistant. You help users check
+prices, manage portfolios, and execute trades.
+
+Always confirm with the user before executing a trade.
+Show prices in USD unless the user requests otherwise.
+```
+
+### Model Selection
+
+The LLM that powers the assistant. Supported providers:
+
+| Provider | Models |
+| --- | --- |
+| Anthropic | Claude Sonnet, Claude Haiku |
+| OpenAI | GPT-4o, GPT-4o Mini |
+| OpenRouter | Access to 100+ models |
+
+Models can be changed at runtime via the control API -- no redeployment needed.
+
+### RAG Document Store (Optional)
+
+If MyCoinDex has documentation, FAQs, or knowledge base articles, Aomi ingests them into a vector store. The assistant searches these documents when answering questions that go beyond tool capabilities.
+
+## 4. Deployed as a Namespace
+
+The configured app is deployed as a **namespace** -- a self-contained AI assistant environment on Aomi's hosted backend.
+
+```
+Namespace:  "mycoindex"
+Endpoint:   POST /api/chat?namespace=mycoindex
+Tools:      GetTokenPrice, ExecuteTrade, GetPortfolio, ListMarkets
+Preamble:   MyCoinDex trading assistant
+Model:      Claude Sonnet (default, switchable)
+```
+
+Each namespace is isolated. MyCoinDex's tools, preamble, and configuration do not affect other namespaces on the platform.
+
+## 5. API Key and Authentication
+
+MyCoinDex receives an API key scoped to their namespace. Every request from their frontend includes:
+
+```
+X-API-Key: sk-mcd-a1b2c3d4e5f6
+X-Session-Id: 550e8400-e29b-41d4-a716-446655440000
+```
+
+The backend validates the key, checks that it authorizes access to the `mycoindex` namespace, and proceeds.
+
+## 6. The Request Flow
+
+Here is what happens when a MyCoinDex user sends a message:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Aomi as Aomi Backend
+    participant LLM
+    participant Tool as MyCoinDex API
+
+    User->>Frontend: "What's my ETH position worth?"
+    Frontend->>Aomi: POST /api/chat?namespace=mycoindex<br/>X-API-Key: sk-mcd-...<br/>X-Session-Id: session-uuid<br/>{"text": "What's my ETH position worth?"}
+
+    Aomi->>LLM: Messages + available tools
+    LLM-->>Aomi: ToolCall: GetPortfolio(userId)
+
+    Aomi->>Tool: GET /portfolio/user123
+    Tool-->>Aomi: {"eth": 2.5, "value_usd": 8750}
+
+    Aomi->>LLM: Tool result + continue
+    LLM-->>Aomi: ToolCall: GetTokenPrice(ETH)
+
+    Aomi->>Tool: GET /prices/eth
+    Tool-->>Aomi: {"price": 3500, "change_24h": "+2.1%"}
+
+    Aomi->>LLM: Tool result + continue
+
+    loop Streaming Response
+        LLM-->>Aomi: StreamingText chunk
+        Aomi-->>Frontend: SSE: data: {"type":"text","content":"Your..."}
+        Frontend-->>User: Text appears incrementally
+    end
+
+    LLM-->>Aomi: Complete
+    Aomi-->>Frontend: SSE: data: {"type":"complete"}
+```
+
+### Step by Step
+
+1. **User sends a message** via the widget or headless integration.
+2. **Frontend sends HTTP POST** to `/api/chat?namespace=mycoindex` with the API key and session ID.
+3. **Backend validates** the API key and loads the session.
+4. **Backend sends message + history + tools** to the selected LLM.
+5. **LLM decides to call tools** -- requests `GetPortfolio` and `GetTokenPrice`.
+6. **Backend executes tool calls** against MyCoinDex's APIs.
+7. **Tool results go back to the LLM** for interpretation.
+8. **LLM streams its response** -- the backend forwards each text chunk as an SSE event.
+9. **Frontend renders incrementally** -- the user sees text appear in real-time.
+10. **Complete event** signals the response is finished.
+
+## SSE Stream Format
+
+The response is a stream of Server-Sent Events:
+
+```
+data: {"type":"text","content":"Your ETH "}
+
+data: {"type":"text","content":"position is worth "}
+
+data: {"type":"text","content":"$8,750"}
+
+data: {"type":"tool_call","name":"GetPortfolio","args":{"userId":"user123"}}
+
+data: {"type":"tool_result","name":"GetPortfolio","result":{"eth":2.5,"value_usd":8750}}
+
+data: {"type":"complete"}
+```
+
+Each event is a JSON object with a `type` field. The frontend processes these events to render streaming text, tool call indicators, and completion state.
+
+## What Aomi Manages
+
+| Responsibility | Handled By |
+| --- | --- |
+| LLM API keys and billing | Aomi |
+| Model orchestration and tool routing | Aomi |
+| Session management and persistence | Aomi |
+| SSE streaming infrastructure | Aomi |
+| Scaling and availability | Aomi |
+| Your API endpoints | You |
+| Frontend integration | You |
+| API key security | You |
+
+## Next Steps
+
+- [Namespaces and Authentication](/docs/core-concepts/namespaces) -- how API keys, namespaces, and sessions fit together.
+- [API Reference](/docs/core-concepts/api-reference) -- full HTTP endpoint documentation.
+- [Sessions](/docs/core-concepts/sessions) -- how chat sessions are created and managed.
