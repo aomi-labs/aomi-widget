@@ -7,8 +7,13 @@ export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
     active: "nested-url",
   },
   {
+    text: "Playground",
+    url: "/playground/configurator",
+    active: "nested-url",
+  },
+  {
     text: "Examples",
-    url: "/examples/playground",
+    url: "/examples/polymarket",
     active: "nested-url",
   },
   {
@@ -20,7 +25,8 @@ export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
 
 export const navTabs = [
   { title: "Guides", url: "/docs/about-aomi" },
-  { title: "Examples", url: "/examples/playground" },
+  { title: "Playground", url: "/playground/configurator" },
+  { title: "Examples", url: "/examples/polymarket" },
   { title: "API Reference", url: "/api/sessions" },
 ];
 

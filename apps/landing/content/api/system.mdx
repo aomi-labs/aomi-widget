@@ -1,18 +1,12 @@
 ---
 title: System
-description: Endpoint-level reference used by the widget and demo apps.
+description: Core chat, state, control, and event endpoints.
+full: true
 ---
 
-# API Endpoints
+# System API
 
-This section tracks the HTTP surface exposed by your backend. Map each route to your own controllers when integrating.
+State management, chat messaging, interrupts, events, and model/namespace
+control. All routes expect `X-Session-Id` as a header.
 
-## Core routes
-
-- `POST /api/chat` — start or continue a conversation, streaming assistant messages.
-- `POST /api/tools` — invoke server-side tools that may call wallets or third-party APIs.
-- `GET /api/health` — lightweight readiness probe for deployments and local dev.
-
-## Payload shape
-
-Keep payloads small and explicit: include the conversation id, user id, and any tool arguments. Avoid sending private keys or secrets from the browser.
+<SystemConsole />
