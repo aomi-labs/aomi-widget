@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "landing",
+      "runtimeExecutable": "tail",
+      "runtimeArgs": ["-f", "/dev/null"],
+      "port": 3000
+    }
+  ]
+}

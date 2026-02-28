@@ -11,9 +11,34 @@ export default async function Page(props: {
   const params = await props.params;
   const slug = params.slug ?? [];
 
-  // Route /docs to About Aomi now that the introduction lives there.
+  // Route /docs to the Getting Started overview.
   if (slug.length === 0) {
-    redirect("/docs/about-aomi");
+    redirect("/docs/getting-started/overview");
+  }
+
+  // Redirect old doc URLs to their new locations.
+  const legacyRedirects: Record<string, string> = {
+    "about-aomi": "/docs/getting-started/overview",
+    "architecture": "/docs/reference/architecture",
+    "npm-package": "/docs/integration/headless/install",
+    "shadcn": "/docs/integration/widget/install",
+    "cli": "/docs/reference/cli",
+    "sdk": "/docs/reference/sdk",
+    "components": "/docs/integration/widget/components",
+    "theming": "/docs/integration/widget/theming",
+    "configuration": "/docs/integration/widget/configuration",
+    "examples": "/examples/mycoindex",
+    "runtime": "/docs/reference/runtime",
+    "aomi-apps": "/docs/core-concepts/building-apps",
+    "script-generation": "/docs/advanced/script-generation",
+    "execution": "/docs/advanced/execution",
+    "evals": "/docs/advanced/evals",
+    "platform-support": "/docs/getting-started/overview",
+  };
+
+  const slugPath = slug.join("/");
+  if (slugPath in legacyRedirects) {
+    redirect(legacyRedirects[slugPath]);
   }
 
   const page = source.getPage(slug);
@@ -27,10 +52,6 @@ export default async function Page(props: {
   return (
     <DocsPage toc={page.data.toc} full={page.data.full ?? false}>
       <DocsBody>
-        <h1>{page.data.title}</h1>
-        {page.data.description && (
-          <p className="mb-4 text-muted-foreground">{page.data.description}</p>
-        )}
         <page.data.body components={mdxComponents} />
       </DocsBody>
     </DocsPage>
