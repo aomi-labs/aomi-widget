@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { DocsPage, DocsBody } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
 import { redirect } from "next/navigation";
-import { examples } from "@/lib/source";
+import { playground } from "@/lib/source";
 import { getMDXComponents } from "@/app/mdx-components";
 
 export default async function Page(props: {
@@ -11,12 +11,11 @@ export default async function Page(props: {
   const params = await props.params;
   const slug = params.slug ?? [];
 
-  // Route /examples to the default example.
   if (slug.length === 0) {
-    redirect("/examples/polymarket");
+    redirect("/playground/configurator");
   }
 
-  const page = examples.getPage(slug);
+  const page = playground.getPage(slug);
 
   if (page == null) {
     notFound();
@@ -34,14 +33,14 @@ export default async function Page(props: {
 }
 
 export function generateStaticParams() {
-  return examples.generateParams();
+  return playground.generateParams();
 }
 
 export async function generateMetadata(props: {
   params: Promise<{ slug?: string[] }>;
 }): Promise<Metadata> {
   const { slug = [] } = await props.params;
-  const page = examples.getPage(slug);
+  const page = playground.getPage(slug);
 
   if (!page) {
     return {
