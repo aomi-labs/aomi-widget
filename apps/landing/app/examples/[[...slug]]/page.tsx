@@ -13,7 +13,7 @@ export default async function Page(props: {
 
   // Route /examples to the default example.
   if (slug.length === 0) {
-    redirect("/examples/mycoindex");
+    redirect("/examples/playground");
   }
 
   const page = examples.getPage(slug);
