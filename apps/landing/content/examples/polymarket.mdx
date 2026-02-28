@@ -1,0 +1,18 @@
+---
+title: Polymarket
+description: Prediction market integration — place bets, view markets, and manage positions
+full: true
+---
+
+import { PolymarketConsole } from "@/components/api-console/PolymarketConsole";
+
+# Polymarket
+
+Integrate prediction-market trading into your AI assistant. The Polymarket namespace
+exposes endpoints for browsing markets, placing bets, and managing positions — all
+routed through the connected wallet for transaction approval.
+
+All endpoints require an `X-Session-Id` header. Transactions (`placeBet`, `sellPosition`)
+return a wallet-approval request that must be signed by the end user.
+
+<PolymarketConsole />
