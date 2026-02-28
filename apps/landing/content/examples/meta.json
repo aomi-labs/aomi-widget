@@ -1,9 +1,12 @@
 {
   "title": "Examples",
   "pages": [
+    "playground",
     "---Integration Examples---",
     "mycoindex",
     "custom-ui",
+    "---Platform Applications---",
+    "polymarket",
     "metamask"
   ]
 }

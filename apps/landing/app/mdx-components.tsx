@@ -12,6 +12,7 @@ import {
 import * as Twoslash from "fumadocs-twoslash/ui";
 
 import { WidgetDemo } from "@/components/samples/widget-demo";
+import { PlaygroundConfigurator } from "@/components/playground/PlaygroundConfigurator";
 
 import "fumadocs-twoslash/twoslash.css";
 
@@ -20,6 +21,7 @@ export function getMDXComponents(components: MDXComponents): MDXComponents {
     ...defaultComponents,
     ...Twoslash,
     WidgetDemo,
+    PlaygroundConfigurator,
     pre: (props: CodeBlockProps) => (
       <CodeBlock {...props}>
         <Pre className="max-h-[400px]">{props.children}</Pre>
