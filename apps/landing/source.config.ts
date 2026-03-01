@@ -37,6 +37,16 @@ export const examples = defineDocs({
   },
 });
 
+export const playgroundDocs = defineDocs({
+  dir: "content/playground",
+  docs: {
+    schema: frontmatterSchema,
+  },
+  meta: {
+    schema: metaSchema,
+  },
+});
+
 export const api = defineDocs({
   dir: "content/api",
   docs: {
