@@ -2,9 +2,18 @@
 
 ## Last Updated
 
-2026-02-02 - Thread-scoped control state (model/namespace per thread)
+2026-03-01 - Added DeFi and X API consoles to landing page examples
 
 ## Recent Changes
+
+### Landing Page — DeFi & X API Consoles (2026-03-01)
+
+- **`DefiConsole.tsx`** — 9 accordion endpoints covering DefiLlama (prices, yields, protocols, chain TVL, bridges), 0x swap quotes, LI.FI cross-chain quotes, and CoW Protocol (quote + order submission)
+- **`XConsole.tsx`** — 5 accordion endpoints for X API v2: user lookup, user posts, search, trends, and single post retrieval. All require Bearer token auth.
+- **`defi-aggregators.mdx`** — replaced stub with intro text + `<DefiConsole />`
+- **`x-apis.mdx`** — replaced stub with intro text + `<XConsole />`
+- **`app/api/proxy/route.ts`** — expanded CORS proxy allowlist with DefiLlama hosts (`coins.llama.fi`, `yields.llama.fi`, `api.llama.fi`, `bridges.llama.fi`), aggregator hosts (`api.0x.org`, `li.quest`, `api.cow.fi`), and X API (`api.x.com`)
+- **`ApiDrawer.tsx`** — normalized vertical padding (`py-3`) across description, URL bar, and response header sections
 
 ### Thread-Scoped Control State (2026-02-02)
 

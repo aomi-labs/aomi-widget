@@ -5,9 +5,21 @@ import { NextRequest, NextResponse } from "next/server";
  * Prevents open-relay abuse.
  */
 const ALLOWED_HOSTS = new Set([
+  // Polymarket
   "gamma-api.polymarket.com",
   "data-api.polymarket.com",
   "clob.polymarket.com",
+  // DefiLlama
+  "coins.llama.fi",
+  "yields.llama.fi",
+  "api.llama.fi",
+  "bridges.llama.fi",
+  // Aggregators
+  "api.0x.org",
+  "li.quest",
+  "api.cow.fi",
+  // X (Twitter)
+  "api.x.com",
 ]);
 
 function isAllowed(url: string): boolean {
