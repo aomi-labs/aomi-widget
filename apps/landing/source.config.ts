@@ -36,6 +36,16 @@ export const examples = defineDocs({
   },
 });
 
+export const playground = defineDocs({
+  dir: "content/playground",
+  docs: {
+    schema: frontmatterSchema,
+  },
+  meta: {
+    schema: metaSchema,
+  },
+});
+
 export default defineConfig({
   mdxOptions: {
     remarkPlugins: [remarkMermaid],

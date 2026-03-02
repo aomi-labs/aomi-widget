@@ -3,6 +3,7 @@ import { loader } from "fumadocs-core/source";
 import {
   guides,
   examples as examplePages,
+  playground as playgroundPages,
 } from "@/.source/server";
 
 export const source = loader({
@@ -13,6 +14,11 @@ export const source = loader({
 export const examples = loader({
   baseUrl: "/examples",
   source: examplePages.toFumadocsSource(),
+});
+
+export const playground = loader({
+  baseUrl: "/playground",
+  source: playgroundPages.toFumadocsSource(),
 });
 
 export type Page = InferPageType<typeof source>;

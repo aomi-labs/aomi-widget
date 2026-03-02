@@ -27,7 +27,7 @@ export default async function Page(props: {
     "components": "/docs/integration/widget/components",
     "theming": "/docs/integration/widget/theming",
     "configuration": "/docs/integration/widget/configuration",
-    "examples": "/examples/mycoindex",
+    "examples": "/examples/polymarket",
     "runtime": "/docs/reference/runtime",
     "aomi-apps": "/docs/core-concepts/building-apps",
     "script-generation": "/docs/advanced/script-generation",

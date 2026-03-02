@@ -8,14 +8,20 @@ export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
   },
   {
     text: "Examples",
-    url: "/examples/playground",
+    url: "/examples/polymarket",
+    active: "nested-url",
+  },
+  {
+    text: "Playground",
+    url: "/playground/configurator",
     active: "nested-url",
   },
 ];
 
 export const navTabs = [
   { title: "Documentation", url: "/docs/getting-started/overview" },
-  { title: "Examples", url: "/examples/playground" },
+  { title: "Examples", url: "/examples/polymarket" },
+  { title: "Playground", url: "/playground/configurator" },
 ];
 
 export const baseLayoutOptions: BaseLayoutProps = {

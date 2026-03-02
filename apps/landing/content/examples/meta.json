@@ -1,11 +1,11 @@
 {
   "title": "Examples",
   "pages": [
-    "---Integration Examples---",
-    "mycoindex",
-    "custom-ui",
     "---Platform Applications---",
     "polymarket",
+    "defi-aggregators",
+    "x-apis",
+    "---Custom UI---",
     "metamask"
   ]
 }
