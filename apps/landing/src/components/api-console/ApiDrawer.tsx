@@ -190,7 +190,7 @@ function EndpointDrawer({
   }, [ep, proxyUrl, body, headerValues]);
 
   return (
-    <div className="rounded-lg border border-fd-border bg-fd-card transition-shadow hover:shadow-sm">
+    <div className="rounded-2xl border border-fd-border bg-fd-card transition-shadow hover:shadow-sm">
       {/* Collapsed header row */}
       <button
         type="button"

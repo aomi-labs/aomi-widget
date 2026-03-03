@@ -8,12 +8,11 @@ import { CopyButton } from "./CopyButton";
 // Types
 // =============================================================================
 
-type LayoutMode = "simple" | "compound";
 type WalletPosition = "header" | "footer" | "hidden";
 type ControlPlacement = "header" | "composer";
 
 type PlaygroundState = {
-  layout: LayoutMode;
+  sidebarShown: boolean;
   walletPosition: WalletPosition;
   controlPlacement: ControlPlacement;
   showModel: boolean;
@@ -23,82 +22,16 @@ type PlaygroundState = {
   showNetwork: boolean;
 };
 
-type Preset = {
-  label: string;
-  state: PlaygroundState;
+const DEFAULT_STATE: PlaygroundState = {
+  sidebarShown: true,
+  walletPosition: "footer",
+  controlPlacement: "header",
+  showModel: true,
+  showNamespace: true,
+  showApiKey: false,
+  showWallet: false,
+  showNetwork: true,
 };
-
-// =============================================================================
-// Presets
-// =============================================================================
-
-const PRESETS: Preset[] = [
-  {
-    label: "Default",
-    state: {
-      layout: "compound",
-      walletPosition: "footer",
-      controlPlacement: "header",
-      showModel: true,
-      showNamespace: true,
-      showApiKey: false,
-      showWallet: false,
-      showNetwork: true,
-    },
-  },
-  {
-    label: "Header Controls",
-    state: {
-      layout: "compound",
-      walletPosition: "header",
-      controlPlacement: "header",
-      showModel: true,
-      showNamespace: true,
-      showApiKey: false,
-      showWallet: false,
-      showNetwork: true,
-    },
-  },
-  {
-    label: "Minimal",
-    state: {
-      layout: "simple",
-      walletPosition: "footer",
-      controlPlacement: "header",
-      showModel: false,
-      showNamespace: false,
-      showApiKey: false,
-      showWallet: false,
-      showNetwork: false,
-    },
-  },
-  {
-    label: "Full Featured",
-    state: {
-      layout: "compound",
-      walletPosition: "footer",
-      controlPlacement: "header",
-      showModel: true,
-      showNamespace: true,
-      showApiKey: true,
-      showWallet: true,
-      showNetwork: true,
-    },
-  },
-  {
-    label: "API-Key Only",
-    state: {
-      layout: "compound",
-      walletPosition: "hidden",
-      controlPlacement: "header",
-      showModel: false,
-      showNamespace: false,
-      showApiKey: true,
-      showWallet: false,
-      showNetwork: false,
-    },
-  },
-];
 
 // =============================================================================
 // Code generation
@@ -106,21 +39,8 @@ const PRESETS: Preset[] = [
 
 function generateCode(s: PlaygroundState): string {
   const walletProp =
-    s.walletPosition === "hidden"
-      ? "null"
-      : `"${s.walletPosition}"`;
+    s.walletPosition === "hidden" ? "null" : `"${s.walletPosition}"`;
 
-  // Simple layout — <AomiFrame ... />
-  if (s.layout === "simple") {
-    const props: string[] = [];
-    props.push('height="560px"');
-    if (s.walletPosition !== "footer") {
-      props.push(`walletPosition={${walletProp}}`);
-    }
-    return `<AomiFrame ${props.join(" ")} />`;
-  }
-
-  // Compound layout
   const hasAnyControl =
     s.showModel || s.showNamespace || s.showApiKey || s.showWallet || s.showNetwork;
 
@@ -129,7 +49,6 @@ function generateCode(s: PlaygroundState): string {
   if (!s.showModel) controlBarEntries.push("hideModel: true");
   if (!s.showNamespace) controlBarEntries.push("hideNamespace: true");
   if (!s.showApiKey) controlBarEntries.push("hideApiKey: true");
-  // hideWallet defaults to true, so only set if showing
   if (s.showWallet) controlBarEntries.push("hideWallet: false");
 
   const controlBarPropsStr =
@@ -138,8 +57,14 @@ function generateCode(s: PlaygroundState): string {
       : "";
 
   const rootProps: string[] = ['height="560px"'];
-  if (s.walletPosition !== "footer") {
+  if (!s.sidebarShown) {
+    rootProps.push("sidebarShown={false}");
+  }
+  if (s.sidebarShown && s.walletPosition !== "footer") {
     rootProps.push(`walletPosition={${walletProp}}`);
+  }
+  if (!s.sidebarShown) {
+    rootProps.push("walletPosition={null}");
   }
 
   const headerWithControl =
@@ -240,26 +165,21 @@ const Checkbox: FC<CheckboxProps> = ({ label, checked, onChange }) => (
 // =============================================================================
 
 export function PlaygroundConfigurator() {
-  const [state, setState] = useState<PlaygroundState>(PRESETS[0].state);
-  const [activePreset, setActivePreset] = useState("Default");
+  const [state, setState] = useState<PlaygroundState>(DEFAULT_STATE);
 
   const update = useCallback(
     (patch: Partial<PlaygroundState>) => {
       setState((prev) => ({ ...prev, ...patch }));
-      setActivePreset("Custom");
     },
     [],
   );
 
-  const applyPreset = useCallback((preset: Preset) => {
-    setState(preset.state);
-    setActivePreset(preset.label);
-  }, []);
-
   const code = useMemo(() => generateCode(state), [state]);
 
   const walletPropValue =
-    state.walletPosition === "hidden" ? undefined : state.walletPosition;
+    !state.sidebarShown || state.walletPosition === "hidden"
+      ? undefined
+      : state.walletPosition;
 
   // Build controlBarProps from state
   const controlBarProps = useMemo(
@@ -287,112 +207,122 @@ export function PlaygroundConfigurator() {
         {/* Left: Live preview */}
         <div className="min-w-0 flex-1">
           <div className="overflow-hidden rounded-xl border border-fd-border">
-            {state.layout === "simple" ? (
-              <AomiFrame
-                height="560px"
-                walletPosition={walletPropValue ?? null}
-              />
-            ) : (
-              <AomiFrame.Root
-                height="560px"
-                walletPosition={walletPropValue ?? null}
-              >
-                {hasAnyControl && state.controlPlacement === "header" ? (
-                  <AomiFrame.Header
-                    withControl
-                    controlBarProps={controlBarProps}
-                  />
-                ) : (
-                  <AomiFrame.Header />
-                )}
-                {hasAnyControl && state.controlPlacement === "composer" ? (
-                  <AomiFrame.Composer
-                    withControl
-                    controlBarProps={controlBarProps}
-                  />
-                ) : (
-                  <AomiFrame.Composer />
-                )}
-              </AomiFrame.Root>
-            )}
+            <AomiFrame.Root
+              height="560px"
+              walletPosition={walletPropValue ?? null}
+            >
+              {hasAnyControl && state.controlPlacement === "header" ? (
+                <AomiFrame.Header
+                  withControl
+                  controlBarProps={controlBarProps}
+                />
+              ) : (
+                <AomiFrame.Header />
+              )}
+              {hasAnyControl && state.controlPlacement === "composer" ? (
+                <AomiFrame.Composer
+                  withControl
+                  controlBarProps={controlBarProps}
+                />
+              ) : (
+                <AomiFrame.Composer />
+              )}
+            </AomiFrame.Root>
           </div>
         </div>
 
         {/* Right: Config sidebar */}
         <div className="w-full shrink-0 lg:w-72">
           <div className="sticky top-20 space-y-5 rounded-xl border border-fd-border bg-fd-card p-4">
-            {/* Preset selector */}
-            <fieldset className="space-y-2">
+            {/* ── Sidebar ── */}
+            <fieldset className="space-y-3">
               <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
-                Preset
+                Sidebar
               </legend>
-              <select
-                value={activePreset}
-                onChange={(e) => {
-                  const preset = PRESETS.find((p) => p.label === e.target.value);
-                  if (preset) applyPreset(preset);
-                }}
-                className="w-full rounded-md border border-fd-border bg-fd-background px-3 py-1.5 text-xs text-fd-foreground"
-              >
-                {PRESETS.map((p) => (
-                  <option key={p.label} value={p.label}>
-                    {p.label}
-                  </option>
-                ))}
-                {activePreset === "Custom" && (
-                  <option value="Custom" disabled>
-                    Custom
-                  </option>
-                )}
-              </select>
+              <Checkbox
+                label="Shown"
+                checked={state.sidebarShown}
+                onChange={(v) => update({ sidebarShown: v })}
+              />
+              {state.sidebarShown && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-fd-muted-foreground/70">
+                    Wallet Position
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {(
+                      [
+                        { value: "header", label: "Header" },
+                        { value: "footer", label: "Footer" },
+                        { value: "hidden", label: "Hidden" },
+                      ] as const
+                    ).map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          state.walletPosition === opt.value
+                            ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
+                            : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="walletPosition"
+                          value={opt.value}
+                          checked={state.walletPosition === opt.value}
+                          onChange={() =>
+                            update({
+                              walletPosition: opt.value as WalletPosition,
+                            })
+                          }
+                          className="sr-only"
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </fieldset>
 
-            {/* Layout */}
-            <RadioGroup
-              label="Layout"
-              name="layout"
-              options={[
-                { value: "simple", label: "Simple" },
-                { value: "compound", label: "Compound" },
-              ]}
-              value={state.layout}
-              onChange={(v) => update({ layout: v as LayoutMode })}
-            />
-
-            {/* Wallet Position */}
-            <RadioGroup
-              label="Wallet Position"
-              name="walletPosition"
-              options={[
-                { value: "header", label: "Header" },
-                { value: "footer", label: "Footer" },
-                { value: "hidden", label: "Hidden" },
-              ]}
-              value={state.walletPosition}
-              onChange={(v) => update({ walletPosition: v as WalletPosition })}
-            />
-
-            {/* Controls Placement — only for compound */}
-            {state.layout === "compound" && (
-              <RadioGroup
-                label="Controls In"
-                name="controlPlacement"
-                options={[
-                  { value: "header", label: "Header" },
-                  { value: "composer", label: "Composer" },
-                ]}
-                value={state.controlPlacement}
-                onChange={(v) =>
-                  update({ controlPlacement: v as ControlPlacement })
-                }
-              />
-            )}
-
-            {/* Visibility toggles */}
-            <fieldset className="space-y-2">
+            {/* ── Control Panel ── */}
+            <fieldset className="space-y-3">
               <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
-                Show Controls
+                Control Panel
               </legend>
+              {/* Header vs Composer placement */}
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    { value: "header", label: "Header" },
+                    { value: "composer", label: "Composer" },
+                  ] as const
+                ).map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      state.controlPlacement === opt.value
+                        ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
+                        : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="controlPlacement"
+                      value={opt.value}
+                      checked={state.controlPlacement === opt.value}
+                      onChange={() =>
+                        update({
+                          controlPlacement: opt.value as ControlPlacement,
+                        })
+                      }
+                      className="sr-only"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+              {/* Visibility toggles */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <Checkbox
                   label="Model"
