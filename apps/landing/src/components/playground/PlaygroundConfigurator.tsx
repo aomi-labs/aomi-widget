@@ -3,11 +3,17 @@
 import { useState, useMemo, useCallback, type FC } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { CopyButton } from "./CopyButton";
+import {
+  ThemeCustomizer,
+  useThemeCustomizer,
+} from "./ThemeCustomizer";
 
 // =============================================================================
 // Types
 // =============================================================================
 
+type ConfigTab = "layout" | "theme";
+type CodeTab = "jsx" | "css";
 type WalletPosition = "header" | "footer" | "hidden";
 type ControlPlacement = "header" | "composer";
 
@@ -97,50 +103,6 @@ function generateCode(s: PlaygroundState): string {
 // Sub-components
 // =============================================================================
 
-type RadioGroupProps = {
-  label: string;
-  name: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-};
-
-const RadioGroup: FC<RadioGroupProps> = ({
-  label,
-  name,
-  options,
-  value,
-  onChange,
-}) => (
-  <fieldset className="space-y-2">
-    <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
-      {label}
-    </legend>
-    <div className="flex flex-wrap gap-1">
-      {options.map((opt) => (
-        <label
-          key={opt.value}
-          className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-            value === opt.value
-              ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
-              : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
-          }`}
-        >
-          <input
-            type="radio"
-            name={name}
-            value={opt.value}
-            checked={value === opt.value}
-            onChange={() => onChange(opt.value)}
-            className="sr-only"
-          />
-          {opt.label}
-        </label>
-      ))}
-    </div>
-  </fieldset>
-);
-
 type CheckboxProps = {
   label: string;
   checked: boolean;
@@ -159,12 +121,161 @@ const Checkbox: FC<CheckboxProps> = ({ label, checked, onChange }) => (
   </label>
 );
 
+/** Pill-style tab buttons for the config sidebar & code panel. */
+const TabBar: FC<{
+  tabs: { value: string; label: string }[];
+  active: string;
+  onChange: (v: string) => void;
+}> = ({ tabs, active, onChange }) => (
+  <div className="flex gap-1">
+    {tabs.map((t) => (
+      <button
+        key={t.value}
+        type="button"
+        onClick={() => onChange(t.value)}
+        className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+          active === t.value
+            ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
+            : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
+        }`}
+      >
+        {t.label}
+      </button>
+    ))}
+  </div>
+);
+
+// =============================================================================
+// Layout config panel (original controls)
+// =============================================================================
+
+const LayoutPanel: FC<{
+  state: PlaygroundState;
+  update: (patch: Partial<PlaygroundState>) => void;
+}> = ({ state, update }) => (
+  <div className="space-y-5">
+    {/* ── Sidebar ── */}
+    <fieldset className="space-y-3">
+      <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
+        Sidebar
+      </legend>
+      <Checkbox
+        label="Shown"
+        checked={state.sidebarShown}
+        onChange={(v) => update({ sidebarShown: v })}
+      />
+      {state.sidebarShown && (
+        <div className="space-y-1.5">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-fd-muted-foreground/70">
+            Wallet Position
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {(
+              [
+                { value: "header", label: "Header" },
+                { value: "footer", label: "Footer" },
+                { value: "hidden", label: "Hidden" },
+              ] as const
+            ).map((opt) => (
+              <label
+                key={opt.value}
+                className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  state.walletPosition === opt.value
+                    ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
+                    : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="walletPosition"
+                  value={opt.value}
+                  checked={state.walletPosition === opt.value}
+                  onChange={() =>
+                    update({ walletPosition: opt.value as WalletPosition })
+                  }
+                  className="sr-only"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </fieldset>
+
+    {/* ── Control Panel ── */}
+    <fieldset className="space-y-3">
+      <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
+        Control Panel
+      </legend>
+      <div className="flex flex-wrap gap-1">
+        {(
+          [
+            { value: "header", label: "Header" },
+            { value: "composer", label: "Composer" },
+          ] as const
+        ).map((opt) => (
+          <label
+            key={opt.value}
+            className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+              state.controlPlacement === opt.value
+                ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
+                : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
+            }`}
+          >
+            <input
+              type="radio"
+              name="controlPlacement"
+              value={opt.value}
+              checked={state.controlPlacement === opt.value}
+              onChange={() =>
+                update({ controlPlacement: opt.value as ControlPlacement })
+              }
+              className="sr-only"
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <Checkbox
+          label="Model"
+          checked={state.showModel}
+          onChange={(v) => update({ showModel: v })}
+        />
+        <Checkbox
+          label="Namespace"
+          checked={state.showNamespace}
+          onChange={(v) => update({ showNamespace: v })}
+        />
+        <Checkbox
+          label="API Key"
+          checked={state.showApiKey}
+          onChange={(v) => update({ showApiKey: v })}
+        />
+        <Checkbox
+          label="Wallet"
+          checked={state.showWallet}
+          onChange={(v) => update({ showWallet: v })}
+        />
+        <Checkbox
+          label="Network"
+          checked={state.showNetwork}
+          onChange={(v) => update({ showNetwork: v })}
+        />
+      </div>
+    </fieldset>
+  </div>
+);
+
 // =============================================================================
 // Main Playground
 // =============================================================================
 
 export function PlaygroundConfigurator() {
   const [state, setState] = useState<PlaygroundState>(DEFAULT_STATE);
+  const [configTab, setConfigTab] = useState<ConfigTab>("layout");
+  const [codeTab, setCodeTab] = useState<CodeTab>("jsx");
 
   const update = useCallback(
     (patch: Partial<PlaygroundState>) => {
@@ -173,14 +284,16 @@ export function PlaygroundConfigurator() {
     [],
   );
 
-  const code = useMemo(() => generateCode(state), [state]);
+  const jsxCode = useMemo(() => generateCode(state), [state]);
+
+  // Theme customizer state
+  const theme = useThemeCustomizer();
 
   const walletPropValue =
     !state.sidebarShown || state.walletPosition === "hidden"
       ? undefined
       : state.walletPosition;
 
-  // Build controlBarProps from state
   const controlBarProps = useMemo(
     () => ({
       hideNetwork: !state.showNetwork,
@@ -199,13 +312,20 @@ export function PlaygroundConfigurator() {
     state.showWallet ||
     state.showNetwork;
 
+  const activeCode = codeTab === "jsx" ? jsxCode : theme.output.css;
+
   return (
     <div className="space-y-4">
       {/* Main split panel */}
       <div className="flex flex-col gap-4 lg:flex-row">
         {/* Left: Live preview */}
         <div className="min-w-0 flex-1">
-          <div className="overflow-hidden rounded-xl border border-fd-border">
+          <div
+            className={`overflow-hidden rounded-xl border border-fd-border ${
+              theme.output.isDark ? "dark" : ""
+            }`}
+            style={theme.output.styleObject}
+          >
             <AomiFrame.Root
               height="560px"
               walletPosition={walletPropValue ?? null}
@@ -232,140 +352,54 @@ export function PlaygroundConfigurator() {
           </div>
         </div>
 
-        {/* Right: Config sidebar */}
+        {/* Right: Config sidebar with tabs */}
         <div className="w-full shrink-0 lg:w-72" style={{ height: 560 }}>
-          <div className="h-full space-y-5 overflow-y-auto rounded-xl border border-fd-border bg-fd-card p-4">
-            {/* ── Sidebar ── */}
-            <fieldset className="space-y-3">
-              <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
-                Sidebar
-              </legend>
-              <Checkbox
-                label="Shown"
-                checked={state.sidebarShown}
-                onChange={(v) => update({ sidebarShown: v })}
+          <div className="flex h-full flex-col rounded-xl border border-fd-border bg-fd-card">
+            {/* Tab header */}
+            <div className="border-b border-fd-border px-4 py-3">
+              <TabBar
+                tabs={[
+                  { value: "layout", label: "Layout" },
+                  { value: "theme", label: "Theme" },
+                ]}
+                active={configTab}
+                onChange={(v) => setConfigTab(v as ConfigTab)}
               />
-              {state.sidebarShown && (
-                <div className="space-y-1.5">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-fd-muted-foreground/70">
-                    Wallet Position
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      [
-                        { value: "header", label: "Header" },
-                        { value: "footer", label: "Footer" },
-                        { value: "hidden", label: "Hidden" },
-                      ] as const
-                    ).map((opt) => (
-                      <label
-                        key={opt.value}
-                        className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                          state.walletPosition === opt.value
-                            ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
-                            : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="walletPosition"
-                          value={opt.value}
-                          checked={state.walletPosition === opt.value}
-                          onChange={() =>
-                            update({
-                              walletPosition: opt.value as WalletPosition,
-                            })
-                          }
-                          className="sr-only"
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
+            </div>
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {configTab === "layout" ? (
+                <LayoutPanel state={state} update={update} />
+              ) : (
+                <ThemeCustomizer
+                  state={theme.state}
+                  preset={theme.preset}
+                  selectPreset={theme.selectPreset}
+                  update={theme.update}
+                  setColorOverride={theme.setColorOverride}
+                  clearColorOverride={theme.clearColorOverride}
+                />
               )}
-            </fieldset>
-
-            {/* ── Control Panel ── */}
-            <fieldset className="space-y-3">
-              <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
-                Control Panel
-              </legend>
-              {/* Header vs Composer placement */}
-              <div className="flex flex-wrap gap-1">
-                {(
-                  [
-                    { value: "header", label: "Header" },
-                    { value: "composer", label: "Composer" },
-                  ] as const
-                ).map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      state.controlPlacement === opt.value
-                        ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
-                        : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="controlPlacement"
-                      value={opt.value}
-                      checked={state.controlPlacement === opt.value}
-                      onChange={() =>
-                        update({
-                          controlPlacement: opt.value as ControlPlacement,
-                        })
-                      }
-                      className="sr-only"
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-              {/* Visibility toggles */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <Checkbox
-                  label="Model"
-                  checked={state.showModel}
-                  onChange={(v) => update({ showModel: v })}
-                />
-                <Checkbox
-                  label="Namespace"
-                  checked={state.showNamespace}
-                  onChange={(v) => update({ showNamespace: v })}
-                />
-                <Checkbox
-                  label="API Key"
-                  checked={state.showApiKey}
-                  onChange={(v) => update({ showApiKey: v })}
-                />
-                <Checkbox
-                  label="Wallet"
-                  checked={state.showWallet}
-                  onChange={(v) => update({ showWallet: v })}
-                />
-                <Checkbox
-                  label="Network"
-                  checked={state.showNetwork}
-                  onChange={(v) => update({ showNetwork: v })}
-                />
-              </div>
-            </fieldset>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Generated code panel */}
+      {/* Generated code panel with tabs */}
       <div className="rounded-xl border border-fd-border">
         <div className="flex items-center justify-between border-b border-fd-border px-4 py-2">
-          <span className="text-xs font-semibold text-fd-muted-foreground">
-            Generated Code
-          </span>
-          <CopyButton value={code} label="Copy" />
+          <TabBar
+            tabs={[
+              { value: "jsx", label: "JSX" },
+              { value: "css", label: "Theme CSS" },
+            ]}
+            active={codeTab}
+            onChange={(v) => setCodeTab(v as CodeTab)}
+          />
+          <CopyButton value={activeCode} label="Copy" />
         </div>
         <pre className="overflow-x-auto bg-fd-secondary/30 px-4 py-3 text-xs leading-relaxed text-fd-foreground">
-          <code>{code}</code>
+          <code>{activeCode}</code>
         </pre>
       </div>
     </div>
