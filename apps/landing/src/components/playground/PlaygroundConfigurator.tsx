@@ -58,13 +58,10 @@ function generateCode(s: PlaygroundState): string {
 
   const rootProps: string[] = ['height="560px"'];
   if (!s.sidebarShown) {
-    rootProps.push("sidebarShown={false}");
-  }
-  if (s.sidebarShown && s.walletPosition !== "footer") {
-    rootProps.push(`walletPosition={${walletProp}}`);
-  }
-  if (!s.sidebarShown) {
+    rootProps.push("showSidebar={false}");
     rootProps.push("walletPosition={null}");
+  } else if (s.walletPosition !== "footer") {
+    rootProps.push(`walletPosition={${walletProp}}`);
   }
 
   const headerWithControl =
@@ -72,11 +69,13 @@ function generateCode(s: PlaygroundState): string {
   const composerWithControl =
     hasAnyControl && s.controlPlacement === "composer";
 
+  const sidebarTriggerStr = !s.sidebarShown ? " showSidebarTrigger={false}" : "";
+
   let headerLine: string;
   if (headerWithControl) {
-    headerLine = `  <AomiFrame.Header withControl${controlBarPropsStr} />`;
+    headerLine = `  <AomiFrame.Header${sidebarTriggerStr} withControl${controlBarPropsStr} />`;
   } else {
-    headerLine = "  <AomiFrame.Header />";
+    headerLine = `  <AomiFrame.Header${sidebarTriggerStr} />`;
   }
 
   let composerLine: string;
@@ -210,14 +209,16 @@ export function PlaygroundConfigurator() {
             <AomiFrame.Root
               height="560px"
               walletPosition={walletPropValue ?? null}
+              showSidebar={state.sidebarShown}
             >
               {hasAnyControl && state.controlPlacement === "header" ? (
                 <AomiFrame.Header
+                  showSidebarTrigger={state.sidebarShown}
                   withControl
                   controlBarProps={controlBarProps}
                 />
               ) : (
-                <AomiFrame.Header />
+                <AomiFrame.Header showSidebarTrigger={state.sidebarShown} />
               )}
               {hasAnyControl && state.controlPlacement === "composer" ? (
                 <AomiFrame.Composer
@@ -232,8 +233,8 @@ export function PlaygroundConfigurator() {
         </div>
 
         {/* Right: Config sidebar */}
-        <div className="w-full shrink-0 lg:w-72">
-          <div className="sticky top-20 space-y-5 rounded-xl border border-fd-border bg-fd-card p-4">
+        <div className="w-full shrink-0 lg:w-72" style={{ height: 560 }}>
+          <div className="h-full space-y-5 overflow-y-auto rounded-xl border border-fd-border bg-fd-card p-4">
             {/* ── Sidebar ── */}
             <fieldset className="space-y-3">
               <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
