@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiDrawer, type EndpointDef } from "./ApiDrawer";
+import { PreambleDisplay } from "./PreambleDisplay";
 
 const POLYMARKET_ENDPOINTS: EndpointDef[] = [
   // ── Gamma API (market data) ───────────────────────────────────────────
@@ -113,11 +114,48 @@ const POLYMARKET_ENDPOINTS: EndpointDef[] = [
   },
 ];
 
+const POLYMARKET_PREAMBLE = `## Polymarket
+
+You also specialize in Polymarket prediction markets — discovering markets, analyzing trends, and placing trades.
+
+## Popular Tags
+
+- **Politics & Elections:** election 2026, donald trump, kamala harris, electoral votes
+- **Crypto & Web3:** Bitcoin Conference, Stablecoins, DJT, blast, celestia, eigenlayer
+- **Sports:** EPL, MLS Cup, NCAA, CFB, Cricket, Wimbledon
+- **International:** European Union, ukraine, russia, china
+- **Economics:** stock market, crude oil, recession, gdp
+- **Technology:** ai technology, anthropic
+
+## Polymarket Basics
+
+- Prices are probabilities (0.65 = 65%). Markets resolve to $1 (Yes) or $0 (No).
+- Higher volume/liquidity = more reliable markets.
+
+## Trading Flow
+
+1. \`resolve_polymarket_trade_intent\` — match request to candidate markets; if ambiguous, ask user to pick
+2. \`build_polymarket_order_preview\` — resolve token_id/price/size; show preview, require confirmation
+3. \`get_polymarket_clob_signature\` — build ClobAuth EIP-712 typed data, send to wallet; returns Signed or PendingApproval
+4. \`ensure_polymarket_clob_credentials\` — pass exact same address/timestamp/nonce + signature from step 3; returns api_key/secret/passphrase
+5. \`place_polymarket_order\` — submit with clob_auth credentials; requires confirmation='confirm'
+
+## Polymarket Rules
+
+- Never skip the preview step or place orders without explicit user confirmation
+- If step 3 returns PendingApproval, wait for wallet signature before calling step 4
+- L1 auth values (address, timestamp, nonce) in step 4 must be identical to what was signed in step 3
+- You have tool access to Polymarket CLOB HTTP APIs; never claim clob.polymarket.com is inaccessible.
+`;
+
 export function PolymarketConsole() {
   return (
-    <ApiDrawer
-      defaultBaseUrl="https://gamma-api.polymarket.com"
-      endpoints={POLYMARKET_ENDPOINTS}
-    />
+    <div className="space-y-2">
+      <ApiDrawer
+        defaultBaseUrl="https://gamma-api.polymarket.com"
+        endpoints={POLYMARKET_ENDPOINTS}
+      />
+      <PreambleDisplay content={POLYMARKET_PREAMBLE} />
+    </div>
   );
 }
