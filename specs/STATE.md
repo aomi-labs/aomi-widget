@@ -2,9 +2,34 @@
 
 ## Last Updated
 
-2026-03-04 - Docs directory restructure Phase 3 (merged build/quickstart.mdx)
+2026-03-04 - Docs directory restructure Phase 5 (building-apps trim + telegram-bot)
 
 ## Recent Changes
+
+### Docs Directory Restructure Phase 5 (2026-03-04)
+
+- Moved `core-concepts/building-apps.mdx` to `build/building-apps.mdx` via `git mv`
+- Edited `building-apps.mdx`: removed AomiTool trait table and AomiBackend trait code block/paragraph (SDK overlap)
+- Added SDK Reference callout notes where trait details were removed
+- Updated Next Steps links to `/docs/build/` and `/docs/reference/` paths
+- Moved `telegram/admin.mdx` to `build/telegram-bot.mdx` via `git mv`
+- Reframed as "Telegram Bot Setup" for developers deploying the bot for their product
+- Updated frontmatter (title: "Telegram Bot Setup", description: "Configure and deploy the Telegram bot for your product.")
+- Reframed intro, section headers (Development/Production), added Next Steps with `/docs/build/` links
+- Already listed in `build/meta.json` at correct positions
+
+### Docs Directory Restructure Phase 4 (2026-03-04)
+
+- Created `apps/landing/content/guides/build/how-it-works.mdx` by merging:
+  - `core-concepts/how-it-works.mdx` (technical pipeline: mermaid diagrams, endpoint table, sequence diagram, SSE format, step-by-step walkthrough, "What Aomi Manages" table)
+  - `getting-started/for-businesses.mdx` (narrative tone, "What MyCoinDex Gets" summary table, integration code snippets)
+- Structural base: `how-it-works.mdx` (better technical flow with pipeline + sequence diagrams)
+- Absorbed from `for-businesses.mdx`: narrative opening tone, capability summary table
+- Merged "What MyCoinDex Gets" and "What Aomi Manages" into single "What You Get" table with Capability/Details/Managed By columns
+- Removed: Step 6 "Integrate Into Your Product" (covered by quickstart and widget/headless pages), duplicated 4-endpoint API table (kept 5-endpoint version), duplicated preamble/model sections
+- Added SSE event types table alongside the existing stream format code block
+- All Next Steps links updated to `/docs/build/` paths
+- Already listed in `build/meta.json` at position 3
 
 ### Docs Directory Restructure Phase 3 (2026-03-04)
 
