@@ -193,38 +193,6 @@ Evaluation framework for testing agent behavior.
 
 ## Data Flow
 
-### Message Processing
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Session
-    participant ChatApp
-    participant LLM
-    participant Scheduler
-    participant Tool
-
-    User->>Session: Send message
-    Session->>ChatApp: process_message()
-    ChatApp->>LLM: stream_completion()
-
-    loop Streaming Response
-        LLM-->>ChatApp: StreamingText
-        ChatApp-->>Session: ChatCommand
-        Session-->>User: SSE Event
-    end
-
-    LLM->>ChatApp: ToolCall request
-    ChatApp->>Scheduler: handler.request()
-    Scheduler->>Tool: call_with_json()
-    Tool-->>Scheduler: Result
-    Scheduler-->>ChatApp: ToolResultStream
-    ChatApp->>LLM: Tool result
-
-    LLM-->>ChatApp: Complete
-    ChatApp-->>Session: ChatCommand::Complete
-```
-
 ### System Events Flow
 
 ```mermaid

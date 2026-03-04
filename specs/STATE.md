@@ -2,9 +2,30 @@
 
 ## Last Updated
 
-2026-03-04 - Docs directory restructure Phase 6 (Use Aomi end-user pages)
+2026-03-04 - Docs directory restructure Phase 7 (Dedup references, update links/redirects, delete old directories)
 
 ## Recent Changes
+
+### Docs Directory Restructure Phase 7 (2026-03-04)
+
+- **Sub-task A: Dedup reference pages**
+  - Removed `### Message Processing` sequence diagram section from `reference/architecture.mdx` (duplicates `build/how-it-works.mdx`)
+  - Removed `ChatAppBuilder` flowchart mermaid block from `reference/sdk.mdx` (duplicates `build/building-apps.mdx`)
+- **Sub-task B: Updated routing and nav files**
+  - Changed default redirect in `app/docs/[[...slug]]/page.tsx` from `/docs/getting-started/overview` to `/docs/build/overview`
+  - Updated all 16 legacy redirects to point to new `/docs/build/` and `/docs/use-aomi/` paths
+  - Added 19 new redirects for restructured paths (getting-started/*, core-concepts/*, integration/*, telegram/*)
+  - Updated both `navLinks` and `navTabs` in `layout-config.tsx` to `/docs/build/overview`
+- **Sub-task C: Updated internal links across all documentation pages**
+  - Updated links in 8 persistent `.mdx` files: namespaces, api-reference, sessions, widget/configuration, reference/runtime, headless/runtime-provider, headless/install, widget/aomi-frame
+  - All `/docs/core-concepts/*` links → `/docs/build/*`
+  - All `/docs/getting-started/*` links → `/docs/build/*`
+  - All `/docs/integration/*` links → `/docs/build/*`
+  - All `/docs/guides/integration/*` links → `/docs/build/*`
+  - All `/docs/guides/telegram/*` links → `/docs/use-aomi/telegram/*`
+- **Sub-task D: Deleted old directories and files**
+  - Deleted 13 files via `git rm`: getting-started/{overview,for-businesses,quickstart,meta.json}, core-concepts/{how-it-works,meta.json}, integration/{overview,meta.json,widget/install,widget/meta.json,headless/meta.json}, telegram/{overview,meta.json}
+  - Removed 6 empty directories: getting-started/, core-concepts/, integration/widget/, integration/headless/, integration/, telegram/
 
 ### Docs Directory Restructure Phase 6 (2026-03-04)
 
