@@ -14,7 +14,15 @@ export default function Layout({ children }: { children: ReactNode }) {
       nav={{ ...baseLayoutOptions.nav, mode: "top" }}
       tree={playground.pageTree}
       tabMode="navbar"
-      sidebar={{ ...sharedSidebarOptions, tabs: navTabs }}
+      sidebar={{
+        ...sharedSidebarOptions,
+        tabs: navTabs,
+        className: "!hidden",
+      }}
+      containerProps={{
+        style: { gridTemplateColumns: "0px 0px 1fr 0px 0px" },
+        className: "[&_article]:items-center",
+      }}
     >
       {children}
     </DocsLayout>

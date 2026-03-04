@@ -50,10 +50,8 @@ export const WalletConnect: FC<WalletConnectProps> = ({
       className={cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium",
         "rounded-3xl px-5 py-2.5",
-        "bg-neutral-900 text-white",
-        "hover:bg-neutral-800",
-        "dark:bg-white dark:text-black",
-        "dark:hover:bg-neutral-200",
+        "bg-primary text-primary-foreground",
+        "hover:bg-primary/90",
         "transition-colors",
         "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
