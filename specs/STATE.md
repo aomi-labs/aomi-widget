@@ -2,9 +2,20 @@
 
 ## Last Updated
 
-2026-03-04 - Docs directory restructure Phase 2 (merged build/overview.mdx)
+2026-03-04 - Docs directory restructure Phase 3 (merged build/quickstart.mdx)
 
 ## Recent Changes
+
+### Docs Directory Restructure Phase 3 (2026-03-04)
+
+- Created `apps/landing/content/guides/build/quickstart.mdx` by merging:
+  - `getting-started/quickstart.mdx` (end-to-end quickstart flow: prereqs, install, env vars, add to page, configure API key, run, customizing layout)
+  - `integration/widget/install.mdx` (what gets installed file tree, registry architecture, namespace configuration, updating components)
+- Absorbed "What Gets Installed" (npm packages + file tree), "Registry Architecture" (three sources table + diagram), "Namespace Configuration" (shorthand via components.json), "Updating Components" (--overwrite + git diff)
+- Collapsed "Philosophy" section into single sentence in Registry Architecture section
+- Merged "Run Your App" and "What You Should See" into one section
+- All Next Steps links updated to `/docs/build/` paths
+- Already listed in `build/meta.json` at position 2
 
 ### Docs Directory Restructure Phase 2 (2026-03-04)
 
