@@ -2,9 +2,29 @@
 
 ## Last Updated
 
-2026-03-01 - Added DeFi and X API consoles to landing page examples
+2026-03-03 - Playground theme customizer + unified border-radius system
 
 ## Recent Changes
+
+### Playground Theme Customizer & Radius Unification (2026-03-03)
+
+- **Theme customizer** added to `/playground/configurator` as a "Theme" tab alongside "Layout"
+  - 12 curated presets (Default, Modern Minimal, Violet Bloom, Ocean Breeze, Claude, Cyberpunk, Midnight Bloom, Catppuccin, Nature, Amber Minimal, Supabase, Mono)
+  - Light/dark mode toggle (scoped to preview only via `.dark` class)
+  - Radius slider (0–2rem) controlling all widget border-radius tokens
+  - Collapsible color overrides with native color pickers
+  - Generated Theme CSS export (`:root` + `.dark` blocks with OKLCH values)
+- **New files**: `lib/color-convert.ts`, `lib/theme-presets.ts`, `lib/theme-utils.ts`, `src/components/playground/ThemeCustomizer.tsx`
+- **Modified**: `PlaygroundConfigurator.tsx` — tabbed config (Layout|Theme) + tabbed code output (JSX|CSS)
+
+#### Radius unification refactor
+- **`default.css`** — extended `@theme inline` with `--radius-2xl`, `--radius-3xl`, `--radius-4xl` tokens (calc offsets from `--radius`)
+- **`theme-utils.ts`** — `themeToStyleObject` now sets all 7 radius tokens (`sm` through `4xl`) as inline style overrides
+- **`thread-list.tsx`** — "New Chat" button and thread list items changed from `rounded-full` → `rounded-3xl`
+- **`wallet-connect.tsx`** — wallet connect button changed from `rounded-full` → `rounded-3xl`
+- **`attachment.tsx`** — attachment tiles changed from `rounded-[14px]` → `rounded-xl`
+- Components using `rounded-3xl`/`rounded-4xl` (suggestion cards, composer, frame wrapper) now automatically use the new tokens
+- `rounded-full` kept on intentionally circular elements (send/cancel buttons, avatars, control bar pills)
 
 ### Landing Page — DeFi & X API Consoles (2026-03-01)
 
