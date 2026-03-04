@@ -49,7 +49,7 @@ export const WalletConnect: FC<WalletConnectProps> = ({
       onClick={handleClick}
       className={cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium",
-        "rounded-full px-5 py-2.5",
+        "rounded-3xl px-5 py-2.5",
         "bg-neutral-900 text-white",
         "hover:bg-neutral-800",
         "dark:bg-white dark:text-black",

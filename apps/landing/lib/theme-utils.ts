@@ -33,6 +33,16 @@ export function themeToStyleObject(
   }
   if (radius !== undefined) {
     style["--radius"] = radius;
+    // Tailwind v4 resolves @theme inline tokens at build time, so the
+    // computed --radius-* values won't update from an inline --radius
+    // override alone. We must also set the derived tokens explicitly.
+    style["--radius-sm"] = `calc(${radius} - 4px)`;
+    style["--radius-md"] = `calc(${radius} - 2px)`;
+    style["--radius-lg"] = radius;
+    style["--radius-xl"] = `calc(${radius} + 4px)`;
+    style["--radius-2xl"] = `calc(${radius} + 8px)`;
+    style["--radius-3xl"] = `calc(${radius} + 14px)`;
+    style["--radius-4xl"] = `calc(${radius} + 20px)`;
   }
   return style;
 }
