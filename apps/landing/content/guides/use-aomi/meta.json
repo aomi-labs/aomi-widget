@@ -1,0 +1,14 @@
+{
+  "title": "Use Aomi",
+  "pages": [
+    "overview",
+    "web-chat",
+    "---Telegram---",
+    "telegram/overview",
+    "telegram/commands",
+    "telegram/panels",
+    "telegram/wallet",
+    "---",
+    "faq"
+  ]
+}
