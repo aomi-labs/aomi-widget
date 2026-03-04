@@ -23,21 +23,7 @@ let app = ChatAppBuilder::new(&my_preamble).await?
 
 ## ChatAppBuilder
 
-The builder pattern provides flexible app configuration:
-
-```mermaid
-flowchart LR
-    subgraph "Build Phase"
-        NEW[new] --> ADD[add_tool]
-        ADD --> ADD
-        ADD --> DOCS[add_docs_tool]
-        DOCS --> BUILD[build]
-    end
-
-    subgraph "Result"
-        BUILD --> APP[ChatApp]
-    end
-```
+The builder pattern provides flexible app configuration.
 
 ### Constructor Methods
 
