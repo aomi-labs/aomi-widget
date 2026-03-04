@@ -1,15 +1,15 @@
 ---
-title: Bot Administration
-description: Configure the Telegram bot for your organization.
+title: Telegram Bot Setup
+description: Configure and deploy the Telegram bot for your product.
 ---
 
-# Bot Administration
+# Telegram Bot Setup
 
-Configure the Aomi Telegram bot using a TOML configuration file. This controls DM/group policies, wallet features, streaming, and transport mode.
+Set up and deploy the Aomi Telegram bot as an AI-powered interface for your product. The bot is configured via a TOML file that controls access policies, wallet features, streaming behavior, and transport mode.
 
 ## Configuration File
 
-The bot reads its configuration from a TOML file (typically `bot.toml`):
+Create a `bot.toml` file in your project root. The bot reads all settings from this file:
 
 ```toml
 enabled = true
@@ -35,7 +35,7 @@ enabled = false  # Bot ignores all messages
 
 ### bot_token
 
-Your Telegram Bot API token, obtained from [BotFather](https://t.me/BotFather).
+Your Telegram Bot API token. Create a bot via [BotFather](https://t.me/BotFather) and paste the token here.
 
 ```toml
 bot_token = "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
@@ -134,7 +134,9 @@ The `url` must be publicly accessible and use HTTPS. Use a reverse proxy (nginx,
 
 ## Example Configurations
 
-### Open Bot (Development)
+Use these as starting points for your deployment.
+
+### Development
 
 ```toml
 enabled = true
@@ -145,7 +147,7 @@ mini_app_url = "http://localhost:3000"
 streaming = true
 ```
 
-### Restricted Bot (Production)
+### Production (Restricted Access)
 
 ```toml
 enabled = true
@@ -161,7 +163,7 @@ url = "https://bot.yourcompany.com/webhook"
 addr = "0.0.0.0:8443"
 ```
 
-### Group-Only Bot
+### Production (Group-Only)
 
 ```toml
 enabled = true
@@ -171,3 +173,9 @@ group_policy = "always"
 mini_app_url = "https://app.yourcompany.com/wallet"
 streaming = true
 ```
+
+## Next Steps
+
+- [Building Apps](/docs/build/building-apps) -- define tools, preambles, and model selection for your bot's backend.
+- [Wallet Integration](/docs/build/wallet-integration) -- connect wallet features to the Telegram mini-app.
+- [Namespaces](/docs/build/namespaces) -- route bot traffic to the correct backend app.
