@@ -2,9 +2,34 @@
 
 ## Last Updated
 
-2026-03-03 - Playground theme customizer + unified border-radius system
+2026-03-04 - Docs directory restructure Phase 2 (merged build/overview.mdx)
 
 ## Recent Changes
+
+### Docs Directory Restructure Phase 2 (2026-03-04)
+
+- Created `apps/landing/content/guides/build/overview.mdx` by merging:
+  - `getting-started/overview.mdx` (What is Aomi framing, How It Works diagram, Key Features, Platform Support)
+  - `integration/overview.mdx` (Widget vs Headless comparison, Shared Foundation, Choosing a Path)
+- Merged two separate integration path tables into a single comprehensive 3-column comparison (Widget, Headless, Telegram)
+- Developer-focused tone, removed end-user-facing language
+- All links updated to new `/docs/build/` paths
+
+### Docs Directory Restructure Phase 1 (2026-03-04)
+
+- Created new directory structure under `apps/landing/content/guides/`:
+  - `use-aomi/` and `use-aomi/telegram/`
+  - `build/`, `build/widget/`, `build/headless/`
+- Moved 15 unchanged pages via `git mv`:
+  - 4 widget files: `integration/widget/` -> `build/widget/`
+  - 4 headless files: `integration/headless/` -> `build/headless/`
+  - 3 core-concepts files: `core-concepts/{namespaces,sessions,api-reference}.mdx` -> `build/`
+  - 1 integration file: `integration/wallet-integration.mdx` -> `build/`
+  - 3 telegram files: `telegram/{commands,panels,wallet}.mdx` -> `use-aomi/telegram/`
+- Created 5 new `meta.json` files: `use-aomi/`, `use-aomi/telegram/`, `build/`, `build/widget/`, `build/headless/`
+- Updated root `meta.json` with new two-section layout (Use Aomi / Build with Aomi)
+- Old directories preserved (remaining files handled in later phases)
+- No file content modified (link updates happen in later phases)
 
 ### Playground Theme Customizer & Radius Unification (2026-03-03)
 
