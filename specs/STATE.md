@@ -2,9 +2,17 @@
 
 ## Last Updated
 
-2026-03-04 - Docs directory restructure Phase 5 (building-apps trim + telegram-bot)
+2026-03-04 - Docs directory restructure Phase 6 (Use Aomi end-user pages)
 
 ## Recent Changes
+
+### Docs Directory Restructure Phase 6 (2026-03-04)
+
+- Created `apps/landing/content/guides/use-aomi/overview.mdx` -- Getting Started page for end users (what Aomi assistants are, chat experience, threads, wallet, where to use)
+- Created `apps/landing/content/guides/use-aomi/web-chat.mdx` -- Web Chat guide (sending messages, streaming, tool calls, thread management, control bar, wallet connection, tips)
+- Created `apps/landing/content/guides/use-aomi/telegram/overview.mdx` -- Telegram Bot overview rewrite (rewrote existing `telegram/overview.mdx` for end users, removed architecture diagram and panel router internals, added Getting Started section, links to sub-pages)
+- Created `apps/landing/content/guides/use-aomi/faq.mdx` -- FAQ page (8 questions: tool calls, wallet safety, wallet-optional usage, models, threads, refusals, reporting problems, data access)
+- All 4 pages already listed in existing `use-aomi/meta.json` from Phase 1
 
 ### Docs Directory Restructure Phase 5 (2026-03-04)
 
