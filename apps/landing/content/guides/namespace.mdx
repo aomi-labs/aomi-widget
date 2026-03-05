@@ -1,0 +1,54 @@
+---
+title: Namespace
+description: Understand what namespaces are, why they matter, and how they scope the AI agent's capabilities for both users and builders.
+---
+
+# Namespace
+
+A **namespace** is an isolated agent environment — it defines exactly what tools, data sources, and configuration an AI agent has access to. Think of it as the boundary that shapes what the assistant can do.
+
+When you interact with Aomi, you're always operating within a namespace. Switching namespaces changes the agent's capabilities entirely.
+
+## Why Namespaces Matter
+
+### For Users
+
+The namespace you're in determines what the assistant can help you with. An assistant in a DeFi namespace might have access to swap aggregators, liquidity pools, and live price feeds. The same platform in a different namespace might query social APIs or prediction markets instead.
+
+If the assistant says it can't do something you expect, you may be in the wrong namespace — check the namespace selector in the control bar.
+
+### For Builders
+
+Namespaces are how you deploy and isolate agents on the Aomi platform:
+
+- **Each namespace gets its own API key** — scoped access, no sharing between deployments
+- **Namespace = agent configuration** — tools, preamble (system prompt), and model selection are all configured per namespace
+- **Multiple namespaces = multiple agents** — run a trading agent, a research agent, and a support bot from the same platform
+
+```
+┌─────────────────────────┐   ┌─────────────────────────┐
+│  namespace: defi        │   │  namespace: research     │
+│  tools: [swap,          │   │  tools: [news,           │
+│    liquidity, prices]   │   │    social, docs]         │
+│  model: claude-sonnet   │   │  model: gpt-4o           │
+└─────────────────────────┘   └─────────────────────────┘
+```
+
+## The Default Namespace
+
+For development and testing, the `default` namespace is always available — no API key required. It provides a baseline agent to test your integration before deploying a scoped namespace.
+
+## Authentication
+
+Namespaces are protected by API keys. Requests without a valid key for the target namespace return:
+
+- `401 Unauthorized` — no key provided
+- `403 Forbidden` — key does not authorize this namespace
+
+Pass your key via the `X-API-Key` header, or enter it in the API key field of the widget control bar.
+
+## Further Reading
+
+- [Integration Guide](/docs/build/integration-guide) — the full platform pipeline, including how namespaces are deployed
+- [Building Apps](/docs/build/building-apps) — how to register tools, preambles, and model config into a namespace
+- [API Reference](/docs/build/api-reference) — authentication headers and namespace-scoped endpoints

@@ -1,4 +1,4 @@
 {
   "title": "Advanced",
-  "pages": ["evals", "execution", "script-generation"]
+  "pages": ["evals", "sdk", "cli"]
 }
