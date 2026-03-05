@@ -1,0 +1,104 @@
+---
+title: Using the Web Chat
+description: How to use the Aomi chat widget embedded in a website.
+---
+
+# Using the Web Chat
+
+The web chat widget is the most common way to interact with an Aomi assistant. It's embedded directly in the product's website -- look for a chat panel or chat icon on the page.
+
+## Sending Your First Message
+
+At the bottom of the chat, you'll see a text composer. Type your message and press **Enter** or click the **Send** button. The assistant will start responding immediately.
+
+You can ask questions in natural language, just like you would in a conversation. For example:
+
+- "What's the current price of ETH?"
+- "Show me my portfolio balance"
+- "Swap 100 USDC for ETH"
+
+## Streaming Responses
+
+The assistant's response appears in real time. Text streams word by word as the AI generates it, so you don't have to wait for the full answer before you start reading. You can see the assistant "thinking" as it constructs its reply.
+
+If the response is taking too long or going in the wrong direction, you can cancel it by clicking the **Stop** button that appears while the assistant is generating.
+
+## Tool Calls
+
+When the assistant needs to look up data or perform an action, it calls a tool -- a connection to the product's API. You'll see this happen inline:
+
+1. A tool call indicator appears showing what the assistant is doing (e.g., "Getting token price..." or "Checking swap routes...").
+2. The result is displayed inline once the tool returns.
+3. The assistant continues its response using that data.
+
+Some requests may trigger multiple tool calls in sequence. For example, asking "What's the best way to swap ETH for USDC?" might involve checking prices, comparing routes, and calculating fees -- all visible in the chat.
+
+## Managing Threads
+
+The sidebar on the left shows your conversation history, organized into threads.
+
+### Creating a new thread
+
+Click the **New Thread** button at the top of the sidebar to start a fresh conversation. New threads start with no history, so the assistant won't have context from previous conversations.
+
+### Switching between threads
+
+Click any thread in the sidebar to switch to it. Your previous conversations are preserved exactly as you left them.
+
+### Renaming threads
+
+Threads are automatically named based on your first message. To rename a thread, right-click it (or use the three-dot menu) and select **Rename**. This helps you organize conversations by topic.
+
+### Deleting threads
+
+To delete a thread, right-click it (or use the three-dot menu) and select **Delete**. Deleted threads cannot be recovered.
+
+## The Control Bar
+
+At the top of the chat, you may see a control bar with several options. Not all options are available on every deployment -- it depends on how the product operator configured the assistant.
+
+### Model selector
+
+If available, this lets you choose which AI model powers the assistant. Different models have different strengths -- some are faster, others are more capable. The product may offer models like Claude (by Anthropic) or GPT-4 (by OpenAI).
+
+### Namespace selector
+
+If available, this lets you switch between different assistant configurations. Each namespace may have different tools, instructions, or capabilities. Think of it as switching between different "modes" of the assistant.
+
+### API key
+
+Some deployments require an API key to access the assistant. If needed, click the **key icon** in the control bar to enter your API key. The key is saved locally in your browser and persists across sessions.
+
+## Connecting a Wallet
+
+If the product supports wallet connectivity, you'll see a wallet icon in the control bar or sidebar.
+
+### How to connect
+
+1. Click the **wallet icon**.
+2. Choose your preferred wallet provider (WalletConnect, MetaMask, or other supported wallets).
+3. Approve the connection in your wallet app.
+
+### What it enables
+
+Once connected, the assistant can:
+
+- Query your on-chain balances and holdings.
+- Look up your transaction history.
+- Prepare transactions (swaps, transfers, approvals) for you to review.
+
+### Transaction safety
+
+**You always approve transactions in your wallet app.** The assistant prepares the transaction and sends it to your wallet for review. You see exactly what the transaction does before you sign it. The assistant never has access to your private keys and cannot execute transactions without your explicit approval.
+
+### Disconnecting
+
+To disconnect your wallet, click the wallet icon again and select **Disconnect**. The assistant will no longer have access to your on-chain data.
+
+## Tips for Getting the Best Results
+
+- **Be specific.** "What's the price of ETH in USDC?" works better than "price."
+- **Provide context.** "I want to swap 500 USDC for ETH on Ethereum mainnet" gives the assistant everything it needs.
+- **Correct mistakes.** If the assistant misunderstands you, just tell it. Say something like "No, I meant..." and it will adjust.
+- **Use threads for different topics.** Keep swap-related questions in one thread and portfolio analysis in another.
+- **Check tool results.** The assistant shows you the raw data it received from tool calls. If something looks off, you can ask it to re-check or try a different approach.

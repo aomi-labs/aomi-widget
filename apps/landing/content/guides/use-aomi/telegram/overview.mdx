@@ -1,64 +1,50 @@
 ---
-title: Telegram Integration
-description: Access your AI assistant through Telegram with built-in wallet support.
+title: Telegram Bot
+description: Use the AI assistant through Telegram with wallet support.
 ---
 
-# Telegram Integration
+# Telegram Bot
 
-Aomi provides a Telegram bot that gives users access to the same AI assistant available on the web. It works in both direct messages and group chats, with streaming responses, inline keyboard navigation, and wallet connectivity through a Telegram mini-app.
+Some products offer their Aomi assistant as a Telegram bot. You get the same AI capabilities available on the web -- real-time streaming responses, tool calls, and wallet connectivity -- all within Telegram.
+
+## Getting Started
+
+1. **Find the bot.** The product will give you a bot username or a direct link (e.g., `t.me/YourProductBot`).
+2. **Start the conversation.** Open the bot in Telegram and tap **Start** or send `/start`.
+3. **Start chatting.** The bot will greet you and explain what it can do. From there, just type your questions or requests in plain language.
+
+That's it. No installation, no sign-up, no configuration needed to get started.
 
 ## How It Works
 
-The Telegram bot connects to the same Aomi backend as web integrations. Messages sent to the bot are processed by the same runtime, tools, and LLM providers. This means:
+The Telegram bot connects to the same Aomi backend as the web chat. Messages you send to the bot are processed by the same AI, with the same tools and capabilities. This means:
 
-- Users get the same AI capabilities in Telegram as on your website
-- Conversation history is linked to the user's wallet address across platforms
-- All configured namespaces, models, and tools are available
+- You get the same AI assistant in Telegram as on the product's website.
+- All configured tools, models, and features are available.
+- If you connect a wallet, your conversation history is linked across platforms.
 
 ## Features
 
-- **Streaming responses** -- AI responses stream in real time as they are generated, similar to the web chat experience
-- **Inline keyboard panels** -- Interactive menus for managing settings, switching namespaces, selecting models, and viewing session history
-- **Mini-app wallet** -- Connect a wallet through a Telegram WebApp (mini-app) for transaction signing and on-chain operations
-- **DM and group chat support** -- Works in private conversations and group chats with configurable policies
+- **Streaming responses** -- AI responses stream in real time as they are generated, just like the web chat experience.
+- **Interactive menus** -- The bot uses Telegram's inline keyboards to provide interactive panels for managing settings, switching configurations, and navigating features. Tap buttons instead of typing commands.
+- **Slash commands** -- Quick commands like `/start`, `/wallet`, `/model`, and `/namespace` for accessing specific features.
+- **Wallet connectivity** -- Connect a crypto wallet through a Telegram mini-app for transaction signing and on-chain operations.
+- **Tool calls** -- The assistant calls the product's APIs just like in the web chat, with results displayed inline in the conversation.
 
 ## Direct Messages vs Group Chats
 
-In **direct messages**, the bot responds to every message from the user (subject to DM policy configuration).
+### Direct messages
 
-In **group chats**, the bot responds only when mentioned by name (e.g., `@your_bot help me swap ETH`) unless the group policy is set to respond to all messages. This prevents the bot from being noisy in active groups.
+In a direct message with the bot, it responds to every message you send. This is the most straightforward way to use the assistant -- just open a DM and start chatting.
 
-## Architecture
+### Group chats
 
-```
-Telegram User
-    │
-    ▼
-Telegram Bot (Rust / teloxide)
-    │
-    ├── Panel Router (slash commands + inline keyboards)
-    │       ├── Start Panel
-    │       ├── Namespace Panel
-    │       ├── Model Panel
-    │       ├── Wallet Panel
-    │       ├── Sessions Panel
-    │       ├── Network Panel
-    │       ├── Settings Panel
-    │       └── Transaction Panel
-    │
-    ├── Message Handler (DM / Group routing)
-    │
-    └── Aomi Runtime (same backend as web)
-            ├── LLM Providers
-            ├── Tool Scheduler
-            └── Session Manager
-```
+In group chats, the bot only responds when you mention it by name (e.g., `@YourProductBot help me swap ETH`). This keeps the bot from being noisy in active groups. The product operator may configure the bot to respond to all messages in certain groups.
 
-The bot uses the panel router pattern: each feature (wallet, namespace, model, etc.) is a self-contained panel that handles its own slash commands, inline keyboard callbacks, and text input.
+Group chats are useful when multiple people want to interact with the assistant in a shared space, like a team or community channel.
 
 ## Next Steps
 
-- [Slash Commands](/docs/use-aomi/telegram/commands) -- Available bot commands
-- [Panel System](/docs/use-aomi/telegram/panels) -- How interactive menus work
-- [Telegram Wallet](/docs/use-aomi/telegram/wallet) -- Wallet connection and signing
-- [Bot Administration](/docs/use-aomi/telegram/admin) -- Configuration and deployment
+- [Slash Commands](/docs/use-aomi/telegram/commands) -- available bot commands and what they do.
+- [Panel System](/docs/use-aomi/telegram/panels) -- how the interactive menus work.
+- [Telegram Wallet](/docs/use-aomi/telegram/wallet) -- connecting your wallet and signing transactions.

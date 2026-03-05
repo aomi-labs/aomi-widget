@@ -1,9 +1,14 @@
 {
-  "title": "Integration",
+  "title": "Build with Aomi",
   "pages": [
     "overview",
+    "quickstart",
+    "how-it-works",
+    "namespaces",
+    "sessions",
+    "building-apps",
+    "api-reference",
     "---Widget (shadcn)---",
-    "widget/install",
     "widget/aomi-frame",
     "widget/components",
     "widget/theming",
@@ -14,6 +19,7 @@
     "headless/hooks",
     "headless/build-custom-ui",
     "---Shared---",
-    "wallet-integration"
+    "wallet-integration",
+    "telegram-bot"
   ]
 }

@@ -2,11 +2,13 @@
   "title": "Use Aomi",
   "pages": [
     "overview",
-    "quickstart",
+    "web-chat",
+    "---Telegram---",
     "telegram/overview",
     "telegram/commands",
     "telegram/panels",
     "telegram/wallet",
-    "telegram/admin"
+    "---",
+    "faq"
   ]
 }

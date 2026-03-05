@@ -123,18 +123,9 @@ pub async fn get_token_price(
 }
 ```
 
-### The AomiTool Trait
-
-Under the hood, tools implement the `AomiTool` trait:
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `NAME` | `&str` | Tool name as seen by the LLM |
-| `NAMESPACE` | `&str` | Which namespace this tool belongs to |
-| `Args` | struct | Typed parameters (derived from `JsonSchema`) |
-| `run()` | async fn | The function that executes when the tool is called |
-
 The LLM uses the tool's `description` and parameter documentation to decide when and how to call it. Clear descriptions and well-documented parameters lead to better tool use.
+
+> For full trait definitions and API details, see the [SDK Reference](/docs/reference/sdk).
 
 ### Tool Documentation
 
@@ -269,27 +260,7 @@ fn build_backends() -> HashMap<String, Arc<dyn AomiBackend>> {
 
 When a request arrives with `?namespace=mycoindex`, the backend looks up the namespace in this map and routes the request to the corresponding app.
 
-### The AomiBackend Trait
-
-Every registered app implements the `AomiBackend` trait:
-
-```rust
-#[async_trait]
-pub trait AomiBackend: Send + Sync {
-    fn system_events(&self) -> SystemEventQueue;
-
-    async fn process_message(
-        &self,
-        history: &mut Vec<Message>,
-        input: String,
-        sender: &mpsc::Sender<ChatCommand>,
-        system_events: &SystemEventQueue,
-        interrupt: &mut mpsc::Receiver<()>,
-    ) -> Result<()>;
-}
-```
-
-This trait provides a uniform interface for the backend to interact with any app, regardless of its internal implementation.
+Each registered app implements the `AomiBackend` trait, which provides a uniform interface for the backend to route messages to any app. For the full trait definition, see the [SDK Reference](/docs/reference/sdk).
 
 ## Putting It All Together
 
@@ -322,6 +293,6 @@ flowchart TB
 
 ## Next Steps
 
-- [How It Works](/docs/core-concepts/how-it-works) -- see the full request flow with sequence diagrams.
-- [API Reference](/docs/core-concepts/api-reference) -- the HTTP endpoints your frontend uses.
-- [SDK](/docs/reference/sdk) -- detailed Rust SDK reference for `CoreAppBuilder` and related types.
+- [How It Works](/docs/build/how-it-works) -- see the full request flow with sequence diagrams.
+- [API Reference](/docs/build/api-reference) -- the HTTP endpoints your frontend uses.
+- [SDK Reference](/docs/reference/sdk) -- detailed Rust SDK reference for `CoreAppBuilder` and related types.
