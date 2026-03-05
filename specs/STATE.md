@@ -2,9 +2,99 @@
 
 ## Last Updated
 
-2026-03-03 - Playground theme customizer + unified border-radius system
+2026-03-04 - Docs directory restructure Phase 7 (Dedup references, update links/redirects, delete old directories)
 
 ## Recent Changes
+
+### Docs Directory Restructure Phase 7 (2026-03-04)
+
+- **Sub-task A: Dedup reference pages**
+  - Removed `### Message Processing` sequence diagram section from `reference/architecture.mdx` (duplicates `build/how-it-works.mdx`)
+  - Removed `ChatAppBuilder` flowchart mermaid block from `reference/sdk.mdx` (duplicates `build/building-apps.mdx`)
+- **Sub-task B: Updated routing and nav files**
+  - Changed default redirect in `app/docs/[[...slug]]/page.tsx` from `/docs/getting-started/overview` to `/docs/build/overview`
+  - Updated all 16 legacy redirects to point to new `/docs/build/` and `/docs/use-aomi/` paths
+  - Added 19 new redirects for restructured paths (getting-started/*, core-concepts/*, integration/*, telegram/*)
+  - Updated both `navLinks` and `navTabs` in `layout-config.tsx` to `/docs/build/overview`
+- **Sub-task C: Updated internal links across all documentation pages**
+  - Updated links in 8 persistent `.mdx` files: namespaces, api-reference, sessions, widget/configuration, reference/runtime, headless/runtime-provider, headless/install, widget/aomi-frame
+  - All `/docs/core-concepts/*` links → `/docs/build/*`
+  - All `/docs/getting-started/*` links → `/docs/build/*`
+  - All `/docs/integration/*` links → `/docs/build/*`
+  - All `/docs/guides/integration/*` links → `/docs/build/*`
+  - All `/docs/guides/telegram/*` links → `/docs/use-aomi/telegram/*`
+- **Sub-task D: Deleted old directories and files**
+  - Deleted 13 files via `git rm`: getting-started/{overview,for-businesses,quickstart,meta.json}, core-concepts/{how-it-works,meta.json}, integration/{overview,meta.json,widget/install,widget/meta.json,headless/meta.json}, telegram/{overview,meta.json}
+  - Removed 6 empty directories: getting-started/, core-concepts/, integration/widget/, integration/headless/, integration/, telegram/
+
+### Docs Directory Restructure Phase 6 (2026-03-04)
+
+- Created `apps/landing/content/guides/use-aomi/overview.mdx` -- Getting Started page for end users (what Aomi assistants are, chat experience, threads, wallet, where to use)
+- Created `apps/landing/content/guides/use-aomi/web-chat.mdx` -- Web Chat guide (sending messages, streaming, tool calls, thread management, control bar, wallet connection, tips)
+- Created `apps/landing/content/guides/use-aomi/telegram/overview.mdx` -- Telegram Bot overview rewrite (rewrote existing `telegram/overview.mdx` for end users, removed architecture diagram and panel router internals, added Getting Started section, links to sub-pages)
+- Created `apps/landing/content/guides/use-aomi/faq.mdx` -- FAQ page (8 questions: tool calls, wallet safety, wallet-optional usage, models, threads, refusals, reporting problems, data access)
+- All 4 pages already listed in existing `use-aomi/meta.json` from Phase 1
+
+### Docs Directory Restructure Phase 5 (2026-03-04)
+
+- Moved `core-concepts/building-apps.mdx` to `build/building-apps.mdx` via `git mv`
+- Edited `building-apps.mdx`: removed AomiTool trait table and AomiBackend trait code block/paragraph (SDK overlap)
+- Added SDK Reference callout notes where trait details were removed
+- Updated Next Steps links to `/docs/build/` and `/docs/reference/` paths
+- Moved `telegram/admin.mdx` to `build/telegram-bot.mdx` via `git mv`
+- Reframed as "Telegram Bot Setup" for developers deploying the bot for their product
+- Updated frontmatter (title: "Telegram Bot Setup", description: "Configure and deploy the Telegram bot for your product.")
+- Reframed intro, section headers (Development/Production), added Next Steps with `/docs/build/` links
+- Already listed in `build/meta.json` at correct positions
+
+### Docs Directory Restructure Phase 4 (2026-03-04)
+
+- Created `apps/landing/content/guides/build/how-it-works.mdx` by merging:
+  - `core-concepts/how-it-works.mdx` (technical pipeline: mermaid diagrams, endpoint table, sequence diagram, SSE format, step-by-step walkthrough, "What Aomi Manages" table)
+  - `getting-started/for-businesses.mdx` (narrative tone, "What MyCoinDex Gets" summary table, integration code snippets)
+- Structural base: `how-it-works.mdx` (better technical flow with pipeline + sequence diagrams)
+- Absorbed from `for-businesses.mdx`: narrative opening tone, capability summary table
+- Merged "What MyCoinDex Gets" and "What Aomi Manages" into single "What You Get" table with Capability/Details/Managed By columns
+- Removed: Step 6 "Integrate Into Your Product" (covered by quickstart and widget/headless pages), duplicated 4-endpoint API table (kept 5-endpoint version), duplicated preamble/model sections
+- Added SSE event types table alongside the existing stream format code block
+- All Next Steps links updated to `/docs/build/` paths
+- Already listed in `build/meta.json` at position 3
+
+### Docs Directory Restructure Phase 3 (2026-03-04)
+
+- Created `apps/landing/content/guides/build/quickstart.mdx` by merging:
+  - `getting-started/quickstart.mdx` (end-to-end quickstart flow: prereqs, install, env vars, add to page, configure API key, run, customizing layout)
+  - `integration/widget/install.mdx` (what gets installed file tree, registry architecture, namespace configuration, updating components)
+- Absorbed "What Gets Installed" (npm packages + file tree), "Registry Architecture" (three sources table + diagram), "Namespace Configuration" (shorthand via components.json), "Updating Components" (--overwrite + git diff)
+- Collapsed "Philosophy" section into single sentence in Registry Architecture section
+- Merged "Run Your App" and "What You Should See" into one section
+- All Next Steps links updated to `/docs/build/` paths
+- Already listed in `build/meta.json` at position 2
+
+### Docs Directory Restructure Phase 2 (2026-03-04)
+
+- Created `apps/landing/content/guides/build/overview.mdx` by merging:
+  - `getting-started/overview.mdx` (What is Aomi framing, How It Works diagram, Key Features, Platform Support)
+  - `integration/overview.mdx` (Widget vs Headless comparison, Shared Foundation, Choosing a Path)
+- Merged two separate integration path tables into a single comprehensive 3-column comparison (Widget, Headless, Telegram)
+- Developer-focused tone, removed end-user-facing language
+- All links updated to new `/docs/build/` paths
+
+### Docs Directory Restructure Phase 1 (2026-03-04)
+
+- Created new directory structure under `apps/landing/content/guides/`:
+  - `use-aomi/` and `use-aomi/telegram/`
+  - `build/`, `build/widget/`, `build/headless/`
+- Moved 15 unchanged pages via `git mv`:
+  - 4 widget files: `integration/widget/` -> `build/widget/`
+  - 4 headless files: `integration/headless/` -> `build/headless/`
+  - 3 core-concepts files: `core-concepts/{namespaces,sessions,api-reference}.mdx` -> `build/`
+  - 1 integration file: `integration/wallet-integration.mdx` -> `build/`
+  - 3 telegram files: `telegram/{commands,panels,wallet}.mdx` -> `use-aomi/telegram/`
+- Created 5 new `meta.json` files: `use-aomi/`, `use-aomi/telegram/`, `build/`, `build/widget/`, `build/headless/`
+- Updated root `meta.json` with new two-section layout (Use Aomi / Build with Aomi)
+- Old directories preserved (remaining files handled in later phases)
+- No file content modified (link updates happen in later phases)
 
 ### Playground Theme Customizer & Radius Unification (2026-03-03)
 

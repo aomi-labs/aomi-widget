@@ -1,4 +1,4 @@
 {
   "title": "Telegram",
-  "pages": ["overview", "commands", "panels", "wallet", "admin"]
+  "pages": ["overview", "commands", "panels", "wallet"]
 }
