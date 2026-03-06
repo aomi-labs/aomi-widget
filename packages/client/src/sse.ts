@@ -1,4 +1,4 @@
-import type { ApiSSEEvent } from "./types";
+import type { ApiSSEEvent, Logger } from "./types";
 
 export type SseSubscriber = {
   subscribe: (
@@ -8,10 +8,10 @@ export type SseSubscriber = {
   ) => () => void;
 };
 
-type SseSubscriberOptions = {
+export type SseSubscriberOptions = {
   backendUrl: string;
   getHeaders: (sessionId: string) => HeadersInit;
-  shouldLog?: boolean;
+  logger?: Logger;
 };
 
 type SseSubscription = {
@@ -73,7 +73,7 @@ async function readSseStream(
 export function createSseSubscriber({
   backendUrl,
   getHeaders,
-  shouldLog = process.env.NODE_ENV !== "production",
+  logger,
 }: SseSubscriberOptions): SseSubscriber {
   const subscriptions = new Map<string, SseSubscription>();
 
@@ -86,20 +86,16 @@ export function createSseSubscriber({
     const listener: SseListener = { onUpdate, onError };
     if (existing) {
       existing.listeners.add(listener);
-      if (shouldLog) {
-        console.debug("[aomi][sse] listener added", {
+      logger?.debug("[aomi][sse] listener added", {
+        sessionId,
+        listeners: existing.listeners.size,
+      });
+      return () => {
+        existing.listeners.delete(listener);
+        logger?.debug("[aomi][sse] listener removed", {
           sessionId,
           listeners: existing.listeners.size,
         });
-      }
-      return () => {
-        existing.listeners.delete(listener);
-        if (shouldLog) {
-          console.debug("[aomi][sse] listener removed", {
-            sessionId,
-            listeners: existing.listeners.size,
-          });
-        }
         if (existing.listeners.size === 0) {
           existing.stop("unsubscribe");
           if (subscriptions.get(sessionId) === existing) {
@@ -123,13 +119,11 @@ export function createSseSubscriber({
         }
         subscription.abortController?.abort();
         subscription.abortController = null;
-        if (shouldLog) {
-          console.debug("[aomi][sse] stop", {
-            sessionId,
-            reason,
-            retries: subscription.retries,
-          });
-        }
+        logger?.debug("[aomi][sse] stop", {
+          sessionId,
+          reason,
+          retries: subscription.retries,
+        });
       },
     };
 
@@ -137,13 +131,11 @@ export function createSseSubscriber({
       if (subscription.stopped) return;
       subscription.retries += 1;
       const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 10000);
-      if (shouldLog) {
-        console.debug("[aomi][sse] retry scheduled", {
-          sessionId,
-          delayMs,
-          retries: subscription.retries,
-        });
-      }
+      logger?.debug("[aomi][sse] retry scheduled", {
+        sessionId,
+        delayMs,
+        retries: subscription.retries,
+      });
       subscription.retryTimer = setTimeout(() => {
         void open();
       }, delayMs);
@@ -197,14 +189,12 @@ export function createSseSubscriber({
             }
           }
         });
-        if (shouldLog) {
-          console.debug("[aomi][sse] stream ended", {
-            sessionId,
-            aborted: controller.signal.aborted,
-            stopped: subscription.stopped,
-            durationMs: Date.now() - openedAt,
-          });
-        }
+        logger?.debug("[aomi][sse] stream ended", {
+          sessionId,
+          aborted: controller.signal.aborted,
+          stopped: subscription.stopped,
+          durationMs: Date.now() - openedAt,
+        });
       } catch (error) {
         if (!controller.signal.aborted && !subscription.stopped) {
           for (const item of subscription.listeners) {
@@ -223,12 +213,10 @@ export function createSseSubscriber({
 
     return () => {
       subscription.listeners.delete(listener);
-      if (shouldLog) {
-        console.debug("[aomi][sse] listener removed", {
-          sessionId,
-          listeners: subscription.listeners.size,
-        });
-      }
+      logger?.debug("[aomi][sse] listener removed", {
+        sessionId,
+        listeners: subscription.listeners.size,
+      });
       if (subscription.listeners.size === 0) {
         subscription.stop("unsubscribe");
         if (subscriptions.get(sessionId) === subscription) {

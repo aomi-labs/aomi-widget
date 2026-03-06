@@ -2,6 +2,8 @@
 // Backend API Client
 // =============================================================================
 export { BackendApi } from "./backend/client";
+export { AomiClient } from "@aomi-labs/client";
+export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
   AomiMessage,
   ApiChatResponse,
