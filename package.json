@@ -32,7 +32,7 @@
     "clean:next": "rm -rf .next apps/landing/.next",
     "clean:all": "rm -rf .next apps/landing/.next dist .turbo node_modules/.cache .eslintcache",
     "clean": "rm -rf .next apps/landing/.next dist .turbo node_modules/.cache .eslintcache",
-    "vercel-build": "pnpm run build:lib && pnpm run build:registry && mkdir -p apps/landing/public/r && cp -r apps/registry/dist/. apps/landing/public/r/ && pnpm --filter landing build",
+    "vercel-build": "git lfs pull && pnpm run build:lib && pnpm run build:registry && mkdir -p apps/landing/public/r && cp -r apps/registry/dist/. apps/landing/public/r/ && if [ \"$VERCEL\" = \"1\" ]; then mkdir -p public/videos && cp -r apps/landing/public/videos/. public/videos/; fi && pnpm --filter landing build",
     "start": "next start",
     "lint": "eslint .",
     "lint:landing": "pnpm --filter landing lint",
