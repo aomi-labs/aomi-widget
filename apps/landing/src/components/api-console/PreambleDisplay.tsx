@@ -27,7 +27,7 @@ export function PreambleDisplay({
         <div className="docs-prose prose dark:prose-invert max-w-none">
           <Markdown
             remarkPlugins={[remarkGfm]}
-            components={mdxComponents as Record<string, React.ComponentType>}
+            components={mdxComponents as unknown as Record<string, React.ComponentType>}
           >
             {content}
           </Markdown>
