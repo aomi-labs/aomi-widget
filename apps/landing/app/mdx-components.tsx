@@ -11,12 +11,21 @@ import {
 } from "fumadocs-ui/components/codeblock";
 import * as Twoslash from "fumadocs-twoslash/ui";
 
+import { WidgetDemo } from "@/components/samples/widget-demo";
+import { PlaygroundConfigurator } from "@/components/playground/PlaygroundConfigurator";
+import { SessionsConsole } from "@/components/api-console/SessionsConsole";
+import { SystemConsole } from "@/components/api-console/SystemConsole";
+
 import "fumadocs-twoslash/twoslash.css";
 
 export function getMDXComponents(components: MDXComponents): MDXComponents {
   return {
     ...defaultComponents,
     ...Twoslash,
+    WidgetDemo,
+    PlaygroundConfigurator,
+    SessionsConsole,
+    SystemConsole,
     pre: (props: CodeBlockProps) => (
       <CodeBlock {...props}>
         <Pre className="max-h-[400px]">{props.children}</Pre>

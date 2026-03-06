@@ -1,4 +1,11 @@
 {
   "title": "Examples",
-  "pages": ["---Frontend Integration---", "metamask", "polymarket"]
+  "pages": [
+    "---Platform Applications---",
+    "polymarket",
+    "defi-aggregators",
+    "x-apis",
+    "---Custom UI---",
+    "metamask"
+  ]
 }
