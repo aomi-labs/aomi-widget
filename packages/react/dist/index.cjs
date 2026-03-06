@@ -37,6 +37,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // packages/react/src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  AomiClient: () => import_client5.AomiClient,
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   BackendApi: () => BackendApi,
   ControlContextProvider: () => ControlContextProvider,
@@ -63,435 +64,69 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 
-// packages/react/src/backend/sse.ts
-function extractSseData(rawEvent) {
-  const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
-  if (!dataLines.length) return null;
-  return dataLines.join("\n");
-}
-async function readSseStream(stream, signal, onMessage) {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  try {
-    while (!signal.aborted) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      buffer = buffer.replace(/\r/g, "");
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex >= 0) {
-        const rawEvent = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-        const data = extractSseData(rawEvent);
-        if (data) {
-          onMessage(data);
-        }
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-function createSseSubscriber({
-  backendUrl,
-  getHeaders,
-  shouldLog = process.env.NODE_ENV !== "production"
-}) {
-  const subscriptions = /* @__PURE__ */ new Map();
-  const subscribe2 = (sessionId, onUpdate, onError) => {
-    const existing = subscriptions.get(sessionId);
-    const listener = { onUpdate, onError };
-    if (existing) {
-      existing.listeners.add(listener);
-      if (shouldLog) {
-        console.debug("[aomi][sse] listener added", {
-          sessionId,
-          listeners: existing.listeners.size
-        });
-      }
-      return () => {
-        existing.listeners.delete(listener);
-        if (shouldLog) {
-          console.debug("[aomi][sse] listener removed", {
-            sessionId,
-            listeners: existing.listeners.size
-          });
-        }
-        if (existing.listeners.size === 0) {
-          existing.stop("unsubscribe");
-          if (subscriptions.get(sessionId) === existing) {
-            subscriptions.delete(sessionId);
-          }
-        }
-      };
-    }
-    const subscription = {
-      abortController: null,
-      retries: 0,
-      retryTimer: null,
-      stopped: false,
-      listeners: /* @__PURE__ */ new Set([listener]),
-      stop: (reason) => {
-        var _a;
-        subscription.stopped = true;
-        if (subscription.retryTimer) {
-          clearTimeout(subscription.retryTimer);
-          subscription.retryTimer = null;
-        }
-        (_a = subscription.abortController) == null ? void 0 : _a.abort();
-        subscription.abortController = null;
-        if (shouldLog) {
-          console.debug("[aomi][sse] stop", {
-            sessionId,
-            reason,
-            retries: subscription.retries
-          });
-        }
-      }
-    };
-    const scheduleRetry = () => {
-      if (subscription.stopped) return;
-      subscription.retries += 1;
-      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
-      if (shouldLog) {
-        console.debug("[aomi][sse] retry scheduled", {
-          sessionId,
-          delayMs,
-          retries: subscription.retries
-        });
-      }
-      subscription.retryTimer = setTimeout(() => {
-        void open();
-      }, delayMs);
-    };
-    const open = async () => {
-      var _a;
-      if (subscription.stopped) return;
-      if (subscription.retryTimer) {
-        clearTimeout(subscription.retryTimer);
-        subscription.retryTimer = null;
-      }
-      const controller = new AbortController();
-      subscription.abortController = controller;
-      const openedAt = Date.now();
-      try {
-        const response = await fetch(`${backendUrl}/api/updates`, {
-          headers: getHeaders(sessionId),
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          throw new Error(
-            `SSE HTTP ${response.status}: ${response.statusText}`
-          );
-        }
-        if (!response.body) {
-          throw new Error("SSE response missing body");
-        }
-        subscription.retries = 0;
-        await readSseStream(response.body, controller.signal, (data) => {
-          var _a2, _b;
-          let parsed;
-          try {
-            parsed = JSON.parse(data);
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
-            }
-            return;
-          }
-          for (const item of subscription.listeners) {
-            try {
-              item.onUpdate(parsed);
-            } catch (error) {
-              (_b = item.onError) == null ? void 0 : _b.call(item, error);
-            }
-          }
-        });
-        if (shouldLog) {
-          console.debug("[aomi][sse] stream ended", {
-            sessionId,
-            aborted: controller.signal.aborted,
-            stopped: subscription.stopped,
-            durationMs: Date.now() - openedAt
-          });
-        }
-      } catch (error) {
-        if (!controller.signal.aborted && !subscription.stopped) {
-          for (const item of subscription.listeners) {
-            (_a = item.onError) == null ? void 0 : _a.call(item, error);
-          }
-        }
-      }
-      if (!subscription.stopped) {
-        scheduleRetry();
-      }
-    };
-    subscriptions.set(sessionId, subscription);
-    void open();
-    return () => {
-      subscription.listeners.delete(listener);
-      if (shouldLog) {
-        console.debug("[aomi][sse] listener removed", {
-          sessionId,
-          listeners: subscription.listeners.size
-        });
-      }
-      if (subscription.listeners.size === 0) {
-        subscription.stop("unsubscribe");
-        if (subscriptions.get(sessionId) === subscription) {
-          subscriptions.delete(sessionId);
-        }
-      }
-    };
-  };
-  return { subscribe: subscribe2 };
-}
-
 // packages/react/src/backend/client.ts
-var SESSION_ID_HEADER = "X-Session-Id";
-var API_KEY_HEADER = "X-API-Key";
-function toQueryString(payload) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === void 0 || value === null) continue;
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
-}
-function withSessionHeader(sessionId, init) {
-  const headers = new Headers(init);
-  headers.set(SESSION_ID_HEADER, sessionId);
-  return headers;
-}
-async function postState(backendUrl, path, payload, sessionId, apiKey) {
-  const query = toQueryString(payload);
-  const url = `${backendUrl}${path}${query}`;
-  const headers = new Headers(withSessionHeader(sessionId));
-  if (apiKey) {
-    headers.set(API_KEY_HEADER, apiKey);
-  }
-  const response = await fetch(url, {
-    method: "POST",
-    headers
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return await response.json();
-}
+var import_client = require("@aomi-labs/client");
 var BackendApi = class {
   constructor(backendUrl) {
-    this.backendUrl = backendUrl;
-    this.sseSubscriber = createSseSubscriber({
-      backendUrl,
-      getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" })
-    });
+    this.client = new import_client.AomiClient({ baseUrl: backendUrl });
   }
   async fetchState(sessionId, userState) {
-    const url = new URL("/api/state", this.backendUrl);
-    if (userState) {
-      url.searchParams.set("user_state", JSON.stringify(userState));
-    }
-    const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
+    return this.client.fetchState(sessionId, userState);
   }
   async postChatMessage(sessionId, message, namespace, publicKey, apiKey, userState) {
-    const payload = { message, namespace };
-    if (publicKey) {
-      payload.public_key = publicKey;
-    }
-    if (userState) {
-      payload.user_state = JSON.stringify(userState);
-    }
-    return postState(
-      this.backendUrl,
-      "/api/chat",
-      payload,
-      sessionId,
-      apiKey
-    );
+    return this.client.sendMessage(sessionId, message, {
+      namespace,
+      publicKey,
+      apiKey,
+      userState
+    });
   }
   async postSystemMessage(sessionId, message) {
-    return postState(
-      this.backendUrl,
-      "/api/system",
-      {
-        message
-      },
-      sessionId
-    );
+    return this.client.sendSystemMessage(sessionId, message);
   }
   async postInterrupt(sessionId) {
-    return postState(
-      this.backendUrl,
-      "/api/interrupt",
-      {},
-      sessionId
-    );
+    return this.client.interrupt(sessionId);
   }
-  /**
-   * Subscribe to SSE updates for a session.
-   * Uses fetch streaming and reconnects on disconnects.
-   * Returns an unsubscribe function.
-   */
   subscribeSSE(sessionId, onUpdate, onError) {
-    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
+    return this.client.subscribeSSE(sessionId, onUpdate, onError);
   }
   async fetchThreads(publicKey) {
-    const url = `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
-    }
-    return await response.json();
+    return this.client.listThreads(publicKey);
   }
   async fetchThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
+    return this.client.getThread(sessionId);
   }
   async createThread(threadId, publicKey) {
-    const body = {};
-    if (publicKey) body.public_key = publicKey;
-    const url = `${this.backendUrl}/api/sessions`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify(body)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create thread: HTTP ${response.status}`);
-    }
-    return await response.json();
+    return this.client.createThread(threadId, publicKey);
   }
   async archiveThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
+    return this.client.archiveThread(sessionId);
   }
   async unarchiveThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
+    return this.client.unarchiveThread(sessionId);
   }
   async deleteThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete thread: HTTP ${response.status}`);
-    }
+    return this.client.deleteThread(sessionId);
   }
   async renameThread(sessionId, newTitle) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url, {
-      method: "PATCH",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify({ title: newTitle })
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to rename thread: HTTP ${response.status}`);
-    }
+    return this.client.renameThread(sessionId, newTitle);
   }
   async getSystemEvents(sessionId, count) {
-    const url = new URL("/api/events", this.backendUrl);
-    if (count !== void 0) {
-      url.searchParams.set("count", String(count));
-    }
-    const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      if (response.status === 404) return [];
-      throw new Error(`Failed to get system events: HTTP ${response.status}`);
-    }
-    return await response.json();
+    return this.client.getSystemEvents(sessionId, count);
   }
-  // ===========================================================================
-  // Control API
-  // ===========================================================================
-  /**
-   * Get allowed namespaces for the current request context.
-   */
   async getNamespaces(sessionId, publicKey, apiKey) {
-    const url = new URL("/api/control/namespaces", this.backendUrl);
-    if (publicKey) {
-      url.searchParams.set("public_key", publicKey);
-    }
-    console.log("[BackendApi.getNamespaces]", {
-      backendUrl: this.backendUrl,
-      fullUrl: url.toString(),
-      sessionId,
-      publicKey
-    });
-    const headers = new Headers(withSessionHeader(sessionId));
-    if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
-    }
-    const response = await fetch(url.toString(), { headers });
-    if (!response.ok) {
-      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
-    }
-    return await response.json();
+    return this.client.getNamespaces(sessionId, { publicKey, apiKey });
   }
-  /**
-   * Get available models.
-   */
   async getModels(sessionId) {
-    const url = new URL("/api/control/models", this.backendUrl);
-    console.log("[BackendApi.getModels]", {
-      backendUrl: this.backendUrl,
-      fullUrl: url.toString(),
-      sessionId
-    });
-    const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to get models: HTTP ${response.status}`);
-    }
-    return await response.json();
+    return this.client.getModels(sessionId);
   }
-  /**
-   * Set the model selection for a session.
-   */
   async setModel(sessionId, rig, namespace, apiKey) {
-    const payload = { rig };
-    if (namespace) {
-      payload.namespace = namespace;
-    }
-    return postState(this.backendUrl, "/api/control/model", payload, sessionId, apiKey);
+    return this.client.setModel(sessionId, rig, { namespace, apiKey });
   }
 };
+
+// packages/react/src/index.ts
+var import_client5 = require("@aomi-labs/client");
 
 // packages/react/src/runtime/aomi-runtime.tsx
 var import_react11 = require("react");
@@ -965,18 +600,7 @@ function ControlContextProvider({
 var import_react2 = require("react");
 
 // packages/react/src/backend/types.ts
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
-}
+var import_client2 = require("@aomi-labs/client");
 
 // packages/react/src/state/event-buffer.ts
 function createEventBuffer() {
@@ -1105,16 +729,16 @@ function EventContextProvider({
       for (const event of events) {
         let eventType;
         let payload;
-        if (isInlineCall(event)) {
+        if ((0, import_client2.isInlineCall)(event)) {
           eventType = event.InlineCall.type;
           payload = (_a = event.InlineCall.payload) != null ? _a : event.InlineCall;
-        } else if (isSystemNotice(event)) {
+        } else if ((0, import_client2.isSystemNotice)(event)) {
           eventType = "system_notice";
           payload = { message: event.SystemNotice };
-        } else if (isSystemError(event)) {
+        } else if ((0, import_client2.isSystemError)(event)) {
           eventType = "system_error";
           payload = { message: event.SystemError };
-        } else if (isAsyncCallback(event)) {
+        } else if ((0, import_client2.isAsyncCallback)(event)) {
           eventType = "async_callback";
           payload = event.AsyncCallback;
         } else {
@@ -2479,6 +2103,7 @@ function useNotificationHandler({
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  AomiClient,
   AomiRuntimeProvider,
   BackendApi,
   ControlContextProvider,
