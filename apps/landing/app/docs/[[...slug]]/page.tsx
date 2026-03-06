@@ -63,6 +63,8 @@ export default async function Page(props: {
     "telegram/panels": "/docs/use-aomi/telegram/panels",
     "telegram/wallet": "/docs/use-aomi/telegram/wallet",
     "telegram/admin": "/docs/build/services/telegram-bot",
+    "use-aomi/overview": "/docs/use-aomi/web/overview",
+    "use-aomi/web-chat": "/docs/use-aomi/web/web-chat",
 
     // Redirect old canonical Build docs paths to the new folder structure
     "build/widget/aomi-frame": "/docs/build/ui/widget/aomi-frame",
