@@ -4,20 +4,7 @@
     "overview",
     "getting-started",
     "integration-guide",
-    "---UI---",
-    "widget/aomi-frame",
-    "widget/components",
-    "widget/theming",
-    "widget/configuration",
-    "headless/install",
-    "headless/runtime-provider",
-    "headless/hooks",
-    "headless/build-custom-ui",
-    "---Services---",
-    "sessions",
-    "building-apps",
-    "api-reference",
-    "wallet-integration",
-    "telegram-bot"
+    "ui",
+    "services"
   ]
 }
