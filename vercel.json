@@ -1,5 +1,4 @@
 {
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "git lfs pull && pnpm run vercel-build",
-  "outputDirectory": "apps/landing/.next"
+  "buildCommand": "pnpm run vercel-build"
 }
