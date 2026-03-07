@@ -1,0 +1,10 @@
+{
+  "title": "Services",
+  "pages": [
+    "sessions",
+    "building-apps",
+    "api-reference",
+    "wallet-integration",
+    "telegram-bot"
+  ]
+}
