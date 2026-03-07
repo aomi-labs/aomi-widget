@@ -1,10 +1,14 @@
 {
   "title": "Transact with Aomi",
   "pages": [
-    "---Web Chat---",
+    "---Web App---",
     "web",
     "---Telegram---",
     "telegram",
+    "---Discord---",
+    "discord",
+    "---iOS---",
+    "ios",
     "faq"
   ]
 }
