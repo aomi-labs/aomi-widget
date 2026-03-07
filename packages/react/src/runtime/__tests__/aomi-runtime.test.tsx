@@ -14,12 +14,12 @@ import { cleanup } from "@testing-library/react";
 
 import {
   renderRuntime,
-  resetBackendApiMocks,
-  setBackendApiConfig,
+  resetAomiClientMocks,
+  setAomiClientConfig,
 } from "./test-harness";
 
 beforeEach(() => {
-  resetBackendApiMocks();
+  resetAomiClientMocks();
 });
 
 afterEach(() => {
@@ -96,7 +96,7 @@ describe("AomiRuntimeProvider", () => {
   });
 
   it("allows custom backend URL", () => {
-    setBackendApiConfig({
+    setAomiClientConfig({
       fetchState: async () => ({
         is_processing: false,
         messages: [],

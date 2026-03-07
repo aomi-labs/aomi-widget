@@ -37,9 +37,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // packages/react/src/index.ts
 var index_exports = {};
 __export(index_exports, {
-  AomiClient: () => import_client5.AomiClient,
+  AomiClient: () => import_client3.AomiClient,
   AomiRuntimeProvider: () => AomiRuntimeProvider,
-  BackendApi: () => BackendApi,
   ControlContextProvider: () => ControlContextProvider,
   EventContextProvider: () => EventContextProvider,
   NotificationContextProvider: () => NotificationContextProvider,
@@ -63,73 +62,11 @@ __export(index_exports, {
   useWalletHandler: () => useWalletHandler
 });
 module.exports = __toCommonJS(index_exports);
-
-// packages/react/src/backend/client.ts
-var import_client = require("@aomi-labs/client");
-var BackendApi = class {
-  constructor(backendUrl) {
-    this.client = new import_client.AomiClient({ baseUrl: backendUrl });
-  }
-  async fetchState(sessionId, userState) {
-    return this.client.fetchState(sessionId, userState);
-  }
-  async postChatMessage(sessionId, message, namespace, publicKey, apiKey, userState) {
-    return this.client.sendMessage(sessionId, message, {
-      namespace,
-      publicKey,
-      apiKey,
-      userState
-    });
-  }
-  async postSystemMessage(sessionId, message) {
-    return this.client.sendSystemMessage(sessionId, message);
-  }
-  async postInterrupt(sessionId) {
-    return this.client.interrupt(sessionId);
-  }
-  subscribeSSE(sessionId, onUpdate, onError) {
-    return this.client.subscribeSSE(sessionId, onUpdate, onError);
-  }
-  async fetchThreads(publicKey) {
-    return this.client.listThreads(publicKey);
-  }
-  async fetchThread(sessionId) {
-    return this.client.getThread(sessionId);
-  }
-  async createThread(threadId, publicKey) {
-    return this.client.createThread(threadId, publicKey);
-  }
-  async archiveThread(sessionId) {
-    return this.client.archiveThread(sessionId);
-  }
-  async unarchiveThread(sessionId) {
-    return this.client.unarchiveThread(sessionId);
-  }
-  async deleteThread(sessionId) {
-    return this.client.deleteThread(sessionId);
-  }
-  async renameThread(sessionId, newTitle) {
-    return this.client.renameThread(sessionId, newTitle);
-  }
-  async getSystemEvents(sessionId, count) {
-    return this.client.getSystemEvents(sessionId, count);
-  }
-  async getNamespaces(sessionId, publicKey, apiKey) {
-    return this.client.getNamespaces(sessionId, { publicKey, apiKey });
-  }
-  async getModels(sessionId) {
-    return this.client.getModels(sessionId);
-  }
-  async setModel(sessionId, rig, namespace, apiKey) {
-    return this.client.setModel(sessionId, rig, { namespace, apiKey });
-  }
-};
-
-// packages/react/src/index.ts
-var import_client5 = require("@aomi-labs/client");
+var import_client3 = require("@aomi-labs/client");
 
 // packages/react/src/runtime/aomi-runtime.tsx
 var import_react11 = require("react");
+var import_client2 = require("@aomi-labs/client");
 
 // packages/react/src/contexts/control-context.tsx
 var import_react = require("react");
@@ -374,8 +311,7 @@ function ControlContextProvider({
       try {
         const namespaces = await backendApiRef.current.getNamespaces(
           sessionIdRef.current,
-          publicKeyRef.current,
-          (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+          { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
         );
         const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
@@ -441,8 +377,7 @@ function ControlContextProvider({
     try {
       const namespaces = await backendApiRef.current.getNamespaces(
         sessionIdRef.current,
-        publicKeyRef.current,
-        (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+        { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
       );
       const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
@@ -502,8 +437,7 @@ function ControlContextProvider({
       const result = await backendApiRef.current.setModel(
         threadId,
         model,
-        namespace,
-        (_e = stateRef.current.apiKey) != null ? _e : void 0
+        { namespace, apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0 }
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
@@ -598,9 +532,7 @@ function ControlContextProvider({
 
 // packages/react/src/contexts/event-context.tsx
 var import_react2 = require("react");
-
-// packages/react/src/backend/types.ts
-var import_client2 = require("@aomi-labs/client");
+var import_client = require("@aomi-labs/client");
 
 // packages/react/src/state/event-buffer.ts
 function createEventBuffer() {
@@ -716,7 +648,7 @@ function EventContextProvider({
           type: event.type,
           payload: event.payload
         });
-        await backendApi.postSystemMessage(event.sessionId, message);
+        await backendApi.sendSystemMessage(event.sessionId, message);
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
@@ -729,16 +661,16 @@ function EventContextProvider({
       for (const event of events) {
         let eventType;
         let payload;
-        if ((0, import_client2.isInlineCall)(event)) {
+        if ((0, import_client.isInlineCall)(event)) {
           eventType = event.InlineCall.type;
           payload = (_a = event.InlineCall.payload) != null ? _a : event.InlineCall;
-        } else if ((0, import_client2.isSystemNotice)(event)) {
+        } else if ((0, import_client.isSystemNotice)(event)) {
           eventType = "system_notice";
           payload = { message: event.SystemNotice };
-        } else if ((0, import_client2.isSystemError)(event)) {
+        } else if ((0, import_client.isSystemError)(event)) {
           eventType = "system_error";
           payload = { message: event.SystemError };
-        } else if ((0, import_client2.isAsyncCallback)(event)) {
+        } else if ((0, import_client.isAsyncCallback)(event)) {
           eventType = "async_callback";
           payload = event.AsyncCallback;
         } else {
@@ -1093,13 +1025,10 @@ var MessageController = class {
     const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
     try {
       this.markRunning(threadId, true);
-      const response = await this.config.backendApiRef.current.postChatMessage(
+      const response = await this.config.backendApiRef.current.sendMessage(
         backendThreadId,
         text,
-        namespace,
-        publicKey,
-        apiKey,
-        userState
+        { namespace, publicKey, apiKey, userState }
       );
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
@@ -1123,7 +1052,7 @@ var MessageController = class {
     const backendState = this.config.backendStateRef.current;
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
-      const response = await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      const response = await this.config.backendApiRef.current.interrupt(backendThreadId);
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
       }
@@ -1709,7 +1638,7 @@ function AomiRuntimeCore({
           ensName: newUser.ensName
         }
       });
-      await backendApiRef.current.postSystemMessage(sessionId, message);
+      await backendApiRef.current.sendSystemMessage(sessionId, message);
     });
     return unsubscribe;
   }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
@@ -1766,7 +1695,7 @@ function AomiRuntimeCore({
     const fetchThreadList = async () => {
       var _a, _b, _c;
       try {
-        const threadList = await backendApiRef.current.fetchThreads(userAddress);
+        const threadList = await backendApiRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -2030,7 +1959,7 @@ function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080"
 }) {
-  const backendApi = (0, import_react11.useMemo)(() => new BackendApi(backendUrl), [backendUrl]);
+  const backendApi = (0, import_react11.useMemo)(() => new import_client2.AomiClient({ baseUrl: backendUrl }), [backendUrl]);
   return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(UserContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(AomiRuntimeInner, { backendApi, children }) }) }) });
 }
 function AomiRuntimeInner({
@@ -2105,7 +2034,6 @@ function useNotificationHandler({
 0 && (module.exports = {
   AomiClient,
   AomiRuntimeProvider,
-  BackendApi,
   ControlContextProvider,
   EventContextProvider,
   NotificationContextProvider,

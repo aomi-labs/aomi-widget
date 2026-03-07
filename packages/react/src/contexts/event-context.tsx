@@ -10,14 +10,13 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import type { BackendApi } from "../backend/client";
-import type { ApiSSEEvent, ApiSystemEvent } from "../backend/types";
+import type { AomiClient, ApiSSEEvent, ApiSystemEvent } from "@aomi-labs/client";
 import {
   isInlineCall,
   isSystemNotice,
   isSystemError,
   isAsyncCallback,
-} from "../backend/types";
+} from "@aomi-labs/client";
 import {
   createEventBuffer,
   dispatch,
@@ -68,7 +67,7 @@ export function useEventContext(): EventContext {
 
 export type EventContextProviderProps = {
   children: ReactNode;
-  backendApi: BackendApi;
+  aomiClient: AomiClient;
   sessionId: string;
 };
 
@@ -78,7 +77,7 @@ export type EventContextProviderProps = {
 
 export function EventContextProvider({
   children,
-  backendApi,
+  aomiClient,
   sessionId,
 }: EventContextProviderProps) {
   const bufferRef = useRef<EventBuffer | null>(null);
@@ -96,7 +95,7 @@ export function EventContextProvider({
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
 
-    const unsubscribe = backendApi.subscribeSSE(
+    const unsubscribe = aomiClient.subscribeSSE(
       sessionId,
       (event: ApiSSEEvent) => {
         enqueueInbound(buffer, {
@@ -129,7 +128,7 @@ export function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, sessionId, buffer]);
+  }, [aomiClient, sessionId, buffer]);
 
   // ---------------------------------------------------------------------------
   // Context Value
@@ -148,12 +147,12 @@ export function EventContextProvider({
           type: event.type,
           payload: event.payload,
         });
-        await backendApi.postSystemMessage(event.sessionId, message);
+        await aomiClient.sendSystemMessage(event.sessionId, message);
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
     },
-    [backendApi],
+    [aomiClient],
   );
 
   const dispatchSystemEvents = useCallback(

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { BackendApi } from "../backend/client";
+import { AomiClient } from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
@@ -31,13 +31,13 @@ export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
 }: Readonly<AomiRuntimeProviderProps>) {
-  const backendApi = useMemo(() => new BackendApi(backendUrl), [backendUrl]);
+  const aomiClient = useMemo(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
 
   return (
     <ThreadContextProvider>
       <NotificationContextProvider>
         <UserContextProvider>
-          <AomiRuntimeInner backendApi={backendApi}>
+          <AomiRuntimeInner aomiClient={aomiClient}>
             {children}
           </AomiRuntimeInner>
         </UserContextProvider>
@@ -52,29 +52,29 @@ export function AomiRuntimeProvider({
 
 type AomiRuntimeInnerProps = {
   children: ReactNode;
-  backendApi: BackendApi;
+  aomiClient: AomiClient;
 };
 
 function AomiRuntimeInner({
   children,
-  backendApi,
+  aomiClient,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
   const { user } = useUser();
 
   return (
     <ControlContextProvider
-      backendApi={backendApi}
+      aomiClient={aomiClient}
       sessionId={threadContext.currentThreadId}
       publicKey={user.address ?? undefined}
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
     >
       <EventContextProvider
-        backendApi={backendApi}
+        aomiClient={aomiClient}
         sessionId={threadContext.currentThreadId}
       >
-        <AomiRuntimeCore backendApi={backendApi}>{children}</AomiRuntimeCore>
+        <AomiRuntimeCore aomiClient={aomiClient}>{children}</AomiRuntimeCore>
       </EventContextProvider>
     </ControlContextProvider>
   );

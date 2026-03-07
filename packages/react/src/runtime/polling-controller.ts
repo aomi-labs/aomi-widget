@@ -1,11 +1,11 @@
 import type { MutableRefObject } from "react";
 
-import type { BackendApi } from "../backend/client";
 import type {
+  AomiClient,
   AomiMessage,
   ApiStateResponse,
   ApiSystemEvent,
-} from "../backend/types";
+} from "@aomi-labs/client";
 import type { UserState } from "../contexts/user-context";
 import {
   resolveThreadId,
@@ -14,7 +14,7 @@ import {
 } from "../state/backend-state";
 
 type PollingConfig = {
-  backendApiRef: MutableRefObject<BackendApi>;
+  aomiClientRef: MutableRefObject<AomiClient>;
   backendStateRef: MutableRefObject<BackendState>;
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
   onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
@@ -48,7 +48,7 @@ export class PollingController {
           threadId,
         );
         const userState = this.config.getUserState?.();
-        const state = await this.config.backendApiRef.current.fetchState(
+        const state = await this.config.aomiClientRef.current.fetchState(
           backendThreadId,
           userState,
         );
