@@ -10,14 +10,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-export type NamespaceSelectProps = {
+export type AppSelectProps = {
   className?: string;
   placeholder?: string;
 };
 
-export const NamespaceSelect: FC<NamespaceSelectProps> = ({
+export const AppSelect: FC<AppSelectProps> = ({
   className,
-  placeholder = "Select agent",
+  placeholder = "Select App",
 }) => {
   const {
     state,
@@ -28,20 +28,20 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
   } = useControl();
   const [open, setOpen] = useState(false);
 
-  // Fetch authorized namespaces on mount
+  // Fetch authorized apps on mount
   useEffect(() => {
     void getAuthorizedNamespaces();
   }, [getAuthorizedNamespaces]);
 
-  // Get current thread's selected namespace (or fall back to default)
+  // Get current thread's selected app (or fall back to default)
   const threadControl = getCurrentThreadControl();
-  const selectedNamespace =
+  const selectedApp =
     threadControl.namespace ?? state.defaultNamespace ?? "default";
 
-  const namespaces = state.authorizedNamespaces;
+  const apps = state.authorizedNamespaces;
 
-  // Show loading state if no namespaces yet
-  if (namespaces.length === 0) {
+  // Show loading state if no apps yet
+  if (apps.length === 0) {
     return (
       <Button
         variant="ghost"
@@ -52,7 +52,7 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
           className,
         )}
       >
-        <span className="truncate">{selectedNamespace}</span>
+        <span className="truncate">{selectedApp}</span>
       </Button>
     );
   }
@@ -72,7 +72,7 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
             className,
           )}
         >
-          <span className="truncate">{selectedNamespace ?? placeholder}</span>
+          <span className="truncate">{selectedApp ?? placeholder}</span>
           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -82,25 +82,25 @@ export const NamespaceSelect: FC<NamespaceSelectProps> = ({
         className="w-[180px] rounded-3xl p-1 shadow-none"
       >
         <div className="flex flex-col gap-0.5">
-          {namespaces.map((ns: string) => (
+          {apps.map((app: string) => (
             <button
-              key={ns}
+              key={app}
               disabled={isProcessing}
               onClick={() => {
                 if (isProcessing) return;
-                onNamespaceSelect(ns);
+                onNamespaceSelect(app);
                 setOpen(false);
               }}
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-full px-3 py-2 text-sm outline-none",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:bg-accent focus:text-accent-foreground",
-                selectedNamespace === ns && "bg-accent",
+                selectedApp === app && "bg-accent",
                 isProcessing && "cursor-not-allowed opacity-50",
               )}
             >
-              <span>{ns}</span>
-              {selectedNamespace === ns && <CheckIcon className="h-4 w-4" />}
+              <span>{app}</span>
+              {selectedApp === app && <CheckIcon className="h-4 w-4" />}
             </button>
           ))}
         </div>
