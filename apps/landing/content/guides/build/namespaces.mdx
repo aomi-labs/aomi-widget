@@ -1,15 +1,15 @@
 ---
-title: Namespaces & Authentication
-description: How API keys, namespaces, and sessions work together.
+title: Apps & Authentication
+description: How API keys, Aomi Apps, and sessions work together.
 ---
 
-# Namespaces and Authentication
+# Apps and Authentication
 
-Every Aomi-powered assistant runs inside a **namespace**. This page explains how namespaces, API keys, and sessions work together to provide isolated, authenticated access to your AI assistant.
+Every Aomi-powered assistant runs inside an **App** (internally called a "namespace" in the API). This page explains how Apps, API keys, and sessions work together to provide isolated, authenticated access to your AI assistant.
 
-## What is a Namespace?
+## What is an App?
 
-A namespace is a self-contained AI assistant environment. It encapsulates:
+An App is a self-contained AI assistant environment. It encapsulates:
 
 | Component | Description | Example |
 | --- | --- | --- |
@@ -18,18 +18,18 @@ A namespace is a self-contained AI assistant environment. It encapsulates:
 | **Model config** | Default LLM and available alternatives | Claude Sonnet, GPT-4o |
 | **RAG docs** | Optional document store for domain knowledge | MyCoinDex FAQ, API docs |
 
-Each namespace maps to an **AomiApp** -- the backend construct that bundles these components:
+Each App maps to an **AomiApp** -- the backend construct that bundles these components:
 
 ```mermaid
 flowchart TB
-    subgraph "Namespace: mycoindex"
+    subgraph "App: mycoindex"
         APP[MyCoinDexApp]
         TOOLS[Tools: GetTokenPrice, ExecuteTrade, GetPortfolio]
         PREAMBLE[Preamble: Trading assistant instructions]
         MODEL[Model: Claude Sonnet]
     end
 
-    subgraph "Namespace: defiwatch"
+    subgraph "App: defiwatch"
         APP2[DeFiWatchApp]
         TOOLS2[Tools: GetProtocolTVL, GetYieldRates]
         PREAMBLE2[Preamble: DeFi analytics assistant]
@@ -37,23 +37,23 @@ flowchart TB
     end
 ```
 
-Namespaces are fully isolated. MyCoinDex's tools and configuration have no visibility into other namespaces.
+Apps are fully isolated. MyCoinDex's tools and configuration have no visibility into other Apps.
 
 ## API Keys
 
-API keys are issued by Aomi and scoped to one or more namespaces.
+API keys are issued by Aomi and scoped to one or more Apps.
 
 ### Key Properties
 
 | Property | Description |
 | --- | --- |
-| **Scoped** | Each key authorizes access to specific namespaces |
+| **Scoped** | Each key authorizes access to specific Apps |
 | **Stored securely** | Keys are hashed and stored in the database |
-| **Revocable** | Keys can be deactivated without affecting the namespace |
+| **Revocable** | Keys can be deactivated without affecting the App |
 
 ### How Keys Are Used
 
-Include the API key in the `X-API-Key` header on every request:
+Include the API key in the `X-API-Key` header on every request. The `namespace` query parameter specifies which App to use:
 
 ```bash
 curl -X POST https://api.aomi.dev/api/chat?namespace=mycoindex \
@@ -63,16 +63,18 @@ curl -X POST https://api.aomi.dev/api/chat?namespace=mycoindex \
   -d '{"text": "What is the price of ETH?"}'
 ```
 
+> **Note:** The API uses `namespace` as the query parameter for historical reasons. In docs and UI, we refer to this as the "App".
+
 ### Key Scoping
 
-A single key can authorize multiple namespaces:
+A single key can authorize multiple Apps:
 
 ```
 Key: sk-mcd-a1b2c3d4e5f6
 Authorized: ["mycoindex", "mycoindex-staging"]
 ```
 
-Or a namespace can have multiple keys (e.g., production vs. development):
+Or an App can have multiple keys (e.g., production vs. development):
 
 ```
 Key: sk-mcd-prod-...  → ["mycoindex"]
@@ -90,15 +92,15 @@ sequenceDiagram
     Client->>Backend: POST /api/chat?namespace=mycoindex<br/>X-API-Key: sk-mcd-...<br/>X-Session-Id: session-uuid
 
     Backend->>DB: Lookup API key
-    DB-->>Backend: Key record (authorized namespaces)
+    DB-->>Backend: Key record (authorized Apps)
 
-    alt Key valid and namespace authorized
+    alt Key valid and App authorized
         Backend->>Backend: Load/create session
         Backend->>Backend: Route to MyCoinDexApp
         Backend-->>Client: SSE stream (200)
     else Key invalid
         Backend-->>Client: 401 Unauthorized
-    else Namespace not authorized for key
+    else App not authorized for key
         Backend-->>Client: 403 Forbidden
     end
 ```
@@ -107,7 +109,7 @@ sequenceDiagram
 
 1. Client sends a request with `X-API-Key` and `X-Session-Id` headers.
 2. Backend looks up the API key in the database.
-3. Backend checks if the key authorizes the requested namespace (from the `?namespace=` query parameter).
+3. Backend checks if the key authorizes the requested App (from the `?namespace=` query parameter).
 4. If authorized, the request proceeds to the appropriate AomiApp.
 5. If not, the request is rejected with a `401` or `403` status.
 
@@ -146,21 +148,21 @@ Wallet:  0x742d35Cc6634C0532925a3b844Bc9e7595f2bD68
 Chain:   Ethereum (1)
 ```
 
-## Default Namespace
+## Default App
 
-Aomi provides a `default` namespace that is accessible without an API key. This is useful for:
+Aomi provides a `default` App that is accessible without an API key. This is useful for:
 
 - Public demos
 - Evaluation and testing
 - Development before you receive your production key
 
-The default namespace has general-purpose tools but no custom configuration. For production use, always use a scoped API key with your own namespace.
+The default App has general-purpose tools but no custom configuration. For production use, always use a scoped API key with your own App.
 
 ## Headers Reference
 
 | Header | Required | Description |
 | --- | --- | --- |
-| `X-API-Key` | For non-default namespaces | Your Aomi API key |
+| `X-API-Key` | For non-default Apps | Your Aomi API key |
 | `X-Session-Id` | Yes | UUID identifying the conversation session |
 | `Content-Type` | For POST requests | `application/json` |
 

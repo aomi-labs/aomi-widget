@@ -1,0 +1,56 @@
+---
+title: Agentic Application
+description: Understand what Aomi Apps are, why they matter, and how they scope the AI agent's capabilities for both users and builders.
+---
+
+# Agentic Application
+
+An **Agentic Application** is a stateless collection of tools and prompts that runs on a harness supporting its execution and context. **AomiApp** is the agentic application that runs on the Aomi backend, while **AomiRuntime** provides the stateful harness.
+
+It is an isolated agent environment — defining exactly what tools, data sources, and configuration an AI agent has access to. Think of it as the boundary and props that shape what the assistant can do.
+
+When you interact with Aomi, you're always operating within an App. Switching Apps changes the agent's capabilities entirely.
+
+## Why Apps Matter
+
+### For Users
+
+The App you're in determines what the assistant can help you with. An assistant in a DeFi App might have access to swap aggregators, liquidity pools, and live price feeds. The same platform with a different App might query social APIs or prediction markets instead.
+
+If the assistant says it can't do something you expect, you may be in the wrong App — check the App selector in the control bar.
+
+### For Builders
+
+Apps are how you deploy and isolate agents on the Aomi platform:
+
+- **Each App gets its own API key** — scoped access, no sharing between deployments
+- **App = agent configuration** — tools, preamble (system prompt), and model selection are all configured per App
+- **Multiple Apps = multiple agents** — run a trading agent, a research agent, and a support bot from the same platform
+
+```
+┌─────────────────────────┐   ┌─────────────────────────┐
+│  App: defi              │   │  App: research           │
+│  tools: [swap,          │   │  tools: [news,           │
+│    liquidity, prices]   │   │    social, docs]         │
+│  model: claude-sonnet   │   │  model: gpt-4o           │
+└─────────────────────────┘   └─────────────────────────┘
+```
+
+## The Default App
+
+For development and testing, the `default` App is always available — no API key required. It provides a baseline agent to test your integration before deploying a scoped App.
+
+## Authentication
+
+Apps are protected by API keys. Requests without a valid key for the target App return:
+
+- `401 Unauthorized` — no key provided
+- `403 Forbidden` — key does not authorize this App
+
+Pass your key via the `X-API-Key` header, or enter it in the API key field of the widget control bar.
+
+## Further Reading
+
+- [Integration Guide](/docs/build/integration-guide) — the full platform pipeline, including how Apps are deployed
+- [Building Apps](/docs/build/services/building-apps) — how to register tools, preambles, and model config into an App
+- [API Reference](/docs/build/services/api-reference) — authentication headers and App-scoped endpoints

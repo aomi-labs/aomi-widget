@@ -46,14 +46,14 @@ export const registry: RegistryComponent[] = [
     file: [
       "components/control-bar/index.tsx",
       "components/control-bar/model-select.tsx",
-      "components/control-bar/namespace-select.tsx",
+      "components/control-bar/app-select.tsx",
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/wallet-connect.tsx",
       "components/control-bar/network-select.tsx",
     ],
     dependencies: ["@aomi-labs/react", "wagmi", "lucide-react"],
     registryDependencies: ["button", "popover", "dialog", "input", "label"],
-    description: "Control bar with model/namespace selectors, API key input, and wallet connect.",
+    description: "Control bar with model/App selectors, API key input, and wallet connect.",
   },
   {
     name: "assistant-thread",
