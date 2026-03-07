@@ -2,13 +2,9 @@
   "title": "Transact with Aomi",
   "pages": [
     "---Web Chat---",
-    "overview",
-    "web-chat",
-    "faq",
+    "web",
     "---Telegram---",
-    "telegram/overview",
-    "telegram/commands",
-    "telegram/panels",
-    "telegram/wallet"
+    "telegram",
+    "faq"
   ]
 }
