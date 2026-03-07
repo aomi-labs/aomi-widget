@@ -9,14 +9,14 @@ import { act, cleanup, waitFor } from "@testing-library/react";
 
 import {
   renderRuntime,
-  resetBackendApiMocks,
-  setBackendApiConfig,
+  resetAomiClientMocks,
+  setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
-import type { ApiChatResponse } from "../../backend/types";
+import type { ApiChatResponse } from "@aomi-labs/client";
 
 beforeEach(() => {
-  resetBackendApiMocks();
+  resetAomiClientMocks();
 });
 
 afterEach(() => {
@@ -32,7 +32,7 @@ describe("Chat API", () => {
           messages: [],
         }),
       );
-      setBackendApiConfig({ postChatMessage });
+      setAomiClientConfig({ postChatMessage });
 
       const { api } = renderRuntime();
 

@@ -153,7 +153,7 @@
 - Model selection is backend-only via `onModelSelect(model)` - not stored in global client state
 - Auto-fetches namespaces on mount and when apiKey changes
 - ApiKey persisted to localStorage automatically
-- Added Control API to `BackendApi`: `getNamespaces()`, `getModels()`, `setModel()`
+- Added Control API to `AomiClient`: `getNamespaces()`, `getModels()`, `setModel()`
 
 ### Control Bar Components
 
@@ -166,7 +166,7 @@
 
 - Split `aomi-runtime.tsx` into shell (50 lines) + `core.tsx` (runtime logic)
 - Extracted `threadlist-adapter.ts` for thread list operations
-- `orchestrator.ts` now receives `backendApi` instance instead of URL
+- `orchestrator.ts` now receives `aomiClient` instance instead of URL
 - `ControlContextProvider` receives `getThreadMetadata` and `updateThreadMetadata` from thread context
 - Core syncs `isRunning` → `threadMetadata.control.isProcessing`
 
@@ -222,7 +222,7 @@ onModelSelect(model) / onNamespaceSelect(namespace)
         ↓
 updateThreadMetadata(threadId, { control: { ...control, model/namespace, controlDirty: true } })
         ↓
-(for model) backendApi.setModel(sessionId, model, namespace)
+(for model) aomiClient.setModel(sessionId, model, namespace)
         ↓
 Backend stores model selection for session
 ```
