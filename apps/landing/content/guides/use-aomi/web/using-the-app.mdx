@@ -5,41 +5,145 @@ description: How to use the Aomi Web App embedded in a website.
 
 # Using the Web App
 
-The Web App is the most common way to interact with an Aomi assistant. It's embedded directly in the product's website — look for a chat panel or chat icon on the page.
-
-## Sending Your First Message
-
-At the bottom of the chat, you'll see a text composer. Type your message and press **Enter** or click the **Send** button. The assistant will start responding immediately.
-
-You can ask questions in natural language, just like you would in a conversation. For example:
-
-- "What's the current price of ETH?"
-- "Show me my portfolio balance"
-- "Swap 100 USDC for ETH"
-
-## Streaming Responses
-
-The assistant's response appears in real time. Text streams word by word as the AI generates it, so you don't have to wait for the full answer before you start reading. You can see the assistant "thinking" as it constructs its reply.
-
-If the response is taking too long or going in the wrong direction, you can cancel it by clicking the **Stop** button that appears while the assistant is generating.
+The Web App is **embedded directly in the product's website** — no installation required. Look for a chat panel or chat icon on the page.
 
 ## Tool Calls
 
-When the assistant needs to look up data or perform an action, it calls a tool -- a connection to the product's API. You'll see this happen inline:
+When the agent needs to fetch data or take an action, it calls a **tool** — a direct connection to one of the product's APIs. Tool calls are **visible inline** as they happen:
 
-1. A tool call indicator appears showing what the assistant is doing (e.g., "Getting token price..." or "Checking swap routes...").
-2. The result is displayed inline once the tool returns.
-3. The assistant continues its response using that data.
+- An indicator appears showing what's in progress (e.g., *Fetching token price...* or *Checking swap routes...*)
+- The result displays inline once the tool returns
+- The agent continues its response using that data
 
-Some requests may trigger multiple tool calls in sequence. For example, asking "What's the best way to swap ETH for USDC?" might involve checking prices, comparing routes, and calculating fees -- all visible in the chat.
+A single request can trigger **multiple sequential tool calls**. Asking "What's the best route to swap ETH for USDC?" might involve checking prices, comparing routes, and calculating fees — all visible in the chat.
+
+<div className="my-6 space-y-4">
+  <div className="rounded-lg border bg-card p-4">
+    <div className="flex items-center gap-2 mb-3">
+      <div className="size-4 rounded-full bg-green-500 flex items-center justify-center">
+        <svg className="size-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <span className="font-medium">Used tool: <strong>Fetch Lido stETH proxy contract</strong></span>
+    </div>
+    <div className="bg-muted rounded p-3 text-sm">
+      <p className="font-semibold mb-1">Result:</p>
+      <pre className="text-xs overflow-x-auto">{`{
+  "address": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+  "chain": "ethereum",
+  "chain_id": 1,
+  "abi": [{ "name": "proxyType", "type": "function", ... }]
+}`}</pre>
+    </div>
+  </div>
+
+  <div className="rounded-lg border bg-card p-4">
+    <div className="flex items-center gap-2 mb-3">
+      <div className="size-4 rounded-full bg-green-500 flex items-center justify-center">
+        <svg className="size-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <span className="font-medium">Used tool: <strong>Fetch Lido stETH implementation contract ABI</strong></span>
+    </div>
+    <div className="bg-muted rounded p-3 text-sm">
+      <p className="font-semibold mb-1">Result:</p>
+      <pre className="text-xs overflow-x-auto">{`{
+  "address": "0x17144556fd3424edc8fc8a4c940b2d04936d17eb",
+  "chain": "ethereum",
+  "chain_id": 1,
+  "abi": [{ "name": "resume", "type": "function", ... }]
+}`}</pre>
+    </div>
+  </div>
+
+  <div className="rounded-lg border bg-card p-4">
+    <div className="flex items-center gap-2 mb-3">
+      <div className="size-4 rounded-full bg-green-500 flex items-center justify-center">
+        <svg className="size-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <span className="font-medium">Used tool: <strong>Check current Lido APR and compare staking yields</strong></span>
+    </div>
+    <div className="bg-muted rounded p-3 text-sm">
+      <p className="font-semibold mb-1">Result:</p>
+      <pre className="text-xs overflow-x-auto">{`Found 20 results:
+
+1. Stake with Lido | Lido
+   URL: https://stake.lido.fi/
+   Users receive 90% of the staking rewards...
+
+2. Lido Staked Ether (stETH) Staking Rewards: Earn ~2.33%
+   URL: https://www.stakingrewards.com/asset/staked-ether
+   The current reward rate for staking stETH is 2.33%...`}</pre>
+    </div>
+  </div>
+</div>
+
+## The Control Bar
+
+The control bar at the top of the chat exposes **configuration options**. What's available depends on how the product operator has deployed the Web App.
+
+<div className="my-6 rounded-lg border bg-card p-4">
+  <div className="flex items-center gap-4 flex-wrap">
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted text-sm">
+      <span>Model:</span>
+      <span className="font-medium">Claude Sonnet</span>
+      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted text-sm">
+      <span>App:</span>
+      <span className="font-medium">DeFi Trading</span>
+      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted text-sm">
+      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+      </svg>
+      <span className="font-medium">API Key</span>
+    </div>
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm">
+      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+      <span className="font-medium">0x7a2...f3b1</span>
+    </div>
+  </div>
+</div>
+
+### Model selector
+
+Switch between available AI models. Options may include **Claude** (Anthropic) or **GPT-4** (OpenAI) depending on what the product has configured. Models differ in speed and capability.
+
+### App selector
+
+Switch between **App configurations**. Each App has its own tools, system prompt, and model defaults. Switching Apps changes the agent's full capability set.
+
+### API key
+
+Some deployments require an API key. Click the **key icon** to enter yours — it's stored locally in your browser and persists across sessions.
+
+### Wallet identity
+
+Your wallet address is your **persistent identity** across all Aomi-powered products. Aomi maintains a record of your conversation history and on-chain activity across sessions and integration partners — building context that allows the agent to assist you more accurately over time, wherever you access Aomi.
+
+**To connect:** Click the wallet icon in the control bar or sidebar and approve the connection in your wallet app.
+
+**To disconnect:** Click the wallet icon and select **Disconnect**.
 
 ## Managing Threads
 
-The sidebar on the left shows your conversation history, organized into threads.
+Conversations are organized into **threads**, each with its own persistent history. Close the browser and pick up where you left off. You can create, rename, and delete threads to stay organized.
 
 ### Creating a new thread
 
-Click the **New Thread** button at the top of the sidebar to start a fresh conversation. New threads start with no history, so the assistant won't have context from previous conversations.
+Click the **New Thread** button at the top of the sidebar to start a fresh conversation.
 
 ### Switching between threads
 
@@ -47,58 +151,16 @@ Click any thread in the sidebar to switch to it. Your previous conversations are
 
 ### Renaming threads
 
-Threads are automatically named based on your first message. To rename a thread, right-click it (or use the three-dot menu) and select **Rename**. This helps you organize conversations by topic.
+Threads are automatically named based on your first message. To rename a thread, right-click it (or use the three-dot menu) and select **Rename**.
 
 ### Deleting threads
 
-To delete a thread, right-click it (or use the three-dot menu) and select **Delete**. Deleted threads cannot be recovered.
-
-## The Control Bar
-
-At the top of the chat, you may see a control bar with several options. Not all options are available on every deployment -- it depends on how the product operator configured the assistant.
-
-### Model selector
-
-If available, this lets you choose which AI model powers the assistant. Different models have different strengths -- some are faster, others are more capable. The product may offer models like Claude (by Anthropic) or GPT-4 (by OpenAI).
-
-### App selector
-
-If available, this lets you switch between different assistant configurations. Each App may have different tools, instructions, or capabilities. Think of it as switching between different "modes" of the assistant.
-
-### API key
-
-Some deployments require an API key to access the assistant. If needed, click the **key icon** in the control bar to enter your API key. The key is saved locally in your browser and persists across sessions.
-
-## Connecting a Wallet
-
-If the product supports wallet connectivity, you'll see a wallet icon in the control bar or sidebar.
-
-### How to connect
-
-1. Click the **wallet icon**.
-2. Choose your preferred wallet provider (WalletConnect, MetaMask, or other supported wallets).
-3. Approve the connection in your wallet app.
-
-### What it enables
-
-Once connected, the assistant can:
-
-- Query your on-chain balances and holdings.
-- Look up your transaction history.
-- Prepare transactions (swaps, transfers, approvals) for you to review.
-
-### Transaction safety
-
-**You always approve transactions in your wallet app.** The assistant prepares the transaction and sends it to your wallet for review. You see exactly what the transaction does before you sign it. The assistant never has access to your private keys and cannot execute transactions without your explicit approval.
-
-### Disconnecting
-
-To disconnect your wallet, click the wallet icon again and select **Disconnect**. The assistant will no longer have access to your on-chain data.
+To delete a thread, right-click it and select **Delete**. Deleted threads cannot be recovered.
 
 ## Tips for Getting the Best Results
 
 - **Be specific.** "What's the price of ETH in USDC?" works better than "price."
 - **Provide context.** "I want to swap 500 USDC for ETH on Ethereum mainnet" gives the assistant everything it needs.
-- **Correct mistakes.** If the assistant misunderstands you, just tell it. Say something like "No, I meant..." and it will adjust.
+- **Correct mistakes.** If the assistant misunderstands you, just tell it what you meant.
 - **Use threads for different topics.** Keep swap-related questions in one thread and portfolio analysis in another.
-- **Check tool results.** The assistant shows you the raw data it received from tool calls. If something looks off, you can ask it to re-check or try a different approach.
+- **Check tool results.** The assistant shows you the raw data it received. If something looks off, ask it to re-check.
