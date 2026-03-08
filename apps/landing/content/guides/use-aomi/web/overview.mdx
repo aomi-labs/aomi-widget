@@ -5,105 +5,66 @@ description: What Aomi assistants can do and how to start using them.
 
 # Getting Started
 
-An Aomi assistant is an AI that understands a product's features inside and out. It can look up data, answer your questions, and take actions on your behalf -- all through a simple chat interface.
+Aomi builds and hosts AI-powered products for enterprise. The Web App is one of those products — a chat interface embedded directly in your product experience, giving you access to an AI agent that knows that product's APIs, data, and capabilities inside out. Instead of navigating menus and dashboards, you describe what you need in plain language and the agent handles the rest.
 
-When a company integrates Aomi into their product, you get a personal AI assistant that knows that product's APIs, documentation, and capabilities. Instead of navigating menus and dashboards, you just describe what you need in plain language.
+The Web App is one of several surfaces Aomi provides. The same agent and configuration is also accessible via Telegram, with iOS and Discord coming soon.
 
-## What Can You Do With It?
+## What You Can Do
 
-Aomi assistants are configured per product, so the exact capabilities depend on what the product supports. Common things you can do:
+Capabilities fall into two categories depending on how the product has been configured.
 
-- **Ask questions** -- get explanations about features, fees, supported assets, or anything the product covers.
-- **Get real-time data** -- ask for token prices, portfolio balances, yield rates, or any live data the product provides.
-- **Execute transactions** -- swap tokens, place trades, transfer funds, or perform other actions the product supports.
-- **Manage your portfolio** -- check holdings, review transaction history, track performance.
-- **Search documentation** -- the assistant can search through docs and knowledge bases the product has uploaded.
+### Native Blockchain Operations
 
-You don't need to know which specific API to call or what parameters it takes. Just describe what you want, and the assistant figures out the rest.
-
-## The Chat Experience
-
-Using an Aomi assistant feels like a conversation. You type a message, and the assistant streams its response in real time -- text appears word by word as it thinks.
-
-When the assistant needs to look something up or perform an action, it calls a "tool." Tools are connections to the product's APIs. You'll see these tool calls happen inline in the chat:
-
-- A brief indicator shows what the assistant is doing (e.g., "Getting ETH price..." or "Checking your balance...")
-- The result appears right in the conversation
-- The assistant then continues its response using that data
-
-This all happens seamlessly. You ask a question, the assistant gathers the information it needs, and gives you a complete answer.
-
-## Threads
-
-Conversations are organized into threads. Each thread is a separate conversation with its own history.
-
-- **Create new threads** for new topics or tasks.
-- **Switch between threads** to pick up where you left off.
-- **Rename threads** to keep things organized.
-- **Delete threads** you no longer need.
-
-Threads persist across sessions, so you can close the chat and come back later to continue a conversation.
-
-## Wallet Connection
-
-Some Aomi assistants support connecting a crypto wallet. This is completely optional, but it unlocks additional capabilities:
-
-- The assistant can query your on-chain balances and transaction history.
-- It can prepare transactions for you to review and approve.
-- You can interact with DeFi protocols, swap tokens, and manage on-chain assets through the chat.
-
-**Your wallet stays secure.** The assistant never has access to your private keys. When a transaction is needed, the assistant prepares it and sends it to your wallet app for approval. You must explicitly approve every transaction before it executes.
-
-If you don't connect a wallet, the assistant still works -- it can answer questions, look up data, and perform any non-wallet actions.
-
-## Where to Use It
-
-Aomi assistants are available through multiple channels:
-
-### Web App
-
-The most common way to interact with an Aomi assistant. The Web App is embedded directly in the product's website. Look for a chat icon or a chat panel on the page. It works right in your browser with no installation needed.
-
-### Telegram Bot
-
-Chat with Aomi in direct messages or add it to group chats. The Telegram bot supports the same AI capabilities as the Web App, plus wallet connectivity through a Telegram mini-app.
-
-### Discord Bot (Coming Soon)
-
-Add Aomi to your Discord server for community-wide access. Perfect for trading channels, alpha groups, and community support.
-
-### iOS App (Coming Soon)
-
-A native iOS experience with push notifications, Face ID, and Apple Watch support.
-
-## See It in Action
-
-### Connect Wallet (WalletConnect)
-
-<iframe
-  className="aspect-video w-full rounded-lg border"
-  src="https://www.youtube.com/embed/TqCiJ7m9ksY"
-  title="Transact with Aomi - connect wallet to sign"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-  referrerPolicy="strict-origin-when-cross-origin"
-  allowFullScreen
-/>
-
-### Start a Swap from Web App
+Aomi is built natively on blockchain infrastructure. Anything achievable by calling public smart contracts is within scope — querying on-chain state, reading balances, fetching transaction history, preparing and submitting transactions, interacting with DeFi protocols. If it's accessible on-chain, the agent can reach it.
 
 <iframe
   className="aspect-video w-full rounded-lg border"
   src="https://www.youtube.com/embed/aZv1zHtQXb4"
-  title="Transact with Aomi - 10 USDT Swap on Sushi"
+  title="Transact with Aomi - Swap"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
   referrerPolicy="strict-origin-when-cross-origin"
   allowFullScreen
 />
 
-## Next Steps
+### Tailored Enterprise Integrations
 
-- [Using the Web App](/docs/use-aomi/web/using-the-app) — detailed guide to the Web App interface.
-- [Telegram Bot](/docs/use-aomi/telegram/overview) — how to use the AI assistant through Telegram.
-- [Discord Bot](/docs/use-aomi/discord/overview) — coming soon.
-- [iOS App](/docs/use-aomi/ios/overview) — coming soon.
-- [FAQ](/docs/use-aomi/faq) — common questions about using Aomi assistants.
+Beyond on-chain operations, the agent connects to external APIs configured for your product. Current integrations include DeFi data providers, social APIs, and prediction markets — these are live examples that demonstrate the flexibility of the integration layer, not the ceiling of what's possible. Aomi is actively onboarding additional API providers.
+
+If you're accessing the Web App through an enterprise product, the available integrations reflect what that enterprise has configured. If you're an enterprise evaluating Aomi, reach out about adding your data sources or preferred providers to the platform.
+
+## The Chat Interface
+
+The Web App is embedded in the product's website — no installation required. Look for a chat panel or chat icon on the page.
+
+The agent streams responses in real time. When it needs to look something up or take an action, it calls a tool — a direct connection to one of the product's APIs. You'll see a brief inline indicator (e.g., *Fetching ETH price...* or *Checking balance...*) before the result appears.
+
+### Threads
+
+Conversations are organized into threads, each with its own persistent history. Close the browser and pick up where you left off. You can create, rename, and delete threads to stay organized.
+
+### Wallet Connection
+
+The Web App supports connecting a crypto wallet via WalletConnect. This is optional, but unlocks on-chain capabilities:
+
+- Query live balances and transaction history
+- Prepare and submit transactions through the chat
+- Interact with DeFi protocols directly
+
+**The agent never has access to your private keys.** When a transaction is required, it prepares the transaction and routes it to your wallet app for explicit approval. Nothing executes without your confirmation.
+
+If you don't connect a wallet, the agent still works fully for any non-wallet actions.
+
+<iframe
+  className="aspect-video w-full rounded-lg border"
+  src="https://www.youtube.com/embed/TqCiJ7m9ksY"
+  title="Transact with Aomi - Connect Wallet"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  referrerPolicy="strict-origin-when-cross-origin"
+  allowFullScreen
+/>
+
+## Web App as an Integration Surface
+
+The Web App is a hosted, embeddable client — Aomi deploys and maintains it on behalf of the enterprise. It connects to a configured App (tools, system prompt, model selection) and surfaces the full agent experience to end users with no custom frontend required.
+
+The same App configuration powers all surfaces. See [Integration Guide](/docs/build/integration-guide) for deploying across Web App, Telegram, and other channels.
