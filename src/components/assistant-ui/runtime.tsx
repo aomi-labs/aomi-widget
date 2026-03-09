@@ -17,7 +17,7 @@ import {
   type ExternalStoreThreadListAdapter,
   type ExternalStoreThreadData,
 } from "@assistant-ui/react";
-import { BackendApi, type SessionMessage } from "@/lib/backend-api";
+import { AomiClient, type SessionMessage } from "@/lib/backend-api";
 import {
   constructSystemMessage,
   constructThreadMessage,
@@ -89,7 +89,7 @@ export function AomiRuntimeProvider({
 
   // ==================== State ====================
   const [isRunning, setIsRunning] = useState(false);
-  const backendApiRef = useRef(new BackendApi(backendUrl));
+  const aomiClientRef = useRef(new AomiClient(backendUrl));
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -173,7 +173,7 @@ export function AomiRuntimeProvider({
 
   // ==================== Backend API ====================
   useEffect(() => {
-    backendApiRef.current = new BackendApi(backendUrl);
+    aomiClientRef.current = new AomiClient(backendUrl);
   }, [backendUrl]);
 
   // ==================== Polling Logic ====================
@@ -191,7 +191,7 @@ export function AomiRuntimeProvider({
     setIsRunning(true);
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
+        const state = await aomiClientRef.current.fetchState(backendThreadId);
         if (state.session_exists === false) {
           setIsRunning(false);
           stopPolling();
@@ -237,7 +237,7 @@ export function AomiRuntimeProvider({
       const backendThreadId = resolveThreadId(currentThreadId);
 
       try {
-        const state = await backendApiRef.current.fetchState(backendThreadId);
+        const state = await aomiClientRef.current.fetchState(backendThreadId);
         if (state.session_exists === false) {
           setIsRunning(false);
           return;
@@ -273,7 +273,7 @@ export function AomiRuntimeProvider({
 
     const fetchThreadList = async () => {
       try {
-        const threadList = await backendApiRef.current.fetchThreads(publicKey);
+        const threadList = await aomiClientRef.current.fetchThreads(publicKey);
         const newMetadata = new Map(threadMetadata);
 
         // Track highest chat number
@@ -410,7 +410,7 @@ export function AomiRuntimeProvider({
         preparePendingThread(threadId);
 
         // Create thread on backend in background
-        const createPromise = backendApiRef.current
+        const createPromise = aomiClientRef.current
           .createThread(threadId, publicKey)
           .then(async (newThread) => {
             const uiThreadId = creatingThreadIdRef.current ?? threadId;
@@ -450,7 +450,7 @@ export function AomiRuntimeProvider({
               pendingChatMessagesRef.current.delete(uiThreadId);
               for (const text of pendingMessages) {
                 try {
-                  await backendApiRef.current.postChatMessage(backendId, text);
+                  await aomiClientRef.current.postChatMessage(backendId, text);
                 } catch (error) {
                   console.error("Failed to send queued message:", error);
                 }
@@ -499,7 +499,7 @@ export function AomiRuntimeProvider({
         });
 
         try {
-          await backendApiRef.current.renameThread(threadId, newTitle);
+          await aomiClientRef.current.renameThread(threadId, newTitle);
         } catch (error) {
           console.error("Failed to rename thread:", error);
           // Could rollback here, but we'll keep the optimistic update
@@ -512,7 +512,7 @@ export function AomiRuntimeProvider({
         updateThreadMetadata(threadId, { status: "archived" });
 
         try {
-          await backendApiRef.current.archiveThread(threadId);
+          await aomiClientRef.current.archiveThread(threadId);
         } catch (error) {
           console.error("Failed to archive thread:", error);
           // Rollback on error
@@ -526,7 +526,7 @@ export function AomiRuntimeProvider({
         updateThreadMetadata(threadId, { status: "regular" });
 
         try {
-          await backendApiRef.current.unarchiveThread(threadId);
+          await aomiClientRef.current.unarchiveThread(threadId);
         } catch (error) {
           console.error("Failed to unarchive thread:", error);
           // Rollback on error
@@ -537,7 +537,7 @@ export function AomiRuntimeProvider({
       // Delete thread
       onDelete: async (threadId: string) => {
         try {
-          await backendApiRef.current.deleteThread(threadId);
+          await aomiClientRef.current.deleteThread(threadId);
 
           // Remove from context
           setThreadMetadata((prev) => {
@@ -589,7 +589,7 @@ export function AomiRuntimeProvider({
       const backendThreadId = resolveThreadId(threadId);
       setIsRunning(true);
       try {
-        const response = await backendApiRef.current.postSystemMessage(
+        const response = await aomiClientRef.current.postSystemMessage(
           backendThreadId,
           message,
         );
@@ -639,7 +639,7 @@ export function AomiRuntimeProvider({
 
       for (const text of pending) {
         try {
-          await backendApiRef.current.postChatMessage(backendThreadId, text);
+          await aomiClientRef.current.postChatMessage(backendThreadId, text);
         } catch (error) {
           console.error("Failed to send queued message:", error);
         }
@@ -693,7 +693,7 @@ export function AomiRuntimeProvider({
 
       try {
         setIsRunning(true);
-        await backendApiRef.current.postChatMessage(backendThreadId, text);
+        await aomiClientRef.current.postChatMessage(backendThreadId, text);
         await flushPendingSystemMessages(currentThreadId);
         startPolling();
       } catch (error) {
@@ -741,7 +741,7 @@ export function AomiRuntimeProvider({
     const backendThreadId = resolveThreadId(currentThreadId);
 
     try {
-      await backendApiRef.current.postInterrupt(backendThreadId);
+      await aomiClientRef.current.postInterrupt(backendThreadId);
       setIsRunning(false);
     } catch (error) {
       console.error("Failed to cancel:", error);
@@ -770,7 +770,7 @@ export function AomiRuntimeProvider({
   }, [currentMessages, currentThreadId, flushPendingSystemMessages]);
 
   useEffect(() => {
-    const unsubscribe = backendApiRef.current.subscribeToUpdates(
+    const unsubscribe = aomiClientRef.current.subscribeToUpdates(
       (update) => {
         if (update.type !== "TitleChanged") return;
         const sessionId = update.data.session_id;

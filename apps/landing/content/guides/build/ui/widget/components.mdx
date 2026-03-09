@@ -1,0 +1,224 @@
+---
+title: Component Catalog
+description: Browse all available UI components from the Aomi registry.
+---
+
+# Component Catalog
+
+All UI components available through the Aomi shadcn registry. Each component can be installed individually or comes bundled when you install `aomi-frame`.
+
+## Aomi Components
+
+These components are maintained by Aomi and include features specific to the platform.
+
+### AomiFrame
+
+The main chat shell with sidebar, thread management, and all runtime wiring.
+
+```bash
+npx shadcn add https://aomi.dev/r/aomi-frame.json
+```
+
+```tsx
+import { AomiFrame } from "@/components/aomi-frame";
+
+<AomiFrame height="600px" />
+```
+
+### AssistantThread
+
+The chat message list and composer. Renders messages, tool calls, markdown, and streaming responses.
+
+```bash
+npx shadcn add https://aomi.dev/r/assistant-thread.json
+```
+
+```tsx
+import { Thread } from "@/components/assistant-ui/thread";
+
+<Thread />
+```
+
+### ThreadList
+
+Displays all conversation threads in a list with create, rename, and delete actions.
+
+```bash
+npx shadcn add https://aomi.dev/r/assistant-thread-list.json
+```
+
+```tsx
+import { ThreadList } from "@/components/assistant-ui/thread-list";
+
+<ThreadList />
+```
+
+### ThreadListSidebar
+
+A sidebar wrapper around the thread list with wallet button positioning.
+
+```bash
+npx shadcn add https://aomi.dev/r/threadlist-sidebar.json
+```
+
+```tsx
+import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
+
+<ThreadListSidebar walletPosition="footer" />
+```
+
+### ToolFallback
+
+Fallback renderer for tool call results when no specific renderer is registered.
+
+```bash
+npx shadcn add https://aomi.dev/r/tool-fallback.json
+```
+
+```tsx
+import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
+
+<ToolFallback />
+```
+
+### Notification
+
+Toast notification component for system messages, errors, and wallet events.
+
+```bash
+npx shadcn add https://aomi.dev/r/notification.json
+```
+
+```tsx
+import { NotificationToaster } from "@/components/ui/notification";
+
+<NotificationToaster />
+```
+
+## Control Bar Components
+
+Individual control components that can be used standalone or composed into a custom control bar.
+
+### ControlBar
+
+Composes all control components into a single bar.
+
+```tsx
+import { ControlBar } from "@/components/control-bar";
+
+// Full control bar
+<ControlBar />
+
+// Minimal
+<ControlBar hideApiKey hideWallet />
+
+// With custom controls appended
+<ControlBar hideModel>
+  <MyCustomToggle />
+</ControlBar>
+```
+
+### ModelSelect
+
+Dropdown to select the AI model. Fetches available models from the backend.
+
+```tsx
+import { ModelSelect } from "@/components/control-bar";
+
+<ModelSelect placeholder="Choose model" className="w-[200px]" />
+```
+
+### NamespaceSelect
+
+Dropdown to select the namespace (AI agent/application).
+
+```tsx
+import { NamespaceSelect } from "@/components/control-bar";
+
+<NamespaceSelect placeholder="Choose agent" className="w-[200px]" />
+```
+
+### ApiKeyInput
+
+Dialog button for entering and managing the API key. Persists the key to localStorage.
+
+```tsx
+import { ApiKeyInput } from "@/components/control-bar";
+
+<ApiKeyInput
+  title="API Key"
+  description="Enter your API key to authenticate."
+/>
+```
+
+### WalletConnect
+
+Button to connect or disconnect a wallet. Syncs wallet state with the Aomi runtime via `useUser`.
+
+```tsx
+import { WalletConnect } from "@/components/control-bar";
+
+<WalletConnect
+  connectLabel="Connect Wallet"
+  onConnectionChange={(connected) => console.log(connected)}
+/>
+```
+
+### NetworkSelect
+
+Dropdown to switch between blockchain networks.
+
+```tsx
+import { NetworkSelect } from "@/components/control-bar";
+
+<NetworkSelect />
+```
+
+## shadcn Primitives
+
+These standard UI primitives are installed as dependencies. They come from the official shadcn registry.
+
+| Component | Description |
+| --- | --- |
+| `Button` | Clickable button with variants |
+| `Input` | Text input field |
+| `Label` | Form label |
+| `Card` | Content container |
+| `Dialog` | Modal dialog |
+| `Sheet` | Side panel overlay |
+| `Popover` | Floating content panel |
+| `Command` | Command palette / search |
+| `Drawer` | Bottom drawer |
+| `Sidebar` | Collapsible sidebar layout |
+| `Separator` | Visual divider |
+| `Breadcrumb` | Navigation breadcrumb |
+| `Tooltip` | Hover tooltip |
+
+## Dependency Tree
+
+When you install `aomi-frame`, it pulls in the full tree:
+
+```
+aomi-frame
+├── assistant-thread
+│   ├── markdown-text (upstream)
+│   ├── tooltip-icon-button (upstream)
+│   └── attachment (upstream)
+├── threadlist-sidebar
+│   ├── thread-list
+│   └── sidebar (shadcn)
+├── control-bar/
+│   ├── model-select
+│   ├── namespace-select
+│   ├── api-key-input
+│   ├── wallet-connect
+│   └── network-select
+├── notification
+├── wallet-tx-handler
+├── breadcrumb (shadcn)
+├── separator (shadcn)
+├── popover (shadcn)
+└── button (shadcn)
+```
+
+npm packages installed: `@aomi-labs/react`, `@assistant-ui/react`.

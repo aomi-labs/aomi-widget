@@ -1,7 +1,6 @@
 import {
   defineConfig,
   defineDocs,
-  defineCollections,
   frontmatterSchema,
   metaSchema,
 } from "fumadocs-mdx/config";
@@ -37,8 +36,8 @@ export const examples = defineDocs({
   },
 });
 
-export const api = defineDocs({
-  dir: "content/api",
+export const playground = defineDocs({
+  dir: "content/playground",
   docs: {
     schema: frontmatterSchema,
   },
@@ -52,7 +51,7 @@ export default defineConfig({
     remarkPlugins: [remarkMermaid],
     rehypeCodeOptions: {
       lazy: true,
-      langs: ["ts", "js", "html", "tsx", "mdx", "bash", "json"],
+      langs: ["ts", "js", "html", "tsx", "mdx", "bash", "json", "rust", "toml", "css"],
       themes: {
         light: "catppuccin-latte",
         dark: "catppuccin-mocha",

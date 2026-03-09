@@ -9,14 +9,14 @@ import { act, cleanup, waitFor } from "@testing-library/react";
 
 import {
   renderRuntime,
-  resetBackendApiMocks,
-  setBackendApiConfig,
+  resetAomiClientMocks,
+  setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
-import type { ApiThread, ApiStateResponse } from "../../backend/types";
+import type { ApiThread, ApiStateResponse } from "@aomi-labs/client";
 
 beforeEach(() => {
-  resetBackendApiMocks();
+  resetAomiClientMocks();
 });
 
 afterEach(() => {
@@ -47,7 +47,7 @@ describe("Thread API", () => {
   describe("deleteThread", () => {
     it("deletes thread and creates default", async () => {
       const deleteThread = vi.fn(async () => undefined);
-      setBackendApiConfig({ deleteThread });
+      setAomiClientConfig({ deleteThread });
 
       const { api, getApi } = renderRuntime();
       const threadId = api.currentThreadId;
@@ -65,7 +65,7 @@ describe("Thread API", () => {
   describe("renameThread", () => {
     it("renames thread optimistically", async () => {
       const renameThread = vi.fn(async () => undefined);
-      setBackendApiConfig({ renameThread });
+      setAomiClientConfig({ renameThread });
 
       const { api, getApi } = renderRuntime();
       const threadId = api.currentThreadId;
@@ -86,7 +86,7 @@ describe("Thread API", () => {
       const renameThread = vi.fn(async () => {
         throw new Error("Failed");
       });
-      setBackendApiConfig({ renameThread });
+      setAomiClientConfig({ renameThread });
 
       const { api, getApi } = renderRuntime();
       const threadId = api.currentThreadId;
@@ -104,7 +104,7 @@ describe("Thread API", () => {
   describe("archiveThread", () => {
     it("archives thread optimistically", async () => {
       const archiveThread = vi.fn(async () => undefined);
-      setBackendApiConfig({ archiveThread });
+      setAomiClientConfig({ archiveThread });
 
       const { api, getApi } = renderRuntime();
       const threadId = api.currentThreadId;
@@ -125,7 +125,7 @@ describe("Thread API", () => {
       const archiveThread = vi.fn(async () => {
         throw new Error("Failed");
       });
-      setBackendApiConfig({ archiveThread });
+      setAomiClientConfig({ archiveThread });
 
       const { api, getApi } = renderRuntime();
       const threadId = api.currentThreadId;
@@ -148,7 +148,7 @@ describe("Thread API", () => {
           { session_id: "thread-2", title: "Chat 2" },
         ],
       );
-      setBackendApiConfig({ fetchThreads });
+      setAomiClientConfig({ fetchThreads });
 
       const { api, getApi } = renderRuntime();
 
@@ -173,7 +173,7 @@ describe("Thread API", () => {
           { session_id: "archived-1", title: "Archived", is_archived: true },
         ],
       );
-      setBackendApiConfig({ fetchThreads });
+      setAomiClientConfig({ fetchThreads });
 
       const { api, getApi } = renderRuntime();
 
@@ -196,7 +196,7 @@ describe("Thread API", () => {
           { session_id: "thread-2", title: "#[placeholder]" },
         ],
       );
-      setBackendApiConfig({ fetchThreads });
+      setAomiClientConfig({ fetchThreads });
 
       const { api, getApi } = renderRuntime();
 

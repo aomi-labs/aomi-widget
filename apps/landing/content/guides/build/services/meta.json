@@ -1,0 +1,10 @@
+{
+  "title": "Fullstack",
+  "pages": [
+    "sessions",
+    "building-apps",
+    "api-reference",
+    "wallet-integration",
+    "telegram-bot"
+  ]
+}

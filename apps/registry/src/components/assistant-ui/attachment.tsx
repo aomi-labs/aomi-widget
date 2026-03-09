@@ -163,7 +163,7 @@ const AttachmentUI: FC = () => {
           <TooltipTrigger asChild>
             <div
               className={cn(
-                "aui-attachment-tile bg-muted size-14 cursor-pointer overflow-hidden rounded-[14px] border transition-opacity hover:opacity-75",
+                "aui-attachment-tile bg-muted size-14 cursor-pointer overflow-hidden rounded-xl border transition-opacity hover:opacity-75",
                 isComposer &&
                   "aui-attachment-tile-composer border-foreground/20",
               )}

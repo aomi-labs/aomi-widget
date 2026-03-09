@@ -8,7 +8,7 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import type { BackendApi } from "../backend/client";
+import type { AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/user-context";
@@ -31,7 +31,7 @@ import { useWalletHandler } from "../handlers/wallet-handler";
 
 export type AomiRuntimeCoreProps = {
   children: ReactNode;
-  backendApi: BackendApi;
+  aomiClient: AomiClient;
 };
 
 // =============================================================================
@@ -40,7 +40,7 @@ export type AomiRuntimeCoreProps = {
 
 export function AomiRuntimeCore({
   children,
-  backendApi,
+  aomiClient,
 }: Readonly<AomiRuntimeCoreProps>) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -56,8 +56,8 @@ export function AomiRuntimeCore({
     isRunning,
     setIsRunning,
     ensureInitialState,
-    backendApiRef,
-  } = useRuntimeOrchestrator(backendApi, {
+    aomiClientRef,
+  } = useRuntimeOrchestrator(aomiClient, {
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
@@ -83,11 +83,11 @@ export function AomiRuntimeCore({
           ensName: newUser.ensName,
         },
       });
-      await backendApiRef.current.postSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message);
     });
 
     return unsubscribe;
-  }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
+  }, [onUserStateChange, aomiClientRef, threadContext.currentThreadId]);
 
   // ---------------------------------------------------------------------------
   // Refs for stable access
@@ -169,7 +169,7 @@ export function AomiRuntimeCore({
     const fetchThreadList = async () => {
       try {
         const threadList =
-          await backendApiRef.current.fetchThreads(userAddress);
+          await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -207,7 +207,7 @@ export function AomiRuntimeCore({
     };
 
     void fetchThreadList();
-  }, [user.address, backendApiRef]);
+  }, [user.address, aomiClientRef]);
 
   // ---------------------------------------------------------------------------
   // Thread list adapter
@@ -216,7 +216,7 @@ export function AomiRuntimeCore({
     () =>
       buildThreadListAdapter({
         backendStateRef,
-        backendApiRef,
+        aomiClientRef,
         threadContext,
         currentThreadIdRef,
         polling,
@@ -230,7 +230,7 @@ export function AomiRuntimeCore({
         getUserState,
       }),
     [
-      backendApiRef,
+      aomiClientRef,
       polling,
       user.address,
       backendStateRef,

@@ -92,7 +92,7 @@ packages/react/src/
 ├── index.ts                      # Public exports
 ├── interface.tsx                 # AomiRuntimeApi type and useAomiRuntime hook
 ├── backend/
-│   ├── client.ts                 # BackendApi HTTP client
+│   ├── client.ts                 # AomiClient HTTP client
 │   └── types.ts                  # API response types
 ├── contexts/
 │   ├── control-context.tsx       # Model/namespace/apiKey state (per-thread)
