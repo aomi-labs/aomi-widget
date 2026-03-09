@@ -219,7 +219,7 @@ function useControl() {
 }
 function ControlContextProvider({
   children,
-  backendApi,
+  aomiClient,
   sessionId,
   publicKey,
   getThreadMetadata,
@@ -235,8 +235,8 @@ function ControlContextProvider({
   }));
   const stateRef = useRef(state);
   stateRef.current = state;
-  const backendApiRef = useRef(backendApi);
-  backendApiRef.current = backendApi;
+  const aomiClientRef = useRef(aomiClient);
+  aomiClientRef.current = aomiClient;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const publicKeyRef = useRef(publicKey);
@@ -273,7 +273,7 @@ function ControlContextProvider({
     const fetchNamespaces = async () => {
       var _a2, _b2;
       try {
-        const namespaces = await backendApiRef.current.getNamespaces(
+        const namespaces = await aomiClientRef.current.getNamespaces(
           sessionIdRef.current,
           { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
         );
@@ -295,7 +295,7 @@ function ControlContextProvider({
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const models = await backendApiRef.current.getModels(
+        const models = await aomiClientRef.current.getModels(
           sessionIdRef.current
         );
         setStateInternal((prev) => {
@@ -320,7 +320,7 @@ function ControlContextProvider({
   }, []);
   const getAvailableModels = useCallback(async () => {
     try {
-      const models = await backendApiRef.current.getModels(
+      const models = await aomiClientRef.current.getModels(
         sessionIdRef.current
       );
       setStateInternal((prev) => {
@@ -339,7 +339,7 @@ function ControlContextProvider({
   const getAuthorizedNamespaces = useCallback(async () => {
     var _a2, _b2;
     try {
-      const namespaces = await backendApiRef.current.getNamespaces(
+      const namespaces = await aomiClientRef.current.getNamespaces(
         sessionIdRef.current,
         { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
       );
@@ -395,10 +395,10 @@ function ControlContextProvider({
       threadId,
       model,
       namespace,
-      backendUrl: backendApiRef.current
+      backendUrl: aomiClientRef.current
     });
     try {
-      const result = await backendApiRef.current.setModel(
+      const result = await aomiClientRef.current.setModel(
         threadId,
         model,
         { namespace, apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0 }
@@ -568,7 +568,7 @@ function useEventContext() {
 }
 function EventContextProvider({
   children,
-  backendApi,
+  aomiClient,
   sessionId
 }) {
   const bufferRef = useRef2(null);
@@ -580,7 +580,7 @@ function EventContextProvider({
   useEffect2(() => {
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
-    const unsubscribe = backendApi.subscribeSSE(
+    const unsubscribe = aomiClient.subscribeSSE(
       sessionId,
       (event) => {
         enqueueInbound(buffer, {
@@ -610,7 +610,7 @@ function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, sessionId, buffer]);
+  }, [aomiClient, sessionId, buffer]);
   const subscribeCallback = useCallback2(
     (type, callback) => {
       return subscribe(buffer, type, callback);
@@ -624,12 +624,12 @@ function EventContextProvider({
           type: event.type,
           payload: event.payload
         });
-        await backendApi.sendSystemMessage(event.sessionId, message);
+        await aomiClient.sendSystemMessage(event.sessionId, message);
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
     },
-    [backendApi]
+    [aomiClient]
   );
   const dispatchSystemEvents = useCallback2(
     (sessionId2, events) => {
@@ -1021,7 +1021,7 @@ var MessageController = class {
     const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
     try {
       this.markRunning(threadId, true);
-      const response = await this.config.backendApiRef.current.sendMessage(
+      const response = await this.config.aomiClientRef.current.sendMessage(
         backendThreadId,
         text,
         { namespace, publicKey, apiKey, userState }
@@ -1048,7 +1048,7 @@ var MessageController = class {
     const backendState = this.config.backendStateRef.current;
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
-      const response = await this.config.backendApiRef.current.interrupt(backendThreadId);
+      const response = await this.config.aomiClientRef.current.interrupt(backendThreadId);
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
       }
@@ -1096,7 +1096,7 @@ var PollingController = class {
           threadId
         );
         const userState = (_b2 = (_a2 = this.config).getUserState) == null ? void 0 : _b2.call(_a2);
-        const state = await this.config.backendApiRef.current.fetchState(
+        const state = await this.config.aomiClientRef.current.fetchState(
           backendThreadId,
           userState
         );
@@ -1144,12 +1144,12 @@ var PollingController = class {
 };
 
 // packages/react/src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendApi, options) {
+function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef5(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = useRef5(backendApi);
-  backendApiRef.current = backendApi;
+  const aomiClientRef = useRef5(aomiClient);
+  aomiClientRef.current = aomiClient;
   const backendStateRef = useRef5(createBackendState());
   const [isRunning, setIsRunning] = useState5(false);
   const messageControllerRef = useRef5(null);
@@ -1157,7 +1157,7 @@ function useRuntimeOrchestrator(backendApi, options) {
   const pendingFetches = useRef5(/* @__PURE__ */ new Set());
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
-      backendApiRef,
+      aomiClientRef,
       backendStateRef,
       applyMessages: (threadId, msgs) => {
         var _a;
@@ -1179,7 +1179,7 @@ function useRuntimeOrchestrator(backendApi, options) {
   }
   if (!messageControllerRef.current) {
     messageControllerRef.current = new MessageController({
-      backendApiRef,
+      aomiClientRef,
       backendStateRef,
       threadContextRef,
       polling: pollingRef.current,
@@ -1198,7 +1198,7 @@ function useRuntimeOrchestrator(backendApi, options) {
     pendingFetches.current.add(threadId);
     try {
       const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
-      const state = await backendApiRef.current.fetchState(
+      const state = await aomiClientRef.current.fetchState(
         backendThreadId,
         userState
       );
@@ -1230,7 +1230,7 @@ function useRuntimeOrchestrator(backendApi, options) {
     isRunning,
     setIsRunning,
     ensureInitialState,
-    backendApiRef
+    aomiClientRef
   };
 }
 
@@ -1261,7 +1261,7 @@ function buildThreadLists(threadMetadata) {
   return { regularThreads, archivedThreads };
 }
 function buildThreadListAdapter({
-  backendApiRef,
+  aomiClientRef,
   threadContext,
   setIsRunning
 }) {
@@ -1299,7 +1299,7 @@ function buildThreadListAdapter({
         title: normalizedTitle
       });
       try {
-        await backendApiRef.current.renameThread(threadId, newTitle);
+        await aomiClientRef.current.renameThread(threadId, newTitle);
       } catch (error) {
         console.error("Failed to rename thread:", error);
         threadContext.updateThreadMetadata(threadId, {
@@ -1310,7 +1310,7 @@ function buildThreadListAdapter({
     onArchive: async (threadId) => {
       threadContext.updateThreadMetadata(threadId, { status: "archived" });
       try {
-        await backendApiRef.current.archiveThread(threadId);
+        await aomiClientRef.current.archiveThread(threadId);
       } catch (error) {
         console.error("Failed to archive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "regular" });
@@ -1319,7 +1319,7 @@ function buildThreadListAdapter({
     onUnarchive: async (threadId) => {
       threadContext.updateThreadMetadata(threadId, { status: "regular" });
       try {
-        await backendApiRef.current.unarchiveThread(threadId);
+        await aomiClientRef.current.unarchiveThread(threadId);
       } catch (error) {
         console.error("Failed to unarchive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "archived" });
@@ -1327,7 +1327,7 @@ function buildThreadListAdapter({
     },
     onDelete: async (threadId) => {
       try {
-        await backendApiRef.current.deleteThread(threadId);
+        await aomiClientRef.current.deleteThread(threadId);
         threadContext.setThreadMetadata((prev) => {
           const next = new Map(prev);
           next.delete(threadId);
@@ -1596,7 +1596,7 @@ function useWalletHandler({
 import { jsx as jsx6 } from "react/jsx-runtime";
 function AomiRuntimeCore({
   children,
-  backendApi
+  aomiClient
 }) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -1611,8 +1611,8 @@ function AomiRuntimeCore({
     isRunning,
     setIsRunning,
     ensureInitialState,
-    backendApiRef
-  } = useRuntimeOrchestrator(backendApi, {
+    aomiClientRef
+  } = useRuntimeOrchestrator(aomiClient, {
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
@@ -1634,10 +1634,10 @@ function AomiRuntimeCore({
           ensName: newUser.ensName
         }
       });
-      await backendApiRef.current.sendSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message);
     });
     return unsubscribe;
-  }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
+  }, [onUserStateChange, aomiClientRef, threadContext.currentThreadId]);
   const threadContextRef = useRef7(threadContext);
   threadContextRef.current = threadContext;
   const currentThreadIdRef = useRef7(threadContext.currentThreadId);
@@ -1691,7 +1691,7 @@ function AomiRuntimeCore({
     const fetchThreadList = async () => {
       var _a, _b, _c;
       try {
-        const threadList = await backendApiRef.current.listThreads(userAddress);
+        const threadList = await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -1723,11 +1723,11 @@ function AomiRuntimeCore({
       }
     };
     void fetchThreadList();
-  }, [user.address, backendApiRef]);
+  }, [user.address, aomiClientRef]);
   const threadListAdapter = useMemo2(
     () => buildThreadListAdapter({
       backendStateRef,
-      backendApiRef,
+      aomiClientRef,
       threadContext,
       currentThreadIdRef,
       polling,
@@ -1741,7 +1741,7 @@ function AomiRuntimeCore({
       getUserState
     }),
     [
-      backendApiRef,
+      aomiClientRef,
       polling,
       user.address,
       backendStateRef,
@@ -1955,12 +1955,12 @@ function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080"
 }) {
-  const backendApi = useMemo3(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
-  return /* @__PURE__ */ jsx7(ThreadContextProvider, { children: /* @__PURE__ */ jsx7(NotificationContextProvider, { children: /* @__PURE__ */ jsx7(UserContextProvider, { children: /* @__PURE__ */ jsx7(AomiRuntimeInner, { backendApi, children }) }) }) });
+  const aomiClient = useMemo3(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  return /* @__PURE__ */ jsx7(ThreadContextProvider, { children: /* @__PURE__ */ jsx7(NotificationContextProvider, { children: /* @__PURE__ */ jsx7(UserContextProvider, { children: /* @__PURE__ */ jsx7(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
   children,
-  backendApi
+  aomiClient
 }) {
   var _a;
   const threadContext = useThreadContext();
@@ -1968,7 +1968,7 @@ function AomiRuntimeInner({
   return /* @__PURE__ */ jsx7(
     ControlContextProvider,
     {
-      backendApi,
+      aomiClient,
       sessionId: threadContext.currentThreadId,
       publicKey: (_a = user.address) != null ? _a : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
@@ -1976,9 +1976,9 @@ function AomiRuntimeInner({
       children: /* @__PURE__ */ jsx7(
         EventContextProvider,
         {
-          backendApi,
+          aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ jsx7(AomiRuntimeCore, { backendApi, children })
+          children: /* @__PURE__ */ jsx7(AomiRuntimeCore, { aomiClient, children })
         }
       )
     }
