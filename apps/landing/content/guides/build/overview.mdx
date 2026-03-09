@@ -1,44 +1,30 @@
 ---
 title: Overview
-description: Aomi is agentic AI infrastructure — AI assistants for your product, powered by your APIs.
+description: Aomi is agentic AI infrastructure for blockchain — performant transactions, non-custodial wallets, and your APIs as AI tools.
 ---
 
 # Overview
 
-Aomi is agentic AI infrastructure. You provide your APIs, we build and host an AI assistant that can call them. You integrate it into your frontend with a few lines of code.
+Aomi is agentic AI infrastructure built for blockchains. Every Aomi App ships with performant on-chain transactions by default — simulation-first execution, non-custodial wallet integration, and real-time streaming. You bring your APIs, configure an Aomi App with your tools and a system prompt, and deploy it across multiple channels without managing LLMs or infrastructure.
 
 ## How It Works
 
-```mermaid
-flowchart LR
-    subgraph "Your Product"
-        APIs[Your APIs]
-        FE[Your Frontend]
-    end
-
-    subgraph "Aomi Platform"
-        BUILD[Build Assistant]
-        HOST[Hosted Backend]
-    end
-
-    subgraph "Users"
-        WIDGET[Chat Widget]
-        HEADLESS[Headless Integration]
-        TG[Telegram Bot]
-    end
-
-    APIs --> BUILD
-    BUILD --> HOST
-    HOST --> FE
-    FE --> WIDGET
-    FE --> HEADLESS
-    HOST --> TG
-```
-
 1. **You provide your APIs** -- REST endpoints, data feeds, trading actions, whatever your product does.
-2. **Aomi wraps them as AI tools** -- each API becomes a tool the assistant can invoke during conversations.
-3. **We deploy a hosted assistant** -- configured with your branding, instructions, and model preferences.
+2. **Aomi wraps them as AI tools** -- each API becomes a tool the Aomi App can invoke during conversations.
+3. **We host the runtime** -- configured with your branding, instructions, and model preferences.
 4. **Users interact** -- via an embedded chat widget, a headless integration, or a Telegram bot.
+
+![Architecture Overview](/assets/images/architecture-overview.png)
+
+## Transaction Pipeline
+
+Aomi treats every on-chain transaction as a first-class operation with built-in safety guarantees.
+
+Before any transaction reaches a user's wallet, Aomi forks the current network state using [Anvil](https://book.getfoundry.sh/anvil/) and simulates the transaction against it. The user sees exact token changes, gas costs, and contract calls before signing anything. This simulation-first approach is how the system prevents AI-generated transactions from executing without verification.
+
+Aomi is non-custodial by design. It never holds private keys or funds. All signing happens locally in the user's wallet via [Reown AppKit](https://reown.com) (WalletConnect). The AI constructs and proposes transactions; the wallet signs them. Account abstraction is supported for session keys, gas sponsorship, and batched operations — smoother UX without compromising custody.
+
+This pipeline applies across all channels. Whether a user transacts through the web widget or a Telegram bot, the same simulation and approval flow runs.
 
 ## Key Features
 
@@ -48,11 +34,7 @@ Responses stream in real-time via Server-Sent Events. Text appears as the model 
 
 ### Tool Calling
 
-Your APIs become AI-callable tools. When a user asks something that requires data or an action, the assistant calls the appropriate tool, processes the result, and responds naturally. Multiple tools can execute concurrently.
-
-### Wallet Integration
-
-Built-in Web3 wallet support via Reown AppKit. Users can connect wallets, sign transactions, and interact with on-chain data within the chat interface.
+Your APIs become AI-callable tools. When a user asks something that requires data or an action, the Aomi App calls the appropriate tool, processes the result, and responds naturally. Multiple tools can execute concurrently.
 
 ### Multi-Model Support
 
@@ -64,7 +46,7 @@ Choose from Anthropic (Claude), OpenAI (GPT-4), or models via OpenRouter. Switch
 | --- | --- | --- | --- |
 | **Setup time** | Minutes | Hours | Managed by Aomi |
 | **Install method** | `npx shadcn add` | `npm install` | No frontend code |
-| **UI included** | Full chat interface, sidebar, controls | None -- build your own | Telegram-native |
+| **UI included** | Full chat interface, sidebar, controls | None — build your own | Telegram-native |
 | **Customization** | Edit copied source files | Build from scratch | Bot commands and panels |
 | **Dependencies** | `@aomi-labs/react`, `@assistant-ui/react`, shadcn primitives | `@aomi-labs/react`, `@assistant-ui/react` | None |
 | **Framework** | Next.js (React) | Any React app (API client works anywhere) | N/A |
@@ -81,7 +63,7 @@ npx shadcn add https://aomi.dev/r/aomi-frame.json
 
 ### Headless Library
 
-Pure logic distributed as an npm package. Hooks, providers, API client, and utilities -- zero UI opinions.
+Pure logic distributed as an npm package. Hooks, providers, API client, and utilities — zero UI opinions.
 
 ```bash
 npm install @aomi-labs/react
@@ -93,17 +75,11 @@ Aomi hosts the bot and connects it to the same backend and tools as the widget. 
 
 ## Shared Foundation
 
-Both frontend paths use the same core:
-
-- **`@aomi-labs/react`** provides all runtime logic: `AomiRuntimeProvider`, `useAomiRuntime`, `useControl`, `useUser`, and the `BackendApi` client.
-- **Same backend API** endpoints for chat, threads, models, namespaces, and wallet operations.
-- **Same authentication** via API keys and wallet addresses.
+Both frontend paths use the same core. `@aomi-labs/react` provides all runtime logic — `AomiRuntimeProvider`, `useAomiRuntime`, `useControl`, `useUser`, and the `BackendApi` client. They share the same backend API endpoints for chat, threads, models, namespaces, and wallet operations, and the same authentication via API keys and wallet addresses.
 
 The widget is built on top of the headless library. Installing the widget pulls in `@aomi-labs/react` as a dependency automatically.
 
-**Start with the widget** if you want results quickly. The source code is copied into your project, so you can customize or replace individual components later.
-
-**Start with the headless library** if you have an existing design system and want to integrate Aomi logic into your own components from day one.
+**Start with the widget** if you want results quickly. The source code is copied into your project, so you can customize or replace individual components later. **Start with the headless library** if you have an existing design system and want to integrate Aomi logic into your own components from day one.
 
 ## Platform Support
 
@@ -115,7 +91,7 @@ The widget is built on top of the headless library. Installing the widget pulls 
 
 ## Next Steps
 
-- [Quickstart](/docs/build/quickstart) -- get a working chat widget in 5 minutes.
-- [How It Works](/docs/build/how-it-works) -- technical deep dive into the platform pipeline.
-- [Widget Installation](/docs/build/ui/widget/aomi-frame) -- install the full UI.
-- [Headless Library](/docs/build/ui/headless/install) -- install the headless package.
+- [Getting Started](/docs/build/getting-started) — set up your first Aomi App.
+- [How It Works](/docs/build/how-it-works) — technical deep dive into the platform pipeline.
+- [Widget Installation](/docs/build/ui/widget/aomi-frame) — install the full UI.
+- [Headless Library](/docs/build/ui/headless/install) — install the headless package.

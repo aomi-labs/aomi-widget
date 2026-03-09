@@ -1,40 +1,49 @@
 ---
 title: Integration Guide
-description: How to adapt your APIs into an Aomi-powered AI assistant — from endpoints to deployed namespace.
+description: Full-stack integration process — from your APIs to a deployed Aomi App with tools, namespaces, and client integration.
 ---
 
 # Integration Guide
 
-This guide walks through how to take your existing APIs and turn them into an Aomi-powered AI assistant. We use **MyCoinDex**, a fictional crypto exchange, as the running example.
+This guide walks through the full-stack integration process — from your existing APIs to a deployed Aomi App that your users can interact with across web, Telegram, and other channels. We use **MyCoinDex**, a fictional crypto exchange, as the running example.
+
+To work with us on an integration, [please contact us](https://aomi.dev/contact).
 
 ## The Pipeline
 
 ```mermaid
-flowchart TB
-    subgraph "1. Your APIs"
-        API1[GET /prices/eth]
-        API2[POST /trades]
-        API3[GET /portfolio/user123]
+flowchart LR
+    subgraph YOUR["1. Your APIs"]
+        direction TB
+        API1["GET /prices/eth"]
+        API2["POST /trades"]
+        API3["GET /portfolio/user123"]
     end
 
-    subgraph "2. Aomi Tool Layer"
-        T1[GetTokenPrice]
-        T2[ExecuteTrade]
-        T3[GetPortfolio]
+    subgraph AOMI["2. Aomi Tool Layer"]
+        direction TB
+        T1["GetTokenPrice"]
+        T2["ExecuteTrade"]
+        T3["GetPortfolio"]
     end
 
-    subgraph "3. AomiApp Configuration"
-        PREAMBLE[Preamble]
-        MODEL[Model Selection]
-        RAG[RAG Docs]
+    subgraph CONFIG["3. AomiApp Configuration"]
+        direction TB
+        PREAMBLE["Preamble"]
+        MODEL["Model Selection"]
+        RAG["RAG Docs"]
     end
 
-    subgraph "4. Deployed Namespace"
-        NS[mycoindex]
+    subgraph NS_GROUP["4. Deployed Namespace"]
+        direction TB
+        NS["mycoindex"]
     end
 
-    subgraph "5. Client Integration"
-        WIDGET[Widget / Headless / Telegram]
+    subgraph CLIENT["5. Client Integration"]
+        direction TB
+        CL1["Widget"]
+        CL2["Headless"]
+        CL3["Telegram"]
     end
 
     API1 --> T1
@@ -48,12 +57,44 @@ flowchart TB
     RAG --> NS
     PREAMBLE --> NS
 
-    NS --> WIDGET
+    NS --> CL1
+    NS --> CL2
+    NS --> CL3
+
+    style YOUR fill:#fef9c3,stroke:#d4a017,color:#000
+    style AOMI fill:#fce7f3,stroke:#d4619b,color:#000
+    style CONFIG fill:#fce7f3,stroke:#d4619b,color:#000
+    style NS_GROUP fill:#fce7f3,stroke:#d4619b,color:#000
+    style CLIENT fill:#dbeafe,stroke:#3b82f6,color:#000
+
+    style API1 fill:#fff,stroke:#999,color:#000
+    style API2 fill:#fff,stroke:#999,color:#000
+    style API3 fill:#fff,stroke:#999,color:#000
+    style T1 fill:#fff,stroke:#999,color:#000
+    style T2 fill:#fff,stroke:#999,color:#000
+    style T3 fill:#fff,stroke:#999,color:#000
+    style PREAMBLE fill:#fff,stroke:#999,color:#000
+    style MODEL fill:#fff,stroke:#999,color:#000
+    style RAG fill:#fff,stroke:#999,color:#000
+    style NS fill:#fff,stroke:#999,color:#000
+    style CL1 fill:#fff,stroke:#999,color:#000
+    style CL2 fill:#fff,stroke:#999,color:#000
+    style CL3 fill:#fff,stroke:#999,color:#000
 ```
 
-## 1. Your APIs
+**1. Your APIs** — Your backend is responsible for maintaining its own user state. Notice `GET /portfolio/user123` passes a user ID because the Aomi App is stateless — it only retains conversation history, not your application state. Your APIs handle authentication, user data, and business logic as they normally would.
 
-MyCoinDex exposes standard HTTP endpoints. Aomi does not modify them.
+**2. Aomi Tool Layer** — Each tool wraps one or more of your API endpoints. A one-to-one mapping is not required. You can aggregate multiple endpoints into a single tool so the LLM's context stays clean and semantically coherent. For example, a `GetMarketOverview` tool might call both `/prices` and `/orderbook` internally. What matters is that each tool makes sense as a discrete action the AI would choose to take.
+
+**3. AomiApp Configuration** — Your system prompt (preamble) should clearly explain what each tool does, when to use it, and your business logic constraints. The LLM's performance depends directly on how well the preamble describes the Aomi App's role and rules. Model selection affects cost, latency, and reasoning quality. If you need a document store for FAQs, guides, or knowledge bases, we can set up RAG ingestion as part of the integration.
+
+**4. Deployed Namespace** — Aomi compiles and deploys the configured Aomi App as an isolated namespace on our hosted platform. Each namespace gets a scoped API key and a dedicated chat endpoint. Deployment and scaling are managed by Aomi.
+
+**5. Client Integration** — You are responsible for your own product surface. Use any combination of our SDK, component library, or Telegram bot framework to integrate the deployed Aomi App into your frontend. We provide assistance throughout the integration process.
+
+### 1. Your APIs
+
+MyCoinDex exposes standard HTTP endpoints. Aomi does not modify them — your APIs stay exactly as they are. The only requirement is that they are reachable over HTTP.
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
@@ -63,33 +104,32 @@ MyCoinDex exposes standard HTTP endpoints. Aomi does not modify them.
 | `/markets` | GET | Available trading pairs |
 | `/orderbook/{pair}` | GET | Order book depth |
 
-## 2. APIs Become AI Tools
+Your backend owns all user state. The Aomi App is stateless — it retains conversation history but nothing about your users, balances, or sessions. That's why `GET /portfolio/user123` passes a user ID explicitly. Your APIs continue to handle authentication, authorization, and business logic as they normally would.
 
-Aomi wraps each endpoint as a **tool** -- a typed function the LLM can invoke during a conversation. Each tool has a name, a description (so the model knows when to use it), and typed parameters.
+### 2. Aomi Tool Layer
 
-When a user asks "What's ETH trading at?", the model calls `GetTokenPrice` with `{ symbol: "ETH" }`. The tool hits MyCoinDex's `/prices/eth`, returns the result, and the model composes a natural-language response.
+Aomi wraps your endpoints as **tools** — typed functions the LLM can invoke during a conversation. Each tool has a name, a description so the model knows when to use it, and typed input parameters.
 
-Tools can execute concurrently. If the model needs both a price and a portfolio balance, it calls both tools in parallel.
+A one-to-one mapping between endpoints and tools is not required. You can aggregate multiple endpoints into a single tool so the LLM's context stays clean and semantically coherent. For example, a `GetMarketOverview` tool might call both `/prices` and `/orderbook` internally. What matters is that each tool makes sense as a discrete action the AI would choose to take — everything needs to be semantically meaningful.
 
-## 3. Configuring the Assistant
+Tools can execute concurrently. If the model needs both a price and a portfolio balance to answer a question, it calls both tools in parallel rather than sequentially.
 
-Three settings define the assistant's behavior:
+### 3. AomiApp Configuration
 
-### Preamble
+Three settings define the Aomi App's behavior.
 
-The system prompt that shapes personality and rules:
+**Preamble** — The system prompt that shapes the AI's personality, constraints, and rules. Your preamble should clearly explain what each tool does, when to use it, and your business logic constraints. The LLM's performance depends directly on how well the preamble describes the Aomi App's role and rules. A well-written preamble keeps the AI on-task and prevents it from overstepping.
 
 ```
-You are the MyCoinDex trading assistant. You help users check
+You are the MyCoinDex trading agent. You help users check
 prices, manage portfolios, and execute trades.
 
 Always confirm with the user before executing a trade.
 Show prices in USD unless the user requests otherwise.
+Never provide financial advice or price predictions.
 ```
 
-### Model Selection
-
-The LLM that powers the assistant. Supported providers:
+**Model Selection** — Different models have different strengths. Claude excels at nuanced reasoning, GPT-4o is strong at structured output, and smaller models like Haiku or GPT-4o Mini are faster and cheaper for simpler interactions. Models can be changed at runtime — no redeployment needed.
 
 | Provider | Models |
 | --- | --- |
@@ -97,141 +137,34 @@ The LLM that powers the assistant. Supported providers:
 | OpenAI | GPT-4o, GPT-4o Mini |
 | OpenRouter | Access to 100+ models |
 
-Models can be changed at runtime via the control API -- no redeployment needed.
+**RAG Document Store** — If you have documentation, FAQs, or knowledge base articles, we can set up RAG ingestion as part of the integration. The AI searches these documents when answering questions that go beyond what the tools can provide.
 
-### RAG Document Store (Optional)
+### 4. Deployed Namespace
 
-If MyCoinDex has documentation, FAQs, or knowledge base articles, Aomi ingests them into a vector store. The assistant searches these documents when answering questions beyond tool capabilities.
-
-## 4. Deployed as a Namespace
-
-The configured app becomes a **namespace** -- a self-contained assistant environment on Aomi's hosted backend.
+Aomi compiles and deploys the configured Aomi App as an isolated **namespace** on our hosted platform. A namespace bundles tools, preamble, model, and credentials into a single addressable endpoint.
 
 ```
 Namespace:  "mycoindex"
 Endpoint:   POST /api/chat?namespace=mycoindex
 Tools:      GetTokenPrice, ExecuteTrade, GetPortfolio, ListMarkets
-Preamble:   MyCoinDex trading assistant
+Preamble:   MyCoinDex trading agent
 Model:      Claude Sonnet (default, switchable)
 ```
 
-Each namespace is isolated. MyCoinDex's tools, preamble, and configuration do not affect other namespaces on the platform.
+Each namespace is fully isolated. MyCoinDex's tools, preamble, and configuration do not affect other namespaces on the platform. Deployment and scaling are managed by Aomi — you receive a scoped API key and a dedicated chat endpoint.
 
-## 5. API Key and Authentication
+### 5. Client Integration
 
-MyCoinDex receives an API key scoped to their namespace. Every request includes:
+You are responsible for your own product surface. Aomi provides the SDK, component library, and Telegram bot framework — use any combination to integrate the deployed Aomi App into your frontend. We provide assistance throughout the integration process.
 
-```
-X-API-Key: sk-mcd-a1b2c3d4e5f6
-X-Session-Id: 550e8400-e29b-41d4-a716-446655440000
-```
-
-The backend validates the key, confirms it authorizes access to the `mycoindex` namespace, and proceeds.
-
-## 6. The Request Flow
-
-Here is what happens when a user sends a message:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Frontend
-    participant Aomi as Aomi Backend
-    participant LLM
-    participant Tool as MyCoinDex API
-
-    User->>Frontend: "What's my ETH position worth?"
-    Frontend->>Aomi: POST /api/chat?namespace=mycoindex<br/>X-API-Key: sk-mcd-...<br/>X-Session-Id: session-uuid<br/>{"text": "What's my ETH position worth?"}
-
-    Aomi->>LLM: Messages + available tools
-    LLM-->>Aomi: ToolCall: GetPortfolio(userId)
-
-    Aomi->>Tool: GET /portfolio/user123
-    Tool-->>Aomi: {"eth": 2.5, "value_usd": 8750}
-
-    Aomi->>LLM: Tool result + continue
-    LLM-->>Aomi: ToolCall: GetTokenPrice(ETH)
-
-    Aomi->>Tool: GET /prices/eth
-    Tool-->>Aomi: {"price": 3500, "change_24h": "+2.1%"}
-
-    Aomi->>LLM: Tool result + continue
-
-    loop Streaming Response
-        LLM-->>Aomi: StreamingText chunk
-        Aomi-->>Frontend: SSE: data: {"type":"text","content":"Your..."}
-        Frontend-->>User: Text appears incrementally
-    end
-
-    LLM-->>Aomi: Complete
-    Aomi-->>Frontend: SSE: data: {"type":"complete"}
-```
-
-### Step by Step
-
-1. **User sends a message** via the widget or headless integration.
-2. **Frontend sends HTTP POST** to `/api/chat?namespace=mycoindex` with the API key and session ID.
-3. **Backend validates** the API key and loads the session.
-4. **Backend sends message + history + tools** to the selected LLM.
-5. **LLM decides to call tools** -- requests `GetPortfolio` and `GetTokenPrice`.
-6. **Backend executes tool calls** against MyCoinDex's APIs.
-7. **Tool results go back to the LLM** for interpretation.
-8. **LLM streams its response** -- the backend forwards each text chunk as an SSE event.
-9. **Frontend renders incrementally** -- the user sees text appear in real-time.
-10. **Complete event** signals the response is finished.
-
-## SSE Stream Format
-
-The response is a stream of Server-Sent Events:
-
-```
-data: {"type":"text","content":"Your ETH "}
-
-data: {"type":"text","content":"position is worth "}
-
-data: {"type":"text","content":"$8,750"}
-
-data: {"type":"tool_call","name":"GetPortfolio","args":{"userId":"user123"}}
-
-data: {"type":"tool_result","name":"GetPortfolio","result":{"eth":2.5,"value_usd":8750}}
-
-data: {"type":"complete"}
-```
-
-Each event is a JSON object with a `type` field. The frontend processes these to render streaming text, tool call indicators, and completion state.
-
-| Event Type | Purpose |
-| --- | --- |
-| `text` | Incremental text chunk from the LLM |
-| `tool_call` | The model is invoking a tool |
-| `tool_result` | Result returned from a tool execution |
-| `complete` | Response finished |
-
-## What You Get
-
-| Capability | Details | Managed By |
+| Path | Install | Best For |
 | --- | --- | --- |
-| **AI assistant** | Understands your product, calls your APIs | Aomi |
-| **Streaming chat** | Real-time responses via SSE | Aomi |
-| **Tool execution** | LLM calls your APIs as needed during conversations | Aomi |
-| **Session management** | Persistent threads, history, and state | Aomi |
-| **Multi-model support** | Switch between Claude, GPT-4o, and others at runtime | Aomi |
-| **Wallet integration** | Optional Web3 wallet connect for on-chain actions | Aomi |
-| **Scaling and availability** | Hosted infrastructure, no GPUs or LLM keys to manage | Aomi |
-| **Your API endpoints** | Standard HTTP -- no modifications required | You |
-| **Frontend integration** | Widget, headless, or Telegram | You |
-| **API key security** | Store securely, never expose client-side | You |
-
-## Real-World Integrations
-
-See how teams have built production integrations on Aomi:
-
-- [Polymarket](/examples/polymarket) — prediction market data and on-chain trading
-- [DeFi Aggregators](/examples/defi-aggregators) — cross-chain swaps, liquidity, and yield
-- [X (Social Intelligence)](/examples/x-apis) — social data and sentiment as AI context
+| Widget (shadcn) | `npx shadcn add https://aomi.dev/r/aomi-frame.json` | Quick integration, standard chat UI |
+| Headless Library | `npm install @aomi-labs/react` | Custom designs, maximum control |
+| Telegram Bot | Managed by Aomi | Reaching users without frontend deployment |
 
 ## Next Steps
 
-- [Namespace](/docs/agentic-application) -- how API keys, namespaces, and sessions fit together.
-- [API Reference](/docs/build/services/api-reference) -- full HTTP endpoint documentation.
-- [Sessions](/docs/build/services/sessions) -- how chat sessions are created and managed.
+- [Agentic Application](/docs/agentic-application) — how Apps, namespaces, and API keys fit together.
+- [API Reference](/docs/build/services/api-reference) — full HTTP endpoint documentation.
+- [Sessions](/docs/build/services/sessions) — how chat sessions are created and managed.
