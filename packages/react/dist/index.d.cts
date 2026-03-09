@@ -1,93 +1,15 @@
+import { ApiSystemEvent, AomiClient } from '@aomi-labs/client';
+export { AomiClient, AomiClientOptions, AomiMessage, ApiChatResponse, ApiCreateThreadResponse, ApiInterruptResponse, ApiSSEEvent, ApiStateResponse, ApiSystemEvent, ApiSystemResponse, ApiThread } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
 import { ClassValue } from 'clsx';
 
-interface AomiMessage {
-    sender?: "user" | "agent" | "system" | string;
-    content?: string;
-    timestamp?: string;
-    is_streaming?: boolean;
-    tool_result?: [string, string] | null;
-}
-/**
- * GET /api/state
- * Fetches current session state including messages and processing status
- */
-interface ApiStateResponse {
-    messages?: AomiMessage[] | null;
-    system_events?: ApiSystemEvent[] | null;
-    title?: string | null;
-    is_processing?: boolean;
-}
-/**
- * POST /api/chat
- * Sends a chat message and returns updated session state
- */
-interface ApiChatResponse {
-    messages?: AomiMessage[] | null;
-    system_events?: ApiSystemEvent[] | null;
-    title?: string | null;
-    is_processing?: boolean;
-}
-/**
- * POST /api/system
- * Sends a system message and returns the response message
- */
-interface ApiSystemResponse {
-    res?: AomiMessage | null;
-}
-/**
- * POST /api/interrupt
- * Interrupts current processing and returns updated session state
- */
-type ApiInterruptResponse = ApiChatResponse;
-/**
- * GET /api/sessions
- * Returns array of ApiThread
- */
-interface ApiThread {
-    session_id: string;
-    title: string;
-    is_archived?: boolean;
-}
-/**
- * POST /api/sessions
- * Creates a new thread/session
- */
-interface ApiCreateThreadResponse {
-    session_id: string;
-    title?: string;
-}
-/**
- * Base SSE event - all events have session_id and type
- */
-type ApiSSEEvent = {
-    type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | string;
-    session_id: string;
-    new_title?: string;
-    [key: string]: unknown;
+type AomiRuntimeProviderProps = {
+    children: ReactNode;
+    backendUrl?: string;
 };
-/**
- * Backend SystemEvent enum serializes as tagged JSON:
- * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
- * - SystemNotice: {"SystemNotice": "message"}
- * - SystemError: {"SystemError": "message"}
- * - AsyncCallback: {"AsyncCallback": {...}} (not sent over HTTP)
- */
-type ApiSystemEvent = {
-    InlineCall: {
-        type: string;
-        payload?: unknown;
-        [key: string]: unknown;
-    };
-} | {
-    SystemNotice: string;
-} | {
-    SystemError: string;
-} | {
-    AsyncCallback: Record<string, unknown>;
-};
+declare function AomiRuntimeProvider({ children, backendUrl, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 type UserState = {
     address?: string;
@@ -104,53 +26,6 @@ declare function useUser(): {
 declare function UserContextProvider({ children }: {
     children: ReactNode;
 }): react_jsx_runtime.JSX.Element;
-
-declare class BackendApi {
-    private readonly backendUrl;
-    private sseSubscriber;
-    constructor(backendUrl: string);
-    fetchState(sessionId: string, userState?: UserState): Promise<ApiStateResponse>;
-    postChatMessage(sessionId: string, message: string, namespace: string, publicKey?: string, apiKey?: string, userState?: UserState): Promise<ApiChatResponse>;
-    postSystemMessage(sessionId: string, message: string): Promise<ApiSystemResponse>;
-    postInterrupt(sessionId: string): Promise<ApiInterruptResponse>;
-    /**
-     * Subscribe to SSE updates for a session.
-     * Uses fetch streaming and reconnects on disconnects.
-     * Returns an unsubscribe function.
-     */
-    subscribeSSE(sessionId: string, onUpdate: (event: ApiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
-    fetchThreads(publicKey: string): Promise<ApiThread[]>;
-    fetchThread(sessionId: string): Promise<ApiThread>;
-    createThread(threadId: string, publicKey?: string): Promise<ApiCreateThreadResponse>;
-    archiveThread(sessionId: string): Promise<void>;
-    unarchiveThread(sessionId: string): Promise<void>;
-    deleteThread(sessionId: string): Promise<void>;
-    renameThread(sessionId: string, newTitle: string): Promise<void>;
-    getSystemEvents(sessionId: string, count?: number): Promise<ApiSystemEvent[]>;
-    /**
-     * Get allowed namespaces for the current request context.
-     */
-    getNamespaces(sessionId: string, publicKey?: string, apiKey?: string): Promise<string[]>;
-    /**
-     * Get available models.
-     */
-    getModels(sessionId: string): Promise<string[]>;
-    /**
-     * Set the model selection for a session.
-     */
-    setModel(sessionId: string, rig: string, namespace?: string, apiKey?: string): Promise<{
-        success: boolean;
-        rig: string;
-        baml: string;
-        created: boolean;
-    }>;
-}
-
-type AomiRuntimeProviderProps = {
-    children: ReactNode;
-    backendUrl?: string;
-};
-declare function AomiRuntimeProvider({ children, backendUrl, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 type ThreadContext = {
     currentThreadId: string;
@@ -405,10 +280,10 @@ type EventContext = {
 declare function useEventContext(): EventContext;
 type EventContextProviderProps = {
     children: ReactNode;
-    backendApi: BackendApi;
+    aomiClient: AomiClient;
     sessionId: string;
 };
-declare function EventContextProvider({ children, backendApi, sessionId, }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
+declare function EventContextProvider({ children, aomiClient, sessionId, }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
 
 type Notification = {
     id: string;
@@ -504,7 +379,7 @@ type ControlContextApi = {
 declare function useControl(): ControlContextApi;
 type ControlContextProviderProps = {
     children: ReactNode;
-    backendApi: BackendApi;
+    aomiClient: AomiClient;
     sessionId: string;
     publicKey?: string;
     /** Get metadata for a thread */
@@ -512,6 +387,6 @@ type ControlContextProviderProps = {
     /** Update metadata for a thread */
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
 };
-declare function ControlContextProvider({ children, backendApi, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
+declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiMessage, type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, BackendApi, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletBuffer, type WalletEip712Payload, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, type WalletTxPayload, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletBuffer, type WalletEip712Payload, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, type WalletTxPayload, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };

@@ -9,13 +9,13 @@ import { act, cleanup, waitFor } from "@testing-library/react";
 
 import {
   renderRuntime,
-  resetBackendApiMocks,
-  setBackendApiConfig,
+  resetAomiClientMocks,
+  setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
 
 beforeEach(() => {
-  resetBackendApiMocks();
+  resetAomiClientMocks();
 });
 
 afterEach(() => {
@@ -35,7 +35,7 @@ describe("Event API", () => {
   describe("sendSystemCommand", () => {
     it("sends command to backend", async () => {
       const postSystemMessage = vi.fn(async () => ({ res: null }));
-      setBackendApiConfig({ postSystemMessage });
+      setAomiClientConfig({ postSystemMessage });
 
       const { api } = renderRuntime();
 

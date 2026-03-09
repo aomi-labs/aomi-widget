@@ -26,6 +26,7 @@
     "clean:dist": "rm -rf dist"
   },
   "dependencies": {
+    "@aomi-labs/client": "workspace:*",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.3.1"
   },

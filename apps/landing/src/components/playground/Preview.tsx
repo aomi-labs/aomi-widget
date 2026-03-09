@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@aomi-labs/react";
 import { Button, Card, CardContent } from "@aomi-labs/widget-lib";
 import { CopyButton } from "./CopyButton";
@@ -10,6 +10,7 @@ type PreviewProps = {
   title: string;
   description?: string;
   code: string;
+  lang?: string;
   children: ReactNode;
   badge?: string;
 };
@@ -18,13 +19,23 @@ export function Preview({
   title,
   description,
   code,
+  lang = "tsx",
   children,
   badge,
 }: PreviewProps) {
   const [view, setView] = useState<"preview" | "code">("preview");
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+
+  useEffect(() => {
+    import("shiki").then(({ codeToHtml }) =>
+      codeToHtml(code, { lang, theme: "catppuccin-mocha" }).then(
+        setHighlighted,
+      ),
+    );
+  }, [code, lang]);
 
   return (
-    <Card className="border-border/60 bg-card/70 shadow-2xl backdrop-blur">
+    <Card className="border-border/60 bg-card/70 backdrop-blur">
       <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -66,9 +77,16 @@ export function Preview({
               {children}
             </div>
           </div>
+        ) : highlighted ? (
+          <div
+            className="not-fumadocs-codeblock overflow-auto rounded-b-2xl text-sm [&_pre]:!m-0 [&_pre]:!rounded-none [&_pre]:!rounded-b-2xl [&_pre]:!border-0 [&_pre]:px-5 [&_pre]:py-4 [&_code]:!bg-transparent [&_code]:!border-0 [&_code]:!p-0"
+            dangerouslySetInnerHTML={{ __html: highlighted }}
+          />
         ) : (
-          <pre className="rounded-b-2xl bg-slate-950 px-5 py-4 text-xs leading-relaxed text-slate-100">
-            <code className="whitespace-pre-wrap">{code}</code>
+          <pre className="rounded-b-2xl bg-[#1e1e2e] px-5 py-4 text-sm leading-relaxed text-[#cdd6f4]">
+            <code className="whitespace-pre-wrap bg-transparent text-inherit p-0">
+              {code}
+            </code>
           </pre>
         )}
       </CardContent>

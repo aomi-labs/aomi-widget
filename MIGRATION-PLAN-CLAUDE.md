@@ -439,7 +439,7 @@ After migration, update imports in UI components:
 
 \```typescript
 // components/aomi-frame.tsx
-import { BackendApi } from "../lib/backend-api";
+import { AomiClient } from "../lib/backend-api";
 import { ThreadContextProvider } from "../lib/thread-context";
 import { AomiRuntimeProvider } from "./assistant-ui/runtime";
 \```

@@ -13,7 +13,7 @@ export default async function Page(props: {
 
   // Route /examples to the default example.
   if (slug.length === 0) {
-    redirect("/examples/metamask");
+    redirect("/examples/polymarket");
   }
 
   const page = examples.getPage(slug);
@@ -27,10 +27,6 @@ export default async function Page(props: {
   return (
     <DocsPage toc={page.data.toc} full={page.data.full ?? false}>
       <DocsBody>
-        <h1>{page.data.title}</h1>
-        {page.data.description && (
-          <p className="mb-4 text-muted-foreground">{page.data.description}</p>
-        )}
         <page.data.body components={mdxComponents} />
       </DocsBody>
     </DocsPage>

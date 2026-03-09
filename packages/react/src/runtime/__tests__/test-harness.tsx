@@ -9,19 +9,47 @@ import type {
   ApiChatResponse,
   ApiInterruptResponse,
   ApiSSEEvent,
-} from "../../backend/types";
+} from "@aomi-labs/client";
 
 // =============================================================================
 // Backend API Mock Configuration
 // =============================================================================
 
-export type BackendApiConfig = {
-  fetchThreads?: (publicKey: string) => Promise<ApiThread[]>;
+export type AomiClientConfig = {
+  // New names (match AomiClient API)
+  listThreads?: (publicKey: string) => Promise<ApiThread[]>;
   fetchState?: (sessionId: string) => Promise<ApiStateResponse>;
   createThread?: (
     threadId: string,
     publicKey?: string,
   ) => Promise<ApiCreateThreadResponse>;
+  sendMessage?: (
+    sessionId: string,
+    message: string,
+  ) => Promise<ApiChatResponse>;
+  sendSystemMessage?: (
+    sessionId: string,
+    message: string,
+  ) => Promise<{ res?: unknown }>;
+  interrupt?: (sessionId: string) => Promise<ApiInterruptResponse>;
+  renameThread?: (sessionId: string, title: string) => Promise<void>;
+  archiveThread?: (sessionId: string) => Promise<void>;
+  unarchiveThread?: (sessionId: string) => Promise<void>;
+  deleteThread?: (sessionId: string) => Promise<void>;
+  // Control API
+  getNamespaces?: (
+    sessionId: string,
+    options?: { publicKey?: string; apiKey?: string },
+  ) => Promise<string[]>;
+  getModels?: (sessionId: string) => Promise<string[]>;
+  setModel?: (
+    sessionId: string,
+    rig: string,
+    options?: { namespace?: string; apiKey?: string },
+  ) => Promise<{ rig: string; namespace?: string }>;
+
+  // Legacy aliases (so existing tests keep working without changes)
+  fetchThreads?: (publicKey: string) => Promise<ApiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
@@ -31,38 +59,22 @@ export type BackendApiConfig = {
     message: string,
   ) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<ApiInterruptResponse>;
-  renameThread?: (sessionId: string, title: string) => Promise<void>;
-  archiveThread?: (sessionId: string) => Promise<void>;
-  unarchiveThread?: (sessionId: string) => Promise<void>;
-  deleteThread?: (sessionId: string) => Promise<void>;
-  // Control API
-  getNamespaces?: (
-    sessionId: string,
-    publicKey?: string,
-    apiKey?: string,
-  ) => Promise<string[]>;
-  getModels?: (sessionId: string) => Promise<string[]>;
-  setModel?: (
-    sessionId: string,
-    rig: string,
-    namespace?: string,
-  ) => Promise<{ rig: string; namespace?: string }>;
 };
 
 // Global state for mock configuration
 const mockState = {
-  config: {} as BackendApiConfig,
-  instances: [] as MockBackendApiInstance[],
+  config: {} as AomiClientConfig,
+  instances: [] as MockAomiClientInstance[],
 };
 
-export type MockBackendApiInstance = {
+export type MockAomiClientInstance = {
   emitSSEEvent: (event: ApiSSEEvent) => void;
-  fetchThreads: ReturnType<typeof vi.fn>;
+  listThreads: ReturnType<typeof vi.fn>;
   fetchState: ReturnType<typeof vi.fn>;
   createThread: ReturnType<typeof vi.fn>;
-  postChatMessage: ReturnType<typeof vi.fn>;
-  postSystemMessage: ReturnType<typeof vi.fn>;
-  postInterrupt: ReturnType<typeof vi.fn>;
+  sendMessage: ReturnType<typeof vi.fn>;
+  sendSystemMessage: ReturnType<typeof vi.fn>;
+  interrupt: ReturnType<typeof vi.fn>;
   renameThread: ReturnType<typeof vi.fn>;
   archiveThread: ReturnType<typeof vi.fn>;
   unarchiveThread: ReturnType<typeof vi.fn>;
@@ -73,32 +85,33 @@ export type MockBackendApiInstance = {
   setModel: ReturnType<typeof vi.fn>;
 };
 
-export const setBackendApiConfig = (config: BackendApiConfig) => {
+export const setAomiClientConfig = (config: AomiClientConfig) => {
   mockState.config = config;
 };
 
-export const resetBackendApiMocks = () => {
+export const resetAomiClientMocks = () => {
   mockState.config = {};
   mockState.instances.length = 0;
 };
 
-export const getBackendApiInstances = () => mockState.instances;
-export const getLatestBackendApi = () =>
+export const getAomiClientInstances = () => mockState.instances;
+export const getLatestAomiClient = () =>
   mockState.instances[mockState.instances.length - 1];
 
 // =============================================================================
-// Mock BackendApi - defined before vi.mock so it's hoisted properly
+// Mock AomiClient - defined before vi.mock so it's hoisted properly
 // =============================================================================
 
-vi.mock("../../backend/client", () => {
+vi.mock("@aomi-labs/client", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+
   // Mock class defined inside the factory
-  class MockBackendApi {
+  class MockAomiClient {
     private sseHandler: ((event: ApiSSEEvent) => void) | null = null;
 
-    fetchThreads = vi.fn(async (publicKey: string) => {
-      return mockState.config.fetchThreads
-        ? await mockState.config.fetchThreads(publicKey)
-        : [];
+    listThreads = vi.fn(async (publicKey: string) => {
+      const fn = mockState.config.listThreads ?? mockState.config.fetchThreads;
+      return fn ? await fn(publicKey) : [];
     });
 
     fetchState = vi.fn(async (sessionId: string) => {
@@ -113,21 +126,25 @@ vi.mock("../../backend/client", () => {
         : { session_id: threadId };
     });
 
-    postChatMessage = vi.fn(async (sessionId: string, message: string) => {
-      return mockState.config.postChatMessage
-        ? await mockState.config.postChatMessage(sessionId, message)
+    sendMessage = vi.fn(async (sessionId: string, message: string) => {
+      const fn = mockState.config.sendMessage ?? mockState.config.postChatMessage;
+      return fn
+        ? await fn(sessionId, message)
         : { is_processing: true, messages: [] };
     });
 
-    postSystemMessage = vi.fn(async (sessionId: string, message: string) => {
-      return mockState.config.postSystemMessage
-        ? await mockState.config.postSystemMessage(sessionId, message)
+    sendSystemMessage = vi.fn(async (sessionId: string, message: string) => {
+      const fn =
+        mockState.config.sendSystemMessage ?? mockState.config.postSystemMessage;
+      return fn
+        ? await fn(sessionId, message)
         : { res: { sender: "system", content: message } };
     });
 
-    postInterrupt = vi.fn(async (sessionId: string) => {
-      return mockState.config.postInterrupt
-        ? await mockState.config.postInterrupt(sessionId)
+    interrupt = vi.fn(async (sessionId: string) => {
+      const fn = mockState.config.interrupt ?? mockState.config.postInterrupt;
+      return fn
+        ? await fn(sessionId)
         : { is_processing: false, messages: [] };
     });
 
@@ -157,9 +174,12 @@ vi.mock("../../backend/client", () => {
 
     // Control API
     getNamespaces = vi.fn(
-      async (sessionId: string, publicKey?: string, apiKey?: string) => {
+      async (
+        sessionId: string,
+        options?: { publicKey?: string; apiKey?: string },
+      ) => {
         return mockState.config.getNamespaces
-          ? await mockState.config.getNamespaces(sessionId, publicKey, apiKey)
+          ? await mockState.config.getNamespaces(sessionId, options)
           : [];
       },
     );
@@ -171,10 +191,14 @@ vi.mock("../../backend/client", () => {
     });
 
     setModel = vi.fn(
-      async (sessionId: string, rig: string, namespace?: string) => {
+      async (
+        sessionId: string,
+        rig: string,
+        options?: { namespace?: string; apiKey?: string },
+      ) => {
         return mockState.config.setModel
-          ? await mockState.config.setModel(sessionId, rig, namespace)
-          : { rig, namespace };
+          ? await mockState.config.setModel(sessionId, rig, options)
+          : { rig, namespace: options?.namespace };
       },
     );
 
@@ -194,13 +218,14 @@ vi.mock("../../backend/client", () => {
       this.sseHandler?.(event);
     };
 
-    constructor(_backendUrl: string) {
-      mockState.instances.push(this as unknown as MockBackendApiInstance);
+    constructor(_options: { baseUrl: string }) {
+      mockState.instances.push(this as unknown as MockAomiClientInstance);
     }
   }
 
   return {
-    BackendApi: MockBackendApi,
+    ...actual,
+    AomiClient: MockAomiClient,
   };
 });
 
