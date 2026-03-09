@@ -45,7 +45,7 @@
     {
       "name": "control-bar",
       "type": "registry:component",
-      "description": "Control bar with model/namespace selectors, API key input, and wallet connect.",
+      "description": "Control bar with model/App selectors, API key input, and wallet connect.",
       "files": [
         {
           "type": "registry:component",
@@ -57,7 +57,7 @@
         },
         {
           "type": "registry:component",
-          "path": "components/control-bar/namespace-select.tsx"
+          "path": "components/control-bar/app-select.tsx"
         },
         {
           "type": "registry:component",

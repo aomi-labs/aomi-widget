@@ -52,6 +52,8 @@ type RootProps = {
   style?: CSSProperties;
   /** Position of the wallet button in the sidebar */
   walletPosition?: "header" | "footer" | null;
+  /** Whether to show the thread list sidebar (default: true) */
+  showSidebar?: boolean;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
 };
@@ -62,6 +64,8 @@ type HeaderProps = {
   withControl?: boolean;
   /** Props to pass to the ControlBar when withControl is true */
   controlBarProps?: Omit<ControlBarProps, "children">;
+  /** Whether to show the sidebar toggle button (default: true) */
+  showSidebarTrigger?: boolean;
   className?: string;
 };
 
@@ -90,6 +94,7 @@ const Root: FC<RootProps> = ({
   className,
   style,
   walletPosition = "footer",
+  showSidebar = true,
   backendUrl,
 }) => {
   const resolvedBackendUrl =
@@ -108,7 +113,9 @@ const Root: FC<RootProps> = ({
           )}
           style={frameStyle}
         >
-          <ThreadListSidebar walletPosition={walletPosition} />
+          {showSidebar && (
+            <ThreadListSidebar walletPosition={walletPosition} />
+          )}
           <SidebarInset className="relative flex flex-col">
             {children}
           </SidebarInset>
@@ -127,6 +134,7 @@ const Header: FC<HeaderProps> = ({
   children,
   withControl,
   controlBarProps,
+  showSidebarTrigger = true,
   className,
 }) => {
   const { currentThreadId, getThreadMetadata } = useAomiRuntime();
@@ -139,8 +147,12 @@ const Header: FC<HeaderProps> = ({
         className,
       )}
     >
-      <SidebarTrigger />
-      <Separator orientation="vertical" className="mr-2 h-4" />
+      {showSidebarTrigger && (
+        <>
+          <SidebarTrigger />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+        </>
+      )}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem className="hidden md:block">
@@ -199,15 +211,17 @@ type DefaultLayoutProps = Omit<RootProps, "children">;
  */
 const DefaultLayout: FC<DefaultLayoutProps> = ({
   walletPosition = "footer",
+  showSidebar = true,
   ...props
 }) => {
   // Hide wallet in ControlBar when it's shown in sidebar
   const hideWalletInControlBar = walletPosition !== null;
 
   return (
-    <Root walletPosition={walletPosition} {...props}>
+    <Root walletPosition={walletPosition} showSidebar={showSidebar} {...props}>
       <Header
         withControl
+        showSidebarTrigger={showSidebar}
         controlBarProps={{ hideWallet: hideWalletInControlBar, hideNetwork: false }}
       />
       <Composer />

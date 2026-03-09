@@ -1,0 +1,28 @@
+{
+  "name": "@aomi-labs/client",
+  "version": "0.1.0",
+  "description": "Platform-agnostic TypeScript client for the Aomi backend API",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean:dist": "rm -rf dist"
+  }
+}

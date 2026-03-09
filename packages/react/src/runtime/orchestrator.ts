@@ -1,8 +1,7 @@
 import type { MutableRefObject } from "react";
 import { useCallback, useRef, useState } from "react";
 
-import type { BackendApi } from "../backend/client";
-import type { AomiMessage, ApiSystemEvent } from "../backend/types";
+import type { AomiClient, AomiMessage, ApiSystemEvent } from "@aomi-labs/client";
 import type { UserState } from "../contexts/user-context";
 import {
   useThreadContext,
@@ -25,14 +24,14 @@ type OrchestratorOptions = {
 };
 
 export function useRuntimeOrchestrator(
-  backendApi: BackendApi,
+  aomiClient: AomiClient,
   options: OrchestratorOptions,
 ) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef<ThreadContext>(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = useRef(backendApi);
-  backendApiRef.current = backendApi;
+  const aomiClientRef = useRef(aomiClient);
+  aomiClientRef.current = aomiClient;
   const backendStateRef = useRef<BackendState>(createBackendState());
 
   const [isRunning, setIsRunning] = useState(false);
@@ -44,7 +43,7 @@ export function useRuntimeOrchestrator(
 
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
-      backendApiRef,
+      aomiClientRef,
       backendStateRef,
       applyMessages: (threadId: string, msgs?: AomiMessage[] | null) => {
         messageControllerRef.current?.inbound(threadId, msgs);
@@ -66,7 +65,7 @@ export function useRuntimeOrchestrator(
 
   if (!messageControllerRef.current) {
     messageControllerRef.current = new MessageController({
-      backendApiRef,
+      aomiClientRef,
       backendStateRef,
       threadContextRef,
       polling: pollingRef.current,
@@ -88,7 +87,7 @@ export function useRuntimeOrchestrator(
 
     try {
       const userState = options.getUserState?.();
-      const state = await backendApiRef.current.fetchState(
+      const state = await aomiClientRef.current.fetchState(
         backendThreadId,
         userState,
       );
@@ -122,6 +121,6 @@ export function useRuntimeOrchestrator(
     isRunning,
     setIsRunning,
     ensureInitialState,
-    backendApiRef,
+    aomiClientRef,
   };
 }
