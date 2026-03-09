@@ -65,11 +65,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build @aomi-labs/client
+        run: pnpm run build:client
+
       - name: Build @aomi-labs/react
         run: pnpm run build:lib
 
       - name: Build @aomi-labs/widget-lib (shadcn registry)
         run: pnpm run build:registry
+
+      - name: Publish @aomi-labs/client
+        run: pnpm --filter @aomi-labs/client publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @aomi-labs/react
         run: pnpm --filter @aomi-labs/react publish --access public --no-git-checks
