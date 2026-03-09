@@ -9,7 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { BackendApi } from "../backend/client";
+import type { AomiClient } from "@aomi-labs/client";
 import type { ThreadMetadata, ThreadControlState } from "../state/thread-store";
 import { initThreadControl } from "../state/thread-store";
 
@@ -92,7 +92,7 @@ export function useControl(): ControlContextApi {
 
 export type ControlContextProviderProps = {
   children: ReactNode;
-  backendApi: BackendApi;
+  aomiClient: AomiClient;
   sessionId: string;
   publicKey?: string;
   /** Get metadata for a thread */
@@ -106,7 +106,7 @@ export type ControlContextProviderProps = {
 
 export function ControlContextProvider({
   children,
-  backendApi,
+  aomiClient,
   sessionId,
   publicKey,
   getThreadMetadata,
@@ -123,8 +123,8 @@ export function ControlContextProvider({
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const backendApiRef = useRef(backendApi);
-  backendApiRef.current = backendApi;
+  const aomiClientRef = useRef(aomiClient);
+  aomiClientRef.current = aomiClient;
 
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
@@ -174,10 +174,9 @@ export function ControlContextProvider({
   useEffect(() => {
     const fetchNamespaces = async () => {
       try {
-        const namespaces = await backendApiRef.current.getNamespaces(
+        const namespaces = await aomiClientRef.current.getNamespaces(
           sessionIdRef.current,
-          publicKeyRef.current,
-          stateRef.current.apiKey ?? undefined,
+          { publicKey: publicKeyRef.current, apiKey: stateRef.current.apiKey ?? undefined },
         );
         const defaultNs = namespaces.includes("default")
           ? "default"
@@ -203,7 +202,7 @@ export function ControlContextProvider({
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const models = await backendApiRef.current.getModels(
+        const models = await aomiClientRef.current.getModels(
           sessionIdRef.current,
         );
         setStateInternal((prev) => ({
@@ -234,7 +233,7 @@ export function ControlContextProvider({
   // ---------------------------------------------------------------------------
   const getAvailableModels = useCallback(async (): Promise<string[]> => {
     try {
-      const models = await backendApiRef.current.getModels(
+      const models = await aomiClientRef.current.getModels(
         sessionIdRef.current,
       );
       setStateInternal((prev) => ({
@@ -251,10 +250,9 @@ export function ControlContextProvider({
 
   const getAuthorizedNamespaces = useCallback(async (): Promise<string[]> => {
     try {
-      const namespaces = await backendApiRef.current.getNamespaces(
+      const namespaces = await aomiClientRef.current.getNamespaces(
         sessionIdRef.current,
-        publicKeyRef.current,
-        stateRef.current.apiKey ?? undefined,
+        { publicKey: publicKeyRef.current, apiKey: stateRef.current.apiKey ?? undefined },
       );
       const defaultNs = namespaces.includes("default")
         ? "default"
@@ -327,15 +325,14 @@ export function ControlContextProvider({
       threadId,
       model,
       namespace,
-      backendUrl: backendApiRef.current,
+      backendUrl: aomiClientRef.current,
     });
 
     try {
-      const result = await backendApiRef.current.setModel(
+      const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        namespace,
-        stateRef.current.apiKey ?? undefined,
+        { namespace, apiKey: stateRef.current.apiKey ?? undefined },
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {

@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "landing",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "landing", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "landing-localhost",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "landing", "dev:localhost"],
+      "port": 3000
+    },
+    {
+      "name": "landing-3002",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "set -a && source .env.local && set +a && PORT=3002 pnpm --filter landing dev"],
+      "port": 3002
+    }
+  ]
+}

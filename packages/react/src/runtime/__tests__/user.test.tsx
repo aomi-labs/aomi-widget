@@ -13,14 +13,14 @@ import { act, cleanup, waitFor } from "@testing-library/react";
 
 import {
   renderRuntime,
-  resetBackendApiMocks,
-  setBackendApiConfig,
-  getLatestBackendApi,
+  resetAomiClientMocks,
+  setAomiClientConfig,
+  getLatestAomiClient,
   flushPromises,
 } from "./test-harness";
 
 beforeEach(() => {
-  resetBackendApiMocks();
+  resetAomiClientMocks();
 });
 
 afterEach(() => {
@@ -102,7 +102,7 @@ describe("User API", () => {
     it("sends wallet state change to backend", async () => {
       const postSystemMessage = vi.fn(async () => ({ res: null }));
 
-      setBackendApiConfig({ postSystemMessage });
+      setAomiClientConfig({ postSystemMessage });
 
       const { api } = renderRuntime();
 

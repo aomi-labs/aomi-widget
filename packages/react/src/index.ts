@@ -1,7 +1,8 @@
 // =============================================================================
-// Backend API Client
+// API Client (re-exported from @aomi-labs/client)
 // =============================================================================
-export { BackendApi } from "./backend/client";
+export { AomiClient } from "@aomi-labs/client";
+export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
   AomiMessage,
   ApiChatResponse,
@@ -12,7 +13,7 @@ export type {
   ApiSystemEvent,
   ApiSystemResponse,
   ApiThread,
-} from "./backend/types";
+} from "@aomi-labs/client";
 
 // =============================================================================
 // Runtime Provider

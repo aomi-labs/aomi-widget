@@ -49,6 +49,97 @@ export type WalletHandlerApi = {
   rejectRequest: (id: string, error?: string) => void;
 };
 
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as UnknownRecord;
+}
+
+function getToolArgs(payload: unknown): UnknownRecord {
+  const root = asRecord(payload);
+  const nestedArgs = asRecord(root?.args);
+  return nestedArgs ?? (root ?? {});
+}
+
+function parseChainId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  if (trimmed.startsWith("0x")) {
+    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
+    return Number.isFinite(parsedHex) ? parsedHex : undefined;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
+  const root = asRecord(payload);
+  const args = getToolArgs(payload);
+  const ctx = asRecord(root?.ctx);
+
+  const to = typeof args.to === "string" ? args.to : undefined;
+  if (!to) return null;
+
+  const valueRaw = args.value;
+  const value =
+    typeof valueRaw === "string"
+      ? valueRaw
+      : typeof valueRaw === "number" && Number.isFinite(valueRaw)
+        ? String(Math.trunc(valueRaw))
+        : undefined;
+
+  const data = typeof args.data === "string" ? args.data : undefined;
+  const chainId =
+    parseChainId(args.chainId) ??
+    parseChainId(args.chain_id) ??
+    parseChainId(ctx?.user_chain_id) ??
+    parseChainId(ctx?.userChainId);
+
+  return {
+    to,
+    value,
+    data,
+    chainId,
+  };
+}
+
+function normalizeEip712Payload(payload: unknown): WalletEip712Payload {
+  const args = getToolArgs(payload);
+  const typedDataRaw = args.typed_data ?? args.typedData;
+  let typedData: WalletEip712Payload["typed_data"] | undefined;
+
+  if (typeof typedDataRaw === "string") {
+    try {
+      const parsed = JSON.parse(typedDataRaw) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        typedData = parsed as WalletEip712Payload["typed_data"];
+      }
+    } catch {
+      typedData = undefined;
+    }
+  } else if (
+    typedDataRaw &&
+    typeof typedDataRaw === "object" &&
+    !Array.isArray(typedDataRaw)
+  ) {
+    typedData = typedDataRaw as WalletEip712Payload["typed_data"];
+  }
+
+  const description =
+    typeof args.description === "string" ? args.description : undefined;
+
+  return {
+    typed_data: typedData,
+    description,
+  };
+}
+
 export function useWalletHandler({
   sessionId,
   onRequestComplete,
@@ -69,7 +160,11 @@ export function useWalletHandler({
     const unsubscribe = subscribe(
       "wallet_tx_request",
       (event: InboundEvent) => {
-        const payload = event.payload as WalletTxPayload;
+        const payload = normalizeTxPayload(event.payload);
+        if (!payload) {
+          console.warn("[aomi][wallet] Ignoring tx request with invalid payload", event.payload);
+          return;
+        }
         enqueue(bufferRef.current, "transaction", payload);
         syncState();
       },
@@ -84,7 +179,7 @@ export function useWalletHandler({
     const unsubscribe = subscribe(
       "wallet_eip712_request",
       (event: InboundEvent) => {
-        const payload = (event.payload ?? {}) as WalletEip712Payload;
+        const payload = normalizeEip712Payload(event.payload ?? {});
         enqueue(bufferRef.current, "eip712_sign", payload);
         syncState();
       },

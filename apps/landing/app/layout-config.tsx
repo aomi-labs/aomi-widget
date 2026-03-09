@@ -2,26 +2,26 @@ import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 
 export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
   {
-    text: "Guides",
-    url: "/docs/about-aomi",
+    text: "Documentation",
+    url: "/docs/build/overview",
     active: "nested-url",
   },
   {
     text: "Examples",
-    url: "/examples/metamask",
+    url: "/examples/polymarket",
     active: "nested-url",
   },
   {
-    text: "API Reference",
-    url: "/api/sessions",
+    text: "Playground",
+    url: "/playground/configurator",
     active: "nested-url",
   },
 ];
 
 export const navTabs = [
-  { title: "Guides", url: "/docs/about-aomi" },
-  { title: "Examples", url: "/examples/metamask" },
-  { title: "API Reference", url: "/api/sessions" },
+  { title: "Documentation", url: "/docs/build/overview" },
+  { title: "Examples", url: "/examples/polymarket" },
+  { title: "Playground", url: "/playground/configurator" },
 ];
 
 export const baseLayoutOptions: BaseLayoutProps = {

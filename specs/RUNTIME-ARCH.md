@@ -41,7 +41,7 @@ graph TB
     end
 
     subgraph "External"
-        API[BackendApi]
+        API[AomiClient]
         BE[Backend Server]
     end
 
@@ -128,7 +128,7 @@ sequenceDiagram
     participant MC as MessageController
     participant BS as BackendState
     participant TC as ThreadContext
-    participant API as BackendApi
+    participant API as AomiClient
     participant PC as PollingController
     participant BE as Backend
 
@@ -159,7 +159,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant PC as PollingController
-    participant API as BackendApi
+    participant API as AomiClient
     participant BE as Backend
     participant MC as MessageController
     participant BS as BackendState
@@ -195,7 +195,7 @@ sequenceDiagram
     participant TLA as ThreadListAdapter
     participant BS as BackendState
     participant TC as ThreadContext
-    participant API as BackendApi
+    participant API as AomiClient
     participant BE as Backend
     participant MC as MessageController
 
@@ -238,7 +238,7 @@ sequenceDiagram
     participant TC as ThreadContext
     participant RO as RuntimeOrchestrator
     participant BS as BackendState
-    participant API as BackendApi
+    participant API as AomiClient
     participant PC as PollingController
 
     UI->>TLA: onSwitchToThread(threadId)
@@ -273,7 +273,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant BE as Backend Server
-    participant API as BackendApi
+    participant API as AomiClient
     participant ECP as EventContextProvider
     participant EB as EventBuffer
     participant NH as useNotificationHandler
@@ -324,7 +324,7 @@ graph TB
     end
 
     subgraph "Backend Integration"
-        API[BackendApi]
+        API[AomiClient]
         SSE[SSE Connection]
         POST[POST /events]
     end
@@ -362,7 +362,7 @@ sequenceDiagram
     participant EC as useEventContext
     participant EB as EventBuffer
     participant ECP as EventContextProvider
-    participant API as BackendApi
+    participant API as AomiClient
     participant BE as Backend Server
 
     Note over Wallet: Transaction completes
@@ -437,7 +437,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant BE as Backend
-    participant API as BackendApi
+    participant API as AomiClient
     participant ECP as EventContextProvider
     participant EB as EventBuffer
     participant NH as useNotificationHandler
@@ -521,9 +521,9 @@ sequenceDiagram
 
 Provider shell component (`runtime/aomi-runtime.tsx`, ~50 lines) that:
 
-- Creates `BackendApi` instance from `backendUrl`
+- Creates `AomiClient` instance from `backendUrl`
 - Composes context providers: Notification → User → Event → RuntimeActions
-- Renders `AomiRuntimeCore` with shared `backendApi`
+- Renders `AomiRuntimeCore` with shared `aomiClient`
 
 ### AomiRuntimeCore
 
@@ -568,7 +568,7 @@ Manages backend polling:
 
 React context that manages the EventBuffer and SSE connection:
 
-- Subscribes to BackendApi SSE events on mount
+- Subscribes to AomiClient SSE events on mount
 - Dispatches inbound events to registered subscribers
 - Provides `subscribe(type, callback)` for handler hooks
 - Provides `enqueueOutbound(event)` for sending events

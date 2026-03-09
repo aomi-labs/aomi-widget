@@ -1,8 +1,7 @@
 import type { MutableRefObject } from "react";
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 
-import type { BackendApi } from "../backend/client";
-import type { AomiMessage, ApiSystemEvent } from "../backend/types";
+import type { AomiClient, AomiMessage, ApiSystemEvent } from "@aomi-labs/client";
 import { toInboundMessage } from "./utils";
 import type { ThreadContext } from "../contexts/thread-context";
 import type { PollingController } from "./polling-controller";
@@ -14,7 +13,7 @@ import {
 } from "../state/backend-state";
 
 type MessageControllerConfig = {
-  backendApiRef: MutableRefObject<BackendApi>;
+  aomiClientRef: MutableRefObject<AomiClient>;
   backendStateRef: MutableRefObject<BackendState>;
   threadContextRef: MutableRefObject<ThreadContext>;
   polling: PollingController;
@@ -84,13 +83,10 @@ export class MessageController {
 
     try {
       this.markRunning(threadId, true);
-      const response = await this.config.backendApiRef.current.postChatMessage(
+      const response = await this.config.aomiClientRef.current.sendMessage(
         backendThreadId,
         text,
-        namespace,
-        publicKey,
-        apiKey,
-        userState,
+        { namespace, publicKey, apiKey, userState },
       );
 
       // Apply the latest messages immediately so sync tool results appear without waiting for polling.
@@ -119,7 +115,7 @@ export class MessageController {
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
       const response =
-        await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+        await this.config.aomiClientRef.current.interrupt(backendThreadId);
       if (response?.messages) {
         this.inbound(threadId, response.messages);
       }

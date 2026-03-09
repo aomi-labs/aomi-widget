@@ -14,6 +14,8 @@ export default defineConfig({
   clean: true,
   tsconfig: "tsconfig.lib.json",
   external: [
+    // Aomi
+    "@aomi-labs/client",
     // React
     "react",
     "react-dom",

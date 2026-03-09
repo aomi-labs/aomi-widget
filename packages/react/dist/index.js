@@ -18,440 +18,14 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
-// src/backend/sse.ts
-function extractSseData(rawEvent) {
-  const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
-  if (!dataLines.length) return null;
-  return dataLines.join("\n");
-}
-async function readSseStream(stream, signal, onMessage) {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  try {
-    while (!signal.aborted) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      buffer = buffer.replace(/\r/g, "");
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex >= 0) {
-        const rawEvent = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-        const data = extractSseData(rawEvent);
-        if (data) {
-          onMessage(data);
-        }
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-function createSseSubscriber({
-  backendUrl,
-  getHeaders,
-  shouldLog = process.env.NODE_ENV !== "production"
-}) {
-  const subscriptions = /* @__PURE__ */ new Map();
-  const subscribe2 = (sessionId, onUpdate, onError) => {
-    const existing = subscriptions.get(sessionId);
-    const listener = { onUpdate, onError };
-    if (existing) {
-      existing.listeners.add(listener);
-      if (shouldLog) {
-        console.debug("[aomi][sse] listener added", {
-          sessionId,
-          listeners: existing.listeners.size
-        });
-      }
-      return () => {
-        existing.listeners.delete(listener);
-        if (shouldLog) {
-          console.debug("[aomi][sse] listener removed", {
-            sessionId,
-            listeners: existing.listeners.size
-          });
-        }
-        if (existing.listeners.size === 0) {
-          existing.stop("unsubscribe");
-          if (subscriptions.get(sessionId) === existing) {
-            subscriptions.delete(sessionId);
-          }
-        }
-      };
-    }
-    const subscription = {
-      abortController: null,
-      retries: 0,
-      retryTimer: null,
-      stopped: false,
-      listeners: /* @__PURE__ */ new Set([listener]),
-      stop: (reason) => {
-        var _a;
-        subscription.stopped = true;
-        if (subscription.retryTimer) {
-          clearTimeout(subscription.retryTimer);
-          subscription.retryTimer = null;
-        }
-        (_a = subscription.abortController) == null ? void 0 : _a.abort();
-        subscription.abortController = null;
-        if (shouldLog) {
-          console.debug("[aomi][sse] stop", {
-            sessionId,
-            reason,
-            retries: subscription.retries
-          });
-        }
-      }
-    };
-    const scheduleRetry = () => {
-      if (subscription.stopped) return;
-      subscription.retries += 1;
-      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
-      if (shouldLog) {
-        console.debug("[aomi][sse] retry scheduled", {
-          sessionId,
-          delayMs,
-          retries: subscription.retries
-        });
-      }
-      subscription.retryTimer = setTimeout(() => {
-        void open();
-      }, delayMs);
-    };
-    const open = async () => {
-      var _a;
-      if (subscription.stopped) return;
-      if (subscription.retryTimer) {
-        clearTimeout(subscription.retryTimer);
-        subscription.retryTimer = null;
-      }
-      const controller = new AbortController();
-      subscription.abortController = controller;
-      const openedAt = Date.now();
-      try {
-        const response = await fetch(`${backendUrl}/api/updates`, {
-          headers: getHeaders(sessionId),
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          throw new Error(
-            `SSE HTTP ${response.status}: ${response.statusText}`
-          );
-        }
-        if (!response.body) {
-          throw new Error("SSE response missing body");
-        }
-        subscription.retries = 0;
-        await readSseStream(response.body, controller.signal, (data) => {
-          var _a2, _b;
-          let parsed;
-          try {
-            parsed = JSON.parse(data);
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
-            }
-            return;
-          }
-          for (const item of subscription.listeners) {
-            try {
-              item.onUpdate(parsed);
-            } catch (error) {
-              (_b = item.onError) == null ? void 0 : _b.call(item, error);
-            }
-          }
-        });
-        if (shouldLog) {
-          console.debug("[aomi][sse] stream ended", {
-            sessionId,
-            aborted: controller.signal.aborted,
-            stopped: subscription.stopped,
-            durationMs: Date.now() - openedAt
-          });
-        }
-      } catch (error) {
-        if (!controller.signal.aborted && !subscription.stopped) {
-          for (const item of subscription.listeners) {
-            (_a = item.onError) == null ? void 0 : _a.call(item, error);
-          }
-        }
-      }
-      if (!subscription.stopped) {
-        scheduleRetry();
-      }
-    };
-    subscriptions.set(sessionId, subscription);
-    void open();
-    return () => {
-      subscription.listeners.delete(listener);
-      if (shouldLog) {
-        console.debug("[aomi][sse] listener removed", {
-          sessionId,
-          listeners: subscription.listeners.size
-        });
-      }
-      if (subscription.listeners.size === 0) {
-        subscription.stop("unsubscribe");
-        if (subscriptions.get(sessionId) === subscription) {
-          subscriptions.delete(sessionId);
-        }
-      }
-    };
-  };
-  return { subscribe: subscribe2 };
-}
+// packages/react/src/index.ts
+import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 
-// src/backend/client.ts
-var SESSION_ID_HEADER = "X-Session-Id";
-var API_KEY_HEADER = "X-API-Key";
-function toQueryString(payload) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === void 0 || value === null) continue;
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
-}
-function withSessionHeader(sessionId, init) {
-  const headers = new Headers(init);
-  headers.set(SESSION_ID_HEADER, sessionId);
-  return headers;
-}
-async function postState(backendUrl, path, payload, sessionId, apiKey) {
-  const query = toQueryString(payload);
-  const url = `${backendUrl}${path}${query}`;
-  const headers = new Headers(withSessionHeader(sessionId));
-  if (apiKey) {
-    headers.set(API_KEY_HEADER, apiKey);
-  }
-  const response = await fetch(url, {
-    method: "POST",
-    headers
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return await response.json();
-}
-var BackendApi = class {
-  constructor(backendUrl) {
-    this.backendUrl = backendUrl;
-    this.sseSubscriber = createSseSubscriber({
-      backendUrl,
-      getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" })
-    });
-  }
-  async fetchState(sessionId, userState) {
-    const url = new URL("/api/state", this.backendUrl);
-    if (userState) {
-      url.searchParams.set("user_state", JSON.stringify(userState));
-    }
-    const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  async postChatMessage(sessionId, message, namespace, publicKey, apiKey, userState) {
-    const payload = { message, namespace };
-    if (publicKey) {
-      payload.public_key = publicKey;
-    }
-    if (userState) {
-      payload.user_state = JSON.stringify(userState);
-    }
-    return postState(
-      this.backendUrl,
-      "/api/chat",
-      payload,
-      sessionId,
-      apiKey
-    );
-  }
-  async postSystemMessage(sessionId, message) {
-    return postState(
-      this.backendUrl,
-      "/api/system",
-      {
-        message
-      },
-      sessionId
-    );
-  }
-  async postInterrupt(sessionId) {
-    return postState(
-      this.backendUrl,
-      "/api/interrupt",
-      {},
-      sessionId
-    );
-  }
-  /**
-   * Subscribe to SSE updates for a session.
-   * Uses fetch streaming and reconnects on disconnects.
-   * Returns an unsubscribe function.
-   */
-  subscribeSSE(sessionId, onUpdate, onError) {
-    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
-  }
-  async fetchThreads(publicKey) {
-    const url = `${this.backendUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  async fetchThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  async createThread(threadId, publicKey) {
-    const body = {};
-    if (publicKey) body.public_key = publicKey;
-    const url = `${this.backendUrl}/api/sessions`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify(body)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create thread: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  async archiveThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
-  }
-  async unarchiveThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
-  }
-  async deleteThread(sessionId) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete thread: HTTP ${response.status}`);
-    }
-  }
-  async renameThread(sessionId, newTitle) {
-    const url = `${this.backendUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
-    const response = await fetch(url, {
-      method: "PATCH",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify({ title: newTitle })
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to rename thread: HTTP ${response.status}`);
-    }
-  }
-  async getSystemEvents(sessionId, count) {
-    const url = new URL("/api/events", this.backendUrl);
-    if (count !== void 0) {
-      url.searchParams.set("count", String(count));
-    }
-    const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      if (response.status === 404) return [];
-      throw new Error(`Failed to get system events: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  // ===========================================================================
-  // Control API
-  // ===========================================================================
-  /**
-   * Get allowed namespaces for the current request context.
-   */
-  async getNamespaces(sessionId, publicKey, apiKey) {
-    const url = new URL("/api/control/namespaces", this.backendUrl);
-    if (publicKey) {
-      url.searchParams.set("public_key", publicKey);
-    }
-    console.log("[BackendApi.getNamespaces]", {
-      backendUrl: this.backendUrl,
-      fullUrl: url.toString(),
-      sessionId,
-      publicKey
-    });
-    const headers = new Headers(withSessionHeader(sessionId));
-    if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
-    }
-    const response = await fetch(url.toString(), { headers });
-    if (!response.ok) {
-      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Get available models.
-   */
-  async getModels(sessionId) {
-    const url = new URL("/api/control/models", this.backendUrl);
-    console.log("[BackendApi.getModels]", {
-      backendUrl: this.backendUrl,
-      fullUrl: url.toString(),
-      sessionId
-    });
-    const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to get models: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Set the model selection for a session.
-   */
-  async setModel(sessionId, rig, namespace, apiKey) {
-    const payload = { rig };
-    if (namespace) {
-      payload.namespace = namespace;
-    }
-    return postState(this.backendUrl, "/api/control/model", payload, sessionId, apiKey);
-  }
-};
-
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
+import { AomiClient } from "@aomi-labs/client";
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 import {
   createContext,
   useCallback,
@@ -461,7 +35,7 @@ import {
   useEffect
 } from "react";
 
-// src/utils/uuid.ts
+// packages/react/src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -473,7 +47,7 @@ function generateUUID() {
   });
 }
 
-// src/state/thread-store.ts
+// packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -632,7 +206,7 @@ var ThreadStore = class {
   }
 };
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var ControlContext = createContext(null);
@@ -645,7 +219,7 @@ function useControl() {
 }
 function ControlContextProvider({
   children,
-  backendApi,
+  aomiClient,
   sessionId,
   publicKey,
   getThreadMetadata,
@@ -661,8 +235,8 @@ function ControlContextProvider({
   }));
   const stateRef = useRef(state);
   stateRef.current = state;
-  const backendApiRef = useRef(backendApi);
-  backendApiRef.current = backendApi;
+  const aomiClientRef = useRef(aomiClient);
+  aomiClientRef.current = aomiClient;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const publicKeyRef = useRef(publicKey);
@@ -699,10 +273,9 @@ function ControlContextProvider({
     const fetchNamespaces = async () => {
       var _a2, _b2;
       try {
-        const namespaces = await backendApiRef.current.getNamespaces(
+        const namespaces = await aomiClientRef.current.getNamespaces(
           sessionIdRef.current,
-          publicKeyRef.current,
-          (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+          { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
         );
         const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
@@ -722,7 +295,7 @@ function ControlContextProvider({
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const models = await backendApiRef.current.getModels(
+        const models = await aomiClientRef.current.getModels(
           sessionIdRef.current
         );
         setStateInternal((prev) => {
@@ -747,7 +320,7 @@ function ControlContextProvider({
   }, []);
   const getAvailableModels = useCallback(async () => {
     try {
-      const models = await backendApiRef.current.getModels(
+      const models = await aomiClientRef.current.getModels(
         sessionIdRef.current
       );
       setStateInternal((prev) => {
@@ -766,10 +339,9 @@ function ControlContextProvider({
   const getAuthorizedNamespaces = useCallback(async () => {
     var _a2, _b2;
     try {
-      const namespaces = await backendApiRef.current.getNamespaces(
+      const namespaces = await aomiClientRef.current.getNamespaces(
         sessionIdRef.current,
-        publicKeyRef.current,
-        (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+        { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
       );
       const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
@@ -823,14 +395,13 @@ function ControlContextProvider({
       threadId,
       model,
       namespace,
-      backendUrl: backendApiRef.current
+      backendUrl: aomiClientRef.current
     });
     try {
-      const result = await backendApiRef.current.setModel(
+      const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        namespace,
-        (_e = stateRef.current.apiKey) != null ? _e : void 0
+        { namespace, apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0 }
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
@@ -923,7 +494,7 @@ function ControlContextProvider({
   );
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 import {
   createContext as createContext2,
   useCallback as useCallback2,
@@ -932,22 +503,14 @@ import {
   useRef as useRef2,
   useState as useState2
 } from "react";
+import {
+  isInlineCall,
+  isSystemNotice,
+  isSystemError,
+  isAsyncCallback
+} from "@aomi-labs/client";
 
-// src/backend/types.ts
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
-}
-
-// src/state/event-buffer.ts
+// packages/react/src/state/event-buffer.ts
 function createEventBuffer() {
   return {
     inboundQueue: [],
@@ -991,7 +554,7 @@ function setSSEStatus(state, status) {
   state.sseStatus = status;
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 import { jsx as jsx2 } from "react/jsx-runtime";
 var EventContextState = createContext2(null);
 function useEventContext() {
@@ -1005,7 +568,7 @@ function useEventContext() {
 }
 function EventContextProvider({
   children,
-  backendApi,
+  aomiClient,
   sessionId
 }) {
   const bufferRef = useRef2(null);
@@ -1017,7 +580,7 @@ function EventContextProvider({
   useEffect2(() => {
     setSSEStatus(buffer, "connecting");
     setSseStatus("connecting");
-    const unsubscribe = backendApi.subscribeSSE(
+    const unsubscribe = aomiClient.subscribeSSE(
       sessionId,
       (event) => {
         enqueueInbound(buffer, {
@@ -1047,7 +610,7 @@ function EventContextProvider({
       setSSEStatus(buffer, "disconnected");
       setSseStatus("disconnected");
     };
-  }, [backendApi, sessionId, buffer]);
+  }, [aomiClient, sessionId, buffer]);
   const subscribeCallback = useCallback2(
     (type, callback) => {
       return subscribe(buffer, type, callback);
@@ -1061,12 +624,12 @@ function EventContextProvider({
           type: event.type,
           payload: event.payload
         });
-        await backendApi.postSystemMessage(event.sessionId, message);
+        await aomiClient.sendSystemMessage(event.sessionId, message);
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
     },
-    [backendApi]
+    [aomiClient]
   );
   const dispatchSystemEvents = useCallback2(
     (sessionId2, events) => {
@@ -1116,7 +679,7 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// src/contexts/notification-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
   useCallback as useCallback3,
@@ -1166,7 +729,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// src/contexts/thread-context.tsx
+// packages/react/src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -1216,7 +779,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// src/contexts/user-context.tsx
+// packages/react/src/contexts/user-context.tsx
 import {
   createContext as createContext5,
   useCallback as useCallback4,
@@ -1283,17 +846,17 @@ function UserContextProvider({ children }) {
   );
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef7 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
 } from "@assistant-ui/react";
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useRef as useRef5, useState as useState5 } from "react";
 
-// src/runtime/utils.ts
+// packages/react/src/runtime/utils.ts
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1395,7 +958,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// src/state/backend-state.ts
+// packages/react/src/state/backend-state.ts
 function createBackendState() {
   return {
     runningThreads: /* @__PURE__ */ new Set()
@@ -1415,7 +978,7 @@ function isThreadRunning(state, threadId) {
   return state.runningThreads.has(threadId);
 }
 
-// src/runtime/message-controller.ts
+// packages/react/src/runtime/message-controller.ts
 var MessageController = class {
   constructor(config) {
     this.config = config;
@@ -1458,13 +1021,10 @@ var MessageController = class {
     const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
     try {
       this.markRunning(threadId, true);
-      const response = await this.config.backendApiRef.current.postChatMessage(
+      const response = await this.config.aomiClientRef.current.sendMessage(
         backendThreadId,
         text,
-        namespace,
-        publicKey,
-        apiKey,
-        userState
+        { namespace, publicKey, apiKey, userState }
       );
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
@@ -1488,7 +1048,7 @@ var MessageController = class {
     const backendState = this.config.backendStateRef.current;
     const backendThreadId = resolveThreadId(backendState, threadId);
     try {
-      const response = await this.config.backendApiRef.current.postInterrupt(backendThreadId);
+      const response = await this.config.aomiClientRef.current.interrupt(backendThreadId);
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
       }
@@ -1513,7 +1073,7 @@ var MessageController = class {
   }
 };
 
-// src/runtime/polling-controller.ts
+// packages/react/src/runtime/polling-controller.ts
 var PollingController = class {
   constructor(config) {
     this.config = config;
@@ -1536,7 +1096,7 @@ var PollingController = class {
           threadId
         );
         const userState = (_b2 = (_a2 = this.config).getUserState) == null ? void 0 : _b2.call(_a2);
-        const state = await this.config.backendApiRef.current.fetchState(
+        const state = await this.config.aomiClientRef.current.fetchState(
           backendThreadId,
           userState
         );
@@ -1583,13 +1143,13 @@ var PollingController = class {
   }
 };
 
-// src/runtime/orchestrator.ts
-function useRuntimeOrchestrator(backendApi, options) {
+// packages/react/src/runtime/orchestrator.ts
+function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef5(threadContext);
   threadContextRef.current = threadContext;
-  const backendApiRef = useRef5(backendApi);
-  backendApiRef.current = backendApi;
+  const aomiClientRef = useRef5(aomiClient);
+  aomiClientRef.current = aomiClient;
   const backendStateRef = useRef5(createBackendState());
   const [isRunning, setIsRunning] = useState5(false);
   const messageControllerRef = useRef5(null);
@@ -1597,7 +1157,7 @@ function useRuntimeOrchestrator(backendApi, options) {
   const pendingFetches = useRef5(/* @__PURE__ */ new Set());
   if (!pollingRef.current) {
     pollingRef.current = new PollingController({
-      backendApiRef,
+      aomiClientRef,
       backendStateRef,
       applyMessages: (threadId, msgs) => {
         var _a;
@@ -1619,7 +1179,7 @@ function useRuntimeOrchestrator(backendApi, options) {
   }
   if (!messageControllerRef.current) {
     messageControllerRef.current = new MessageController({
-      backendApiRef,
+      aomiClientRef,
       backendStateRef,
       threadContextRef,
       polling: pollingRef.current,
@@ -1638,7 +1198,7 @@ function useRuntimeOrchestrator(backendApi, options) {
     pendingFetches.current.add(threadId);
     try {
       const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
-      const state = await backendApiRef.current.fetchState(
+      const state = await aomiClientRef.current.fetchState(
         backendThreadId,
         userState
       );
@@ -1670,11 +1230,11 @@ function useRuntimeOrchestrator(backendApi, options) {
     isRunning,
     setIsRunning,
     ensureInitialState,
-    backendApiRef
+    aomiClientRef
   };
 }
 
-// src/runtime/threadlist-adapter.ts
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1701,7 +1261,7 @@ function buildThreadLists(threadMetadata) {
   return { regularThreads, archivedThreads };
 }
 function buildThreadListAdapter({
-  backendApiRef,
+  aomiClientRef,
   threadContext,
   setIsRunning
 }) {
@@ -1739,7 +1299,7 @@ function buildThreadListAdapter({
         title: normalizedTitle
       });
       try {
-        await backendApiRef.current.renameThread(threadId, newTitle);
+        await aomiClientRef.current.renameThread(threadId, newTitle);
       } catch (error) {
         console.error("Failed to rename thread:", error);
         threadContext.updateThreadMetadata(threadId, {
@@ -1750,7 +1310,7 @@ function buildThreadListAdapter({
     onArchive: async (threadId) => {
       threadContext.updateThreadMetadata(threadId, { status: "archived" });
       try {
-        await backendApiRef.current.archiveThread(threadId);
+        await aomiClientRef.current.archiveThread(threadId);
       } catch (error) {
         console.error("Failed to archive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "regular" });
@@ -1759,7 +1319,7 @@ function buildThreadListAdapter({
     onUnarchive: async (threadId) => {
       threadContext.updateThreadMetadata(threadId, { status: "regular" });
       try {
-        await backendApiRef.current.unarchiveThread(threadId);
+        await aomiClientRef.current.unarchiveThread(threadId);
       } catch (error) {
         console.error("Failed to unarchive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "archived" });
@@ -1767,7 +1327,7 @@ function buildThreadListAdapter({
     },
     onDelete: async (threadId) => {
       try {
-        await backendApiRef.current.deleteThread(threadId);
+        await aomiClientRef.current.deleteThread(threadId);
         threadContext.setThreadMetadata((prev) => {
           const next = new Map(prev);
           next.delete(threadId);
@@ -1806,7 +1366,7 @@ function buildThreadListAdapter({
   };
 }
 
-// src/interface.tsx
+// packages/react/src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1820,10 +1380,10 @@ function useAomiRuntime() {
   return context;
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useEffect as useEffect3, useRef as useRef6, useState as useState6 } from "react";
 
-// src/state/wallet-buffer.ts
+// packages/react/src/state/wallet-buffer.ts
 function createWalletBuffer() {
   return { queue: [], nextId: 1 };
 }
@@ -1853,7 +1413,69 @@ function getAll(buffer) {
   return [...buffer.queue];
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
+function asRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
+  return value;
+}
+function getToolArgs(payload) {
+  const root = asRecord(payload);
+  const nestedArgs = asRecord(root == null ? void 0 : root.args);
+  return nestedArgs != null ? nestedArgs : root != null ? root : {};
+}
+function parseChainId(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  if (trimmed.startsWith("0x")) {
+    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
+    return Number.isFinite(parsedHex) ? parsedHex : void 0;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+function normalizeTxPayload(payload) {
+  var _a, _b, _c;
+  const root = asRecord(payload);
+  const args = getToolArgs(payload);
+  const ctx = asRecord(root == null ? void 0 : root.ctx);
+  const to = typeof args.to === "string" ? args.to : void 0;
+  if (!to) return null;
+  const valueRaw = args.value;
+  const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
+  const data = typeof args.data === "string" ? args.data : void 0;
+  const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  return {
+    to,
+    value,
+    data,
+    chainId
+  };
+}
+function normalizeEip712Payload(payload) {
+  var _a;
+  const args = getToolArgs(payload);
+  const typedDataRaw = (_a = args.typed_data) != null ? _a : args.typedData;
+  let typedData;
+  if (typeof typedDataRaw === "string") {
+    try {
+      const parsed = JSON.parse(typedDataRaw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        typedData = parsed;
+      }
+    } catch (e) {
+      typedData = void 0;
+    }
+  } else if (typedDataRaw && typeof typedDataRaw === "object" && !Array.isArray(typedDataRaw)) {
+    typedData = typedDataRaw;
+  }
+  const description = typeof args.description === "string" ? args.description : void 0;
+  return {
+    typed_data: typedData,
+    description
+  };
+}
 function useWalletHandler({
   sessionId,
   onRequestComplete
@@ -1868,7 +1490,11 @@ function useWalletHandler({
     const unsubscribe = subscribe2(
       "wallet_tx_request",
       (event) => {
-        const payload = event.payload;
+        const payload = normalizeTxPayload(event.payload);
+        if (!payload) {
+          console.warn("[aomi][wallet] Ignoring tx request with invalid payload", event.payload);
+          return;
+        }
         enqueue(bufferRef.current, "transaction", payload);
         syncState();
       }
@@ -1880,7 +1506,7 @@ function useWalletHandler({
       "wallet_eip712_request",
       (event) => {
         var _a;
-        const payload = (_a = event.payload) != null ? _a : {};
+        const payload = normalizeEip712Payload((_a = event.payload) != null ? _a : {});
         enqueue(bufferRef.current, "eip712_sign", payload);
         syncState();
       }
@@ -1966,11 +1592,11 @@ function useWalletHandler({
   };
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 import { jsx as jsx6 } from "react/jsx-runtime";
 function AomiRuntimeCore({
   children,
-  backendApi
+  aomiClient
 }) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -1985,8 +1611,8 @@ function AomiRuntimeCore({
     isRunning,
     setIsRunning,
     ensureInitialState,
-    backendApiRef
-  } = useRuntimeOrchestrator(backendApi, {
+    aomiClientRef
+  } = useRuntimeOrchestrator(aomiClient, {
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
@@ -2008,10 +1634,10 @@ function AomiRuntimeCore({
           ensName: newUser.ensName
         }
       });
-      await backendApiRef.current.postSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message);
     });
     return unsubscribe;
-  }, [onUserStateChange, backendApiRef, threadContext.currentThreadId]);
+  }, [onUserStateChange, aomiClientRef, threadContext.currentThreadId]);
   const threadContextRef = useRef7(threadContext);
   threadContextRef.current = threadContext;
   const currentThreadIdRef = useRef7(threadContext.currentThreadId);
@@ -2065,7 +1691,7 @@ function AomiRuntimeCore({
     const fetchThreadList = async () => {
       var _a, _b, _c;
       try {
-        const threadList = await backendApiRef.current.fetchThreads(userAddress);
+        const threadList = await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -2097,11 +1723,11 @@ function AomiRuntimeCore({
       }
     };
     void fetchThreadList();
-  }, [user.address, backendApiRef]);
+  }, [user.address, aomiClientRef]);
   const threadListAdapter = useMemo2(
     () => buildThreadListAdapter({
       backendStateRef,
-      backendApiRef,
+      aomiClientRef,
       threadContext,
       currentThreadIdRef,
       polling,
@@ -2115,7 +1741,7 @@ function AomiRuntimeCore({
       getUserState
     }),
     [
-      backendApiRef,
+      aomiClientRef,
       polling,
       user.address,
       backendStateRef,
@@ -2323,18 +1949,18 @@ function AomiRuntimeCore({
   return /* @__PURE__ */ jsx6(AomiRuntimeApiProvider, { value: aomiRuntimeApi, children: /* @__PURE__ */ jsx6(AssistantRuntimeProvider, { runtime, children }) });
 }
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080"
 }) {
-  const backendApi = useMemo3(() => new BackendApi(backendUrl), [backendUrl]);
-  return /* @__PURE__ */ jsx7(ThreadContextProvider, { children: /* @__PURE__ */ jsx7(NotificationContextProvider, { children: /* @__PURE__ */ jsx7(UserContextProvider, { children: /* @__PURE__ */ jsx7(AomiRuntimeInner, { backendApi, children }) }) }) });
+  const aomiClient = useMemo3(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  return /* @__PURE__ */ jsx7(ThreadContextProvider, { children: /* @__PURE__ */ jsx7(NotificationContextProvider, { children: /* @__PURE__ */ jsx7(UserContextProvider, { children: /* @__PURE__ */ jsx7(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
   children,
-  backendApi
+  aomiClient
 }) {
   var _a;
   const threadContext = useThreadContext();
@@ -2342,7 +1968,7 @@ function AomiRuntimeInner({
   return /* @__PURE__ */ jsx7(
     ControlContextProvider,
     {
-      backendApi,
+      aomiClient,
       sessionId: threadContext.currentThreadId,
       publicKey: (_a = user.address) != null ? _a : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
@@ -2350,16 +1976,16 @@ function AomiRuntimeInner({
       children: /* @__PURE__ */ jsx7(
         EventContextProvider,
         {
-          backendApi,
+          aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ jsx7(AomiRuntimeCore, { backendApi, children })
+          children: /* @__PURE__ */ jsx7(AomiRuntimeCore, { aomiClient, children })
         }
       )
     }
   );
 }
 
-// src/handlers/notification-handler.ts
+// packages/react/src/handlers/notification-handler.ts
 import { useCallback as useCallback8, useEffect as useEffect5, useState as useState7 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
@@ -2401,8 +2027,8 @@ function useNotificationHandler({
   };
 }
 export {
+  AomiClient2 as AomiClient,
   AomiRuntimeProvider,
-  BackendApi,
   ControlContextProvider,
   EventContextProvider,
   NotificationContextProvider,

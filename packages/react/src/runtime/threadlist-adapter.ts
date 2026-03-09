@@ -2,7 +2,7 @@ import { generateUUID } from "../utils/uuid";
 import type { MutableRefObject } from "react";
 import type { ExternalStoreThreadData } from "@assistant-ui/react";
 
-import type { BackendApi } from "../backend/client";
+import type { AomiClient } from "@aomi-labs/client";
 import type { ThreadContext } from "../contexts/thread-context";
 import type { UserState } from "../contexts/user-context";
 import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
@@ -59,7 +59,7 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
 
 export type ThreadListAdapterConfig = {
   backendStateRef: MutableRefObject<BackendState>;
-  backendApiRef: MutableRefObject<BackendApi>;
+  aomiClientRef: MutableRefObject<AomiClient>;
   threadContext: ThreadContext;
   currentThreadIdRef: MutableRefObject<string>;
   polling: PollingController;
@@ -71,7 +71,7 @@ export type ThreadListAdapterConfig = {
 };
 
 export function buildThreadListAdapter({
-  backendApiRef,
+  aomiClientRef,
   threadContext,
   setIsRunning,
 }: ThreadListAdapterConfig) {
@@ -114,7 +114,7 @@ export function buildThreadListAdapter({
       });
 
       try {
-        await backendApiRef.current.renameThread(threadId, newTitle);
+        await aomiClientRef.current.renameThread(threadId, newTitle);
       } catch (error) {
         console.error("Failed to rename thread:", error);
         threadContext.updateThreadMetadata(threadId, {
@@ -127,7 +127,7 @@ export function buildThreadListAdapter({
       threadContext.updateThreadMetadata(threadId, { status: "archived" });
 
       try {
-        await backendApiRef.current.archiveThread(threadId);
+        await aomiClientRef.current.archiveThread(threadId);
       } catch (error) {
         console.error("Failed to archive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "regular" });
@@ -138,7 +138,7 @@ export function buildThreadListAdapter({
       threadContext.updateThreadMetadata(threadId, { status: "regular" });
 
       try {
-        await backendApiRef.current.unarchiveThread(threadId);
+        await aomiClientRef.current.unarchiveThread(threadId);
       } catch (error) {
         console.error("Failed to unarchive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "archived" });
@@ -147,7 +147,7 @@ export function buildThreadListAdapter({
 
     onDelete: async (threadId: string) => {
       try {
-        await backendApiRef.current.deleteThread(threadId);
+        await aomiClientRef.current.deleteThread(threadId);
 
         threadContext.setThreadMetadata((prev) => {
           const next = new Map(prev);

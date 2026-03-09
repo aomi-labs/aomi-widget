@@ -8,7 +8,7 @@
 - Thread state → `contexts/thread-context.tsx` via `useThreadContext()`
 - Event dispatching → `contexts/event-context.tsx` via `useEventContext()`
 - Control state (model/namespace/apiKey) → `contexts/control-context.tsx` via `useControl()`
-- Backend API calls → `backend/client.ts` (BackendApi class)
+- Backend API calls → `backend/client.ts` (AomiClient class)
 - Message conversion → `runtime/utils.ts`
 
 **Provider Hierarchy:**
@@ -53,7 +53,7 @@ AomiFrame (apps/registry)
 
 | Location         | Purpose                                                        |
 | ---------------- | -------------------------------------------------------------- |
-| `backend/*.ts`   | BackendApi HTTP client + API types                             |
+| `backend/*.ts`   | AomiClient HTTP client + API types                             |
 | `contexts/*.tsx` | React contexts (User, Event, Thread, Notification, Control)    |
 | `handlers/*.ts`  | Event handler hooks (useWalletHandler, useNotificationHandler) |
 | `runtime/*.tsx`  | Runtime orchestration (providers, controllers)                 |
@@ -76,7 +76,7 @@ AomiFrame (apps/registry)
 
 ```
 Composer → onNew() → MessageController.outbound()
-  → BackendApi.postChatMessage() → PollingController.start()
+  → AomiClient.postChatMessage() → PollingController.start()
   → poll /api/state → MessageController.inbound() → re-render
 ```
 
@@ -108,7 +108,7 @@ Backend → /api/state response → system_events[]
 
 ```
 ControlContextProvider mounts (or apiKey changes)
-  → useEffect() → backendApi.getNamespaces(sessionId, publicKey, apiKey)
+  → useEffect() → aomiClient.getNamespaces(sessionId, publicKey, apiKey)
   → GET /api/control/namespaces → string[]
   → setStateInternal({ authorizedNamespaces, namespace })
 ```
@@ -117,7 +117,7 @@ ControlContextProvider mounts (or apiKey changes)
 
 ```
 User selects model in ModelSelect
-  → onModelSelect(model) → backendApi.setModel(sessionId, rig, namespace)
+  → onModelSelect(model) → aomiClient.setModel(sessionId, rig, namespace)
   → POST /api/control/model → { success, rig, baml, created }
 ```
 
@@ -151,7 +151,7 @@ Contexts & Handlers (packages/react/contexts, handlers)
     ↓ uses
 Runtime (packages/react/runtime - orchestrator, controllers)
     ↓ uses
-BackendApi (packages/react/backend)
+AomiClient (packages/react/backend)
     ↓ HTTP/SSE
 Backend Server
 ```
