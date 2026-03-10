@@ -236,7 +236,7 @@ export function Resources() {
                   Careers
                 </a>
                 <a
-                  href="#"
+                  href="/contact"
                   className="font-geist text-xs text-stone-100 transition-colors hover:text-stone-400"
                 >
                   Contact
