@@ -120,8 +120,28 @@ The package includes an `aomi` CLI for scripting and Claude Code skills.
 npx aomi chat "What's the gas price on Ethereum?"
 npx aomi status
 npx aomi events
-npx aomi sign      # requires PRIVATE_KEY env var + viem
+npx aomi sign      # requires --private-key or PRIVATE_KEY env var + viem
 npx aomi close
+```
+
+### Options
+
+All config can be passed as flags (which take priority over env vars):
+
+| Flag | Env Variable | Default | Description |
+|------|-------------|---------|-------------|
+| `--backend-url` | `AOMI_BASE_URL` | `https://api.aomi.dev` | Backend URL |
+| `--api-key` | `AOMI_API_KEY` | — | API key for non-default namespaces |
+| `--namespace` | `AOMI_NAMESPACE` | `default` | Namespace |
+| `--private-key` | `PRIVATE_KEY` | — | Hex private key for `aomi sign` |
+| `--rpc-url` | `CHAIN_RPC_URL` | — | RPC URL for transaction submission |
+
+```bash
+# Use a custom backend
+npx aomi chat "hello" --backend-url https://my-backend.example.com
+
+# Pass API key inline
+npx aomi chat "swap 1 ETH" --api-key sk-abc123 --namespace my-agent
 ```
 
 ### How state works
@@ -142,17 +162,7 @@ $ npx aomi status
 $ npx aomi close
 ```
 
-The state file is stored in your OS temp directory and gets cleaned up on reboot. You can also set `AOMI_BASE_URL`, `AOMI_NAMESPACE`, or `AOMI_API_KEY` as env vars to override the defaults without touching the state file.
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AOMI_BASE_URL` | `https://api.aomi.dev` | Backend URL |
-| `AOMI_API_KEY` | — | API key |
-| `AOMI_NAMESPACE` | `default` | Namespace |
-| `PRIVATE_KEY` | — | Hex private key for `aomi sign` |
-| `CHAIN_RPC_URL` | — | RPC URL for transaction submission |
+The state file is stored in your OS temp directory and gets cleaned up on reboot.
 
 ## Low-level Client API
 
