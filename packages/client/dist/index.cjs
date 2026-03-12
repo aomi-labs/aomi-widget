@@ -21,10 +21,15 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   AomiClient: () => AomiClient,
+  Session: () => Session,
+  TypedEventEmitter: () => TypedEventEmitter,
   isAsyncCallback: () => isAsyncCallback,
   isInlineCall: () => isInlineCall,
   isSystemError: () => isSystemError,
-  isSystemNotice: () => isSystemNotice
+  isSystemNotice: () => isSystemNotice,
+  normalizeEip712Payload: () => normalizeEip712Payload,
+  normalizeTxPayload: () => normalizeTxPayload,
+  unwrapSystemEvent: () => unwrapSystemEvent
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -504,12 +509,491 @@ function isSystemError(event) {
 function isAsyncCallback(event) {
   return "AsyncCallback" in event;
 }
+
+// src/event-emitter.ts
+var TypedEventEmitter = class {
+  constructor() {
+    this.listeners = /* @__PURE__ */ new Map();
+  }
+  /**
+   * Subscribe to an event type. Returns an unsubscribe function.
+   */
+  on(type, handler) {
+    let set = this.listeners.get(type);
+    if (!set) {
+      set = /* @__PURE__ */ new Set();
+      this.listeners.set(type, set);
+    }
+    set.add(handler);
+    return () => {
+      set.delete(handler);
+      if (set.size === 0) {
+        this.listeners.delete(type);
+      }
+    };
+  }
+  /**
+   * Subscribe to an event type for a single emission, then auto-unsubscribe.
+   */
+  once(type, handler) {
+    const wrapper = ((payload) => {
+      unsub();
+      handler(payload);
+    });
+    const unsub = this.on(type, wrapper);
+    return unsub;
+  }
+  /**
+   * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
+   */
+  emit(type, payload) {
+    const typeSet = this.listeners.get(type);
+    if (typeSet) {
+      for (const handler of typeSet) {
+        handler(payload);
+      }
+    }
+    if (type !== "*") {
+      const wildcardSet = this.listeners.get("*");
+      if (wildcardSet) {
+        for (const handler of wildcardSet) {
+          handler({ type, payload });
+        }
+      }
+    }
+  }
+  /**
+   * Remove a specific handler from an event type.
+   */
+  off(type, handler) {
+    const set = this.listeners.get(type);
+    if (set) {
+      set.delete(handler);
+      if (set.size === 0) {
+        this.listeners.delete(type);
+      }
+    }
+  }
+  /**
+   * Remove all listeners for all event types.
+   */
+  removeAllListeners() {
+    this.listeners.clear();
+  }
+};
+
+// src/event-unwrap.ts
+function unwrapSystemEvent(event) {
+  var _a;
+  if (isInlineCall(event)) {
+    return {
+      type: event.InlineCall.type,
+      payload: (_a = event.InlineCall.payload) != null ? _a : event.InlineCall
+    };
+  }
+  if (isSystemNotice(event)) {
+    return {
+      type: "system_notice",
+      payload: { message: event.SystemNotice }
+    };
+  }
+  if (isSystemError(event)) {
+    return {
+      type: "system_error",
+      payload: { message: event.SystemError }
+    };
+  }
+  if (isAsyncCallback(event)) {
+    return {
+      type: "async_callback",
+      payload: event.AsyncCallback
+    };
+  }
+  return null;
+}
+
+// src/wallet-utils.ts
+function asRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return void 0;
+  return value;
+}
+function getToolArgs(payload) {
+  var _a;
+  const root = asRecord(payload);
+  const nestedArgs = asRecord(root == null ? void 0 : root.args);
+  return (_a = nestedArgs != null ? nestedArgs : root) != null ? _a : {};
+}
+function parseChainId(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  if (trimmed.startsWith("0x")) {
+    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
+    return Number.isFinite(parsedHex) ? parsedHex : void 0;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+function normalizeTxPayload(payload) {
+  var _a, _b, _c;
+  const root = asRecord(payload);
+  const args = getToolArgs(payload);
+  const ctx = asRecord(root == null ? void 0 : root.ctx);
+  const to = typeof args.to === "string" ? args.to : void 0;
+  if (!to) return null;
+  const valueRaw = args.value;
+  const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
+  const data = typeof args.data === "string" ? args.data : void 0;
+  const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  return { to, value, data, chainId };
+}
+function normalizeEip712Payload(payload) {
+  var _a;
+  const args = getToolArgs(payload);
+  const typedDataRaw = (_a = args.typed_data) != null ? _a : args.typedData;
+  let typedData;
+  if (typeof typedDataRaw === "string") {
+    try {
+      const parsed = JSON.parse(typedDataRaw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        typedData = parsed;
+      }
+    } catch (e) {
+      typedData = void 0;
+    }
+  } else if (typedDataRaw && typeof typedDataRaw === "object" && !Array.isArray(typedDataRaw)) {
+    typedData = typedDataRaw;
+  }
+  const description = typeof args.description === "string" ? args.description : void 0;
+  return { typed_data: typedData, description };
+}
+
+// src/session.ts
+var Session = class extends TypedEventEmitter {
+  constructor(clientOrOptions, sessionOptions) {
+    var _a, _b, _c;
+    super();
+    // Internal state
+    this.pollTimer = null;
+    this.unsubscribeSSE = null;
+    this._isProcessing = false;
+    this.walletRequests = [];
+    this.walletRequestNextId = 1;
+    this._messages = [];
+    this.closed = false;
+    // For send() blocking behavior
+    this.pendingResolve = null;
+    this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
+    this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
+    this.namespace = (_b = sessionOptions == null ? void 0 : sessionOptions.namespace) != null ? _b : "default";
+    this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
+    this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+    this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
+    this.pollIntervalMs = (_c = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _c : 500;
+    this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
+    this.unsubscribeSSE = this.client.subscribeSSE(
+      this.sessionId,
+      (event) => this.handleSSEEvent(event),
+      (error) => this.emit("error", { error })
+    );
+  }
+  // ===========================================================================
+  // Public API — Chat
+  // ===========================================================================
+  /**
+   * Send a message and wait for the AI to finish processing.
+   *
+   * The returned promise resolves when `is_processing` becomes `false` AND
+   * there are no pending wallet requests. If a wallet request arrives
+   * mid-processing, polling continues but the promise pauses until the
+   * request is resolved or rejected via `resolve()` / `reject()`.
+   */
+  async send(message) {
+    this.assertOpen();
+    const response = await this.client.sendMessage(this.sessionId, message, {
+      namespace: this.namespace,
+      publicKey: this.publicKey,
+      apiKey: this.apiKey,
+      userState: this.userState
+    });
+    this.applyState(response);
+    if (!response.is_processing) {
+      return { messages: this._messages, title: this._title };
+    }
+    this._isProcessing = true;
+    this.emit("processing_start", void 0);
+    return new Promise((resolve) => {
+      this.pendingResolve = resolve;
+      this.startPolling();
+    });
+  }
+  /**
+   * Send a message without waiting for completion.
+   * Polling starts in the background; listen to events for updates.
+   */
+  async sendAsync(message) {
+    this.assertOpen();
+    const response = await this.client.sendMessage(this.sessionId, message, {
+      namespace: this.namespace,
+      publicKey: this.publicKey,
+      apiKey: this.apiKey,
+      userState: this.userState
+    });
+    this.applyState(response);
+    if (response.is_processing) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+      this.startPolling();
+    }
+    return response;
+  }
+  // ===========================================================================
+  // Public API — Wallet Request Resolution
+  // ===========================================================================
+  /**
+   * Resolve a pending wallet request (transaction or EIP-712 signing).
+   * Sends the result to the backend and resumes polling.
+   */
+  async resolve(requestId, result) {
+    var _a;
+    const req = this.removeWalletRequest(requestId);
+    if (!req) {
+      throw new Error(`No pending wallet request with id "${requestId}"`);
+    }
+    if (req.kind === "transaction") {
+      await this.sendSystemEvent("wallet:tx_complete", {
+        txHash: (_a = result.txHash) != null ? _a : "",
+        status: "success",
+        amount: result.amount
+      });
+    } else {
+      const eip712Payload = req.payload;
+      await this.sendSystemEvent("wallet_eip712_response", {
+        status: "success",
+        signature: result.signature,
+        description: eip712Payload.description
+      });
+    }
+    if (this._isProcessing) {
+      this.startPolling();
+    }
+  }
+  /**
+   * Reject a pending wallet request.
+   * Sends an error to the backend and resumes polling.
+   */
+  async reject(requestId, reason) {
+    const req = this.removeWalletRequest(requestId);
+    if (!req) {
+      throw new Error(`No pending wallet request with id "${requestId}"`);
+    }
+    if (req.kind === "transaction") {
+      await this.sendSystemEvent("wallet:tx_complete", {
+        txHash: "",
+        status: "failed"
+      });
+    } else {
+      const eip712Payload = req.payload;
+      await this.sendSystemEvent("wallet_eip712_response", {
+        status: "failed",
+        error: reason != null ? reason : "Request rejected",
+        description: eip712Payload.description
+      });
+    }
+    if (this._isProcessing) {
+      this.startPolling();
+    }
+  }
+  // ===========================================================================
+  // Public API — Control
+  // ===========================================================================
+  /**
+   * Cancel the AI's current response.
+   */
+  async interrupt() {
+    this.stopPolling();
+    const response = await this.client.interrupt(this.sessionId);
+    this.applyState(response);
+    this._isProcessing = false;
+    this.emit("processing_end", void 0);
+    this.resolvePending();
+  }
+  /**
+   * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
+   * The session cannot be used after closing.
+   */
+  close() {
+    var _a;
+    if (this.closed) return;
+    this.closed = true;
+    this.stopPolling();
+    (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
+    this.unsubscribeSSE = null;
+    this.resolvePending();
+    this.removeAllListeners();
+  }
+  // ===========================================================================
+  // Public API — Accessors
+  // ===========================================================================
+  /** Current messages in the session. */
+  getMessages() {
+    return this._messages;
+  }
+  /** Current session title. */
+  getTitle() {
+    return this._title;
+  }
+  /** Pending wallet requests waiting for resolve/reject. */
+  getPendingRequests() {
+    return [...this.walletRequests];
+  }
+  /** Whether the AI is currently processing. */
+  getIsProcessing() {
+    return this._isProcessing;
+  }
+  // ===========================================================================
+  // Internal — Polling (ported from PollingController)
+  // ===========================================================================
+  startPolling() {
+    var _a;
+    if (this.pollTimer || this.closed) return;
+    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
+    this.pollTimer = setInterval(() => {
+      void this.pollTick();
+    }, this.pollIntervalMs);
+  }
+  stopPolling() {
+    var _a;
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+      (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
+    }
+  }
+  async pollTick() {
+    var _a;
+    if (!this.pollTimer) return;
+    try {
+      const state = await this.client.fetchState(
+        this.sessionId,
+        this.userState
+      );
+      if (!this.pollTimer) return;
+      this.applyState(state);
+      if (!state.is_processing && this.walletRequests.length === 0) {
+        this.stopPolling();
+        this._isProcessing = false;
+        this.emit("processing_end", void 0);
+        this.resolvePending();
+      }
+    } catch (error) {
+      (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
+      this.emit("error", { error });
+    }
+  }
+  // ===========================================================================
+  // Internal — State Application
+  // ===========================================================================
+  applyState(state) {
+    var _a;
+    if (state.messages) {
+      this._messages = state.messages;
+      this.emit("messages", this._messages);
+    }
+    if (state.title) {
+      this._title = state.title;
+    }
+    if ((_a = state.system_events) == null ? void 0 : _a.length) {
+      this.dispatchSystemEvents(state.system_events);
+    }
+  }
+  dispatchSystemEvents(events) {
+    var _a;
+    for (const event of events) {
+      const unwrapped = unwrapSystemEvent(event);
+      if (!unwrapped) continue;
+      if (unwrapped.type === "wallet_tx_request") {
+        const payload = normalizeTxPayload(unwrapped.payload);
+        if (payload) {
+          const req = this.enqueueWalletRequest("transaction", payload);
+          this.emit("wallet_tx_request", req);
+        }
+      } else if (unwrapped.type === "wallet_eip712_request") {
+        const payload = normalizeEip712Payload((_a = unwrapped.payload) != null ? _a : {});
+        const req = this.enqueueWalletRequest("eip712_sign", payload);
+        this.emit("wallet_eip712_request", req);
+      } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
+        this.emit(
+          unwrapped.type,
+          unwrapped.payload
+        );
+      }
+    }
+  }
+  // ===========================================================================
+  // Internal — SSE Handling
+  // ===========================================================================
+  handleSSEEvent(event) {
+    if (event.type === "title_changed" && event.new_title) {
+      this._title = event.new_title;
+      this.emit("title_changed", { title: event.new_title });
+    } else if (event.type === "tool_update") {
+      this.emit("tool_update", event);
+    } else if (event.type === "tool_complete") {
+      this.emit("tool_complete", event);
+    }
+  }
+  // ===========================================================================
+  // Internal — Wallet Request Queue
+  // ===========================================================================
+  enqueueWalletRequest(kind, payload) {
+    const req = {
+      id: `wreq-${this.walletRequestNextId++}`,
+      kind,
+      payload,
+      timestamp: Date.now()
+    };
+    this.walletRequests.push(req);
+    return req;
+  }
+  removeWalletRequest(id) {
+    const idx = this.walletRequests.findIndex((r) => r.id === id);
+    if (idx === -1) return null;
+    return this.walletRequests.splice(idx, 1)[0];
+  }
+  // ===========================================================================
+  // Internal — Helpers
+  // ===========================================================================
+  async sendSystemEvent(type, payload) {
+    const message = JSON.stringify({ type, payload });
+    await this.client.sendSystemMessage(this.sessionId, message);
+  }
+  resolvePending() {
+    if (this.pendingResolve) {
+      const resolve = this.pendingResolve;
+      this.pendingResolve = null;
+      resolve({ messages: this._messages, title: this._title });
+    }
+  }
+  assertOpen() {
+    if (this.closed) {
+      throw new Error("Session is closed");
+    }
+  }
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AomiClient,
+  Session,
+  TypedEventEmitter,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
-  isSystemNotice
+  isSystemNotice,
+  normalizeEip712Payload,
+  normalizeTxPayload,
+  unwrapSystemEvent
 });
 //# sourceMappingURL=index.cjs.map

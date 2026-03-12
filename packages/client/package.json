@@ -6,6 +6,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "aomi": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": {
@@ -24,5 +27,13 @@
   "scripts": {
     "build": "tsup",
     "clean:dist": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "viem": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "viem": {
+      "optional": true
+    }
   }
 }
