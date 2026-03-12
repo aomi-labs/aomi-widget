@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import type { AomiClient, ApiSSEEvent, ApiSystemEvent } from "@aomi-labs/client";
+import type { AomiClient, AomiSSEEvent, AomiSystemEvent } from "@aomi-labs/client";
 import {
   isInlineCall,
   isSystemNotice,
@@ -39,7 +39,7 @@ export type EventContext = {
   /** Send an outbound event to backend immediately */
   sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
   /** Dispatch system events from HTTP polling into the event buffer */
-  dispatchInboundSystem: (sessionId: string, events: ApiSystemEvent[]) => void;
+  dispatchInboundSystem: (sessionId: string, events: AomiSystemEvent[]) => void;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -97,7 +97,7 @@ export function EventContextProvider({
 
     const unsubscribe = aomiClient.subscribeSSE(
       sessionId,
-      (event: ApiSSEEvent) => {
+      (event: AomiSSEEvent) => {
         enqueueInbound(buffer, {
           type: event.type,
           sessionId: event.session_id,
@@ -156,7 +156,7 @@ export function EventContextProvider({
   );
 
   const dispatchSystemEvents = useCallback(
-    (sessionId: string, events: ApiSystemEvent[]) => {
+    (sessionId: string, events: AomiSystemEvent[]) => {
       for (const event of events) {
         let eventType: string;
         let payload: unknown;
