@@ -16,6 +16,7 @@
 import { Session } from "./session";
 import type { WalletRequest } from "./session";
 import type { WalletTxPayload, WalletEip712Payload } from "./wallet-utils";
+import type { AomiMessage, AomiSSEEvent } from "./types";
 import {
   readState,
   writeState,
@@ -68,12 +69,15 @@ function parseArgs(argv: string[]): ParsedArgs {
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = rest[i + 1];
-      if (next && !next.startsWith("--")) {
+      if (next && !next.startsWith("-")) {
         flags[key] = next;
         i++;
       } else {
         flags[key] = "true";
       }
+    } else if (arg.startsWith("-") && arg.length === 2) {
+      // Short boolean flag like -v
+      flags[arg.slice(1)] = "true";
     } else {
       positional.push(arg);
     }
@@ -187,6 +191,67 @@ function formatTxLine(tx: PendingTx, prefix: string): string {
 }
 
 // =============================================================================
+// Verbose Output Helpers
+// =============================================================================
+
+const DIM = "\x1b[2m";
+const CYAN = "\x1b[36m";
+const YELLOW = "\x1b[33m";
+const GREEN = "\x1b[32m";
+const RESET = "\x1b[0m";
+
+function printToolUpdate(event: AomiSSEEvent): void {
+  const name =
+    (event.tool_name as string | undefined) ??
+    (event.name as string | undefined) ??
+    "unknown";
+  const status =
+    (event.status as string | undefined) ?? "running";
+  console.log(`${DIM}🔧 [tool] ${name}: ${status}${RESET}`);
+}
+
+function printToolComplete(event: AomiSSEEvent): void {
+  const name =
+    (event.tool_name as string | undefined) ??
+    (event.name as string | undefined) ??
+    "unknown";
+  const result =
+    (event.result as string | undefined) ??
+    (event.output as string | undefined);
+  const line = result
+    ? `${GREEN}✔ [tool] ${name} → ${result.slice(0, 120)}${result.length > 120 ? "…" : ""}${RESET}`
+    : `${GREEN}✔ [tool] ${name} done${RESET}`;
+  console.log(line);
+}
+
+/**
+ * Prints agent messages we haven't shown yet, skipping ones still streaming.
+ * Returns the count of agent messages we've handled (printed or pre-existing).
+ * Streaming messages are NOT counted — they'll be re-checked on next poll.
+ */
+function printNewAgentMessages(
+  messages: AomiMessage[],
+  lastPrintedCount: number,
+): number {
+  const agentMessages = messages.filter(
+    (m) => m.sender === "agent" || m.sender === "assistant",
+  );
+  let handled = lastPrintedCount;
+  for (let i = lastPrintedCount; i < agentMessages.length; i++) {
+    const msg = agentMessages[i];
+    if (msg.is_streaming) {
+      // Still streaming — don't advance the counter so we re-check next time
+      break;
+    }
+    if (msg.content) {
+      console.log(`${CYAN}🤖 ${msg.content}${RESET}`);
+    }
+    handled = i + 1;
+  }
+  return handled;
+}
+
+// =============================================================================
 // Commands
 // =============================================================================
 
@@ -195,6 +260,8 @@ async function chatCommand(): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
+
+  const verbose = parsed.flags["verbose"] === "true" || parsed.flags["v"] === "true";
 
   const { session, state } = getOrCreateSession();
 
@@ -216,12 +283,50 @@ async function chatCommand(): Promise<void> {
   // Use sendAsync — we need to exit early if a wallet request arrives
   // (send() would block forever waiting for the wallet request to be resolved)
   const capturedRequests: WalletRequest[] = [];
+  let printedAgentCount = 0;
 
   session.on("wallet_tx_request", (req) => capturedRequests.push(req));
   session.on("wallet_eip712_request", (req) => capturedRequests.push(req));
 
   try {
     await session.sendAsync(message);
+
+    // After sendAsync, _messages includes the full conversation.
+    // We want to only print agent messages that arrive AFTER our send.
+    // Find the last occurrence of our user message and count agent messages before it.
+    const allMsgs = session.getMessages();
+    let seedIdx = allMsgs.length;
+    for (let i = allMsgs.length - 1; i >= 0; i--) {
+      if (allMsgs[i].sender === "user") {
+        seedIdx = i;
+        break;
+      }
+    }
+    // Count agent messages that appeared before our user message (historical)
+    printedAgentCount = allMsgs.slice(0, seedIdx).filter(
+      (m) => m.sender === "agent" || m.sender === "assistant",
+    ).length;
+
+    // Verbose mode: stream tool events and agent messages in real-time
+    if (verbose) {
+      if (session.getIsProcessing()) {
+        console.log(`${DIM}⏳ Processing…${RESET}`);
+      }
+      // Print any agent messages already in the send response
+      printedAgentCount = printNewAgentMessages(allMsgs, printedAgentCount);
+
+      session.on("tool_update", (event) => printToolUpdate(event));
+      session.on("tool_complete", (event) => printToolComplete(event));
+      session.on("messages", (msgs) => {
+        printedAgentCount = printNewAgentMessages(msgs, printedAgentCount);
+      });
+      session.on("system_notice", ({ message: msg }) => {
+        console.log(`${YELLOW}📢 ${msg}${RESET}`);
+      });
+      session.on("system_error", ({ message: msg }) => {
+        console.log(`\x1b[31m❌ ${msg}${RESET}`);
+      });
+    }
 
     // Wait for either: processing ends, or a wallet request arrives
     if (session.getIsProcessing()) {
@@ -233,6 +338,12 @@ async function chatCommand(): Promise<void> {
         session.on("wallet_eip712_request", checkWallet);
         session.on("processing_end", () => resolve());
       });
+    }
+
+    // Final flush — print any remaining agent messages not yet shown
+    if (verbose) {
+      printNewAgentMessages(session.getMessages(), printedAgentCount);
+      console.log(`${DIM}✅ Done${RESET}`);
     }
 
     // Persist any wallet requests that arrived
@@ -250,17 +361,19 @@ async function chatCommand(): Promise<void> {
       }
     }
 
-    // Print last agent message
-    const messages = session.getMessages();
-    const agentMessages = messages.filter(
-      (m) => m.sender === "agent" || m.sender === "assistant",
-    );
-    const last = agentMessages[agentMessages.length - 1];
+    // In verbose mode we've already streamed messages; in normal mode print last
+    if (!verbose) {
+      const messages = session.getMessages();
+      const agentMessages = messages.filter(
+        (m) => m.sender === "agent" || m.sender === "assistant",
+      );
+      const last = agentMessages[agentMessages.length - 1];
 
-    if (last?.content) {
-      console.log(last.content);
-    } else if (capturedRequests.length === 0) {
-      console.log("(no response)");
+      if (last?.content) {
+        console.log(last.content);
+      } else if (capturedRequests.length === 0) {
+        console.log("(no response)");
+      }
     }
 
     if (capturedRequests.length > 0) {
@@ -516,6 +629,56 @@ async function signCommand(): Promise<void> {
   }
 }
 
+async function logCommand(): Promise<void> {
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    return;
+  }
+
+  const { session } = getOrCreateSession();
+
+  try {
+    const apiState = await session.client.fetchState(state.sessionId);
+    const messages = apiState.messages ?? [];
+
+    if (messages.length === 0) {
+      console.log("No messages in this session.");
+      return;
+    }
+
+    for (const msg of messages) {
+      const time = msg.timestamp
+        ? `${DIM}${new Date(msg.timestamp).toLocaleTimeString()}${RESET} `
+        : "";
+      const sender = msg.sender ?? "unknown";
+
+      if (sender === "user") {
+        console.log(`${time}${CYAN}👤 You:${RESET} ${msg.content ?? ""}`);
+      } else if (sender === "agent" || sender === "assistant") {
+        // Show tool results inline if present
+        if (msg.tool_result) {
+          const [toolName, result] = msg.tool_result;
+          console.log(
+            `${time}${GREEN}🔧 [${toolName}]${RESET} ${result.slice(0, 200)}${result.length > 200 ? "…" : ""}`,
+          );
+        }
+        if (msg.content) {
+          console.log(`${time}${CYAN}🤖 Agent:${RESET} ${msg.content}`);
+        }
+      } else if (sender === "system") {
+        console.log(`${time}${YELLOW}⚙️  System:${RESET} ${msg.content ?? ""}`);
+      } else {
+        console.log(`${time}${DIM}[${sender}]${RESET} ${msg.content ?? ""}`);
+      }
+    }
+
+    console.log(`\n${DIM}— ${messages.length} messages —${RESET}`);
+  } finally {
+    session.close();
+  }
+}
+
 function closeCommand(): void {
   const state = readState();
   if (state) {
@@ -532,6 +695,8 @@ aomi — CLI client for Aomi on-chain agent
 
 Usage:
   aomi chat <message>   Send a message and print the response
+  aomi chat --verbose   Stream agent responses, tool calls, and events live
+  aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
   aomi sign <tx-id>     Sign and submit a pending transaction
   aomi status           Show current session state
@@ -545,6 +710,7 @@ Options:
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
+  --verbose, -v         Show tool calls and streaming output (for chat)
 
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
@@ -566,6 +732,9 @@ async function main(): Promise<void> {
   switch (cmd) {
     case "chat":
       await chatCommand();
+      break;
+    case "log":
+      await logCommand();
       break;
     case "tx":
       txCommand();

@@ -117,12 +117,14 @@ unsub(); // stop listening
 The package includes an `aomi` CLI for scripting and Claude Code skills.
 
 ```bash
-npx aomi chat "swap 1 ETH for USDC"   # talk to the agent
-npx aomi tx                             # list pending + signed txs
-npx aomi sign tx-1                      # sign a specific pending tx
-npx aomi status                         # session info
-npx aomi events                         # system events
-npx aomi close                          # clear session
+npx aomi chat "swap 1 ETH for USDC"        # talk to the agent
+npx aomi chat "swap 1 ETH" --verbose        # stream tool calls + responses live
+npx aomi log                                # show full conversation history
+npx aomi tx                                 # list pending + signed txs
+npx aomi sign tx-1                          # sign a specific pending tx
+npx aomi status                             # session info
+npx aomi events                             # system events
+npx aomi close                              # clear session
 ```
 
 ### Transaction flow
@@ -157,6 +159,30 @@ $ npx aomi tx
 
 Pending and signed transactions are persisted in `$TMPDIR/aomi-session.json` alongside the session pointer, so they survive between CLI invocations.
 
+### Verbose mode & conversation log
+
+Use `--verbose` (or `-v`) to see tool calls and agent responses in real-time:
+
+```
+$ npx aomi chat "what's the price of ETH?" --verbose
+⏳ Processing…
+🔧 [tool] get_token_price: running
+✔ [tool] get_token_price → {"price": 3245.67, "symbol": "ETH"}
+🤖 ETH is currently trading at $3,245.67.
+✅ Done
+```
+
+Use `aomi log` to replay the full conversation including tool results:
+
+```
+$ npx aomi log
+10:30:15 AM 👤 You: what's the price of ETH?
+10:30:16 AM 🔧 [get_token_price] {"price": 3245.67, "symbol": "ETH"}
+10:30:16 AM 🤖 Agent: ETH is currently trading at $3,245.67.
+
+— 3 messages —
+```
+
 ### Options
 
 All config can be passed as flags (which take priority over env vars):
@@ -166,8 +192,10 @@ All config can be passed as flags (which take priority over env vars):
 | `--backend-url` | `AOMI_BASE_URL` | `https://api.aomi.dev` | Backend URL |
 | `--api-key` | `AOMI_API_KEY` | — | API key for non-default namespaces |
 | `--namespace` | `AOMI_NAMESPACE` | `default` | Namespace |
+| `--public-key` | `AOMI_PUBLIC_KEY` | — | Wallet address (tells agent your wallet) |
 | `--private-key` | `PRIVATE_KEY` | — | Hex private key for `aomi sign` |
 | `--rpc-url` | `CHAIN_RPC_URL` | — | RPC URL for transaction submission |
+| `--verbose`, `-v` | — | — | Stream tool calls and agent responses live |
 
 ```bash
 # Use a custom backend

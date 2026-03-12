@@ -1,4 +1,23 @@
 #!/usr/bin/env node
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
 // src/sse.ts
 function extractSseData(rawEvent) {
@@ -121,9 +140,9 @@ function createSseSubscriber({
         subscription.retries = 0;
         await readSseStream(response.body, controller.signal, (data) => {
           var _a3, _b;
-          let parsed;
+          let parsed2;
           try {
-            parsed = JSON.parse(data);
+            parsed2 = JSON.parse(data);
           } catch (error) {
             for (const item of subscription.listeners) {
               (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
@@ -132,7 +151,7 @@ function createSseSubscriber({
           }
           for (const item of subscription.listeners) {
             try {
-              item.onUpdate(parsed);
+              item.onUpdate(parsed2);
             } catch (error) {
               (_b = item.onError) == null ? void 0 : _b.call(item, error);
             }
@@ -600,32 +619,32 @@ function parseChainId(value) {
     const parsedHex = Number.parseInt(trimmed.slice(2), 16);
     return Number.isFinite(parsedHex) ? parsedHex : void 0;
   }
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  const parsed2 = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed2) ? parsed2 : void 0;
 }
 function normalizeTxPayload(payload) {
   var _a2, _b, _c;
   const root = asRecord(payload);
-  const args2 = getToolArgs(payload);
+  const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
-  const to = typeof args2.to === "string" ? args2.to : void 0;
+  const to = typeof args.to === "string" ? args.to : void 0;
   if (!to) return null;
-  const valueRaw = args2.value;
+  const valueRaw = args.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
-  const data = typeof args2.data === "string" ? args2.data : void 0;
-  const chainId = (_c = (_b = (_a2 = parseChainId(args2.chainId)) != null ? _a2 : parseChainId(args2.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  const data = typeof args.data === "string" ? args.data : void 0;
+  const chainId = (_c = (_b = (_a2 = parseChainId(args.chainId)) != null ? _a2 : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
   return { to, value, data, chainId };
 }
 function normalizeEip712Payload(payload) {
   var _a2;
-  const args2 = getToolArgs(payload);
-  const typedDataRaw = (_a2 = args2.typed_data) != null ? _a2 : args2.typedData;
+  const args = getToolArgs(payload);
+  const typedDataRaw = (_a2 = args.typed_data) != null ? _a2 : args.typedData;
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
-      const parsed = JSON.parse(typedDataRaw);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        typedData = parsed;
+      const parsed2 = JSON.parse(typedDataRaw);
+      if (parsed2 && typeof parsed2 === "object" && !Array.isArray(parsed2)) {
+        typedData = parsed2;
       }
     } catch (e) {
       typedData = void 0;
@@ -633,7 +652,7 @@ function normalizeEip712Payload(payload) {
   } else if (typedDataRaw && typeof typedDataRaw === "object" && !Array.isArray(typedDataRaw)) {
     typedData = typedDataRaw;
   }
-  const description = typeof args2.description === "string" ? args2.description : void 0;
+  const description = typeof args.description === "string" ? args.description : void 0;
   return { typed_data: typedData, description };
 }
 
@@ -978,26 +997,91 @@ function clearState() {
   } catch (e) {
   }
 }
+var nextTxId = 1;
+function addPendingTx(state, tx) {
+  if (!state.pendingTxs) state.pendingTxs = [];
+  const pending = __spreadProps(__spreadValues({}, tx), {
+    id: `tx-${nextTxId++}`
+  });
+  state.pendingTxs.push(pending);
+  writeState(state);
+  return pending;
+}
+function removePendingTx(state, id) {
+  if (!state.pendingTxs) return null;
+  const idx = state.pendingTxs.findIndex((t) => t.id === id);
+  if (idx === -1) return null;
+  const [removed] = state.pendingTxs.splice(idx, 1);
+  writeState(state);
+  return removed;
+}
+function addSignedTx(state, tx) {
+  if (!state.signedTxs) state.signedTxs = [];
+  state.signedTxs.push(tx);
+  writeState(state);
+}
 
 // src/cli.ts
-var [, , command, ...args] = process.argv;
-function getEnv() {
-  var _a2, _b;
+var CliExit = class extends Error {
+  constructor(code) {
+    super();
+    this.code = code;
+  }
+};
+function fatal(message) {
+  console.error(message);
+  throw new CliExit(1);
+}
+function parseArgs(argv) {
+  const raw = argv.slice(2);
+  const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : void 0;
+  const rest = command ? raw.slice(1) : raw;
+  const positional = [];
+  const flags = {};
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg.startsWith("--") && arg.includes("=")) {
+      const [key, ...val] = arg.slice(2).split("=");
+      flags[key] = val.join("=");
+    } else if (arg.startsWith("--")) {
+      const key = arg.slice(2);
+      const next = rest[i + 1];
+      if (next && !next.startsWith("-")) {
+        flags[key] = next;
+        i++;
+      } else {
+        flags[key] = "true";
+      }
+    } else if (arg.startsWith("-") && arg.length === 2) {
+      flags[arg.slice(1)] = "true";
+    } else {
+      positional.push(arg);
+    }
+  }
+  return { command, positional, flags };
+}
+var parsed = parseArgs(process.argv);
+function getConfig() {
+  var _a2, _b, _c, _d, _e, _f, _g, _h;
   return {
-    baseUrl: (_a2 = process.env.AOMI_BASE_URL) != null ? _a2 : "https://api.aomi.dev",
-    apiKey: process.env.AOMI_API_KEY,
-    namespace: (_b = process.env.AOMI_NAMESPACE) != null ? _b : "default"
+    baseUrl: (_b = (_a2 = parsed.flags["backend-url"]) != null ? _a2 : process.env.AOMI_BASE_URL) != null ? _b : "https://api.aomi.dev",
+    apiKey: (_c = parsed.flags["api-key"]) != null ? _c : process.env.AOMI_API_KEY,
+    namespace: (_e = (_d = parsed.flags["namespace"]) != null ? _d : process.env.AOMI_NAMESPACE) != null ? _e : "default",
+    publicKey: (_f = parsed.flags["public-key"]) != null ? _f : process.env.AOMI_PUBLIC_KEY,
+    privateKey: (_g = parsed.flags["private-key"]) != null ? _g : process.env.PRIVATE_KEY,
+    chainRpcUrl: (_h = parsed.flags["rpc-url"]) != null ? _h : process.env.CHAIN_RPC_URL
   };
 }
 function getOrCreateSession() {
-  const env = getEnv();
+  const config = getConfig();
   let state = readState();
   if (!state) {
     state = {
       sessionId: crypto.randomUUID(),
-      baseUrl: env.baseUrl,
-      namespace: env.namespace,
-      apiKey: env.apiKey
+      baseUrl: config.baseUrl,
+      namespace: config.namespace,
+      apiKey: config.apiKey,
+      publicKey: config.publicKey
     };
     writeState(state);
   }
@@ -1006,35 +1090,191 @@ function getOrCreateSession() {
     {
       sessionId: state.sessionId,
       namespace: state.namespace,
-      apiKey: state.apiKey
+      apiKey: state.apiKey,
+      publicKey: state.publicKey,
+      userState: state.publicKey ? {
+        address: state.publicKey,
+        chainId: 1,
+        isConnected: true
+      } : void 0
     }
   );
   return { session, state };
 }
-async function chatCommand() {
-  const message = args.join(" ");
-  if (!message) {
-    console.error("Usage: aomi chat <message>");
-    process.exit(1);
+function walletRequestToPendingTx(req) {
+  if (req.kind === "transaction") {
+    const p2 = req.payload;
+    return {
+      kind: "transaction",
+      to: p2.to,
+      value: p2.value,
+      data: p2.data,
+      chainId: p2.chainId,
+      timestamp: req.timestamp,
+      payload: req.payload
+    };
   }
-  const { session } = getOrCreateSession();
-  try {
-    const result = await session.send(message);
-    const agentMessages = result.messages.filter(
-      (m) => m.sender === "agent" || m.sender === "assistant"
+  const p = req.payload;
+  return {
+    kind: "eip712_sign",
+    description: p.description,
+    timestamp: req.timestamp,
+    payload: req.payload
+  };
+}
+function formatTxLine(tx, prefix) {
+  var _a2;
+  const parts = [`${prefix} ${tx.id}`];
+  if (tx.kind === "transaction") {
+    parts.push(`to: ${(_a2 = tx.to) != null ? _a2 : "?"}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+    if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
+    if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
+  } else {
+    parts.push(`eip712`);
+    if (tx.description) parts.push(tx.description);
+  }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+var DIM = "\x1B[2m";
+var CYAN = "\x1B[36m";
+var YELLOW = "\x1B[33m";
+var GREEN = "\x1B[32m";
+var RESET = "\x1B[0m";
+function printToolUpdate(event) {
+  var _a2, _b, _c;
+  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
+  const status = (_c = event.status) != null ? _c : "running";
+  console.log(`${DIM}\u{1F527} [tool] ${name}: ${status}${RESET}`);
+}
+function printToolComplete(event) {
+  var _a2, _b, _c;
+  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
+  const result = (_c = event.result) != null ? _c : event.output;
+  const line = result ? `${GREEN}\u2714 [tool] ${name} \u2192 ${result.slice(0, 120)}${result.length > 120 ? "\u2026" : ""}${RESET}` : `${GREEN}\u2714 [tool] ${name} done${RESET}`;
+  console.log(line);
+}
+function printNewAgentMessages(messages, lastPrintedCount) {
+  const agentMessages = messages.filter(
+    (m) => m.sender === "agent" || m.sender === "assistant"
+  );
+  let handled = lastPrintedCount;
+  for (let i = lastPrintedCount; i < agentMessages.length; i++) {
+    const msg = agentMessages[i];
+    if (msg.is_streaming) {
+      break;
+    }
+    if (msg.content) {
+      console.log(`${CYAN}\u{1F916} ${msg.content}${RESET}`);
+    }
+    handled = i + 1;
+  }
+  return handled;
+}
+async function chatCommand() {
+  const message = parsed.positional.join(" ");
+  if (!message) {
+    fatal("Usage: aomi chat <message>");
+  }
+  const verbose = parsed.flags["verbose"] === "true" || parsed.flags["v"] === "true";
+  const { session, state } = getOrCreateSession();
+  if (state.publicKey) {
+    await session.client.sendSystemMessage(
+      session.sessionId,
+      JSON.stringify({
+        type: "wallet:state_changed",
+        payload: {
+          address: state.publicKey,
+          chainId: 1,
+          isConnected: true
+        }
+      })
     );
-    const last = agentMessages[agentMessages.length - 1];
-    if (last == null ? void 0 : last.content) {
-      console.log(last.content);
-    } else {
-      console.log("(no response)");
+  }
+  const capturedRequests = [];
+  let printedAgentCount = 0;
+  session.on("wallet_tx_request", (req) => capturedRequests.push(req));
+  session.on("wallet_eip712_request", (req) => capturedRequests.push(req));
+  try {
+    await session.sendAsync(message);
+    const allMsgs = session.getMessages();
+    let seedIdx = allMsgs.length;
+    for (let i = allMsgs.length - 1; i >= 0; i--) {
+      if (allMsgs[i].sender === "user") {
+        seedIdx = i;
+        break;
+      }
+    }
+    printedAgentCount = allMsgs.slice(0, seedIdx).filter(
+      (m) => m.sender === "agent" || m.sender === "assistant"
+    ).length;
+    if (verbose) {
+      if (session.getIsProcessing()) {
+        console.log(`${DIM}\u23F3 Processing\u2026${RESET}`);
+      }
+      printedAgentCount = printNewAgentMessages(allMsgs, printedAgentCount);
+      session.on("tool_update", (event) => printToolUpdate(event));
+      session.on("tool_complete", (event) => printToolComplete(event));
+      session.on("messages", (msgs) => {
+        printedAgentCount = printNewAgentMessages(msgs, printedAgentCount);
+      });
+      session.on("system_notice", ({ message: msg }) => {
+        console.log(`${YELLOW}\u{1F4E2} ${msg}${RESET}`);
+      });
+      session.on("system_error", ({ message: msg }) => {
+        console.log(`\x1B[31m\u274C ${msg}${RESET}`);
+      });
+    }
+    if (session.getIsProcessing()) {
+      await new Promise((resolve) => {
+        const checkWallet = () => {
+          if (capturedRequests.length > 0) resolve();
+        };
+        session.on("wallet_tx_request", checkWallet);
+        session.on("wallet_eip712_request", checkWallet);
+        session.on("processing_end", () => resolve());
+      });
+    }
+    if (verbose) {
+      printNewAgentMessages(session.getMessages(), printedAgentCount);
+      console.log(`${DIM}\u2705 Done${RESET}`);
+    }
+    for (const req of capturedRequests) {
+      const pending = addPendingTx(state, walletRequestToPendingTx(req));
+      console.log(`\u26A1 Wallet request queued: ${pending.id}`);
+      if (req.kind === "transaction") {
+        const p = req.payload;
+        console.log(`   to:    ${p.to}`);
+        if (p.value) console.log(`   value: ${p.value}`);
+        if (p.chainId) console.log(`   chain: ${p.chainId}`);
+      } else {
+        const p = req.payload;
+        if (p.description) console.log(`   desc:  ${p.description}`);
+      }
+    }
+    if (!verbose) {
+      const messages = session.getMessages();
+      const agentMessages = messages.filter(
+        (m) => m.sender === "agent" || m.sender === "assistant"
+      );
+      const last = agentMessages[agentMessages.length - 1];
+      if (last == null ? void 0 : last.content) {
+        console.log(last.content);
+      } else if (capturedRequests.length === 0) {
+        console.log("(no response)");
+      }
+    }
+    if (capturedRequests.length > 0) {
+      console.log(`
+Run \`aomi tx\` to see pending transactions, \`aomi sign <id>\` to sign.`);
     }
   } finally {
     session.close();
   }
 }
 async function statusCommand() {
-  var _a2, _b, _c, _d;
+  var _a2, _b, _c, _d, _e, _f, _g, _h;
   const state = readState();
   if (!state) {
     console.log("No active session");
@@ -1051,7 +1291,9 @@ async function statusCommand() {
           namespace: state.namespace,
           isProcessing: (_a2 = apiState.is_processing) != null ? _a2 : false,
           messageCount: (_c = (_b = apiState.messages) == null ? void 0 : _b.length) != null ? _c : 0,
-          title: (_d = apiState.title) != null ? _d : null
+          title: (_d = apiState.title) != null ? _d : null,
+          pendingTxs: (_f = (_e = state.pendingTxs) == null ? void 0 : _e.length) != null ? _f : 0,
+          signedTxs: (_h = (_g = state.signedTxs) == null ? void 0 : _g.length) != null ? _h : 0
         },
         null,
         2
@@ -1075,16 +1317,62 @@ async function eventsCommand() {
     session.close();
   }
 }
+function txCommand() {
+  var _a2, _b, _c;
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    return;
+  }
+  const pending = (_a2 = state.pendingTxs) != null ? _a2 : [];
+  const signed = (_b = state.signedTxs) != null ? _b : [];
+  if (pending.length === 0 && signed.length === 0) {
+    console.log("No transactions.");
+    return;
+  }
+  if (pending.length > 0) {
+    console.log(`Pending (${pending.length}):`);
+    for (const tx of pending) {
+      console.log(formatTxLine(tx, "  \u23F3"));
+    }
+  }
+  if (signed.length > 0) {
+    if (pending.length > 0) console.log();
+    console.log(`Signed (${signed.length}):`);
+    for (const tx of signed) {
+      const parts = [`  \u2705 ${tx.id}`];
+      if (tx.kind === "eip712_sign") {
+        parts.push(`sig: ${(_c = tx.signature) == null ? void 0 : _c.slice(0, 20)}...`);
+        if (tx.description) parts.push(tx.description);
+      } else {
+        parts.push(`hash: ${tx.txHash}`);
+        if (tx.to) parts.push(`to: ${tx.to}`);
+        if (tx.value) parts.push(`value: ${tx.value}`);
+      }
+      parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+      console.log(parts.join("  "));
+    }
+  }
+}
 async function signCommand() {
-  const privateKey = process.env.PRIVATE_KEY;
+  var _a2, _b;
+  const txId = parsed.positional[0];
+  if (!txId) {
+    fatal("Usage: aomi sign <tx-id>\nRun `aomi tx` to see pending transaction IDs.");
+  }
+  const config = getConfig();
+  const privateKey = config.privateKey;
   if (!privateKey) {
-    console.error("PRIVATE_KEY env var required for signing");
-    process.exit(1);
+    fatal("Private key required. Pass --private-key or set PRIVATE_KEY env var.");
   }
   const state = readState();
   if (!state) {
-    console.error("No active session. Run `aomi chat` first.");
-    process.exit(1);
+    fatal("No active session. Run `aomi chat` first.");
+  }
+  const pendingTx = ((_a2 = state.pendingTxs) != null ? _a2 : []).find((t) => t.id === txId);
+  if (!pendingTx) {
+    fatal(`No pending transaction with id "${txId}".
+Run \`aomi tx\` to see available IDs.`);
   }
   const { session } = getOrCreateSession();
   try {
@@ -1092,48 +1380,133 @@ async function signCommand() {
     const { privateKeyToAccount } = await import("viem/accounts");
     const { mainnet } = await import("viem/chains");
     const account = privateKeyToAccount(privateKey);
-    const rpcUrl = process.env.CHAIN_RPC_URL;
+    const rpcUrl = config.chainRpcUrl;
     const walletClient = createWalletClient({
       account,
       chain: mainnet,
       transport: http(rpcUrl)
     });
-    console.log(`Signer address: ${account.address}`);
+    console.log(`Signer:  ${account.address}`);
+    console.log(`ID:      ${pendingTx.id}`);
+    console.log(`Kind:    ${pendingTx.kind}`);
+    if (pendingTx.kind === "transaction") {
+      console.log(`To:      ${pendingTx.to}`);
+      if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
+      if (pendingTx.chainId) console.log(`Chain:   ${pendingTx.chainId}`);
+      if (pendingTx.data) console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
+      console.log();
+      const hash = await walletClient.sendTransaction({
+        to: pendingTx.to,
+        value: pendingTx.value ? BigInt(pendingTx.value) : /* @__PURE__ */ BigInt("0"),
+        data: (_b = pendingTx.data) != null ? _b : void 0
+      });
+      console.log(`\u2705 Sent! Hash: ${hash}`);
+      removePendingTx(state, txId);
+      const freshState = readState();
+      addSignedTx(freshState, {
+        id: txId,
+        kind: "transaction",
+        txHash: hash,
+        from: account.address,
+        to: pendingTx.to,
+        value: pendingTx.value,
+        chainId: pendingTx.chainId,
+        timestamp: Date.now()
+      });
+      await session.client.sendSystemMessage(
+        state.sessionId,
+        JSON.stringify({
+          type: "wallet:tx_complete",
+          payload: { txHash: hash, status: "success" }
+        })
+      );
+    } else {
+      const typedData = pendingTx.payload.typed_data;
+      if (!typedData) {
+        fatal("EIP-712 request is missing typed_data payload.");
+      }
+      if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
+      if (typedData.primaryType) console.log(`Type:    ${typedData.primaryType}`);
+      console.log();
+      const { domain, types, primaryType, message } = typedData;
+      const sigTypes = __spreadValues({}, types);
+      delete sigTypes["EIP712Domain"];
+      const signature = await walletClient.signTypedData({
+        domain,
+        types: sigTypes,
+        primaryType,
+        message
+      });
+      console.log(`\u2705 Signed! Signature: ${signature.slice(0, 20)}...`);
+      removePendingTx(state, txId);
+      const freshState = readState();
+      addSignedTx(freshState, {
+        id: txId,
+        kind: "eip712_sign",
+        signature,
+        from: account.address,
+        description: pendingTx.description,
+        timestamp: Date.now()
+      });
+      await session.client.sendSystemMessage(
+        state.sessionId,
+        JSON.stringify({
+          type: "wallet_eip712_response",
+          payload: {
+            status: "success",
+            signature,
+            description: pendingTx.description
+          }
+        })
+      );
+    }
+    console.log("Backend notified.");
+  } catch (err) {
+    if (err instanceof CliExit) throw err;
+    const errMsg = err instanceof Error ? err.message : String(err);
+    fatal(`\u274C Signing failed: ${errMsg}`);
+  } finally {
+    session.close();
+  }
+}
+async function logCommand() {
+  var _a2, _b, _c, _d, _e;
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    return;
+  }
+  const { session } = getOrCreateSession();
+  try {
     const apiState = await session.client.fetchState(state.sessionId);
-    if (!apiState.is_processing) {
-      console.log("No active processing. Nothing to sign.");
+    const messages = (_a2 = apiState.messages) != null ? _a2 : [];
+    if (messages.length === 0) {
+      console.log("No messages in this session.");
       return;
     }
-    console.log("Waiting for wallet requests...");
-    session.on("wallet_tx_request", async (req) => {
-      var _a2, _b;
-      const tx = req.payload;
-      console.log(`
-Transaction request (${req.id}):`);
-      console.log(`  to:    ${tx.to}`);
-      console.log(`  value: ${(_a2 = tx.value) != null ? _a2 : "0"}`);
-      if (tx.data) console.log(`  data:  ${tx.data.slice(0, 20)}...`);
-      try {
-        const hash = await walletClient.sendTransaction({
-          to: tx.to,
-          value: tx.value ? BigInt(tx.value) : /* @__PURE__ */ BigInt("0"),
-          data: (_b = tx.data) != null ? _b : void 0
-        });
-        console.log(`  tx:    ${hash}`);
-        await session.resolve(req.id, { txHash: hash });
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`  error: ${errMsg}`);
-        await session.reject(req.id, errMsg);
+    for (const msg of messages) {
+      const time = msg.timestamp ? `${DIM}${new Date(msg.timestamp).toLocaleTimeString()}${RESET} ` : "";
+      const sender = (_b = msg.sender) != null ? _b : "unknown";
+      if (sender === "user") {
+        console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${(_c = msg.content) != null ? _c : ""}`);
+      } else if (sender === "agent" || sender === "assistant") {
+        if (msg.tool_result) {
+          const [toolName, result] = msg.tool_result;
+          console.log(
+            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${result.slice(0, 200)}${result.length > 200 ? "\u2026" : ""}`
+          );
+        }
+        if (msg.content) {
+          console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${msg.content}`);
+        }
+      } else if (sender === "system") {
+        console.log(`${time}${YELLOW}\u2699\uFE0F  System:${RESET} ${(_d = msg.content) != null ? _d : ""}`);
+      } else {
+        console.log(`${time}${DIM}[${sender}]${RESET} ${(_e = msg.content) != null ? _e : ""}`);
       }
-    });
-    await new Promise((resolve) => {
-      session.on("processing_end", () => resolve());
-      setTimeout(() => {
-        console.log("Timed out waiting for requests.");
-        resolve();
-      }, 5 * 60 * 1e3);
-    });
+    }
+    console.log(`
+${DIM}\u2014 ${messages.length} messages \u2014${RESET}`);
   } finally {
     session.close();
   }
@@ -1153,23 +1526,47 @@ aomi \u2014 CLI client for Aomi on-chain agent
 
 Usage:
   aomi chat <message>   Send a message and print the response
+  aomi chat --verbose   Stream agent responses, tool calls, and events live
+  aomi log              Show full conversation history with tool results
+  aomi tx               List pending and signed transactions
+  aomi sign <tx-id>     Sign and submit a pending transaction
   aomi status           Show current session state
   aomi events           List system events
-  aomi sign             Auto-sign pending wallet transactions (requires PRIVATE_KEY)
   aomi close            Close the current session
 
-Environment:
-  AOMI_BASE_URL         Backend URL (default: https://api.aomi.dev)
-  AOMI_API_KEY          API key for non-default namespaces
-  AOMI_NAMESPACE        Namespace (default: "default")
+Options:
+  --backend-url <url>   Backend URL (default: https://api.aomi.dev)
+  --api-key <key>       API key for non-default namespaces
+  --namespace <ns>      Namespace (default: "default")
+  --public-key <addr>   Wallet address (so the agent knows your wallet)
+  --private-key <key>   Hex private key for signing
+  --rpc-url <url>       RPC URL for transaction submission
+  --verbose, -v         Show tool calls and streaming output (for chat)
+
+Environment (overridden by flags):
+  AOMI_BASE_URL         Backend URL
+  AOMI_API_KEY          API key
+  AOMI_NAMESPACE        Namespace
+  AOMI_PUBLIC_KEY       Wallet address
   PRIVATE_KEY           Hex private key for signing
   CHAIN_RPC_URL         RPC URL for transaction submission
 `.trim());
 }
 async function main() {
-  switch (command) {
+  var _a2;
+  const cmd = (_a2 = parsed.command) != null ? _a2 : parsed.flags["help"] || parsed.flags["h"] ? "help" : void 0;
+  switch (cmd) {
     case "chat":
       await chatCommand();
+      break;
+    case "log":
+      await logCommand();
+      break;
+    case "tx":
+      txCommand();
+      break;
+    case "sign":
+      await signCommand();
       break;
     case "status":
       await statusCommand();
@@ -1177,23 +1574,22 @@ async function main() {
     case "events":
       await eventsCommand();
       break;
-    case "sign":
-      await signCommand();
-      break;
     case "close":
       closeCommand();
       break;
-    case "--help":
-    case "-h":
     case "help":
       printUsage();
       break;
     default:
       printUsage();
-      process.exit(command ? 1 : 0);
+      if (cmd) throw new CliExit(1);
   }
 }
 main().catch((err) => {
+  if (err instanceof CliExit) {
+    process.exit(err.code);
+    return;
+  }
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
 });
