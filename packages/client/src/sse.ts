@@ -1,9 +1,9 @@
-import type { ApiSSEEvent, Logger } from "./types";
+import type { AomiSSEEvent, Logger } from "./types";
 
 export type SseSubscriber = {
   subscribe: (
     sessionId: string,
-    onUpdate: (event: ApiSSEEvent) => void,
+    onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
   ) => () => void;
 };
@@ -24,7 +24,7 @@ type SseSubscription = {
 };
 
 type SseListener = {
-  onUpdate: (event: ApiSSEEvent) => void;
+  onUpdate: (event: AomiSSEEvent) => void;
   onError?: (error: unknown) => void;
 };
 
@@ -171,9 +171,9 @@ export function createSseSubscriber({
         subscription.retries = 0;
 
         await readSseStream(response.body, controller.signal, (data) => {
-          let parsed: ApiSSEEvent;
+          let parsed: AomiSSEEvent;
           try {
-            parsed = JSON.parse(data) as ApiSSEEvent;
+            parsed = JSON.parse(data) as AomiSSEEvent;
           } catch (error) {
             for (const item of subscription.listeners) {
               item.onError?.(error);

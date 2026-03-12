@@ -52,9 +52,9 @@ export interface AomiMessage {
  * GET /api/state
  * Fetches current session state including messages and processing status
  */
-export interface ApiStateResponse {
+export interface AomiStateResponse {
   messages?: AomiMessage[] | null;
-  system_events?: ApiSystemEvent[] | null;
+  system_events?: AomiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
 }
@@ -63,9 +63,9 @@ export interface ApiStateResponse {
  * POST /api/chat
  * Sends a chat message and returns updated session state
  */
-export interface ApiChatResponse {
+export interface AomiChatResponse {
   messages?: AomiMessage[] | null;
-  system_events?: ApiSystemEvent[] | null;
+  system_events?: AomiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
 }
@@ -74,7 +74,7 @@ export interface ApiChatResponse {
  * POST /api/system
  * Sends a system message and returns the response message
  */
-export interface ApiSystemResponse {
+export interface AomiSystemResponse {
   res?: AomiMessage | null;
 }
 
@@ -82,13 +82,13 @@ export interface ApiSystemResponse {
  * POST /api/interrupt
  * Interrupts current processing and returns updated session state
  */
-export type ApiInterruptResponse = ApiChatResponse;
+export type AomiInterruptResponse = AomiChatResponse;
 
 /**
  * GET /api/sessions
- * Returns array of ApiThread
+ * Returns array of AomiThread
  */
-export interface ApiThread {
+export interface AomiThread {
   session_id: string;
   title: string;
   is_archived?: boolean;
@@ -98,7 +98,7 @@ export interface ApiThread {
  * POST /api/sessions
  * Creates a new thread/session
  */
-export interface ApiCreateThreadResponse {
+export interface AomiCreateThreadResponse {
   session_id: string;
   title?: string;
 }
@@ -110,7 +110,7 @@ export interface ApiCreateThreadResponse {
 /**
  * Base SSE event - all events have session_id and type
  */
-export type ApiSSEEvent = {
+export type AomiSSEEvent = {
   type:
     | "title_changed"
     | "tool_update"
@@ -122,7 +122,7 @@ export type ApiSSEEvent = {
   [key: string]: unknown;
 };
 
-export type ApiSSEEventType =
+export type AomiSSEEventType =
   | "title_changed"
   | "tool_update"
   | "tool_complete"
@@ -139,7 +139,7 @@ export type ApiSSEEventType =
  * - SystemError: {"SystemError": "message"}
  * - AsyncCallback: {"AsyncCallback": {...}} (not sent over HTTP)
  */
-export type ApiSystemEvent =
+export type AomiSystemEvent =
   | { InlineCall: { type: string; payload?: unknown; [key: string]: unknown } }
   | { SystemNotice: string }
   | { SystemError: string }
@@ -150,25 +150,25 @@ export type ApiSystemEvent =
 // =============================================================================
 
 export function isInlineCall(
-  event: ApiSystemEvent,
+  event: AomiSystemEvent,
 ): event is { InlineCall: { type: string; payload?: unknown } } {
   return "InlineCall" in event;
 }
 
 export function isSystemNotice(
-  event: ApiSystemEvent,
+  event: AomiSystemEvent,
 ): event is { SystemNotice: string } {
   return "SystemNotice" in event;
 }
 
 export function isSystemError(
-  event: ApiSystemEvent,
+  event: AomiSystemEvent,
 ): event is { SystemError: string } {
   return "SystemError" in event;
 }
 
 export function isAsyncCallback(
-  event: ApiSystemEvent,
+  event: AomiSystemEvent,
 ): event is { AsyncCallback: Record<string, unknown> } {
   return "AsyncCallback" in event;
 }

@@ -1,5 +1,5 @@
-import { ApiSystemEvent, AomiClient } from '@aomi-labs/client';
-export { AomiClient, AomiClientOptions, AomiMessage, ApiChatResponse, ApiCreateThreadResponse, ApiInterruptResponse, ApiSSEEvent, ApiStateResponse, ApiSystemEvent, ApiSystemResponse, ApiThread } from '@aomi-labs/client';
+import { AomiSystemEvent, AomiClient } from '@aomi-labs/client';
+export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -273,7 +273,7 @@ type EventContext = {
     /** Send an outbound event to backend immediately */
     sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
     /** Dispatch system events from HTTP polling into the event buffer */
-    dispatchInboundSystem: (sessionId: string, events: ApiSystemEvent[]) => void;
+    dispatchInboundSystem: (sessionId: string, events: AomiSystemEvent[]) => void;
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };

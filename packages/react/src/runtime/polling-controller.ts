@@ -3,8 +3,8 @@ import type { MutableRefObject } from "react";
 import type {
   AomiClient,
   AomiMessage,
-  ApiStateResponse,
-  ApiSystemEvent,
+  AomiStateResponse,
+  AomiSystemEvent,
 } from "@aomi-labs/client";
 import type { UserState } from "../contexts/user-context";
 import {
@@ -17,7 +17,7 @@ type PollingConfig = {
   aomiClientRef: MutableRefObject<AomiClient>;
   backendStateRef: MutableRefObject<BackendState>;
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
-  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+  onSyncEvents?: (sessionId: string, events: AomiSystemEvent[]) => void;
   getUserState?: () => UserState;
   onStart?: (threadId: string) => void;
   onStop?: (threadId: string) => void;
@@ -88,7 +88,7 @@ export class PollingController {
     }
   }
 
-  private handleState(threadId: string, state: ApiStateResponse) {
+  private handleState(threadId: string, state: AomiStateResponse) {
     // Dispatch system events (wallet_tx_request, errors, etc.)
     if (state.system_events?.length && this.config.onSyncEvents) {
       const backendState = this.config.backendStateRef.current;
