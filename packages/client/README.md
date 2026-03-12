@@ -117,12 +117,45 @@ unsub(); // stop listening
 The package includes an `aomi` CLI for scripting and Claude Code skills.
 
 ```bash
-npx aomi chat "What's the gas price on Ethereum?"
-npx aomi status
-npx aomi events
-npx aomi sign      # requires --private-key or PRIVATE_KEY env var + viem
-npx aomi close
+npx aomi chat "swap 1 ETH for USDC"   # talk to the agent
+npx aomi tx                             # list pending + signed txs
+npx aomi sign tx-1                      # sign a specific pending tx
+npx aomi status                         # session info
+npx aomi events                         # system events
+npx aomi close                          # clear session
 ```
+
+### Transaction flow
+
+The backend builds transactions; the CLI persists and signs them:
+
+```
+$ npx aomi chat "swap 1 ETH for USDC on Uniswap"
+# Agent plans the swap, backend emits a wallet_tx_request
+# ⚡ Wallet request queued: tx-1
+#    to:    0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
+#    value: 1000000000000000000
+#    chain: 1
+# Run `aomi tx` to see pending transactions, `aomi sign <id>` to sign.
+
+$ npx aomi tx
+# Pending (1):
+#   ⏳ tx-1  to: 0x3fC9...7FAD  value: 1000000000000000000  chain: 1
+
+$ npx aomi sign tx-1 --private-key 0xac0974...
+# Signer:  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+# Tx:      tx-1
+# To:      0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
+# Value:   1000000000000000000
+# ✅ Sent! Hash: 0xabc123...
+# Backend notified.
+
+$ npx aomi tx
+# Signed (1):
+#   ✅ tx-1  hash: 0xabc123...  to: 0x3fC9...7FAD  value: 1000000000000000000
+```
+
+Pending and signed transactions are persisted in `$TMPDIR/aomi-session.json` alongside the session pointer, so they survive between CLI invocations.
 
 ### Options
 
@@ -146,23 +179,21 @@ npx aomi chat "swap 1 ETH" --api-key sk-abc123 --namespace my-agent
 
 ### How state works
 
-The CLI is **not** a long-running process — each command starts, runs, and exits. Conversation history lives entirely on the backend (`api.aomi.dev`). Between invocations, the CLI saves a small pointer file at `$TMPDIR/aomi-session.json` containing just the `sessionId`, `baseUrl`, and `namespace` so it knows which conversation to continue.
+The CLI is **not** a long-running process — each command starts, runs, and exits. Conversation history lives on the backend. Between invocations, the CLI persists to `$TMPDIR/aomi-session.json`:
+
+- **`sessionId`** — which conversation to continue
+- **`pendingTxs`** — unsigned transactions waiting for `aomi sign <id>`
+- **`signedTxs`** — completed transactions with hashes
 
 ```
-# First call — no state file, creates a new session
-$ npx aomi chat "hello"
-
-# Second call — reads state file, reuses the same session (multi-turn)
-$ npx aomi chat "what did I just say?"
-
-# Check current session info
-$ npx aomi status
-
-# Clean up — deletes the state file (starts fresh next time)
-$ npx aomi close
+$ npx aomi chat "hello"           # creates session, saves sessionId
+$ npx aomi chat "swap 1 ETH"     # reuses session, queues tx-1 if wallet request arrives
+$ npx aomi sign tx-1              # signs tx-1, moves to signedTxs, notifies backend
+$ npx aomi tx                     # shows all txs
+$ npx aomi close                  # wipes state file
 ```
 
-The state file is stored in your OS temp directory and gets cleaned up on reboot.
+The state file lives in your OS temp directory and gets cleaned up on reboot.
 
 ## Low-level Client API
 
