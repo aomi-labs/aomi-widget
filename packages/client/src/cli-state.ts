@@ -30,11 +30,16 @@ export type PendingTx = {
 
 export type SignedTx = {
   id: string;
-  txHash: string;
+  kind: "transaction" | "eip712_sign";
+  /** Transaction hash (for kind: "transaction") */
+  txHash?: string;
+  /** Signature hex (for kind: "eip712_sign") */
+  signature?: string;
   from?: string;
   to?: string;
   value?: string;
   chainId?: number;
+  description?: string;
   timestamp: number;
 };
 

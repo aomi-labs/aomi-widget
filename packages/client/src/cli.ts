@@ -305,9 +305,14 @@ function txCommand(): void {
     console.log(`Signed (${signed.length}):`);
     for (const tx of signed) {
       const parts = [`  ✅ ${tx.id}`];
-      parts.push(`hash: ${tx.txHash}`);
-      if (tx.to) parts.push(`to: ${tx.to}`);
-      if (tx.value) parts.push(`value: ${tx.value}`);
+      if (tx.kind === "eip712_sign") {
+        parts.push(`sig: ${tx.signature?.slice(0, 20)}...`);
+        if (tx.description) parts.push(tx.description);
+      } else {
+        parts.push(`hash: ${tx.txHash}`);
+        if (tx.to) parts.push(`to: ${tx.to}`);
+        if (tx.value) parts.push(`value: ${tx.value}`);
+      }
       parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
       console.log(parts.join("  "));
     }
@@ -337,11 +342,6 @@ async function signCommand(): Promise<void> {
     fatal(`No pending transaction with id "${txId}".\nRun \`aomi tx\` to see available IDs.`);
   }
 
-  if (pendingTx.kind !== "transaction") {
-    // TODO: EIP-712 signing support
-    fatal("EIP-712 signing via CLI is not yet supported.");
-  }
-
   const { session } = getOrCreateSession();
 
   try {
@@ -360,43 +360,110 @@ async function signCommand(): Promise<void> {
     });
 
     console.log(`Signer:  ${account.address}`);
-    console.log(`Tx:      ${pendingTx.id}`);
-    console.log(`To:      ${pendingTx.to}`);
-    if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
-    if (pendingTx.chainId) console.log(`Chain:   ${pendingTx.chainId}`);
-    if (pendingTx.data) console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
-    console.log();
+    console.log(`ID:      ${pendingTx.id}`);
+    console.log(`Kind:    ${pendingTx.kind}`);
 
-    const hash = await walletClient.sendTransaction({
-      to: pendingTx.to as `0x${string}`,
-      value: pendingTx.value ? BigInt(pendingTx.value) : 0n,
-      data: (pendingTx.data as `0x${string}`) ?? undefined,
-    });
+    if (pendingTx.kind === "transaction") {
+      // -----------------------------------------------------------------------
+      // Sign + send a transaction
+      // -----------------------------------------------------------------------
+      console.log(`To:      ${pendingTx.to}`);
+      if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
+      if (pendingTx.chainId) console.log(`Chain:   ${pendingTx.chainId}`);
+      if (pendingTx.data) console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
+      console.log();
 
-    console.log(`✅ Sent! Hash: ${hash}`);
+      const hash = await walletClient.sendTransaction({
+        to: pendingTx.to as `0x${string}`,
+        value: pendingTx.value ? BigInt(pendingTx.value) : 0n,
+        data: (pendingTx.data as `0x${string}`) ?? undefined,
+      });
 
-    // Move from pending → signed
-    removePendingTx(state, txId);
-    // Re-read state since removePendingTx wrote it
-    const freshState = readState()!;
-    addSignedTx(freshState, {
-      id: txId,
-      txHash: hash,
-      from: account.address,
-      to: pendingTx.to,
-      value: pendingTx.value,
-      chainId: pendingTx.chainId,
-      timestamp: Date.now(),
-    });
+      console.log(`✅ Sent! Hash: ${hash}`);
 
-    // Notify backend
-    await session.client.sendSystemMessage(
-      state.sessionId,
-      JSON.stringify({
-        type: "wallet:tx_complete",
-        payload: { txHash: hash, status: "success" },
-      }),
-    );
+      // Move from pending → signed
+      removePendingTx(state, txId);
+      const freshState = readState()!;
+      addSignedTx(freshState, {
+        id: txId,
+        kind: "transaction",
+        txHash: hash,
+        from: account.address,
+        to: pendingTx.to,
+        value: pendingTx.value,
+        chainId: pendingTx.chainId,
+        timestamp: Date.now(),
+      });
+
+      // Notify backend
+      await session.client.sendSystemMessage(
+        state.sessionId,
+        JSON.stringify({
+          type: "wallet:tx_complete",
+          payload: { txHash: hash, status: "success" },
+        }),
+      );
+    } else {
+      // -----------------------------------------------------------------------
+      // EIP-712 typed data signature
+      // -----------------------------------------------------------------------
+      const typedData = pendingTx.payload.typed_data as {
+        domain?: Record<string, unknown>;
+        types?: Record<string, Array<{ name: string; type: string }>>;
+        primaryType?: string;
+        message?: Record<string, unknown>;
+      } | undefined;
+
+      if (!typedData) {
+        fatal("EIP-712 request is missing typed_data payload.");
+      }
+
+      if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
+      if (typedData.primaryType) console.log(`Type:    ${typedData.primaryType}`);
+      console.log();
+
+      // viem signTypedData expects specific shape
+      const { domain, types, primaryType, message } = typedData;
+
+      // Remove EIP712Domain from types if present (viem adds it automatically)
+      const sigTypes = { ...types };
+      delete sigTypes["EIP712Domain"];
+
+      const signature = await walletClient.signTypedData({
+        domain: domain as Record<string, unknown>,
+        types: sigTypes as Record<string, Array<{ name: string; type: string }>>,
+        primaryType: primaryType as string,
+        message: message as Record<string, unknown>,
+      });
+
+      console.log(`✅ Signed! Signature: ${signature.slice(0, 20)}...`);
+
+      // Move from pending → signed
+      removePendingTx(state, txId);
+      const freshState = readState()!;
+      addSignedTx(freshState, {
+        id: txId,
+        kind: "eip712_sign",
+        signature,
+        from: account.address,
+        description: pendingTx.description,
+        timestamp: Date.now(),
+      });
+
+      // Notify backend
+      await session.client.sendSystemMessage(
+        state.sessionId,
+        JSON.stringify({
+          type: "wallet_eip712_response",
+          payload: {
+            status: "success",
+            signature,
+            description: pendingTx.description,
+          },
+        }),
+      );
+    }
+
     console.log("Backend notified.");
   } catch (err) {
     if (err instanceof CliExit) throw err;
