@@ -48,6 +48,7 @@ export type CliSessionState = {
   baseUrl: string;
   namespace?: string;
   apiKey?: string;
+  publicKey?: string;
   pendingTxs?: PendingTx[];
   signedTxs?: SignedTx[];
 };
