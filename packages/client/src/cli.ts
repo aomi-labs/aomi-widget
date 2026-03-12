@@ -24,6 +24,7 @@ import {
   addPendingTx,
   removePendingTx,
   addSignedTx,
+  STATE_FILE,
   type CliSessionState,
   type PendingTx,
 } from "./cli-state";
@@ -41,6 +42,10 @@ class CliExit extends Error {
 function fatal(message: string): never {
   console.error(message);
   throw new CliExit(1);
+}
+
+function printDataFileLocation(): void {
+  console.log(`Data stored at ${STATE_FILE} 📝`);
 }
 
 // =============================================================================
@@ -126,6 +131,26 @@ function getOrCreateSession(): { session: Session; state: CliSessionState } {
       publicKey: config.publicKey,
     };
     writeState(state);
+  } else {
+    // Merge current CLI flags over persisted state (flags take priority)
+    let changed = false;
+    if (config.baseUrl && config.baseUrl !== state.baseUrl) {
+      state.baseUrl = config.baseUrl;
+      changed = true;
+    }
+    if (config.namespace && config.namespace !== state.namespace) {
+      state.namespace = config.namespace;
+      changed = true;
+    }
+    if (config.apiKey !== undefined && config.apiKey !== state.apiKey) {
+      state.apiKey = config.apiKey;
+      changed = true;
+    }
+    if (config.publicKey !== undefined && config.publicKey !== state.publicKey) {
+      state.publicKey = config.publicKey;
+      changed = true;
+    }
+    if (changed) writeState(state);
   }
 
   const session = new Session(
@@ -388,6 +413,7 @@ async function statusCommand(): Promise<void> {
   const state = readState();
   if (!state) {
     console.log("No active session");
+    printDataFileLocation();
     return;
   }
 
@@ -411,6 +437,7 @@ async function statusCommand(): Promise<void> {
         2,
       ),
     );
+    printDataFileLocation();
   } finally {
     session.close();
   }
@@ -437,6 +464,7 @@ function txCommand(): void {
   const state = readState();
   if (!state) {
     console.log("No active session");
+    printDataFileLocation();
     return;
   }
 
@@ -445,6 +473,7 @@ function txCommand(): void {
 
   if (pending.length === 0 && signed.length === 0) {
     console.log("No transactions.");
+    printDataFileLocation();
     return;
   }
 
@@ -472,6 +501,8 @@ function txCommand(): void {
       console.log(parts.join("  "));
     }
   }
+
+  printDataFileLocation();
 }
 
 async function signCommand(): Promise<void> {
@@ -501,16 +532,36 @@ async function signCommand(): Promise<void> {
 
   try {
     // Dynamic import — viem is an optional peer dep
-    const { createWalletClient, http } = await import("viem");
-    const { privateKeyToAccount } = await import("viem/accounts");
-    const { mainnet } = await import("viem/chains");
+    let viem: typeof import("viem");
+    let viemAccounts: typeof import("viem/accounts");
+    let viemChains: typeof import("viem/chains");
+    try {
+      viem = await import("viem");
+      viemAccounts = await import("viem/accounts");
+      viemChains = await import("viem/chains");
+    } catch {
+      fatal(
+        "viem is required for `aomi sign`. Install it:\n  npm install viem\n  # or: pnpm add viem",
+      );
+    }
+
+    const { createWalletClient, http } = viem;
+    const { privateKeyToAccount } = viemAccounts;
 
     const account = privateKeyToAccount(privateKey as `0x${string}`);
     const rpcUrl = config.chainRpcUrl;
 
+    // Resolve chain from pendingTx.chainId — fall back to mainnet
+    const targetChainId = pendingTx.chainId ?? 1;
+    const chain =
+      Object.values(viemChains).find(
+        (c): c is import("viem").Chain =>
+          typeof c === "object" && c !== null && "id" in c && (c as { id: number }).id === targetChainId,
+      ) ?? { id: targetChainId, name: `Chain ${targetChainId}`, nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl ?? ""] } } };
+
     const walletClient = createWalletClient({
       account,
-      chain: mainnet,
+      chain: chain as import("viem").Chain,
       transport: http(rpcUrl),
     });
 
@@ -633,6 +684,7 @@ async function logCommand(): Promise<void> {
   const state = readState();
   if (!state) {
     console.log("No active session");
+    printDataFileLocation();
     return;
   }
 
@@ -644,13 +696,23 @@ async function logCommand(): Promise<void> {
 
     if (messages.length === 0) {
       console.log("No messages in this session.");
+      printDataFileLocation();
       return;
     }
 
     for (const msg of messages) {
-      const time = msg.timestamp
-        ? `${DIM}${new Date(msg.timestamp).toLocaleTimeString()}${RESET} `
-        : "";
+      let time = "";
+      if (msg.timestamp) {
+        const raw = msg.timestamp;
+        // Numeric string → parse as epoch (seconds if ≤10 digits, else ms)
+        const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
+        const date = !isNaN(n)
+          ? new Date(n < 1e12 ? n * 1000 : n)
+          : new Date(raw);
+        time = isNaN(date.getTime())
+          ? ""
+          : `${DIM}${date.toLocaleTimeString()}${RESET} `;
+      }
       const sender = msg.sender ?? "unknown";
 
       if (sender === "user") {
@@ -674,6 +736,7 @@ async function logCommand(): Promise<void> {
     }
 
     console.log(`\n${DIM}— ${messages.length} messages —${RESET}`);
+    printDataFileLocation();
   } finally {
     session.close();
   }
