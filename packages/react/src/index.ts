@@ -5,14 +5,14 @@ export { AomiClient } from "@aomi-labs/client";
 export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
   AomiMessage,
-  ApiChatResponse,
-  ApiCreateThreadResponse,
-  ApiInterruptResponse,
-  ApiSSEEvent,
-  ApiStateResponse,
-  ApiSystemEvent,
-  ApiSystemResponse,
-  ApiThread,
+  AomiChatResponse,
+  AomiCreateThreadResponse,
+  AomiInterruptResponse,
+  AomiSSEEvent,
+  AomiStateResponse,
+  AomiSystemEvent,
+  AomiSystemResponse,
+  AomiThread,
 } from "@aomi-labs/client";
 
 // =============================================================================

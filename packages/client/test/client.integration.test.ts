@@ -10,9 +10,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { AomiClient } from "../src/index";
 import type {
-  ApiChatResponse,
-  ApiStateResponse,
-  ApiSSEEvent,
+  AomiChatResponse,
+  AomiStateResponse,
+  AomiSSEEvent,
 } from "../src/index";
 
 // =============================================================================
@@ -34,7 +34,7 @@ function freshSessionId(): string {
 async function pollUntilDone(
   sessionId: string,
   timeoutMs = 25_000,
-): Promise<ApiStateResponse> {
+): Promise<AomiStateResponse> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const state = await client.fetchState(sessionId);
@@ -281,7 +281,7 @@ describe("SSE subscription (live backend)", () => {
     "connects to SSE stream and receives events on message",
     async () => {
       const sessionId = freshSessionId();
-      const receivedEvents: ApiSSEEvent[] = [];
+      const receivedEvents: AomiSSEEvent[] = [];
 
       // Start SSE subscription
       const unsubscribe = client.subscribeSSE(

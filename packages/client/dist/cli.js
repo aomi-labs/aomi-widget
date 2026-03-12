@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 // src/sse.ts
 function extractSseData(rawEvent) {
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
@@ -65,13 +67,13 @@ function createSseSubscriber({
       stopped: false,
       listeners: /* @__PURE__ */ new Set([listener]),
       stop: (reason) => {
-        var _a;
+        var _a2;
         subscription.stopped = true;
         if (subscription.retryTimer) {
           clearTimeout(subscription.retryTimer);
           subscription.retryTimer = null;
         }
-        (_a = subscription.abortController) == null ? void 0 : _a.abort();
+        (_a2 = subscription.abortController) == null ? void 0 : _a2.abort();
         subscription.abortController = null;
         logger == null ? void 0 : logger.debug("[aomi][sse] stop", {
           sessionId,
@@ -94,7 +96,7 @@ function createSseSubscriber({
       }, delayMs);
     };
     const open = async () => {
-      var _a;
+      var _a2;
       if (subscription.stopped) return;
       if (subscription.retryTimer) {
         clearTimeout(subscription.retryTimer);
@@ -118,13 +120,13 @@ function createSseSubscriber({
         }
         subscription.retries = 0;
         await readSseStream(response.body, controller.signal, (data) => {
-          var _a2, _b;
+          var _a3, _b;
           let parsed;
           try {
             parsed = JSON.parse(data);
           } catch (error) {
             for (const item of subscription.listeners) {
-              (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
+              (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
             }
             return;
           }
@@ -145,7 +147,7 @@ function createSseSubscriber({
       } catch (error) {
         if (!controller.signal.aborted && !subscription.stopped) {
           for (const item of subscription.listeners) {
-            (_a = item.onError) == null ? void 0 : _a.call(item, error);
+            (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
           }
         }
       }
@@ -239,8 +241,8 @@ var AomiClient = class {
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b;
-    const namespace = (_a = options == null ? void 0 : options.namespace) != null ? _a : "default";
+    var _a2, _b;
+    const namespace = (_a2 = options == null ? void 0 : options.namespace) != null ? _a2 : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const payload = { message, namespace };
     if (options == null ? void 0 : options.publicKey) {
@@ -418,12 +420,12 @@ var AomiClient = class {
    * Get available namespaces.
    */
   async getNamespaces(sessionId, options) {
-    var _a;
+    var _a2;
     const url = new URL("/api/control/namespaces", this.baseUrl);
     if (options == null ? void 0 : options.publicKey) {
       url.searchParams.set("public_key", options.publicKey);
     }
-    const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
@@ -451,8 +453,8 @@ var AomiClient = class {
    * Set the model for a session.
    */
   async setModel(sessionId, rig, options) {
-    var _a;
-    const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    var _a2;
+    const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
     const payload = { rig };
     if (options == null ? void 0 : options.namespace) {
       payload.namespace = options.namespace;
@@ -460,20 +462,6 @@ var AomiClient = class {
     return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
   }
 };
-
-// src/types.ts
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
-}
 
 // src/event-emitter.ts
 var TypedEventEmitter = class {
@@ -547,13 +535,27 @@ var TypedEventEmitter = class {
   }
 };
 
+// src/types.ts
+function isInlineCall(event) {
+  return "InlineCall" in event;
+}
+function isSystemNotice(event) {
+  return "SystemNotice" in event;
+}
+function isSystemError(event) {
+  return "SystemError" in event;
+}
+function isAsyncCallback(event) {
+  return "AsyncCallback" in event;
+}
+
 // src/event-unwrap.ts
 function unwrapSystemEvent(event) {
-  var _a;
+  var _a2;
   if (isInlineCall(event)) {
     return {
       type: event.InlineCall.type,
-      payload: (_a = event.InlineCall.payload) != null ? _a : event.InlineCall
+      payload: (_a2 = event.InlineCall.payload) != null ? _a2 : event.InlineCall
     };
   }
   if (isSystemNotice(event)) {
@@ -584,10 +586,10 @@ function asRecord(value) {
   return value;
 }
 function getToolArgs(payload) {
-  var _a;
+  var _a2;
   const root = asRecord(payload);
   const nestedArgs = asRecord(root == null ? void 0 : root.args);
-  return (_a = nestedArgs != null ? nestedArgs : root) != null ? _a : {};
+  return (_a2 = nestedArgs != null ? nestedArgs : root) != null ? _a2 : {};
 }
 function parseChainId(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -602,22 +604,22 @@ function parseChainId(value) {
   return Number.isFinite(parsed) ? parsed : void 0;
 }
 function normalizeTxPayload(payload) {
-  var _a, _b, _c;
+  var _a2, _b, _c;
   const root = asRecord(payload);
-  const args = getToolArgs(payload);
+  const args2 = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
-  const to = typeof args.to === "string" ? args.to : void 0;
+  const to = typeof args2.to === "string" ? args2.to : void 0;
   if (!to) return null;
-  const valueRaw = args.value;
+  const valueRaw = args2.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
-  const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  const data = typeof args2.data === "string" ? args2.data : void 0;
+  const chainId = (_c = (_b = (_a2 = parseChainId(args2.chainId)) != null ? _a2 : parseChainId(args2.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
   return { to, value, data, chainId };
 }
 function normalizeEip712Payload(payload) {
-  var _a;
-  const args = getToolArgs(payload);
-  const typedDataRaw = (_a = args.typed_data) != null ? _a : args.typedData;
+  var _a2;
+  const args2 = getToolArgs(payload);
+  const typedDataRaw = (_a2 = args2.typed_data) != null ? _a2 : args2.typedData;
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -631,14 +633,14 @@ function normalizeEip712Payload(payload) {
   } else if (typedDataRaw && typeof typedDataRaw === "object" && !Array.isArray(typedDataRaw)) {
     typedData = typedDataRaw;
   }
-  const description = typeof args.description === "string" ? args.description : void 0;
+  const description = typeof args2.description === "string" ? args2.description : void 0;
   return { typed_data: typedData, description };
 }
 
 // src/session.ts
 var Session = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c;
+    var _a2, _b, _c;
     super();
     // Internal state
     this.pollTimer = null;
@@ -651,7 +653,7 @@ var Session = class extends TypedEventEmitter {
     // For send() blocking behavior
     this.pendingResolve = null;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
-    this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
+    this.sessionId = (_a2 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a2 : crypto.randomUUID();
     this.namespace = (_b = sessionOptions == null ? void 0 : sessionOptions.namespace) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
@@ -722,14 +724,14 @@ var Session = class extends TypedEventEmitter {
    * Sends the result to the backend and resumes polling.
    */
   async resolve(requestId, result) {
-    var _a;
+    var _a2;
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
       await this.sendSystemEvent("wallet:tx_complete", {
-        txHash: (_a = result.txHash) != null ? _a : "",
+        txHash: (_a2 = result.txHash) != null ? _a2 : "",
         status: "success",
         amount: result.amount
       });
@@ -790,11 +792,11 @@ var Session = class extends TypedEventEmitter {
    * The session cannot be used after closing.
    */
   close() {
-    var _a;
+    var _a2;
     if (this.closed) return;
     this.closed = true;
     this.stopPolling();
-    (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
+    (_a2 = this.unsubscribeSSE) == null ? void 0 : _a2.call(this);
     this.unsubscribeSSE = null;
     this.resolvePending();
     this.removeAllListeners();
@@ -822,23 +824,23 @@ var Session = class extends TypedEventEmitter {
   // Internal — Polling (ported from PollingController)
   // ===========================================================================
   startPolling() {
-    var _a;
+    var _a2;
     if (this.pollTimer || this.closed) return;
-    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
+    (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] polling started", this.sessionId);
     this.pollTimer = setInterval(() => {
       void this.pollTick();
     }, this.pollIntervalMs);
   }
   stopPolling() {
-    var _a;
+    var _a2;
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
-      (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
+      (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] polling stopped", this.sessionId);
     }
   }
   async pollTick() {
-    var _a;
+    var _a2;
     if (!this.pollTimer) return;
     try {
       const state = await this.client.fetchState(
@@ -854,7 +856,7 @@ var Session = class extends TypedEventEmitter {
         this.resolvePending();
       }
     } catch (error) {
-      (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
+      (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] poll error", error);
       this.emit("error", { error });
     }
   }
@@ -862,7 +864,7 @@ var Session = class extends TypedEventEmitter {
   // Internal — State Application
   // ===========================================================================
   applyState(state) {
-    var _a;
+    var _a2;
     if (state.messages) {
       this._messages = state.messages;
       this.emit("messages", this._messages);
@@ -870,12 +872,12 @@ var Session = class extends TypedEventEmitter {
     if (state.title) {
       this._title = state.title;
     }
-    if ((_a = state.system_events) == null ? void 0 : _a.length) {
+    if ((_a2 = state.system_events) == null ? void 0 : _a2.length) {
       this.dispatchSystemEvents(state.system_events);
     }
   }
   dispatchSystemEvents(events) {
-    var _a;
+    var _a2;
     for (const event of events) {
       const unwrapped = unwrapSystemEvent(event);
       if (!unwrapped) continue;
@@ -886,7 +888,7 @@ var Session = class extends TypedEventEmitter {
           this.emit("wallet_tx_request", req);
         }
       } else if (unwrapped.type === "wallet_eip712_request") {
-        const payload = normalizeEip712Payload((_a = unwrapped.payload) != null ? _a : {});
+        const payload = normalizeEip712Payload((_a2 = unwrapped.payload) != null ? _a2 : {});
         const req = this.enqueueWalletRequest("eip712_sign", payload);
         this.emit("wallet_eip712_request", req);
       } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
@@ -948,16 +950,250 @@ var Session = class extends TypedEventEmitter {
     }
   }
 };
-export {
-  AomiClient,
-  Session,
-  TypedEventEmitter,
-  isAsyncCallback,
-  isInlineCall,
-  isSystemError,
-  isSystemNotice,
-  normalizeEip712Payload,
-  normalizeTxPayload,
-  unwrapSystemEvent
-};
-//# sourceMappingURL=index.js.map
+
+// src/cli-state.ts
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+var _a;
+var STATE_FILE = join(
+  (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
+  "aomi-session.json"
+);
+function readState() {
+  try {
+    if (!existsSync(STATE_FILE)) return null;
+    const raw = readFileSync(STATE_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+function writeState(state) {
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+function clearState() {
+  try {
+    if (existsSync(STATE_FILE)) unlinkSync(STATE_FILE);
+  } catch (e) {
+  }
+}
+
+// src/cli.ts
+var [, , command, ...args] = process.argv;
+function getEnv() {
+  var _a2, _b;
+  return {
+    baseUrl: (_a2 = process.env.AOMI_BASE_URL) != null ? _a2 : "https://api.aomi.dev",
+    apiKey: process.env.AOMI_API_KEY,
+    namespace: (_b = process.env.AOMI_NAMESPACE) != null ? _b : "default"
+  };
+}
+function getOrCreateSession() {
+  const env = getEnv();
+  let state = readState();
+  if (!state) {
+    state = {
+      sessionId: crypto.randomUUID(),
+      baseUrl: env.baseUrl,
+      namespace: env.namespace,
+      apiKey: env.apiKey
+    };
+    writeState(state);
+  }
+  const session = new Session(
+    { baseUrl: state.baseUrl, apiKey: state.apiKey },
+    {
+      sessionId: state.sessionId,
+      namespace: state.namespace,
+      apiKey: state.apiKey
+    }
+  );
+  return { session, state };
+}
+async function chatCommand() {
+  const message = args.join(" ");
+  if (!message) {
+    console.error("Usage: aomi chat <message>");
+    process.exit(1);
+  }
+  const { session } = getOrCreateSession();
+  try {
+    const result = await session.send(message);
+    const agentMessages = result.messages.filter(
+      (m) => m.sender === "agent" || m.sender === "assistant"
+    );
+    const last = agentMessages[agentMessages.length - 1];
+    if (last == null ? void 0 : last.content) {
+      console.log(last.content);
+    } else {
+      console.log("(no response)");
+    }
+  } finally {
+    session.close();
+  }
+}
+async function statusCommand() {
+  var _a2, _b, _c, _d;
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    return;
+  }
+  const { session } = getOrCreateSession();
+  try {
+    const apiState = await session.client.fetchState(state.sessionId);
+    console.log(
+      JSON.stringify(
+        {
+          sessionId: state.sessionId,
+          baseUrl: state.baseUrl,
+          namespace: state.namespace,
+          isProcessing: (_a2 = apiState.is_processing) != null ? _a2 : false,
+          messageCount: (_c = (_b = apiState.messages) == null ? void 0 : _b.length) != null ? _c : 0,
+          title: (_d = apiState.title) != null ? _d : null
+        },
+        null,
+        2
+      )
+    );
+  } finally {
+    session.close();
+  }
+}
+async function eventsCommand() {
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    return;
+  }
+  const { session } = getOrCreateSession();
+  try {
+    const events = await session.client.getSystemEvents(state.sessionId);
+    console.log(JSON.stringify(events, null, 2));
+  } finally {
+    session.close();
+  }
+}
+async function signCommand() {
+  const privateKey = process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    console.error("PRIVATE_KEY env var required for signing");
+    process.exit(1);
+  }
+  const state = readState();
+  if (!state) {
+    console.error("No active session. Run `aomi chat` first.");
+    process.exit(1);
+  }
+  const { session } = getOrCreateSession();
+  try {
+    const { createWalletClient, http } = await import("viem");
+    const { privateKeyToAccount } = await import("viem/accounts");
+    const { mainnet } = await import("viem/chains");
+    const account = privateKeyToAccount(privateKey);
+    const rpcUrl = process.env.CHAIN_RPC_URL;
+    const walletClient = createWalletClient({
+      account,
+      chain: mainnet,
+      transport: http(rpcUrl)
+    });
+    console.log(`Signer address: ${account.address}`);
+    const apiState = await session.client.fetchState(state.sessionId);
+    if (!apiState.is_processing) {
+      console.log("No active processing. Nothing to sign.");
+      return;
+    }
+    console.log("Waiting for wallet requests...");
+    session.on("wallet_tx_request", async (req) => {
+      var _a2, _b;
+      const tx = req.payload;
+      console.log(`
+Transaction request (${req.id}):`);
+      console.log(`  to:    ${tx.to}`);
+      console.log(`  value: ${(_a2 = tx.value) != null ? _a2 : "0"}`);
+      if (tx.data) console.log(`  data:  ${tx.data.slice(0, 20)}...`);
+      try {
+        const hash = await walletClient.sendTransaction({
+          to: tx.to,
+          value: tx.value ? BigInt(tx.value) : /* @__PURE__ */ BigInt("0"),
+          data: (_b = tx.data) != null ? _b : void 0
+        });
+        console.log(`  tx:    ${hash}`);
+        await session.resolve(req.id, { txHash: hash });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`  error: ${errMsg}`);
+        await session.reject(req.id, errMsg);
+      }
+    });
+    await new Promise((resolve) => {
+      session.on("processing_end", () => resolve());
+      setTimeout(() => {
+        console.log("Timed out waiting for requests.");
+        resolve();
+      }, 5 * 60 * 1e3);
+    });
+  } finally {
+    session.close();
+  }
+}
+function closeCommand() {
+  const state = readState();
+  if (state) {
+    const { session } = getOrCreateSession();
+    session.close();
+  }
+  clearState();
+  console.log("Session closed");
+}
+function printUsage() {
+  console.log(`
+aomi \u2014 CLI client for Aomi on-chain agent
+
+Usage:
+  aomi chat <message>   Send a message and print the response
+  aomi status           Show current session state
+  aomi events           List system events
+  aomi sign             Auto-sign pending wallet transactions (requires PRIVATE_KEY)
+  aomi close            Close the current session
+
+Environment:
+  AOMI_BASE_URL         Backend URL (default: https://api.aomi.dev)
+  AOMI_API_KEY          API key for non-default namespaces
+  AOMI_NAMESPACE        Namespace (default: "default")
+  PRIVATE_KEY           Hex private key for signing
+  CHAIN_RPC_URL         RPC URL for transaction submission
+`.trim());
+}
+async function main() {
+  switch (command) {
+    case "chat":
+      await chatCommand();
+      break;
+    case "status":
+      await statusCommand();
+      break;
+    case "events":
+      await eventsCommand();
+      break;
+    case "sign":
+      await signCommand();
+      break;
+    case "close":
+      closeCommand();
+      break;
+    case "--help":
+    case "-h":
+    case "help":
+      printUsage();
+      break;
+    default:
+      printUsage();
+      process.exit(command ? 1 : 0);
+  }
+}
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+});

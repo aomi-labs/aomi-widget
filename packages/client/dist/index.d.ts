@@ -28,9 +28,9 @@ interface AomiMessage {
  * GET /api/state
  * Fetches current session state including messages and processing status
  */
-interface ApiStateResponse {
+interface AomiStateResponse {
     messages?: AomiMessage[] | null;
-    system_events?: ApiSystemEvent[] | null;
+    system_events?: AomiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
 }
@@ -38,9 +38,9 @@ interface ApiStateResponse {
  * POST /api/chat
  * Sends a chat message and returns updated session state
  */
-interface ApiChatResponse {
+interface AomiChatResponse {
     messages?: AomiMessage[] | null;
-    system_events?: ApiSystemEvent[] | null;
+    system_events?: AomiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
 }
@@ -48,19 +48,19 @@ interface ApiChatResponse {
  * POST /api/system
  * Sends a system message and returns the response message
  */
-interface ApiSystemResponse {
+interface AomiSystemResponse {
     res?: AomiMessage | null;
 }
 /**
  * POST /api/interrupt
  * Interrupts current processing and returns updated session state
  */
-type ApiInterruptResponse = ApiChatResponse;
+type AomiInterruptResponse = AomiChatResponse;
 /**
  * GET /api/sessions
- * Returns array of ApiThread
+ * Returns array of AomiThread
  */
-interface ApiThread {
+interface AomiThread {
     session_id: string;
     title: string;
     is_archived?: boolean;
@@ -69,20 +69,20 @@ interface ApiThread {
  * POST /api/sessions
  * Creates a new thread/session
  */
-interface ApiCreateThreadResponse {
+interface AomiCreateThreadResponse {
     session_id: string;
     title?: string;
 }
 /**
  * Base SSE event - all events have session_id and type
  */
-type ApiSSEEvent = {
+type AomiSSEEvent = {
     type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | string;
     session_id: string;
     new_title?: string;
     [key: string]: unknown;
 };
-type ApiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";
+type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";
 /**
  * Backend SystemEvent enum serializes as tagged JSON:
  * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
@@ -90,7 +90,7 @@ type ApiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "syst
  * - SystemError: {"SystemError": "message"}
  * - AsyncCallback: {"AsyncCallback": {...}} (not sent over HTTP)
  */
-type ApiSystemEvent = {
+type AomiSystemEvent = {
     InlineCall: {
         type: string;
         payload?: unknown;
@@ -103,19 +103,19 @@ type ApiSystemEvent = {
 } | {
     AsyncCallback: Record<string, unknown>;
 };
-declare function isInlineCall(event: ApiSystemEvent): event is {
+declare function isInlineCall(event: AomiSystemEvent): event is {
     InlineCall: {
         type: string;
         payload?: unknown;
     };
 };
-declare function isSystemNotice(event: ApiSystemEvent): event is {
+declare function isSystemNotice(event: AomiSystemEvent): event is {
     SystemNotice: string;
 };
-declare function isSystemError(event: ApiSystemEvent): event is {
+declare function isSystemError(event: AomiSystemEvent): event is {
     SystemError: string;
 };
-declare function isAsyncCallback(event: ApiSystemEvent): event is {
+declare function isAsyncCallback(event: AomiSystemEvent): event is {
     AsyncCallback: Record<string, unknown>;
 };
 
@@ -128,7 +128,7 @@ declare class AomiClient {
     /**
      * Fetch current session state (messages, processing status, title).
      */
-    fetchState(sessionId: string, userState?: UserState): Promise<ApiStateResponse>;
+    fetchState(sessionId: string, userState?: UserState): Promise<AomiStateResponse>;
     /**
      * Send a chat message and return updated session state.
      */
@@ -137,33 +137,33 @@ declare class AomiClient {
         publicKey?: string;
         apiKey?: string;
         userState?: UserState;
-    }): Promise<ApiChatResponse>;
+    }): Promise<AomiChatResponse>;
     /**
      * Send a system-level message (e.g. wallet state changes, context switches).
      */
-    sendSystemMessage(sessionId: string, message: string): Promise<ApiSystemResponse>;
+    sendSystemMessage(sessionId: string, message: string): Promise<AomiSystemResponse>;
     /**
      * Interrupt the AI's current response.
      */
-    interrupt(sessionId: string): Promise<ApiInterruptResponse>;
+    interrupt(sessionId: string): Promise<AomiInterruptResponse>;
     /**
      * Subscribe to real-time SSE updates for a session.
      * Automatically reconnects with exponential backoff on disconnects.
      * Returns an unsubscribe function.
      */
-    subscribeSSE(sessionId: string, onUpdate: (event: ApiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
+    subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     /**
      * List all threads for a wallet address.
      */
-    listThreads(publicKey: string): Promise<ApiThread[]>;
+    listThreads(publicKey: string): Promise<AomiThread[]>;
     /**
      * Get a single thread by ID.
      */
-    getThread(sessionId: string): Promise<ApiThread>;
+    getThread(sessionId: string): Promise<AomiThread>;
     /**
      * Create a new thread. The client generates the session ID.
      */
-    createThread(threadId: string, publicKey?: string): Promise<ApiCreateThreadResponse>;
+    createThread(threadId: string, publicKey?: string): Promise<AomiCreateThreadResponse>;
     /**
      * Delete a thread by ID.
      */
@@ -183,7 +183,7 @@ declare class AomiClient {
     /**
      * Get system events for a session.
      */
-    getSystemEvents(sessionId: string, count?: number): Promise<ApiSystemEvent[]>;
+    getSystemEvents(sessionId: string, count?: number): Promise<AomiSystemEvent[]>;
     /**
      * Get available namespaces.
      */
@@ -209,4 +209,233 @@ declare class AomiClient {
     }>;
 }
 
-export { AomiClient, type AomiClientOptions, type AomiMessage, type ApiChatResponse, type ApiCreateThreadResponse, type ApiInterruptResponse, type ApiSSEEvent, type ApiSSEEventType, type ApiStateResponse, type ApiSystemEvent, type ApiSystemResponse, type ApiThread, type Logger, type UserState, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice };
+type Listener<T = unknown> = (payload: T) => void;
+/**
+ * Minimal typed event emitter with wildcard support.
+ *
+ * ```ts
+ * type Events = { message: string; error: { code: number } };
+ * const ee = new TypedEventEmitter<Events>();
+ * ee.on("message", (msg) => console.log(msg));
+ * ee.emit("message", "hello");
+ * ```
+ */
+declare class TypedEventEmitter<EventMap extends Record<string, unknown> = Record<string, unknown>> {
+    private listeners;
+    /**
+     * Subscribe to an event type. Returns an unsubscribe function.
+     */
+    on<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
+    /**
+     * Subscribe to an event type for a single emission, then auto-unsubscribe.
+     */
+    once<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
+    /**
+     * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
+     */
+    emit<K extends keyof EventMap & string>(type: K, payload: EventMap[K]): void;
+    /**
+     * Remove a specific handler from an event type.
+     */
+    off<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): void;
+    /**
+     * Remove all listeners for all event types.
+     */
+    removeAllListeners(): void;
+}
+
+type WalletTxPayload = {
+    to: string;
+    value?: string;
+    data?: string;
+    chainId?: number;
+};
+type WalletEip712Payload = {
+    typed_data?: {
+        domain?: {
+            chainId?: number | string;
+        };
+        types?: Record<string, Array<{
+            name: string;
+            type: string;
+        }>>;
+        primaryType?: string;
+        message?: Record<string, unknown>;
+    };
+    description?: string;
+};
+/**
+ * Normalize a wallet_tx_request payload into a consistent shape.
+ * Returns `null` if the payload is missing the required `to` field.
+ */
+declare function normalizeTxPayload(payload: unknown): WalletTxPayload | null;
+/**
+ * Normalize an EIP-712 signing request payload.
+ */
+declare function normalizeEip712Payload(payload: unknown): WalletEip712Payload;
+
+type WalletRequestKind = "transaction" | "eip712_sign";
+type WalletRequest = {
+    id: string;
+    kind: WalletRequestKind;
+    payload: WalletTxPayload | WalletEip712Payload;
+    timestamp: number;
+};
+type WalletRequestResult = {
+    txHash?: string;
+    signature?: string;
+    amount?: string;
+};
+type SendResult = {
+    messages: AomiMessage[];
+    title?: string;
+};
+type SessionOptions = {
+    /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
+    sessionId?: string;
+    /** Namespace for chat messages. Default: "default" */
+    namespace?: string;
+    /** User public key (wallet address). */
+    publicKey?: string;
+    /** API key override. */
+    apiKey?: string;
+    /** User state to send with requests (wallet connection info, etc). */
+    userState?: UserState;
+    /** Polling interval in ms. Default: 500 */
+    pollIntervalMs?: number;
+    /** Logger for debug output. Pass `console` for verbose logging. */
+    logger?: {
+        debug: (...args: unknown[]) => void;
+    };
+};
+/** Events emitted by Session. */
+type SessionEventMap = {
+    /** A transaction signing request arrived from the backend. */
+    wallet_tx_request: WalletRequest;
+    /** An EIP-712 signing request arrived from the backend. */
+    wallet_eip712_request: WalletRequest;
+    /** A system notice from the backend. */
+    system_notice: {
+        message: string;
+    };
+    /** A system error from the backend. */
+    system_error: {
+        message: string;
+    };
+    /** An async callback event. */
+    async_callback: Record<string, unknown>;
+    /** SSE: tool execution in progress. */
+    tool_update: AomiSSEEvent;
+    /** SSE: tool execution completed. */
+    tool_complete: AomiSSEEvent;
+    /** Session title changed. */
+    title_changed: {
+        title: string;
+    };
+    /** Messages updated (new messages from poll or send response). */
+    messages: AomiMessage[];
+    /** AI started processing. */
+    processing_start: undefined;
+    /** AI finished processing. */
+    processing_end: undefined;
+    /** An error occurred during polling or SSE. */
+    error: {
+        error: unknown;
+    };
+    /** Wildcard: receives all events as { type, payload }. */
+    "*": {
+        type: string;
+        payload: unknown;
+    };
+};
+declare class Session extends TypedEventEmitter<SessionEventMap> {
+    /** The underlying low-level client. */
+    readonly client: AomiClient;
+    /** The session (thread) ID. */
+    readonly sessionId: string;
+    private namespace;
+    private publicKey?;
+    private apiKey?;
+    private userState?;
+    private pollIntervalMs;
+    private logger?;
+    private pollTimer;
+    private unsubscribeSSE;
+    private _isProcessing;
+    private walletRequests;
+    private walletRequestNextId;
+    private _messages;
+    private _title?;
+    private closed;
+    private pendingResolve;
+    constructor(clientOrOptions: AomiClient | AomiClientOptions, sessionOptions?: SessionOptions);
+    /**
+     * Send a message and wait for the AI to finish processing.
+     *
+     * The returned promise resolves when `is_processing` becomes `false` AND
+     * there are no pending wallet requests. If a wallet request arrives
+     * mid-processing, polling continues but the promise pauses until the
+     * request is resolved or rejected via `resolve()` / `reject()`.
+     */
+    send(message: string): Promise<SendResult>;
+    /**
+     * Send a message without waiting for completion.
+     * Polling starts in the background; listen to events for updates.
+     */
+    sendAsync(message: string): Promise<AomiChatResponse>;
+    /**
+     * Resolve a pending wallet request (transaction or EIP-712 signing).
+     * Sends the result to the backend and resumes polling.
+     */
+    resolve(requestId: string, result: WalletRequestResult): Promise<void>;
+    /**
+     * Reject a pending wallet request.
+     * Sends an error to the backend and resumes polling.
+     */
+    reject(requestId: string, reason?: string): Promise<void>;
+    /**
+     * Cancel the AI's current response.
+     */
+    interrupt(): Promise<void>;
+    /**
+     * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
+     * The session cannot be used after closing.
+     */
+    close(): void;
+    /** Current messages in the session. */
+    getMessages(): AomiMessage[];
+    /** Current session title. */
+    getTitle(): string | undefined;
+    /** Pending wallet requests waiting for resolve/reject. */
+    getPendingRequests(): WalletRequest[];
+    /** Whether the AI is currently processing. */
+    getIsProcessing(): boolean;
+    private startPolling;
+    private stopPolling;
+    private pollTick;
+    private applyState;
+    private dispatchSystemEvents;
+    private handleSSEEvent;
+    private enqueueWalletRequest;
+    private removeWalletRequest;
+    private sendSystemEvent;
+    private resolvePending;
+    private assertOpen;
+}
+
+type UnwrappedEvent = {
+    type: string;
+    payload: unknown;
+};
+/**
+ * Unwrap a tagged-enum AomiSystemEvent from the backend into a flat event.
+ *
+ * ```ts
+ * const event: AomiSystemEvent = { InlineCall: { type: "wallet_tx_request", payload: { to: "0x..." } } };
+ * const unwrapped = unwrapSystemEvent(event);
+ * // => { type: "wallet_tx_request", payload: { to: "0x..." } }
+ * ```
+ */
+declare function unwrapSystemEvent(event: AomiSystemEvent): UnwrappedEvent | null;
+
+export { type AomiChatResponse, AomiClient, type AomiClientOptions, type AomiCreateThreadResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type Logger, type SendResult, Session, type SessionEventMap, type SessionOptions, TypedEventEmitter, type UnwrappedEvent, type UserState, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, unwrapSystemEvent };
