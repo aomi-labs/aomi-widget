@@ -7,25 +7,40 @@
 //
 // Usage:
 //   aomi chat "swap 1 ETH for USDC"
+//   aomi tx                          # list pending + signed txs
+//   aomi sign <tx-id>                # sign a specific pending tx
 //   aomi status
 //   aomi events
-//   aomi sign
 //   aomi close
-//
-// Environment:
-//   AOMI_BASE_URL   — Backend URL (default: https://api.aomi.dev)
-//   AOMI_API_KEY    — API key for non-default namespaces
-//   AOMI_NAMESPACE  — Namespace (default: "default")
-//   PRIVATE_KEY     — Hex private key for `aomi sign` (viem required)
-//   CHAIN_RPC_URL   — RPC URL for signing (default: chain default)
 
 import { Session } from "./session";
+import type { WalletRequest } from "./session";
+import type { WalletTxPayload, WalletEip712Payload } from "./wallet-utils";
 import {
   readState,
   writeState,
   clearState,
+  addPendingTx,
+  removePendingTx,
+  addSignedTx,
   type CliSessionState,
+  type PendingTx,
 } from "./cli-state";
+
+// =============================================================================
+// Error Handling
+// =============================================================================
+
+class CliExit extends Error {
+  constructor(public code: number) {
+    super();
+  }
+}
+
+function fatal(message: string): never {
+  console.error(message);
+  throw new CliExit(1);
+}
 
 // =============================================================================
 // Argument Parsing
@@ -118,20 +133,81 @@ function getOrCreateSession(): { session: Session; state: CliSessionState } {
 }
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+/** Convert a WalletRequest from Session into a PendingTx for the state file. */
+function walletRequestToPendingTx(req: WalletRequest): Omit<PendingTx, "id"> {
+  if (req.kind === "transaction") {
+    const p = req.payload as WalletTxPayload;
+    return {
+      kind: "transaction",
+      to: p.to,
+      value: p.value,
+      data: p.data,
+      chainId: p.chainId,
+      timestamp: req.timestamp,
+      payload: req.payload as unknown as Record<string, unknown>,
+    };
+  }
+  const p = req.payload as WalletEip712Payload;
+  return {
+    kind: "eip712_sign",
+    description: p.description,
+    timestamp: req.timestamp,
+    payload: req.payload as unknown as Record<string, unknown>,
+  };
+}
+
+function formatTxLine(tx: PendingTx, prefix: string): string {
+  const parts = [`${prefix} ${tx.id}`];
+  if (tx.kind === "transaction") {
+    parts.push(`to: ${tx.to ?? "?"}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+    if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
+    if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
+  } else {
+    parts.push(`eip712`);
+    if (tx.description) parts.push(tx.description);
+  }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+
+// =============================================================================
 // Commands
 // =============================================================================
 
 async function chatCommand(): Promise<void> {
   const message = parsed.positional.join(" ");
   if (!message) {
-    console.error("Usage: aomi chat <message>");
-    process.exit(1);
+    fatal("Usage: aomi chat <message>");
   }
 
-  const { session } = getOrCreateSession();
+  const { session, state } = getOrCreateSession();
+
+  // Capture any wallet requests that arrive during processing
+  const capturedRequests: WalletRequest[] = [];
+  session.on("wallet_tx_request", (req) => capturedRequests.push(req));
+  session.on("wallet_eip712_request", (req) => capturedRequests.push(req));
 
   try {
     const result = await session.send(message);
+
+    // Persist any wallet requests that arrived
+    for (const req of capturedRequests) {
+      const pending = addPendingTx(state, walletRequestToPendingTx(req));
+      console.log(`\n⚡ Wallet request queued: ${pending.id}`);
+      if (req.kind === "transaction") {
+        const p = req.payload as WalletTxPayload;
+        console.log(`   to:    ${p.to}`);
+        if (p.value) console.log(`   value: ${p.value}`);
+        if (p.chainId) console.log(`   chain: ${p.chainId}`);
+      } else {
+        const p = req.payload as WalletEip712Payload;
+        if (p.description) console.log(`   desc:  ${p.description}`);
+      }
+    }
 
     // Print last agent message
     const agentMessages = result.messages.filter(
@@ -143,6 +219,10 @@ async function chatCommand(): Promise<void> {
       console.log(last.content);
     } else {
       console.log("(no response)");
+    }
+
+    if (capturedRequests.length > 0) {
+      console.log(`\nRun \`aomi tx\` to see pending transactions, \`aomi sign <id>\` to sign.`);
     }
   } finally {
     session.close();
@@ -169,6 +249,8 @@ async function statusCommand(): Promise<void> {
           isProcessing: apiState.is_processing ?? false,
           messageCount: apiState.messages?.length ?? 0,
           title: apiState.title ?? null,
+          pendingTxs: state.pendingTxs?.length ?? 0,
+          signedTxs: state.signedTxs?.length ?? 0,
         },
         null,
         2,
@@ -196,18 +278,68 @@ async function eventsCommand(): Promise<void> {
   }
 }
 
+function txCommand(): void {
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    return;
+  }
+
+  const pending = state.pendingTxs ?? [];
+  const signed = state.signedTxs ?? [];
+
+  if (pending.length === 0 && signed.length === 0) {
+    console.log("No transactions.");
+    return;
+  }
+
+  if (pending.length > 0) {
+    console.log(`Pending (${pending.length}):`);
+    for (const tx of pending) {
+      console.log(formatTxLine(tx, "  ⏳"));
+    }
+  }
+
+  if (signed.length > 0) {
+    if (pending.length > 0) console.log();
+    console.log(`Signed (${signed.length}):`);
+    for (const tx of signed) {
+      const parts = [`  ✅ ${tx.id}`];
+      parts.push(`hash: ${tx.txHash}`);
+      if (tx.to) parts.push(`to: ${tx.to}`);
+      if (tx.value) parts.push(`value: ${tx.value}`);
+      parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+      console.log(parts.join("  "));
+    }
+  }
+}
+
 async function signCommand(): Promise<void> {
+  const txId = parsed.positional[0];
+  if (!txId) {
+    fatal("Usage: aomi sign <tx-id>\nRun `aomi tx` to see pending transaction IDs.");
+  }
+
   const config = getConfig();
   const privateKey = config.privateKey;
   if (!privateKey) {
-    console.error("Private key required for signing. Pass --private-key or set PRIVATE_KEY env var.");
-    process.exit(1);
+    fatal("Private key required. Pass --private-key or set PRIVATE_KEY env var.");
   }
 
   const state = readState();
   if (!state) {
-    console.error("No active session. Run `aomi chat` first.");
-    process.exit(1);
+    fatal("No active session. Run `aomi chat` first.");
+  }
+
+  // Find the pending tx
+  const pendingTx = (state.pendingTxs ?? []).find((t) => t.id === txId);
+  if (!pendingTx) {
+    fatal(`No pending transaction with id "${txId}".\nRun \`aomi tx\` to see available IDs.`);
+  }
+
+  if (pendingTx.kind !== "transaction") {
+    // TODO: EIP-712 signing support
+    fatal("EIP-712 signing via CLI is not yet supported.");
   }
 
   const { session } = getOrCreateSession();
@@ -227,57 +359,49 @@ async function signCommand(): Promise<void> {
       transport: http(rpcUrl),
     });
 
-    console.log(`Signer address: ${account.address}`);
+    console.log(`Signer:  ${account.address}`);
+    console.log(`Tx:      ${pendingTx.id}`);
+    console.log(`To:      ${pendingTx.to}`);
+    if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
+    if (pendingTx.chainId) console.log(`Chain:   ${pendingTx.chainId}`);
+    if (pendingTx.data) console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
+    console.log();
 
-    // Poll for pending wallet requests
-    const apiState = await session.client.fetchState(state.sessionId);
-
-    if (!apiState.is_processing) {
-      console.log("No active processing. Nothing to sign.");
-      return;
-    }
-
-    // Listen for wallet requests
-    console.log("Waiting for wallet requests...");
-
-    session.on("wallet_tx_request", async (req) => {
-      const tx = req.payload as {
-        to: string;
-        value?: string;
-        data?: string;
-        chainId?: number;
-      };
-
-      console.log(`\nTransaction request (${req.id}):`);
-      console.log(`  to:    ${tx.to}`);
-      console.log(`  value: ${tx.value ?? "0"}`);
-      if (tx.data) console.log(`  data:  ${tx.data.slice(0, 20)}...`);
-
-      try {
-        const hash = await walletClient.sendTransaction({
-          to: tx.to as `0x${string}`,
-          value: tx.value ? BigInt(tx.value) : 0n,
-          data: (tx.data as `0x${string}`) ?? undefined,
-        });
-
-        console.log(`  tx:    ${hash}`);
-        await session.resolve(req.id, { txHash: hash });
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`  error: ${errMsg}`);
-        await session.reject(req.id, errMsg);
-      }
+    const hash = await walletClient.sendTransaction({
+      to: pendingTx.to as `0x${string}`,
+      value: pendingTx.value ? BigInt(pendingTx.value) : 0n,
+      data: (pendingTx.data as `0x${string}`) ?? undefined,
     });
 
-    // Wait for processing to finish
-    await new Promise<void>((resolve) => {
-      session.on("processing_end", () => resolve());
-      // Timeout after 5 minutes
-      setTimeout(() => {
-        console.log("Timed out waiting for requests.");
-        resolve();
-      }, 5 * 60 * 1000);
+    console.log(`✅ Sent! Hash: ${hash}`);
+
+    // Move from pending → signed
+    removePendingTx(state, txId);
+    // Re-read state since removePendingTx wrote it
+    const freshState = readState()!;
+    addSignedTx(freshState, {
+      id: txId,
+      txHash: hash,
+      from: account.address,
+      to: pendingTx.to,
+      value: pendingTx.value,
+      chainId: pendingTx.chainId,
+      timestamp: Date.now(),
     });
+
+    // Notify backend
+    await session.client.sendSystemMessage(
+      state.sessionId,
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: { txHash: hash, status: "success" },
+      }),
+    );
+    console.log("Backend notified.");
+  } catch (err) {
+    if (err instanceof CliExit) throw err;
+    const errMsg = err instanceof Error ? err.message : String(err);
+    fatal(`❌ Signing failed: ${errMsg}`);
   } finally {
     session.close();
   }
@@ -299,9 +423,10 @@ aomi — CLI client for Aomi on-chain agent
 
 Usage:
   aomi chat <message>   Send a message and print the response
+  aomi tx               List pending and signed transactions
+  aomi sign <tx-id>     Sign and submit a pending transaction
   aomi status           Show current session state
   aomi events           List system events
-  aomi sign             Auto-sign pending wallet transactions
   aomi close            Close the current session
 
 Options:
@@ -331,14 +456,17 @@ async function main(): Promise<void> {
     case "chat":
       await chatCommand();
       break;
+    case "tx":
+      txCommand();
+      break;
+    case "sign":
+      await signCommand();
+      break;
     case "status":
       await statusCommand();
       break;
     case "events":
       await eventsCommand();
-      break;
-    case "sign":
-      await signCommand();
       break;
     case "close":
       closeCommand();
@@ -348,11 +476,16 @@ async function main(): Promise<void> {
       break;
     default:
       printUsage();
-      process.exit(cmd ? 1 : 0);
+      if (cmd) throw new CliExit(1);
   }
 }
 
 main().catch((err) => {
+  // CliExit errors are already printed — just exit
+  if (err instanceof CliExit) {
+    process.exit(err.code);
+    return;
+  }
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
 });
