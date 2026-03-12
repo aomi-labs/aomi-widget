@@ -705,7 +705,7 @@ var Session = class extends TypedEventEmitter {
       userState: this.userState
     });
     this.applyState(response);
-    if (!response.is_processing) {
+    if (!response.is_processing && this.walletRequests.length === 0) {
       return { messages: this._messages, title: this._title };
     }
     this._isProcessing = true;
@@ -997,11 +997,22 @@ function clearState() {
   } catch (e) {
   }
 }
-var nextTxId = 1;
+function getNextTxId(state) {
+  var _a2, _b;
+  const allIds = [
+    ...(_a2 = state.pendingTxs) != null ? _a2 : [],
+    ...(_b = state.signedTxs) != null ? _b : []
+  ].map((t) => {
+    const m = t.id.match(/^tx-(\d+)$/);
+    return m ? parseInt(m[1], 10) : 0;
+  });
+  const max = allIds.length > 0 ? Math.max(...allIds) : 0;
+  return `tx-${max + 1}`;
+}
 function addPendingTx(state, tx) {
   if (!state.pendingTxs) state.pendingTxs = [];
   const pending = __spreadProps(__spreadValues({}, tx), {
-    id: `tx-${nextTxId++}`
+    id: getNextTxId(state)
   });
   state.pendingTxs.push(pending);
   writeState(state);
@@ -1084,6 +1095,25 @@ function getOrCreateSession() {
       publicKey: config.publicKey
     };
     writeState(state);
+  } else {
+    let changed = false;
+    if (config.baseUrl && config.baseUrl !== state.baseUrl) {
+      state.baseUrl = config.baseUrl;
+      changed = true;
+    }
+    if (config.namespace && config.namespace !== state.namespace) {
+      state.namespace = config.namespace;
+      changed = true;
+    }
+    if (config.apiKey !== void 0 && config.apiKey !== state.apiKey) {
+      state.apiKey = config.apiKey;
+      changed = true;
+    }
+    if (config.publicKey !== void 0 && config.publicKey !== state.publicKey) {
+      state.publicKey = config.publicKey;
+      changed = true;
+    }
+    if (changed) writeState(state);
   }
   const session = new Session(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
@@ -1355,7 +1385,7 @@ function txCommand() {
   }
 }
 async function signCommand() {
-  var _a2, _b;
+  var _a2, _b, _c, _d;
   const txId = parsed.positional[0];
   if (!txId) {
     fatal("Usage: aomi sign <tx-id>\nRun `aomi tx` to see pending transaction IDs.");
@@ -1376,14 +1406,29 @@ Run \`aomi tx\` to see available IDs.`);
   }
   const { session } = getOrCreateSession();
   try {
-    const { createWalletClient, http } = await import("viem");
-    const { privateKeyToAccount } = await import("viem/accounts");
-    const { mainnet } = await import("viem/chains");
+    let viem;
+    let viemAccounts;
+    let viemChains;
+    try {
+      viem = await import("viem");
+      viemAccounts = await import("viem/accounts");
+      viemChains = await import("viem/chains");
+    } catch (e) {
+      fatal(
+        "viem is required for `aomi sign`. Install it:\n  npm install viem\n  # or: pnpm add viem"
+      );
+    }
+    const { createWalletClient, http } = viem;
+    const { privateKeyToAccount } = viemAccounts;
     const account = privateKeyToAccount(privateKey);
     const rpcUrl = config.chainRpcUrl;
+    const targetChainId = (_b = pendingTx.chainId) != null ? _b : 1;
+    const chain = (_c = Object.values(viemChains).find(
+      (c) => typeof c === "object" && c !== null && "id" in c && c.id === targetChainId
+    )) != null ? _c : { id: targetChainId, name: `Chain ${targetChainId}`, nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl != null ? rpcUrl : ""] } } };
     const walletClient = createWalletClient({
       account,
-      chain: mainnet,
+      chain,
       transport: http(rpcUrl)
     });
     console.log(`Signer:  ${account.address}`);
@@ -1398,7 +1443,7 @@ Run \`aomi tx\` to see available IDs.`);
       const hash = await walletClient.sendTransaction({
         to: pendingTx.to,
         value: pendingTx.value ? BigInt(pendingTx.value) : /* @__PURE__ */ BigInt("0"),
-        data: (_b = pendingTx.data) != null ? _b : void 0
+        data: (_d = pendingTx.data) != null ? _d : void 0
       });
       console.log(`\u2705 Sent! Hash: ${hash}`);
       removePendingTx(state, txId);
@@ -1485,7 +1530,13 @@ async function logCommand() {
       return;
     }
     for (const msg of messages) {
-      const time = msg.timestamp ? `${DIM}${new Date(msg.timestamp).toLocaleTimeString()}${RESET} ` : "";
+      let time = "";
+      if (msg.timestamp) {
+        const raw = msg.timestamp;
+        const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
+        const date = !isNaN(n) ? new Date(n < 1e12 ? n * 1e3 : n) : new Date(raw);
+        time = isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
+      }
       const sender = (_b = msg.sender) != null ? _b : "unknown";
       if (sender === "user") {
         console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${(_c = msg.content) != null ? _c : ""}`);

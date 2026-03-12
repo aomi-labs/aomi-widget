@@ -22,7 +22,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "skills",
+    "README.md"
   ],
   "scripts": {
     "build": "tsup",

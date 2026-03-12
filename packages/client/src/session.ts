@@ -185,7 +185,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
 
     this.applyState(response);
 
-    if (!response.is_processing) {
+    if (!response.is_processing && this.walletRequests.length === 0) {
       return { messages: this._messages, title: this._title };
     }
 

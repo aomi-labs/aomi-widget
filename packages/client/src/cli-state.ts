@@ -57,7 +57,7 @@ export type CliSessionState = {
 // File I/O
 // =============================================================================
 
-const STATE_FILE = join(
+export const STATE_FILE = join(
   process.env.XDG_RUNTIME_DIR ?? tmpdir(),
   "aomi-session.json",
 );
@@ -88,7 +88,17 @@ export function clearState(): void {
 // Transaction Helpers
 // =============================================================================
 
-let nextTxId = 1;
+function getNextTxId(state: CliSessionState): string {
+  const allIds = [
+    ...(state.pendingTxs ?? []),
+    ...(state.signedTxs ?? []),
+  ].map((t) => {
+    const m = t.id.match(/^tx-(\d+)$/);
+    return m ? parseInt(m[1], 10) : 0;
+  });
+  const max = allIds.length > 0 ? Math.max(...allIds) : 0;
+  return `tx-${max + 1}`;
+}
 
 export function addPendingTx(
   state: CliSessionState,
@@ -98,7 +108,7 @@ export function addPendingTx(
 
   const pending: PendingTx = {
     ...tx,
-    id: `tx-${nextTxId++}`,
+    id: getNextTxId(state),
   };
   state.pendingTxs.push(pending);
   writeState(state);

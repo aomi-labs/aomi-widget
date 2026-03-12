@@ -684,7 +684,7 @@ var Session = class extends TypedEventEmitter {
       userState: this.userState
     });
     this.applyState(response);
-    if (!response.is_processing) {
+    if (!response.is_processing && this.walletRequests.length === 0) {
       return { messages: this._messages, title: this._title };
     }
     this._isProcessing = true;
