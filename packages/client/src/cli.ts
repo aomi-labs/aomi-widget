@@ -97,6 +97,9 @@ function getConfig() {
       parsed.flags["namespace"] ??
       process.env.AOMI_NAMESPACE ??
       "default",
+    publicKey:
+      parsed.flags["public-key"] ??
+      process.env.AOMI_PUBLIC_KEY,
     privateKey:
       parsed.flags["private-key"] ??
       process.env.PRIVATE_KEY,
@@ -116,6 +119,7 @@ function getOrCreateSession(): { session: Session; state: CliSessionState } {
       baseUrl: config.baseUrl,
       namespace: config.namespace,
       apiKey: config.apiKey,
+      publicKey: config.publicKey,
     };
     writeState(state);
   }
@@ -126,6 +130,14 @@ function getOrCreateSession(): { session: Session; state: CliSessionState } {
       sessionId: state.sessionId,
       namespace: state.namespace,
       apiKey: state.apiKey,
+      publicKey: state.publicKey,
+      userState: state.publicKey
+        ? {
+            address: state.publicKey,
+            chainId: 1,
+            isConnected: true,
+          }
+        : undefined,
     },
   );
 
@@ -186,18 +198,47 @@ async function chatCommand(): Promise<void> {
 
   const { session, state } = getOrCreateSession();
 
-  // Capture any wallet requests that arrive during processing
+  // If we have a public key, tell the backend the wallet is "connected"
+  if (state.publicKey) {
+    await session.client.sendSystemMessage(
+      session.sessionId,
+      JSON.stringify({
+        type: "wallet:state_changed",
+        payload: {
+          address: state.publicKey,
+          chainId: 1,
+          isConnected: true,
+        },
+      }),
+    );
+  }
+
+  // Use sendAsync — we need to exit early if a wallet request arrives
+  // (send() would block forever waiting for the wallet request to be resolved)
   const capturedRequests: WalletRequest[] = [];
+
   session.on("wallet_tx_request", (req) => capturedRequests.push(req));
   session.on("wallet_eip712_request", (req) => capturedRequests.push(req));
 
   try {
-    const result = await session.send(message);
+    await session.sendAsync(message);
+
+    // Wait for either: processing ends, or a wallet request arrives
+    if (session.getIsProcessing()) {
+      await new Promise<void>((resolve) => {
+        const checkWallet = () => {
+          if (capturedRequests.length > 0) resolve();
+        };
+        session.on("wallet_tx_request", checkWallet);
+        session.on("wallet_eip712_request", checkWallet);
+        session.on("processing_end", () => resolve());
+      });
+    }
 
     // Persist any wallet requests that arrived
     for (const req of capturedRequests) {
       const pending = addPendingTx(state, walletRequestToPendingTx(req));
-      console.log(`\n⚡ Wallet request queued: ${pending.id}`);
+      console.log(`⚡ Wallet request queued: ${pending.id}`);
       if (req.kind === "transaction") {
         const p = req.payload as WalletTxPayload;
         console.log(`   to:    ${p.to}`);
@@ -210,14 +251,15 @@ async function chatCommand(): Promise<void> {
     }
 
     // Print last agent message
-    const agentMessages = result.messages.filter(
+    const messages = session.getMessages();
+    const agentMessages = messages.filter(
       (m) => m.sender === "agent" || m.sender === "assistant",
     );
     const last = agentMessages[agentMessages.length - 1];
 
     if (last?.content) {
       console.log(last.content);
-    } else {
+    } else if (capturedRequests.length === 0) {
       console.log("(no response)");
     }
 
@@ -500,6 +542,7 @@ Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
   --api-key <key>       API key for non-default namespaces
   --namespace <ns>      Namespace (default: "default")
+  --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
 
@@ -507,6 +550,7 @@ Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
   AOMI_API_KEY          API key
   AOMI_NAMESPACE        Namespace
+  AOMI_PUBLIC_KEY       Wallet address
   PRIVATE_KEY           Hex private key for signing
   CHAIN_RPC_URL         RPC URL for transaction submission
 `.trim());
