@@ -19,6 +19,157 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
+// src/cli/args.ts
+function parseArgs(argv) {
+  const raw = argv.slice(2);
+  const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : void 0;
+  const rest = command ? raw.slice(1) : raw;
+  const positional = [];
+  const flags = {};
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg.startsWith("--") && arg.includes("=")) {
+      const [key, ...val] = arg.slice(2).split("=");
+      flags[key] = val.join("=");
+    } else if (arg.startsWith("--")) {
+      const key = arg.slice(2);
+      const next = rest[i + 1];
+      if (next && !next.startsWith("-")) {
+        flags[key] = next;
+        i++;
+      } else {
+        flags[key] = "true";
+      }
+    } else if (arg.startsWith("-") && arg.length === 2) {
+      flags[arg.slice(1)] = "true";
+    } else {
+      positional.push(arg);
+    }
+  }
+  return { command, positional, flags };
+}
+function getConfig(parsed) {
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+  return {
+    baseUrl: (_b = (_a2 = parsed.flags["backend-url"]) != null ? _a2 : process.env.AOMI_BASE_URL) != null ? _b : "https://api.aomi.dev",
+    apiKey: (_c = parsed.flags["api-key"]) != null ? _c : process.env.AOMI_API_KEY,
+    namespace: (_e = (_d = parsed.flags["namespace"]) != null ? _d : process.env.AOMI_NAMESPACE) != null ? _e : "default",
+    model: (_f = parsed.flags["model"]) != null ? _f : process.env.AOMI_MODEL,
+    publicKey: (_g = parsed.flags["public-key"]) != null ? _g : process.env.AOMI_PUBLIC_KEY,
+    privateKey: (_h = parsed.flags["private-key"]) != null ? _h : process.env.PRIVATE_KEY,
+    chainRpcUrl: (_i = parsed.flags["rpc-url"]) != null ? _i : process.env.CHAIN_RPC_URL
+  };
+}
+function createRuntime(argv) {
+  const parsed = parseArgs(argv);
+  return {
+    parsed,
+    config: getConfig(parsed)
+  };
+}
+
+// src/cli/state.ts
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+var _a;
+var STATE_FILE = join(
+  (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
+  "aomi-session.json"
+);
+function readState() {
+  try {
+    if (!existsSync(STATE_FILE)) return null;
+    const raw = readFileSync(STATE_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+function writeState(state) {
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+function clearState() {
+  try {
+    if (existsSync(STATE_FILE)) unlinkSync(STATE_FILE);
+  } catch (e) {
+  }
+}
+function getNextTxId(state) {
+  var _a2, _b;
+  const allIds = [
+    ...(_a2 = state.pendingTxs) != null ? _a2 : [],
+    ...(_b = state.signedTxs) != null ? _b : []
+  ].map((tx) => {
+    const match = tx.id.match(/^tx-(\d+)$/);
+    return match ? parseInt(match[1], 10) : 0;
+  });
+  const max = allIds.length > 0 ? Math.max(...allIds) : 0;
+  return `tx-${max + 1}`;
+}
+function addPendingTx(state, tx) {
+  if (!state.pendingTxs) state.pendingTxs = [];
+  const pending = __spreadProps(__spreadValues({}, tx), {
+    id: getNextTxId(state)
+  });
+  state.pendingTxs.push(pending);
+  writeState(state);
+  return pending;
+}
+function removePendingTx(state, id) {
+  if (!state.pendingTxs) return null;
+  const idx = state.pendingTxs.findIndex((tx) => tx.id === id);
+  if (idx === -1) return null;
+  const [removed] = state.pendingTxs.splice(idx, 1);
+  writeState(state);
+  return removed;
+}
+function addSignedTx(state, tx) {
+  if (!state.signedTxs) state.signedTxs = [];
+  state.signedTxs.push(tx);
+  writeState(state);
+}
+
+// src/cli/output.ts
+var DIM = "\x1B[2m";
+var CYAN = "\x1B[36m";
+var YELLOW = "\x1B[33m";
+var GREEN = "\x1B[32m";
+var RESET = "\x1B[0m";
+function printDataFileLocation() {
+  console.log(`Data stored at ${STATE_FILE} \u{1F4DD}`);
+}
+function printToolUpdate(event) {
+  var _a2, _b, _c;
+  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
+  const status = (_c = event.status) != null ? _c : "running";
+  console.log(`${DIM}\u{1F527} [tool] ${name}: ${status}${RESET}`);
+}
+function printToolComplete(event) {
+  var _a2, _b, _c;
+  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
+  const result = (_c = event.result) != null ? _c : event.output;
+  const line = result ? `${GREEN}\u2714 [tool] ${name} \u2192 ${result.slice(0, 120)}${result.length > 120 ? "\u2026" : ""}${RESET}` : `${GREEN}\u2714 [tool] ${name} done${RESET}`;
+  console.log(line);
+}
+function printNewAgentMessages(messages, lastPrintedCount) {
+  const agentMessages = messages.filter(
+    (message) => message.sender === "agent" || message.sender === "assistant"
+  );
+  let handled = lastPrintedCount;
+  for (let i = lastPrintedCount; i < agentMessages.length; i++) {
+    const message = agentMessages[i];
+    if (message.is_streaming) {
+      break;
+    }
+    if (message.content) {
+      console.log(`${CYAN}\u{1F916} ${message.content}${RESET}`);
+    }
+    handled = i + 1;
+  }
+  return handled;
+}
+
 // src/sse.ts
 function extractSseData(rawEvent) {
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
@@ -140,9 +291,9 @@ function createSseSubscriber({
         subscription.retries = 0;
         await readSseStream(response.body, controller.signal, (data) => {
           var _a3, _b;
-          let parsed2;
+          let parsed;
           try {
-            parsed2 = JSON.parse(data);
+            parsed = JSON.parse(data);
           } catch (error) {
             for (const item of subscription.listeners) {
               (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
@@ -151,7 +302,7 @@ function createSseSubscriber({
           }
           for (const item of subscription.listeners) {
             try {
-              item.onUpdate(parsed2);
+              item.onUpdate(parsed);
             } catch (error) {
               (_b = item.onError) == null ? void 0 : _b.call(item, error);
             }
@@ -619,8 +770,8 @@ function parseChainId(value) {
     const parsedHex = Number.parseInt(trimmed.slice(2), 16);
     return Number.isFinite(parsedHex) ? parsedHex : void 0;
   }
-  const parsed2 = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed2) ? parsed2 : void 0;
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
 }
 function normalizeTxPayload(payload) {
   var _a2, _b, _c;
@@ -642,9 +793,9 @@ function normalizeEip712Payload(payload) {
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
-      const parsed2 = JSON.parse(typedDataRaw);
-      if (parsed2 && typeof parsed2 === "object" && !Array.isArray(parsed2)) {
-        typedData = parsed2;
+      const parsed = JSON.parse(typedDataRaw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        typedData = parsed;
       }
     } catch (e) {
       typedData = void 0;
@@ -970,121 +1121,9 @@ var Session = class extends TypedEventEmitter {
   }
 };
 
-// src/cli-state.ts
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
-var _a;
-var STATE_FILE = join(
-  (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
-  "aomi-session.json"
-);
-function readState() {
-  try {
-    if (!existsSync(STATE_FILE)) return null;
-    const raw = readFileSync(STATE_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch (e) {
-    return null;
-  }
-}
-function writeState(state) {
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-}
-function clearState() {
-  try {
-    if (existsSync(STATE_FILE)) unlinkSync(STATE_FILE);
-  } catch (e) {
-  }
-}
-function getNextTxId(state) {
-  var _a2, _b;
-  const allIds = [
-    ...(_a2 = state.pendingTxs) != null ? _a2 : [],
-    ...(_b = state.signedTxs) != null ? _b : []
-  ].map((t) => {
-    const m = t.id.match(/^tx-(\d+)$/);
-    return m ? parseInt(m[1], 10) : 0;
-  });
-  const max = allIds.length > 0 ? Math.max(...allIds) : 0;
-  return `tx-${max + 1}`;
-}
-function addPendingTx(state, tx) {
-  if (!state.pendingTxs) state.pendingTxs = [];
-  const pending = __spreadProps(__spreadValues({}, tx), {
-    id: getNextTxId(state)
-  });
-  state.pendingTxs.push(pending);
-  writeState(state);
-  return pending;
-}
-function removePendingTx(state, id) {
-  if (!state.pendingTxs) return null;
-  const idx = state.pendingTxs.findIndex((t) => t.id === id);
-  if (idx === -1) return null;
-  const [removed] = state.pendingTxs.splice(idx, 1);
-  writeState(state);
-  return removed;
-}
-function addSignedTx(state, tx) {
-  if (!state.signedTxs) state.signedTxs = [];
-  state.signedTxs.push(tx);
-  writeState(state);
-}
-
-// src/cli.ts
-var CliExit = class extends Error {
-  constructor(code) {
-    super();
-    this.code = code;
-  }
-};
-function fatal(message) {
-  console.error(message);
-  throw new CliExit(1);
-}
-function parseArgs(argv) {
-  const raw = argv.slice(2);
-  const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : void 0;
-  const rest = command ? raw.slice(1) : raw;
-  const positional = [];
-  const flags = {};
-  for (let i = 0; i < rest.length; i++) {
-    const arg = rest[i];
-    if (arg.startsWith("--") && arg.includes("=")) {
-      const [key, ...val] = arg.slice(2).split("=");
-      flags[key] = val.join("=");
-    } else if (arg.startsWith("--")) {
-      const key = arg.slice(2);
-      const next = rest[i + 1];
-      if (next && !next.startsWith("-")) {
-        flags[key] = next;
-        i++;
-      } else {
-        flags[key] = "true";
-      }
-    } else if (arg.startsWith("-") && arg.length === 2) {
-      flags[arg.slice(1)] = "true";
-    } else {
-      positional.push(arg);
-    }
-  }
-  return { command, positional, flags };
-}
-var parsed = parseArgs(process.argv);
-function getConfig() {
-  var _a2, _b, _c, _d, _e, _f, _g, _h;
-  return {
-    baseUrl: (_b = (_a2 = parsed.flags["backend-url"]) != null ? _a2 : process.env.AOMI_BASE_URL) != null ? _b : "https://api.aomi.dev",
-    apiKey: (_c = parsed.flags["api-key"]) != null ? _c : process.env.AOMI_API_KEY,
-    namespace: (_e = (_d = parsed.flags["namespace"]) != null ? _d : process.env.AOMI_NAMESPACE) != null ? _e : "default",
-    publicKey: (_f = parsed.flags["public-key"]) != null ? _f : process.env.AOMI_PUBLIC_KEY,
-    privateKey: (_g = parsed.flags["private-key"]) != null ? _g : process.env.PRIVATE_KEY,
-    chainRpcUrl: (_h = parsed.flags["rpc-url"]) != null ? _h : process.env.CHAIN_RPC_URL
-  };
-}
-function getOrCreateSession() {
-  const config = getConfig();
+// src/cli/context.ts
+function getOrCreateSession(runtime) {
+  const { config } = runtime;
   let state = readState();
   if (!state) {
     state = {
@@ -1131,25 +1170,60 @@ function getOrCreateSession() {
   );
   return { session, state };
 }
-function walletRequestToPendingTx(req) {
-  if (req.kind === "transaction") {
-    const p2 = req.payload;
+function createControlClient(runtime) {
+  return new AomiClient({
+    baseUrl: runtime.config.baseUrl,
+    apiKey: runtime.config.apiKey
+  });
+}
+async function applyModelSelection(session, state, model) {
+  await session.client.setModel(state.sessionId, model, {
+    namespace: state.namespace,
+    apiKey: state.apiKey
+  });
+  state.model = model;
+  writeState(state);
+}
+async function applyRequestedModelIfPresent(runtime, session, state) {
+  const requestedModel = runtime.config.model;
+  if (!requestedModel || requestedModel === state.model) {
+    return;
+  }
+  await applyModelSelection(session, state, requestedModel);
+}
+
+// src/cli/errors.ts
+var CliExit = class extends Error {
+  constructor(code) {
+    super();
+    this.code = code;
+  }
+};
+function fatal(message) {
+  console.error(message);
+  throw new CliExit(1);
+}
+
+// src/cli/transactions.ts
+function walletRequestToPendingTx(request) {
+  if (request.kind === "transaction") {
+    const payload2 = request.payload;
     return {
       kind: "transaction",
-      to: p2.to,
-      value: p2.value,
-      data: p2.data,
-      chainId: p2.chainId,
-      timestamp: req.timestamp,
-      payload: req.payload
+      to: payload2.to,
+      value: payload2.value,
+      data: payload2.data,
+      chainId: payload2.chainId,
+      timestamp: request.timestamp,
+      payload: request.payload
     };
   }
-  const p = req.payload;
+  const payload = request.payload;
   return {
     kind: "eip712_sign",
-    description: p.description,
-    timestamp: req.timestamp,
-    payload: req.payload
+    description: payload.description,
+    timestamp: request.timestamp,
+    payload: request.payload
   };
 }
 function formatTxLine(tx, prefix) {
@@ -1161,93 +1235,67 @@ function formatTxLine(tx, prefix) {
     if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
     if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
   } else {
-    parts.push(`eip712`);
+    parts.push("eip712");
     if (tx.description) parts.push(tx.description);
   }
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
-var DIM = "\x1B[2m";
-var CYAN = "\x1B[36m";
-var YELLOW = "\x1B[33m";
-var GREEN = "\x1B[32m";
-var RESET = "\x1B[0m";
-function printToolUpdate(event) {
-  var _a2, _b, _c;
-  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
-  const status = (_c = event.status) != null ? _c : "running";
-  console.log(`${DIM}\u{1F527} [tool] ${name}: ${status}${RESET}`);
-}
-function printToolComplete(event) {
-  var _a2, _b, _c;
-  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
-  const result = (_c = event.result) != null ? _c : event.output;
-  const line = result ? `${GREEN}\u2714 [tool] ${name} \u2192 ${result.slice(0, 120)}${result.length > 120 ? "\u2026" : ""}${RESET}` : `${GREEN}\u2714 [tool] ${name} done${RESET}`;
-  console.log(line);
-}
-function printNewAgentMessages(messages, lastPrintedCount) {
-  const agentMessages = messages.filter(
-    (m) => m.sender === "agent" || m.sender === "assistant"
-  );
-  let handled = lastPrintedCount;
-  for (let i = lastPrintedCount; i < agentMessages.length; i++) {
-    const msg = agentMessages[i];
-    if (msg.is_streaming) {
-      break;
-    }
-    if (msg.content) {
-      console.log(`${CYAN}\u{1F916} ${msg.content}${RESET}`);
-    }
-    handled = i + 1;
-  }
-  return handled;
-}
-async function chatCommand() {
-  const message = parsed.positional.join(" ");
+
+// src/cli/commands/chat.ts
+async function chatCommand(runtime) {
+  const message = runtime.parsed.positional.join(" ");
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
-  const verbose = parsed.flags["verbose"] === "true" || parsed.flags["v"] === "true";
-  const { session, state } = getOrCreateSession();
-  if (state.publicKey) {
-    await session.client.sendSystemMessage(
-      session.sessionId,
-      JSON.stringify({
-        type: "wallet:state_changed",
-        payload: {
-          address: state.publicKey,
-          chainId: 1,
-          isConnected: true
-        }
-      })
-    );
-  }
-  const capturedRequests = [];
-  let printedAgentCount = 0;
-  session.on("wallet_tx_request", (req) => capturedRequests.push(req));
-  session.on("wallet_eip712_request", (req) => capturedRequests.push(req));
+  const verbose = runtime.parsed.flags["verbose"] === "true" || runtime.parsed.flags["v"] === "true";
+  const { session, state } = getOrCreateSession(runtime);
   try {
+    await applyRequestedModelIfPresent(runtime, session, state);
+    if (state.publicKey) {
+      await session.client.sendSystemMessage(
+        session.sessionId,
+        JSON.stringify({
+          type: "wallet:state_changed",
+          payload: {
+            address: state.publicKey,
+            chainId: 1,
+            isConnected: true
+          }
+        })
+      );
+    }
+    const capturedRequests = [];
+    let printedAgentCount = 0;
+    session.on("wallet_tx_request", (request) => capturedRequests.push(request));
+    session.on(
+      "wallet_eip712_request",
+      (request) => capturedRequests.push(request)
+    );
     await session.sendAsync(message);
-    const allMsgs = session.getMessages();
-    let seedIdx = allMsgs.length;
-    for (let i = allMsgs.length - 1; i >= 0; i--) {
-      if (allMsgs[i].sender === "user") {
+    const allMessages = session.getMessages();
+    let seedIdx = allMessages.length;
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      if (allMessages[i].sender === "user") {
         seedIdx = i;
         break;
       }
     }
-    printedAgentCount = allMsgs.slice(0, seedIdx).filter(
-      (m) => m.sender === "agent" || m.sender === "assistant"
+    printedAgentCount = allMessages.slice(0, seedIdx).filter(
+      (entry) => entry.sender === "agent" || entry.sender === "assistant"
     ).length;
     if (verbose) {
       if (session.getIsProcessing()) {
         console.log(`${DIM}\u23F3 Processing\u2026${RESET}`);
       }
-      printedAgentCount = printNewAgentMessages(allMsgs, printedAgentCount);
+      printedAgentCount = printNewAgentMessages(
+        allMessages,
+        printedAgentCount
+      );
       session.on("tool_update", (event) => printToolUpdate(event));
       session.on("tool_complete", (event) => printToolComplete(event));
-      session.on("messages", (msgs) => {
-        printedAgentCount = printNewAgentMessages(msgs, printedAgentCount);
+      session.on("messages", (messages) => {
+        printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
       });
       session.on("system_notice", ({ message: msg }) => {
         console.log(`${YELLOW}\u{1F4E2} ${msg}${RESET}`);
@@ -1270,23 +1318,24 @@ async function chatCommand() {
       printNewAgentMessages(session.getMessages(), printedAgentCount);
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
-    for (const req of capturedRequests) {
-      const pending = addPendingTx(state, walletRequestToPendingTx(req));
+    for (const request of capturedRequests) {
+      const pending = addPendingTx(state, walletRequestToPendingTx(request));
       console.log(`\u26A1 Wallet request queued: ${pending.id}`);
-      if (req.kind === "transaction") {
-        const p = req.payload;
-        console.log(`   to:    ${p.to}`);
-        if (p.value) console.log(`   value: ${p.value}`);
-        if (p.chainId) console.log(`   chain: ${p.chainId}`);
+      if (request.kind === "transaction") {
+        const payload = request.payload;
+        console.log(`   to:    ${payload.to}`);
+        if (payload.value) console.log(`   value: ${payload.value}`);
+        if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
       } else {
-        const p = req.payload;
-        if (p.description) console.log(`   desc:  ${p.description}`);
+        const payload = request.payload;
+        if (payload.description) {
+          console.log(`   desc:  ${payload.description}`);
+        }
       }
     }
     if (!verbose) {
-      const messages = session.getMessages();
-      const agentMessages = messages.filter(
-        (m) => m.sender === "agent" || m.sender === "assistant"
+      const agentMessages = session.getMessages().filter(
+        (entry) => entry.sender === "agent" || entry.sender === "assistant"
       );
       const last = agentMessages[agentMessages.length - 1];
       if (last == null ? void 0 : last.content) {
@@ -1296,21 +1345,24 @@ async function chatCommand() {
       }
     }
     if (capturedRequests.length > 0) {
-      console.log(`
-Run \`aomi tx\` to see pending transactions, \`aomi sign <id>\` to sign.`);
+      console.log(
+        "\nRun `aomi tx` to see pending transactions, `aomi sign <id>` to sign."
+      );
     }
   } finally {
     session.close();
   }
 }
-async function statusCommand() {
-  var _a2, _b, _c, _d, _e, _f, _g, _h;
-  const state = readState();
-  if (!state) {
+
+// src/cli/commands/control.ts
+async function statusCommand(runtime) {
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+  if (!readState()) {
     console.log("No active session");
+    printDataFileLocation();
     return;
   }
-  const { session } = getOrCreateSession();
+  const { session, state } = getOrCreateSession(runtime);
   try {
     const apiState = await session.client.fetchState(state.sessionId);
     console.log(
@@ -1319,27 +1371,28 @@ async function statusCommand() {
           sessionId: state.sessionId,
           baseUrl: state.baseUrl,
           namespace: state.namespace,
-          isProcessing: (_a2 = apiState.is_processing) != null ? _a2 : false,
-          messageCount: (_c = (_b = apiState.messages) == null ? void 0 : _b.length) != null ? _c : 0,
-          title: (_d = apiState.title) != null ? _d : null,
-          pendingTxs: (_f = (_e = state.pendingTxs) == null ? void 0 : _e.length) != null ? _f : 0,
-          signedTxs: (_h = (_g = state.signedTxs) == null ? void 0 : _g.length) != null ? _h : 0
+          model: (_a2 = state.model) != null ? _a2 : null,
+          isProcessing: (_b = apiState.is_processing) != null ? _b : false,
+          messageCount: (_d = (_c = apiState.messages) == null ? void 0 : _c.length) != null ? _d : 0,
+          title: (_e = apiState.title) != null ? _e : null,
+          pendingTxs: (_g = (_f = state.pendingTxs) == null ? void 0 : _f.length) != null ? _g : 0,
+          signedTxs: (_i = (_h = state.signedTxs) == null ? void 0 : _h.length) != null ? _i : 0
         },
         null,
         2
       )
     );
+    printDataFileLocation();
   } finally {
     session.close();
   }
 }
-async function eventsCommand() {
-  const state = readState();
-  if (!state) {
+async function eventsCommand(runtime) {
+  if (!readState()) {
     console.log("No active session");
     return;
   }
-  const { session } = getOrCreateSession();
+  const { session, state } = getOrCreateSession(runtime);
   try {
     const events = await session.client.getSystemEvents(state.sessionId);
     console.log(JSON.stringify(events, null, 2));
@@ -1347,17 +1400,126 @@ async function eventsCommand() {
     session.close();
   }
 }
+async function modelsCommand(runtime) {
+  var _a2;
+  const client = createControlClient(runtime);
+  const state = readState();
+  const sessionId = (_a2 = state == null ? void 0 : state.sessionId) != null ? _a2 : crypto.randomUUID();
+  const models = await client.getModels(sessionId);
+  if (models.length === 0) {
+    console.log("No models available.");
+    return;
+  }
+  for (const model of models) {
+    const marker = (state == null ? void 0 : state.model) === model ? "  (current)" : "";
+    console.log(`${model}${marker}`);
+  }
+}
+async function modelCommand(runtime) {
+  var _a2;
+  const subcommand = runtime.parsed.positional[0];
+  if (!subcommand || subcommand === "current") {
+    const state2 = readState();
+    if (!state2) {
+      console.log("No active session");
+      printDataFileLocation();
+      return;
+    }
+    console.log((_a2 = state2.model) != null ? _a2 : "(default backend model)");
+    printDataFileLocation();
+    return;
+  }
+  if (subcommand !== "set") {
+    fatal("Usage: aomi model set <rig>\n       aomi model current");
+  }
+  const model = runtime.parsed.positional.slice(1).join(" ").trim();
+  if (!model) {
+    fatal("Usage: aomi model set <rig>");
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    await applyModelSelection(session, state, model);
+    console.log(`Model set to ${model}`);
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+
+// src/cli/commands/history.ts
+async function logCommand(runtime) {
+  var _a2, _b, _c, _d, _e;
+  if (!readState()) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    const apiState = await session.client.fetchState(state.sessionId);
+    const messages = (_a2 = apiState.messages) != null ? _a2 : [];
+    if (messages.length === 0) {
+      console.log("No messages in this session.");
+      printDataFileLocation();
+      return;
+    }
+    for (const msg of messages) {
+      let time = "";
+      if (msg.timestamp) {
+        const raw = msg.timestamp;
+        const numeric = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
+        const date = !Number.isNaN(numeric) ? new Date(numeric < 1e12 ? numeric * 1e3 : numeric) : new Date(raw);
+        time = Number.isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
+      }
+      const sender = (_b = msg.sender) != null ? _b : "unknown";
+      if (sender === "user") {
+        console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${(_c = msg.content) != null ? _c : ""}`);
+      } else if (sender === "agent" || sender === "assistant") {
+        if (msg.tool_result) {
+          const [toolName, result] = msg.tool_result;
+          console.log(
+            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${result.slice(0, 200)}${result.length > 200 ? "\u2026" : ""}`
+          );
+        }
+        if (msg.content) {
+          console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${msg.content}`);
+        }
+      } else if (sender === "system") {
+        console.log(`${time}${YELLOW}\u2699\uFE0F  System:${RESET} ${(_d = msg.content) != null ? _d : ""}`);
+      } else {
+        console.log(`${time}${DIM}[${sender}]${RESET} ${(_e = msg.content) != null ? _e : ""}`);
+      }
+    }
+    console.log(`
+${DIM}\u2014 ${messages.length} messages \u2014${RESET}`);
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+function closeCommand(runtime) {
+  if (readState()) {
+    const { session } = getOrCreateSession(runtime);
+    session.close();
+  }
+  clearState();
+  console.log("Session closed");
+}
+
+// src/cli/commands/wallet.ts
 function txCommand() {
   var _a2, _b, _c;
   const state = readState();
   if (!state) {
     console.log("No active session");
+    printDataFileLocation();
     return;
   }
   const pending = (_a2 = state.pendingTxs) != null ? _a2 : [];
   const signed = (_b = state.signedTxs) != null ? _b : [];
   if (pending.length === 0 && signed.length === 0) {
     console.log("No transactions.");
+    printDataFileLocation();
     return;
   }
   if (pending.length > 0) {
@@ -1383,28 +1545,39 @@ function txCommand() {
       console.log(parts.join("  "));
     }
   }
+  printDataFileLocation();
 }
-async function signCommand() {
-  var _a2, _b, _c, _d;
-  const txId = parsed.positional[0];
-  if (!txId) {
-    fatal("Usage: aomi sign <tx-id>\nRun `aomi tx` to see pending transaction IDs.");
+function requirePendingTx(state, txId) {
+  var _a2;
+  const pendingTx = ((_a2 = state.pendingTxs) != null ? _a2 : []).find((tx) => tx.id === txId);
+  if (!pendingTx) {
+    fatal(
+      `No pending transaction with id "${txId}".
+Run \`aomi tx\` to see available IDs.`
+    );
   }
-  const config = getConfig();
-  const privateKey = config.privateKey;
+  return pendingTx;
+}
+async function signCommand(runtime) {
+  var _a2, _b, _c;
+  const txId = runtime.parsed.positional[0];
+  if (!txId) {
+    fatal(
+      "Usage: aomi sign <tx-id>\nRun `aomi tx` to see pending transaction IDs."
+    );
+  }
+  const privateKey = runtime.config.privateKey;
   if (!privateKey) {
-    fatal("Private key required. Pass --private-key or set PRIVATE_KEY env var.");
+    fatal(
+      "Private key required. Pass --private-key or set PRIVATE_KEY env var."
+    );
   }
   const state = readState();
   if (!state) {
     fatal("No active session. Run `aomi chat` first.");
   }
-  const pendingTx = ((_a2 = state.pendingTxs) != null ? _a2 : []).find((t) => t.id === txId);
-  if (!pendingTx) {
-    fatal(`No pending transaction with id "${txId}".
-Run \`aomi tx\` to see available IDs.`);
-  }
-  const { session } = getOrCreateSession();
+  const pendingTx = requirePendingTx(state, txId);
+  const { session } = getOrCreateSession(runtime);
   try {
     let viem;
     let viemAccounts;
@@ -1421,11 +1594,24 @@ Run \`aomi tx\` to see available IDs.`);
     const { createWalletClient, http } = viem;
     const { privateKeyToAccount } = viemAccounts;
     const account = privateKeyToAccount(privateKey);
-    const rpcUrl = config.chainRpcUrl;
-    const targetChainId = (_b = pendingTx.chainId) != null ? _b : 1;
-    const chain = (_c = Object.values(viemChains).find(
-      (c) => typeof c === "object" && c !== null && "id" in c && c.id === targetChainId
-    )) != null ? _c : { id: targetChainId, name: `Chain ${targetChainId}`, nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl != null ? rpcUrl : ""] } } };
+    const rpcUrl = runtime.config.chainRpcUrl;
+    const targetChainId = (_a2 = pendingTx.chainId) != null ? _a2 : 1;
+    const chain = (_b = Object.values(viemChains).find(
+      (candidate) => typeof candidate === "object" && candidate !== null && "id" in candidate && candidate.id === targetChainId
+    )) != null ? _b : {
+      id: targetChainId,
+      name: `Chain ${targetChainId}`,
+      nativeCurrency: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18
+      },
+      rpcUrls: {
+        default: {
+          http: [rpcUrl != null ? rpcUrl : ""]
+        }
+      }
+    };
     const walletClient = createWalletClient({
       account,
       chain,
@@ -1438,12 +1624,14 @@ Run \`aomi tx\` to see available IDs.`);
       console.log(`To:      ${pendingTx.to}`);
       if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
       if (pendingTx.chainId) console.log(`Chain:   ${pendingTx.chainId}`);
-      if (pendingTx.data) console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
+      if (pendingTx.data) {
+        console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
+      }
       console.log();
       const hash = await walletClient.sendTransaction({
         to: pendingTx.to,
         value: pendingTx.value ? BigInt(pendingTx.value) : /* @__PURE__ */ BigInt("0"),
-        data: (_d = pendingTx.data) != null ? _d : void 0
+        data: (_c = pendingTx.data) != null ? _c : void 0
       });
       console.log(`\u2705 Sent! Hash: ${hash}`);
       removePendingTx(state, txId);
@@ -1470,8 +1658,12 @@ Run \`aomi tx\` to see available IDs.`);
       if (!typedData) {
         fatal("EIP-712 request is missing typed_data payload.");
       }
-      if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
-      if (typedData.primaryType) console.log(`Type:    ${typedData.primaryType}`);
+      if (pendingTx.description) {
+        console.log(`Desc:    ${pendingTx.description}`);
+      }
+      if (typedData.primaryType) {
+        console.log(`Type:    ${typedData.primaryType}`);
+      }
       console.log();
       const { domain, types, primaryType, message } = typedData;
       const sigTypes = __spreadValues({}, types);
@@ -1514,70 +1706,19 @@ Run \`aomi tx\` to see available IDs.`);
     session.close();
   }
 }
-async function logCommand() {
-  var _a2, _b, _c, _d, _e;
-  const state = readState();
-  if (!state) {
-    console.log("No active session");
-    return;
-  }
-  const { session } = getOrCreateSession();
-  try {
-    const apiState = await session.client.fetchState(state.sessionId);
-    const messages = (_a2 = apiState.messages) != null ? _a2 : [];
-    if (messages.length === 0) {
-      console.log("No messages in this session.");
-      return;
-    }
-    for (const msg of messages) {
-      let time = "";
-      if (msg.timestamp) {
-        const raw = msg.timestamp;
-        const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
-        const date = !isNaN(n) ? new Date(n < 1e12 ? n * 1e3 : n) : new Date(raw);
-        time = isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
-      }
-      const sender = (_b = msg.sender) != null ? _b : "unknown";
-      if (sender === "user") {
-        console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${(_c = msg.content) != null ? _c : ""}`);
-      } else if (sender === "agent" || sender === "assistant") {
-        if (msg.tool_result) {
-          const [toolName, result] = msg.tool_result;
-          console.log(
-            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${result.slice(0, 200)}${result.length > 200 ? "\u2026" : ""}`
-          );
-        }
-        if (msg.content) {
-          console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${msg.content}`);
-        }
-      } else if (sender === "system") {
-        console.log(`${time}${YELLOW}\u2699\uFE0F  System:${RESET} ${(_d = msg.content) != null ? _d : ""}`);
-      } else {
-        console.log(`${time}${DIM}[${sender}]${RESET} ${(_e = msg.content) != null ? _e : ""}`);
-      }
-    }
-    console.log(`
-${DIM}\u2014 ${messages.length} messages \u2014${RESET}`);
-  } finally {
-    session.close();
-  }
-}
-function closeCommand() {
-  const state = readState();
-  if (state) {
-    const { session } = getOrCreateSession();
-    session.close();
-  }
-  clearState();
-  console.log("Session closed");
-}
+
+// src/cli/main.ts
 function printUsage() {
   console.log(`
 aomi \u2014 CLI client for Aomi on-chain agent
 
 Usage:
   aomi chat <message>   Send a message and print the response
+  aomi chat --model <rig>
+                        Set the session model before sending the message
   aomi chat --verbose   Stream agent responses, tool calls, and events live
+  aomi models           List models available to the current backend
+  aomi model set <rig>  Set the active model for the current session
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
   aomi sign <tx-id>     Sign and submit a pending transaction
@@ -1589,6 +1730,7 @@ Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
   --api-key <key>       API key for non-default namespaces
   --namespace <ns>      Namespace (default: "default")
+  --model <rig>         Set the active model for this session
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
@@ -1598,49 +1740,66 @@ Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
   AOMI_API_KEY          API key
   AOMI_NAMESPACE        Namespace
+  AOMI_MODEL            Model rig
   AOMI_PUBLIC_KEY       Wallet address
   PRIVATE_KEY           Hex private key for signing
   CHAIN_RPC_URL         RPC URL for transaction submission
 `.trim());
 }
-async function main() {
+async function main(runtime) {
   var _a2;
-  const cmd = (_a2 = parsed.command) != null ? _a2 : parsed.flags["help"] || parsed.flags["h"] ? "help" : void 0;
-  switch (cmd) {
+  const command = (_a2 = runtime.parsed.command) != null ? _a2 : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
+  switch (command) {
     case "chat":
-      await chatCommand();
+      await chatCommand(runtime);
       break;
     case "log":
-      await logCommand();
+      await logCommand(runtime);
+      break;
+    case "models":
+      await modelsCommand(runtime);
+      break;
+    case "model":
+      await modelCommand(runtime);
       break;
     case "tx":
       txCommand();
       break;
     case "sign":
-      await signCommand();
+      await signCommand(runtime);
       break;
     case "status":
-      await statusCommand();
+      await statusCommand(runtime);
       break;
     case "events":
-      await eventsCommand();
+      await eventsCommand(runtime);
       break;
     case "close":
-      closeCommand();
+      closeCommand(runtime);
       break;
     case "help":
       printUsage();
       break;
     default:
       printUsage();
-      if (cmd) throw new CliExit(1);
+      if (command) {
+        throw new CliExit(1);
+      }
   }
 }
-main().catch((err) => {
-  if (err instanceof CliExit) {
-    process.exit(err.code);
-    return;
+async function runCli(argv = process.argv) {
+  const runtime = createRuntime(argv);
+  try {
+    await main(runtime);
+  } catch (err) {
+    if (err instanceof CliExit) {
+      process.exit(err.code);
+      return;
+    }
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
   }
-  console.error(err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+}
+
+// src/cli.ts
+void runCli();
