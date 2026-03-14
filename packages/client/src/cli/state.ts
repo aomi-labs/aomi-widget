@@ -1,19 +1,6 @@
-// =============================================================================
-// CLI Session State Persistence
-// =============================================================================
-//
-// Stores session state between CLI invocations in a temp JSON file.
-// Each `aomi chat` call reads/writes this file to reuse the same session.
-// Wallet transaction requests and signed results are persisted here so
-// `aomi tx` can list them and `aomi sign <id>` can pick one up.
-
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-
-// =============================================================================
-// Types
-// =============================================================================
 
 export type PendingTx = {
   id: string;
@@ -24,16 +11,13 @@ export type PendingTx = {
   chainId?: number;
   description?: string;
   timestamp: number;
-  /** Raw payload preserved for signing */
   payload: Record<string, unknown>;
 };
 
 export type SignedTx = {
   id: string;
   kind: "transaction" | "eip712_sign";
-  /** Transaction hash (for kind: "transaction") */
   txHash?: string;
-  /** Signature hex (for kind: "eip712_sign") */
   signature?: string;
   from?: string;
   to?: string;
@@ -47,15 +31,12 @@ export type CliSessionState = {
   sessionId: string;
   baseUrl: string;
   namespace?: string;
+  model?: string;
   apiKey?: string;
   publicKey?: string;
   pendingTxs?: PendingTx[];
   signedTxs?: SignedTx[];
 };
-
-// =============================================================================
-// File I/O
-// =============================================================================
 
 export const STATE_FILE = join(
   process.env.XDG_RUNTIME_DIR ?? tmpdir(),
@@ -80,21 +61,17 @@ export function clearState(): void {
   try {
     if (existsSync(STATE_FILE)) unlinkSync(STATE_FILE);
   } catch {
-    // Ignore errors on cleanup
+    // Ignore errors on cleanup.
   }
 }
-
-// =============================================================================
-// Transaction Helpers
-// =============================================================================
 
 function getNextTxId(state: CliSessionState): string {
   const allIds = [
     ...(state.pendingTxs ?? []),
     ...(state.signedTxs ?? []),
-  ].map((t) => {
-    const m = t.id.match(/^tx-(\d+)$/);
-    return m ? parseInt(m[1], 10) : 0;
+  ].map((tx) => {
+    const match = tx.id.match(/^tx-(\d+)$/);
+    return match ? parseInt(match[1], 10) : 0;
   });
   const max = allIds.length > 0 ? Math.max(...allIds) : 0;
   return `tx-${max + 1}`;
@@ -120,7 +97,7 @@ export function removePendingTx(
   id: string,
 ): PendingTx | null {
   if (!state.pendingTxs) return null;
-  const idx = state.pendingTxs.findIndex((t) => t.id === id);
+  const idx = state.pendingTxs.findIndex((tx) => tx.id === id);
   if (idx === -1) return null;
   const [removed] = state.pendingTxs.splice(idx, 1);
   writeState(state);

@@ -118,7 +118,10 @@ The package includes an `aomi` CLI for scripting and Claude Code skills.
 
 ```bash
 npx aomi chat "swap 1 ETH for USDC"        # talk to the agent
+npx aomi chat "swap 1 ETH for USDC" --model claude-sonnet-4
 npx aomi chat "swap 1 ETH" --verbose        # stream tool calls + responses live
+npx aomi models                             # list available models
+npx aomi model set claude-sonnet-4          # switch the current session model
 npx aomi log                                # show full conversation history
 npx aomi tx                                 # list pending + signed txs
 npx aomi sign tx-1                          # sign a specific pending tx
@@ -139,6 +142,25 @@ npx aomi chat "send 0 ETH to myself" \
 
 The address is persisted in the state file, so subsequent commands in the same
 session don't need it again.
+
+### Model selection
+
+The CLI can discover and switch backend models for the active session:
+
+```bash
+$ npx aomi models
+claude-sonnet-4
+gpt-5
+
+$ npx aomi model set gpt-5
+Model set to gpt-5
+
+$ npx aomi chat "hello" --model claude-sonnet-4
+```
+
+`aomi model set` persists the selected model in the local session state after a
+successful backend update. `aomi chat --model ...` applies the requested model
+before sending the message and updates that persisted state as well.
 
 ### Transaction flow
 
@@ -229,6 +251,7 @@ All config can be passed as flags (which take priority over env vars):
 | `--backend-url` | `AOMI_BASE_URL` | `https://api.aomi.dev` | Backend URL |
 | `--api-key` | `AOMI_API_KEY` | — | API key for non-default namespaces |
 | `--namespace` | `AOMI_NAMESPACE` | `default` | Namespace |
+| `--model` | `AOMI_MODEL` | — | Model rig to apply before chat |
 | `--public-key` | `AOMI_PUBLIC_KEY` | — | Wallet address (tells agent your wallet) |
 | `--private-key` | `PRIVATE_KEY` | — | Hex private key for `aomi sign` |
 | `--rpc-url` | `CHAIN_RPC_URL` | — | RPC URL for transaction submission |
@@ -242,7 +265,8 @@ npx aomi chat "hello" --backend-url https://my-backend.example.com
 npx aomi chat "send 0.1 ETH to vitalik.eth" \
   --public-key 0xYourAddress \
   --api-key sk-abc123 \
-  --namespace my-agent
+  --namespace my-agent \
+  --model claude-sonnet-4
 npx aomi sign tx-1 \
   --private-key 0xYourPrivateKey \
   --rpc-url https://eth.llamarpc.com
@@ -257,6 +281,7 @@ persists a small JSON file to `$TMPDIR/aomi-session.json`:
 | Field | Purpose |
 |-------|---------|
 | `sessionId` | Which conversation to continue |
+| `model` | Last successfully applied model for the session |
 | `publicKey` | Wallet address (from `--public-key`) |
 | `pendingTxs` | Unsigned transactions waiting for `aomi sign <id>` |
 | `signedTxs` | Completed transactions with hashes/signatures |
