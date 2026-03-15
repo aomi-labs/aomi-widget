@@ -115,19 +115,21 @@ unsub(); // stop listening
 ## CLI
 
 The package includes an `aomi` CLI for scripting and Claude Code skills.
+When installed globally or in a project, the executable name is `aomi`.
+For one-off usage, run commands via `npx @aomi-labs/client ...`.
 
 ```bash
-npx aomi chat "swap 1 ETH for USDC"        # talk to the agent
-npx aomi chat "swap 1 ETH for USDC" --model claude-sonnet-4
-npx aomi chat "swap 1 ETH" --verbose        # stream tool calls + responses live
-npx aomi models                             # list available models
-npx aomi model set claude-sonnet-4          # switch the current session model
-npx aomi log                                # show full conversation history
-npx aomi tx                                 # list pending + signed txs
-npx aomi sign tx-1                          # sign a specific pending tx
-npx aomi status                             # session info
-npx aomi events                             # system events
-npx aomi close                              # clear session
+npx @aomi-labs/client chat "swap 1 ETH for USDC"        # talk to the agent
+npx @aomi-labs/client chat "swap 1 ETH for USDC" --model claude-sonnet-4
+npx @aomi-labs/client chat "swap 1 ETH" --verbose        # stream tool calls + responses live
+npx @aomi-labs/client models                             # list available models
+npx @aomi-labs/client model set claude-sonnet-4          # switch the current session model
+npx @aomi-labs/client log                                # show full conversation history
+npx @aomi-labs/client tx                                 # list pending + signed txs
+npx @aomi-labs/client sign tx-1                          # sign a specific pending tx
+npx @aomi-labs/client status                             # session info
+npx @aomi-labs/client events                             # system events
+npx @aomi-labs/client close                              # clear session
 ```
 
 ### Wallet connection
@@ -136,7 +138,7 @@ Pass `--public-key` so the agent knows your wallet address. This lets it build
 transactions and check your balances:
 
 ```bash
-npx aomi chat "send 0 ETH to myself" \
+npx @aomi-labs/client chat "send 0 ETH to myself" \
   --public-key 0x5D907BEa404e6F821d467314a9cA07663CF64c9B
 ```
 
@@ -148,14 +150,14 @@ session don't need it again.
 The CLI can discover and switch backend models for the active session:
 
 ```bash
-$ npx aomi models
+$ npx @aomi-labs/client models
 claude-sonnet-4
 gpt-5
 
-$ npx aomi model set gpt-5
+$ npx @aomi-labs/client model set gpt-5
 Model set to gpt-5
 
-$ npx aomi chat "hello" --model claude-sonnet-4
+$ npx @aomi-labs/client chat "hello" --model claude-sonnet-4
 ```
 
 `aomi model set` persists the selected model in the local session state after a
@@ -167,18 +169,18 @@ before sending the message and updates that persisted state as well.
 The backend builds transactions; the CLI persists and signs them:
 
 ```
-$ npx aomi chat "swap 1 ETH for USDC on Uniswap" --public-key 0xYourAddr
+$ npx @aomi-labs/client chat "swap 1 ETH for USDC on Uniswap" --public-key 0xYourAddr
 ⚡ Wallet request queued: tx-1
    to:    0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
    value: 1000000000000000000
    chain: 1
 Run `aomi tx` to see pending transactions, `aomi sign <id>` to sign.
 
-$ npx aomi tx
+$ npx @aomi-labs/client tx
 Pending (1):
   ⏳ tx-1  to: 0x3fC9...7FAD  value: 1000000000000000000  chain: 1
 
-$ npx aomi sign tx-1 --private-key 0xac0974...
+$ npx @aomi-labs/client sign tx-1 --private-key 0xac0974...
 Signer:  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 ID:      tx-1
 Kind:    transaction
@@ -187,7 +189,7 @@ Value:   1000000000000000000
 ✅ Sent! Hash: 0xabc123...
 Backend notified.
 
-$ npx aomi tx
+$ npx @aomi-labs/client tx
 Signed (1):
   ✅ tx-1  hash: 0xabc123...  to: 0x3fC9...7FAD  value: 1000000000000000000
 ```
@@ -198,11 +200,11 @@ pending tx with `kind: eip712_sign`. `aomi sign` handles both kinds
 automatically:
 
 ```
-$ npx aomi tx
+$ npx @aomi-labs/client tx
 Pending (1):
   ⏳ tx-2  eip712  Sign CoW swap order  (2:15:30 PM)
 
-$ npx aomi sign tx-2 --private-key 0xac0974...
+$ npx @aomi-labs/client sign tx-2 --private-key 0xac0974...
 Signer:  0xf39Fd...92266
 ID:      tx-2
 Kind:    eip712_sign
@@ -220,7 +222,7 @@ alongside the session pointer, so they survive between CLI invocations.
 Use `--verbose` (or `-v`) to see tool calls and agent responses in real-time:
 
 ```
-$ npx aomi chat "what's the price of ETH?" --verbose
+$ npx @aomi-labs/client chat "what's the price of ETH?" --verbose
 ⏳ Processing…
 🔧 [tool] get_token_price: running
 ✔ [tool] get_token_price → {"price": 2045.67, "symbol": "ETH"}
@@ -233,7 +235,7 @@ Without `--verbose`, only the final agent message is printed.
 Use `aomi log` to replay the full conversation with all messages and tool results:
 
 ```
-$ npx aomi log
+$ npx @aomi-labs/client log
 10:30:15 AM 👤 You: what's the price of ETH?
 10:30:16 AM 🤖 Agent: Let me check the current on-chain context for you.
 10:30:16 AM 🔧 [Current ETH price] {"price": 2045.67, "symbol": "ETH"}
@@ -259,15 +261,15 @@ All config can be passed as flags (which take priority over env vars):
 
 ```bash
 # Use a custom backend
-npx aomi chat "hello" --backend-url https://my-backend.example.com
+npx @aomi-labs/client chat "hello" --backend-url https://my-backend.example.com
 
 # Full signing flow with all flags
-npx aomi chat "send 0.1 ETH to vitalik.eth" \
+npx @aomi-labs/client chat "send 0.1 ETH to vitalik.eth" \
   --public-key 0xYourAddress \
   --api-key sk-abc123 \
   --namespace my-agent \
   --model claude-sonnet-4
-npx aomi sign tx-1 \
+npx @aomi-labs/client sign tx-1 \
   --private-key 0xYourPrivateKey \
   --rpc-url https://eth.llamarpc.com
 ```
@@ -287,11 +289,11 @@ persists a small JSON file to `$TMPDIR/aomi-session.json`:
 | `signedTxs` | Completed transactions with hashes/signatures |
 
 ```
-$ npx aomi chat "hello"           # creates session, saves sessionId
-$ npx aomi chat "swap 1 ETH"     # reuses session, queues tx-1 if wallet request arrives
-$ npx aomi sign tx-1              # signs tx-1, moves to signedTxs, notifies backend
-$ npx aomi tx                     # shows all txs
-$ npx aomi close                  # wipes state file
+$ npx @aomi-labs/client chat "hello"           # creates session, saves sessionId
+$ npx @aomi-labs/client chat "swap 1 ETH"     # reuses session, queues tx-1 if wallet request arrives
+$ npx @aomi-labs/client sign tx-1              # signs tx-1, moves to signedTxs, notifies backend
+$ npx @aomi-labs/client tx                     # shows all txs
+$ npx @aomi-labs/client close                  # wipes state file
 ```
 
 The state file lives in your OS temp directory and gets cleaned up on reboot.

@@ -140,17 +140,56 @@ function printDataFileLocation() {
   console.log(`Data stored at ${STATE_FILE} \u{1F4DD}`);
 }
 function printToolUpdate(event) {
-  var _a2, _b, _c;
-  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
-  const status = (_c = event.status) != null ? _c : "running";
+  var _a2;
+  const name = getToolNameFromEvent(event);
+  const status = (_a2 = event.status) != null ? _a2 : "running";
   console.log(`${DIM}\u{1F527} [tool] ${name}: ${status}${RESET}`);
 }
 function printToolComplete(event) {
-  var _a2, _b, _c;
-  const name = (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
-  const result = (_c = event.result) != null ? _c : event.output;
-  const line = result ? `${GREEN}\u2714 [tool] ${name} \u2192 ${result.slice(0, 120)}${result.length > 120 ? "\u2026" : ""}${RESET}` : `${GREEN}\u2714 [tool] ${name} done${RESET}`;
+  const name = getToolNameFromEvent(event);
+  const result = getToolResultFromEvent(event);
+  const line = formatToolResultLine(name, result);
   console.log(line);
+}
+function printToolResultLine(name, result) {
+  console.log(formatToolResultLine(name, result));
+}
+function getToolNameFromEvent(event) {
+  var _a2, _b;
+  return (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
+}
+function getToolResultFromEvent(event) {
+  var _a2;
+  return (_a2 = event.result) != null ? _a2 : event.output;
+}
+function toToolResultKey(name, result) {
+  return `${name}
+${result != null ? result : ""}`;
+}
+function getMessageToolResults(messages, startAt = 0) {
+  const results = [];
+  for (let i = startAt; i < messages.length; i++) {
+    const toolResult = messages[i].tool_result;
+    if (!toolResult) {
+      continue;
+    }
+    const [name, result] = toolResult;
+    if (!name || typeof result !== "string") {
+      continue;
+    }
+    results.push({ name, result });
+  }
+  return results;
+}
+function isAlwaysVisibleTool(name) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("encode_and_simulate") || normalized.includes("encode-and-simulate") || normalized.includes("encode_and_view") || normalized.includes("encode-and-view")) {
+    return true;
+  }
+  if (normalized.startsWith("simulate ")) {
+    return true;
+  }
+  return false;
 }
 function printNewAgentMessages(messages, lastPrintedCount) {
   const agentMessages = messages.filter(
@@ -168,6 +207,24 @@ function printNewAgentMessages(messages, lastPrintedCount) {
     handled = i + 1;
   }
   return handled;
+}
+function formatLogContent(content) {
+  if (!content) return null;
+  const trimmed = content.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+function formatToolResultPreview(result, maxLength = 200) {
+  const normalized = result.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}\u2026`;
+}
+function formatToolResultLine(name, result) {
+  if (!result) {
+    return `${GREEN}\u2714 [tool] ${name} done${RESET}`;
+  }
+  return `${GREEN}\u2714 [tool] ${name} \u2192 ${formatToolResultPreview(result, 120)}${RESET}`;
 }
 
 // src/sse.ts
@@ -1267,11 +1324,37 @@ async function chatCommand(runtime) {
     }
     const capturedRequests = [];
     let printedAgentCount = 0;
+    const seenToolResults = /* @__PURE__ */ new Set();
     session.on("wallet_tx_request", (request) => capturedRequests.push(request));
     session.on(
       "wallet_eip712_request",
       (request) => capturedRequests.push(request)
     );
+    session.on("tool_complete", (event) => {
+      const name = getToolNameFromEvent(event);
+      const result = getToolResultFromEvent(event);
+      const key = toToolResultKey(name, result);
+      seenToolResults.add(key);
+      if (verbose || isAlwaysVisibleTool(name)) {
+        printToolComplete(event);
+      }
+    });
+    session.on("tool_update", (event) => {
+      if (verbose) {
+        printToolUpdate(event);
+      }
+    });
+    if (verbose) {
+      session.on("processing_start", () => {
+        console.log(`${DIM}\u23F3 Processing\u2026${RESET}`);
+      });
+      session.on("system_notice", ({ message: msg }) => {
+        console.log(`${YELLOW}\u{1F4E2} ${msg}${RESET}`);
+      });
+      session.on("system_error", ({ message: msg }) => {
+        console.log(`\x1B[31m\u274C ${msg}${RESET}`);
+      });
+    }
     await session.sendAsync(message);
     const allMessages = session.getMessages();
     let seedIdx = allMessages.length;
@@ -1285,23 +1368,12 @@ async function chatCommand(runtime) {
       (entry) => entry.sender === "agent" || entry.sender === "assistant"
     ).length;
     if (verbose) {
-      if (session.getIsProcessing()) {
-        console.log(`${DIM}\u23F3 Processing\u2026${RESET}`);
-      }
       printedAgentCount = printNewAgentMessages(
         allMessages,
         printedAgentCount
       );
-      session.on("tool_update", (event) => printToolUpdate(event));
-      session.on("tool_complete", (event) => printToolComplete(event));
       session.on("messages", (messages) => {
         printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
-      });
-      session.on("system_notice", ({ message: msg }) => {
-        console.log(`${YELLOW}\u{1F4E2} ${msg}${RESET}`);
-      });
-      session.on("system_error", ({ message: msg }) => {
-        console.log(`\x1B[31m\u274C ${msg}${RESET}`);
       });
     }
     if (session.getIsProcessing()) {
@@ -1314,8 +1386,34 @@ async function chatCommand(runtime) {
         session.on("processing_end", () => resolve());
       });
     }
+    const messageToolResults = getMessageToolResults(
+      session.getMessages(),
+      seedIdx + 1
+    );
     if (verbose) {
-      printNewAgentMessages(session.getMessages(), printedAgentCount);
+      for (const tool of messageToolResults) {
+        const key = toToolResultKey(tool.name, tool.result);
+        if (seenToolResults.has(key)) {
+          continue;
+        }
+        printToolResultLine(tool.name, tool.result);
+      }
+    } else {
+      for (const tool of messageToolResults) {
+        const key = toToolResultKey(tool.name, tool.result);
+        if (seenToolResults.has(key)) {
+          continue;
+        }
+        if (isAlwaysVisibleTool(tool.name)) {
+          printToolResultLine(tool.name, tool.result);
+        }
+      }
+    }
+    if (verbose) {
+      printedAgentCount = printNewAgentMessages(
+        session.getMessages(),
+        printedAgentCount
+      );
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
     for (const request of capturedRequests) {
@@ -1447,6 +1545,118 @@ async function modelCommand(runtime) {
 }
 
 // src/cli/commands/history.ts
+var MAX_TABLE_VALUE_WIDTH = 72;
+var MAX_TX_JSON_WIDTH = 96;
+var MAX_TX_ROWS = 8;
+function truncateCell(value, maxWidth) {
+  if (value.length <= maxWidth) {
+    return value;
+  }
+  return `${value.slice(0, maxWidth - 1)}\u2026`;
+}
+function padRight(value, width) {
+  return value.padEnd(width, " ");
+}
+function estimateTokenCount(messages) {
+  var _a2;
+  let totalChars = 0;
+  for (const message of messages) {
+    const content = formatLogContent(message.content);
+    if (content) {
+      totalChars += content.length + 1;
+    }
+    if ((_a2 = message.tool_result) == null ? void 0 : _a2[1]) {
+      totalChars += message.tool_result[1].length;
+    }
+  }
+  return Math.round(totalChars / 4);
+}
+function printKeyValueTable(rows) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(border);
+  console.log(`| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |`);
+  console.log(border);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |`
+    );
+    console.log(border);
+  }
+}
+function toPendingTxMetadata(tx) {
+  var _a2, _b, _c, _d;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    to: (_a2 = tx.to) != null ? _a2 : null,
+    value: (_b = tx.value) != null ? _b : null,
+    chainId: (_c = tx.chainId) != null ? _c : null,
+    description: (_d = tx.description) != null ? _d : null,
+    timestamp: new Date(tx.timestamp).toISOString()
+  };
+}
+function toSignedTxMetadata(tx) {
+  var _a2, _b, _c, _d, _e, _f, _g;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txHash: (_a2 = tx.txHash) != null ? _a2 : null,
+    signature: (_b = tx.signature) != null ? _b : null,
+    from: (_c = tx.from) != null ? _c : null,
+    to: (_d = tx.to) != null ? _d : null,
+    value: (_e = tx.value) != null ? _e : null,
+    chainId: (_f = tx.chainId) != null ? _f : null,
+    description: (_g = tx.description) != null ? _g : null,
+    timestamp: new Date(tx.timestamp).toISOString()
+  };
+}
+function printTransactionTable(pendingTxs, signedTxs) {
+  const rows = [
+    ...pendingTxs.map((tx) => ({
+      status: "pending",
+      metadata: toPendingTxMetadata(tx)
+    })),
+    ...signedTxs.map((tx) => ({
+      status: "signed",
+      metadata: toSignedTxMetadata(tx)
+    }))
+  ];
+  if (rows.length === 0) {
+    console.log("No transactions in local CLI state.");
+    return;
+  }
+  const visibleRows = rows.slice(0, MAX_TX_ROWS);
+  const statusWidth = Math.max(
+    "status".length,
+    ...visibleRows.map((row) => row.status.length)
+  );
+  const jsonCells = visibleRows.map(
+    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
+  );
+  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
+  console.log(border);
+  console.log(
+    `| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |`
+  );
+  console.log(border);
+  for (let i = 0; i < visibleRows.length; i++) {
+    console.log(
+      `| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |`
+    );
+    console.log(border);
+  }
+  if (rows.length > MAX_TX_ROWS) {
+    const omitted = rows.length - MAX_TX_ROWS;
+    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
+  }
+}
 async function logCommand(runtime) {
   var _a2, _b, _c, _d, _e;
   if (!readState()) {
@@ -1458,12 +1668,32 @@ async function logCommand(runtime) {
   try {
     const apiState = await session.client.fetchState(state.sessionId);
     const messages = (_a2 = apiState.messages) != null ? _a2 : [];
+    const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
+    const signedTxs = (_c = state.signedTxs) != null ? _c : [];
+    const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
+    const tokenCountEstimate = estimateTokenCount(messages);
+    const topic = (_d = apiState.title) != null ? _d : "Untitled Session";
     if (messages.length === 0) {
       console.log("No messages in this session.");
       printDataFileLocation();
       return;
     }
+    console.log(`------ Session id: ${state.sessionId} ------`);
+    printKeyValueTable([
+      ["topic", topic],
+      ["msg count", String(messages.length)],
+      ["token count", `${tokenCountEstimate} (estimated)`],
+      ["tool calls", String(toolCalls)],
+      [
+        "transactions",
+        `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`
+      ]
+    ]);
+    console.log("Transactions metadata (JSON):");
+    printTransactionTable(pendingTxs, signedTxs);
+    console.log("-------------------- Messages --------------------");
     for (const msg of messages) {
+      const content = formatLogContent(msg.content);
       let time = "";
       if (msg.timestamp) {
         const raw = msg.timestamp;
@@ -1471,23 +1701,29 @@ async function logCommand(runtime) {
         const date = !Number.isNaN(numeric) ? new Date(numeric < 1e12 ? numeric * 1e3 : numeric) : new Date(raw);
         time = Number.isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
       }
-      const sender = (_b = msg.sender) != null ? _b : "unknown";
+      const sender = (_e = msg.sender) != null ? _e : "unknown";
       if (sender === "user") {
-        console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${(_c = msg.content) != null ? _c : ""}`);
+        if (content) {
+          console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${content}`);
+        }
       } else if (sender === "agent" || sender === "assistant") {
         if (msg.tool_result) {
           const [toolName, result] = msg.tool_result;
           console.log(
-            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${result.slice(0, 200)}${result.length > 200 ? "\u2026" : ""}`
+            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${formatToolResultPreview(result)}`
           );
         }
-        if (msg.content) {
-          console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${msg.content}`);
+        if (content) {
+          console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${content}`);
         }
       } else if (sender === "system") {
-        console.log(`${time}${YELLOW}\u2699\uFE0F  System:${RESET} ${(_d = msg.content) != null ? _d : ""}`);
+        if (content && !content.startsWith("Response of system endpoint:")) {
+          console.log(`${time}${YELLOW}\u2699\uFE0F  System:${RESET} ${content}`);
+        }
       } else {
-        console.log(`${time}${DIM}[${sender}]${RESET} ${(_e = msg.content) != null ? _e : ""}`);
+        if (content) {
+          console.log(`${time}${DIM}[${sender}]${RESET} ${content}`);
+        }
       }
     }
     console.log(`
@@ -1507,6 +1743,66 @@ function closeCommand(runtime) {
 }
 
 // src/cli/commands/wallet.ts
+import { existsSync as existsSync2 } from "fs";
+import { join as join2 } from "path";
+function detectPackageManager(cwd = process.cwd()) {
+  if (existsSync2(join2(cwd, "pnpm-workspace.yaml")) || existsSync2(join2(cwd, "pnpm-lock.yaml"))) {
+    return "pnpm";
+  }
+  if (existsSync2(join2(cwd, "yarn.lock"))) {
+    return "yarn";
+  }
+  if (existsSync2(join2(cwd, "package-lock.json"))) {
+    return "npm";
+  }
+  return "unknown";
+}
+function isLikelyNpxExecution() {
+  var _a2, _b, _c;
+  const argvPath = (_a2 = process.argv[1]) != null ? _a2 : "";
+  if (argvPath.includes("/_npx/") || argvPath.includes("\\_npx\\")) {
+    return true;
+  }
+  const npmCommand = (_b = process.env.npm_command) != null ? _b : "";
+  const userAgent = (_c = process.env.npm_config_user_agent) != null ? _c : "";
+  return npmCommand === "exec" && userAgent.includes("npm/");
+}
+function missingViemHint() {
+  const packageManager = detectPackageManager();
+  const ranFromNpx = isLikelyNpxExecution();
+  if (packageManager === "pnpm") {
+    if (ranFromNpx) {
+      return [
+        "viem is missing in this runtime.",
+        "Detected `npx` execution in a pnpm workspace.",
+        "Use the local workspace CLI instead:",
+        "  pnpm --filter @aomi-labs/client exec node dist/cli.js sign <tx-id> --private-key <key>",
+        "If dependencies are missing, run:",
+        "  pnpm install"
+      ].join("\n");
+    }
+    return [
+      "viem is required for `aomi sign`.",
+      "This workspace uses pnpm. Run:",
+      "  pnpm install",
+      "Or add it explicitly:",
+      "  pnpm add viem"
+    ].join("\n");
+  }
+  if (packageManager === "yarn") {
+    return [
+      "viem is required for `aomi sign`.",
+      "Install it with yarn:",
+      "  yarn add viem"
+    ].join("\n");
+  }
+  return [
+    "viem is required for `aomi sign`.",
+    "Install it with:",
+    "  npm install viem",
+    "  # or: pnpm add viem"
+  ].join("\n");
+}
 function txCommand() {
   var _a2, _b, _c;
   const state = readState();
@@ -1587,9 +1883,7 @@ async function signCommand(runtime) {
       viemAccounts = await import("viem/accounts");
       viemChains = await import("viem/chains");
     } catch (e) {
-      fatal(
-        "viem is required for `aomi sign`. Install it:\n  npm install viem\n  # or: pnpm add viem"
-      );
+      fatal(missingViemHint());
     }
     const { createWalletClient, http } = viem;
     const { privateKeyToAccount } = viemAccounts;
