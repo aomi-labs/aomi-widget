@@ -3,10 +3,10 @@ import { ImageResponse } from "next/og";
 export const runtime = "edge";
 
 export async function GET(request: Request) {
-  // Load fonts
-  const [ptSerifBold, interMedium] = await Promise.all([
+  // Load fonts - Inter for all text (Geist-like)
+  const [interBold, interMedium] = await Promise.all([
     fetch(
-      "https://fonts.gstatic.com/s/ptserif/v19/EJRSQgYoZZY2vCFuvAnt65qV.ttf"
+      "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZg.ttf"
     ).then((res) => res.arrayBuffer()),
     fetch(
       "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf"
@@ -62,12 +62,12 @@ export async function GET(request: Request) {
           />
         </svg>
 
-        {/* Title */}
+        {/* Title - Inter (Geist-like) */}
         <div
           style={{
             display: "flex",
             fontSize: 76,
-            fontFamily: "PT Serif",
+            fontFamily: "Inter",
             fontWeight: 700,
             color: "#1c1917",
             marginBottom: 24,
@@ -142,8 +142,8 @@ export async function GET(request: Request) {
       height: 630,
       fonts: [
         {
-          name: "PT Serif",
-          data: ptSerifBold,
+          name: "Inter",
+          data: interBold,
           style: "normal",
           weight: 700,
         },
