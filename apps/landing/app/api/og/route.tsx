@@ -127,16 +127,14 @@ export async function GET() {
             fontSize: 30,
             fontFamily: "Inter",
             fontWeight: 500,
-            background: "linear-gradient(90deg, #a855f7 0%, #3b82f6 50%, #ec6b83 100%)",
-            backgroundClip: "text",
-            color: "transparent",
+            color: "#1c1917",
             marginBottom: 28,
           }}
         >
           AI-powered blockchain automation
         </div>
 
-        {/* Feature pills - 5 pills */}
+        {/* Feature pills - 5 glassmorphic pills */}
         <div
           style={{
             display: "flex",
@@ -152,9 +150,9 @@ export async function GET() {
               display: "flex",
               padding: "10px 18px",
               borderRadius: 20,
-              background: "rgba(168,85,247,0.12)",
-              border: "1px solid rgba(168,85,247,0.25)",
-              color: "#7c3aed",
+              background: "rgba(255,255,255,0.5)",
+              border: "1px solid rgba(255,255,255,0.6)",
+              color: "#1c1917",
               fontSize: 16,
               fontFamily: "Inter",
               fontWeight: 500,
@@ -167,9 +165,9 @@ export async function GET() {
               display: "flex",
               padding: "10px 18px",
               borderRadius: 20,
-              background: "rgba(59,130,246,0.12)",
-              border: "1px solid rgba(59,130,246,0.25)",
-              color: "#2563eb",
+              background: "rgba(255,255,255,0.5)",
+              border: "1px solid rgba(255,255,255,0.6)",
+              color: "#1c1917",
               fontSize: 16,
               fontFamily: "Inter",
               fontWeight: 500,
@@ -182,9 +180,9 @@ export async function GET() {
               display: "flex",
               padding: "10px 18px",
               borderRadius: 20,
-              background: "rgba(251,113,133,0.12)",
-              border: "1px solid rgba(251,113,133,0.25)",
-              color: "#e11d48",
+              background: "rgba(255,255,255,0.5)",
+              border: "1px solid rgba(255,255,255,0.6)",
+              color: "#1c1917",
               fontSize: 16,
               fontFamily: "Inter",
               fontWeight: 500,
@@ -197,9 +195,9 @@ export async function GET() {
               display: "flex",
               padding: "10px 18px",
               borderRadius: 20,
-              background: "rgba(168,85,247,0.12)",
-              border: "1px solid rgba(168,85,247,0.25)",
-              color: "#7c3aed",
+              background: "rgba(255,255,255,0.5)",
+              border: "1px solid rgba(255,255,255,0.6)",
+              color: "#1c1917",
               fontSize: 16,
               fontFamily: "Inter",
               fontWeight: 500,
@@ -212,9 +210,9 @@ export async function GET() {
               display: "flex",
               padding: "10px 18px",
               borderRadius: 20,
-              background: "rgba(59,130,246,0.12)",
-              border: "1px solid rgba(59,130,246,0.25)",
-              color: "#2563eb",
+              background: "rgba(255,255,255,0.5)",
+              border: "1px solid rgba(255,255,255,0.6)",
+              color: "#1c1917",
               fontSize: 16,
               fontFamily: "Inter",
               fontWeight: 500,
@@ -230,7 +228,7 @@ export async function GET() {
             display: "flex",
             fontSize: 22,
             fontFamily: "Inter",
-            color: "#6b7280",
+            color: "#1c1917",
             fontWeight: 500,
           }}
         >
