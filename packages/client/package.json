@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Platform-agnostic TypeScript client for the Aomi backend API",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -30,12 +30,7 @@
     "build": "tsup",
     "clean:dist": "rm -rf dist"
   },
-  "peerDependencies": {
-    "viem": ">=2.0.0"
-  },
-  "peerDependenciesMeta": {
-    "viem": {
-      "optional": true
-    }
+  "dependencies": {
+    "viem": "^2.40.3"
   }
 }
