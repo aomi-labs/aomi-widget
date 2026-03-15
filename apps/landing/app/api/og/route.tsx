@@ -23,12 +23,12 @@ export async function GET() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #ffffff 0%, #fef7f8 20%, #f0e6ff 50%, #e6f4ff 80%, #ffffff 100%)",
+          background: "linear-gradient(135deg, #ffffff 0%, #fdf5f7 20%, #f5eef8 50%, #fef7f8 80%, #ffffff 100%)",
           position: "relative",
           overflow: "hidden",
         }}
       >
-        {/* Bright gradient blobs */}
+        {/* Brand color gradient blobs - #733e83, #9D77A8, #ec6b83 */}
         <div
           style={{
             position: "absolute",
@@ -37,7 +37,7 @@ export async function GET() {
             width: 500,
             height: 500,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(168,85,247,0.4) 0%, rgba(168,85,247,0) 70%)",
+            background: "radial-gradient(circle, rgba(115,62,131,0.5) 0%, rgba(115,62,131,0) 70%)",
           }}
         />
         <div
@@ -48,7 +48,7 @@ export async function GET() {
             width: 450,
             height: 450,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(59,130,246,0.35) 0%, rgba(59,130,246,0) 70%)",
+            background: "radial-gradient(circle, rgba(157,119,168,0.45) 0%, rgba(157,119,168,0) 70%)",
           }}
         />
         <div
@@ -59,7 +59,7 @@ export async function GET() {
             width: 400,
             height: 400,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(251,113,133,0.4) 0%, rgba(251,113,133,0) 70%)",
+            background: "radial-gradient(circle, rgba(236,107,131,0.45) 0%, rgba(236,107,131,0) 70%)",
           }}
         />
         <div
@@ -70,11 +70,11 @@ export async function GET() {
             width: 350,
             height: 350,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236,107,131,0.3) 0%, rgba(236,107,131,0) 70%)",
+            background: "radial-gradient(circle, rgba(115,62,131,0.35) 0%, rgba(115,62,131,0) 70%)",
           }}
         />
 
-        {/* Subtle grid pattern overlay */}
+        {/* Subtle grid pattern overlay - using brand purple */}
         <div
           style={{
             position: "absolute",
@@ -82,7 +82,7 @@ export async function GET() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundImage: "linear-gradient(rgba(168,85,247,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(168,85,247,0.04) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(rgba(115,62,131,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(115,62,131,0.05) 1px, transparent 1px)",
             backgroundSize: "50px 50px",
           }}
         />
