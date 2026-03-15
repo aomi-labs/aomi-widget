@@ -379,11 +379,19 @@ export class AomiClient {
   /**
    * Get available models.
    */
-  async getModels(sessionId: string): Promise<string[]> {
+  async getModels(
+    sessionId: string,
+    options?: { apiKey?: string },
+  ): Promise<string[]> {
     const url = new URL("/api/control/models", this.baseUrl);
+    const apiKey = options?.apiKey ?? this.apiKey;
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(API_KEY_HEADER, apiKey);
+    }
 
     const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId),
+      headers,
     });
 
     if (!response.ok) {
