@@ -23,54 +23,71 @@ export async function GET() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #ffffff 0%, #fdf5f7 20%, #f5eef8 50%, #fef7f8 80%, #ffffff 100%)",
+          background: "linear-gradient(135deg, #e8f4f8 0%, #f0e8f5 25%, #fce4ec 50%, #e8f0f8 75%, #e5f5f0 100%)",
           position: "relative",
           overflow: "hidden",
         }}
       >
-        {/* Gradient blobs - coral prioritized, stronger blend */}
+        {/* Soft pastel gradient blobs - pink center, blue/mint edges */}
+        {/* Top-left: light blue */}
         <div
           style={{
             position: "absolute",
-            top: -100,
-            right: -50,
+            top: -200,
+            left: -200,
+            width: 700,
+            height: 700,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(200,220,240,0.8) 0%, rgba(200,220,240,0) 60%)",
+          }}
+        />
+        {/* Top-right: mint/cyan */}
+        <div
+          style={{
+            position: "absolute",
+            top: -150,
+            right: -150,
             width: 600,
             height: 600,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236,108,131,0.7) 0%, rgba(236,108,131,0) 65%)",
+            background: "radial-gradient(circle, rgba(200,235,225,0.7) 0%, rgba(200,235,225,0) 60%)",
           }}
         />
+        {/* Center: soft pink */}
         <div
           style={{
             position: "absolute",
-            top: -50,
-            left: -100,
-            width: 550,
-            height: 550,
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 800,
+            height: 600,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(252,240,255,0.9) 0%, rgba(252,240,255,0) 65%)",
+            background: "radial-gradient(ellipse, rgba(252,210,220,0.7) 0%, rgba(252,210,220,0) 55%)",
           }}
         />
+        {/* Bottom-left: mint */}
         <div
           style={{
             position: "absolute",
             bottom: -150,
-            right: 100,
+            left: -100,
             width: 550,
             height: 550,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(131,167,222,0.6) 0%, rgba(131,167,222,0) 65%)",
+            background: "radial-gradient(circle, rgba(200,235,220,0.6) 0%, rgba(200,235,220,0) 60%)",
           }}
         />
+        {/* Bottom-right: light blue/lavender */}
         <div
           style={{
             position: "absolute",
-            bottom: -100,
-            left: -50,
-            width: 500,
-            height: 500,
+            bottom: -200,
+            right: -100,
+            width: 650,
+            height: 650,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236,108,131,0.55) 0%, rgba(236,108,131,0) 65%)",
+            background: "radial-gradient(circle, rgba(210,220,245,0.7) 0%, rgba(210,220,245,0) 60%)",
           }}
         />
 
