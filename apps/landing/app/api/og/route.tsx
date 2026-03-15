@@ -3,10 +3,10 @@ import { ImageResponse } from "next/og";
 export const runtime = "edge";
 
 export async function GET(request: Request) {
-  // Load fonts - Inter for all text (Geist-like)
-  const [interBold, interMedium] = await Promise.all([
+  // Load fonts
+  const [ptSerifBold, interMedium] = await Promise.all([
     fetch(
-      "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZg.ttf"
+      "https://fonts.gstatic.com/s/ptserif/v19/EJRSQgYoZZY2vCFuvAnt65qV.ttf"
     ).then((res) => res.arrayBuffer()),
     fetch(
       "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf"
@@ -62,15 +62,15 @@ export async function GET(request: Request) {
           />
         </svg>
 
-        {/* Title - Inter (Geist-like) */}
+        {/* Title - PT Serif */}
         <div
           style={{
             display: "flex",
-            fontSize: 76,
-            fontFamily: "Inter",
+            fontSize: 64,
+            fontFamily: "PT Serif",
             fontWeight: 700,
             color: "#1c1917",
-            marginBottom: 24,
+            marginBottom: 20,
             letterSpacing: "-0.02em",
           }}
         >
@@ -109,10 +109,9 @@ export async function GET(request: Request) {
                 display: "flex",
                 padding: "10px 20px",
                 borderRadius: 24,
-                background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
-                border: "1px solid rgba(255,255,255,0.8)",
-                boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
-                color: "#6b7280",
+                background: "rgba(255,255,255,0.15)",
+                border: "1px solid rgba(255,255,255,0.4)",
+                color: "#4b5563",
                 fontSize: 15,
                 fontFamily: "Inter",
                 fontWeight: 400,
@@ -142,8 +141,8 @@ export async function GET(request: Request) {
       height: 630,
       fonts: [
         {
-          name: "Inter",
-          data: interBold,
+          name: "PT Serif",
+          data: ptSerifBold,
           style: "normal",
           weight: 700,
         },
