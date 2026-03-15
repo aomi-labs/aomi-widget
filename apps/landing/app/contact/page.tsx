@@ -45,7 +45,7 @@ export default function ContactPage() {
             <h1 className="mb-4 font-serif text-4xl font-medium tracking-tight text-white md:text-5xl">
               Get in Touch
             </h1>
-            <p className="font-geist text-lg text-stone-400">
+            <p className="font-geist text-lg text-white">
               Have questions about Aomi? We&apos;d love to hear from you.
             </p>
           </div>
@@ -231,9 +231,6 @@ export default function ContactPage() {
 
           {/* Book a Call CTA */}
           <div className="mt-12 text-center">
-            <p className="font-geist mb-4 text-stone-400">
-              Want to discuss a partnership or integration?
-            </p>
             <a
               href="https://calendly.com/aomi-labs/30min"
               target="_blank"
