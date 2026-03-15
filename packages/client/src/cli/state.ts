@@ -1,6 +1,13 @@
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, join } from "node:path";
+import { homedir, tmpdir } from "node:os";
 
 export type PendingTx = {
   id: string;
@@ -38,38 +45,326 @@ export type CliSessionState = {
   signedTxs?: SignedTx[];
 };
 
-export const STATE_FILE = join(
+type StoredSessionState = CliSessionState & {
+  localId: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type StoredSessionRecord = {
+  localId: number;
+  sessionId: string;
+  path: string;
+  createdAt: number;
+  updatedAt: number;
+  state: CliSessionState;
+};
+
+const SESSION_FILE_PREFIX = "session-";
+const SESSION_FILE_SUFFIX = ".json";
+
+const LEGACY_STATE_FILE = join(
   process.env.XDG_RUNTIME_DIR ?? tmpdir(),
   "aomi-session.json",
 );
 
-export function readState(): CliSessionState | null {
+export const STATE_ROOT_DIR =
+  process.env.AOMI_STATE_DIR ?? join(homedir(), ".aomi");
+export const SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
+const ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
+
+function ensureStorageDirs(): void {
+  mkdirSync(SESSIONS_DIR, { recursive: true });
+}
+
+function parseSessionFileLocalId(filename: string): number | null {
+  const match = filename.match(/^session-(\d+)\.json$/);
+  if (!match) return null;
+  const localId = parseInt(match[1], 10);
+  return Number.isNaN(localId) ? null : localId;
+}
+
+function toSessionFilePath(localId: number): string {
+  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+}
+
+function toCliSessionState(stored: StoredSessionState): CliSessionState {
+  return {
+    sessionId: stored.sessionId,
+    baseUrl: stored.baseUrl,
+    namespace: stored.namespace,
+    model: stored.model,
+    apiKey: stored.apiKey,
+    publicKey: stored.publicKey,
+    pendingTxs: stored.pendingTxs,
+    signedTxs: stored.signedTxs,
+  };
+}
+
+function readStoredSession(path: string): StoredSessionState | null {
   try {
-    if (!existsSync(STATE_FILE)) return null;
-    const raw = readFileSync(STATE_FILE, "utf-8");
-    return JSON.parse(raw) as CliSessionState;
+    const raw = readFileSync(path, "utf-8");
+    const parsed = JSON.parse(raw) as Partial<StoredSessionState>;
+
+    if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
+      return null;
+    }
+
+    const fallbackLocalId = parseSessionFileLocalId(basename(path)) ?? 0;
+    return {
+      sessionId: parsed.sessionId,
+      baseUrl: parsed.baseUrl,
+      namespace: parsed.namespace,
+      model: parsed.model,
+      apiKey: parsed.apiKey,
+      publicKey: parsed.publicKey,
+      pendingTxs: parsed.pendingTxs,
+      signedTxs: parsed.signedTxs,
+      localId:
+        typeof parsed.localId === "number" && parsed.localId > 0
+          ? parsed.localId
+          : fallbackLocalId,
+      createdAt:
+        typeof parsed.createdAt === "number" && parsed.createdAt > 0
+          ? parsed.createdAt
+          : Date.now(),
+      updatedAt:
+        typeof parsed.updatedAt === "number" && parsed.updatedAt > 0
+          ? parsed.updatedAt
+          : Date.now(),
+    };
   } catch {
     return null;
   }
 }
 
-export function writeState(state: CliSessionState): void {
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-}
-
-export function clearState(): void {
+function readActiveLocalId(): number | null {
   try {
-    if (existsSync(STATE_FILE)) unlinkSync(STATE_FILE);
+    if (!existsSync(ACTIVE_SESSION_FILE)) return null;
+    const raw = readFileSync(ACTIVE_SESSION_FILE, "utf-8").trim();
+    if (!raw) return null;
+    const parsed = parseInt(raw, 10);
+    return Number.isNaN(parsed) ? null : parsed;
   } catch {
-    // Ignore errors on cleanup.
+    return null;
   }
 }
 
+function writeActiveLocalId(localId: number | null): void {
+  try {
+    if (localId === null) {
+      if (existsSync(ACTIVE_SESSION_FILE)) {
+        rmSync(ACTIVE_SESSION_FILE);
+      }
+      return;
+    }
+    ensureStorageDirs();
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
+  } catch {
+    // Ignore active pointer write failures.
+  }
+}
+
+function readAllStoredSessions(): StoredSessionState[] {
+  try {
+    ensureStorageDirs();
+    const filenames = readdirSync(SESSIONS_DIR)
+      .map((name) => ({ name, localId: parseSessionFileLocalId(name) }))
+      .filter((entry): entry is { name: string; localId: number } =>
+        entry.localId !== null,
+      )
+      .sort((a, b) => a.localId - b.localId);
+
+    const sessions: StoredSessionState[] = [];
+    for (const entry of filenames) {
+      const path = join(SESSIONS_DIR, entry.name);
+      const stored = readStoredSession(path);
+      if (stored) {
+        sessions.push(stored);
+      }
+    }
+
+    return sessions;
+  } catch {
+    return [];
+  }
+}
+
+function getNextLocalId(sessions: StoredSessionState[]): number {
+  const maxLocalId = sessions.reduce((max, session) => {
+    return session.localId > max ? session.localId : max;
+  }, 0);
+  return maxLocalId + 1;
+}
+
+function migrateLegacyStateIfNeeded(): void {
+  if (!existsSync(LEGACY_STATE_FILE)) return;
+
+  const existing = readAllStoredSessions();
+  if (existing.length > 0) {
+    // Storage already migrated. Keep legacy file untouched.
+    return;
+  }
+
+  try {
+    const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
+    const legacy = JSON.parse(raw) as CliSessionState;
+    if (!legacy.sessionId || !legacy.baseUrl) {
+      return;
+    }
+
+    const now = Date.now();
+    const migrated: StoredSessionState = {
+      ...legacy,
+      localId: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    ensureStorageDirs();
+    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    writeActiveLocalId(1);
+    rmSync(LEGACY_STATE_FILE);
+  } catch {
+    // Best-effort migration only.
+  }
+}
+
+function resolveStoredSession(
+  selector: string,
+  sessions: StoredSessionState[],
+): StoredSessionState | null {
+  const trimmed = selector.trim();
+  if (!trimmed) return null;
+
+  const localMatch = trimmed.match(/^(?:session-)?(\d+)$/);
+  if (localMatch) {
+    const localId = parseInt(localMatch[1], 10);
+    if (!Number.isNaN(localId)) {
+      return sessions.find((session) => session.localId === localId) ?? null;
+    }
+  }
+
+  return sessions.find((session) => session.sessionId === trimmed) ?? null;
+}
+
+function toStoredSessionRecord(stored: StoredSessionState): StoredSessionRecord {
+  return {
+    localId: stored.localId,
+    sessionId: stored.sessionId,
+    path: toSessionFilePath(stored.localId),
+    createdAt: stored.createdAt,
+    updatedAt: stored.updatedAt,
+    state: toCliSessionState(stored),
+  };
+}
+
+export function getActiveStateFilePath(): string | null {
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === null) return null;
+  const active = sessions.find((session) => session.localId === activeLocalId);
+  return active ? toSessionFilePath(active.localId) : null;
+}
+
+export function listStoredSessions(): StoredSessionRecord[] {
+  migrateLegacyStateIfNeeded();
+  return readAllStoredSessions().map(toStoredSessionRecord);
+}
+
+export function setActiveSession(selector: string): StoredSessionRecord | null {
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const target = resolveStoredSession(selector, sessions);
+  if (!target) return null;
+  writeActiveLocalId(target.localId);
+  return toStoredSessionRecord(target);
+}
+
+export function deleteStoredSession(selector: string): StoredSessionRecord | null {
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const target = resolveStoredSession(selector, sessions);
+  if (!target) return null;
+
+  const targetPath = toSessionFilePath(target.localId);
+  try {
+    if (existsSync(targetPath)) {
+      rmSync(targetPath);
+    }
+  } catch {
+    return null;
+  }
+
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === target.localId) {
+    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    writeActiveLocalId(remaining[0]?.localId ?? null);
+  }
+
+  return toStoredSessionRecord(target);
+}
+
+export function readState(): CliSessionState | null {
+  migrateLegacyStateIfNeeded();
+
+  const sessions = readAllStoredSessions();
+  if (sessions.length === 0) return null;
+
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === null) {
+    return null;
+  }
+
+  const active =
+    sessions.find((session) => session.localId === activeLocalId) ?? null;
+  if (!active) {
+    writeActiveLocalId(null);
+    return null;
+  }
+
+  return active ? toCliSessionState(active) : null;
+}
+
+export function writeState(state: CliSessionState): void {
+  migrateLegacyStateIfNeeded();
+  ensureStorageDirs();
+
+  const sessions = readAllStoredSessions();
+  const activeLocalId = readActiveLocalId();
+
+  const existingBySessionId = sessions.find(
+    (session) => session.sessionId === state.sessionId,
+  );
+  const existingByActive =
+    activeLocalId !== null
+      ? sessions.find((session) => session.localId === activeLocalId)
+      : undefined;
+  const existing = existingBySessionId ?? existingByActive;
+
+  const now = Date.now();
+  const localId = existing?.localId ?? getNextLocalId(sessions);
+  const createdAt = existing?.createdAt ?? now;
+
+  const payload: StoredSessionState = {
+    ...state,
+    localId,
+    createdAt,
+    updatedAt: now,
+  };
+
+  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  writeActiveLocalId(localId);
+}
+
+export function clearState(): void {
+  migrateLegacyStateIfNeeded();
+  writeActiveLocalId(null);
+}
+
 function getNextTxId(state: CliSessionState): string {
-  const allIds = [
-    ...(state.pendingTxs ?? []),
-    ...(state.signedTxs ?? []),
-  ].map((tx) => {
+  const allIds = [...(state.pendingTxs ?? []), ...(state.signedTxs ?? [])].map((tx) => {
     const match = tx.id.match(/^tx-(\d+)$/);
     return match ? parseInt(match[1], 10) : 0;
   });

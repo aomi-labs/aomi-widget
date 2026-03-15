@@ -7,6 +7,7 @@ import {
   statusCommand,
 } from "./commands/control";
 import { closeCommand, logCommand } from "./commands/history";
+import { sessionCommand, sessionsCommand } from "./commands/sessions";
 import { signCommand, txCommand } from "./commands/wallet";
 import { CliExit } from "./errors";
 import type { CliRuntime } from "./types";
@@ -22,6 +23,11 @@ Usage:
   aomi chat --verbose   Stream agent responses, tool calls, and events live
   aomi models           List models available to the current backend
   aomi model set <rig>  Set the active model for the current session
+  aomi sessions         List local sessions with metadata tables
+  aomi session resume <id>
+                        Resume a local session (session-id or session-N)
+  aomi session delete <id>
+                        Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
   aomi sign <tx-id>     Sign and submit a pending transaction
@@ -70,6 +76,12 @@ async function main(runtime: CliRuntime): Promise<void> {
     case "model":
       await modelCommand(runtime);
       break;
+    case "sessions":
+      await sessionsCommand(runtime);
+      break;
+    case "session":
+      sessionCommand(runtime);
+      break;
     case "tx":
       txCommand();
       break;
@@ -96,17 +108,30 @@ async function main(runtime: CliRuntime): Promise<void> {
   }
 }
 
+function isPnpmExecWrapper(): boolean {
+  const npmCommand = process.env.npm_command ?? "";
+  const userAgent = process.env.npm_config_user_agent ?? "";
+  return npmCommand === "exec" && userAgent.includes("pnpm/");
+}
+
 export async function runCli(argv: string[] = process.argv): Promise<void> {
   const runtime = createRuntime(argv);
+  const RED = "\x1b[31m";
+  const RESET = "\x1b[0m";
+  const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
 
   try {
     await main(runtime);
   } catch (err) {
     if (err instanceof CliExit) {
+      if (!strictExit && isPnpmExecWrapper()) {
+        return;
+      }
       process.exit(err.code);
       return;
     }
-    console.error(err instanceof Error ? err.message : err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`${RED}❌ ${message}${RESET}`);
     process.exit(1);
   }
 }

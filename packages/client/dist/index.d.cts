@@ -194,7 +194,9 @@ declare class AomiClient {
     /**
      * Get available models.
      */
-    getModels(sessionId: string): Promise<string[]>;
+    getModels(sessionId: string, options?: {
+        apiKey?: string;
+    }): Promise<string[]>;
     /**
      * Set the model for a session.
      */

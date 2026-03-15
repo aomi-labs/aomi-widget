@@ -229,8 +229,9 @@ describe("Thread management (live backend)", () => {
       try {
         const deleted = await client.getThread(sessionId);
         expect(deleted.is_archived).toBe(true);
-      } catch {
-        // 404 is acceptable — backend hard-deletes on prod-v3
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        expect(message).toContain("HTTP 404");
       }
     },
     TEST_TIMEOUT,

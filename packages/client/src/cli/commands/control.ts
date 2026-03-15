@@ -58,7 +58,9 @@ export async function modelsCommand(runtime: CliRuntime): Promise<void> {
   const client = createControlClient(runtime);
   const state = readState();
   const sessionId = state?.sessionId ?? crypto.randomUUID();
-  const models = await client.getModels(sessionId);
+  const models = await client.getModels(sessionId, {
+    apiKey: runtime.config.apiKey ?? state?.apiKey,
+  });
 
   if (models.length === 0) {
     console.log("No models available.");

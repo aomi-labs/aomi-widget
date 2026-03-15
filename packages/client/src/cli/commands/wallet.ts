@@ -151,7 +151,12 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
   const privateKey = runtime.config.privateKey;
   if (!privateKey) {
     fatal(
-      "Private key required. Pass --private-key or set PRIVATE_KEY env var.",
+      [
+        "Private key required for `aomi sign`.",
+        "Pass one of:",
+        "  --private-key <hex-key>",
+        "  PRIVATE_KEY=<hex-key> aomi sign <tx-id>",
+      ].join("\n"),
     );
   }
 

@@ -1,5 +1,5 @@
 import type { AomiMessage, AomiSSEEvent } from "../types";
-import { STATE_FILE } from "./state";
+import { STATE_ROOT_DIR, getActiveStateFilePath } from "./state";
 
 export const DIM = "\x1b[2m";
 export const CYAN = "\x1b[36m";
@@ -8,7 +8,12 @@ export const GREEN = "\x1b[32m";
 export const RESET = "\x1b[0m";
 
 export function printDataFileLocation(): void {
-  console.log(`Data stored at ${STATE_FILE} 📝`);
+  const activeFile = getActiveStateFilePath();
+  if (activeFile) {
+    console.log(`Data stored at ${activeFile} 📝`);
+    return;
+  }
+  console.log(`Data stored under ${STATE_ROOT_DIR} 📝`);
 }
 
 export function printToolUpdate(event: AomiSSEEvent): void {

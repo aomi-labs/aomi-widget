@@ -49,9 +49,9 @@ function parseArgs(argv) {
   return { command, positional, flags };
 }
 function getConfig(parsed) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
   return {
-    baseUrl: (_b = (_a2 = parsed.flags["backend-url"]) != null ? _a2 : process.env.AOMI_BASE_URL) != null ? _b : "https://api.aomi.dev",
+    baseUrl: (_b = (_a3 = parsed.flags["backend-url"]) != null ? _a3 : process.env.AOMI_BASE_URL) != null ? _b : "https://api.aomi.dev",
     apiKey: (_c = parsed.flags["api-key"]) != null ? _c : process.env.AOMI_API_KEY,
     namespace: (_e = (_d = parsed.flags["namespace"]) != null ? _d : process.env.AOMI_NAMESPACE) != null ? _e : "default",
     model: (_f = parsed.flags["model"]) != null ? _f : process.env.AOMI_MODEL,
@@ -69,38 +69,260 @@ function createRuntime(argv) {
 }
 
 // src/cli/state.ts
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from "fs";
+import { basename, join } from "path";
+import { homedir, tmpdir } from "os";
+var SESSION_FILE_PREFIX = "session-";
+var SESSION_FILE_SUFFIX = ".json";
 var _a;
-var STATE_FILE = join(
+var LEGACY_STATE_FILE = join(
   (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
   "aomi-session.json"
 );
-function readState() {
+var _a2;
+var STATE_ROOT_DIR = (_a2 = process.env.AOMI_STATE_DIR) != null ? _a2 : join(homedir(), ".aomi");
+var SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
+var ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
+function ensureStorageDirs() {
+  mkdirSync(SESSIONS_DIR, { recursive: true });
+}
+function parseSessionFileLocalId(filename) {
+  const match = filename.match(/^session-(\d+)\.json$/);
+  if (!match) return null;
+  const localId = parseInt(match[1], 10);
+  return Number.isNaN(localId) ? null : localId;
+}
+function toSessionFilePath(localId) {
+  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+}
+function toCliSessionState(stored) {
+  return {
+    sessionId: stored.sessionId,
+    baseUrl: stored.baseUrl,
+    namespace: stored.namespace,
+    model: stored.model,
+    apiKey: stored.apiKey,
+    publicKey: stored.publicKey,
+    pendingTxs: stored.pendingTxs,
+    signedTxs: stored.signedTxs
+  };
+}
+function readStoredSession(path) {
+  var _a3;
   try {
-    if (!existsSync(STATE_FILE)) return null;
-    const raw = readFileSync(STATE_FILE, "utf-8");
-    return JSON.parse(raw);
+    const raw = readFileSync(path, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
+      return null;
+    }
+    const fallbackLocalId = (_a3 = parseSessionFileLocalId(basename(path))) != null ? _a3 : 0;
+    return {
+      sessionId: parsed.sessionId,
+      baseUrl: parsed.baseUrl,
+      namespace: parsed.namespace,
+      model: parsed.model,
+      apiKey: parsed.apiKey,
+      publicKey: parsed.publicKey,
+      pendingTxs: parsed.pendingTxs,
+      signedTxs: parsed.signedTxs,
+      localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
+      createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
+      updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
+    };
   } catch (e) {
     return null;
   }
 }
-function writeState(state) {
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-}
-function clearState() {
+function readActiveLocalId() {
   try {
-    if (existsSync(STATE_FILE)) unlinkSync(STATE_FILE);
+    if (!existsSync(ACTIVE_SESSION_FILE)) return null;
+    const raw = readFileSync(ACTIVE_SESSION_FILE, "utf-8").trim();
+    if (!raw) return null;
+    const parsed = parseInt(raw, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  } catch (e) {
+    return null;
+  }
+}
+function writeActiveLocalId(localId) {
+  try {
+    if (localId === null) {
+      if (existsSync(ACTIVE_SESSION_FILE)) {
+        rmSync(ACTIVE_SESSION_FILE);
+      }
+      return;
+    }
+    ensureStorageDirs();
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
   } catch (e) {
   }
 }
+function readAllStoredSessions() {
+  try {
+    ensureStorageDirs();
+    const filenames = readdirSync(SESSIONS_DIR).map((name) => ({ name, localId: parseSessionFileLocalId(name) })).filter(
+      (entry) => entry.localId !== null
+    ).sort((a, b) => a.localId - b.localId);
+    const sessions = [];
+    for (const entry of filenames) {
+      const path = join(SESSIONS_DIR, entry.name);
+      const stored = readStoredSession(path);
+      if (stored) {
+        sessions.push(stored);
+      }
+    }
+    return sessions;
+  } catch (e) {
+    return [];
+  }
+}
+function getNextLocalId(sessions) {
+  const maxLocalId = sessions.reduce((max, session) => {
+    return session.localId > max ? session.localId : max;
+  }, 0);
+  return maxLocalId + 1;
+}
+function migrateLegacyStateIfNeeded() {
+  if (!existsSync(LEGACY_STATE_FILE)) return;
+  const existing = readAllStoredSessions();
+  if (existing.length > 0) {
+    return;
+  }
+  try {
+    const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
+    const legacy = JSON.parse(raw);
+    if (!legacy.sessionId || !legacy.baseUrl) {
+      return;
+    }
+    const now = Date.now();
+    const migrated = __spreadProps(__spreadValues({}, legacy), {
+      localId: 1,
+      createdAt: now,
+      updatedAt: now
+    });
+    ensureStorageDirs();
+    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    writeActiveLocalId(1);
+    rmSync(LEGACY_STATE_FILE);
+  } catch (e) {
+  }
+}
+function resolveStoredSession(selector, sessions) {
+  var _a3, _b;
+  const trimmed = selector.trim();
+  if (!trimmed) return null;
+  const localMatch = trimmed.match(/^(?:session-)?(\d+)$/);
+  if (localMatch) {
+    const localId = parseInt(localMatch[1], 10);
+    if (!Number.isNaN(localId)) {
+      return (_a3 = sessions.find((session) => session.localId === localId)) != null ? _a3 : null;
+    }
+  }
+  return (_b = sessions.find((session) => session.sessionId === trimmed)) != null ? _b : null;
+}
+function toStoredSessionRecord(stored) {
+  return {
+    localId: stored.localId,
+    sessionId: stored.sessionId,
+    path: toSessionFilePath(stored.localId),
+    createdAt: stored.createdAt,
+    updatedAt: stored.updatedAt,
+    state: toCliSessionState(stored)
+  };
+}
+function getActiveStateFilePath() {
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === null) return null;
+  const active = sessions.find((session) => session.localId === activeLocalId);
+  return active ? toSessionFilePath(active.localId) : null;
+}
+function listStoredSessions() {
+  migrateLegacyStateIfNeeded();
+  return readAllStoredSessions().map(toStoredSessionRecord);
+}
+function setActiveSession(selector) {
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const target = resolveStoredSession(selector, sessions);
+  if (!target) return null;
+  writeActiveLocalId(target.localId);
+  return toStoredSessionRecord(target);
+}
+function deleteStoredSession(selector) {
+  var _a3, _b;
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const target = resolveStoredSession(selector, sessions);
+  if (!target) return null;
+  const targetPath = toSessionFilePath(target.localId);
+  try {
+    if (existsSync(targetPath)) {
+      rmSync(targetPath);
+    }
+  } catch (e) {
+    return null;
+  }
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === target.localId) {
+    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
+  }
+  return toStoredSessionRecord(target);
+}
+function readState() {
+  var _a3;
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  if (sessions.length === 0) return null;
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === null) {
+    return null;
+  }
+  const active = (_a3 = sessions.find((session) => session.localId === activeLocalId)) != null ? _a3 : null;
+  if (!active) {
+    writeActiveLocalId(null);
+    return null;
+  }
+  return active ? toCliSessionState(active) : null;
+}
+function writeState(state) {
+  var _a3, _b;
+  migrateLegacyStateIfNeeded();
+  ensureStorageDirs();
+  const sessions = readAllStoredSessions();
+  const activeLocalId = readActiveLocalId();
+  const existingBySessionId = sessions.find(
+    (session) => session.sessionId === state.sessionId
+  );
+  const existingByActive = activeLocalId !== null ? sessions.find((session) => session.localId === activeLocalId) : void 0;
+  const existing = existingBySessionId != null ? existingBySessionId : existingByActive;
+  const now = Date.now();
+  const localId = (_a3 = existing == null ? void 0 : existing.localId) != null ? _a3 : getNextLocalId(sessions);
+  const createdAt = (_b = existing == null ? void 0 : existing.createdAt) != null ? _b : now;
+  const payload = __spreadProps(__spreadValues({}, state), {
+    localId,
+    createdAt,
+    updatedAt: now
+  });
+  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  writeActiveLocalId(localId);
+}
+function clearState() {
+  migrateLegacyStateIfNeeded();
+  writeActiveLocalId(null);
+}
 function getNextTxId(state) {
-  var _a2, _b;
-  const allIds = [
-    ...(_a2 = state.pendingTxs) != null ? _a2 : [],
-    ...(_b = state.signedTxs) != null ? _b : []
-  ].map((tx) => {
+  var _a3, _b;
+  const allIds = [...(_a3 = state.pendingTxs) != null ? _a3 : [], ...(_b = state.signedTxs) != null ? _b : []].map((tx) => {
     const match = tx.id.match(/^tx-(\d+)$/);
     return match ? parseInt(match[1], 10) : 0;
   });
@@ -137,12 +359,17 @@ var YELLOW = "\x1B[33m";
 var GREEN = "\x1B[32m";
 var RESET = "\x1B[0m";
 function printDataFileLocation() {
-  console.log(`Data stored at ${STATE_FILE} \u{1F4DD}`);
+  const activeFile = getActiveStateFilePath();
+  if (activeFile) {
+    console.log(`Data stored at ${activeFile} \u{1F4DD}`);
+    return;
+  }
+  console.log(`Data stored under ${STATE_ROOT_DIR} \u{1F4DD}`);
 }
 function printToolUpdate(event) {
-  var _a2;
+  var _a3;
   const name = getToolNameFromEvent(event);
-  const status = (_a2 = event.status) != null ? _a2 : "running";
+  const status = (_a3 = event.status) != null ? _a3 : "running";
   console.log(`${DIM}\u{1F527} [tool] ${name}: ${status}${RESET}`);
 }
 function printToolComplete(event) {
@@ -155,12 +382,12 @@ function printToolResultLine(name, result) {
   console.log(formatToolResultLine(name, result));
 }
 function getToolNameFromEvent(event) {
-  var _a2, _b;
-  return (_b = (_a2 = event.tool_name) != null ? _a2 : event.name) != null ? _b : "unknown";
+  var _a3, _b;
+  return (_b = (_a3 = event.tool_name) != null ? _a3 : event.name) != null ? _b : "unknown";
 }
 function getToolResultFromEvent(event) {
-  var _a2;
-  return (_a2 = event.result) != null ? _a2 : event.output;
+  var _a3;
+  return (_a3 = event.result) != null ? _a3 : event.output;
 }
 function toToolResultKey(name, result) {
   return `${name}
@@ -294,13 +521,13 @@ function createSseSubscriber({
       stopped: false,
       listeners: /* @__PURE__ */ new Set([listener]),
       stop: (reason) => {
-        var _a2;
+        var _a3;
         subscription.stopped = true;
         if (subscription.retryTimer) {
           clearTimeout(subscription.retryTimer);
           subscription.retryTimer = null;
         }
-        (_a2 = subscription.abortController) == null ? void 0 : _a2.abort();
+        (_a3 = subscription.abortController) == null ? void 0 : _a3.abort();
         subscription.abortController = null;
         logger == null ? void 0 : logger.debug("[aomi][sse] stop", {
           sessionId,
@@ -323,7 +550,7 @@ function createSseSubscriber({
       }, delayMs);
     };
     const open = async () => {
-      var _a2;
+      var _a3;
       if (subscription.stopped) return;
       if (subscription.retryTimer) {
         clearTimeout(subscription.retryTimer);
@@ -347,13 +574,13 @@ function createSseSubscriber({
         }
         subscription.retries = 0;
         await readSseStream(response.body, controller.signal, (data) => {
-          var _a3, _b;
+          var _a4, _b;
           let parsed;
           try {
             parsed = JSON.parse(data);
           } catch (error) {
             for (const item of subscription.listeners) {
-              (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
+              (_a4 = item.onError) == null ? void 0 : _a4.call(item, error);
             }
             return;
           }
@@ -374,7 +601,7 @@ function createSseSubscriber({
       } catch (error) {
         if (!controller.signal.aborted && !subscription.stopped) {
           for (const item of subscription.listeners) {
-            (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
+            (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
           }
         }
       }
@@ -468,8 +695,8 @@ var AomiClient = class {
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a2, _b;
-    const namespace = (_a2 = options == null ? void 0 : options.namespace) != null ? _a2 : "default";
+    var _a3, _b;
+    const namespace = (_a3 = options == null ? void 0 : options.namespace) != null ? _a3 : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const payload = { message, namespace };
     if (options == null ? void 0 : options.publicKey) {
@@ -647,12 +874,12 @@ var AomiClient = class {
    * Get available namespaces.
    */
   async getNamespaces(sessionId, options) {
-    var _a2;
+    var _a3;
     const url = new URL("/api/control/namespaces", this.baseUrl);
     if (options == null ? void 0 : options.publicKey) {
       url.searchParams.set("public_key", options.publicKey);
     }
-    const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
+    const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
@@ -666,10 +893,16 @@ var AomiClient = class {
   /**
    * Get available models.
    */
-  async getModels(sessionId) {
+  async getModels(sessionId, options) {
+    var _a3;
     const url = new URL("/api/control/models", this.baseUrl);
+    const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(API_KEY_HEADER, apiKey);
+    }
     const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
+      headers
     });
     if (!response.ok) {
       throw new Error(`Failed to get models: HTTP ${response.status}`);
@@ -680,8 +913,8 @@ var AomiClient = class {
    * Set the model for a session.
    */
   async setModel(sessionId, rig, options) {
-    var _a2;
-    const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
+    var _a3;
+    const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
     const payload = { rig };
     if (options == null ? void 0 : options.namespace) {
       payload.namespace = options.namespace;
@@ -778,11 +1011,11 @@ function isAsyncCallback(event) {
 
 // src/event-unwrap.ts
 function unwrapSystemEvent(event) {
-  var _a2;
+  var _a3;
   if (isInlineCall(event)) {
     return {
       type: event.InlineCall.type,
-      payload: (_a2 = event.InlineCall.payload) != null ? _a2 : event.InlineCall
+      payload: (_a3 = event.InlineCall.payload) != null ? _a3 : event.InlineCall
     };
   }
   if (isSystemNotice(event)) {
@@ -813,10 +1046,10 @@ function asRecord(value) {
   return value;
 }
 function getToolArgs(payload) {
-  var _a2;
+  var _a3;
   const root = asRecord(payload);
   const nestedArgs = asRecord(root == null ? void 0 : root.args);
-  return (_a2 = nestedArgs != null ? nestedArgs : root) != null ? _a2 : {};
+  return (_a3 = nestedArgs != null ? nestedArgs : root) != null ? _a3 : {};
 }
 function parseChainId(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -831,7 +1064,7 @@ function parseChainId(value) {
   return Number.isFinite(parsed) ? parsed : void 0;
 }
 function normalizeTxPayload(payload) {
-  var _a2, _b, _c;
+  var _a3, _b, _c;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
@@ -840,13 +1073,13 @@ function normalizeTxPayload(payload) {
   const valueRaw = args.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
   const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_c = (_b = (_a2 = parseChainId(args.chainId)) != null ? _a2 : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  const chainId = (_c = (_b = (_a3 = parseChainId(args.chainId)) != null ? _a3 : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
   return { to, value, data, chainId };
 }
 function normalizeEip712Payload(payload) {
-  var _a2;
+  var _a3;
   const args = getToolArgs(payload);
-  const typedDataRaw = (_a2 = args.typed_data) != null ? _a2 : args.typedData;
+  const typedDataRaw = (_a3 = args.typed_data) != null ? _a3 : args.typedData;
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -867,7 +1100,7 @@ function normalizeEip712Payload(payload) {
 // src/session.ts
 var Session = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     super();
     // Internal state
     this.pollTimer = null;
@@ -880,7 +1113,7 @@ var Session = class extends TypedEventEmitter {
     // For send() blocking behavior
     this.pendingResolve = null;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
-    this.sessionId = (_a2 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a2 : crypto.randomUUID();
+    this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
     this.namespace = (_b = sessionOptions == null ? void 0 : sessionOptions.namespace) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
@@ -951,14 +1184,14 @@ var Session = class extends TypedEventEmitter {
    * Sends the result to the backend and resumes polling.
    */
   async resolve(requestId, result) {
-    var _a2;
+    var _a3;
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
       await this.sendSystemEvent("wallet:tx_complete", {
-        txHash: (_a2 = result.txHash) != null ? _a2 : "",
+        txHash: (_a3 = result.txHash) != null ? _a3 : "",
         status: "success",
         amount: result.amount
       });
@@ -1019,11 +1252,11 @@ var Session = class extends TypedEventEmitter {
    * The session cannot be used after closing.
    */
   close() {
-    var _a2;
+    var _a3;
     if (this.closed) return;
     this.closed = true;
     this.stopPolling();
-    (_a2 = this.unsubscribeSSE) == null ? void 0 : _a2.call(this);
+    (_a3 = this.unsubscribeSSE) == null ? void 0 : _a3.call(this);
     this.unsubscribeSSE = null;
     this.resolvePending();
     this.removeAllListeners();
@@ -1051,23 +1284,23 @@ var Session = class extends TypedEventEmitter {
   // Internal — Polling (ported from PollingController)
   // ===========================================================================
   startPolling() {
-    var _a2;
+    var _a3;
     if (this.pollTimer || this.closed) return;
-    (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] polling started", this.sessionId);
+    (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
     this.pollTimer = setInterval(() => {
       void this.pollTick();
     }, this.pollIntervalMs);
   }
   stopPolling() {
-    var _a2;
+    var _a3;
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
-      (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] polling stopped", this.sessionId);
+      (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
     }
   }
   async pollTick() {
-    var _a2;
+    var _a3;
     if (!this.pollTimer) return;
     try {
       const state = await this.client.fetchState(
@@ -1083,7 +1316,7 @@ var Session = class extends TypedEventEmitter {
         this.resolvePending();
       }
     } catch (error) {
-      (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] poll error", error);
+      (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] poll error", error);
       this.emit("error", { error });
     }
   }
@@ -1091,7 +1324,7 @@ var Session = class extends TypedEventEmitter {
   // Internal — State Application
   // ===========================================================================
   applyState(state) {
-    var _a2;
+    var _a3;
     if (state.messages) {
       this._messages = state.messages;
       this.emit("messages", this._messages);
@@ -1099,12 +1332,12 @@ var Session = class extends TypedEventEmitter {
     if (state.title) {
       this._title = state.title;
     }
-    if ((_a2 = state.system_events) == null ? void 0 : _a2.length) {
+    if ((_a3 = state.system_events) == null ? void 0 : _a3.length) {
       this.dispatchSystemEvents(state.system_events);
     }
   }
   dispatchSystemEvents(events) {
-    var _a2;
+    var _a3;
     for (const event of events) {
       const unwrapped = unwrapSystemEvent(event);
       if (!unwrapped) continue;
@@ -1115,7 +1348,7 @@ var Session = class extends TypedEventEmitter {
           this.emit("wallet_tx_request", req);
         }
       } else if (unwrapped.type === "wallet_eip712_request") {
-        const payload = normalizeEip712Payload((_a2 = unwrapped.payload) != null ? _a2 : {});
+        const payload = normalizeEip712Payload((_a3 = unwrapped.payload) != null ? _a3 : {});
         const req = this.enqueueWalletRequest("eip712_sign", payload);
         this.emit("wallet_eip712_request", req);
       } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
@@ -1257,7 +1490,19 @@ var CliExit = class extends Error {
   }
 };
 function fatal(message) {
-  console.error(message);
+  const RED = "\x1B[31m";
+  const DIM3 = "\x1B[2m";
+  const RESET3 = "\x1B[0m";
+  const lines = message.split("\n");
+  const [headline, ...details] = lines;
+  console.error(`${RED}\u274C ${headline}${RESET3}`);
+  for (const detail of details) {
+    if (!detail.trim()) {
+      console.error("");
+      continue;
+    }
+    console.error(`${DIM3}${detail}${RESET3}`);
+  }
   throw new CliExit(1);
 }
 
@@ -1284,10 +1529,10 @@ function walletRequestToPendingTx(request) {
   };
 }
 function formatTxLine(tx, prefix) {
-  var _a2;
+  var _a3;
   const parts = [`${prefix} ${tx.id}`];
   if (tx.kind === "transaction") {
-    parts.push(`to: ${(_a2 = tx.to) != null ? _a2 : "?"}`);
+    parts.push(`to: ${(_a3 = tx.to) != null ? _a3 : "?"}`);
     if (tx.value) parts.push(`value: ${tx.value}`);
     if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
     if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
@@ -1454,7 +1699,7 @@ async function chatCommand(runtime) {
 
 // src/cli/commands/control.ts
 async function statusCommand(runtime) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
   if (!readState()) {
     console.log("No active session");
     printDataFileLocation();
@@ -1469,7 +1714,7 @@ async function statusCommand(runtime) {
           sessionId: state.sessionId,
           baseUrl: state.baseUrl,
           namespace: state.namespace,
-          model: (_a2 = state.model) != null ? _a2 : null,
+          model: (_a3 = state.model) != null ? _a3 : null,
           isProcessing: (_b = apiState.is_processing) != null ? _b : false,
           messageCount: (_d = (_c = apiState.messages) == null ? void 0 : _c.length) != null ? _d : 0,
           title: (_e = apiState.title) != null ? _e : null,
@@ -1499,11 +1744,13 @@ async function eventsCommand(runtime) {
   }
 }
 async function modelsCommand(runtime) {
-  var _a2;
+  var _a3, _b;
   const client = createControlClient(runtime);
   const state = readState();
-  const sessionId = (_a2 = state == null ? void 0 : state.sessionId) != null ? _a2 : crypto.randomUUID();
-  const models = await client.getModels(sessionId);
+  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
+  const models = await client.getModels(sessionId, {
+    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+  });
   if (models.length === 0) {
     console.log("No models available.");
     return;
@@ -1514,7 +1761,7 @@ async function modelsCommand(runtime) {
   }
 }
 async function modelCommand(runtime) {
-  var _a2;
+  var _a3;
   const subcommand = runtime.parsed.positional[0];
   if (!subcommand || subcommand === "current") {
     const state2 = readState();
@@ -1523,7 +1770,7 @@ async function modelCommand(runtime) {
       printDataFileLocation();
       return;
     }
-    console.log((_a2 = state2.model) != null ? _a2 : "(default backend model)");
+    console.log((_a3 = state2.model) != null ? _a3 : "(default backend model)");
     printDataFileLocation();
     return;
   }
@@ -1558,14 +1805,14 @@ function padRight(value, width) {
   return value.padEnd(width, " ");
 }
 function estimateTokenCount(messages) {
-  var _a2;
+  var _a3;
   let totalChars = 0;
   for (const message of messages) {
     const content = formatLogContent(message.content);
     if (content) {
       totalChars += content.length + 1;
     }
-    if ((_a2 = message.tool_result) == null ? void 0 : _a2[1]) {
+    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
       totalChars += message.tool_result[1].length;
     }
   }
@@ -1590,11 +1837,11 @@ function printKeyValueTable(rows) {
   }
 }
 function toPendingTxMetadata(tx) {
-  var _a2, _b, _c, _d;
+  var _a3, _b, _c, _d;
   return {
     id: tx.id,
     kind: tx.kind,
-    to: (_a2 = tx.to) != null ? _a2 : null,
+    to: (_a3 = tx.to) != null ? _a3 : null,
     value: (_b = tx.value) != null ? _b : null,
     chainId: (_c = tx.chainId) != null ? _c : null,
     description: (_d = tx.description) != null ? _d : null,
@@ -1602,11 +1849,11 @@ function toPendingTxMetadata(tx) {
   };
 }
 function toSignedTxMetadata(tx) {
-  var _a2, _b, _c, _d, _e, _f, _g;
+  var _a3, _b, _c, _d, _e, _f, _g;
   return {
     id: tx.id,
     kind: tx.kind,
-    txHash: (_a2 = tx.txHash) != null ? _a2 : null,
+    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
     signature: (_b = tx.signature) != null ? _b : null,
     from: (_c = tx.from) != null ? _c : null,
     to: (_d = tx.to) != null ? _d : null,
@@ -1658,7 +1905,7 @@ function printTransactionTable(pendingTxs, signedTxs) {
   }
 }
 async function logCommand(runtime) {
-  var _a2, _b, _c, _d, _e;
+  var _a3, _b, _c, _d, _e;
   if (!readState()) {
     console.log("No active session");
     printDataFileLocation();
@@ -1667,7 +1914,7 @@ async function logCommand(runtime) {
   const { session, state } = getOrCreateSession(runtime);
   try {
     const apiState = await session.client.fetchState(state.sessionId);
-    const messages = (_a2 = apiState.messages) != null ? _a2 : [];
+    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
     const signedTxs = (_c = state.signedTxs) != null ? _c : [];
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
@@ -1742,6 +1989,218 @@ function closeCommand(runtime) {
   console.log("Session closed");
 }
 
+// src/cli/commands/sessions.ts
+var MAX_TABLE_VALUE_WIDTH2 = 72;
+var MAX_TX_JSON_WIDTH2 = 96;
+var MAX_TX_ROWS2 = 8;
+function truncateCell2(value, maxWidth) {
+  if (value.length <= maxWidth) return value;
+  return `${value.slice(0, maxWidth - 1)}\u2026`;
+}
+function padRight2(value, width) {
+  return value.padEnd(width, " ");
+}
+function estimateTokenCount2(messages) {
+  var _a3;
+  let totalChars = 0;
+  for (const message of messages) {
+    const content = formatLogContent(message.content);
+    if (content) {
+      totalChars += content.length + 1;
+    }
+    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
+      totalChars += message.tool_result[1].length;
+    }
+  }
+  return Math.round(totalChars / 4);
+}
+function printKeyValueTable2(rows) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell2(value, MAX_TABLE_VALUE_WIDTH2)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(`${CYAN}${border}${RESET}`);
+  console.log(
+    `${CYAN}| ${padRight2("field", keyWidth)} | ${padRight2("value", valueWidth)} |${RESET}`
+  );
+  console.log(`${CYAN}${border}${RESET}`);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `${CYAN}| ${padRight2(labels[i], keyWidth)} | ${padRight2(values[i], valueWidth)} |${RESET}`
+    );
+    console.log(`${CYAN}${border}${RESET}`);
+  }
+}
+function toPendingTxMetadata2(tx) {
+  var _a3, _b, _c, _d;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    to: (_a3 = tx.to) != null ? _a3 : null,
+    value: (_b = tx.value) != null ? _b : null,
+    chainId: (_c = tx.chainId) != null ? _c : null,
+    description: (_d = tx.description) != null ? _d : null,
+    timestamp: new Date(tx.timestamp).toISOString()
+  };
+}
+function toSignedTxMetadata2(tx) {
+  var _a3, _b, _c, _d, _e, _f, _g;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
+    signature: (_b = tx.signature) != null ? _b : null,
+    from: (_c = tx.from) != null ? _c : null,
+    to: (_d = tx.to) != null ? _d : null,
+    value: (_e = tx.value) != null ? _e : null,
+    chainId: (_f = tx.chainId) != null ? _f : null,
+    description: (_g = tx.description) != null ? _g : null,
+    timestamp: new Date(tx.timestamp).toISOString()
+  };
+}
+function printTransactionTable2(pendingTxs, signedTxs) {
+  const rows = [
+    ...pendingTxs.map((tx) => ({
+      status: "pending",
+      metadata: toPendingTxMetadata2(tx)
+    })),
+    ...signedTxs.map((tx) => ({
+      status: "signed",
+      metadata: toSignedTxMetadata2(tx)
+    }))
+  ];
+  if (rows.length === 0) {
+    console.log(`${YELLOW}\u{1FA99} No transactions in local CLI state.${RESET}`);
+    return;
+  }
+  const visibleRows = rows.slice(0, MAX_TX_ROWS2);
+  const statusWidth = Math.max(
+    "status".length,
+    ...visibleRows.map((row) => row.status.length)
+  );
+  const jsonCells = visibleRows.map(
+    (row) => truncateCell2(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH2)
+  );
+  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
+  console.log(`${GREEN}${border}${RESET}`);
+  console.log(
+    `${GREEN}| ${padRight2("status", statusWidth)} | ${padRight2("metadata_json", jsonWidth)} |${RESET}`
+  );
+  console.log(`${GREEN}${border}${RESET}`);
+  for (let i = 0; i < visibleRows.length; i++) {
+    console.log(
+      `${GREEN}| ${padRight2(visibleRows[i].status, statusWidth)} | ${padRight2(jsonCells[i], jsonWidth)} |${RESET}`
+    );
+    console.log(`${GREEN}${border}${RESET}`);
+  }
+  if (rows.length > MAX_TX_ROWS2) {
+    const omitted = rows.length - MAX_TX_ROWS2;
+    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
+  }
+}
+async function fetchRemoteSessionStats(record) {
+  var _a3, _b;
+  const client = new AomiClient({
+    baseUrl: record.state.baseUrl,
+    apiKey: record.state.apiKey
+  });
+  try {
+    const apiState = await client.fetchState(record.sessionId);
+    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
+    return {
+      topic: (_b = apiState.title) != null ? _b : "Untitled Session",
+      messageCount: messages.length,
+      tokenCountEstimate: estimateTokenCount2(messages),
+      toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function printSessionSummary(record, stats, isActive) {
+  var _a3, _b, _c;
+  const pendingTxs = (_a3 = record.state.pendingTxs) != null ? _a3 : [];
+  const signedTxs = (_b = record.state.signedTxs) != null ? _b : [];
+  const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
+  console.log(`${YELLOW}------ ${header} ------${RESET}`);
+  printKeyValueTable2([
+    ["\u{1F9E0} topic", (_c = stats == null ? void 0 : stats.topic) != null ? _c : "Unavailable (fetch failed)"],
+    ["\u{1F4AC} msg count", stats ? String(stats.messageCount) : "n/a"],
+    [
+      "\u{1F9EE} token count",
+      stats ? `${stats.tokenCountEstimate} (estimated)` : "n/a"
+    ],
+    ["\u{1F6E0} tool calls", stats ? String(stats.toolCalls) : "n/a"],
+    [
+      "\u{1F4B8} transactions",
+      `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`
+    ]
+  ]);
+  console.log();
+  console.log(`${YELLOW}\u{1F4BE} Transactions metadata (JSON):${RESET}`);
+  printTransactionTable2(pendingTxs, signedTxs);
+}
+async function sessionsCommand(_runtime) {
+  var _a3;
+  const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+  if (sessions.length === 0) {
+    console.log("No local sessions.");
+    printDataFileLocation();
+    return;
+  }
+  const activeSessionId = (_a3 = readState()) == null ? void 0 : _a3.sessionId;
+  for (let i = 0; i < sessions.length; i++) {
+    const sessionRecord = sessions[i];
+    const stats = await fetchRemoteSessionStats(sessionRecord);
+    printSessionSummary(sessionRecord, stats, sessionRecord.sessionId === activeSessionId);
+    if (i < sessions.length - 1) {
+      console.log();
+    }
+  }
+  printDataFileLocation();
+}
+function sessionCommand(runtime) {
+  const subcommand = runtime.parsed.positional[0];
+  const selector = runtime.parsed.positional[1];
+  if (subcommand === "resume") {
+    if (!selector) {
+      fatal("Usage: aomi session resume <session-id|session-N|N>");
+    }
+    const resumed = setActiveSession(selector);
+    if (!resumed) {
+      fatal(`No local session found for selector "${selector}".`);
+    }
+    console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+    printDataFileLocation();
+    return;
+  }
+  if (subcommand === "delete") {
+    if (!selector) {
+      fatal("Usage: aomi session delete <session-id|session-N|N>");
+    }
+    const deleted = deleteStoredSession(selector);
+    if (!deleted) {
+      fatal(`No local session found for selector "${selector}".`);
+    }
+    console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+    const active = readState();
+    if (active) {
+      console.log(`Active session: ${active.sessionId}`);
+    } else {
+      console.log("No active session");
+    }
+    printDataFileLocation();
+    return;
+  }
+  fatal(
+    "Usage: aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>"
+  );
+}
+
 // src/cli/commands/wallet.ts
 import { existsSync as existsSync2 } from "fs";
 import { join as join2 } from "path";
@@ -1758,8 +2217,8 @@ function detectPackageManager(cwd = process.cwd()) {
   return "unknown";
 }
 function isLikelyNpxExecution() {
-  var _a2, _b, _c;
-  const argvPath = (_a2 = process.argv[1]) != null ? _a2 : "";
+  var _a3, _b, _c;
+  const argvPath = (_a3 = process.argv[1]) != null ? _a3 : "";
   if (argvPath.includes("/_npx/") || argvPath.includes("\\_npx\\")) {
     return true;
   }
@@ -1804,14 +2263,14 @@ function missingViemHint() {
   ].join("\n");
 }
 function txCommand() {
-  var _a2, _b, _c;
+  var _a3, _b, _c;
   const state = readState();
   if (!state) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  const pending = (_a2 = state.pendingTxs) != null ? _a2 : [];
+  const pending = (_a3 = state.pendingTxs) != null ? _a3 : [];
   const signed = (_b = state.signedTxs) != null ? _b : [];
   if (pending.length === 0 && signed.length === 0) {
     console.log("No transactions.");
@@ -1844,8 +2303,8 @@ function txCommand() {
   printDataFileLocation();
 }
 function requirePendingTx(state, txId) {
-  var _a2;
-  const pendingTx = ((_a2 = state.pendingTxs) != null ? _a2 : []).find((tx) => tx.id === txId);
+  var _a3;
+  const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
   if (!pendingTx) {
     fatal(
       `No pending transaction with id "${txId}".
@@ -1855,7 +2314,7 @@ Run \`aomi tx\` to see available IDs.`
   return pendingTx;
 }
 async function signCommand(runtime) {
-  var _a2, _b, _c;
+  var _a3, _b, _c;
   const txId = runtime.parsed.positional[0];
   if (!txId) {
     fatal(
@@ -1865,7 +2324,12 @@ async function signCommand(runtime) {
   const privateKey = runtime.config.privateKey;
   if (!privateKey) {
     fatal(
-      "Private key required. Pass --private-key or set PRIVATE_KEY env var."
+      [
+        "Private key required for `aomi sign`.",
+        "Pass one of:",
+        "  --private-key <hex-key>",
+        "  PRIVATE_KEY=<hex-key> aomi sign <tx-id>"
+      ].join("\n")
     );
   }
   const state = readState();
@@ -1889,7 +2353,7 @@ async function signCommand(runtime) {
     const { privateKeyToAccount } = viemAccounts;
     const account = privateKeyToAccount(privateKey);
     const rpcUrl = runtime.config.chainRpcUrl;
-    const targetChainId = (_a2 = pendingTx.chainId) != null ? _a2 : 1;
+    const targetChainId = (_a3 = pendingTx.chainId) != null ? _a3 : 1;
     const chain = (_b = Object.values(viemChains).find(
       (candidate) => typeof candidate === "object" && candidate !== null && "id" in candidate && candidate.id === targetChainId
     )) != null ? _b : {
@@ -2013,6 +2477,11 @@ Usage:
   aomi chat --verbose   Stream agent responses, tool calls, and events live
   aomi models           List models available to the current backend
   aomi model set <rig>  Set the active model for the current session
+  aomi sessions         List local sessions with metadata tables
+  aomi session resume <id>
+                        Resume a local session (session-id or session-N)
+  aomi session delete <id>
+                        Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
   aomi sign <tx-id>     Sign and submit a pending transaction
@@ -2041,8 +2510,8 @@ Environment (overridden by flags):
 `.trim());
 }
 async function main(runtime) {
-  var _a2;
-  const command = (_a2 = runtime.parsed.command) != null ? _a2 : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
+  var _a3;
+  const command = (_a3 = runtime.parsed.command) != null ? _a3 : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
   switch (command) {
     case "chat":
       await chatCommand(runtime);
@@ -2055,6 +2524,12 @@ async function main(runtime) {
       break;
     case "model":
       await modelCommand(runtime);
+      break;
+    case "sessions":
+      await sessionsCommand(runtime);
+      break;
+    case "session":
+      sessionCommand(runtime);
       break;
     case "tx":
       txCommand();
@@ -2081,16 +2556,29 @@ async function main(runtime) {
       }
   }
 }
+function isPnpmExecWrapper() {
+  var _a3, _b;
+  const npmCommand = (_a3 = process.env.npm_command) != null ? _a3 : "";
+  const userAgent = (_b = process.env.npm_config_user_agent) != null ? _b : "";
+  return npmCommand === "exec" && userAgent.includes("pnpm/");
+}
 async function runCli(argv = process.argv) {
   const runtime = createRuntime(argv);
+  const RED = "\x1B[31m";
+  const RESET3 = "\x1B[0m";
+  const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
   try {
     await main(runtime);
   } catch (err) {
     if (err instanceof CliExit) {
+      if (!strictExit && isPnpmExecWrapper()) {
+        return;
+      }
       process.exit(err.code);
       return;
     }
-    console.error(err instanceof Error ? err.message : err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`${RED}\u274C ${message}${RESET3}`);
     process.exit(1);
   }
 }
