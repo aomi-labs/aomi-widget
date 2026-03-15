@@ -113,7 +113,7 @@ export async function GET() {
             fontFamily: "PT Serif",
             fontWeight: 700,
             color: "#1c1917",
-            marginBottom: 16,
+            marginBottom: 24,
             letterSpacing: "-0.02em",
           }}
         >
@@ -124,7 +124,7 @@ export async function GET() {
         <div
           style={{
             display: "flex",
-            fontSize: 30,
+            fontSize: 26,
             fontFamily: "Inter",
             fontWeight: 500,
             color: "#1c1917",
@@ -148,12 +148,13 @@ export async function GET() {
           <div
             style={{
               display: "flex",
-              padding: "10px 18px",
-              borderRadius: 20,
-              background: "rgba(255,255,255,0.5)",
-              border: "1px solid rgba(255,255,255,0.6)",
-              color: "#1c1917",
-              fontSize: 16,
+              padding: "10px 20px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
+              border: "1px solid rgba(255,255,255,0.8)",
+              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
+              color: "#6b7280",
+              fontSize: 15,
               fontFamily: "Inter",
               fontWeight: 500,
             }}
@@ -163,12 +164,13 @@ export async function GET() {
           <div
             style={{
               display: "flex",
-              padding: "10px 18px",
-              borderRadius: 20,
-              background: "rgba(255,255,255,0.5)",
-              border: "1px solid rgba(255,255,255,0.6)",
-              color: "#1c1917",
-              fontSize: 16,
+              padding: "10px 20px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
+              border: "1px solid rgba(255,255,255,0.8)",
+              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
+              color: "#6b7280",
+              fontSize: 15,
               fontFamily: "Inter",
               fontWeight: 500,
             }}
@@ -178,12 +180,13 @@ export async function GET() {
           <div
             style={{
               display: "flex",
-              padding: "10px 18px",
-              borderRadius: 20,
-              background: "rgba(255,255,255,0.5)",
-              border: "1px solid rgba(255,255,255,0.6)",
-              color: "#1c1917",
-              fontSize: 16,
+              padding: "10px 20px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
+              border: "1px solid rgba(255,255,255,0.8)",
+              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
+              color: "#6b7280",
+              fontSize: 15,
               fontFamily: "Inter",
               fontWeight: 500,
             }}
@@ -193,12 +196,13 @@ export async function GET() {
           <div
             style={{
               display: "flex",
-              padding: "10px 18px",
-              borderRadius: 20,
-              background: "rgba(255,255,255,0.5)",
-              border: "1px solid rgba(255,255,255,0.6)",
-              color: "#1c1917",
-              fontSize: 16,
+              padding: "10px 20px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
+              border: "1px solid rgba(255,255,255,0.8)",
+              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
+              color: "#6b7280",
+              fontSize: 15,
               fontFamily: "Inter",
               fontWeight: 500,
             }}
@@ -208,12 +212,13 @@ export async function GET() {
           <div
             style={{
               display: "flex",
-              padding: "10px 18px",
-              borderRadius: 20,
-              background: "rgba(255,255,255,0.5)",
-              border: "1px solid rgba(255,255,255,0.6)",
-              color: "#1c1917",
-              fontSize: 16,
+              padding: "10px 20px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
+              border: "1px solid rgba(255,255,255,0.8)",
+              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
+              color: "#6b7280",
+              fontSize: 15,
               fontFamily: "Inter",
               fontWeight: 500,
             }}
