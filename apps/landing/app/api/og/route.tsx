@@ -2,8 +2,8 @@ import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
 
-export async function GET() {
-  // Load fonts - must be .ttf format
+export async function GET(request: Request) {
+  // Load fonts
   const [ptSerifBold, interMedium] = await Promise.all([
     fetch(
       "https://fonts.gstatic.com/s/ptserif/v19/EJRSQgYoZZY2vCFuvAnt65qV.ttf"
@@ -12,6 +12,11 @@ export async function GET() {
       "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf"
     ).then((res) => res.arrayBuffer()),
   ]);
+
+  // Fetch the background image
+  const bgImageResponse = await fetch(new URL('/og-bg.jpg', request.url));
+  const bgImageBuffer = await bgImageResponse.arrayBuffer();
+  const bgImageBase64 = `data:image/jpeg;base64,${Buffer.from(bgImageBuffer).toString('base64')}`;
 
   return new ImageResponse(
     (
@@ -23,70 +28,19 @@ export async function GET() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #d4a5c9 0%, #e8b4d0 25%, #f5c6d0 50%, #c5ddf0 75%, #7dd3e8 100%)",
           position: "relative",
-          overflow: "hidden",
         }}
       >
-        {/* Vibrant gradient blobs */}
-        {/* Top-left: purple/lavender */}
-        <div
+        {/* Background image */}
+        <img
+          src={bgImageBase64}
           style={{
             position: "absolute",
-            top: -150,
-            left: -150,
-            width: 600,
-            height: 600,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(180,140,200,0.9) 0%, rgba(180,140,200,0) 55%)",
-          }}
-        />
-        {/* Top-right: orange/peach */}
-        <div
-          style={{
-            position: "absolute",
-            top: -100,
-            right: -100,
-            width: 550,
-            height: 550,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(255,180,140,0.85) 0%, rgba(255,180,140,0) 55%)",
-          }}
-        />
-        {/* Center-left: strong magenta/pink */}
-        <div
-          style={{
-            position: "absolute",
-            top: 50,
-            left: 150,
-            width: 700,
-            height: 500,
-            borderRadius: "50%",
-            background: "radial-gradient(ellipse, rgba(220,120,180,0.9) 0%, rgba(220,120,180,0) 50%)",
-          }}
-        />
-        {/* Bottom-left: yellow/peach */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: -100,
-            left: -50,
-            width: 500,
-            height: 500,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(255,210,160,0.8) 0%, rgba(255,210,160,0) 55%)",
-          }}
-        />
-        {/* Bottom-right: cyan/turquoise */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: -150,
-            right: -100,
-            width: 600,
-            height: 600,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(100,210,235,0.9) 0%, rgba(100,210,235,0) 55%)",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
           }}
         />
 
@@ -108,7 +62,7 @@ export async function GET() {
           />
         </svg>
 
-        {/* Title - PT Serif */}
+        {/* Title */}
         <div
           style={{
             display: "flex",
@@ -123,7 +77,7 @@ export async function GET() {
           Aomi Labs
         </div>
 
-        {/* Tagline - Inter (similar to Geist) */}
+        {/* Tagline */}
         <div
           style={{
             display: "flex",
@@ -137,7 +91,7 @@ export async function GET() {
           AI-powered blockchain automation
         </div>
 
-        {/* Feature pills - 5 glassmorphic pills */}
+        {/* Feature pills */}
         <div
           style={{
             display: "flex",
@@ -148,86 +102,25 @@ export async function GET() {
             maxWidth: 1000,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              padding: "10px 20px",
-              borderRadius: 24,
-              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
-              border: "1px solid rgba(255,255,255,0.8)",
-              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
-              color: "#6b7280",
-              fontSize: 15,
-              fontFamily: "Inter",
-              fontWeight: 400,
-            }}
-          >
-            Chain-Native Harness
-          </div>
-          <div
-            style={{
-              display: "flex",
-              padding: "10px 20px",
-              borderRadius: 24,
-              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
-              border: "1px solid rgba(255,255,255,0.8)",
-              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
-              color: "#6b7280",
-              fontSize: 15,
-              fontFamily: "Inter",
-              fontWeight: 400,
-            }}
-          >
-            Simulations
-          </div>
-          <div
-            style={{
-              display: "flex",
-              padding: "10px 20px",
-              borderRadius: 24,
-              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
-              border: "1px solid rgba(255,255,255,0.8)",
-              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
-              color: "#6b7280",
-              fontSize: 15,
-              fontFamily: "Inter",
-              fontWeight: 400,
-            }}
-          >
-            Non-Custodial
-          </div>
-          <div
-            style={{
-              display: "flex",
-              padding: "10px 20px",
-              borderRadius: 24,
-              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
-              border: "1px solid rgba(255,255,255,0.8)",
-              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
-              color: "#6b7280",
-              fontSize: 15,
-              fontFamily: "Inter",
-              fontWeight: 400,
-            }}
-          >
-            Multi-Chain
-          </div>
-          <div
-            style={{
-              display: "flex",
-              padding: "10px 20px",
-              borderRadius: 24,
-              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
-              border: "1px solid rgba(255,255,255,0.8)",
-              boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
-              color: "#6b7280",
-              fontSize: 15,
-              fontFamily: "Inter",
-              fontWeight: 400,
-            }}
-          >
-            Skills for Agents
-          </div>
+          {["Chain-Native Harness", "Simulations", "Non-Custodial", "Multi-Chain", "Skills for Agents"].map((text) => (
+            <div
+              key={text}
+              style={{
+                display: "flex",
+                padding: "10px 20px",
+                borderRadius: 24,
+                background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)",
+                border: "1px solid rgba(255,255,255,0.8)",
+                boxShadow: "0 4px 16px rgba(115,62,131,0.1)",
+                color: "#6b7280",
+                fontSize: 15,
+                fontFamily: "Inter",
+                fontWeight: 400,
+              }}
+            >
+              {text}
+            </div>
+          ))}
         </div>
 
         {/* URL */}
