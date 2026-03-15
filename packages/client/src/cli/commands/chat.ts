@@ -2,14 +2,18 @@ import type { WalletRequest } from "../../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
 import { addPendingTx } from "../state";
 import {
-  CYAN,
   DIM,
-  GREEN,
   RESET,
   YELLOW,
+  getMessageToolResults,
+  getToolNameFromEvent,
+  getToolResultFromEvent,
+  isAlwaysVisibleTool,
   printNewAgentMessages,
   printToolComplete,
+  printToolResultLine,
   printToolUpdate,
+  toToolResultKey,
 } from "../output";
 import {
   applyRequestedModelIfPresent,
@@ -50,11 +54,41 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
 
     const capturedRequests: WalletRequest[] = [];
     let printedAgentCount = 0;
+    const seenToolResults = new Set<string>();
 
     session.on("wallet_tx_request", (request) => capturedRequests.push(request));
     session.on("wallet_eip712_request", (request) =>
       capturedRequests.push(request),
     );
+
+    session.on("tool_complete", (event) => {
+      const name = getToolNameFromEvent(event);
+      const result = getToolResultFromEvent(event);
+      const key = toToolResultKey(name, result);
+      seenToolResults.add(key);
+
+      if (verbose || isAlwaysVisibleTool(name)) {
+        printToolComplete(event);
+      }
+    });
+
+    session.on("tool_update", (event) => {
+      if (verbose) {
+        printToolUpdate(event);
+      }
+    });
+
+    if (verbose) {
+      session.on("processing_start", () => {
+        console.log(`${DIM}⏳ Processing…${RESET}`);
+      });
+      session.on("system_notice", ({ message: msg }) => {
+        console.log(`${YELLOW}📢 ${msg}${RESET}`);
+      });
+      session.on("system_error", ({ message: msg }) => {
+        console.log(`\x1b[31m❌ ${msg}${RESET}`);
+      });
+    }
 
     await session.sendAsync(message);
 
@@ -72,24 +106,12 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
     ).length;
 
     if (verbose) {
-      if (session.getIsProcessing()) {
-        console.log(`${DIM}⏳ Processing…${RESET}`);
-      }
       printedAgentCount = printNewAgentMessages(
         allMessages,
         printedAgentCount,
       );
-
-      session.on("tool_update", (event) => printToolUpdate(event));
-      session.on("tool_complete", (event) => printToolComplete(event));
       session.on("messages", (messages) => {
         printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
-      });
-      session.on("system_notice", ({ message: msg }) => {
-        console.log(`${YELLOW}📢 ${msg}${RESET}`);
-      });
-      session.on("system_error", ({ message: msg }) => {
-        console.log(`\x1b[31m❌ ${msg}${RESET}`);
       });
     }
 
@@ -104,8 +126,36 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
       });
     }
 
+    const messageToolResults = getMessageToolResults(
+      session.getMessages(),
+      seedIdx + 1,
+    );
+
     if (verbose) {
-      printNewAgentMessages(session.getMessages(), printedAgentCount);
+      for (const tool of messageToolResults) {
+        const key = toToolResultKey(tool.name, tool.result);
+        if (seenToolResults.has(key)) {
+          continue;
+        }
+        printToolResultLine(tool.name, tool.result);
+      }
+    } else {
+      for (const tool of messageToolResults) {
+        const key = toToolResultKey(tool.name, tool.result);
+        if (seenToolResults.has(key)) {
+          continue;
+        }
+        if (isAlwaysVisibleTool(tool.name)) {
+          printToolResultLine(tool.name, tool.result);
+        }
+      }
+    }
+
+    if (verbose) {
+      printedAgentCount = printNewAgentMessages(
+        session.getMessages(),
+        printedAgentCount,
+      );
       console.log(`${DIM}✅ Done${RESET}`);
     }
 

@@ -30,12 +30,7 @@
     "build": "tsup",
     "clean:dist": "rm -rf dist"
   },
-  "peerDependencies": {
-    "viem": ">=2.0.0"
-  },
-  "peerDependenciesMeta": {
-    "viem": {
-      "optional": true
-    }
+  "dependencies": {
+    "viem": "^2.40.3"
   }
 }

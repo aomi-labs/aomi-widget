@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { Chain } from "viem";
 import { Session } from "../../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
@@ -12,6 +14,76 @@ import {
 } from "../state";
 import { formatTxLine } from "../transactions";
 import type { CliRuntime } from "../types";
+
+type PackageManager = "pnpm" | "yarn" | "npm" | "unknown";
+
+function detectPackageManager(cwd = process.cwd()): PackageManager {
+  if (
+    existsSync(join(cwd, "pnpm-workspace.yaml")) ||
+    existsSync(join(cwd, "pnpm-lock.yaml"))
+  ) {
+    return "pnpm";
+  }
+  if (existsSync(join(cwd, "yarn.lock"))) {
+    return "yarn";
+  }
+  if (existsSync(join(cwd, "package-lock.json"))) {
+    return "npm";
+  }
+  return "unknown";
+}
+
+function isLikelyNpxExecution(): boolean {
+  const argvPath = process.argv[1] ?? "";
+  if (argvPath.includes("/_npx/") || argvPath.includes("\\_npx\\")) {
+    return true;
+  }
+
+  const npmCommand = process.env.npm_command ?? "";
+  const userAgent = process.env.npm_config_user_agent ?? "";
+  return npmCommand === "exec" && userAgent.includes("npm/");
+}
+
+function missingViemHint(): string {
+  const packageManager = detectPackageManager();
+  const ranFromNpx = isLikelyNpxExecution();
+
+  if (packageManager === "pnpm") {
+    if (ranFromNpx) {
+      return [
+        "viem is missing in this runtime.",
+        "Detected `npx` execution in a pnpm workspace.",
+        "Use the local workspace CLI instead:",
+        "  pnpm --filter @aomi-labs/client exec node dist/cli.js sign <tx-id> --private-key <key>",
+        "If dependencies are missing, run:",
+        "  pnpm install",
+      ].join("\n");
+    }
+
+    return [
+      "viem is required for `aomi sign`.",
+      "This workspace uses pnpm. Run:",
+      "  pnpm install",
+      "Or add it explicitly:",
+      "  pnpm add viem",
+    ].join("\n");
+  }
+
+  if (packageManager === "yarn") {
+    return [
+      "viem is required for `aomi sign`.",
+      "Install it with yarn:",
+      "  yarn add viem",
+    ].join("\n");
+  }
+
+  return [
+    "viem is required for `aomi sign`.",
+    "Install it with:",
+    "  npm install viem",
+    "  # or: pnpm add viem",
+  ].join("\n");
+}
 
 export function txCommand(): void {
   const state = readState();
@@ -100,9 +172,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       viemAccounts = await import("viem/accounts");
       viemChains = await import("viem/chains");
     } catch {
-      fatal(
-        "viem is required for `aomi sign`. Install it:\n  npm install viem\n  # or: pnpm add viem",
-      );
+      fatal(missingViemHint());
     }
 
     const { createWalletClient, http } = viem;

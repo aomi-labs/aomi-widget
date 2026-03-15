@@ -12,26 +12,74 @@ export function printDataFileLocation(): void {
 }
 
 export function printToolUpdate(event: AomiSSEEvent): void {
-  const name =
-    (event.tool_name as string | undefined) ??
-    (event.name as string | undefined) ??
-    "unknown";
+  const name = getToolNameFromEvent(event);
   const status = (event.status as string | undefined) ?? "running";
   console.log(`${DIM}🔧 [tool] ${name}: ${status}${RESET}`);
 }
 
 export function printToolComplete(event: AomiSSEEvent): void {
-  const name =
+  const name = getToolNameFromEvent(event);
+  const result = getToolResultFromEvent(event);
+  const line = formatToolResultLine(name, result);
+  console.log(line);
+}
+
+export function printToolResultLine(name: string, result?: string): void {
+  console.log(formatToolResultLine(name, result));
+}
+
+export function getToolNameFromEvent(event: AomiSSEEvent): string {
+  return (
     (event.tool_name as string | undefined) ??
     (event.name as string | undefined) ??
-    "unknown";
-  const result =
+    "unknown"
+  );
+}
+
+export function getToolResultFromEvent(event: AomiSSEEvent): string | undefined {
+  return (
     (event.result as string | undefined) ??
-    (event.output as string | undefined);
-  const line = result
-    ? `${GREEN}✔ [tool] ${name} → ${result.slice(0, 120)}${result.length > 120 ? "…" : ""}${RESET}`
-    : `${GREEN}✔ [tool] ${name} done${RESET}`;
-  console.log(line);
+    (event.output as string | undefined)
+  );
+}
+
+export function toToolResultKey(name: string, result?: string): string {
+  return `${name}\n${result ?? ""}`;
+}
+
+export function getMessageToolResults(
+  messages: AomiMessage[],
+  startAt = 0,
+): Array<{ name: string; result: string }> {
+  const results: Array<{ name: string; result: string }> = [];
+  for (let i = startAt; i < messages.length; i++) {
+    const toolResult = messages[i].tool_result;
+    if (!toolResult) {
+      continue;
+    }
+    const [name, result] = toolResult;
+    if (!name || typeof result !== "string") {
+      continue;
+    }
+    results.push({ name, result });
+  }
+  return results;
+}
+
+export function isAlwaysVisibleTool(name: string): boolean {
+  const normalized = name.toLowerCase();
+  if (
+    normalized.includes("encode_and_simulate") ||
+    normalized.includes("encode-and-simulate") ||
+    normalized.includes("encode_and_view") ||
+    normalized.includes("encode-and-view")
+  ) {
+    return true;
+  }
+  if (normalized.startsWith("simulate ")) {
+    return true;
+  }
+  return false;
 }
 
 export function printNewAgentMessages(
@@ -55,4 +103,28 @@ export function printNewAgentMessages(
   }
 
   return handled;
+}
+
+export function formatLogContent(content?: string | null): string | null {
+  if (!content) return null;
+  const trimmed = content.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function formatToolResultPreview(
+  result: string,
+  maxLength = 200,
+): string {
+  const normalized = result.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}…`;
+}
+
+function formatToolResultLine(name: string, result?: string): string {
+  if (!result) {
+    return `${GREEN}✔ [tool] ${name} done${RESET}`;
+  }
+  return `${GREEN}✔ [tool] ${name} → ${formatToolResultPreview(result, 120)}${RESET}`;
 }
