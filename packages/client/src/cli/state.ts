@@ -197,7 +197,12 @@ function getNextLocalId(sessions: StoredSessionState[]): number {
   return maxLocalId + 1;
 }
 
+let _migrationDone = false;
+
 function migrateLegacyStateIfNeeded(): void {
+  if (_migrationDone) return;
+  _migrationDone = true;
+
   if (!existsSync(LEGACY_STATE_FILE)) return;
 
   const existing = readAllStoredSessions();
@@ -324,7 +329,7 @@ export function readState(): CliSessionState | null {
     return null;
   }
 
-  return active ? toCliSessionState(active) : null;
+  return toCliSessionState(active);
 }
 
 export function writeState(state: CliSessionState): void {

@@ -20,11 +20,11 @@ export function getOrCreateSession(
     writeState(state);
   } else {
     let changed = false;
-    if (config.baseUrl && config.baseUrl !== state.baseUrl) {
+    if (config.baseUrl !== state.baseUrl) {
       state.baseUrl = config.baseUrl;
       changed = true;
     }
-    if (config.namespace && config.namespace !== state.namespace) {
+    if (config.namespace !== state.namespace) {
       state.namespace = config.namespace;
       changed = true;
     }
