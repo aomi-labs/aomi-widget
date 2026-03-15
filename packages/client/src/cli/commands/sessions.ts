@@ -1,151 +1,19 @@
 import { AomiClient } from "../../client";
-import type { AomiMessage } from "../../types";
 import { fatal } from "../errors";
-import {
-  CYAN,
-  DIM,
-  GREEN,
-  RESET,
-  YELLOW,
-  formatLogContent,
-  printDataFileLocation,
-} from "../output";
+import { RESET, YELLOW, printDataFileLocation } from "../output";
 import {
   deleteStoredSession,
   listStoredSessions,
   readState,
   setActiveSession,
-  type PendingTx,
-  type SignedTx,
   type StoredSessionRecord,
 } from "../state";
+import {
+  estimateTokenCount,
+  printKeyValueTable,
+  printTransactionTable,
+} from "../tables";
 import type { CliRuntime } from "../types";
-
-const MAX_TABLE_VALUE_WIDTH = 72;
-const MAX_TX_JSON_WIDTH = 96;
-const MAX_TX_ROWS = 8;
-
-function truncateCell(value: string, maxWidth: number): string {
-  if (value.length <= maxWidth) return value;
-  return `${value.slice(0, maxWidth - 1)}…`;
-}
-
-function padRight(value: string, width: number): string {
-  return value.padEnd(width, " ");
-}
-
-function estimateTokenCount(messages: AomiMessage[]): number {
-  let totalChars = 0;
-  for (const message of messages) {
-    const content = formatLogContent(message.content);
-    if (content) {
-      totalChars += content.length + 1;
-    }
-    if (message.tool_result?.[1]) {
-      totalChars += message.tool_result[1].length;
-    }
-  }
-  return Math.round(totalChars / 4);
-}
-
-function printKeyValueTable(rows: Array<[string, string]>): void {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(([, value]) =>
-    truncateCell(value, MAX_TABLE_VALUE_WIDTH),
-  );
-
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-
-  console.log(`${CYAN}${border}${RESET}`);
-  console.log(
-    `${CYAN}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`,
-  );
-  console.log(`${CYAN}${border}${RESET}`);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `${CYAN}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`,
-    );
-    console.log(`${CYAN}${border}${RESET}`);
-  }
-}
-
-function toPendingTxMetadata(tx: PendingTx): Record<string, unknown> {
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    to: tx.to ?? null,
-    value: tx.value ?? null,
-    chainId: tx.chainId ?? null,
-    description: tx.description ?? null,
-    timestamp: new Date(tx.timestamp).toISOString(),
-  };
-}
-
-function toSignedTxMetadata(tx: SignedTx): Record<string, unknown> {
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txHash: tx.txHash ?? null,
-    signature: tx.signature ?? null,
-    from: tx.from ?? null,
-    to: tx.to ?? null,
-    value: tx.value ?? null,
-    chainId: tx.chainId ?? null,
-    description: tx.description ?? null,
-    timestamp: new Date(tx.timestamp).toISOString(),
-  };
-}
-
-function printTransactionTable(
-  pendingTxs: PendingTx[],
-  signedTxs: SignedTx[],
-): void {
-  const rows = [
-    ...pendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata(tx),
-    })),
-    ...signedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata(tx),
-    })),
-  ];
-
-  if (rows.length === 0) {
-    console.log(`${YELLOW}🪙 No transactions in local CLI state.${RESET}`);
-    return;
-  }
-
-  const visibleRows = rows.slice(0, MAX_TX_ROWS);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length),
-  );
-  const jsonCells = visibleRows.map((row) =>
-    truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH),
-  );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-
-  console.log(`${GREEN}${border}${RESET}`);
-  console.log(
-    `${GREEN}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`,
-  );
-  console.log(`${GREEN}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${GREEN}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`,
-    );
-    console.log(`${GREEN}${border}${RESET}`);
-  }
-
-  if (rows.length > MAX_TX_ROWS) {
-    const omitted = rows.length - MAX_TX_ROWS;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
 
 type RemoteSessionStats = {
   topic: string;
@@ -217,10 +85,16 @@ export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
 
   const activeSessionId = readState()?.sessionId;
 
+  const statsResults = await Promise.all(
+    sessions.map((record) => fetchRemoteSessionStats(record)),
+  );
+
   for (let i = 0; i < sessions.length; i++) {
-    const sessionRecord = sessions[i];
-    const stats = await fetchRemoteSessionStats(sessionRecord);
-    printSessionSummary(sessionRecord, stats, sessionRecord.sessionId === activeSessionId);
+    printSessionSummary(
+      sessions[i],
+      statsResults[i],
+      sessions[i].sessionId === activeSessionId,
+    );
     if (i < sessions.length - 1) {
       console.log();
     }

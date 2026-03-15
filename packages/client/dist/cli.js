@@ -189,7 +189,10 @@ function getNextLocalId(sessions) {
   }, 0);
   return maxLocalId + 1;
 }
+var _migrationDone = false;
 function migrateLegacyStateIfNeeded() {
+  if (_migrationDone) return;
+  _migrationDone = true;
   if (!existsSync(LEGACY_STATE_FILE)) return;
   const existing = readAllStoredSessions();
   if (existing.length > 0) {
@@ -292,7 +295,7 @@ function readState() {
     writeActiveLocalId(null);
     return null;
   }
-  return active ? toCliSessionState(active) : null;
+  return toCliSessionState(active);
 }
 function writeState(state) {
   var _a3, _b;
@@ -1426,11 +1429,11 @@ function getOrCreateSession(runtime) {
     writeState(state);
   } else {
     let changed = false;
-    if (config.baseUrl && config.baseUrl !== state.baseUrl) {
+    if (config.baseUrl !== state.baseUrl) {
       state.baseUrl = config.baseUrl;
       changed = true;
     }
-    if (config.namespace && config.namespace !== state.namespace) {
+    if (config.namespace !== state.namespace) {
       state.namespace = config.namespace;
       changed = true;
     }
@@ -1791,14 +1794,12 @@ async function modelCommand(runtime) {
   }
 }
 
-// src/cli/commands/history.ts
+// src/cli/tables.ts
 var MAX_TABLE_VALUE_WIDTH = 72;
 var MAX_TX_JSON_WIDTH = 96;
 var MAX_TX_ROWS = 8;
 function truncateCell(value, maxWidth) {
-  if (value.length <= maxWidth) {
-    return value;
-  }
+  if (value.length <= maxWidth) return value;
   return `${value.slice(0, maxWidth - 1)}\u2026`;
 }
 function padRight(value, width) {
@@ -1817,24 +1818,6 @@ function estimateTokenCount(messages) {
     }
   }
   return Math.round(totalChars / 4);
-}
-function printKeyValueTable(rows) {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(
-    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
-  );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-  console.log(border);
-  console.log(`| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |`);
-  console.log(border);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |`
-    );
-    console.log(border);
-  }
 }
 function toPendingTxMetadata(tx) {
   var _a3, _b, _c, _d;
@@ -1863,7 +1846,27 @@ function toSignedTxMetadata(tx) {
     timestamp: new Date(tx.timestamp).toISOString()
   };
 }
-function printTransactionTable(pendingTxs, signedTxs) {
+function printKeyValueTable(rows, color = CYAN) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+}
+function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
   const rows = [
     ...pendingTxs.map((tx) => ({
       status: "pending",
@@ -1875,7 +1878,7 @@ function printTransactionTable(pendingTxs, signedTxs) {
     }))
   ];
   if (rows.length === 0) {
-    console.log("No transactions in local CLI state.");
+    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
     return;
   }
   const visibleRows = rows.slice(0, MAX_TX_ROWS);
@@ -1888,22 +1891,24 @@ function printTransactionTable(pendingTxs, signedTxs) {
   );
   const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
   const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(border);
+  console.log(`${color}${border}${RESET}`);
   console.log(
-    `| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |`
+    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
   );
-  console.log(border);
+  console.log(`${color}${border}${RESET}`);
   for (let i = 0; i < visibleRows.length; i++) {
     console.log(
-      `| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |`
+      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
     );
-    console.log(border);
+    console.log(`${color}${border}${RESET}`);
   }
   if (rows.length > MAX_TX_ROWS) {
     const omitted = rows.length - MAX_TX_ROWS;
     console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
   }
 }
+
+// src/cli/commands/history.ts
 async function logCommand(runtime) {
   var _a3, _b, _c, _d, _e;
   if (!readState()) {
@@ -1990,118 +1995,6 @@ function closeCommand(runtime) {
 }
 
 // src/cli/commands/sessions.ts
-var MAX_TABLE_VALUE_WIDTH2 = 72;
-var MAX_TX_JSON_WIDTH2 = 96;
-var MAX_TX_ROWS2 = 8;
-function truncateCell2(value, maxWidth) {
-  if (value.length <= maxWidth) return value;
-  return `${value.slice(0, maxWidth - 1)}\u2026`;
-}
-function padRight2(value, width) {
-  return value.padEnd(width, " ");
-}
-function estimateTokenCount2(messages) {
-  var _a3;
-  let totalChars = 0;
-  for (const message of messages) {
-    const content = formatLogContent(message.content);
-    if (content) {
-      totalChars += content.length + 1;
-    }
-    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
-      totalChars += message.tool_result[1].length;
-    }
-  }
-  return Math.round(totalChars / 4);
-}
-function printKeyValueTable2(rows) {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(
-    ([, value]) => truncateCell2(value, MAX_TABLE_VALUE_WIDTH2)
-  );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-  console.log(`${CYAN}${border}${RESET}`);
-  console.log(
-    `${CYAN}| ${padRight2("field", keyWidth)} | ${padRight2("value", valueWidth)} |${RESET}`
-  );
-  console.log(`${CYAN}${border}${RESET}`);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `${CYAN}| ${padRight2(labels[i], keyWidth)} | ${padRight2(values[i], valueWidth)} |${RESET}`
-    );
-    console.log(`${CYAN}${border}${RESET}`);
-  }
-}
-function toPendingTxMetadata2(tx) {
-  var _a3, _b, _c, _d;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    to: (_a3 = tx.to) != null ? _a3 : null,
-    value: (_b = tx.value) != null ? _b : null,
-    chainId: (_c = tx.chainId) != null ? _c : null,
-    description: (_d = tx.description) != null ? _d : null,
-    timestamp: new Date(tx.timestamp).toISOString()
-  };
-}
-function toSignedTxMetadata2(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    signature: (_b = tx.signature) != null ? _b : null,
-    from: (_c = tx.from) != null ? _c : null,
-    to: (_d = tx.to) != null ? _d : null,
-    value: (_e = tx.value) != null ? _e : null,
-    chainId: (_f = tx.chainId) != null ? _f : null,
-    description: (_g = tx.description) != null ? _g : null,
-    timestamp: new Date(tx.timestamp).toISOString()
-  };
-}
-function printTransactionTable2(pendingTxs, signedTxs) {
-  const rows = [
-    ...pendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata2(tx)
-    })),
-    ...signedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata2(tx)
-    }))
-  ];
-  if (rows.length === 0) {
-    console.log(`${YELLOW}\u{1FA99} No transactions in local CLI state.${RESET}`);
-    return;
-  }
-  const visibleRows = rows.slice(0, MAX_TX_ROWS2);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length)
-  );
-  const jsonCells = visibleRows.map(
-    (row) => truncateCell2(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH2)
-  );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(`${GREEN}${border}${RESET}`);
-  console.log(
-    `${GREEN}| ${padRight2("status", statusWidth)} | ${padRight2("metadata_json", jsonWidth)} |${RESET}`
-  );
-  console.log(`${GREEN}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${GREEN}| ${padRight2(visibleRows[i].status, statusWidth)} | ${padRight2(jsonCells[i], jsonWidth)} |${RESET}`
-    );
-    console.log(`${GREEN}${border}${RESET}`);
-  }
-  if (rows.length > MAX_TX_ROWS2) {
-    const omitted = rows.length - MAX_TX_ROWS2;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
 async function fetchRemoteSessionStats(record) {
   var _a3, _b;
   const client = new AomiClient({
@@ -2114,7 +2007,7 @@ async function fetchRemoteSessionStats(record) {
     return {
       topic: (_b = apiState.title) != null ? _b : "Untitled Session",
       messageCount: messages.length,
-      tokenCountEstimate: estimateTokenCount2(messages),
+      tokenCountEstimate: estimateTokenCount(messages),
       toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length
     };
   } catch (e) {
@@ -2127,7 +2020,7 @@ function printSessionSummary(record, stats, isActive) {
   const signedTxs = (_b = record.state.signedTxs) != null ? _b : [];
   const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
   console.log(`${YELLOW}------ ${header} ------${RESET}`);
-  printKeyValueTable2([
+  printKeyValueTable([
     ["\u{1F9E0} topic", (_c = stats == null ? void 0 : stats.topic) != null ? _c : "Unavailable (fetch failed)"],
     ["\u{1F4AC} msg count", stats ? String(stats.messageCount) : "n/a"],
     [
@@ -2142,7 +2035,7 @@ function printSessionSummary(record, stats, isActive) {
   ]);
   console.log();
   console.log(`${YELLOW}\u{1F4BE} Transactions metadata (JSON):${RESET}`);
-  printTransactionTable2(pendingTxs, signedTxs);
+  printTransactionTable(pendingTxs, signedTxs);
 }
 async function sessionsCommand(_runtime) {
   var _a3;
@@ -2153,10 +2046,15 @@ async function sessionsCommand(_runtime) {
     return;
   }
   const activeSessionId = (_a3 = readState()) == null ? void 0 : _a3.sessionId;
+  const statsResults = await Promise.all(
+    sessions.map((record) => fetchRemoteSessionStats(record))
+  );
   for (let i = 0; i < sessions.length; i++) {
-    const sessionRecord = sessions[i];
-    const stats = await fetchRemoteSessionStats(sessionRecord);
-    printSessionSummary(sessionRecord, stats, sessionRecord.sessionId === activeSessionId);
+    printSessionSummary(
+      sessions[i],
+      statsResults[i],
+      sessions[i].sessionId === activeSessionId
+    );
     if (i < sessions.length - 1) {
       console.log();
     }
@@ -2202,66 +2100,9 @@ function sessionCommand(runtime) {
 }
 
 // src/cli/commands/wallet.ts
-import { existsSync as existsSync2 } from "fs";
-import { join as join2 } from "path";
-function detectPackageManager(cwd = process.cwd()) {
-  if (existsSync2(join2(cwd, "pnpm-workspace.yaml")) || existsSync2(join2(cwd, "pnpm-lock.yaml"))) {
-    return "pnpm";
-  }
-  if (existsSync2(join2(cwd, "yarn.lock"))) {
-    return "yarn";
-  }
-  if (existsSync2(join2(cwd, "package-lock.json"))) {
-    return "npm";
-  }
-  return "unknown";
-}
-function isLikelyNpxExecution() {
-  var _a3, _b, _c;
-  const argvPath = (_a3 = process.argv[1]) != null ? _a3 : "";
-  if (argvPath.includes("/_npx/") || argvPath.includes("\\_npx\\")) {
-    return true;
-  }
-  const npmCommand = (_b = process.env.npm_command) != null ? _b : "";
-  const userAgent = (_c = process.env.npm_config_user_agent) != null ? _c : "";
-  return npmCommand === "exec" && userAgent.includes("npm/");
-}
-function missingViemHint() {
-  const packageManager = detectPackageManager();
-  const ranFromNpx = isLikelyNpxExecution();
-  if (packageManager === "pnpm") {
-    if (ranFromNpx) {
-      return [
-        "viem is missing in this runtime.",
-        "Detected `npx` execution in a pnpm workspace.",
-        "Use the local workspace CLI instead:",
-        "  pnpm --filter @aomi-labs/client exec node dist/cli.js sign <tx-id> --private-key <key>",
-        "If dependencies are missing, run:",
-        "  pnpm install"
-      ].join("\n");
-    }
-    return [
-      "viem is required for `aomi sign`.",
-      "This workspace uses pnpm. Run:",
-      "  pnpm install",
-      "Or add it explicitly:",
-      "  pnpm add viem"
-    ].join("\n");
-  }
-  if (packageManager === "yarn") {
-    return [
-      "viem is required for `aomi sign`.",
-      "Install it with yarn:",
-      "  yarn add viem"
-    ].join("\n");
-  }
-  return [
-    "viem is required for `aomi sign`.",
-    "Install it with:",
-    "  npm install viem",
-    "  # or: pnpm add viem"
-  ].join("\n");
-}
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import * as viemChains from "viem/chains";
 function txCommand() {
   var _a3, _b, _c;
   const state = readState();
@@ -2339,18 +2180,6 @@ async function signCommand(runtime) {
   const pendingTx = requirePendingTx(state, txId);
   const { session } = getOrCreateSession(runtime);
   try {
-    let viem;
-    let viemAccounts;
-    let viemChains;
-    try {
-      viem = await import("viem");
-      viemAccounts = await import("viem/accounts");
-      viemChains = await import("viem/chains");
-    } catch (e) {
-      fatal(missingViemHint());
-    }
-    const { createWalletClient, http } = viem;
-    const { privateKeyToAccount } = viemAccounts;
     const account = privateKeyToAccount(privateKey);
     const rpcUrl = runtime.config.chainRpcUrl;
     const targetChainId = (_a3 = pendingTx.chainId) != null ? _a3 : 1;
