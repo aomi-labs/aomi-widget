@@ -3,13 +3,13 @@ import { ImageResponse } from "next/og";
 export const runtime = "edge";
 
 export async function GET() {
-  // Load fonts
-  const [ptSerifBold, geistMedium] = await Promise.all([
+  // Load fonts - must be .ttf format
+  const [ptSerifBold, interMedium] = await Promise.all([
     fetch(
-      new URL("https://fonts.gstatic.com/s/ptserif/v18/EJRVQgYoZZY2vCFuvAFbzr-_dSb_.woff2")
+      "https://fonts.gstatic.com/s/ptserif/v19/EJRSQgYoZZY2vCFuvAnt65qV.ttf"
     ).then((res) => res.arrayBuffer()),
     fetch(
-      new URL("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Medium.woff2")
+      "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf"
     ).then((res) => res.arrayBuffer()),
   ]);
 
@@ -120,12 +120,12 @@ export async function GET() {
           Aomi Labs
         </div>
 
-        {/* Tagline - Geist */}
+        {/* Tagline - Inter (similar to Geist) */}
         <div
           style={{
             display: "flex",
             fontSize: 30,
-            fontFamily: "Geist",
+            fontFamily: "Inter",
             fontWeight: 500,
             background: "linear-gradient(90deg, #a855f7 0%, #3b82f6 50%, #ec6b83 100%)",
             backgroundClip: "text",
@@ -156,7 +156,7 @@ export async function GET() {
               border: "1px solid rgba(168,85,247,0.25)",
               color: "#7c3aed",
               fontSize: 16,
-              fontFamily: "Geist",
+              fontFamily: "Inter",
               fontWeight: 500,
             }}
           >
@@ -171,7 +171,7 @@ export async function GET() {
               border: "1px solid rgba(59,130,246,0.25)",
               color: "#2563eb",
               fontSize: 16,
-              fontFamily: "Geist",
+              fontFamily: "Inter",
               fontWeight: 500,
             }}
           >
@@ -186,7 +186,7 @@ export async function GET() {
               border: "1px solid rgba(251,113,133,0.25)",
               color: "#e11d48",
               fontSize: 16,
-              fontFamily: "Geist",
+              fontFamily: "Inter",
               fontWeight: 500,
             }}
           >
@@ -201,7 +201,7 @@ export async function GET() {
               border: "1px solid rgba(168,85,247,0.25)",
               color: "#7c3aed",
               fontSize: 16,
-              fontFamily: "Geist",
+              fontFamily: "Inter",
               fontWeight: 500,
             }}
           >
@@ -216,7 +216,7 @@ export async function GET() {
               border: "1px solid rgba(59,130,246,0.25)",
               color: "#2563eb",
               fontSize: 16,
-              fontFamily: "Geist",
+              fontFamily: "Inter",
               fontWeight: 500,
             }}
           >
@@ -229,7 +229,7 @@ export async function GET() {
           style={{
             display: "flex",
             fontSize: 22,
-            fontFamily: "Geist",
+            fontFamily: "Inter",
             color: "#6b7280",
             fontWeight: 500,
           }}
@@ -249,8 +249,8 @@ export async function GET() {
           weight: 700,
         },
         {
-          name: "Geist",
-          data: geistMedium,
+          name: "Inter",
+          data: interMedium,
           style: "normal",
           weight: 500,
         },
