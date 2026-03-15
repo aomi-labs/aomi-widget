@@ -13,7 +13,7 @@ import {
   setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
-import type { ApiThread, ApiStateResponse } from "@aomi-labs/client";
+import type { AomiThread, AomiStateResponse } from "@aomi-labs/client";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -143,7 +143,7 @@ describe("Thread API", () => {
   describe("fetching thread list", () => {
     it("fetches threads when user connects", async () => {
       const fetchThreads = vi.fn(
-        async (): Promise<ApiThread[]> => [
+        async (): Promise<AomiThread[]> => [
           { session_id: "thread-1", title: "Chat 1" },
           { session_id: "thread-2", title: "Chat 2" },
         ],
@@ -169,7 +169,7 @@ describe("Thread API", () => {
 
     it("handles archived threads", async () => {
       const fetchThreads = vi.fn(
-        async (): Promise<ApiThread[]> => [
+        async (): Promise<AomiThread[]> => [
           { session_id: "archived-1", title: "Archived", is_archived: true },
         ],
       );
@@ -191,7 +191,7 @@ describe("Thread API", () => {
 
     it("normalizes placeholder titles", async () => {
       const fetchThreads = vi.fn(
-        async (): Promise<ApiThread[]> => [
+        async (): Promise<AomiThread[]> => [
           { session_id: "thread-1", title: "#[loading]" },
           { session_id: "thread-2", title: "#[placeholder]" },
         ],
