@@ -119,7 +119,7 @@ export default function ContactPage() {
 
               {/* Twitter/X Card */}
               <a
-                href="https://twitter.com/AomiLabs"
+                href="https://twitter.com/aomi_labs"
                 target="_blank"
                 rel="noreferrer"
                 className="group flex flex-col items-center gap-4 bg-black/20 p-8 text-center transition-all hover:bg-black/30"
@@ -140,13 +140,13 @@ export default function ContactPage() {
                   <h3 className="font-geist mb-1 text-lg font-semibold text-white">
                     Twitter / X
                   </h3>
-                  <p className="font-geist text-sm text-stone-400">@AomiLabs</p>
+                  <p className="font-geist text-sm text-stone-400">@aomi_labs</p>
                 </div>
               </a>
 
               {/* Discord Card */}
               <a
-                href="https://discord.gg/aomi"
+                href="https://discord.gg/Ngz4KXgn"
                 target="_blank"
                 rel="noreferrer"
                 className="group flex flex-col items-center gap-4 bg-black/20 p-8 text-center transition-all hover:bg-black/30"
@@ -175,7 +175,7 @@ export default function ContactPage() {
 
               {/* Telegram Card */}
               <a
-                href="https://t.me/AomiLabs"
+                href="https://t.me/aomi_sendit_bot"
                 target="_blank"
                 rel="noreferrer"
                 className="group flex flex-col items-center gap-4 bg-black/20 p-8 text-center transition-all hover:bg-black/30"
@@ -196,7 +196,7 @@ export default function ContactPage() {
                   <h3 className="font-geist mb-1 text-lg font-semibold text-white">
                     Telegram
                   </h3>
-                  <p className="font-geist text-sm text-stone-400">@AomiLabs</p>
+                  <p className="font-geist text-sm text-stone-400">@aomi_sendit_bot</p>
                 </div>
               </a>
 
