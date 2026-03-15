@@ -28,62 +28,49 @@ export async function GET() {
           overflow: "hidden",
         }}
       >
-        {/* Gradient blobs - #83A7DE, #EC6C83, #FCF0FF */}
+        {/* Gradient blobs - coral prioritized, stronger blend */}
         <div
           style={{
             position: "absolute",
-            top: -150,
-            right: -100,
-            width: 500,
-            height: 500,
+            top: -100,
+            right: -50,
+            width: 600,
+            height: 600,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(131,167,222,0.6) 0%, rgba(131,167,222,0) 70%)",
+            background: "radial-gradient(circle, rgba(236,108,131,0.7) 0%, rgba(236,108,131,0) 65%)",
           }}
         />
         <div
           style={{
             position: "absolute",
-            top: 100,
-            left: -150,
-            width: 450,
-            height: 450,
+            top: -50,
+            left: -100,
+            width: 550,
+            height: 550,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(252,240,255,0.8) 0%, rgba(252,240,255,0) 70%)",
+            background: "radial-gradient(circle, rgba(252,240,255,0.9) 0%, rgba(252,240,255,0) 65%)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: -150,
+            right: 100,
+            width: 550,
+            height: 550,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(131,167,222,0.6) 0%, rgba(131,167,222,0) 65%)",
           }}
         />
         <div
           style={{
             position: "absolute",
             bottom: -100,
-            right: 200,
-            width: 400,
-            height: 400,
+            left: -50,
+            width: 500,
+            height: 500,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236,108,131,0.5) 0%, rgba(236,108,131,0) 70%)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: -50,
-            left: 100,
-            width: 350,
-            height: 350,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(131,167,222,0.4) 0%, rgba(131,167,222,0) 70%)",
-          }}
-        />
-
-        {/* Subtle grid pattern overlay */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundImage: "linear-gradient(rgba(131,167,222,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(131,167,222,0.06) 1px, transparent 1px)",
-            backgroundSize: "50px 50px",
+            background: "radial-gradient(circle, rgba(236,108,131,0.55) 0%, rgba(236,108,131,0) 65%)",
           }}
         />
 
