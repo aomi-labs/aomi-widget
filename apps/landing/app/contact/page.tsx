@@ -39,7 +39,7 @@ export default function ContactPage() {
 
       {/* Main Content */}
       <main className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 pt-24 pb-16">
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto w-full max-w-xl">
           {/* Header */}
           <div className="mb-12 text-center">
             <h1 className="mb-4 font-serif text-4xl font-medium tracking-tight text-white md:text-5xl">
@@ -230,7 +230,7 @@ export default function ContactPage() {
           </div>
 
           {/* Book a Call CTA */}
-          <div className="mt-12 text-center">
+          <div className="mt-20 text-center">
             <a
               href="https://calendly.com/aomi-labs/30min"
               target="_blank"
