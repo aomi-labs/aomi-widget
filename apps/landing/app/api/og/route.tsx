@@ -28,7 +28,7 @@ export async function GET() {
           overflow: "hidden",
         }}
       >
-        {/* Brand color gradient blobs - #733e83, #9D77A8, #ec6b83 */}
+        {/* Gradient blobs - #83A7DE, #EC6C83, #FCF0FF */}
         <div
           style={{
             position: "absolute",
@@ -37,7 +37,7 @@ export async function GET() {
             width: 500,
             height: 500,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(115,62,131,0.5) 0%, rgba(115,62,131,0) 70%)",
+            background: "radial-gradient(circle, rgba(131,167,222,0.6) 0%, rgba(131,167,222,0) 70%)",
           }}
         />
         <div
@@ -48,7 +48,7 @@ export async function GET() {
             width: 450,
             height: 450,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(157,119,168,0.45) 0%, rgba(157,119,168,0) 70%)",
+            background: "radial-gradient(circle, rgba(252,240,255,0.8) 0%, rgba(252,240,255,0) 70%)",
           }}
         />
         <div
@@ -59,7 +59,7 @@ export async function GET() {
             width: 400,
             height: 400,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236,107,131,0.45) 0%, rgba(236,107,131,0) 70%)",
+            background: "radial-gradient(circle, rgba(236,108,131,0.5) 0%, rgba(236,108,131,0) 70%)",
           }}
         />
         <div
@@ -70,11 +70,11 @@ export async function GET() {
             width: 350,
             height: 350,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(115,62,131,0.35) 0%, rgba(115,62,131,0) 70%)",
+            background: "radial-gradient(circle, rgba(131,167,222,0.4) 0%, rgba(131,167,222,0) 70%)",
           }}
         />
 
-        {/* Subtle grid pattern overlay - using brand purple */}
+        {/* Subtle grid pattern overlay */}
         <div
           style={{
             position: "absolute",
@@ -82,7 +82,7 @@ export async function GET() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundImage: "linear-gradient(rgba(115,62,131,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(115,62,131,0.05) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(rgba(131,167,222,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(131,167,222,0.06) 1px, transparent 1px)",
             backgroundSize: "50px 50px",
           }}
         />
@@ -128,7 +128,7 @@ export async function GET() {
             fontFamily: "Inter",
             fontWeight: 500,
             color: "#1c1917",
-            marginBottom: 28,
+            marginBottom: 36,
           }}
         >
           AI-powered blockchain automation
@@ -156,7 +156,7 @@ export async function GET() {
               color: "#6b7280",
               fontSize: 15,
               fontFamily: "Inter",
-              fontWeight: 500,
+              fontWeight: 400,
             }}
           >
             Chain-Native Harness
@@ -172,7 +172,7 @@ export async function GET() {
               color: "#6b7280",
               fontSize: 15,
               fontFamily: "Inter",
-              fontWeight: 500,
+              fontWeight: 400,
             }}
           >
             Simulations
@@ -188,7 +188,7 @@ export async function GET() {
               color: "#6b7280",
               fontSize: 15,
               fontFamily: "Inter",
-              fontWeight: 500,
+              fontWeight: 400,
             }}
           >
             Non-Custodial
@@ -204,7 +204,7 @@ export async function GET() {
               color: "#6b7280",
               fontSize: 15,
               fontFamily: "Inter",
-              fontWeight: 500,
+              fontWeight: 400,
             }}
           >
             Multi-Chain
@@ -220,7 +220,7 @@ export async function GET() {
               color: "#6b7280",
               fontSize: 15,
               fontFamily: "Inter",
-              fontWeight: 500,
+              fontWeight: 400,
             }}
           >
             Skills for Agents
@@ -234,7 +234,7 @@ export async function GET() {
             fontSize: 22,
             fontFamily: "Inter",
             color: "#1c1917",
-            fontWeight: 500,
+            fontWeight: 400,
           }}
         >
           aomi.dev
