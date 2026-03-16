@@ -1,7 +1,7 @@
 import type { MutableRefObject } from "react";
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 
-import type { AomiClient, AomiMessage, ApiSystemEvent } from "@aomi-labs/client";
+import type { AomiClient, AomiMessage, AomiSystemEvent } from "@aomi-labs/client";
 import { toInboundMessage } from "./utils";
 import type { ThreadContext } from "../contexts/thread-context";
 import type { PollingController } from "./polling-controller";
@@ -22,7 +22,7 @@ type MessageControllerConfig = {
   getNamespace: () => string;
   getApiKey?: () => string | null;
   getUserState?: () => UserState;
-  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+  onSyncEvents?: (sessionId: string, events: AomiSystemEvent[]) => void;
 };
 
 type ThreadContextApi = Pick<

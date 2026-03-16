@@ -1,11 +1,14 @@
 {
   "name": "@aomi-labs/client",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Platform-agnostic TypeScript client for the Aomi backend API",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "aomi": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": {
@@ -19,10 +22,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "skills",
+    "README.md"
   ],
   "scripts": {
     "build": "tsup",
     "clean:dist": "rm -rf dist"
+  },
+  "dependencies": {
+    "viem": "^2.40.3"
   }
 }

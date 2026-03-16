@@ -52,7 +52,9 @@ export const AppSelect: FC<AppSelectProps> = ({
           className,
         )}
       >
-        <span className="truncate">{selectedApp}</span>
+        <span className="truncate">
+          {selectedApp === "khalani" ? "Khalani Swaps" : selectedApp}
+        </span>
       </Button>
     );
   }
@@ -72,7 +74,13 @@ export const AppSelect: FC<AppSelectProps> = ({
             className,
           )}
         >
-          <span className="truncate">{selectedApp ?? placeholder}</span>
+          <span className="truncate">
+            {selectedApp
+              ? selectedApp === "khalani"
+                ? "Khalani Swaps"
+                : selectedApp
+              : placeholder}
+          </span>
           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -99,7 +107,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                 isProcessing && "cursor-not-allowed opacity-50",
               )}
             >
-              <span>{app}</span>
+              <span>{app === "khalani" ? "Khalani Swaps" : app}</span>
               {selectedApp === app && <CheckIcon className="h-4 w-4" />}
             </button>
           ))}

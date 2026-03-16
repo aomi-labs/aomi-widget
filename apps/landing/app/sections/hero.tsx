@@ -45,6 +45,12 @@ export function Hero() {
             >
               Resources
             </a>
+            <a
+              href="/contact"
+              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
+            >
+              Contact
+            </a>
           </div>
           <a
             href="https://github.com/aomi-labs"
@@ -156,6 +162,13 @@ export function Hero() {
               >
                 Resources
               </a>
+              <a
+                href="/contact"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
+                Contact
+              </a>
             </div>
             <div className="mt-auto">
               <a
@@ -211,7 +224,7 @@ export function Hero() {
         </p>
         <div className="mb-25 flex items-center gap-4">
           <a
-            href="https://calendly.com/cecilia-foameo/30min"
+            href="https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ0u-urImwR9Fl5L0v4z8ejVKimYhQUQf8ISYfD9AzR_Fd5ULOoMHSx1o60QuuW3GH9FYFDN4u0S"
             target="_blank"
             rel="noreferrer"
             className="landing-button-primary group [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)]"

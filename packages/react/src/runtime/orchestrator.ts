@@ -1,7 +1,7 @@
 import type { MutableRefObject } from "react";
 import { useCallback, useRef, useState } from "react";
 
-import type { AomiClient, AomiMessage, ApiSystemEvent } from "@aomi-labs/client";
+import type { AomiClient, AomiMessage, AomiSystemEvent } from "@aomi-labs/client";
 import type { UserState } from "../contexts/user-context";
 import {
   useThreadContext,
@@ -20,7 +20,7 @@ type OrchestratorOptions = {
   getUserState?: () => UserState;
   getNamespace: () => string;
   getApiKey?: () => string | null;
-  onSyncEvents?: (sessionId: string, events: ApiSystemEvent[]) => void;
+  onSyncEvents?: (sessionId: string, events: AomiSystemEvent[]) => void;
 };
 
 export function useRuntimeOrchestrator(
