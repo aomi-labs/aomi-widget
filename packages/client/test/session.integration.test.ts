@@ -23,7 +23,7 @@ const sessions: Session[] = [];
 function createSession(opts?: Partial<Parameters<typeof Session.prototype.constructor>[1]>): Session {
   const session = new Session(
     { baseUrl: BACKEND_URL },
-    { namespace: "default", ...opts },
+    { app: "default", ...opts },
   );
   sessions.push(session);
   return session;
@@ -290,7 +290,7 @@ describe("Session with AomiClient instance (live backend)", () => {
     "accepts an AomiClient instead of options",
     async () => {
       const client = new AomiClient({ baseUrl: BACKEND_URL });
-      const session = new Session(client, { namespace: "default" });
+      const session = new Session(client, { app: "default" });
       sessions.push(session);
 
       const result = await session.send("Say hi.");

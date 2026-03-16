@@ -12,7 +12,7 @@ type Logger = {
 type AomiClientOptions = {
     /** Base URL of the Aomi backend (e.g. "https://aomi.dev") */
     baseUrl: string;
-    /** Default API key for non-default namespaces */
+    /** Default API key for non-default apps */
     apiKey?: string;
     /** Optional logger for debug output (default: silent) */
     logger?: Logger;
@@ -133,7 +133,7 @@ declare class AomiClient {
      * Send a chat message and return updated session state.
      */
     sendMessage(sessionId: string, message: string, options?: {
-        namespace?: string;
+        app?: string;
         publicKey?: string;
         apiKey?: string;
         userState?: UserState;
@@ -185,9 +185,9 @@ declare class AomiClient {
      */
     getSystemEvents(sessionId: string, count?: number): Promise<AomiSystemEvent[]>;
     /**
-     * Get available namespaces.
+     * Get available apps.
      */
-    getNamespaces(sessionId: string, options?: {
+    getApps(sessionId: string, options?: {
         publicKey?: string;
         apiKey?: string;
     }): Promise<string[]>;
@@ -201,7 +201,7 @@ declare class AomiClient {
      * Set the model for a session.
      */
     setModel(sessionId: string, rig: string, options?: {
-        namespace?: string;
+        app?: string;
         apiKey?: string;
     }): Promise<{
         success: boolean;
@@ -295,8 +295,8 @@ type SendResult = {
 type SessionOptions = {
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;
-    /** Namespace for chat messages. Default: "default" */
-    namespace?: string;
+    /** App for chat messages. Default: "default" */
+    app?: string;
     /** User public key (wallet address). */
     publicKey?: string;
     /** API key override. */
@@ -355,7 +355,7 @@ declare class Session extends TypedEventEmitter<SessionEventMap> {
     readonly client: AomiClient;
     /** The session (thread) ID. */
     readonly sessionId: string;
-    private namespace;
+    private app;
     private publicKey?;
     private apiKey?;
     private userState?;

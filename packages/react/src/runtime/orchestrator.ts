@@ -18,7 +18,7 @@ import {
 type OrchestratorOptions = {
   getPublicKey?: () => string | undefined;
   getUserState?: () => UserState;
-  getNamespace: () => string;
+  getApp: () => string;
   getApiKey?: () => string | null;
   onSyncEvents?: (sessionId: string, events: AomiSystemEvent[]) => void;
 };
@@ -71,7 +71,7 @@ export function useRuntimeOrchestrator(
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
       getPublicKey: options.getPublicKey,
-      getNamespace: options.getNamespace,
+      getApp: options.getApp,
       getApiKey: options.getApiKey,
       getUserState: options.getUserState,
       onSyncEvents: options.onSyncEvents,

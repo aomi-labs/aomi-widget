@@ -37,8 +37,8 @@ Usage:
 
 Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
-  --api-key <key>       API key for non-default namespaces
-  --namespace <ns>      Namespace (default: "default")
+  --api-key <key>       API key for non-default apps
+  --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
@@ -48,7 +48,7 @@ Options:
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
   AOMI_API_KEY          API key
-  AOMI_NAMESPACE        Namespace
+  AOMI_APP              App
   AOMI_MODEL            Model rig
   AOMI_PUBLIC_KEY       Wallet address
   PRIVATE_KEY           Hex private key for signing

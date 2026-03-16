@@ -26,7 +26,7 @@ export type Logger = {
 export type AomiClientOptions = {
   /** Base URL of the Aomi backend (e.g. "https://aomi.dev") */
   baseUrl: string;
-  /** Default API key for non-default namespaces */
+  /** Default API key for non-default apps */
   apiKey?: string;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;

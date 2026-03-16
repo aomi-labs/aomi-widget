@@ -7,7 +7,7 @@ export type ParsedArgs = {
 export type CliConfig = {
   baseUrl: string;
   apiKey?: string;
-  namespace: string;
+  app: string;
   model?: string;
   publicKey?: string;
   privateKey?: string;

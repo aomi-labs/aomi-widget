@@ -63,7 +63,7 @@ var logThreadMetadataChange = (source, threadId, prev, next) => {
 function initThreadControl() {
   return {
     model: null,
-    namespace: null,
+    app: null,
     controlDirty: false,
     isProcessing: false
   };
@@ -229,9 +229,9 @@ function ControlContextProvider({
   const [state, setStateInternal] = useState(() => ({
     apiKey: null,
     availableModels: [],
-    authorizedNamespaces: [],
+    authorizedApps: [],
     defaultModel: null,
-    defaultNamespace: null
+    defaultApp: null
   }));
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -270,27 +270,27 @@ function ControlContextProvider({
     }
   }, [state.apiKey]);
   useEffect(() => {
-    const fetchNamespaces = async () => {
+    const fetchApps = async () => {
       var _a2, _b2;
       try {
-        const namespaces = await aomiClientRef.current.getNamespaces(
+        const apps = await aomiClientRef.current.getApps(
           sessionIdRef.current,
           { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
         );
-        const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
+        const defaultApp = apps.includes("default") ? "default" : (_b2 = apps[0]) != null ? _b2 : null;
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedNamespaces: namespaces,
-          defaultNamespace: defaultNs
+          authorizedApps: apps,
+          defaultApp
         }));
       } catch (error) {
-        console.error("Failed to fetch namespaces:", error);
+        console.error("Failed to fetch apps:", error);
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedNamespaces: ["default"],
-          defaultNamespace: "default"
+          authorizedApps: ["default"],
+          defaultApp: "default"
         }));
       }
     };
-    void fetchNamespaces();
+    void fetchApps();
   }, [state.apiKey]);
   useEffect(() => {
     const fetchModels = async () => {
@@ -336,24 +336,24 @@ function ControlContextProvider({
       return [];
     }
   }, []);
-  const getAuthorizedNamespaces = useCallback(async () => {
+  const getAuthorizedApps = useCallback(async () => {
     var _a2, _b2;
     try {
-      const namespaces = await aomiClientRef.current.getNamespaces(
+      const apps = await aomiClientRef.current.getApps(
         sessionIdRef.current,
         { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
       );
-      const defaultNs = namespaces.includes("default") ? "default" : (_b2 = namespaces[0]) != null ? _b2 : null;
+      const defaultApp = apps.includes("default") ? "default" : (_b2 = apps[0]) != null ? _b2 : null;
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedNamespaces: namespaces,
-        defaultNamespace: defaultNs
+        authorizedApps: apps,
+        defaultApp
       }));
-      return namespaces;
+      return apps;
     } catch (error) {
-      console.error("Failed to fetch namespaces:", error);
+      console.error("Failed to fetch apps:", error);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedNamespaces: ["default"],
-        defaultNamespace: "default"
+        authorizedApps: ["default"],
+        defaultApp: "default"
       }));
       return ["default"];
     }
@@ -377,31 +377,31 @@ function ControlContextProvider({
       console.warn("[control-context] Cannot switch model while processing");
       return;
     }
-    const namespace = (_d = (_c = currentControl.namespace) != null ? _c : stateRef.current.defaultNamespace) != null ? _d : "default";
+    const app = (_d = (_c = currentControl.app) != null ? _c : stateRef.current.defaultApp) != null ? _d : "default";
     console.log("[control-context] onModelSelect updating metadata", {
       threadId,
       model,
-      namespace,
+      app,
       currentControl
     });
     updateThreadMetadataRef.current(threadId, {
       control: __spreadProps(__spreadValues({}, currentControl), {
         model,
-        namespace,
+        app,
         controlDirty: true
       })
     });
     console.log("[control-context] onModelSelect calling backend setModel", {
       threadId,
       model,
-      namespace,
+      app,
       backendUrl: aomiClientRef.current
     });
     try {
       const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        { namespace, apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0 }
+        { app, apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0 }
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
@@ -409,34 +409,34 @@ function ControlContextProvider({
       throw err;
     }
   }, []);
-  const onNamespaceSelect = useCallback((namespace) => {
+  const onAppSelect = useCallback((app) => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     const isProcessing2 = currentControl.isProcessing;
-    console.log("[control-context] onNamespaceSelect called", {
-      namespace,
+    console.log("[control-context] onAppSelect called", {
+      app,
       isProcessing: isProcessing2,
       threadId
     });
     if (isProcessing2) {
       console.warn(
-        "[control-context] Cannot switch namespace while processing"
+        "[control-context] Cannot switch app while processing"
       );
       return;
     }
-    console.log("[control-context] onNamespaceSelect updating metadata", {
+    console.log("[control-context] onAppSelect updating metadata", {
       threadId,
-      namespace,
+      app,
       currentControl
     });
     updateThreadMetadataRef.current(threadId, {
       control: __spreadProps(__spreadValues({}, currentControl), {
-        namespace,
+        app,
         controlDirty: true
       })
     });
-    console.log("[control-context] onNamespaceSelect metadata updated");
+    console.log("[control-context] onAppSelect metadata updated");
   }, []);
   const markControlSynced = useCallback(() => {
     var _a2, _b2;
@@ -466,11 +466,11 @@ function ControlContextProvider({
       if ("apiKey" in updates) {
         setApiKey((_a2 = updates.apiKey) != null ? _a2 : null);
       }
-      if ("namespace" in updates && updates.namespace !== void 0 && updates.namespace !== null) {
-        onNamespaceSelect(updates.namespace);
+      if ("app" in updates && updates.app !== void 0 && updates.app !== null) {
+        onAppSelect(updates.app);
       }
     },
-    [setApiKey, onNamespaceSelect]
+    [setApiKey, onAppSelect]
   );
   return /* @__PURE__ */ jsx(
     ControlContext.Provider,
@@ -479,10 +479,10 @@ function ControlContextProvider({
         state,
         setApiKey,
         getAvailableModels,
-        getAuthorizedNamespaces,
+        getAuthorizedApps,
         getCurrentThreadControl,
         onModelSelect,
-        onNamespaceSelect,
+        onAppSelect,
         isProcessing,
         markControlSynced,
         getControlState,
@@ -1015,7 +1015,7 @@ var MessageController = class {
       lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
     });
     const backendThreadId = resolveThreadId(backendState, threadId);
-    const namespace = this.config.getNamespace();
+    const app = this.config.getApp();
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     const apiKey = (_e = (_d = (_c = this.config).getApiKey) == null ? void 0 : _d.call(_c)) != null ? _e : void 0;
     const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
@@ -1024,7 +1024,7 @@ var MessageController = class {
       const response = await this.config.aomiClientRef.current.sendMessage(
         backendThreadId,
         text,
-        { namespace, publicKey, apiKey, userState }
+        { app, publicKey, apiKey, userState }
       );
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
@@ -1185,7 +1185,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       polling: pollingRef.current,
       setGlobalIsRunning: setIsRunning,
       getPublicKey: options.getPublicKey,
-      getNamespace: options.getNamespace,
+      getApp: options.getApp,
       getApiKey: options.getApiKey,
       getUserState: options.getUserState,
       onSyncEvents: options.onSyncEvents
@@ -1616,9 +1616,9 @@ function AomiRuntimeCore({
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
-    getNamespace: () => {
+    getApp: () => {
       var _a, _b;
-      return (_b = (_a = getCurrentThreadControl().namespace) != null ? _a : getControlState().defaultNamespace) != null ? _b : "default";
+      return (_b = (_a = getCurrentThreadControl().app) != null ? _a : getControlState().defaultApp) != null ? _b : "default";
     },
     getApiKey: () => getControlState().apiKey
   });
@@ -1733,9 +1733,9 @@ function AomiRuntimeCore({
       polling,
       userAddress: user.address,
       setIsRunning,
-      getNamespace: () => {
+      getApp: () => {
         var _a, _b;
-        return (_b = (_a = getCurrentThreadControl().namespace) != null ? _a : getControlState().defaultNamespace) != null ? _b : "default";
+        return (_b = (_a = getCurrentThreadControl().app) != null ? _a : getControlState().defaultApp) != null ? _b : "default";
       },
       getApiKey: () => getControlState().apiKey,
       getUserState
