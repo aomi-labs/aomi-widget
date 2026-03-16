@@ -330,14 +330,14 @@ describe("SSE subscription (live backend)", () => {
 
 describe("Control API (live backend)", () => {
   it(
-    "fetches available namespaces",
+    "fetches available apps",
     async () => {
       const sessionId = freshSessionId();
 
-      const namespaces = await client.getNamespaces(sessionId);
-      expect(Array.isArray(namespaces)).toBe(true);
-      expect(namespaces.length).toBeGreaterThan(0);
-      expect(namespaces).toContain("default");
+      const apps = await client.getApps(sessionId);
+      expect(Array.isArray(apps)).toBe(true);
+      expect(apps.length).toBeGreaterThan(0);
+      expect(apps).toContain("default");
     },
     TEST_TIMEOUT,
   );

@@ -275,9 +275,9 @@ var AomiClient = class {
    */
   async sendMessage(sessionId, message, options) {
     var _a, _b;
-    const namespace = (_a = options == null ? void 0 : options.namespace) != null ? _a : "default";
+    const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const payload = { message, namespace };
+    const payload = { message, app };
     if (options == null ? void 0 : options.publicKey) {
       payload.public_key = options.publicKey;
     }
@@ -450,11 +450,11 @@ var AomiClient = class {
   // Control API
   // ===========================================================================
   /**
-   * Get available namespaces.
+   * Get available apps.
    */
-  async getNamespaces(sessionId, options) {
+  async getApps(sessionId, options) {
     var _a;
-    const url = new URL("/api/control/namespaces", this.baseUrl);
+    const url = new URL("/api/control/apps", this.baseUrl);
     if (options == null ? void 0 : options.publicKey) {
       url.searchParams.set("public_key", options.publicKey);
     }
@@ -465,7 +465,7 @@ var AomiClient = class {
     }
     const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
-      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
+      throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
     return await response.json();
   }
@@ -495,8 +495,8 @@ var AomiClient = class {
     var _a;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const payload = { rig };
-    if (options == null ? void 0 : options.namespace) {
-      payload.namespace = options.namespace;
+    if (options == null ? void 0 : options.app) {
+      payload.app = options.app;
     }
     return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
   }
@@ -693,7 +693,7 @@ var Session = class extends TypedEventEmitter {
     this.pendingResolve = null;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
-    this.namespace = (_b = sessionOptions == null ? void 0 : sessionOptions.namespace) != null ? _b : "default";
+    this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
@@ -719,7 +719,7 @@ var Session = class extends TypedEventEmitter {
   async send(message) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState
@@ -742,7 +742,7 @@ var Session = class extends TypedEventEmitter {
   async sendAsync(message) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState

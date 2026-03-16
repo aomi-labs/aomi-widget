@@ -20,7 +20,7 @@ export async function statusCommand(runtime: CliRuntime): Promise<void> {
         {
           sessionId: state.sessionId,
           baseUrl: state.baseUrl,
-          namespace: state.namespace,
+          app: state.app,
           model: state.model ?? null,
           isProcessing: apiState.is_processing ?? false,
           messageCount: apiState.messages?.length ?? 0,

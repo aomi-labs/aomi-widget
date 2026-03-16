@@ -41,9 +41,9 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
     apiKey:
       parsed.flags["api-key"] ??
       process.env.AOMI_API_KEY,
-    namespace:
-      parsed.flags["namespace"] ??
-      process.env.AOMI_NAMESPACE ??
+    app:
+      parsed.flags["app"] ??
+      process.env.AOMI_APP ??
       "default",
     model:
       parsed.flags["model"] ??

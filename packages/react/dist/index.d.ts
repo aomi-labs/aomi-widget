@@ -56,8 +56,8 @@ type ThreadStatus = "regular" | "archived";
 type ThreadControlState = {
     /** Selected model for this thread (human-readable label) */
     model: string | null;
-    /** Selected namespace for this thread */
-    namespace: string | null;
+    /** Selected app for this thread */
+    app: string | null;
     /** Whether control state has changed but chat hasn't started yet */
     controlDirty: boolean;
     /** Whether this thread is currently processing (assistant generating) */
@@ -67,7 +67,7 @@ type ThreadMetadata = {
     title: string;
     status: ThreadStatus;
     lastActiveAt?: string | number;
-    /** Per-thread control state (model, namespace selection) */
+    /** Per-thread control state (model, app selection) */
     control: ThreadControlState;
 };
 /** Create default control state for a new thread */
@@ -340,28 +340,28 @@ type ControlState = {
     apiKey: string | null;
     /** Available models fetched from backend */
     availableModels: string[];
-    /** Authorized namespaces fetched from backend */
-    authorizedNamespaces: string[];
+    /** Authorized apps fetched from backend */
+    authorizedApps: string[];
     /** Default model (first from availableModels) */
     defaultModel: string | null;
-    /** Default namespace (from authorizedNamespaces) */
-    defaultNamespace: string | null;
+    /** Default app (from authorizedApps) */
+    defaultApp: string | null;
 };
 type ControlContextApi = {
-    /** Global state (apiKey, available models/namespaces) */
+    /** Global state (apiKey, available models/apps) */
     state: ControlState;
     /** Update global state (apiKey only) */
     setApiKey: (apiKey: string | null) => void;
     /** Fetch available models from backend */
     getAvailableModels: () => Promise<string[]>;
-    /** Fetch authorized namespaces from backend */
-    getAuthorizedNamespaces: () => Promise<string[]>;
+    /** Fetch authorized apps from backend */
+    getAuthorizedApps: () => Promise<string[]>;
     /** Get current thread's control state */
     getCurrentThreadControl: () => ThreadControlState;
     /** Select a model for the current thread (updates metadata + calls backend) */
     onModelSelect: (model: string) => Promise<void>;
-    /** Select a namespace for the current thread (updates metadata only) */
-    onNamespaceSelect: (namespace: string) => void;
+    /** Select an app for the current thread (updates metadata only) */
+    onAppSelect: (app: string) => void;
     /** Whether the current thread is processing (disables control switching) */
     isProcessing: boolean;
     /** Mark control state as synced (called after chat starts) */
@@ -370,9 +370,9 @@ type ControlContextApi = {
     getControlState: () => ControlState;
     /** Subscribe to global state changes */
     onControlStateChange: (callback: (state: ControlState) => void) => () => void;
-    /** @deprecated Use getCurrentThreadControl().namespace instead */
+    /** @deprecated Use getCurrentThreadControl().app instead */
     setState: (updates: Partial<{
-        namespace: string | null;
+        app: string | null;
         apiKey: string | null;
     }>) => void;
 };
