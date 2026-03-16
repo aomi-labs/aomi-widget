@@ -472,10 +472,16 @@ var AomiClient = class {
   /**
    * Get available models.
    */
-  async getModels(sessionId) {
+  async getModels(sessionId, options) {
+    var _a;
     const url = new URL("/api/control/models", this.baseUrl);
+    const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(API_KEY_HEADER, apiKey);
+    }
     const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId)
+      headers
     });
     if (!response.ok) {
       throw new Error(`Failed to get models: HTTP ${response.status}`);

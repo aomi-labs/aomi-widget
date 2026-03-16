@@ -36,7 +36,7 @@ export function Solution() {
       <div className="w-full bg-stone-100">
         <section
           className="mr-auto mb-22 ml-auto flex w-full max-w-7xl flex-col px-4"
-          id="solution"
+          id="workflow"
           data-animate="up"
           data-delay="200"
         >
