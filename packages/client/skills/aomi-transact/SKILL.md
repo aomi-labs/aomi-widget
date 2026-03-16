@@ -7,7 +7,7 @@ description: >
   builds generic EVM transactions with speed and security natively on Ethereum
   light client. Handles multi-step workflows: chat with the agent, review pending
   transactions, sign and broadcast, then verify results.
-compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). Optional: viem for signing (`npm install viem`). Set PRIVATE_KEY and CHAIN_RPC_URL for transaction signing."
+compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Set PRIVATE_KEY and CHAIN_RPC_URL for transaction signing."
 license: MIT
 allowed-tools: Bash
 metadata:
@@ -25,12 +25,6 @@ Before running any commands, verify the CLI is available:
 
 ```bash
 which aomi || npm install -g @aomi-labs/client
-```
-
-For signing transactions, viem must be installed:
-
-```bash
-node -e "require('viem')" 2>/dev/null || npm install viem
 ```
 
 ## Core Workflow
@@ -163,7 +157,6 @@ aomi close
 
 ## Error Handling
 
-- If `aomi sign` fails with "viem is required", install it: `npm install viem`
 - If `aomi chat` returns "(no response)", the agent may still be processing.
   Wait a moment and run `aomi status` to check.
 - If a transaction fails on-chain, the error message from the RPC is printed.
