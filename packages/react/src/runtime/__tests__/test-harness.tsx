@@ -3,12 +3,12 @@ import { vi } from "vitest";
 import { render } from "@testing-library/react";
 
 import type {
-  ApiThread,
-  ApiCreateThreadResponse,
-  ApiStateResponse,
-  ApiChatResponse,
-  ApiInterruptResponse,
-  ApiSSEEvent,
+  AomiThread,
+  AomiCreateThreadResponse,
+  AomiStateResponse,
+  AomiChatResponse,
+  AomiInterruptResponse,
+  AomiSSEEvent,
 } from "@aomi-labs/client";
 
 // =============================================================================
@@ -17,21 +17,21 @@ import type {
 
 export type AomiClientConfig = {
   // New names (match AomiClient API)
-  listThreads?: (publicKey: string) => Promise<ApiThread[]>;
-  fetchState?: (sessionId: string) => Promise<ApiStateResponse>;
+  listThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  fetchState?: (sessionId: string) => Promise<AomiStateResponse>;
   createThread?: (
     threadId: string,
     publicKey?: string,
-  ) => Promise<ApiCreateThreadResponse>;
+  ) => Promise<AomiCreateThreadResponse>;
   sendMessage?: (
     sessionId: string,
     message: string,
-  ) => Promise<ApiChatResponse>;
+  ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
     sessionId: string,
     message: string,
   ) => Promise<{ res?: unknown }>;
-  interrupt?: (sessionId: string) => Promise<ApiInterruptResponse>;
+  interrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
   renameThread?: (sessionId: string, title: string) => Promise<void>;
   archiveThread?: (sessionId: string) => Promise<void>;
   unarchiveThread?: (sessionId: string) => Promise<void>;
@@ -49,16 +49,16 @@ export type AomiClientConfig = {
   ) => Promise<{ rig: string; namespace?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
-  fetchThreads?: (publicKey: string) => Promise<ApiThread[]>;
+  fetchThreads?: (publicKey: string) => Promise<AomiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
-  ) => Promise<ApiChatResponse>;
+  ) => Promise<AomiChatResponse>;
   postSystemMessage?: (
     sessionId: string,
     message: string,
   ) => Promise<{ res?: unknown }>;
-  postInterrupt?: (sessionId: string) => Promise<ApiInterruptResponse>;
+  postInterrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
 };
 
 // Global state for mock configuration
@@ -68,7 +68,7 @@ const mockState = {
 };
 
 export type MockAomiClientInstance = {
-  emitSSEEvent: (event: ApiSSEEvent) => void;
+  emitSSEEvent: (event: AomiSSEEvent) => void;
   listThreads: ReturnType<typeof vi.fn>;
   fetchState: ReturnType<typeof vi.fn>;
   createThread: ReturnType<typeof vi.fn>;
@@ -107,7 +107,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
   // Mock class defined inside the factory
   class MockAomiClient {
-    private sseHandler: ((event: ApiSSEEvent) => void) | null = null;
+    private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
 
     listThreads = vi.fn(async (publicKey: string) => {
       const fn = mockState.config.listThreads ?? mockState.config.fetchThreads;
@@ -204,7 +204,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     subscribeSSE = (
       _sessionId: string,
-      onUpdate: (event: ApiSSEEvent) => void,
+      onUpdate: (event: AomiSSEEvent) => void,
     ) => {
       this.sseHandler = onUpdate;
       return () => {
@@ -214,7 +214,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       };
     };
 
-    emitSSEEvent = (event: ApiSSEEvent) => {
+    emitSSEEvent = (event: AomiSSEEvent) => {
       this.sseHandler?.(event);
     };
 

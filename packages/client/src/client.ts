@@ -1,14 +1,14 @@
 import type {
   AomiClientOptions,
   AomiMessage,
-  ApiChatResponse,
-  ApiCreateThreadResponse,
-  ApiInterruptResponse,
-  ApiSSEEvent,
-  ApiStateResponse,
-  ApiSystemEvent,
-  ApiSystemResponse,
-  ApiThread,
+  AomiChatResponse,
+  AomiCreateThreadResponse,
+  AomiInterruptResponse,
+  AomiSSEEvent,
+  AomiStateResponse,
+  AomiSystemEvent,
+  AomiSystemResponse,
+  AomiThread,
   Logger,
   UserState,
 } from "./types";
@@ -101,7 +101,7 @@ export class AomiClient {
   async fetchState(
     sessionId: string,
     userState?: UserState,
-  ): Promise<ApiStateResponse> {
+  ): Promise<AomiStateResponse> {
     const url = new URL("/api/state", this.baseUrl);
     if (userState) {
       url.searchParams.set("user_state", JSON.stringify(userState));
@@ -115,7 +115,7 @@ export class AomiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    return (await response.json()) as ApiStateResponse;
+    return (await response.json()) as AomiStateResponse;
   }
 
   /**
@@ -130,7 +130,7 @@ export class AomiClient {
       apiKey?: string;
       userState?: UserState;
     },
-  ): Promise<ApiChatResponse> {
+  ): Promise<AomiChatResponse> {
     const namespace = options?.namespace ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
 
@@ -142,7 +142,7 @@ export class AomiClient {
       payload.user_state = JSON.stringify(options.userState);
     }
 
-    return postState<ApiChatResponse>(
+    return postState<AomiChatResponse>(
       this.baseUrl,
       "/api/chat",
       payload,
@@ -157,8 +157,8 @@ export class AomiClient {
   async sendSystemMessage(
     sessionId: string,
     message: string,
-  ): Promise<ApiSystemResponse> {
-    return postState<ApiSystemResponse>(
+  ): Promise<AomiSystemResponse> {
+    return postState<AomiSystemResponse>(
       this.baseUrl,
       "/api/system",
       { message },
@@ -169,8 +169,8 @@ export class AomiClient {
   /**
    * Interrupt the AI's current response.
    */
-  async interrupt(sessionId: string): Promise<ApiInterruptResponse> {
-    return postState<ApiInterruptResponse>(
+  async interrupt(sessionId: string): Promise<AomiInterruptResponse> {
+    return postState<AomiInterruptResponse>(
       this.baseUrl,
       "/api/interrupt",
       {},
@@ -189,7 +189,7 @@ export class AomiClient {
    */
   subscribeSSE(
     sessionId: string,
-    onUpdate: (event: ApiSSEEvent) => void,
+    onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
   ): () => void {
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
@@ -202,7 +202,7 @@ export class AomiClient {
   /**
    * List all threads for a wallet address.
    */
-  async listThreads(publicKey: string): Promise<ApiThread[]> {
+  async listThreads(publicKey: string): Promise<AomiThread[]> {
     const url = `${this.baseUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
     const response = await fetch(url);
 
@@ -210,13 +210,13 @@ export class AomiClient {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as ApiThread[];
+    return (await response.json()) as AomiThread[];
   }
 
   /**
    * Get a single thread by ID.
    */
-  async getThread(sessionId: string): Promise<ApiThread> {
+  async getThread(sessionId: string): Promise<AomiThread> {
     const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
     const response = await fetch(url, {
       headers: withSessionHeader(sessionId),
@@ -226,7 +226,7 @@ export class AomiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    return (await response.json()) as ApiThread;
+    return (await response.json()) as AomiThread;
   }
 
   /**
@@ -235,7 +235,7 @@ export class AomiClient {
   async createThread(
     threadId: string,
     publicKey?: string,
-  ): Promise<ApiCreateThreadResponse> {
+  ): Promise<AomiCreateThreadResponse> {
     const body: Record<string, string> = {};
     if (publicKey) body.public_key = publicKey;
 
@@ -252,7 +252,7 @@ export class AomiClient {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as ApiCreateThreadResponse;
+    return (await response.json()) as AomiCreateThreadResponse;
   }
 
   /**
@@ -328,7 +328,7 @@ export class AomiClient {
   async getSystemEvents(
     sessionId: string,
     count?: number,
-  ): Promise<ApiSystemEvent[]> {
+  ): Promise<AomiSystemEvent[]> {
     const url = new URL("/api/events", this.baseUrl);
     if (count !== undefined) {
       url.searchParams.set("count", String(count));
@@ -342,7 +342,7 @@ export class AomiClient {
       throw new Error(`Failed to get system events: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as ApiSystemEvent[];
+    return (await response.json()) as AomiSystemEvent[];
   }
 
   // ===========================================================================
@@ -379,11 +379,19 @@ export class AomiClient {
   /**
    * Get available models.
    */
-  async getModels(sessionId: string): Promise<string[]> {
+  async getModels(
+    sessionId: string,
+    options?: { apiKey?: string },
+  ): Promise<string[]> {
     const url = new URL("/api/control/models", this.baseUrl);
+    const apiKey = options?.apiKey ?? this.apiKey;
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(API_KEY_HEADER, apiKey);
+    }
 
     const response = await fetch(url.toString(), {
-      headers: withSessionHeader(sessionId),
+      headers,
     });
 
     if (!response.ok) {

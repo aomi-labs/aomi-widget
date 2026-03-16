@@ -13,7 +13,7 @@ import {
   setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
-import type { ApiChatResponse } from "@aomi-labs/client";
+import type { AomiChatResponse } from "@aomi-labs/client";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -27,7 +27,7 @@ describe("Chat API", () => {
   describe("sendMessage", () => {
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
-        async (): Promise<ApiChatResponse> => ({
+        async (): Promise<AomiChatResponse> => ({
           is_processing: true,
           messages: [],
         }),

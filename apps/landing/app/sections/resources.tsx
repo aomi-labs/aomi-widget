@@ -157,7 +157,7 @@ export function Resources() {
         </p>
         <div className="flex items-center gap-x-4 gap-y-4">
           <a
-            href="https://calendly.com/cecilia-foameo/30min"
+            href="https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ0u-urImwR9Fl5L0v4z8ejVKimYhQUQf8ISYfD9AzR_Fd5ULOoMHSx1o60QuuW3GH9FYFDN4u0S"
             target="_blank"
             rel="noreferrer"
             className="landing-button-primary group [--fx-filter:blur(10px)_liquid-glass(1.9,10)_saturate(1.25)_noise(0.5,1,0)]"
@@ -236,7 +236,7 @@ export function Resources() {
                   Careers
                 </a>
                 <a
-                  href="#"
+                  href="/contact"
                   className="font-geist text-xs text-stone-100 transition-colors hover:text-stone-400"
                 >
                   Contact
