@@ -37,7 +37,7 @@ const ENDPOINTS: EndpointDef[] = [
       "Send a chat message. Returns updated messages and processing status.",
     params: [
       { key: "message", placeholder: "Hello!", required: true },
-      { key: "namespace", placeholder: "default", required: true },
+      { key: "app", placeholder: "default", required: true },
       { key: "public_key", placeholder: "0x…" },
     ],
     headers: [SESSION_HEADER, API_KEY_HEADER],
@@ -80,10 +80,10 @@ const ENDPOINTS: EndpointDef[] = [
     headers: [SESSION_HEADER],
   },
   {
-    label: "Get Namespaces",
+    label: "Get Apps",
     method: "GET",
-    path: "/api/control/namespaces",
-    description: "List available namespaces (agents) for the current context.",
+    path: "/api/control/apps",
+    description: "List available apps (agents) for the current context.",
     params: [
       { key: "public_key", placeholder: "0x…" },
     ],
@@ -104,7 +104,7 @@ const ENDPOINTS: EndpointDef[] = [
       "Set the model for a session. Returns { success, rig, baml, created }.",
     params: [
       { key: "rig", placeholder: "gpt-4o", required: true },
-      { key: "namespace", placeholder: "default" },
+      { key: "app", placeholder: "default" },
     ],
     headers: [SESSION_HEADER, API_KEY_HEADER],
   },

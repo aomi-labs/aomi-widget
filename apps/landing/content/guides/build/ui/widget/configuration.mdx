@@ -57,7 +57,7 @@ import { AomiFrame } from "@/components/aomi-frame";
     withControl={true}
     controlBarProps={{
       hideModel: false,
-      hideNamespace: false,
+      hideApp: false,
       hideApiKey: true,
       hideWallet: false,
     }}
@@ -90,11 +90,11 @@ import { ControlBar } from "@/components/control-bar";
 // Full control bar (all controls visible)
 <ControlBar />
 
-// Minimal: just model and namespace
+// Minimal: just model and app
 <ControlBar hideApiKey hideWallet />
 
 // Custom: hide defaults, add your own
-<ControlBar hideModel hideNamespace hideApiKey hideWallet>
+<ControlBar hideModel hideApp hideApiKey hideWallet>
   <MyCustomModelPicker />
   <MyCustomWalletButton />
 </ControlBar>
@@ -105,7 +105,7 @@ import { ControlBar } from "@/components/control-bar";
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `hideModel` | `boolean` | `false` | Hide the model selector dropdown |
-| `hideNamespace` | `boolean` | `false` | Hide the namespace/agent selector |
+| `hideApp` | `boolean` | `false` | Hide the app/agent selector |
 | `hideApiKey` | `boolean` | `false` | Hide the API key input button |
 | `hideWallet` | `boolean` | `true` | Hide the wallet connect button |
 | `hideNetwork` | `boolean` | `false` | Hide the network selector |
@@ -124,11 +124,11 @@ function MyComponent() {
     state,                    // Global control state
     setApiKey,                // Update API key
     getAvailableModels,       // Fetch available models from backend
-    getAuthorizedNamespaces,  // Fetch authorized namespaces from backend
+    getAuthorizedApps,        // Fetch authorized apps from backend
     onModelSelect,            // Select a model for the current thread
-    onNamespaceSelect,        // Select a namespace for the current thread
+    onAppSelect,              // Select an app for the current thread
     getCurrentThreadControl,  // Get current thread's control state
-    isProcessing,             // Whether model/namespace switching is disabled
+    isProcessing,             // Whether model/app switching is disabled
     getControlState,          // Get state synchronously (for callbacks)
     onControlStateChange,     // Subscribe to state changes
   } = useControl();
@@ -136,19 +136,19 @@ function MyComponent() {
   // Read global state
   console.log(state.apiKey);                // "sk-..." | null
   console.log(state.availableModels);       // ["claude-sonnet-4-20250514", "gpt-4o", ...]
-  console.log(state.authorizedNamespaces);  // ["default", "defi", ...]
+  console.log(state.authorizedApps);        // ["default", "defi", ...]
   console.log(state.defaultModel);          // "claude-sonnet-4-20250514"
-  console.log(state.defaultNamespace);      // "default"
+  console.log(state.defaultApp);            // "default"
 
   // Read per-thread control
   const threadControl = getCurrentThreadControl();
   console.log(threadControl.model);         // Selected model for this thread
-  console.log(threadControl.namespace);     // Selected namespace for this thread
+  console.log(threadControl.app);            // Selected app for this thread
 
   // Update state
   setApiKey("sk-new-key");
   await onModelSelect("gpt-4o");
-  onNamespaceSelect("defi");
+  onAppSelect("defi");
 }
 ```
 
@@ -158,9 +158,9 @@ function MyComponent() {
 type ControlState = {
   apiKey: string | null;
   availableModels: string[];
-  authorizedNamespaces: string[];
+  authorizedApps: string[];
   defaultModel: string | null;
-  defaultNamespace: string | null;
+  defaultApp: string | null;
 };
 ```
 
@@ -256,13 +256,13 @@ Use props to toggle features:
   <AomiFrame.Composer />
 </AomiFrame.Root>
 
-// API-key only mode (no wallet, no namespace)
+// API-key only mode (no wallet, no app)
 <AomiFrame.Root walletPosition={null}>
   <AomiFrame.Header
     withControl
     controlBarProps={{
       hideModel: true,
-      hideNamespace: true,
+      hideApp: true,
       hideWallet: true,
       hideNetwork: true,
     }}
@@ -280,7 +280,7 @@ The widget communicates with your backend via these endpoints:
 | `/api/chat` | POST | Send a message |
 | `/api/state` | GET | Poll for state updates |
 | `/api/control/models` | GET | Get available models |
-| `/api/control/namespaces` | GET | Get authorized namespaces |
+| `/api/control/apps` | GET | Get authorized apps |
 | `/api/control/model` | POST | Set the active model |
 | `/api/sessions` | GET/POST | List/create threads |
 | `/api/sessions/:id` | PATCH/DELETE | Update/delete thread |
