@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { Provider } from "./provider";
 
@@ -37,6 +38,9 @@ export const metadata: Metadata = {
   },
 };
 
+// TODO: Replace with actual GA Measurement ID from Shy
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XXXXXXXXXX";
+
 export default function RootLayout({
   children,
 }: {
@@ -51,6 +55,9 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <Provider>{children}</Provider>
       </body>
+      {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "G-XXXXXXXXXX" && (
+        <GoogleAnalytics gaId={GA_MEASUREMENT_ID} />
+      )}
     </html>
   );
 }
