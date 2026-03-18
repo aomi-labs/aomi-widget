@@ -13,7 +13,7 @@ export function getOrCreateSession(
     state = {
       sessionId: crypto.randomUUID(),
       baseUrl: config.baseUrl,
-      namespace: config.namespace,
+      app: config.app,
       apiKey: config.apiKey,
       publicKey: config.publicKey,
     };
@@ -24,8 +24,8 @@ export function getOrCreateSession(
       state.baseUrl = config.baseUrl;
       changed = true;
     }
-    if (config.namespace !== state.namespace) {
-      state.namespace = config.namespace;
+    if (config.app !== state.app) {
+      state.app = config.app;
       changed = true;
     }
     if (config.apiKey !== undefined && config.apiKey !== state.apiKey) {
@@ -43,7 +43,7 @@ export function getOrCreateSession(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
-      namespace: state.namespace,
+      app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey,
       userState: state.publicKey
@@ -72,7 +72,7 @@ export async function applyModelSelection(
   model: string,
 ): Promise<void> {
   await session.client.setModel(state.sessionId, model, {
-    namespace: state.namespace,
+    app: state.app,
     apiKey: state.apiKey,
   });
   state.model = model;

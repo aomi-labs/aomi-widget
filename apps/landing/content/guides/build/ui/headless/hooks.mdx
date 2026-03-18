@@ -198,7 +198,7 @@ const metadata = useCurrentThreadMetadata();
 
 ## useControl
 
-Model, namespace, and API key state management.
+Model, app, and API key state management.
 
 ```tsx
 import { useControl } from "@aomi-labs/react";
@@ -208,9 +208,9 @@ function ControlPanel() {
     state,                    // ControlState
     setApiKey,                // (apiKey: string | null) => void
     getAvailableModels,       // () => Promise<string[]>
-    getAuthorizedNamespaces,  // () => Promise<string[]>
+    getAuthorizedApps,        // () => Promise<string[]>
     onModelSelect,            // (model: string) => Promise<void>
-    onNamespaceSelect,        // (namespace: string) => void
+    onAppSelect,              // (app: string) => void
     getCurrentThreadControl,  // () => ThreadControlState
     isProcessing,             // boolean
     getControlState,          // () => ControlState (synchronous)
@@ -220,14 +220,14 @@ function ControlPanel() {
   // Global state
   state.apiKey;                // string | null
   state.availableModels;       // string[]
-  state.authorizedNamespaces;  // string[]
+  state.authorizedApps;        // string[]
   state.defaultModel;          // string | null
-  state.defaultNamespace;      // string | null
+  state.defaultApp;            // string | null
 
   // Per-thread state
   const tc = getCurrentThreadControl();
   tc.model;      // string | null
-  tc.namespace;  // string | null
+  tc.app;        // string | null
 }
 ```
 
@@ -237,9 +237,9 @@ function ControlPanel() {
 type ControlState = {
   apiKey: string | null;
   availableModels: string[];
-  authorizedNamespaces: string[];
+  authorizedApps: string[];
   defaultModel: string | null;
-  defaultNamespace: string | null;
+  defaultApp: string | null;
 };
 ```
 

@@ -5,7 +5,7 @@ description: How AomiApps are built with tools, preambles, and model selection.
 
 # Building Apps
 
-This page explains how AI assistants are constructed on the Aomi platform. It covers the AomiApp abstraction, the builder pattern, tool definitions, model selection, and namespace registration.
+This page explains how AI assistants are constructed on the Aomi platform. It covers the AomiApp abstraction, the builder pattern, tool definitions, model selection, and app registration.
 
 ## AomiApp: The Core Abstraction
 
@@ -238,9 +238,9 @@ let app = CoreAppBuilder::new(&preamble)
 
 When `skip_mcp` is `false`, the builder connects to configured MCP servers and registers their tools alongside local tools.
 
-## Namespace Registration
+## App Registration
 
-Once an app is built, it is registered in the backend's namespace map:
+Once an app is built, it is registered in the backend's app map:
 
 ```rust
 fn build_backends() -> HashMap<String, Arc<dyn AomiBackend>> {
@@ -250,7 +250,7 @@ fn build_backends() -> HashMap<String, Arc<dyn AomiBackend>> {
     let mycoindex_app = MyCoinDexApp::new().await?;
     backends.insert("mycoindex".to_string(), Arc::new(mycoindex_app));
 
-    // Register another namespace
+    // Register another app
     let defiwatch_app = DeFiWatchApp::new().await?;
     backends.insert("defiwatch".to_string(), Arc::new(defiwatch_app));
 
@@ -258,7 +258,7 @@ fn build_backends() -> HashMap<String, Arc<dyn AomiBackend>> {
 }
 ```
 
-When a request arrives with `?namespace=mycoindex`, the backend looks up the namespace in this map and routes the request to the corresponding app.
+When a request arrives with `?app=mycoindex`, the backend looks up the app in this map and routes the request to the corresponding app.
 
 Each registered app implements the `AomiBackend` trait, which provides a uniform interface for the backend to route messages to any app. For the full trait definition, see the [SDK Reference](/docs/reference/sdk).
 
@@ -283,7 +283,7 @@ flowchart TB
     end
 
     subgraph "Runtime"
-        REQ[POST /api/chat?namespace=mycoindex] --> LOOKUP[Lookup namespace]
+        REQ[POST /api/chat?app=mycoindex] --> LOOKUP[Lookup app]
         LOOKUP --> APP2[MyCoinDexApp.process_message]
         APP2 --> RESPONSE[SSE Stream]
     end

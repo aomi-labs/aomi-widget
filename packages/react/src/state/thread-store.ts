@@ -31,8 +31,8 @@ export type ThreadStatus = "regular" | "archived";
 export type ThreadControlState = {
   /** Selected model for this thread (human-readable label) */
   model: string | null;
-  /** Selected namespace for this thread */
-  namespace: string | null;
+  /** Selected app for this thread */
+  app: string | null;
   /** Whether control state has changed but chat hasn't started yet */
   controlDirty: boolean;
   /** Whether this thread is currently processing (assistant generating) */
@@ -43,7 +43,7 @@ export type ThreadMetadata = {
   title: string;
   status: ThreadStatus;
   lastActiveAt?: string | number;
-  /** Per-thread control state (model, namespace selection) */
+  /** Per-thread control state (model, app selection) */
   control: ThreadControlState;
 };
 
@@ -51,7 +51,7 @@ export type ThreadMetadata = {
 export function initThreadControl(): ThreadControlState {
   return {
     model: null,
-    namespace: null,
+    app: null,
     controlDirty: false,
     isProcessing: false,
   };

@@ -22,7 +22,7 @@ type PlaygroundState = {
   walletPosition: WalletPosition;
   controlPlacement: ControlPlacement;
   showModel: boolean;
-  showNamespace: boolean;
+  showApp: boolean;
   showApiKey: boolean;
   showWallet: boolean;
   showNetwork: boolean;
@@ -33,7 +33,7 @@ const DEFAULT_STATE: PlaygroundState = {
   walletPosition: "footer",
   controlPlacement: "header",
   showModel: true,
-  showNamespace: true,
+  showApp: true,
   showApiKey: false,
   showWallet: false,
   showNetwork: true,
@@ -48,12 +48,12 @@ function generateCode(s: PlaygroundState): string {
     s.walletPosition === "hidden" ? "null" : `"${s.walletPosition}"`;
 
   const hasAnyControl =
-    s.showModel || s.showNamespace || s.showApiKey || s.showWallet || s.showNetwork;
+    s.showModel || s.showApp || s.showApiKey || s.showWallet || s.showNetwork;
 
   const controlBarEntries: string[] = [];
   if (!s.showNetwork) controlBarEntries.push("hideNetwork: true");
   if (!s.showModel) controlBarEntries.push("hideModel: true");
-  if (!s.showNamespace) controlBarEntries.push("hideNamespace: true");
+  if (!s.showApp) controlBarEntries.push("hideApp: true");
   if (!s.showApiKey) controlBarEntries.push("hideApiKey: true");
   if (s.showWallet) controlBarEntries.push("hideWallet: false");
 
@@ -244,9 +244,9 @@ const LayoutPanel: FC<{
           onChange={(v) => update({ showModel: v })}
         />
         <Checkbox
-          label="Namespace"
-          checked={state.showNamespace}
-          onChange={(v) => update({ showNamespace: v })}
+          label="App"
+          checked={state.showApp}
+          onChange={(v) => update({ showApp: v })}
         />
         <Checkbox
           label="API Key"
@@ -298,7 +298,7 @@ export function PlaygroundConfigurator() {
     () => ({
       hideNetwork: !state.showNetwork,
       hideModel: !state.showModel,
-      hideNamespace: !state.showNamespace,
+      hideApp: !state.showApp,
       hideApiKey: !state.showApiKey,
       hideWallet: !state.showWallet,
     }),
@@ -307,7 +307,7 @@ export function PlaygroundConfigurator() {
 
   const hasAnyControl =
     state.showModel ||
-    state.showNamespace ||
+    state.showApp ||
     state.showApiKey ||
     state.showWallet ||
     state.showNetwork;

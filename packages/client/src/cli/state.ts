@@ -37,7 +37,7 @@ export type SignedTx = {
 export type CliSessionState = {
   sessionId: string;
   baseUrl: string;
-  namespace?: string;
+  app?: string;
   model?: string;
   apiKey?: string;
   publicKey?: string;
@@ -92,7 +92,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
   return {
     sessionId: stored.sessionId,
     baseUrl: stored.baseUrl,
-    namespace: stored.namespace,
+    app: stored.app,
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
@@ -114,7 +114,7 @@ function readStoredSession(path: string): StoredSessionState | null {
     return {
       sessionId: parsed.sessionId,
       baseUrl: parsed.baseUrl,
-      namespace: parsed.namespace,
+      app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,

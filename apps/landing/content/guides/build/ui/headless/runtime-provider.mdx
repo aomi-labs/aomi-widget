@@ -37,7 +37,7 @@ AomiRuntimeProvider
 ├── ThreadContextProvider      ← Thread state (messages, metadata, switching)
 │   └── NotificationContextProvider  ← Toast notifications
 │       └── UserContextProvider      ← Wallet/user state
-│           └── ControlContextProvider  ← Model/namespace/API key
+│           └── ControlContextProvider  ← Model/app/API key
 │               └── EventContextProvider  ← SSE + system events
 │                   └── AomiRuntimeCore  ← Orchestration + unified API
 │                       └── {children}
@@ -50,7 +50,7 @@ Each layer provides specific functionality through its own hook:
 | Thread | `useThreadContext` | Thread ID, messages, metadata, thread operations |
 | User | `useUser` | Wallet address, chain ID, connection status |
 | Notification | `useNotification` | Show/dismiss notifications |
-| Control | `useControl` | Model selection, namespace, API key |
+| Control | `useControl` | Model selection, app, API key |
 | Event | `useEventContext` | SSE subscription, outbound events |
 | **Unified** | `useAomiRuntime` | **All of the above in one hook** |
 
@@ -130,7 +130,7 @@ const api = new BackendApi("https://api.aomi.dev");
 const threads = await api.getThreads(sessionId, publicKey);
 
 // Send a message
-await api.chat(sessionId, message, namespace, apiKey);
+await api.chat(sessionId, message, app, apiKey);
 
 // Get available models
 const models = await api.getModels(sessionId);

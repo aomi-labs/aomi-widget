@@ -1,6 +1,6 @@
 ---
 title: Integration Guide
-description: Full-stack integration process — from your APIs to a deployed Aomi App with tools, namespaces, and client integration.
+description: Full-stack integration process — from your APIs to a deployed Aomi App with tools, apps, and client integration.
 ---
 
 # Integration Guide
@@ -34,7 +34,7 @@ flowchart LR
         RAG["RAG Docs"]
     end
 
-    subgraph NS_GROUP["4. Deployed Namespace"]
+    subgraph NS_GROUP["4. Deployed App"]
         direction TB
         NS["mycoindex"]
     end
@@ -88,7 +88,7 @@ flowchart LR
 
 **3. AomiApp Configuration** — Your system prompt (preamble) should clearly explain what each tool does, when to use it, and your business logic constraints. The LLM's performance depends directly on how well the preamble describes the Aomi App's role and rules. Model selection affects cost, latency, and reasoning quality. If you need a document store for FAQs, guides, or knowledge bases, we can set up RAG ingestion as part of the integration.
 
-**4. Deployed Namespace** — Aomi compiles and deploys the configured Aomi App as an isolated namespace on our hosted platform. Each namespace gets a scoped API key and a dedicated chat endpoint. Deployment and scaling are managed by Aomi.
+**4. Deployed App** — Aomi compiles and deploys the configured Aomi App as an isolated app on our hosted platform. Each app gets a scoped API key and a dedicated chat endpoint. Deployment and scaling are managed by Aomi.
 
 **5. Client Integration** — You are responsible for your own product surface. Use any combination of our SDK, component library, or Telegram bot framework to integrate the deployed Aomi App into your frontend. We provide assistance throughout the integration process.
 
@@ -139,19 +139,19 @@ Never provide financial advice or price predictions.
 
 **RAG Document Store** — If you have documentation, FAQs, or knowledge base articles, we can set up RAG ingestion as part of the integration. The AI searches these documents when answering questions that go beyond what the tools can provide.
 
-### 4. Deployed Namespace
+### 4. Deployed App
 
-Aomi compiles and deploys the configured Aomi App as an isolated **namespace** on our hosted platform. A namespace bundles tools, preamble, model, and credentials into a single addressable endpoint.
+Aomi compiles and deploys the configured Aomi App as an isolated **app** on our hosted platform. An app bundles tools, preamble, model, and credentials into a single addressable endpoint.
 
 ```
-Namespace:  "mycoindex"
-Endpoint:   POST /api/chat?namespace=mycoindex
+App:        "mycoindex"
+Endpoint:   POST /api/chat?app=mycoindex
 Tools:      GetTokenPrice, ExecuteTrade, GetPortfolio, ListMarkets
 Preamble:   MyCoinDex trading agent
 Model:      Claude Sonnet (default, switchable)
 ```
 
-Each namespace is fully isolated. MyCoinDex's tools, preamble, and configuration do not affect other namespaces on the platform. Deployment and scaling are managed by Aomi — you receive a scoped API key and a dedicated chat endpoint.
+Each app is fully isolated. MyCoinDex's tools, preamble, and configuration do not affect other apps on the platform. Deployment and scaling are managed by Aomi — you receive a scoped API key and a dedicated chat endpoint.
 
 ### 5. Client Integration
 
@@ -165,6 +165,6 @@ You are responsible for your own product surface. Aomi provides the SDK, compone
 
 ## Next Steps
 
-- [Agentic Application](/docs/agentic-application) — how Apps, namespaces, and API keys fit together.
+- [Agentic Application](/docs/agentic-application) — how Apps and API keys fit together.
 - [API Reference](/docs/build/services/api-reference) — full HTTP endpoint documentation.
 - [Sessions](/docs/build/services/sessions) — how chat sessions are created and managed.

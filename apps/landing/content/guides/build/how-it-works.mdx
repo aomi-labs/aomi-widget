@@ -29,7 +29,7 @@ flowchart TB
         RAG[RAG Docs]
     end
 
-    subgraph "4. Deployed Namespace"
+    subgraph "4. Deployed App"
         NS[mycoindex]
     end
 
@@ -103,30 +103,30 @@ Models can be changed at runtime via the control API -- no redeployment needed.
 
 If MyCoinDex has documentation, FAQs, or knowledge base articles, Aomi ingests them into a vector store. The assistant searches these documents when answering questions beyond tool capabilities.
 
-## 4. Deployed as a Namespace
+## 4. Deployed as an App
 
-The configured app becomes a **namespace** -- a self-contained assistant environment on Aomi's hosted backend.
+The configured app becomes an **app** -- a self-contained assistant environment on Aomi's hosted backend.
 
 ```
-Namespace:  "mycoindex"
-Endpoint:   POST /api/chat?namespace=mycoindex
+App:        "mycoindex"
+Endpoint:   POST /api/chat?app=mycoindex
 Tools:      GetTokenPrice, ExecuteTrade, GetPortfolio, ListMarkets
 Preamble:   MyCoinDex trading assistant
 Model:      Claude Sonnet (default, switchable)
 ```
 
-Each namespace is isolated. MyCoinDex's tools, preamble, and configuration do not affect other namespaces on the platform.
+Each app is isolated. MyCoinDex's tools, preamble, and configuration do not affect other apps on the platform.
 
 ## 5. API Key and Authentication
 
-MyCoinDex receives an API key scoped to their namespace. Every request includes:
+MyCoinDex receives an API key scoped to their app. Every request includes:
 
 ```
 X-API-Key: sk-mcd-a1b2c3d4e5f6
 X-Session-Id: 550e8400-e29b-41d4-a716-446655440000
 ```
 
-The backend validates the key, confirms it authorizes access to the `mycoindex` namespace, and proceeds.
+The backend validates the key, confirms it authorizes access to the `mycoindex` app, and proceeds.
 
 ## 6. The Request Flow
 
@@ -141,7 +141,7 @@ sequenceDiagram
     participant Tool as MyCoinDex API
 
     User->>Frontend: "What's my ETH position worth?"
-    Frontend->>Aomi: POST /api/chat?namespace=mycoindex<br/>X-API-Key: sk-mcd-...<br/>X-Session-Id: session-uuid<br/>{"text": "What's my ETH position worth?"}
+    Frontend->>Aomi: POST /api/chat?app=mycoindex<br/>X-API-Key: sk-mcd-...<br/>X-Session-Id: session-uuid<br/>{"text": "What's my ETH position worth?"}
 
     Aomi->>LLM: Messages + available tools
     LLM-->>Aomi: ToolCall: GetPortfolio(userId)
@@ -170,7 +170,7 @@ sequenceDiagram
 ### Step by Step
 
 1. **User sends a message** via the widget or headless integration.
-2. **Frontend sends HTTP POST** to `/api/chat?namespace=mycoindex` with the API key and session ID.
+2. **Frontend sends HTTP POST** to `/api/chat?app=mycoindex` with the API key and session ID.
 3. **Backend validates** the API key and loads the session.
 4. **Backend sends message + history + tools** to the selected LLM.
 5. **LLM decides to call tools** -- requests `GetPortfolio` and `GetTokenPrice`.
@@ -224,6 +224,6 @@ Each event is a JSON object with a `type` field. The frontend processes these to
 
 ## Next Steps
 
-- [Namespaces and Authentication](/docs/build/namespaces) -- how API keys, namespaces, and sessions fit together.
+- [Apps and Authentication](/docs/build/namespaces) -- how API keys, apps, and sessions fit together.
 - [API Reference](/docs/build/services/api-reference) -- full HTTP endpoint documentation.
 - [Sessions](/docs/build/services/sessions) -- how chat sessions are created and managed.
