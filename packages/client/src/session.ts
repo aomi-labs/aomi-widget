@@ -60,8 +60,8 @@ export type SendResult = {
 export type SessionOptions = {
   /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
   sessionId?: string;
-  /** Namespace for chat messages. Default: "default" */
-  namespace?: string;
+  /** App for chat messages. Default: "default" */
+  app?: string;
   /** User public key (wallet address). */
   publicKey?: string;
   /** API key override. */
@@ -114,7 +114,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
   /** The session (thread) ID. */
   readonly sessionId: string;
 
-  private namespace: string;
+  private app: string;
   private publicKey?: string;
   private apiKey?: string;
   private userState?: UserState;
@@ -146,7 +146,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
         : new AomiClient(clientOrOptions);
 
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
-    this.namespace = sessionOptions?.namespace ?? "default";
+    this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
     this.userState = sessionOptions?.userState;
@@ -177,7 +177,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
     this.assertOpen();
 
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
@@ -206,7 +206,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
     this.assertOpen();
 
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,

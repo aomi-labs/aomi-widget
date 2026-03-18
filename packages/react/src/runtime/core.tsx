@@ -61,9 +61,9 @@ export function AomiRuntimeCore({
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
-    getNamespace: () =>
-      getCurrentThreadControl().namespace ??
-      getControlState().defaultNamespace ??
+    getApp: () =>
+      getCurrentThreadControl().app ??
+      getControlState().defaultApp ??
       "default",
     getApiKey: () => getControlState().apiKey,
   });
@@ -222,9 +222,9 @@ export function AomiRuntimeCore({
         polling,
         userAddress: user.address,
         setIsRunning,
-        getNamespace: () =>
-          getCurrentThreadControl().namespace ??
-          getControlState().defaultNamespace ??
+        getApp: () =>
+          getCurrentThreadControl().app ??
+          getControlState().defaultApp ??
           "default",
         getApiKey: () => getControlState().apiKey,
         getUserState,

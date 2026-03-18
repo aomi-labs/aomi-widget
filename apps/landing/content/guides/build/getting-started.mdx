@@ -45,7 +45,7 @@ your-project/
 │   ├── control-bar/
 │   │   ├── index.tsx                     ← ControlBar component
 │   │   ├── model-select.tsx              ← Model dropdown
-│   │   ├── namespace-select.tsx          ← Namespace/agent dropdown
+│   │   ├── app-select.tsx                ← App/agent dropdown
 │   │   ├── api-key-input.tsx             ← API key dialog
 │   │   ├── wallet-connect.tsx            ← Wallet button
 │   │   └── network-select.tsx            ← Network dropdown
@@ -128,7 +128,7 @@ export default function ChatPage() {
 
 ### Option A: Via the ControlBar UI
 
-The widget includes a ControlBar with an API key input. Click the key icon, paste your API key, and select your namespace from the dropdown. The key is stored in `localStorage` for subsequent visits.
+The widget includes a ControlBar with an API key input. Click the key icon, paste your API key, and select your app from the dropdown. The key is stored in `localStorage` for subsequent visits.
 
 ### Option B: Programmatically
 
@@ -144,7 +144,7 @@ function ConfigureOnMount() {
   useEffect(() => {
     setState({
       apiKey: "sk-your-api-key",
-      namespace: "mycoindex",
+      app: "mycoindex",
     });
   }, []);
 
@@ -162,7 +162,7 @@ Open `http://localhost:3000`. You should see the full chat interface with:
 
 - A sidebar for thread management
 - A message composer at the bottom
-- A ControlBar with model and namespace selectors
+- A ControlBar with model and app selectors
 - Streaming AI responses when you send a message
 
 ## Configure a Customized Widget (Playground)
@@ -230,5 +230,5 @@ git diff components/
 - [Component Catalog](/docs/build/ui/widget/components) -- Browse all available components.
 - [Theming](/docs/build/ui/widget/theming) -- Customize colors and styling.
 - [Configuration](/docs/build/ui/widget/configuration) -- Environment variables and runtime options.
-- [Namespace](/docs/agentic-application) -- Understand how API keys and namespaces work.
+- [Apps](/docs/build/namespaces) -- Understand how API keys and apps work.
 - [API Reference](/docs/build/services/api-reference) -- The full HTTP API for custom integrations.

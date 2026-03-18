@@ -122,7 +122,7 @@ export {
 } from "./contexts/notification-context";
 
 // =============================================================================
-// Control Context (model/namespace/api-key state)
+// Control Context (model/app/api-key state)
 // =============================================================================
 export {
   useControl,

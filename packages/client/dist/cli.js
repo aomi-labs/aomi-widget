@@ -53,7 +53,7 @@ function getConfig(parsed) {
   return {
     baseUrl: (_b = (_a3 = parsed.flags["backend-url"]) != null ? _a3 : process.env.AOMI_BASE_URL) != null ? _b : "https://api.aomi.dev",
     apiKey: (_c = parsed.flags["api-key"]) != null ? _c : process.env.AOMI_API_KEY,
-    namespace: (_e = (_d = parsed.flags["namespace"]) != null ? _d : process.env.AOMI_NAMESPACE) != null ? _e : "default",
+    app: (_e = (_d = parsed.flags["app"]) != null ? _d : process.env.AOMI_APP) != null ? _e : "default",
     model: (_f = parsed.flags["model"]) != null ? _f : process.env.AOMI_MODEL,
     publicKey: (_g = parsed.flags["public-key"]) != null ? _g : process.env.AOMI_PUBLIC_KEY,
     privateKey: (_h = parsed.flags["private-key"]) != null ? _h : process.env.PRIVATE_KEY,
@@ -106,7 +106,7 @@ function toCliSessionState(stored) {
   return {
     sessionId: stored.sessionId,
     baseUrl: stored.baseUrl,
-    namespace: stored.namespace,
+    app: stored.app,
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
@@ -126,7 +126,7 @@ function readStoredSession(path) {
     return {
       sessionId: parsed.sessionId,
       baseUrl: parsed.baseUrl,
-      namespace: parsed.namespace,
+      app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
@@ -699,9 +699,9 @@ var AomiClient = class {
    */
   async sendMessage(sessionId, message, options) {
     var _a3, _b;
-    const namespace = (_a3 = options == null ? void 0 : options.namespace) != null ? _a3 : "default";
+    const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const payload = { message, namespace };
+    const payload = { message, app };
     if (options == null ? void 0 : options.publicKey) {
       payload.public_key = options.publicKey;
     }
@@ -874,11 +874,11 @@ var AomiClient = class {
   // Control API
   // ===========================================================================
   /**
-   * Get available namespaces.
+   * Get available apps.
    */
-  async getNamespaces(sessionId, options) {
+  async getApps(sessionId, options) {
     var _a3;
-    const url = new URL("/api/control/namespaces", this.baseUrl);
+    const url = new URL("/api/control/apps", this.baseUrl);
     if (options == null ? void 0 : options.publicKey) {
       url.searchParams.set("public_key", options.publicKey);
     }
@@ -889,7 +889,7 @@ var AomiClient = class {
     }
     const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
-      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
+      throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
     return await response.json();
   }
@@ -919,8 +919,8 @@ var AomiClient = class {
     var _a3;
     const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
     const payload = { rig };
-    if (options == null ? void 0 : options.namespace) {
-      payload.namespace = options.namespace;
+    if (options == null ? void 0 : options.app) {
+      payload.app = options.app;
     }
     return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
   }
@@ -1117,7 +1117,7 @@ var Session = class extends TypedEventEmitter {
     this.pendingResolve = null;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
-    this.namespace = (_b = sessionOptions == null ? void 0 : sessionOptions.namespace) != null ? _b : "default";
+    this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
@@ -1143,7 +1143,7 @@ var Session = class extends TypedEventEmitter {
   async send(message) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState
@@ -1166,7 +1166,7 @@ var Session = class extends TypedEventEmitter {
   async sendAsync(message) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState
@@ -1422,7 +1422,7 @@ function getOrCreateSession(runtime) {
     state = {
       sessionId: crypto.randomUUID(),
       baseUrl: config.baseUrl,
-      namespace: config.namespace,
+      app: config.app,
       apiKey: config.apiKey,
       publicKey: config.publicKey
     };
@@ -1433,8 +1433,8 @@ function getOrCreateSession(runtime) {
       state.baseUrl = config.baseUrl;
       changed = true;
     }
-    if (config.namespace !== state.namespace) {
-      state.namespace = config.namespace;
+    if (config.app !== state.app) {
+      state.app = config.app;
       changed = true;
     }
     if (config.apiKey !== void 0 && config.apiKey !== state.apiKey) {
@@ -1451,7 +1451,7 @@ function getOrCreateSession(runtime) {
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
-      namespace: state.namespace,
+      app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey,
       userState: state.publicKey ? {
@@ -1471,7 +1471,7 @@ function createControlClient(runtime) {
 }
 async function applyModelSelection(session, state, model) {
   await session.client.setModel(state.sessionId, model, {
-    namespace: state.namespace,
+    app: state.app,
     apiKey: state.apiKey
   });
   state.model = model;
@@ -1716,7 +1716,7 @@ async function statusCommand(runtime) {
         {
           sessionId: state.sessionId,
           baseUrl: state.baseUrl,
-          namespace: state.namespace,
+          app: state.app,
           model: (_a3 = state.model) != null ? _a3 : null,
           isProcessing: (_b = apiState.is_processing) != null ? _b : false,
           messageCount: (_d = (_c = apiState.messages) == null ? void 0 : _c.length) != null ? _d : 0,
@@ -2320,8 +2320,8 @@ Usage:
 
 Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
-  --api-key <key>       API key for non-default namespaces
-  --namespace <ns>      Namespace (default: "default")
+  --api-key <key>       API key for non-default apps
+  --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
@@ -2331,7 +2331,7 @@ Options:
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
   AOMI_API_KEY          API key
-  AOMI_NAMESPACE        Namespace
+  AOMI_APP              App
   AOMI_MODEL            Model rig
   AOMI_PUBLIC_KEY       Wallet address
   PRIVATE_KEY           Hex private key for signing

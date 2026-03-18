@@ -7,7 +7,7 @@ description: >
   builds generic EVM transactions with speed and security natively on Ethereum
   light client. Handles multi-step workflows: chat with the agent, review pending
   transactions, sign and broadcast, then verify results.
-compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Set PRIVATE_KEY and CHAIN_RPC_URL for transaction signing."
+compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Requires viem for signing (`npm install viem`). Set PRIVATE_KEY and CHAIN_RPC_URL env vars for transaction signing."
 license: MIT
 allowed-tools: Bash
 metadata:
@@ -19,13 +19,18 @@ metadata:
 
 Build and execute EVM transactions through a conversational AI agent.
 
-## Setup
+## Preflight
 
-Before running any commands, verify the CLI is available:
+On first use in a session, check the user's state:
 
 ```bash
-which aomi || npm install -g @aomi-labs/client
+echo "PRIVATE_KEY=${PRIVATE_KEY:+set}${PRIVATE_KEY:-unset} CHAIN_RPC_URL=${CHAIN_RPC_URL:-unset}"; aomi status 2>/dev/null || echo "no session"
 ```
+
+Key rules:
+- If `PRIVATE_KEY` is set in env, do NOT also pass `--private-key` (flag overrides env → wrong wallet).
+- `--public-key` must match the address derived from the signing key. Mismatch = agent builds txs for wrong wallet.
+- Private keys must start with `0x`. Add the prefix if missing.
 
 ## Core Workflow
 

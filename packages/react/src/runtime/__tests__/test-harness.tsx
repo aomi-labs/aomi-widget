@@ -37,7 +37,7 @@ export type AomiClientConfig = {
   unarchiveThread?: (sessionId: string) => Promise<void>;
   deleteThread?: (sessionId: string) => Promise<void>;
   // Control API
-  getNamespaces?: (
+  getApps?: (
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ) => Promise<string[]>;
@@ -45,8 +45,8 @@ export type AomiClientConfig = {
   setModel?: (
     sessionId: string,
     rig: string,
-    options?: { namespace?: string; apiKey?: string },
-  ) => Promise<{ rig: string; namespace?: string }>;
+    options?: { app?: string; apiKey?: string },
+  ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
   fetchThreads?: (publicKey: string) => Promise<AomiThread[]>;
@@ -80,7 +80,7 @@ export type MockAomiClientInstance = {
   unarchiveThread: ReturnType<typeof vi.fn>;
   deleteThread: ReturnType<typeof vi.fn>;
   // Control API
-  getNamespaces: ReturnType<typeof vi.fn>;
+  getApps: ReturnType<typeof vi.fn>;
   getModels: ReturnType<typeof vi.fn>;
   setModel: ReturnType<typeof vi.fn>;
 };
@@ -173,13 +173,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     });
 
     // Control API
-    getNamespaces = vi.fn(
+    getApps = vi.fn(
       async (
         sessionId: string,
         options?: { publicKey?: string; apiKey?: string },
       ) => {
-        return mockState.config.getNamespaces
-          ? await mockState.config.getNamespaces(sessionId, options)
+        return mockState.config.getApps
+          ? await mockState.config.getApps(sessionId, options)
           : [];
       },
     );
@@ -194,11 +194,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       async (
         sessionId: string,
         rig: string,
-        options?: { namespace?: string; apiKey?: string },
+        options?: { app?: string; apiKey?: string },
       ) => {
         return mockState.config.setModel
           ? await mockState.config.setModel(sessionId, rig, options)
-          : { rig, namespace: options?.namespace };
+          : { rig, app: options?.app };
       },
     );
 
