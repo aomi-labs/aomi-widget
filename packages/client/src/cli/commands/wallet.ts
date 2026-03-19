@@ -1,15 +1,15 @@
 import { type Chain, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
-import { Session } from "../../session";
+import { ClientSession } from "../../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
-import { getOrCreateSession } from "../context";
 import { CliExit, fatal } from "../errors";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
 import {
   addSignedTx,
   readState,
   removePendingTx,
+  writeState,
   type CliSessionState,
 } from "../state";
 import { formatTxLine } from "../transactions";
@@ -70,6 +70,71 @@ function requirePendingTx(state: CliSessionState, txId: string) {
   return pendingTx;
 }
 
+function rewriteSessionState(
+  runtime: CliRuntime,
+  state: CliSessionState,
+): void {
+  let changed = false;
+
+  if (runtime.config.baseUrl !== state.baseUrl) {
+    state.baseUrl = runtime.config.baseUrl;
+    changed = true;
+  }
+
+  if (runtime.config.app !== state.app) {
+    state.app = runtime.config.app;
+    changed = true;
+  }
+
+  if (
+    runtime.config.apiKey !== undefined &&
+    runtime.config.apiKey !== state.apiKey
+  ) {
+    state.apiKey = runtime.config.apiKey;
+    changed = true;
+  }
+
+  if (runtime.config.chain !== undefined && runtime.config.chain !== state.chainId) {
+    state.chainId = runtime.config.chain;
+    changed = true;
+  }
+
+  if (changed) {
+    writeState(state);
+  }
+}
+
+function createSessionFromState(state: CliSessionState): ClientSession {
+  const session = new ClientSession(
+    { baseUrl: state.baseUrl, apiKey: state.apiKey },
+    {
+      sessionId: state.sessionId,
+      app: state.app,
+      apiKey: state.apiKey,
+      publicKey: state.publicKey,
+    },
+  );
+
+  if (state.publicKey) {
+    session.resolveWallet(state.publicKey, state.chainId);
+  }
+
+  return session;
+}
+
+async function persistResolvedSignerState(
+  session: ClientSession,
+  state: CliSessionState,
+  address: string,
+  chainId?: number,
+): Promise<void> {
+  state.publicKey = address;
+  writeState(state);
+
+  session.resolveWallet(address, chainId);
+  await session.syncUserState();
+}
+
 export async function signCommand(runtime: CliRuntime): Promise<void> {
   const txId = runtime.parsed.positional[0];
   if (!txId) {
@@ -95,13 +160,26 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
     fatal("No active session. Run `aomi chat` first.");
   }
 
+  rewriteSessionState(runtime, state);
+
   const pendingTx = requirePendingTx(state, txId);
-  const { session } = getOrCreateSession(runtime);
+  const session = createSessionFromState(state);
 
   try {
     const account = privateKeyToAccount(privateKey as `0x${string}`);
+
+    if (
+      state.publicKey &&
+      account.address.toLowerCase() !== state.publicKey.toLowerCase()
+    ) {
+      console.log(
+        `⚠️  Signer ${account.address} differs from session public key ${state.publicKey}`,
+      );
+      console.log("   Updating session to match the signing key...");
+    }
+
     const rpcUrl = runtime.config.chainRpcUrl;
-    const targetChainId = pendingTx.chainId ?? 1;
+    const targetChainId = pendingTx.chainId ?? state.chainId ?? 1;
     const chain =
       Object.values(viemChains).find(
         (candidate): candidate is Chain =>
@@ -135,6 +213,9 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
     console.log(`ID:      ${pendingTx.id}`);
     console.log(`Kind:    ${pendingTx.kind}`);
 
+    let signedRecord: Parameters<typeof addSignedTx>[1];
+    let backendNotification: { type: string; payload: Record<string, unknown> };
+
     if (pendingTx.kind === "transaction") {
       console.log(`To:      ${pendingTx.to}`);
       if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
@@ -152,9 +233,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
 
       console.log(`✅ Sent! Hash: ${hash}`);
 
-      removePendingTx(state, txId);
-      const freshState = readState()!;
-      addSignedTx(freshState, {
+      signedRecord = {
         id: txId,
         kind: "transaction",
         txHash: hash,
@@ -163,15 +242,11 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
         value: pendingTx.value,
         chainId: pendingTx.chainId,
         timestamp: Date.now(),
-      });
-
-      await session.client.sendSystemMessage(
-        state.sessionId,
-        JSON.stringify({
-          type: "wallet:tx_complete",
-          payload: { txHash: hash, status: "success" },
-        }),
-      );
+      };
+      backendNotification = {
+        type: "wallet:tx_complete",
+        payload: { txHash: hash, status: "success" },
+      };
     } else {
       const typedData = pendingTx.payload.typed_data as {
         domain?: Record<string, unknown>;
@@ -205,29 +280,39 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
 
       console.log(`✅ Signed! Signature: ${signature.slice(0, 20)}...`);
 
-      removePendingTx(state, txId);
-      const freshState = readState()!;
-      addSignedTx(freshState, {
+      signedRecord = {
         id: txId,
         kind: "eip712_sign",
         signature,
         from: account.address,
         description: pendingTx.description,
         timestamp: Date.now(),
-      });
-
-      await session.client.sendSystemMessage(
-        state.sessionId,
-        JSON.stringify({
-          type: "wallet_eip712_response",
-          payload: {
-            status: "success",
-            signature,
-            description: pendingTx.description,
-          },
-        }),
-      );
+      };
+      backendNotification = {
+        type: "wallet_eip712_response",
+        payload: {
+          status: "success",
+          signature,
+          description: pendingTx.description,
+        },
+      };
     }
+
+    await persistResolvedSignerState(
+      session,
+      state,
+      account.address,
+      targetChainId,
+    );
+
+    removePendingTx(state, txId);
+    const freshState = readState()!;
+    addSignedTx(freshState, signedRecord);
+
+    await session.client.sendSystemMessage(
+      state.sessionId,
+      JSON.stringify(backendNotification),
+    );
 
     console.log("Backend notified.");
   } catch (err) {

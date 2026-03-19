@@ -57,6 +57,45 @@ export type SendResult = {
   title?: string;
 };
 
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sortJson(entry));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = sortJson((value as Record<string, unknown>)[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
+function isSubsetMatch(expected: unknown, actual: unknown): boolean {
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || expected.length !== actual.length) {
+      return false;
+    }
+    return expected.every((entry, index) =>
+      isSubsetMatch(entry, actual[index]),
+    );
+  }
+
+  if (expected && typeof expected === "object") {
+    if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
+      return false;
+    }
+
+    return Object.entries(expected as Record<string, unknown>).every(
+      ([key, value]) =>
+        isSubsetMatch(value, (actual as Record<string, unknown>)[key]),
+    );
+  }
+
+  return expected === actual;
+}
+
 export type SessionOptions = {
   /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
   sessionId?: string;
@@ -108,7 +147,7 @@ export type SessionEventMap = {
 // Session Class
 // =============================================================================
 
-export class Session extends TypedEventEmitter<SessionEventMap> {
+export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   /** The underlying low-level client. */
   readonly client: AomiClient;
   /** The session (thread) ID. */
@@ -183,6 +222,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
       userState: this.userState,
     });
 
+    this.assertUserStateAligned(response.user_state);
     this.applyState(response);
 
     if (!response.is_processing && this.walletRequests.length === 0) {
@@ -212,6 +252,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
       userState: this.userState,
     });
 
+    this.assertUserStateAligned(response.user_state);
     this.applyState(response);
 
     if (response.is_processing) {
@@ -341,6 +382,28 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
     return this._isProcessing;
   }
 
+  resolveUserState(userState: UserState): void {
+    this.userState = userState;
+
+    const address = userState["address"];
+    if (typeof address === "string" && address.length > 0) {
+      this.publicKey = address;
+    }
+  }
+
+  resolveWallet(address: string, chainId?: number): void {
+    this.resolveUserState({ address, chainId: chainId ?? 1, isConnected: true });
+  }
+
+  async syncUserState(): Promise<AomiStateResponse> {
+    this.assertOpen();
+
+    const state = await this.client.fetchState(this.sessionId, this.userState);
+    this.assertUserStateAligned(state.user_state);
+    this.applyState(state);
+    return state;
+  }
+
   // ===========================================================================
   // Internal — Polling (ported from PollingController)
   // ===========================================================================
@@ -374,6 +437,7 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
       // Guard: polling may have been stopped while awaiting fetch
       if (!this.pollTimer) return;
 
+      this.assertUserStateAligned(state.user_state);
       this.applyState(state);
 
       if (!state.is_processing && this.walletRequests.length === 0) {
@@ -503,6 +567,20 @@ export class Session extends TypedEventEmitter<SessionEventMap> {
   private assertOpen(): void {
     if (this.closed) {
       throw new Error("Session is closed");
+    }
+  }
+
+  private assertUserStateAligned(actualUserState?: UserState | null): void {
+    if (!this.userState) {
+      return;
+    }
+
+    if (!actualUserState || !isSubsetMatch(this.userState, actualUserState)) {
+      const expected = JSON.stringify(sortJson(this.userState));
+      const actual = JSON.stringify(sortJson(actualUserState ?? null));
+      throw new Error(
+        `Backend user_state mismatch. expected subset=${expected} actual=${actual}`,
+      );
     }
   }
 }

@@ -642,7 +642,38 @@ function normalizeEip712Payload(payload) {
 }
 
 // src/session.ts
-var Session = class extends TypedEventEmitter {
+function sortJson(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sortJson(entry));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      acc[key] = sortJson(value[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+function isSubsetMatch(expected, actual) {
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || expected.length !== actual.length) {
+      return false;
+    }
+    return expected.every(
+      (entry, index) => isSubsetMatch(entry, actual[index])
+    );
+  }
+  if (expected && typeof expected === "object") {
+    if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
+      return false;
+    }
+    return Object.entries(expected).every(
+      ([key, value]) => isSubsetMatch(value, actual[key])
+    );
+  }
+  return expected === actual;
+}
+var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c;
     super();
@@ -689,6 +720,7 @@ var Session = class extends TypedEventEmitter {
       apiKey: this.apiKey,
       userState: this.userState
     });
+    this.assertUserStateAligned(response.user_state);
     this.applyState(response);
     if (!response.is_processing && this.walletRequests.length === 0) {
       return { messages: this._messages, title: this._title };
@@ -712,6 +744,7 @@ var Session = class extends TypedEventEmitter {
       apiKey: this.apiKey,
       userState: this.userState
     });
+    this.assertUserStateAligned(response.user_state);
     this.applyState(response);
     if (response.is_processing) {
       this._isProcessing = true;
@@ -824,6 +857,23 @@ var Session = class extends TypedEventEmitter {
   getIsProcessing() {
     return this._isProcessing;
   }
+  resolveUserState(userState) {
+    this.userState = userState;
+    const address = userState["address"];
+    if (typeof address === "string" && address.length > 0) {
+      this.publicKey = address;
+    }
+  }
+  resolveWallet(address, chainId) {
+    this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });
+  }
+  async syncUserState() {
+    this.assertOpen();
+    const state = await this.client.fetchState(this.sessionId, this.userState);
+    this.assertUserStateAligned(state.user_state);
+    this.applyState(state);
+    return state;
+  }
   // ===========================================================================
   // Internal — Polling (ported from PollingController)
   // ===========================================================================
@@ -852,6 +902,7 @@ var Session = class extends TypedEventEmitter {
         this.userState
       );
       if (!this.pollTimer) return;
+      this.assertUserStateAligned(state.user_state);
       this.applyState(state);
       if (!state.is_processing && this.walletRequests.length === 0) {
         this.stopPolling();
@@ -953,10 +1004,22 @@ var Session = class extends TypedEventEmitter {
       throw new Error("Session is closed");
     }
   }
+  assertUserStateAligned(actualUserState) {
+    if (!this.userState) {
+      return;
+    }
+    if (!actualUserState || !isSubsetMatch(this.userState, actualUserState)) {
+      const expected = JSON.stringify(sortJson(this.userState));
+      const actual = JSON.stringify(sortJson(actualUserState != null ? actualUserState : null));
+      throw new Error(
+        `Backend user_state mismatch. expected subset=${expected} actual=${actual}`
+      );
+    }
+  }
 };
 export {
   AomiClient,
-  Session,
+  ClientSession as Session,
   TypedEventEmitter,
   isAsyncCallback,
   isInlineCall,
