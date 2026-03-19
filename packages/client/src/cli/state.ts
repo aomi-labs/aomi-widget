@@ -41,6 +41,7 @@ export type CliSessionState = {
   model?: string;
   apiKey?: string;
   publicKey?: string;
+  chainId?: number;
   pendingTxs?: PendingTx[];
   signedTxs?: SignedTx[];
 };
@@ -96,6 +97,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
+    chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs,
   };
@@ -118,6 +120,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
+      chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
       localId:

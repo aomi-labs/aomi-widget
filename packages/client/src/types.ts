@@ -57,6 +57,7 @@ export interface AomiStateResponse {
   system_events?: AomiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
+  user_state?: UserState | null;
 }
 
 /**
@@ -68,6 +69,7 @@ export interface AomiChatResponse {
   system_events?: AomiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
+  user_state?: UserState | null;
 }
 
 /**

@@ -12,6 +12,7 @@ export type CliConfig = {
   publicKey?: string;
   privateKey?: string;
   chainRpcUrl?: string;
+  chain?: number;
 };
 
 export type CliRuntime = {

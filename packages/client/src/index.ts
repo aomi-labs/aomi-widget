@@ -39,7 +39,7 @@ export {
 // Session (high-level orchestrated client)
 // =============================================================================
 
-export { Session } from "./session";
+export { ClientSession as Session } from "./session";
 
 export type {
   SessionOptions,

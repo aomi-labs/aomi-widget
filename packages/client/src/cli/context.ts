@@ -1,11 +1,11 @@
 import { AomiClient } from "../client";
-import { Session } from "../session";
+import { ClientSession } from "../session";
 import type { CliRuntime } from "./types";
 import { readState, writeState, type CliSessionState } from "./state";
 
 export function getOrCreateSession(
   runtime: CliRuntime,
-): { session: Session; state: CliSessionState } {
+): { session: ClientSession; state: CliSessionState } {
   const { config } = runtime;
 
   let state = readState();
@@ -16,6 +16,7 @@ export function getOrCreateSession(
       app: config.app,
       apiKey: config.apiKey,
       publicKey: config.publicKey,
+      chainId: config.chain,
     };
     writeState(state);
   } else {
@@ -36,25 +37,26 @@ export function getOrCreateSession(
       state.publicKey = config.publicKey;
       changed = true;
     }
+    if (config.chain !== undefined && config.chain !== state.chainId) {
+      state.chainId = config.chain;
+      changed = true;
+    }
     if (changed) writeState(state);
   }
 
-  const session = new Session(
+  const session = new ClientSession(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
       app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey,
-      userState: state.publicKey
-        ? {
-            address: state.publicKey,
-            chainId: 1,
-            isConnected: true,
-          }
-        : undefined,
     },
   );
+
+  if (state.publicKey) {
+    session.resolveWallet(state.publicKey, state.chainId);
+  }
 
   return { session, state };
 }
@@ -67,7 +69,7 @@ export function createControlClient(runtime: CliRuntime): AomiClient {
 }
 
 export async function applyModelSelection(
-  session: Session,
+  session: ClientSession,
   state: CliSessionState,
   model: string,
 ): Promise<void> {
@@ -81,7 +83,7 @@ export async function applyModelSelection(
 
 export async function applyRequestedModelIfPresent(
   runtime: CliRuntime,
-  session: Session,
+  session: ClientSession,
   state: CliSessionState,
 ): Promise<void> {
   const requestedModel = runtime.config.model;

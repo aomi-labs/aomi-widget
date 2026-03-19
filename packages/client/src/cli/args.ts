@@ -1,4 +1,29 @@
 import type { CliConfig, CliRuntime, ParsedArgs } from "./types";
+import { fatal } from "./errors";
+
+const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111] as const;
+
+const CHAIN_NAMES: Record<number, string> = {
+  1: "Ethereum",
+  137: "Polygon",
+  42161: "Arbitrum One",
+  8453: "Base",
+  10: "Optimism",
+  11155111: "Sepolia",
+};
+
+function parseChainId(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n)) return undefined;
+  if (!(SUPPORTED_CHAIN_IDS as readonly number[]).includes(n)) {
+    const list = SUPPORTED_CHAIN_IDS.map(
+      (id) => `  ${id} (${CHAIN_NAMES[id]})`,
+    ).join("\n");
+    fatal(`Unsupported chain ID: ${n}\nSupported chains:\n${list}`);
+  }
+  return n;
+}
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const raw = argv.slice(2);
@@ -57,6 +82,7 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
     chainRpcUrl:
       parsed.flags["rpc-url"] ??
       process.env.CHAIN_RPC_URL,
+    chain: parseChainId(parsed.flags["chain"] ?? process.env.AOMI_CHAIN_ID),
   };
 }
 
