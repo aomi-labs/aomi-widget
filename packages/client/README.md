@@ -169,7 +169,7 @@ before sending the message and updates that persisted state as well.
 The backend builds transactions; the CLI persists and signs them:
 
 ```
-$ npx @aomi-labs/client chat "swap 1 ETH for USDC on Uniswap" --public-key 0xYourAddr
+$ npx @aomi-labs/client chat "swap 1 ETH for USDC on Uniswap" --public-key 0xYourAddr --chain 1
 ⚡ Wallet request queued: tx-1
    to:    0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
    value: 1000000000000000000
@@ -257,6 +257,7 @@ All config can be passed as flags (which take priority over env vars):
 | `--public-key` | `AOMI_PUBLIC_KEY` | — | Wallet address (tells agent your wallet) |
 | `--private-key` | `PRIVATE_KEY` | — | Hex private key for `aomi sign` |
 | `--rpc-url` | `CHAIN_RPC_URL` | — | RPC URL for transaction submission |
+| `--chain` | `AOMI_CHAIN_ID` | `1` | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
 | `--verbose`, `-v` | — | — | Stream tool calls and agent responses live |
 
 ```bash
@@ -285,6 +286,7 @@ persists a small JSON file to `$TMPDIR/aomi-session.json`:
 | `sessionId` | Which conversation to continue |
 | `model` | Last successfully applied model for the session |
 | `publicKey` | Wallet address (from `--public-key`) |
+| `chainId` | Active chain ID (from `--chain`) |
 | `pendingTxs` | Unsigned transactions waiting for `aomi sign <id>` |
 | `signedTxs` | Completed transactions with hashes/signatures |
 

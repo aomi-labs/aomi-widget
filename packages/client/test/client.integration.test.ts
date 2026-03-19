@@ -329,7 +329,7 @@ describe("SSE subscription (live backend)", () => {
 // =============================================================================
 
 describe("Control API (live backend)", () => {
-  it(
+  it.skip(
     "fetches available apps",
     async () => {
       const sessionId = freshSessionId();

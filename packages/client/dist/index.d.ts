@@ -33,6 +33,7 @@ interface AomiStateResponse {
     system_events?: AomiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
+    user_state?: UserState | null;
 }
 /**
  * POST /api/chat
@@ -43,6 +44,7 @@ interface AomiChatResponse {
     system_events?: AomiSystemEvent[] | null;
     title?: string | null;
     is_processing?: boolean;
+    user_state?: UserState | null;
 }
 /**
  * POST /api/system
@@ -350,7 +352,7 @@ type SessionEventMap = {
         payload: unknown;
     };
 };
-declare class Session extends TypedEventEmitter<SessionEventMap> {
+declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     /** The underlying low-level client. */
     readonly client: AomiClient;
     /** The session (thread) ID. */
@@ -412,6 +414,9 @@ declare class Session extends TypedEventEmitter<SessionEventMap> {
     getPendingRequests(): WalletRequest[];
     /** Whether the AI is currently processing. */
     getIsProcessing(): boolean;
+    resolveUserState(userState: UserState): void;
+    resolveWallet(address: string, chainId?: number): void;
+    syncUserState(): Promise<AomiStateResponse>;
     private startPolling;
     private stopPolling;
     private pollTick;
@@ -423,6 +428,7 @@ declare class Session extends TypedEventEmitter<SessionEventMap> {
     private sendSystemEvent;
     private resolvePending;
     private assertOpen;
+    private assertUserStateAligned;
 }
 
 type UnwrappedEvent = {
@@ -440,4 +446,4 @@ type UnwrappedEvent = {
  */
 declare function unwrapSystemEvent(event: AomiSystemEvent): UnwrappedEvent | null;
 
-export { type AomiChatResponse, AomiClient, type AomiClientOptions, type AomiCreateThreadResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type Logger, type SendResult, Session, type SessionEventMap, type SessionOptions, TypedEventEmitter, type UnwrappedEvent, type UserState, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, unwrapSystemEvent };
+export { type AomiChatResponse, AomiClient, type AomiClientOptions, type AomiCreateThreadResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type Logger, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, TypedEventEmitter, type UnwrappedEvent, type UserState, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, unwrapSystemEvent };

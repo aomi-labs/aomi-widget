@@ -73,7 +73,7 @@ Pass `--public-key` on the first chat so the agent knows the user's wallet
 address. It is persisted — subsequent commands in the same session don't need it.
 
 ```bash
-aomi chat "swap 1 ETH for USDC" --public-key 0xYourAddress
+aomi chat "swap 1 ETH for USDC" --public-key 0xYourAddress --chain 1
 ```
 
 ### List transactions
@@ -123,6 +123,7 @@ All config can be passed as flags (priority) or env vars (fallback):
 | `--public-key` | `AOMI_PUBLIC_KEY` | — | Wallet address |
 | `--private-key` | `PRIVATE_KEY` | — | Hex private key (for `aomi sign`) |
 | `--rpc-url` | `CHAIN_RPC_URL` | — | RPC URL (for `aomi sign`) |
+| `--chain` | `AOMI_CHAIN_ID` | `1` | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
 
 ## Important Behavior
 
@@ -142,7 +143,8 @@ All config can be passed as flags (priority) or env vars (fallback):
 ```bash
 # 1. Start a session with wallet connected
 aomi chat "swap 1 ETH for USDC on Uniswap" \
-  --public-key 0xYourAddress
+  --public-key 0xYourAddress \
+  --chain 1
 
 # 2. Agent builds the tx — check what's pending
 aomi tx
