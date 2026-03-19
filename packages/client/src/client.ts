@@ -356,7 +356,7 @@ export class AomiClient {
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ): Promise<string[]> {
-    const url = new URL("/api/control/apps", this.baseUrl);
+    const url = new URL("/api/control/namespaces", this.baseUrl);
     if (options?.publicKey) {
       url.searchParams.set("public_key", options.publicKey);
     }
