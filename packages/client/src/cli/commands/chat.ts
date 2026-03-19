@@ -39,17 +39,7 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
     await applyRequestedModelIfPresent(runtime, session, state);
 
     if (state.publicKey) {
-      await session.client.sendSystemMessage(
-        session.sessionId,
-        JSON.stringify({
-          type: "wallet:state_changed",
-          payload: {
-            address: state.publicKey,
-            chainId: 1,
-            isConnected: true,
-          },
-        }),
-      );
+      session.resolveWallet(state.publicKey, state.chainId);
     }
 
     const capturedRequests: WalletRequest[] = [];
