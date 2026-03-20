@@ -1040,12 +1040,12 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   assertUserStateAligned(actualUserState) {
-    if (!this.userState) {
+    if (!this.userState || !actualUserState) {
       return;
     }
-    if (!actualUserState || !isSubsetMatch(this.userState, actualUserState)) {
+    if (!isSubsetMatch(this.userState, actualUserState)) {
       const expected = JSON.stringify(sortJson(this.userState));
-      const actual = JSON.stringify(sortJson(actualUserState != null ? actualUserState : null));
+      const actual = JSON.stringify(sortJson(actualUserState));
       throw new Error(
         `Backend user_state mismatch. expected subset=${expected} actual=${actual}`
       );
