@@ -83,6 +83,7 @@ export {
   getWalletExecutorReady,
   executeWalletCalls,
   createAlchemyAAProvider,
+  createPimlicoAAProvider,
 } from "./aa";
 
 export type {
@@ -103,4 +104,7 @@ export type {
   AlchemyHookParams,
   UseAlchemyAAHook,
   CreateAlchemyAAProviderOptions,
+  PimlicoHookParams,
+  UsePimlicoAAHook,
+  CreatePimlicoAAProviderOptions,
 } from "./aa";

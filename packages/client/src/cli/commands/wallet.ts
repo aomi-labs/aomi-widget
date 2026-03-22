@@ -1,8 +1,13 @@
 import { type Chain, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
+import {
+  DISABLED_PROVIDER_STATE,
+  executeWalletCalls,
+  type TransactionExecutionResult,
+} from "../../aa";
 import { ClientSession } from "../../session";
-import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
+import type { WalletEip712Payload } from "../../wallet-utils";
 import { CliExit, fatal } from "../errors";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
 import {
@@ -12,7 +17,12 @@ import {
   writeState,
   type CliSessionState,
 } from "../state";
-import { formatTxLine } from "../transactions";
+import {
+  formatSignedTxLine,
+  formatTxLine,
+  pendingTxToCallList,
+  toSignedTransactionRecord,
+} from "../transactions";
 import type { CliRuntime } from "../types";
 
 export function txCommand(): void {
@@ -43,17 +53,7 @@ export function txCommand(): void {
     if (pending.length > 0) console.log();
     console.log(`Signed (${signed.length}):`);
     for (const tx of signed) {
-      const parts = [`  ✅ ${tx.id}`];
-      if (tx.kind === "eip712_sign") {
-        parts.push(`sig: ${tx.signature?.slice(0, 20)}...`);
-        if (tx.description) parts.push(tx.description);
-      } else {
-        parts.push(`hash: ${tx.txHash}`);
-        if (tx.to) parts.push(`to: ${tx.to}`);
-        if (tx.value) parts.push(`value: ${tx.value}`);
-      }
-      parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-      console.log(parts.join("  "));
+      console.log(formatSignedTxLine(tx, "  ✅"));
     }
   }
 
@@ -135,6 +135,73 @@ async function persistResolvedSignerState(
   await session.syncUserState();
 }
 
+function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
+  return (
+    Object.values(viemChains).find(
+      (candidate): candidate is Chain =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        "id" in candidate &&
+        (candidate as { id: number }).id === targetChainId,
+    ) ?? {
+      id: targetChainId,
+      name: `Chain ${targetChainId}`,
+      nativeCurrency: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18,
+      },
+      rpcUrls: {
+        default: {
+          http: rpcUrl ? [rpcUrl] : [],
+        },
+      },
+    }
+  );
+}
+
+function getPreferredRpcUrl(chain: Chain, override?: string): string {
+  return (
+    override ??
+    chain.rpcUrls.default.http[0] ??
+    chain.rpcUrls.public?.http[0] ??
+    ""
+  );
+}
+
+async function executeCliTransaction(params: {
+  privateKey: `0x${string}`;
+  chain: Chain;
+  callChainId: number;
+  rpcUrl?: string;
+  pendingTx: ReturnType<typeof requirePendingTx>;
+}): Promise<TransactionExecutionResult> {
+  const { privateKey, chain, callChainId, rpcUrl, pendingTx } = params;
+  const callList = pendingTxToCallList({
+    ...pendingTx,
+    chainId: callChainId,
+  });
+
+  const unsupportedWalletMethod = async (): Promise<never> => {
+    throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
+  };
+
+  return executeWalletCalls({
+    callList,
+    currentChainId: callChainId,
+    capabilities: undefined,
+    localPrivateKey: privateKey,
+    providerState: DISABLED_PROVIDER_STATE,
+    sendCallsSyncAsync: unsupportedWalletMethod,
+    sendTransactionAsync: unsupportedWalletMethod,
+    switchChainAsync: async () => undefined,
+    chainsById: {
+      [chain.id]: chain,
+    },
+    getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl),
+  });
+}
+
 export async function signCommand(runtime: CliRuntime): Promise<void> {
   const txId = runtime.parsed.positional[0];
   if (!txId) {
@@ -180,33 +247,12 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
 
     const rpcUrl = runtime.config.chainRpcUrl;
     const targetChainId = pendingTx.chainId ?? state.chainId ?? 1;
-    const chain =
-      Object.values(viemChains).find(
-        (candidate): candidate is Chain =>
-          typeof candidate === "object" &&
-          candidate !== null &&
-          "id" in candidate &&
-          (candidate as { id: number }).id === targetChainId,
-      ) ??
-      {
-        id: targetChainId,
-        name: `Chain ${targetChainId}`,
-        nativeCurrency: {
-          name: "ETH",
-          symbol: "ETH",
-          decimals: 18,
-        },
-        rpcUrls: {
-          default: {
-            http: [rpcUrl ?? ""],
-          },
-        },
-      };
+    const chain = resolveChain(targetChainId, rpcUrl);
 
     const walletClient = createWalletClient({
       account,
       chain,
-      transport: http(rpcUrl),
+      transport: http(getPreferredRpcUrl(chain, rpcUrl)),
     });
 
     console.log(`Signer:  ${account.address}`);
@@ -225,27 +271,39 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       }
       console.log();
 
-      const hash = await walletClient.sendTransaction({
-        to: pendingTx.to as `0x${string}`,
-        value: pendingTx.value ? BigInt(pendingTx.value) : 0n,
-        data: (pendingTx.data as `0x${string}`) ?? undefined,
+      const execution = await executeCliTransaction({
+        privateKey: privateKey as `0x${string}`,
+        chain,
+        callChainId: targetChainId,
+        rpcUrl,
+        pendingTx,
       });
 
-      console.log(`✅ Sent! Hash: ${hash}`);
+      console.log(`✅ Sent! Hash: ${execution.txHash}`);
+      console.log(`Exec:    ${execution.executionKind}`);
+      if (execution.txHashes.length > 1) {
+        console.log(`Count:   ${execution.txHashes.length}`);
+      }
+      if (execution.sponsored) {
+        console.log("Gas:     sponsored");
+      }
+      if (execution.AAAddress) {
+        console.log(`AA:      ${execution.AAAddress}`);
+      }
+      if (execution.delegationAddress) {
+        console.log(`Deleg:   ${execution.delegationAddress}`);
+      }
 
-      signedRecord = {
-        id: txId,
-        kind: "transaction",
-        txHash: hash,
-        from: account.address,
-        to: pendingTx.to,
-        value: pendingTx.value,
-        chainId: pendingTx.chainId,
-        timestamp: Date.now(),
-      };
+      signedRecord = toSignedTransactionRecord(
+        pendingTx,
+        execution,
+        account.address,
+        targetChainId,
+        Date.now(),
+      );
       backendNotification = {
         type: "wallet:tx_complete",
-        payload: { txHash: hash, status: "success" },
+        payload: { txHash: execution.txHash, status: "success" },
       };
     } else {
       const typedData = pendingTx.payload.typed_data as {

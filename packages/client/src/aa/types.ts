@@ -45,7 +45,7 @@ export interface AAChainConfig {
 
 export interface AAConfig {
   enabled: boolean;
-  provider: "alchemy";
+  provider: string;
   fallbackToEoa: boolean;
   chains: AAChainConfig[];
 }
@@ -55,7 +55,7 @@ export interface AAConfig {
 // ---------------------------------------------------------------------------
 
 export interface AAExecutionPlan {
-  provider: "alchemy";
+  provider: string;
   chainId: number;
   mode: AAExecutionMode;
   batchingEnabled: boolean;
@@ -137,7 +137,6 @@ export interface ExecuteWalletCallsParams<
 // Validation Sets
 // ---------------------------------------------------------------------------
 
-export const PROVIDERS = new Set<"alchemy">(["alchemy"]);
 export const MODES = new Set<AAExecutionMode>(["4337", "7702"]);
 export const SPONSORSHIP_MODES = new Set<AASponsorshipMode>([
   "disabled",
@@ -201,8 +200,8 @@ export function parseAAConfig(
   if (typeof value.enabled !== "boolean") {
     throw new Error("Invalid AA config: enabled must be a boolean");
   }
-  if (!PROVIDERS.has(value.provider as "alchemy")) {
-    throw new Error("Invalid AA config: unsupported provider");
+  if (typeof value.provider !== "string" || !value.provider) {
+    throw new Error("Invalid AA config: provider must be a non-empty string");
   }
   if (typeof value.fallbackToEoa !== "boolean") {
     throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
@@ -215,7 +214,7 @@ export function parseAAConfig(
 
   return {
     enabled: value.enabled,
-    provider: value.provider as "alchemy",
+    provider: value.provider as string,
     fallbackToEoa: value.fallbackToEoa,
     chains: value.chains as AAChainConfig[],
   };
