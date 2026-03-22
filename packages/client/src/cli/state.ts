@@ -25,6 +25,12 @@ export type SignedTx = {
   id: string;
   kind: "transaction" | "eip712_sign";
   txHash?: string;
+  txHashes?: string[];
+  executionKind?: string;
+  batched?: boolean;
+  sponsored?: boolean;
+  AAAddress?: string;
+  delegationAddress?: string;
   signature?: string;
   from?: string;
   to?: string;

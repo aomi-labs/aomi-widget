@@ -1019,7 +1019,6 @@ var ClientSession = class extends TypedEventEmitter {
 };
 
 // src/aa/types.ts
-var PROVIDERS = /* @__PURE__ */ new Set(["alchemy"]);
 var MODES = /* @__PURE__ */ new Set(["4337", "7702"]);
 var SPONSORSHIP_MODES = /* @__PURE__ */ new Set([
   "disabled",
@@ -1065,8 +1064,8 @@ function parseAAConfig(value) {
   if (typeof value.enabled !== "boolean") {
     throw new Error("Invalid AA config: enabled must be a boolean");
   }
-  if (!PROVIDERS.has(value.provider)) {
-    throw new Error("Invalid AA config: unsupported provider");
+  if (typeof value.provider !== "string" || !value.provider) {
+    throw new Error("Invalid AA config: provider must be a non-empty string");
   }
   if (typeof value.fallbackToEoa !== "boolean") {
     throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
@@ -1416,6 +1415,82 @@ function resolveAlchemyProviderConfig({
     }
   };
 }
+
+// src/aa/pimlico.ts
+var DEFAULT_PIMLICO_API_KEY_ENV_VAR = "NEXT_PUBLIC_PIMLICO_API_KEY";
+function readPublicEnv2(name) {
+  if (!name) {
+    return void 0;
+  }
+  const value = process.env[name];
+  return (value == null ? void 0 : value.trim()) ? value.trim() : void 0;
+}
+function createPimlicoAAProvider({
+  accountAbstractionConfig = DEFAULT_AA_CONFIG,
+  usePimlicoAA,
+  chainsById,
+  apiKeyEnvVar = DEFAULT_PIMLICO_API_KEY_ENV_VAR,
+  rpcUrl
+}) {
+  return function usePimlicoAAProvider(calls, localPrivateKey) {
+    var _a, _b;
+    const resolved = resolvePimlicoProviderConfig({
+      calls,
+      localPrivateKey,
+      accountAbstractionConfig,
+      chainsById,
+      apiKeyEnvVar,
+      rpcUrl
+    });
+    const query = usePimlicoAA(resolved == null ? void 0 : resolved.params);
+    return {
+      plan: (_a = resolved == null ? void 0 : resolved.plan) != null ? _a : null,
+      query,
+      AA: query.AA,
+      isPending: Boolean(resolved && query.isPending),
+      error: (_b = query.error) != null ? _b : null
+    };
+  };
+}
+function resolvePimlicoProviderConfig({
+  calls,
+  localPrivateKey,
+  accountAbstractionConfig,
+  chainsById,
+  apiKeyEnvVar,
+  rpcUrl
+}) {
+  if (!calls || localPrivateKey) {
+    return null;
+  }
+  const chainConfig = getAAChainConfig(
+    accountAbstractionConfig,
+    calls,
+    chainsById
+  );
+  if (!chainConfig) {
+    return null;
+  }
+  const apiKey = readPublicEnv2(apiKeyEnvVar);
+  if (!apiKey) {
+    return null;
+  }
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) {
+    return null;
+  }
+  return {
+    chainConfig,
+    plan: buildAAExecutionPlan(accountAbstractionConfig, chainConfig),
+    params: {
+      enabled: true,
+      apiKey,
+      chain,
+      mode: chainConfig.defaultMode,
+      rpcUrl
+    }
+  };
+}
 export {
   AomiClient,
   DEFAULT_AA_CONFIG,
@@ -1423,6 +1498,7 @@ export {
   TypedEventEmitter,
   buildAAExecutionPlan,
   createAlchemyAAProvider,
+  createPimlicoAAProvider,
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,

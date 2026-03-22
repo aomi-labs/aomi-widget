@@ -18,7 +18,6 @@ export {
   // Constants
   DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE,
-  PROVIDERS,
   MODES,
   SPONSORSHIP_MODES,
 
@@ -37,3 +36,10 @@ export {
   type CreateAlchemyAAProviderOptions,
   createAlchemyAAProvider,
 } from "./alchemy";
+
+export {
+  type PimlicoHookParams,
+  type UsePimlicoAAHook,
+  type CreatePimlicoAAProviderOptions,
+  createPimlicoAAProvider,
+} from "./pimlico";

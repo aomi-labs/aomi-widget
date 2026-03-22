@@ -1,6 +1,10 @@
+import type {
+  TransactionExecutionResult,
+  WalletExecutionCall,
+} from "../aa";
 import type { WalletRequest } from "../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../wallet-utils";
-import type { PendingTx } from "./state";
+import type { PendingTx, SignedTx } from "./state";
 
 export function walletRequestToPendingTx(
   request: WalletRequest,
@@ -27,6 +31,46 @@ export function walletRequestToPendingTx(
   };
 }
 
+export function pendingTxToCallList(tx: PendingTx): WalletExecutionCall[] {
+  if (tx.kind !== "transaction" || !tx.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+
+  return [
+    {
+      to: tx.to,
+      value: tx.value ?? "0",
+      data: tx.data,
+      chainId: tx.chainId ?? 1,
+    },
+  ];
+}
+
+export function toSignedTransactionRecord(
+  tx: PendingTx,
+  execution: TransactionExecutionResult,
+  from: string,
+  chainId: number,
+  timestamp: number,
+): SignedTx {
+  return {
+    id: tx.id,
+    kind: "transaction",
+    txHash: execution.txHash,
+    txHashes: execution.txHashes,
+    executionKind: execution.executionKind,
+    batched: execution.batched,
+    sponsored: execution.sponsored,
+    AAAddress: execution.AAAddress,
+    delegationAddress: execution.delegationAddress,
+    from,
+    to: tx.to,
+    value: tx.value,
+    chainId,
+    timestamp,
+  };
+}
+
 export function formatTxLine(tx: PendingTx, prefix: string): string {
   const parts = [`${prefix} ${tx.id}`];
   if (tx.kind === "transaction") {
@@ -38,6 +82,29 @@ export function formatTxLine(tx: PendingTx, prefix: string): string {
     parts.push("eip712");
     if (tx.description) parts.push(tx.description);
   }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+
+export function formatSignedTxLine(tx: SignedTx, prefix: string): string {
+  const parts = [`${prefix} ${tx.id}`];
+
+  if (tx.kind === "eip712_sign") {
+    parts.push(`sig: ${tx.signature?.slice(0, 20)}...`);
+    if (tx.description) parts.push(tx.description);
+  } else {
+    parts.push(`hash: ${tx.txHash}`);
+    if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
+    if (tx.txHashes && tx.txHashes.length > 1) {
+      parts.push(`txs: ${tx.txHashes.length}`);
+    }
+    if (tx.sponsored) parts.push("sponsored");
+    if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
+    if (tx.delegationAddress) parts.push(`delegation: ${tx.delegationAddress}`);
+    if (tx.to) parts.push(`to: ${tx.to}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+  }
+
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
