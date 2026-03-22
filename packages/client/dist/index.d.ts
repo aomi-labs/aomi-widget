@@ -1,3 +1,5 @@
+import { Chain, Hex } from 'viem';
+
 /**
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
@@ -446,4 +448,131 @@ type UnwrappedEvent = {
  */
 declare function unwrapSystemEvent(event: AomiSystemEvent): UnwrappedEvent | null;
 
-export { type AomiChatResponse, AomiClient, type AomiClientOptions, type AomiCreateThreadResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type Logger, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, TypedEventEmitter, type UnwrappedEvent, type UserState, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, unwrapSystemEvent };
+type AAExecutionMode = "4337" | "7702";
+type AASponsorshipMode = "disabled" | "optional" | "required";
+type WalletExecutionCall = {
+    to: string;
+    value: string;
+    data?: string;
+    chainId: number;
+};
+type WalletAtomicCapability = {
+    atomic?: {
+        status?: string;
+    };
+};
+type WalletPrimitiveCall = {
+    to: Hex;
+    value: bigint;
+    data?: Hex;
+};
+interface AAChainConfig {
+    chainId: number;
+    enabled: boolean;
+    defaultMode: AAExecutionMode;
+    supportedModes: AAExecutionMode[];
+    allowBatching: boolean;
+    sponsorship: AASponsorshipMode;
+}
+interface AAConfig {
+    enabled: boolean;
+    provider: "alchemy";
+    fallbackToEoa: boolean;
+    chains: AAChainConfig[];
+}
+interface AAExecutionPlan {
+    provider: "alchemy";
+    chainId: number;
+    mode: AAExecutionMode;
+    batchingEnabled: boolean;
+    sponsorship: AASponsorshipMode;
+    fallbackToEoa: boolean;
+}
+interface AALike {
+    provider: string;
+    mode: string;
+    AAAddress?: Hex;
+    delegationAddress?: Hex;
+    sendTransaction: (call: WalletPrimitiveCall) => Promise<{
+        transactionHash: string;
+    }>;
+    sendBatchTransaction: (calls: WalletPrimitiveCall[]) => Promise<{
+        transactionHash: string;
+    }>;
+}
+interface AAProviderQuery<TAA extends AALike = AALike> {
+    AA?: TAA | null;
+    isPending?: boolean;
+    error?: Error | null;
+}
+interface AAProviderState<TAA extends AALike = AALike> {
+    plan: AAExecutionPlan | null;
+    AA?: TAA | null;
+    isPending: boolean;
+    error: Error | null;
+    query?: AAProviderQuery<TAA>;
+}
+interface TransactionExecutionResult {
+    txHash: string;
+    txHashes: string[];
+    executionKind: string;
+    batched: boolean;
+    sponsored: boolean;
+    AAAddress?: Hex;
+    delegationAddress?: Hex;
+}
+interface SendCallsSyncArgs {
+    calls: WalletPrimitiveCall[];
+    capabilities?: {
+        atomic?: {
+            required?: boolean;
+        };
+    };
+}
+interface ExecuteWalletCallsParams<TAA extends AALike = AALike> {
+    callList: WalletExecutionCall[];
+    currentChainId: number;
+    capabilities: Record<string, WalletAtomicCapability> | undefined;
+    localPrivateKey: `0x${string}` | null;
+    providerState: AAProviderState<TAA>;
+    sendCallsSyncAsync: (args: SendCallsSyncArgs) => Promise<unknown>;
+    sendTransactionAsync: (args: {
+        chainId: number;
+        to: Hex;
+        value: bigint;
+        data?: Hex;
+    }) => Promise<string>;
+    switchChainAsync: (params: {
+        chainId: number;
+    }) => Promise<unknown>;
+    chainsById: Record<number, Chain>;
+    getPreferredRpcUrl: (chain: Chain) => string;
+}
+declare function parseAAConfig(value: unknown): AAConfig;
+declare function getAAChainConfig(config: AAConfig, calls: WalletExecutionCall[], chainsById: Record<number, Chain>): AAChainConfig | null;
+declare function buildAAExecutionPlan(config: AAConfig, chainConfig: AAChainConfig): AAExecutionPlan;
+declare function getWalletExecutorReady(providerState: AAProviderState): boolean;
+declare const DEFAULT_AA_CONFIG: AAConfig;
+declare function executeWalletCalls(params: ExecuteWalletCallsParams): Promise<TransactionExecutionResult>;
+
+interface AlchemyHookParams {
+    enabled: boolean;
+    apiKey: string;
+    chain: Chain;
+    rpcUrl: string;
+    gasPolicyId?: string;
+    mode: AAExecutionMode;
+}
+type UseAlchemyAAHook<TAA extends AALike = AALike, TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>> = (params?: AlchemyHookParams) => TQuery;
+interface CreateAlchemyAAProviderOptions<TAA extends AALike = AALike, TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>> {
+    accountAbstractionConfig?: AAConfig;
+    useAlchemyAA: UseAlchemyAAHook<TAA, TQuery>;
+    chainsById: Record<number, Chain>;
+    chainSlugById: Record<number, string>;
+    getPreferredRpcUrl: (chain: Chain) => string;
+    apiKeyEnvVar?: string;
+    gasPolicyEnvVar?: string;
+}
+declare function createAlchemyAAProvider<TAA extends AALike = AALike, TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>>({ accountAbstractionConfig, useAlchemyAA, chainsById, chainSlugById, getPreferredRpcUrl, apiKeyEnvVar, gasPolicyEnvVar, }: CreateAlchemyAAProviderOptions<TAA, TQuery>): (calls: WalletExecutionCall[] | null, localPrivateKey: `0x${string}` | null) => AAProviderState<TAA>;
+
+export { type AAChainConfig, type AAConfig, type AAExecutionMode, type AAExecutionPlan, type AALike, type AAProviderQuery, type AAProviderState, type AASponsorshipMode, type AlchemyHookParams, type AomiChatResponse, AomiClient, type AomiClientOptions, type AomiCreateThreadResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type CreateAlchemyAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type Logger, type SendCallsSyncArgs, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type TransactionExecutionResult, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UserState, type WalletAtomicCapability, type WalletEip712Payload, type WalletExecutionCall, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, buildAAExecutionPlan, createAlchemyAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, unwrapSystemEvent };

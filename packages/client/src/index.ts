@@ -70,3 +70,37 @@ export type {
   WalletTxPayload,
   WalletEip712Payload,
 } from "./wallet-utils";
+
+// =============================================================================
+// Account Abstraction
+// =============================================================================
+
+export {
+  DEFAULT_AA_CONFIG,
+  parseAAConfig,
+  getAAChainConfig,
+  buildAAExecutionPlan,
+  getWalletExecutorReady,
+  executeWalletCalls,
+  createAlchemyAAProvider,
+} from "./aa";
+
+export type {
+  AAExecutionMode,
+  AASponsorshipMode,
+  WalletExecutionCall,
+  AAChainConfig,
+  AAConfig,
+  AAExecutionPlan,
+  WalletAtomicCapability,
+  WalletPrimitiveCall,
+  AALike,
+  AAProviderQuery,
+  AAProviderState,
+  TransactionExecutionResult,
+  SendCallsSyncArgs,
+  ExecuteWalletCallsParams,
+  AlchemyHookParams,
+  UseAlchemyAAHook,
+  CreateAlchemyAAProviderOptions,
+} from "./aa";
