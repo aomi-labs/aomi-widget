@@ -43,3 +43,50 @@ export {
   type CreatePimlicoAAProviderOptions,
   createPimlicoAAProvider,
 } from "./pimlico";
+
+// ---------------------------------------------------------------------------
+// Env
+// ---------------------------------------------------------------------------
+
+export {
+  type AAProvider,
+  ALCHEMY_API_KEY_ENVS,
+  ALCHEMY_GAS_POLICY_ENVS,
+  PIMLICO_API_KEY_ENVS,
+  readEnv,
+  readGasPolicyEnv,
+  isProviderConfigured,
+  resolveDefaultProvider,
+} from "./env";
+
+// ---------------------------------------------------------------------------
+// Adapt
+// ---------------------------------------------------------------------------
+
+export {
+  type ParaSmartAccountLike,
+  adaptSmartAccount,
+  isAlchemySponsorshipLimitError,
+} from "./adapt";
+
+// ---------------------------------------------------------------------------
+// Resolve
+// ---------------------------------------------------------------------------
+
+export {
+  type AlchemyResolveOptions,
+  type AlchemyResolvedConfig,
+  type PimlicoResolveOptions,
+  type PimlicoResolvedConfig,
+  resolveAlchemyConfig,
+  resolvePimlicoConfig,
+} from "./resolve";
+
+// ---------------------------------------------------------------------------
+// Create (async smart account creation)
+// ---------------------------------------------------------------------------
+
+export {
+  type CreateAAProviderStateOptions,
+  createAAProviderState,
+} from "./create";
