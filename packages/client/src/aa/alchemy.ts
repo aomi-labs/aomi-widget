@@ -9,11 +9,8 @@ import type {
   WalletExecutionCall,
 } from "./types";
 
-import {
-  DEFAULT_AA_CONFIG,
-  buildAAExecutionPlan,
-  getAAChainConfig,
-} from "./types";
+import { DEFAULT_AA_CONFIG } from "./types";
+import { resolveAlchemyConfig } from "./resolve";
 
 // ---------------------------------------------------------------------------
 // Alchemy-Specific Types
@@ -47,34 +44,6 @@ export interface CreateAlchemyAAProviderOptions<
 }
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const DEFAULT_ALCHEMY_API_KEY_ENV_VAR = "NEXT_PUBLIC_ALCHEMY_API_KEY";
-const DEFAULT_ALCHEMY_GAS_POLICY_ENV_VAR = "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function readPublicEnv(name: string | undefined): string | undefined {
-  if (!name) {
-    return undefined;
-  }
-  const value = process.env[name];
-  return value?.trim() ? value.trim() : undefined;
-}
-
-function defaultGasPolicyEnvVar(
-  chainId: number,
-  chainSlugById: Record<number, string>,
-  baseName: string,
-): string | undefined {
-  const slug = chainSlugById[chainId];
-  return slug ? `${baseName}_${slug.toUpperCase()}` : undefined;
-}
-
-// ---------------------------------------------------------------------------
 // Provider Factory
 // ---------------------------------------------------------------------------
 
@@ -87,25 +56,33 @@ export function createAlchemyAAProvider<
   chainsById,
   chainSlugById,
   getPreferredRpcUrl,
-  apiKeyEnvVar = DEFAULT_ALCHEMY_API_KEY_ENV_VAR,
-  gasPolicyEnvVar = DEFAULT_ALCHEMY_GAS_POLICY_ENV_VAR,
 }: CreateAlchemyAAProviderOptions<TAA, TQuery>) {
   return function useAlchemyAAProvider(
     calls: WalletExecutionCall[] | null,
     localPrivateKey: `0x${string}` | null,
   ): AAProviderState<TAA> {
-    const resolved = resolveAlchemyProviderConfig({
+    const resolved = resolveAlchemyConfig({
       calls,
       localPrivateKey,
       accountAbstractionConfig,
       chainsById,
       chainSlugById,
       getPreferredRpcUrl,
-      apiKeyEnvVar,
-      gasPolicyEnvVar,
+      publicOnly: true,
     });
 
-    const query = useAlchemyAA(resolved?.params) as TQuery;
+    const params = resolved
+      ? ({
+          enabled: true,
+          apiKey: resolved.apiKey,
+          chain: resolved.chain,
+          rpcUrl: resolved.rpcUrl,
+          gasPolicyId: resolved.gasPolicyId,
+          mode: resolved.mode,
+        } satisfies AlchemyHookParams)
+      : undefined;
+
+    const query = useAlchemyAA(params) as TQuery;
 
     return {
       plan: resolved?.plan ?? null,
@@ -114,73 +91,5 @@ export function createAlchemyAAProvider<
       isPending: Boolean(resolved && query.isPending),
       error: query.error ?? null,
     };
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Config Resolution
-// ---------------------------------------------------------------------------
-
-function resolveAlchemyProviderConfig({
-  calls,
-  localPrivateKey,
-  accountAbstractionConfig,
-  chainsById,
-  chainSlugById,
-  getPreferredRpcUrl,
-  apiKeyEnvVar,
-  gasPolicyEnvVar,
-}: {
-  calls: WalletExecutionCall[] | null;
-  localPrivateKey: `0x${string}` | null;
-  accountAbstractionConfig: AAConfig;
-  chainsById: Record<number, Chain>;
-  chainSlugById: Record<number, string>;
-  getPreferredRpcUrl: (chain: Chain) => string;
-  apiKeyEnvVar: string;
-  gasPolicyEnvVar: string;
-}) {
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-
-  const chainConfig = getAAChainConfig(
-    accountAbstractionConfig,
-    calls,
-    chainsById,
-  );
-  if (!chainConfig) {
-    return null;
-  }
-
-  const apiKey = readPublicEnv(apiKeyEnvVar);
-  if (!apiKey) {
-    return null;
-  }
-
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
-
-  const gasPolicyId =
-    readPublicEnv(defaultGasPolicyEnvVar(chainConfig.chainId, chainSlugById, gasPolicyEnvVar)) ??
-    readPublicEnv(gasPolicyEnvVar);
-
-  if (chainConfig.sponsorship === "required" && !gasPolicyId) {
-    return null;
-  }
-
-  return {
-    chainConfig,
-    plan: buildAAExecutionPlan(accountAbstractionConfig, chainConfig),
-    params: {
-      enabled: true,
-      apiKey,
-      chain,
-      rpcUrl: getPreferredRpcUrl(chain),
-      gasPolicyId,
-      mode: chainConfig.defaultMode,
-    } satisfies AlchemyHookParams,
   };
 }
