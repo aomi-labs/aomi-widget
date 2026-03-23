@@ -238,13 +238,13 @@ export function Resources() {
                   Legal
                 </span>
                 <a
-                  href="#"
+                  href="/privacy"
                   className="font-geist text-xs text-stone-100 transition-colors hover:text-white"
                 >
                   Privacy
                 </a>
                 <a
-                  href="#"
+                  href="/terms"
                   className="font-geist text-xs text-stone-100 transition-colors hover:text-white"
                 >
                   Terms
@@ -254,7 +254,7 @@ export function Resources() {
           </div>
           <div className="flex w-full items-center justify-between border-t border-white/5 py-6">
             <span className="font-geist text-[10px] text-neutral-200">
-              (c) 2025 Aomi Inc. All rights reserved.
+              (c) 2026 Aomi Labs. All rights reserved.
             </span>
             <div className="flex items-center gap-4">
               <a
