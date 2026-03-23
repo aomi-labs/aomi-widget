@@ -27,6 +27,8 @@ export type SignedTx = {
   txHash?: string;
   txHashes?: string[];
   executionKind?: string;
+  aaProvider?: string;
+  aaMode?: string;
   batched?: boolean;
   sponsored?: boolean;
   AAAddress?: string;

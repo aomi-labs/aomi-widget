@@ -3,6 +3,8 @@ import { mainnet } from "viem/chains";
 
 const MOCK_HASH = "0xabc123";
 const MOCK_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+const PRIVATE_KEY =
+  "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
 
 const sendTransactionMock = vi.fn();
 const waitForReceiptMock = vi.fn();
@@ -116,6 +118,47 @@ describe("CLI wallet generic AA execution", () => {
     });
   });
 
+  it("supports multi-call execution and returns all hashes", async () => {
+    sendTransactionMock
+      .mockResolvedValueOnce("0xaaa111")
+      .mockResolvedValueOnce("0xbbb222");
+
+    const result = await executeWalletCalls({
+      callList: [
+        {
+          to: "0x1111111111111111111111111111111111111111",
+          value: "5",
+          chainId: 1,
+        },
+        {
+          to: "0x2222222222222222222222222222222222222222",
+          value: "7",
+          chainId: 1,
+        },
+      ],
+      currentChainId: 1,
+      capabilities: undefined,
+      localPrivateKey: PRIVATE_KEY,
+      providerState: DISABLED_PROVIDER_STATE,
+      sendCallsSyncAsync: vi.fn(),
+      sendTransactionAsync: vi.fn(),
+      switchChainAsync: vi.fn(),
+      chainsById: {
+        [mainnet.id]: mainnet,
+      },
+      getPreferredRpcUrl: () => "https://example-rpc.invalid",
+    });
+
+    expect(sendTransactionMock).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      txHash: "0xbbb222",
+      txHashes: ["0xaaa111", "0xbbb222"],
+      executionKind: "eoa",
+      batched: true,
+      sponsored: false,
+    });
+  });
+
   it("persists shared execution metadata onto signed transaction records", () => {
     const pendingTx: PendingTx = {
       id: "tx-7",
@@ -161,6 +204,8 @@ describe("CLI wallet generic AA execution", () => {
       txHash: MOCK_HASH,
       txHashes: [MOCK_HASH],
       executionKind: "eoa",
+      aaProvider: null,
+      aaMode: null,
       batched: false,
       sponsored: false,
     });
@@ -174,6 +219,8 @@ describe("CLI wallet generic AA execution", () => {
         txHash: MOCK_HASH,
         txHashes: [MOCK_HASH, "0xdef456"],
         executionKind: "eoa",
+        aaProvider: "alchemy",
+        aaMode: "7702",
         batched: true,
         sponsored: true,
         AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -186,6 +233,8 @@ describe("CLI wallet generic AA execution", () => {
     );
 
     expect(line).toContain("exec: eoa");
+    expect(line).toContain("provider: alchemy");
+    expect(line).toContain("mode: 7702");
     expect(line).toContain("txs: 2");
     expect(line).toContain("sponsored");
     expect(line).toContain("aa: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
