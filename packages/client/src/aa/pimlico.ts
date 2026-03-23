@@ -9,11 +9,8 @@ import type {
   WalletExecutionCall,
 } from "./types";
 
-import {
-  DEFAULT_AA_CONFIG,
-  buildAAExecutionPlan,
-  getAAChainConfig,
-} from "./types";
+import { DEFAULT_AA_CONFIG } from "./types";
+import { resolvePimlicoConfig } from "./resolve";
 
 // ---------------------------------------------------------------------------
 // Pimlico-Specific Types
@@ -44,24 +41,6 @@ export interface CreatePimlicoAAProviderOptions<
 }
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const DEFAULT_PIMLICO_API_KEY_ENV_VAR = "NEXT_PUBLIC_PIMLICO_API_KEY";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function readPublicEnv(name: string | undefined): string | undefined {
-  if (!name) {
-    return undefined;
-  }
-  const value = process.env[name];
-  return value?.trim() ? value.trim() : undefined;
-}
-
-// ---------------------------------------------------------------------------
 // Provider Factory
 // ---------------------------------------------------------------------------
 
@@ -72,23 +51,32 @@ export function createPimlicoAAProvider<
   accountAbstractionConfig = DEFAULT_AA_CONFIG,
   usePimlicoAA,
   chainsById,
-  apiKeyEnvVar = DEFAULT_PIMLICO_API_KEY_ENV_VAR,
   rpcUrl,
 }: CreatePimlicoAAProviderOptions<TAA, TQuery>) {
   return function usePimlicoAAProvider(
     calls: WalletExecutionCall[] | null,
     localPrivateKey: `0x${string}` | null,
   ): AAProviderState<TAA> {
-    const resolved = resolvePimlicoProviderConfig({
+    const resolved = resolvePimlicoConfig({
       calls,
       localPrivateKey,
       accountAbstractionConfig,
       chainsById,
-      apiKeyEnvVar,
       rpcUrl,
+      publicOnly: true,
     });
 
-    const query = usePimlicoAA(resolved?.params) as TQuery;
+    const params = resolved
+      ? ({
+          enabled: true,
+          apiKey: resolved.apiKey,
+          chain: resolved.chain,
+          mode: resolved.mode,
+          rpcUrl: resolved.rpcUrl,
+        } satisfies PimlicoHookParams)
+      : undefined;
+
+    const query = usePimlicoAA(params) as TQuery;
 
     return {
       plan: resolved?.plan ?? null,
@@ -97,60 +85,5 @@ export function createPimlicoAAProvider<
       isPending: Boolean(resolved && query.isPending),
       error: query.error ?? null,
     };
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Config Resolution
-// ---------------------------------------------------------------------------
-
-function resolvePimlicoProviderConfig({
-  calls,
-  localPrivateKey,
-  accountAbstractionConfig,
-  chainsById,
-  apiKeyEnvVar,
-  rpcUrl,
-}: {
-  calls: WalletExecutionCall[] | null;
-  localPrivateKey: `0x${string}` | null;
-  accountAbstractionConfig: AAConfig;
-  chainsById: Record<number, Chain>;
-  apiKeyEnvVar: string;
-  rpcUrl?: string;
-}) {
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-
-  const chainConfig = getAAChainConfig(
-    accountAbstractionConfig,
-    calls,
-    chainsById,
-  );
-  if (!chainConfig) {
-    return null;
-  }
-
-  const apiKey = readPublicEnv(apiKeyEnvVar);
-  if (!apiKey) {
-    return null;
-  }
-
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
-
-  return {
-    chainConfig,
-    plan: buildAAExecutionPlan(accountAbstractionConfig, chainConfig),
-    params: {
-      enabled: true,
-      apiKey,
-      chain,
-      mode: chainConfig.defaultMode,
-      rpcUrl,
-    } satisfies PimlicoHookParams,
   };
 }
