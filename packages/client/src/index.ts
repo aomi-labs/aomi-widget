@@ -84,6 +84,14 @@ export {
   executeWalletCalls,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
+  readEnv,
+  isProviderConfigured,
+  resolveDefaultProvider,
+  adaptSmartAccount,
+  isAlchemySponsorshipLimitError,
+  resolveAlchemyConfig,
+  resolvePimlicoConfig,
+  createAAProviderState,
 } from "./aa";
 
 export type {
@@ -107,4 +115,11 @@ export type {
   PimlicoHookParams,
   UsePimlicoAAHook,
   CreatePimlicoAAProviderOptions,
+  AAProvider,
+  ParaSmartAccountLike,
+  AlchemyResolveOptions,
+  AlchemyResolvedConfig,
+  PimlicoResolveOptions,
+  PimlicoResolvedConfig,
+  CreateAAProviderStateOptions,
 } from "./aa";
