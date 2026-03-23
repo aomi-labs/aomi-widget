@@ -1017,16 +1017,498 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
 };
+
+// src/aa/types.ts
+var MODES = /* @__PURE__ */ new Set(["4337", "7702"]);
+var SPONSORSHIP_MODES = /* @__PURE__ */ new Set([
+  "disabled",
+  "optional",
+  "required"
+]);
+function isObject(value) {
+  return typeof value === "object" && value !== null;
+}
+function assertChainConfig(value, index) {
+  if (!isObject(value)) {
+    throw new Error(`Invalid AA config chain at index ${index}: expected object`);
+  }
+  if (typeof value.chainId !== "number") {
+    throw new Error(`Invalid AA config chain at index ${index}: chainId must be a number`);
+  }
+  if (typeof value.enabled !== "boolean") {
+    throw new Error(`Invalid AA config chain ${value.chainId}: enabled must be a boolean`);
+  }
+  if (!MODES.has(value.defaultMode)) {
+    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported defaultMode`);
+  }
+  if (!Array.isArray(value.supportedModes) || value.supportedModes.length === 0) {
+    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes must be a non-empty array`);
+  }
+  if (!value.supportedModes.every((mode) => MODES.has(mode))) {
+    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes contains an unsupported mode`);
+  }
+  if (!value.supportedModes.includes(value.defaultMode)) {
+    throw new Error(`Invalid AA config chain ${value.chainId}: defaultMode must be in supportedModes`);
+  }
+  if (typeof value.allowBatching !== "boolean") {
+    throw new Error(`Invalid AA config chain ${value.chainId}: allowBatching must be a boolean`);
+  }
+  if (!SPONSORSHIP_MODES.has(value.sponsorship)) {
+    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported sponsorship mode`);
+  }
+}
+function parseAAConfig(value) {
+  if (!isObject(value)) {
+    throw new Error("Invalid AA config: expected object");
+  }
+  if (typeof value.enabled !== "boolean") {
+    throw new Error("Invalid AA config: enabled must be a boolean");
+  }
+  if (typeof value.provider !== "string" || !value.provider) {
+    throw new Error("Invalid AA config: provider must be a non-empty string");
+  }
+  if (typeof value.fallbackToEoa !== "boolean") {
+    throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
+  }
+  if (!Array.isArray(value.chains)) {
+    throw new Error("Invalid AA config: chains must be an array");
+  }
+  value.chains.forEach((chain, index) => assertChainConfig(chain, index));
+  return {
+    enabled: value.enabled,
+    provider: value.provider,
+    fallbackToEoa: value.fallbackToEoa,
+    chains: value.chains
+  };
+}
+function getAAChainConfig(config, calls, chainsById) {
+  if (!config.enabled || calls.length === 0) {
+    return null;
+  }
+  const chainIds = Array.from(new Set(calls.map((call) => call.chainId)));
+  if (chainIds.length !== 1) {
+    return null;
+  }
+  const chainId = chainIds[0];
+  if (!chainsById[chainId]) {
+    return null;
+  }
+  const chainConfig = config.chains.find((item) => item.chainId === chainId);
+  if (!(chainConfig == null ? void 0 : chainConfig.enabled)) {
+    return null;
+  }
+  if (calls.length > 1 && !chainConfig.allowBatching) {
+    return null;
+  }
+  return chainConfig;
+}
+function buildAAExecutionPlan(config, chainConfig) {
+  const mode = chainConfig.supportedModes.includes(chainConfig.defaultMode) ? chainConfig.defaultMode : chainConfig.supportedModes[0];
+  if (!mode) {
+    throw new Error(`No smart account mode configured for chain ${chainConfig.chainId}`);
+  }
+  return {
+    provider: config.provider,
+    chainId: chainConfig.chainId,
+    mode,
+    batchingEnabled: chainConfig.allowBatching,
+    sponsorship: chainConfig.sponsorship,
+    fallbackToEoa: config.fallbackToEoa
+  };
+}
+function getWalletExecutorReady(providerState) {
+  return !providerState.plan || !providerState.isPending && (Boolean(providerState.AA) || Boolean(providerState.error) || providerState.plan.fallbackToEoa);
+}
+function mapCall(call) {
+  return {
+    to: call.to,
+    value: BigInt(call.value),
+    data: call.data ? call.data : void 0
+  };
+}
+var DEFAULT_AA_CONFIG = {
+  enabled: true,
+  provider: "alchemy",
+  fallbackToEoa: true,
+  chains: [
+    {
+      chainId: 1,
+      enabled: true,
+      defaultMode: "7702",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 137,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 42161,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 10,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 8453,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    }
+  ]
+};
+async function executeWalletCalls(params) {
+  const {
+    callList,
+    currentChainId,
+    capabilities,
+    localPrivateKey,
+    providerState,
+    sendCallsSyncAsync,
+    sendTransactionAsync,
+    switchChainAsync,
+    chainsById,
+    getPreferredRpcUrl
+  } = params;
+  if (providerState.plan && providerState.AA) {
+    return executeViaAA(callList, providerState);
+  }
+  if (providerState.plan && providerState.error && !providerState.plan.fallbackToEoa) {
+    throw providerState.error;
+  }
+  return executeViaEoa({
+    callList,
+    currentChainId,
+    capabilities,
+    localPrivateKey,
+    sendCallsSyncAsync,
+    sendTransactionAsync,
+    switchChainAsync,
+    chainsById,
+    getPreferredRpcUrl
+  });
+}
+async function executeViaAA(callList, providerState) {
+  var _a;
+  const AA = providerState.AA;
+  const plan = providerState.plan;
+  if (!AA || !plan) {
+    throw (_a = providerState.error) != null ? _a : new Error("smart_account_unavailable");
+  }
+  const callsPayload = callList.map(mapCall);
+  const receipt = callList.length > 1 ? await AA.sendBatchTransaction(callsPayload) : await AA.sendTransaction(callsPayload[0]);
+  const txHash = receipt.transactionHash;
+  const providerPrefix = AA.provider.toLowerCase();
+  return {
+    txHash,
+    txHashes: [txHash],
+    executionKind: `${providerPrefix}_${AA.mode}`,
+    batched: callList.length > 1,
+    sponsored: plan.sponsorship !== "disabled",
+    AAAddress: AA.AAAddress,
+    delegationAddress: AA.mode === "7702" ? AA.delegationAddress : void 0
+  };
+}
+async function executeViaEoa({
+  callList,
+  currentChainId,
+  capabilities,
+  localPrivateKey,
+  sendCallsSyncAsync,
+  sendTransactionAsync,
+  switchChainAsync,
+  chainsById,
+  getPreferredRpcUrl
+}) {
+  var _a, _b;
+  const { createPublicClient, createWalletClient, http } = await import("viem");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const hashes = [];
+  if (localPrivateKey) {
+    for (const call of callList) {
+      const chain = chainsById[call.chainId];
+      if (!chain) {
+        throw new Error(`Unsupported chain ${call.chainId}`);
+      }
+      const rpcUrl = getPreferredRpcUrl(chain);
+      if (!rpcUrl) {
+        throw new Error(`No RPC for chain ${call.chainId}`);
+      }
+      const account = privateKeyToAccount(localPrivateKey);
+      const walletClient = createWalletClient({
+        account,
+        chain,
+        transport: http(rpcUrl)
+      });
+      const hash = await walletClient.sendTransaction({
+        account,
+        to: call.to,
+        value: BigInt(call.value),
+        data: call.data ? call.data : void 0
+      });
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(rpcUrl)
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      hashes.push(hash);
+    }
+    return {
+      txHash: hashes[hashes.length - 1],
+      txHashes: hashes,
+      executionKind: "eoa",
+      batched: hashes.length > 1,
+      sponsored: false
+    };
+  }
+  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
+  if (chainIds.length > 1) {
+    throw new Error("mixed_chain_bundle_not_supported");
+  }
+  const chainId = chainIds[0];
+  if (currentChainId !== chainId) {
+    await switchChainAsync({ chainId });
+  }
+  const chainCaps = capabilities == null ? void 0 : capabilities[`eip155:${chainId}`];
+  const atomicStatus = (_a = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a.status;
+  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  if (canUseSendCalls) {
+    const batchResult = await sendCallsSyncAsync({
+      calls: callList.map(mapCall),
+      capabilities: {
+        atomic: {
+          required: true
+        }
+      }
+    });
+    const receipts = (_b = batchResult.receipts) != null ? _b : [];
+    for (const receipt of receipts) {
+      if (receipt.transactionHash) {
+        hashes.push(receipt.transactionHash);
+      }
+    }
+  } else {
+    for (const call of callList) {
+      const hash = await sendTransactionAsync({
+        chainId: call.chainId,
+        to: call.to,
+        value: BigInt(call.value),
+        data: call.data ? call.data : void 0
+      });
+      hashes.push(hash);
+    }
+  }
+  return {
+    txHash: hashes[hashes.length - 1],
+    txHashes: hashes,
+    executionKind: "eoa",
+    batched: hashes.length > 1,
+    sponsored: false
+  };
+}
+
+// src/aa/alchemy.ts
+var DEFAULT_ALCHEMY_API_KEY_ENV_VAR = "NEXT_PUBLIC_ALCHEMY_API_KEY";
+var DEFAULT_ALCHEMY_GAS_POLICY_ENV_VAR = "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID";
+function readPublicEnv(name) {
+  if (!name) {
+    return void 0;
+  }
+  const value = process.env[name];
+  return (value == null ? void 0 : value.trim()) ? value.trim() : void 0;
+}
+function defaultGasPolicyEnvVar(chainId, chainSlugById, baseName) {
+  const slug = chainSlugById[chainId];
+  return slug ? `${baseName}_${slug.toUpperCase()}` : void 0;
+}
+function createAlchemyAAProvider({
+  accountAbstractionConfig = DEFAULT_AA_CONFIG,
+  useAlchemyAA,
+  chainsById,
+  chainSlugById,
+  getPreferredRpcUrl,
+  apiKeyEnvVar = DEFAULT_ALCHEMY_API_KEY_ENV_VAR,
+  gasPolicyEnvVar = DEFAULT_ALCHEMY_GAS_POLICY_ENV_VAR
+}) {
+  return function useAlchemyAAProvider(calls, localPrivateKey) {
+    var _a, _b;
+    const resolved = resolveAlchemyProviderConfig({
+      calls,
+      localPrivateKey,
+      accountAbstractionConfig,
+      chainsById,
+      chainSlugById,
+      getPreferredRpcUrl,
+      apiKeyEnvVar,
+      gasPolicyEnvVar
+    });
+    const query = useAlchemyAA(resolved == null ? void 0 : resolved.params);
+    return {
+      plan: (_a = resolved == null ? void 0 : resolved.plan) != null ? _a : null,
+      query,
+      AA: query.AA,
+      isPending: Boolean(resolved && query.isPending),
+      error: (_b = query.error) != null ? _b : null
+    };
+  };
+}
+function resolveAlchemyProviderConfig({
+  calls,
+  localPrivateKey,
+  accountAbstractionConfig,
+  chainsById,
+  chainSlugById,
+  getPreferredRpcUrl,
+  apiKeyEnvVar,
+  gasPolicyEnvVar
+}) {
+  var _a;
+  if (!calls || localPrivateKey) {
+    return null;
+  }
+  const chainConfig = getAAChainConfig(
+    accountAbstractionConfig,
+    calls,
+    chainsById
+  );
+  if (!chainConfig) {
+    return null;
+  }
+  const apiKey = readPublicEnv(apiKeyEnvVar);
+  if (!apiKey) {
+    return null;
+  }
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) {
+    return null;
+  }
+  const gasPolicyId = (_a = readPublicEnv(defaultGasPolicyEnvVar(chainConfig.chainId, chainSlugById, gasPolicyEnvVar))) != null ? _a : readPublicEnv(gasPolicyEnvVar);
+  if (chainConfig.sponsorship === "required" && !gasPolicyId) {
+    return null;
+  }
+  return {
+    chainConfig,
+    plan: buildAAExecutionPlan(accountAbstractionConfig, chainConfig),
+    params: {
+      enabled: true,
+      apiKey,
+      chain,
+      rpcUrl: getPreferredRpcUrl(chain),
+      gasPolicyId,
+      mode: chainConfig.defaultMode
+    }
+  };
+}
+
+// src/aa/pimlico.ts
+var DEFAULT_PIMLICO_API_KEY_ENV_VAR = "NEXT_PUBLIC_PIMLICO_API_KEY";
+function readPublicEnv2(name) {
+  if (!name) {
+    return void 0;
+  }
+  const value = process.env[name];
+  return (value == null ? void 0 : value.trim()) ? value.trim() : void 0;
+}
+function createPimlicoAAProvider({
+  accountAbstractionConfig = DEFAULT_AA_CONFIG,
+  usePimlicoAA,
+  chainsById,
+  apiKeyEnvVar = DEFAULT_PIMLICO_API_KEY_ENV_VAR,
+  rpcUrl
+}) {
+  return function usePimlicoAAProvider(calls, localPrivateKey) {
+    var _a, _b;
+    const resolved = resolvePimlicoProviderConfig({
+      calls,
+      localPrivateKey,
+      accountAbstractionConfig,
+      chainsById,
+      apiKeyEnvVar,
+      rpcUrl
+    });
+    const query = usePimlicoAA(resolved == null ? void 0 : resolved.params);
+    return {
+      plan: (_a = resolved == null ? void 0 : resolved.plan) != null ? _a : null,
+      query,
+      AA: query.AA,
+      isPending: Boolean(resolved && query.isPending),
+      error: (_b = query.error) != null ? _b : null
+    };
+  };
+}
+function resolvePimlicoProviderConfig({
+  calls,
+  localPrivateKey,
+  accountAbstractionConfig,
+  chainsById,
+  apiKeyEnvVar,
+  rpcUrl
+}) {
+  if (!calls || localPrivateKey) {
+    return null;
+  }
+  const chainConfig = getAAChainConfig(
+    accountAbstractionConfig,
+    calls,
+    chainsById
+  );
+  if (!chainConfig) {
+    return null;
+  }
+  const apiKey = readPublicEnv2(apiKeyEnvVar);
+  if (!apiKey) {
+    return null;
+  }
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) {
+    return null;
+  }
+  return {
+    chainConfig,
+    plan: buildAAExecutionPlan(accountAbstractionConfig, chainConfig),
+    params: {
+      enabled: true,
+      apiKey,
+      chain,
+      mode: chainConfig.defaultMode,
+      rpcUrl
+    }
+  };
+}
 export {
   AomiClient,
+  DEFAULT_AA_CONFIG,
   ClientSession as Session,
   TypedEventEmitter,
+  buildAAExecutionPlan,
+  createAlchemyAAProvider,
+  createPimlicoAAProvider,
+  executeWalletCalls,
+  getAAChainConfig,
+  getWalletExecutorReady,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
   isSystemNotice,
   normalizeEip712Payload,
   normalizeTxPayload,
+  parseAAConfig,
   unwrapSystemEvent
 };
 //# sourceMappingURL=index.js.map

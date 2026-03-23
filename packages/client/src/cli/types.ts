@@ -4,6 +4,10 @@ export type ParsedArgs = {
   flags: Record<string, string>;
 };
 
+export type CliExecutionMode = "aa" | "eoa";
+export type CliAAProvider = "alchemy" | "pimlico";
+export type CliAAMode = "4337" | "7702";
+
 export type CliConfig = {
   baseUrl: string;
   apiKey?: string;
@@ -13,6 +17,9 @@ export type CliConfig = {
   privateKey?: string;
   chainRpcUrl?: string;
   chain?: number;
+  execution: CliExecutionMode;
+  aaProvider?: CliAAProvider;
+  aaMode?: CliAAMode;
 };
 
 export type CliRuntime = {
