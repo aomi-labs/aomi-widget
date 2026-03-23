@@ -52,6 +52,8 @@ export function toSignedTransactionRecord(
   from: string,
   chainId: number,
   timestamp: number,
+  aaProvider?: string,
+  aaMode?: string,
 ): SignedTx {
   return {
     id: tx.id,
@@ -59,6 +61,8 @@ export function toSignedTransactionRecord(
     txHash: execution.txHash,
     txHashes: execution.txHashes,
     executionKind: execution.executionKind,
+    aaProvider,
+    aaMode,
     batched: execution.batched,
     sponsored: execution.sponsored,
     AAAddress: execution.AAAddress,
@@ -95,6 +99,8 @@ export function formatSignedTxLine(tx: SignedTx, prefix: string): string {
   } else {
     parts.push(`hash: ${tx.txHash}`);
     if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
+    if (tx.aaProvider) parts.push(`provider: ${tx.aaProvider}`);
+    if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
     if (tx.txHashes && tx.txHashes.length > 1) {
       parts.push(`txs: ${tx.txHashes.length}`);
     }

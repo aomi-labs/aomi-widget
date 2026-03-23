@@ -48,6 +48,8 @@ export function toSignedTxMetadata(tx: SignedTx): Record<string, unknown> {
     txHash: tx.txHash ?? null,
     txHashes: tx.txHashes ?? null,
     executionKind: tx.executionKind ?? null,
+    aaProvider: tx.aaProvider ?? null,
+    aaMode: tx.aaMode ?? null,
     batched: tx.batched ?? null,
     sponsored: tx.sponsored ?? null,
     AAAddress: tx.AAAddress ?? null,

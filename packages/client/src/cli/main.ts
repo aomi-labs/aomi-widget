@@ -30,7 +30,8 @@ Usage:
                         Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
-  aomi sign <tx-id>     Sign and submit a pending transaction
+  aomi sign <tx-id> [<tx-id> ...] [--aa | --eoa] [--aa-provider <name>] [--aa-mode <mode>]
+                        Sign and submit a pending transaction
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
@@ -45,12 +46,28 @@ Options:
   --rpc-url <url>       RPC URL for transaction submission
   --verbose, -v         Show tool calls and streaming output (for chat)
 
+Sign options:
+  aomi sign <tx-id> --aa
+                        Require account-abstraction execution (default)
+  aomi sign <tx-id> --eoa
+                        Force plain EOA execution
+  aomi sign <tx-id> --aa-provider <name>
+                        AA provider: alchemy | pimlico
+  aomi sign <tx-id> --aa-mode <mode>
+                        AA mode: 4337 | 7702
+
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
   AOMI_API_KEY          API key
   AOMI_APP              App
   AOMI_MODEL            Model rig
   AOMI_PUBLIC_KEY       Wallet address
+  AOMI_AA_PROVIDER      AA provider: alchemy | pimlico
+  AOMI_AA_MODE          AA mode: 4337 | 7702
+  ALCHEMY_API_KEY       Alchemy AA API key
+  ALCHEMY_GAS_POLICY_ID
+                        Optional Alchemy gas sponsorship policy ID
+  PIMLICO_API_KEY       Pimlico AA API key
   PRIVATE_KEY           Hex private key for signing
   CHAIN_RPC_URL         RPC URL for transaction submission
 `.trim());

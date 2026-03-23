@@ -31,6 +31,8 @@
     "clean:dist": "rm -rf dist"
   },
   "dependencies": {
+    "@getpara/aa-alchemy": "2.18.0",
+    "@getpara/aa-pimlico": "2.18.0",
     "viem": "^2.40.3"
   }
 }
