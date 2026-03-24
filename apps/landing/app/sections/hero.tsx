@@ -206,21 +206,25 @@ export function Hero() {
             </div>
           </div>
           <span className="font-geist pr-2 pl-2 text-[10px] font-medium text-white">
-            500+ daily users
+            500+ developers building with Aomi
           </span>
         </div>
 
-        <h1 className="mb-6 max-w-5xl text-center font-serif text-5xl leading-[1.1] tracking-tight text-neutral-50 drop-shadow-2xl md:text-7xl lg:text-8xl">
-          One prompt away
+        <h1 className="mb-4 max-w-5xl text-center font-serif text-4xl leading-[1.1] tracking-tight text-neutral-50 drop-shadow-2xl md:text-5xl lg:text-6xl">
+          Blockchain AI Infrastructure
           <br />
-          <span className="font-pt-serif text-white/80 italic">
-            from action.
+          <span className="text-white/90">
+            for Web3 Builders
           </span>
         </h1>
+        <p className="mb-6 max-w-5xl text-center font-serif text-2xl leading-[1.2] tracking-tight text-white/70 drop-shadow-lg md:text-3xl lg:text-4xl">
+          One prompt away
+          <span className="font-pt-serif italic"> from action.</span>
+        </p>
         <p className="font-geist mr-auto mb-10 ml-auto max-w-xl text-sm leading-relaxed font-light tracking-wide text-neutral-50 drop-shadow-lg md:text-base">
-          Your agentic terminal for blockchain automation. Transform
+          Embed AI features in your crypto product. Simulation-first,
           <br className="hidden md:block" />
-          natural language into secure, multi-chain transactions.
+          human-in-the-loop, multi-chain. Ship in minutes.
         </p>
         <div className="mb-25 flex items-center gap-4">
           <a
