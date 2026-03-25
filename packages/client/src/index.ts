@@ -121,5 +121,6 @@ export type {
   AlchemyResolvedConfig,
   PimlicoResolveOptions,
   PimlicoResolvedConfig,
+  CreateAAOwner,
   CreateAAProviderStateOptions,
 } from "./aa";

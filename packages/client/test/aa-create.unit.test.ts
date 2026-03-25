@@ -21,6 +21,8 @@ import { createAAProviderState } from "../src/aa/create";
 
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
+const SIGNER = { id: "external-wallet" } as const;
+const PARA = { id: "para-session" } as const;
 const CALL_LIST = [
   { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 1 },
 ] as const;
@@ -61,7 +63,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      privateKey: PRIVATE_KEY,
+      owner: { privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
@@ -105,7 +107,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      privateKey: PRIVATE_KEY,
+      owner: { privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "4337",
@@ -136,7 +138,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "pimlico",
       chain: polygon,
-      privateKey: PRIVATE_KEY,
+      owner: { privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...POLYGON_CALLS],
       mode: "4337",
@@ -169,7 +171,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      privateKey: PRIVATE_KEY,
+      owner: { privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
@@ -189,7 +191,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      privateKey: PRIVATE_KEY,
+      owner: { privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
@@ -198,5 +200,86 @@ describe("createAAProviderState", () => {
     expect(state.AA).toBeNull();
     expect(state.error).toBeInstanceOf(Error);
     expect(state.error!.message).toContain("could not be initialized");
+  });
+});
+
+describe("createAAProviderState owner modes", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    createAlchemySmartAccountMock.mockReset();
+    createPimlicoSmartAccountMock.mockReset();
+  });
+
+  it("creates an Alchemy provider state for Para sessions", async () => {
+    createAlchemySmartAccountMock.mockResolvedValue({
+      provider: "ALCHEMY",
+      mode: "7702",
+      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      sendTransaction: vi.fn(),
+      sendBatchTransaction: vi.fn(),
+    });
+
+    const state = await createAAProviderState({
+      provider: "alchemy",
+      owner: { para: PARA, address: "0x1234567890123456789012345678901234567890" },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+      rpcUrl: "https://example-rpc.invalid",
+      apiKey: "alchemy-key",
+      gasPolicyId: "policy-1",
+      mode: "7702",
+    });
+
+    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "alchemy-key",
+        gasPolicyId: "policy-1",
+        para: PARA,
+        chain: mainnet,
+        rpcUrl: "https://example-rpc.invalid",
+        mode: "7702",
+      }),
+    );
+    expect(state.AA).toMatchObject({
+      provider: "ALCHEMY",
+      mode: "7702",
+      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+  });
+
+  it("creates a Pimlico provider state for an external signer", async () => {
+    createPimlicoSmartAccountMock.mockResolvedValue({
+      provider: "PIMLICO",
+      mode: "4337",
+      smartAccountAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+      sendTransaction: vi.fn(),
+      sendBatchTransaction: vi.fn(),
+    });
+
+    const state = await createAAProviderState({
+      provider: "pimlico",
+      owner: { signer: SIGNER },
+      chain: polygon,
+      callList: [...POLYGON_CALLS],
+      rpcUrl: "https://example-rpc.invalid",
+      apiKey: "pimlico-key",
+      mode: "4337",
+    });
+
+    expect(createPimlicoSmartAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "pimlico-key",
+        signer: SIGNER,
+        chain: polygon,
+        rpcUrl: "https://example-rpc.invalid",
+        mode: "4337",
+      }),
+    );
+    expect(state.AA).toMatchObject({
+      provider: "PIMLICO",
+      mode: "4337",
+      AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+    });
   });
 });
