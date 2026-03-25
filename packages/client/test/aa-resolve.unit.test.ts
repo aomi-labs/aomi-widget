@@ -126,6 +126,19 @@ describe("resolveAlchemyConfig", () => {
     expect(result).not.toBeNull();
     expect(result!.apiKey).toBe("public-key");
   });
+
+  it("uses pre-resolved Alchemy values", () => {
+    const result = resolveAlchemyConfig({
+      calls: CALL_LIST,
+      chainsById: { [mainnet.id]: mainnet },
+      apiKey: "pre-resolved-key",
+      gasPolicyId: "pre-resolved-policy",
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.apiKey).toBe("pre-resolved-key");
+    expect(result!.gasPolicyId).toBe("pre-resolved-policy");
+  });
 });
 
 describe("resolvePimlicoConfig", () => {
@@ -182,5 +195,16 @@ describe("resolvePimlicoConfig", () => {
     });
 
     expect(result!.rpcUrl).toBe("https://custom-rpc.example");
+  });
+
+  it("uses a pre-resolved API key", () => {
+    const result = resolvePimlicoConfig({
+      calls: POLYGON_CALLS,
+      chainsById: { [polygon.id]: polygon },
+      apiKey: "pre-resolved-key",
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.apiKey).toBe("pre-resolved-key");
   });
 });

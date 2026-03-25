@@ -1,4 +1,4 @@
-import { Chain, Hex } from 'viem';
+import { Chain, Hex, TransactionReceipt } from 'viem';
 
 /**
  * Client-side user state synced with the backend.
@@ -573,7 +573,7 @@ interface CreateAlchemyAAProviderOptions<TAA extends AALike = AALike, TQuery ext
     apiKeyEnvVar?: string;
     gasPolicyEnvVar?: string;
 }
-declare function createAlchemyAAProvider<TAA extends AALike = AALike, TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>>({ accountAbstractionConfig, useAlchemyAA, chainsById, chainSlugById, getPreferredRpcUrl, apiKeyEnvVar, gasPolicyEnvVar, }: CreateAlchemyAAProviderOptions<TAA, TQuery>): (calls: WalletExecutionCall[] | null, localPrivateKey: `0x${string}` | null) => AAProviderState<TAA>;
+declare function createAlchemyAAProvider<TAA extends AALike = AALike, TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>>({ accountAbstractionConfig, useAlchemyAA, chainsById, chainSlugById, getPreferredRpcUrl, }: CreateAlchemyAAProviderOptions<TAA, TQuery>): (calls: WalletExecutionCall[] | null, localPrivateKey: `0x${string}` | null) => AAProviderState<TAA>;
 
 interface PimlicoHookParams {
     enabled: boolean;
@@ -590,6 +590,129 @@ interface CreatePimlicoAAProviderOptions<TAA extends AALike = AALike, TQuery ext
     apiKeyEnvVar?: string;
     rpcUrl?: string;
 }
-declare function createPimlicoAAProvider<TAA extends AALike = AALike, TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>>({ accountAbstractionConfig, usePimlicoAA, chainsById, apiKeyEnvVar, rpcUrl, }: CreatePimlicoAAProviderOptions<TAA, TQuery>): (calls: WalletExecutionCall[] | null, localPrivateKey: `0x${string}` | null) => AAProviderState<TAA>;
+declare function createPimlicoAAProvider<TAA extends AALike = AALike, TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>>({ accountAbstractionConfig, usePimlicoAA, chainsById, rpcUrl, }: CreatePimlicoAAProviderOptions<TAA, TQuery>): (calls: WalletExecutionCall[] | null, localPrivateKey: `0x${string}` | null) => AAProviderState<TAA>;
 
-export { type AAChainConfig, type AAConfig, type AAExecutionMode, type AAExecutionPlan, type AALike, type AAProviderQuery, type AAProviderState, type AASponsorshipMode, type AlchemyHookParams, type AomiChatResponse, AomiClient, type AomiClientOptions, type AomiCreateThreadResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type Logger, type PimlicoHookParams, type SendCallsSyncArgs, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type TransactionExecutionResult, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type WalletAtomicCapability, type WalletEip712Payload, type WalletExecutionCall, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, buildAAExecutionPlan, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, unwrapSystemEvent };
+/**
+ * Reads the first non-empty env var from `candidates`.
+ * When `publicOnly` is true, only `NEXT_PUBLIC_*` names are considered.
+ */
+declare function readEnv(candidates: readonly string[], options?: {
+    publicOnly?: boolean;
+}): string | undefined;
+type AAProvider = "alchemy" | "pimlico";
+/**
+ * Returns true if the given provider has a configured API key.
+ */
+declare function isProviderConfigured(provider: AAProvider, options?: {
+    publicOnly?: boolean;
+}): boolean;
+/**
+ * Picks the first configured provider (alchemy > pimlico).
+ * Throws if neither is configured.
+ */
+declare function resolveDefaultProvider(options?: {
+    publicOnly?: boolean;
+}): AAProvider;
+
+type ParaSmartAccountLike = {
+    provider: string;
+    mode: AAExecutionMode;
+    smartAccountAddress: Hex;
+    delegationAddress?: Hex;
+    sendTransaction: (call: WalletPrimitiveCall, options?: unknown) => Promise<TransactionReceipt>;
+    sendBatchTransaction: (calls: WalletPrimitiveCall[], options?: unknown) => Promise<TransactionReceipt>;
+};
+/**
+ * Bridges a `ParaSmartAccountLike` (from `@getpara/aa-*` SDKs) into
+ * the library's `AALike` interface:
+ * - Maps `smartAccountAddress` → `AAAddress`
+ * - Unwraps `TransactionReceipt` → `{ transactionHash }`
+ */
+declare function adaptSmartAccount(account: ParaSmartAccountLike): AALike;
+/**
+ * Detects Alchemy gas sponsorship quota errors.
+ */
+declare function isAlchemySponsorshipLimitError(error: unknown): boolean;
+
+interface AlchemyResolveOptions {
+    calls: WalletExecutionCall[] | null;
+    localPrivateKey?: `0x${string}` | null;
+    accountAbstractionConfig?: AAConfig;
+    chainsById: Record<number, Chain>;
+    chainSlugById?: Record<number, string>;
+    getPreferredRpcUrl?: (chain: Chain) => string;
+    modeOverride?: AAExecutionMode;
+    publicOnly?: boolean;
+    throwOnMissingConfig?: boolean;
+    /**
+     * Pre-resolved API key. Use this in Next.js client-side code where
+     * dynamic `process.env[name]` access doesn't work.
+     */
+    apiKey?: string;
+    gasPolicyId?: string;
+}
+interface AlchemyResolvedConfig {
+    chainConfig: AAChainConfig;
+    plan: AAExecutionPlan;
+    apiKey: string;
+    chain: Chain;
+    rpcUrl: string;
+    gasPolicyId?: string;
+    mode: AAExecutionMode;
+}
+declare function resolveAlchemyConfig(options: AlchemyResolveOptions): AlchemyResolvedConfig | null;
+interface PimlicoResolveOptions {
+    calls: WalletExecutionCall[] | null;
+    localPrivateKey?: `0x${string}` | null;
+    accountAbstractionConfig?: AAConfig;
+    chainsById: Record<number, Chain>;
+    rpcUrl?: string;
+    modeOverride?: AAExecutionMode;
+    publicOnly?: boolean;
+    throwOnMissingConfig?: boolean;
+    /**
+     * Pre-resolved API key. Use this in Next.js client-side code where
+     * dynamic `process.env[name]` access doesn't work.
+     */
+    apiKey?: string;
+}
+interface PimlicoResolvedConfig {
+    chainConfig: AAChainConfig;
+    plan: AAExecutionPlan;
+    apiKey: string;
+    chain: Chain;
+    rpcUrl?: string;
+    mode: AAExecutionMode;
+}
+declare function resolvePimlicoConfig(options: PimlicoResolveOptions): PimlicoResolvedConfig | null;
+
+type CreateAAOwner = {
+    privateKey: `0x${string}`;
+} | {
+    signer: unknown;
+    para: unknown;
+    address?: Hex;
+} | {
+    para: unknown;
+    address?: Hex;
+};
+interface CreateAAProviderStateOptions {
+    provider: AAProvider;
+    chain: Chain;
+    owner: CreateAAOwner;
+    rpcUrl: string;
+    callList: WalletExecutionCall[];
+    mode?: AAExecutionMode;
+    apiKey?: string;
+    gasPolicyId?: string;
+    sponsored?: boolean;
+}
+/**
+ * Creates an `AAProviderState` by instantiating the appropriate smart account
+ * via `@getpara/aa-alchemy` or `@getpara/aa-pimlico`.
+ *
+ * This is the single entry-point for async (non-hook) AA provider state creation.
+ */
+declare function createAAProviderState(options: CreateAAProviderStateOptions): Promise<AAProviderState>;
+
+export { type AAChainConfig, type AAConfig, type AAExecutionMode, type AAExecutionPlan, type AALike, type AAProvider, type AAProviderQuery, type AAProviderState, type AASponsorshipMode, type AlchemyHookParams, type AlchemyResolveOptions, type AlchemyResolvedConfig, type AomiChatResponse, AomiClient, type AomiClientOptions, type AomiCreateThreadResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type CreateAAOwner, type CreateAAProviderStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type Logger, type ParaSmartAccountLike, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendCallsSyncArgs, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type TransactionExecutionResult, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type WalletAtomicCapability, type WalletEip712Payload, type WalletExecutionCall, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isProviderConfigured, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, readEnv, resolveAlchemyConfig, resolveDefaultProvider, resolvePimlicoConfig, unwrapSystemEvent };

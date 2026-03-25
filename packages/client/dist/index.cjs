@@ -1,10 +1,27 @@
 "use strict";
 var __create = Object.create;
 var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -34,19 +51,27 @@ __export(index_exports, {
   DEFAULT_AA_CONFIG: () => DEFAULT_AA_CONFIG,
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
+  adaptSmartAccount: () => adaptSmartAccount,
   buildAAExecutionPlan: () => buildAAExecutionPlan,
+  createAAProviderState: () => createAAProviderState,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
   executeWalletCalls: () => executeWalletCalls,
   getAAChainConfig: () => getAAChainConfig,
   getWalletExecutorReady: () => getWalletExecutorReady,
+  isAlchemySponsorshipLimitError: () => isAlchemySponsorshipLimitError,
   isAsyncCallback: () => isAsyncCallback,
   isInlineCall: () => isInlineCall,
+  isProviderConfigured: () => isProviderConfigured,
   isSystemError: () => isSystemError,
   isSystemNotice: () => isSystemNotice,
   normalizeEip712Payload: () => normalizeEip712Payload,
   normalizeTxPayload: () => normalizeTxPayload,
   parseAAConfig: () => parseAAConfig,
+  readEnv: () => readEnv,
+  resolveAlchemyConfig: () => resolveAlchemyConfig,
+  resolveDefaultProvider: () => resolveDefaultProvider,
+  resolvePimlicoConfig: () => resolvePimlicoConfig,
   unwrapSystemEvent: () => unwrapSystemEvent
 });
 module.exports = __toCommonJS(index_exports);
@@ -1291,7 +1316,7 @@ async function executeViaEoa({
 }) {
   var _a, _b;
   const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount } = await import("viem/accounts");
+  const { privateKeyToAccount: privateKeyToAccount2 } = await import("viem/accounts");
   const hashes = [];
   if (localPrivateKey) {
     for (const call of callList) {
@@ -1303,7 +1328,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount(localPrivateKey);
+      const account = privateKeyToAccount2(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -1376,42 +1401,219 @@ async function executeViaEoa({
   };
 }
 
-// src/aa/alchemy.ts
-var DEFAULT_ALCHEMY_API_KEY_ENV_VAR = "NEXT_PUBLIC_ALCHEMY_API_KEY";
-var DEFAULT_ALCHEMY_GAS_POLICY_ENV_VAR = "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID";
-function readPublicEnv(name) {
-  if (!name) {
-    return void 0;
+// src/aa/env.ts
+var ALCHEMY_API_KEY_ENVS = [
+  "ALCHEMY_API_KEY",
+  "NEXT_PUBLIC_ALCHEMY_API_KEY"
+];
+var ALCHEMY_GAS_POLICY_ENVS = [
+  "ALCHEMY_GAS_POLICY_ID",
+  "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID"
+];
+var PIMLICO_API_KEY_ENVS = [
+  "PIMLICO_API_KEY",
+  "NEXT_PUBLIC_PIMLICO_API_KEY"
+];
+function readEnv(candidates, options = {}) {
+  var _a;
+  const { publicOnly = false } = options;
+  for (const name of candidates) {
+    if (publicOnly && !name.startsWith("NEXT_PUBLIC_")) {
+      continue;
+    }
+    const value = (_a = process.env[name]) == null ? void 0 : _a.trim();
+    if (value) return value;
   }
-  const value = process.env[name];
-  return (value == null ? void 0 : value.trim()) ? value.trim() : void 0;
+  return void 0;
 }
-function defaultGasPolicyEnvVar(chainId, chainSlugById, baseName) {
+function readGasPolicyEnv(chainId, chainSlugById, baseCandidates, options = {}) {
   const slug = chainSlugById[chainId];
-  return slug ? `${baseName}_${slug.toUpperCase()}` : void 0;
+  if (slug) {
+    const chainSpecific = baseCandidates.map(
+      (base) => `${base}_${slug.toUpperCase()}`
+    );
+    const found = readEnv(chainSpecific, options);
+    if (found) return found;
+  }
+  return readEnv(baseCandidates, options);
 }
+function isProviderConfigured(provider, options = {}) {
+  return provider === "alchemy" ? Boolean(readEnv(ALCHEMY_API_KEY_ENVS, options)) : Boolean(readEnv(PIMLICO_API_KEY_ENVS, options));
+}
+function resolveDefaultProvider(options = {}) {
+  if (isProviderConfigured("alchemy", options)) return "alchemy";
+  if (isProviderConfigured("pimlico", options)) return "pimlico";
+  throw new Error(
+    "AA requires provider credentials. Set ALCHEMY_API_KEY or PIMLICO_API_KEY, or use --eoa."
+  );
+}
+
+// src/aa/resolve.ts
+function resolveAlchemyConfig(options) {
+  const {
+    calls,
+    localPrivateKey,
+    accountAbstractionConfig = DEFAULT_AA_CONFIG,
+    chainsById,
+    chainSlugById = {},
+    getPreferredRpcUrl = (chain2) => {
+      var _a;
+      return (_a = chain2.rpcUrls.default.http[0]) != null ? _a : "";
+    },
+    modeOverride,
+    publicOnly = false,
+    throwOnMissingConfig = false,
+    apiKey: preResolvedApiKey,
+    gasPolicyId: preResolvedGasPolicyId
+  } = options;
+  if (!calls || localPrivateKey) {
+    return null;
+  }
+  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
+    provider: "alchemy"
+  });
+  const chainConfig = getAAChainConfig(config, calls, chainsById);
+  if (!chainConfig) {
+    if (throwOnMissingConfig) {
+      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
+      throw new Error(
+        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
+      );
+    }
+    return null;
+  }
+  const apiKey = preResolvedApiKey != null ? preResolvedApiKey : readEnv(ALCHEMY_API_KEY_ENVS, { publicOnly });
+  if (!apiKey) {
+    if (throwOnMissingConfig) {
+      throw new Error("Alchemy AA requires ALCHEMY_API_KEY.");
+    }
+    return null;
+  }
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) {
+    return null;
+  }
+  const gasPolicyId = preResolvedGasPolicyId != null ? preResolvedGasPolicyId : readGasPolicyEnv(
+    chainConfig.chainId,
+    chainSlugById,
+    ALCHEMY_GAS_POLICY_ENVS,
+    { publicOnly }
+  );
+  if (chainConfig.sponsorship === "required" && !gasPolicyId) {
+    if (throwOnMissingConfig) {
+      throw new Error(
+        `Alchemy gas policy required for chain ${chainConfig.chainId} but not configured.`
+      );
+    }
+    return null;
+  }
+  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
+    if (throwOnMissingConfig) {
+      throw new Error(
+        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
+      );
+    }
+    return null;
+  }
+  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
+  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
+  return {
+    chainConfig: resolvedChainConfig,
+    plan,
+    apiKey,
+    chain,
+    rpcUrl: getPreferredRpcUrl(chain),
+    gasPolicyId,
+    mode: resolvedChainConfig.defaultMode
+  };
+}
+function resolvePimlicoConfig(options) {
+  const {
+    calls,
+    localPrivateKey,
+    accountAbstractionConfig = DEFAULT_AA_CONFIG,
+    chainsById,
+    rpcUrl,
+    modeOverride,
+    publicOnly = false,
+    throwOnMissingConfig = false,
+    apiKey: preResolvedApiKey
+  } = options;
+  if (!calls || localPrivateKey) {
+    return null;
+  }
+  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
+    provider: "pimlico"
+  });
+  const chainConfig = getAAChainConfig(config, calls, chainsById);
+  if (!chainConfig) {
+    if (throwOnMissingConfig) {
+      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
+      throw new Error(
+        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
+      );
+    }
+    return null;
+  }
+  const apiKey = preResolvedApiKey != null ? preResolvedApiKey : readEnv(PIMLICO_API_KEY_ENVS, { publicOnly });
+  if (!apiKey) {
+    if (throwOnMissingConfig) {
+      throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
+    }
+    return null;
+  }
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) {
+    return null;
+  }
+  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
+    if (throwOnMissingConfig) {
+      throw new Error(
+        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
+      );
+    }
+    return null;
+  }
+  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
+  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
+  return {
+    chainConfig: resolvedChainConfig,
+    plan,
+    apiKey,
+    chain,
+    rpcUrl,
+    mode: resolvedChainConfig.defaultMode
+  };
+}
+
+// src/aa/alchemy.ts
 function createAlchemyAAProvider({
   accountAbstractionConfig = DEFAULT_AA_CONFIG,
   useAlchemyAA,
   chainsById,
   chainSlugById,
-  getPreferredRpcUrl,
-  apiKeyEnvVar = DEFAULT_ALCHEMY_API_KEY_ENV_VAR,
-  gasPolicyEnvVar = DEFAULT_ALCHEMY_GAS_POLICY_ENV_VAR
+  getPreferredRpcUrl
 }) {
   return function useAlchemyAAProvider(calls, localPrivateKey) {
     var _a, _b;
-    const resolved = resolveAlchemyProviderConfig({
+    const resolved = resolveAlchemyConfig({
       calls,
       localPrivateKey,
       accountAbstractionConfig,
       chainsById,
       chainSlugById,
       getPreferredRpcUrl,
-      apiKeyEnvVar,
-      gasPolicyEnvVar
+      publicOnly: true
     });
-    const query = useAlchemyAA(resolved == null ? void 0 : resolved.params);
+    const params = resolved ? {
+      enabled: true,
+      apiKey: resolved.apiKey,
+      chain: resolved.chain,
+      rpcUrl: resolved.rpcUrl,
+      gasPolicyId: resolved.gasPolicyId,
+      mode: resolved.mode
+    } : void 0;
+    const query = useAlchemyAA(params);
     return {
       plan: (_a = resolved == null ? void 0 : resolved.plan) != null ? _a : null,
       query,
@@ -1419,83 +1621,34 @@ function createAlchemyAAProvider({
       isPending: Boolean(resolved && query.isPending),
       error: (_b = query.error) != null ? _b : null
     };
-  };
-}
-function resolveAlchemyProviderConfig({
-  calls,
-  localPrivateKey,
-  accountAbstractionConfig,
-  chainsById,
-  chainSlugById,
-  getPreferredRpcUrl,
-  apiKeyEnvVar,
-  gasPolicyEnvVar
-}) {
-  var _a;
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-  const chainConfig = getAAChainConfig(
-    accountAbstractionConfig,
-    calls,
-    chainsById
-  );
-  if (!chainConfig) {
-    return null;
-  }
-  const apiKey = readPublicEnv(apiKeyEnvVar);
-  if (!apiKey) {
-    return null;
-  }
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
-  const gasPolicyId = (_a = readPublicEnv(defaultGasPolicyEnvVar(chainConfig.chainId, chainSlugById, gasPolicyEnvVar))) != null ? _a : readPublicEnv(gasPolicyEnvVar);
-  if (chainConfig.sponsorship === "required" && !gasPolicyId) {
-    return null;
-  }
-  return {
-    chainConfig,
-    plan: buildAAExecutionPlan(accountAbstractionConfig, chainConfig),
-    params: {
-      enabled: true,
-      apiKey,
-      chain,
-      rpcUrl: getPreferredRpcUrl(chain),
-      gasPolicyId,
-      mode: chainConfig.defaultMode
-    }
   };
 }
 
 // src/aa/pimlico.ts
-var DEFAULT_PIMLICO_API_KEY_ENV_VAR = "NEXT_PUBLIC_PIMLICO_API_KEY";
-function readPublicEnv2(name) {
-  if (!name) {
-    return void 0;
-  }
-  const value = process.env[name];
-  return (value == null ? void 0 : value.trim()) ? value.trim() : void 0;
-}
 function createPimlicoAAProvider({
   accountAbstractionConfig = DEFAULT_AA_CONFIG,
   usePimlicoAA,
   chainsById,
-  apiKeyEnvVar = DEFAULT_PIMLICO_API_KEY_ENV_VAR,
   rpcUrl
 }) {
   return function usePimlicoAAProvider(calls, localPrivateKey) {
     var _a, _b;
-    const resolved = resolvePimlicoProviderConfig({
+    const resolved = resolvePimlicoConfig({
       calls,
       localPrivateKey,
       accountAbstractionConfig,
       chainsById,
-      apiKeyEnvVar,
-      rpcUrl
+      rpcUrl,
+      publicOnly: true
     });
-    const query = usePimlicoAA(resolved == null ? void 0 : resolved.params);
+    const params = resolved ? {
+      enabled: true,
+      apiKey: resolved.apiKey,
+      chain: resolved.chain,
+      mode: resolved.mode,
+      rpcUrl: resolved.rpcUrl
+    } : void 0;
+    const query = usePimlicoAA(params);
     return {
       plan: (_a = resolved == null ? void 0 : resolved.plan) != null ? _a : null,
       query,
@@ -1505,44 +1658,209 @@ function createPimlicoAAProvider({
     };
   };
 }
-function resolvePimlicoProviderConfig({
-  calls,
-  localPrivateKey,
-  accountAbstractionConfig,
-  chainsById,
-  apiKeyEnvVar,
-  rpcUrl
-}) {
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-  const chainConfig = getAAChainConfig(
-    accountAbstractionConfig,
-    calls,
-    chainsById
-  );
-  if (!chainConfig) {
-    return null;
-  }
-  const apiKey = readPublicEnv2(apiKeyEnvVar);
-  if (!apiKey) {
-    return null;
-  }
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
+
+// src/aa/adapt.ts
+function adaptSmartAccount(account) {
   return {
-    chainConfig,
-    plan: buildAAExecutionPlan(accountAbstractionConfig, chainConfig),
-    params: {
-      enabled: true,
-      apiKey,
-      chain,
-      mode: chainConfig.defaultMode,
-      rpcUrl
+    provider: account.provider,
+    mode: account.mode,
+    AAAddress: account.smartAccountAddress,
+    delegationAddress: account.delegationAddress,
+    sendTransaction: async (call) => {
+      const receipt = await account.sendTransaction(call);
+      return { transactionHash: receipt.transactionHash };
+    },
+    sendBatchTransaction: async (calls) => {
+      const receipt = await account.sendBatchTransaction(calls);
+      return { transactionHash: receipt.transactionHash };
     }
   };
+}
+function isAlchemySponsorshipLimitError(error) {
+  const message = error instanceof Error ? error.message : String(error != null ? error : "");
+  const normalized = message.toLowerCase();
+  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
+}
+
+// src/aa/create.ts
+var import_aa_alchemy = require("@getpara/aa-alchemy");
+var import_aa_pimlico = require("@getpara/aa-pimlico");
+var import_accounts = require("viem/accounts");
+async function createAAProviderState(options) {
+  if (options.provider === "alchemy") {
+    return createAlchemyAAState({
+      chain: options.chain,
+      owner: options.owner,
+      rpcUrl: options.rpcUrl,
+      callList: options.callList,
+      mode: options.mode,
+      apiKey: options.apiKey,
+      gasPolicyId: options.gasPolicyId,
+      sponsored: options.sponsored
+    });
+  }
+  return createPimlicoAAState({
+    chain: options.chain,
+    owner: options.owner,
+    rpcUrl: options.rpcUrl,
+    callList: options.callList,
+    mode: options.mode,
+    apiKey: options.apiKey
+  });
+}
+function getOwnerParams(owner) {
+  if (!owner) {
+    return null;
+  }
+  if ("privateKey" in owner) {
+    return {
+      para: void 0,
+      signer: (0, import_accounts.privateKeyToAccount)(owner.privateKey)
+    };
+  }
+  if ("signer" in owner) {
+    return __spreadValues({
+      para: owner.para,
+      signer: owner.signer
+    }, owner.address ? { address: owner.address } : {});
+  }
+  if ("para" in owner) {
+    return __spreadValues({
+      para: owner.para
+    }, owner.address ? { address: owner.address } : {});
+  }
+  return null;
+}
+function getMissingOwnerState(plan, provider) {
+  return {
+    plan,
+    AA: null,
+    isPending: false,
+    error: new Error(
+      `${provider} AA account creation requires a signer or Para session.`
+    )
+  };
+}
+async function createAlchemyAAState(options) {
+  var _a, _b;
+  const {
+    chain,
+    owner,
+    rpcUrl,
+    callList,
+    mode,
+    sponsored = true
+  } = options;
+  const resolved = resolveAlchemyConfig({
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    modeOverride: mode,
+    throwOnMissingConfig: true,
+    getPreferredRpcUrl: () => rpcUrl,
+    apiKey: options.apiKey,
+    gasPolicyId: options.gasPolicyId
+  });
+  if (!resolved) {
+    throw new Error("Alchemy AA config resolution failed.");
+  }
+  const apiKey = (_a = options.apiKey) != null ? _a : resolved.apiKey;
+  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : readEnv(ALCHEMY_GAS_POLICY_ENVS) : void 0;
+  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
+    sponsorship: gasPolicyId ? resolved.plan.sponsorship : "disabled",
+    fallbackToEoa: false
+  });
+  const ownerParams = getOwnerParams(owner);
+  if (!ownerParams) {
+    return getMissingOwnerState(plan, "alchemy");
+  }
+  try {
+    const smartAccount = await (0, import_aa_alchemy.createAlchemySmartAccount)(__spreadProps(__spreadValues({}, ownerParams), {
+      apiKey,
+      gasPolicyId,
+      chain,
+      rpcUrl,
+      mode: plan.mode
+    }));
+    if (!smartAccount) {
+      return {
+        plan,
+        AA: null,
+        isPending: false,
+        error: new Error("Alchemy AA account could not be initialized.")
+      };
+    }
+    return {
+      plan,
+      AA: adaptSmartAccount(smartAccount),
+      isPending: false,
+      error: null
+    };
+  } catch (error) {
+    return {
+      plan,
+      AA: null,
+      isPending: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+async function createPimlicoAAState(options) {
+  var _a;
+  const {
+    chain,
+    owner,
+    rpcUrl,
+    callList,
+    mode
+  } = options;
+  const resolved = resolvePimlicoConfig({
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    rpcUrl,
+    modeOverride: mode,
+    throwOnMissingConfig: true,
+    apiKey: options.apiKey
+  });
+  if (!resolved) {
+    throw new Error("Pimlico AA config resolution failed.");
+  }
+  const apiKey = (_a = options.apiKey) != null ? _a : resolved.apiKey;
+  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
+    fallbackToEoa: false
+  });
+  const ownerParams = getOwnerParams(owner);
+  if (!ownerParams) {
+    return getMissingOwnerState(plan, "pimlico");
+  }
+  try {
+    const smartAccount = await (0, import_aa_pimlico.createPimlicoSmartAccount)(__spreadProps(__spreadValues({}, ownerParams), {
+      apiKey,
+      chain,
+      rpcUrl,
+      mode: plan.mode
+    }));
+    if (!smartAccount) {
+      return {
+        plan,
+        AA: null,
+        isPending: false,
+        error: new Error("Pimlico AA account could not be initialized.")
+      };
+    }
+    return {
+      plan,
+      AA: adaptSmartAccount(smartAccount),
+      isPending: false,
+      error: null
+    };
+  } catch (error) {
+    return {
+      plan,
+      AA: null,
+      isPending: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
@@ -1550,19 +1868,27 @@ function resolvePimlicoProviderConfig({
   DEFAULT_AA_CONFIG,
   Session,
   TypedEventEmitter,
+  adaptSmartAccount,
   buildAAExecutionPlan,
+  createAAProviderState,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,
+  isAlchemySponsorshipLimitError,
   isAsyncCallback,
   isInlineCall,
+  isProviderConfigured,
   isSystemError,
   isSystemNotice,
   normalizeEip712Payload,
   normalizeTxPayload,
   parseAAConfig,
+  readEnv,
+  resolveAlchemyConfig,
+  resolveDefaultProvider,
+  resolvePimlicoConfig,
   unwrapSystemEvent
 });
 //# sourceMappingURL=index.cjs.map

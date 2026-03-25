@@ -87,6 +87,7 @@ export {
 // ---------------------------------------------------------------------------
 
 export {
+  type CreateAAOwner,
   type CreateAAProviderStateOptions,
   createAAProviderState,
 } from "./create";
