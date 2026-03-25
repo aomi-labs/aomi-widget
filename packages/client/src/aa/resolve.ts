@@ -36,6 +36,12 @@ export interface AlchemyResolveOptions {
   modeOverride?: AAExecutionMode;
   publicOnly?: boolean;
   throwOnMissingConfig?: boolean;
+  /**
+   * Pre-resolved API key. Use this in Next.js client-side code where
+   * dynamic `process.env[name]` access doesn't work.
+   */
+  apiKey?: string;
+  gasPolicyId?: string;
 }
 
 export interface AlchemyResolvedConfig {
@@ -61,6 +67,8 @@ export function resolveAlchemyConfig(
     modeOverride,
     publicOnly = false,
     throwOnMissingConfig = false,
+    apiKey: preResolvedApiKey,
+    gasPolicyId: preResolvedGasPolicyId,
   } = options;
 
   if (!calls || localPrivateKey) {
@@ -83,7 +91,7 @@ export function resolveAlchemyConfig(
     return null;
   }
 
-  const apiKey = readEnv(ALCHEMY_API_KEY_ENVS, { publicOnly });
+  const apiKey = preResolvedApiKey ?? readEnv(ALCHEMY_API_KEY_ENVS, { publicOnly });
   if (!apiKey) {
     if (throwOnMissingConfig) {
       throw new Error("Alchemy AA requires ALCHEMY_API_KEY.");
@@ -96,12 +104,13 @@ export function resolveAlchemyConfig(
     return null;
   }
 
-  const gasPolicyId = readGasPolicyEnv(
-    chainConfig.chainId,
-    chainSlugById,
-    ALCHEMY_GAS_POLICY_ENVS,
-    { publicOnly },
-  );
+  const gasPolicyId = preResolvedGasPolicyId
+    ?? readGasPolicyEnv(
+      chainConfig.chainId,
+      chainSlugById,
+      ALCHEMY_GAS_POLICY_ENVS,
+      { publicOnly },
+    );
 
   if (chainConfig.sponsorship === "required" && !gasPolicyId) {
     if (throwOnMissingConfig) {
@@ -151,6 +160,11 @@ export interface PimlicoResolveOptions {
   modeOverride?: AAExecutionMode;
   publicOnly?: boolean;
   throwOnMissingConfig?: boolean;
+  /**
+   * Pre-resolved API key. Use this in Next.js client-side code where
+   * dynamic `process.env[name]` access doesn't work.
+   */
+  apiKey?: string;
 }
 
 export interface PimlicoResolvedConfig {
@@ -174,6 +188,7 @@ export function resolvePimlicoConfig(
     modeOverride,
     publicOnly = false,
     throwOnMissingConfig = false,
+    apiKey: preResolvedApiKey,
   } = options;
 
   if (!calls || localPrivateKey) {
@@ -196,7 +211,7 @@ export function resolvePimlicoConfig(
     return null;
   }
 
-  const apiKey = readEnv(PIMLICO_API_KEY_ENVS, { publicOnly });
+  const apiKey = preResolvedApiKey ?? readEnv(PIMLICO_API_KEY_ENVS, { publicOnly });
   if (!apiKey) {
     if (throwOnMissingConfig) {
       throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
