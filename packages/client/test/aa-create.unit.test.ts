@@ -63,7 +63,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      owner: { privateKey: PRIVATE_KEY },
+      owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
@@ -107,7 +107,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      owner: { privateKey: PRIVATE_KEY },
+      owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "4337",
@@ -138,7 +138,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "pimlico",
       chain: polygon,
-      owner: { privateKey: PRIVATE_KEY },
+      owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...POLYGON_CALLS],
       mode: "4337",
@@ -171,7 +171,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      owner: { privateKey: PRIVATE_KEY },
+      owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
@@ -191,7 +191,7 @@ describe("createAAProviderState", () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
-      owner: { privateKey: PRIVATE_KEY },
+      owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
@@ -222,7 +222,12 @@ describe("createAAProviderState owner modes", () => {
 
     const state = await createAAProviderState({
       provider: "alchemy",
-      owner: { para: PARA, address: "0x1234567890123456789012345678901234567890" },
+      owner: {
+        kind: "session",
+        adapter: "para",
+        session: PARA,
+        address: "0x1234567890123456789012345678901234567890",
+      },
       chain: mainnet,
       callList: [...CALL_LIST],
       rpcUrl: "https://example-rpc.invalid",
@@ -259,7 +264,12 @@ describe("createAAProviderState owner modes", () => {
 
     const state = await createAAProviderState({
       provider: "pimlico",
-      owner: { signer: SIGNER },
+      owner: {
+        kind: "session",
+        adapter: "para",
+        session: PARA,
+        signer: SIGNER,
+      },
       chain: polygon,
       callList: [...POLYGON_CALLS],
       rpcUrl: "https://example-rpc.invalid",
@@ -281,5 +291,27 @@ describe("createAAProviderState owner modes", () => {
       mode: "4337",
       AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
+  });
+
+  it("returns a stable error state for unsupported session adapters", async () => {
+    const state = await createAAProviderState({
+      provider: "alchemy",
+      owner: {
+        kind: "session",
+        adapter: "privy",
+        session: { id: "privy-session" },
+      },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+      rpcUrl: "https://example-rpc.invalid",
+      apiKey: "alchemy-key",
+      gasPolicyId: "policy-1",
+      mode: "4337",
+    });
+
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
+    expect(state.AA).toBeNull();
+    expect(state.error).toBeInstanceOf(Error);
+    expect(state.error!.message).toBe('Session adapter "privy" is not implemented.');
   });
 });

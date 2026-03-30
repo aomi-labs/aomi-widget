@@ -1650,28 +1650,50 @@ async function createAAProviderState(options) {
     apiKey: options.apiKey
   });
 }
-function getOwnerParams(owner) {
-  if (!owner) {
-    return null;
-  }
-  if ("privateKey" in owner) {
-    return {
+function getDirectOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
       para: void 0,
       signer: privateKeyToAccount(owner.privateKey)
+    }
+  };
+}
+function getParaSessionOwnerParams(owner) {
+  if (owner.signer) {
+    return {
+      kind: "ready",
+      ownerParams: __spreadValues({
+        para: owner.session,
+        signer: owner.signer
+      }, owner.address ? { address: owner.address } : {})
     };
   }
-  if ("signer" in owner) {
-    return __spreadValues({
-      para: owner.para,
-      signer: owner.signer
-    }, owner.address ? { address: owner.address } : {});
+  return {
+    kind: "ready",
+    ownerParams: __spreadValues({
+      para: owner.session
+    }, owner.address ? { address: owner.address } : {})
+  };
+}
+function getSessionOwnerParams(owner) {
+  switch (owner.adapter) {
+    case "para":
+      return getParaSessionOwnerParams(owner);
+    default:
+      return { kind: "unsupported_adapter", adapter: owner.adapter };
   }
-  if ("para" in owner) {
-    return __spreadValues({
-      para: owner.para
-    }, owner.address ? { address: owner.address } : {});
+}
+function getOwnerParams(owner) {
+  if (!owner) {
+    return { kind: "missing" };
   }
-  return null;
+  switch (owner.kind) {
+    case "direct":
+      return getDirectOwnerParams(owner);
+    case "session":
+      return getSessionOwnerParams(owner);
+  }
 }
 function getMissingOwnerState(plan, provider) {
   return {
@@ -1679,8 +1701,16 @@ function getMissingOwnerState(plan, provider) {
     AA: null,
     isPending: false,
     error: new Error(
-      `${provider} AA account creation requires a signer or Para session.`
+      `${provider} AA account creation requires a direct owner or a supported session owner.`
     )
+  };
+}
+function getUnsupportedAdapterState(plan, adapter) {
+  return {
+    plan,
+    AA: null,
+    isPending: false,
+    error: new Error(`Session adapter "${adapter}" is not implemented.`)
   };
 }
 async function createAlchemyAAState(options) {
@@ -1712,11 +1742,14 @@ async function createAlchemyAAState(options) {
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
-  if (!ownerParams) {
+  if (ownerParams.kind === "missing") {
     return getMissingOwnerState(plan, "alchemy");
   }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
+  }
   try {
-    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams), {
+    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
       gasPolicyId,
       chain,
@@ -1771,11 +1804,14 @@ async function createPimlicoAAState(options) {
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
-  if (!ownerParams) {
+  if (ownerParams.kind === "missing") {
     return getMissingOwnerState(plan, "pimlico");
   }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
+  }
   try {
-    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams), {
+    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
       chain,
       rpcUrl,

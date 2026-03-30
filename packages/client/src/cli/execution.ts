@@ -99,7 +99,7 @@ export async function createCliProviderState(params: {
   return createAAProviderState({
     provider: decision.provider,
     chain,
-    owner: { privateKey },
+    owner: { kind: "direct", privateKey },
     rpcUrl,
     callList,
     mode: decision.aaMode,
