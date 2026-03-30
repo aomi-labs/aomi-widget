@@ -20,30 +20,35 @@ import type { AAProvider } from "./env";
 // ---------------------------------------------------------------------------
 // CreateAAOwner
 // 
-//   { privateKey }
+//   { kind: "direct", privateKey }
 
 //   - This is local key signing.
 //   - The client converts the raw private key into a viem account internally.
 //   - Best for CLI/server flows where you already have the key material.
 
-//   { signer, address? }
+//   { kind: "session", adapter, session, signer?, address? }
 
-//   - This is external signer signing.
-//   - signer is a wallet/account object that can sign on behalf of the owner, such as a wagmi/viem wallet client or local account.
-//   - address is optional because some signer objects already expose their address, but passing it can make ownership explicit.
-//   - This is the right shape for an injected wallet / WalletConnect / non-Para wallet in the mini app.
-
-//   { para, address? }
-
-//   - This is Para-managed signing.
-//   - para is the Para client/session object, and the AA SDK uses that session to sign.
-//   - address identifies which EVM wallet/account inside that Para session should own the smart account.
-//   - This is the right shape when the user is using the Para wallet path in the mini app.
+//   - This is provider-managed signing.
+//   - session is the provider client/session object used to resolve an owner.
+//   - signer is optional and can represent an already-resolved signer inside that
+//     provider context, such as an external wallet.
+//   - address identifies which wallet inside the provider session should own the
+//     smart account.
 // -------------------------------------------------------------------------
 export type CreateAAOwner =
-  | { privateKey: `0x${string}` }
-  | { signer: unknown; para: unknown; address?: Hex }
-  | { para: unknown; address?: Hex };
+  | {
+      kind: "direct";
+      privateKey: `0x${string}`;
+    }
+  | {
+      kind: "session";
+      // Future adapters such as Privy can be added later. Only "para" is
+      // implemented today.
+      adapter: string;
+      session: unknown;
+      signer?: unknown;
+      address?: Hex;
+    };
 
 export interface CreateAAProviderStateOptions {
   provider: AAProvider;
@@ -113,34 +118,80 @@ export async function createAAProviderState(
   });
 }
 
-function getOwnerParams(owner: CreateAAOwner | undefined) {
-  if (!owner) {
-    return null;
-  }
+type DirectOwner = Extract<CreateAAOwner, { kind: "direct" }>;
+type SessionOwner = Extract<CreateAAOwner, { kind: "session" }>;
 
-  if ("privateKey" in owner) {
-    return {
+type SDKOwnerParams =
+  | {
+      para: never;
+      signer: ReturnType<typeof privateKeyToAccount>;
+    }
+  | {
+      para: never;
+      signer: never;
+      address?: Hex;
+    }
+  | {
+      para: never;
+      address?: Hex;
+    };
+
+type ResolvedOwnerParams =
+  | { kind: "ready"; ownerParams: SDKOwnerParams }
+  | { kind: "missing" }
+  | { kind: "unsupported_adapter"; adapter: string };
+
+function getDirectOwnerParams(owner: DirectOwner): ResolvedOwnerParams {
+  return {
+    kind: "ready",
+    ownerParams: {
       para: undefined as never,
       signer: privateKeyToAccount(owner.privateKey),
-    };
-  }
+    },
+  };
+}
 
-  if ("signer" in owner) {
+function getParaSessionOwnerParams(owner: SessionOwner): ResolvedOwnerParams {
+  if (owner.signer) {
     return {
-      para: owner.para as never,
-      signer: owner.signer as never,
-      ...(owner.address ? { address: owner.address } : {}),
+      kind: "ready",
+      ownerParams: {
+        para: owner.session as never,
+        signer: owner.signer as never,
+        ...(owner.address ? { address: owner.address } : {}),
+      },
     };
   }
 
-  if ("para" in owner) {
-    return {
-      para: owner.para as never,
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: owner.session as never,
       ...(owner.address ? { address: owner.address } : {}),
-    };
+    },
+  };
+}
+
+function getSessionOwnerParams(owner: SessionOwner): ResolvedOwnerParams {
+  switch (owner.adapter) {
+    case "para":
+      return getParaSessionOwnerParams(owner);
+    default:
+      return { kind: "unsupported_adapter", adapter: owner.adapter };
+  }
+}
+
+function getOwnerParams(owner: CreateAAOwner | undefined): ResolvedOwnerParams {
+  if (!owner) {
+    return { kind: "missing" };
   }
 
-  return null;
+  switch (owner.kind) {
+    case "direct":
+      return getDirectOwnerParams(owner);
+    case "session":
+      return getSessionOwnerParams(owner);
+  }
 }
 
 function getMissingOwnerState(
@@ -152,8 +203,20 @@ function getMissingOwnerState(
     AA: null,
     isPending: false,
     error: new Error(
-      `${provider} AA account creation requires a signer or Para session.`,
+      `${provider} AA account creation requires a direct owner or a supported session owner.`,
     ),
+  };
+}
+
+function getUnsupportedAdapterState(
+  plan: AAProviderState["plan"],
+  adapter: string,
+): AAProviderState {
+  return {
+    plan,
+    AA: null,
+    isPending: false,
+    error: new Error(`Session adapter "${adapter}" is not implemented.`),
   };
 }
 
@@ -199,13 +262,16 @@ async function createAlchemyAAState(
   } as AAProviderState["plan"];
 
   const ownerParams = getOwnerParams(owner);
-  if (!ownerParams) {
+  if (ownerParams.kind === "missing") {
     return getMissingOwnerState(plan, "alchemy");
+  }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
   }
 
   try {
     const smartAccount = await createAlchemySmartAccount({
-      ...ownerParams,
+      ...ownerParams.ownerParams,
       apiKey,
       gasPolicyId,
       chain,
@@ -273,13 +339,16 @@ async function createPimlicoAAState(
   } as AAProviderState["plan"];
 
   const ownerParams = getOwnerParams(owner);
-  if (!ownerParams) {
+  if (ownerParams.kind === "missing") {
     return getMissingOwnerState(plan, "pimlico");
+  }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
   }
 
   try {
     const smartAccount = await createPimlicoSmartAccount({
-      ...ownerParams,
+      ...ownerParams.ownerParams,
       apiKey,
       chain,
       rpcUrl,

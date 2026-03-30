@@ -687,13 +687,13 @@ interface PimlicoResolvedConfig {
 declare function resolvePimlicoConfig(options: PimlicoResolveOptions): PimlicoResolvedConfig | null;
 
 type CreateAAOwner = {
+    kind: "direct";
     privateKey: `0x${string}`;
 } | {
-    signer: unknown;
-    para: unknown;
-    address?: Hex;
-} | {
-    para: unknown;
+    kind: "session";
+    adapter: string;
+    session: unknown;
+    signer?: unknown;
     address?: Hex;
 };
 interface CreateAAProviderStateOptions {
