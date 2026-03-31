@@ -34,7 +34,7 @@ Usage:
                         Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
-  aomi sign <tx-id> [<tx-id> ...] [--aa | --eoa] [--aa-provider <name>] [--aa-mode <mode>]
+  aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
                         Sign and submit a pending transaction
   aomi status           Show current session state
   aomi events           List system events
@@ -51,14 +51,19 @@ Options:
   --verbose, -v         Show tool calls and streaming output (for chat)
 
 Sign options:
-  aomi sign <tx-id> --aa
-                        Require account-abstraction execution (default)
   aomi sign <tx-id> --eoa
                         Force plain EOA execution
+  aomi sign <tx-id> --aa
+                        Require account-abstraction execution with no EOA fallback
   aomi sign <tx-id> --aa-provider <name>
                         AA provider: alchemy | pimlico
   aomi sign <tx-id> --aa-mode <mode>
                         AA mode: 4337 | 7702
+
+Default signing behavior:
+  aomi sign <tx-id>
+                        Try AA first, retry unsponsored AA when supported, then
+                        fall back to EOA automatically if AA is unavailable
 
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL

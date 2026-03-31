@@ -70,22 +70,24 @@ ${list}`);
 function resolveExecutionMode(flags) {
   const flagAA = flags["aa"] === "true";
   const flagEoa = flags["eoa"] === "true";
+  const hasAASelection = flags["aa-provider"] !== void 0 || flags["aa-mode"] !== void 0;
   if (flagAA && flagEoa) {
     fatal("Choose only one of `--aa` or `--eoa`.");
   }
   if (flagAA) return "aa";
   if (flagEoa) return "eoa";
-  return "aa";
+  if (hasAASelection) return "aa";
+  return "auto";
 }
 function parseAAProvider(value) {
-  if (value === void 0) return void 0;
+  if (value === void 0 || value.trim() === "") return void 0;
   if (value === "alchemy" || value === "pimlico") {
     return value;
   }
   fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
 }
 function parseAAMode(value) {
-  if (value === void 0) return void 0;
+  if (value === void 0 || value.trim() === "") return void 0;
   if (value === "4337" || value === "7702") {
     return value;
   }
@@ -1136,6 +1138,7 @@ function unwrapSystemEvent(event) {
 }
 
 // src/wallet-utils.ts
+import { getAddress } from "viem";
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return void 0;
@@ -1159,12 +1162,25 @@ function parseChainId2(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function normalizeAddress(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    return getAddress(trimmed);
+  } catch (e) {
+    if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+      return getAddress(trimmed.toLowerCase());
+    }
+    return void 0;
+  }
+}
 function normalizeTxPayload(payload) {
   var _a3, _b, _c;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
-  const to = typeof args.to === "string" ? args.to : void 0;
+  const to = normalizeAddress(args.to);
   if (!to) return null;
   const valueRaw = args.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
@@ -1570,6 +1586,22 @@ var ClientSession = class extends TypedEventEmitter {
   }
 };
 
+// src/cli/user-state.ts
+function buildCliUserState(publicKey, chainId) {
+  if (publicKey === void 0 && chainId === void 0) {
+    return void 0;
+  }
+  const userState = {};
+  if (publicKey !== void 0) {
+    userState.address = publicKey;
+    userState.isConnected = true;
+  }
+  if (chainId !== void 0) {
+    userState.chainId = chainId;
+  }
+  return userState;
+}
+
 // src/cli/context.ts
 function getOrCreateSession(runtime) {
   const { config } = runtime;
@@ -1617,8 +1649,9 @@ function getOrCreateSession(runtime) {
       publicKey: state.publicKey
     }
   );
-  if (state.publicKey) {
-    session.resolveWallet(state.publicKey, state.chainId);
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
   }
   return { session, state };
 }
@@ -1749,8 +1782,9 @@ async function chatCommand(runtime) {
   const { session, state } = getOrCreateSession(runtime);
   try {
     await applyRequestedModelIfPresent(runtime, session, state);
-    if (state.publicKey) {
-      session.resolveWallet(state.publicKey, state.chainId);
+    const userState = buildCliUserState(state.publicKey, state.chainId);
+    if (userState) {
+      session.resolveUserState(userState);
     }
     const capturedRequests = [];
     let printedAgentCount = 0;
@@ -2130,7 +2164,7 @@ async function executeViaEoa({
 
 // src/cli/commands/control.ts
 async function statusCommand(runtime) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   if (!readState()) {
     console.log("No active session");
     printDataFileLocation();
@@ -2146,11 +2180,12 @@ async function statusCommand(runtime) {
           baseUrl: state.baseUrl,
           app: state.app,
           model: (_a3 = state.model) != null ? _a3 : null,
-          isProcessing: (_b = apiState.is_processing) != null ? _b : false,
-          messageCount: (_d = (_c = apiState.messages) == null ? void 0 : _c.length) != null ? _d : 0,
-          title: (_e = apiState.title) != null ? _e : null,
-          pendingTxs: (_g = (_f = state.pendingTxs) == null ? void 0 : _f.length) != null ? _g : 0,
-          signedTxs: (_i = (_h = state.signedTxs) == null ? void 0 : _h.length) != null ? _i : 0
+          chainId: (_b = state.chainId) != null ? _b : null,
+          isProcessing: (_c = apiState.is_processing) != null ? _c : false,
+          messageCount: (_e = (_d = apiState.messages) == null ? void 0 : _d.length) != null ? _e : 0,
+          title: (_f = apiState.title) != null ? _f : null,
+          pendingTxs: (_h = (_g = state.pendingTxs) == null ? void 0 : _g.length) != null ? _h : 0,
+          signedTxs: (_j = (_i = state.signedTxs) == null ? void 0 : _i.length) != null ? _j : 0
         },
         null,
         2
@@ -2604,7 +2639,6 @@ async function sessionCommand(runtime) {
 
 // src/cli/commands/wallet.ts
 import { createWalletClient, http } from "viem";
-import { createInterface } from "readline/promises";
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 
@@ -3034,23 +3068,31 @@ async function createPimlicoAAState(options) {
 }
 
 // src/cli/execution.ts
-function resolveAAProvider(config) {
-  var _a3;
-  const provider = (_a3 = config.aaProvider) != null ? _a3 : resolveDefaultProvider();
-  if (!isProviderConfigured(provider)) {
+function resolveAAProvider(config, options) {
+  const provider = config.aaProvider;
+  if (provider) {
+    if (isProviderConfigured(provider)) {
+      return provider;
+    }
+    if (!options.required) {
+      return null;
+    }
     const envName = provider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
     throw new Error(
       `AA provider "${provider}" is selected but ${envName} is not configured.`
     );
   }
-  return provider;
-}
-function resolveCliExecutionDecision(params) {
-  const { config, chain, callList } = params;
-  if (config.execution === "eoa") {
-    return { execution: "eoa" };
+  try {
+    return resolveDefaultProvider();
+  } catch (error) {
+    if (!options.required) {
+      return null;
+    }
+    throw error;
   }
-  const provider = resolveAAProvider(config);
+}
+function getResolvedAAMode(params) {
+  const { provider, config, chain, callList, fallbackToEoa } = params;
   const resolveOpts = {
     calls: callList,
     chainsById: { [chain.id]: chain },
@@ -3064,8 +3106,34 @@ function resolveCliExecutionDecision(params) {
   return {
     execution: "aa",
     provider,
-    aaMode: resolved.plan.mode
+    aaMode: resolved.plan.mode,
+    fallbackToEoa
   };
+}
+function resolveCliExecutionDecision(params) {
+  const { config, chain, callList } = params;
+  if (config.execution === "eoa") {
+    return { execution: "eoa" };
+  }
+  const requireAA = config.execution === "aa";
+  const provider = resolveAAProvider(config, { required: requireAA });
+  if (!provider) {
+    return { execution: "eoa" };
+  }
+  try {
+    return getResolvedAAMode({
+      provider,
+      config,
+      chain,
+      callList,
+      fallbackToEoa: !requireAA
+    });
+  } catch (error) {
+    if (!requireAA) {
+      return { execution: "eoa" };
+    }
+    throw error;
+  }
 }
 async function createCliProviderState(params) {
   const { decision, chain, privateKey, rpcUrl, callList, sponsored } = params;
@@ -3086,7 +3154,7 @@ function describeExecutionDecision(decision) {
   if (decision.execution === "eoa") {
     return "eoa";
   }
-  return `aa (${decision.provider}, ${decision.aaMode})`;
+  return decision.fallbackToEoa ? `aa (${decision.provider}, ${decision.aaMode}; fallback: eoa)` : `aa (${decision.provider}, ${decision.aaMode})`;
 }
 
 // src/cli/commands/wallet.ts
@@ -3170,8 +3238,9 @@ function createSessionFromState(state) {
       publicKey: state.publicKey
     }
   );
-  if (state.publicKey) {
-    session.resolveWallet(state.publicKey, state.chainId);
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
   }
   return session;
 }
@@ -3203,24 +3272,6 @@ function resolveChain(targetChainId, rpcUrl) {
 function getPreferredRpcUrl(chain, override) {
   var _a3, _b, _c;
   return (_c = (_b = override != null ? override : chain.rpcUrls.default.http[0]) != null ? _b : (_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) != null ? _c : "";
-}
-async function promptForEoaFallback() {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    return false;
-  }
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-  try {
-    const answer = await rl.question(
-      "Account abstraction not available, use EOA? [yes/no] "
-    );
-    const normalized = answer.trim().toLowerCase();
-    return normalized === "y" || normalized === "yes";
-  } finally {
-    rl.close();
-  }
 }
 async function executeCliTransaction(params) {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
@@ -3297,11 +3348,12 @@ async function executeTransactionWithFallback(params) {
         error = retryError;
       }
     }
-    const useEoa = await promptForEoaFallback();
-    if (!useEoa) {
+    if (!decision.fallbackToEoa) {
       throw error;
     }
     const eoaDecision = { execution: "eoa" };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`AA execution failed: ${errorMessage}`);
     console.log("Retrying with EOA execution...");
     const eoaProviderState = await createCliProviderState({
       decision: eoaDecision,
@@ -3529,7 +3581,7 @@ Usage:
                         Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
-  aomi sign <tx-id> [<tx-id> ...] [--aa | --eoa] [--aa-provider <name>] [--aa-mode <mode>]
+  aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
                         Sign and submit a pending transaction
   aomi status           Show current session state
   aomi events           List system events
@@ -3546,14 +3598,19 @@ Options:
   --verbose, -v         Show tool calls and streaming output (for chat)
 
 Sign options:
-  aomi sign <tx-id> --aa
-                        Require account-abstraction execution (default)
   aomi sign <tx-id> --eoa
                         Force plain EOA execution
+  aomi sign <tx-id> --aa
+                        Require account-abstraction execution with no EOA fallback
   aomi sign <tx-id> --aa-provider <name>
                         AA provider: alchemy | pimlico
   aomi sign <tx-id> --aa-mode <mode>
                         AA mode: 4337 | 7702
+
+Default signing behavior:
+  aomi sign <tx-id>
+                        Try AA first, retry unsponsored AA when supported, then
+                        fall back to EOA automatically if AA is unavailable
 
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
