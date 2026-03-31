@@ -24,6 +24,7 @@ export async function statusCommand(runtime: CliRuntime): Promise<void> {
           baseUrl: state.baseUrl,
           app: state.app,
           model: state.model ?? null,
+          chainId: state.chainId ?? null,
           isProcessing: apiState.is_processing ?? false,
           messageCount: apiState.messages?.length ?? 0,
           title: apiState.title ?? null,

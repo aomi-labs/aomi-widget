@@ -1,5 +1,4 @@
 import { type Chain, createWalletClient, http } from "viem";
-import { createInterface } from "node:readline/promises";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
@@ -23,6 +22,7 @@ import {
   writeState,
   type CliSessionState,
 } from "../state";
+import { buildCliUserState } from "../user-state";
 import {
   formatSignedTxLine,
   formatTxLine,
@@ -133,8 +133,9 @@ function createSessionFromState(state: CliSessionState): ClientSession {
     },
   );
 
-  if (state.publicKey) {
-    session.resolveWallet(state.publicKey, state.chainId);
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
   }
 
   return session;
@@ -185,27 +186,6 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
     chain.rpcUrls.public?.http[0] ??
     ""
   );
-}
-
-async function promptForEoaFallback(): Promise<boolean> {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    return false;
-  }
-
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  try {
-    const answer = await rl.question(
-      "Account abstraction not available, use EOA? [yes/no] ",
-    );
-    const normalized = answer.trim().toLowerCase();
-    return normalized === "y" || normalized === "yes";
-  } finally {
-    rl.close();
-  }
 }
 
 async function executeCliTransaction(params: {
@@ -316,12 +296,13 @@ async function executeTransactionWithFallback(params: {
       }
     }
 
-    const useEoa = await promptForEoaFallback();
-    if (!useEoa) {
+    if (!decision.fallbackToEoa) {
       throw error;
     }
 
     const eoaDecision = { execution: "eoa" } as const;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`AA execution failed: ${errorMessage}`);
     console.log("Retrying with EOA execution...");
     const eoaProviderState = await createCliProviderState({
       decision: eoaDecision,
