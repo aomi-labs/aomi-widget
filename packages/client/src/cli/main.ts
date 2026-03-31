@@ -1,13 +1,14 @@
 import { createRuntime } from "./args";
 import { chatCommand } from "./commands/chat";
 import {
+  appCommand,
+  chainCommand,
   eventsCommand,
   modelCommand,
-  modelsCommand,
   statusCommand,
 } from "./commands/control";
 import { closeCommand, logCommand } from "./commands/history";
-import { sessionCommand, sessionsCommand } from "./commands/sessions";
+import { sessionCommand } from "./commands/sessions";
 import { signCommand, txCommand } from "./commands/wallet";
 import { CliExit } from "./errors";
 import type { CliRuntime } from "./types";
@@ -21,9 +22,12 @@ Usage:
   aomi chat --model <rig>
                         Set the session model before sending the message
   aomi chat --verbose   Stream agent responses, tool calls, and events live
-  aomi models           List models available to the current backend
+  aomi app list         List available apps
+  aomi app current      Show the current app
+  aomi model list       List models available to the current backend
   aomi model set <rig>  Set the active model for the current session
-  aomi sessions         List local sessions with metadata tables
+  aomi chain list       List supported chains
+  aomi session list     List local sessions with metadata
   aomi session resume <id>
                         Resume a local session (session-id or session-N)
   aomi session delete <id>
@@ -87,17 +91,17 @@ async function main(runtime: CliRuntime): Promise<void> {
     case "log":
       await logCommand(runtime);
       break;
-    case "models":
-      await modelsCommand(runtime);
+    case "app":
+      await appCommand(runtime);
       break;
     case "model":
       await modelCommand(runtime);
       break;
-    case "sessions":
-      await sessionsCommand(runtime);
+    case "chain":
+      chainCommand(runtime);
       break;
     case "session":
-      sessionCommand(runtime);
+      await sessionCommand(runtime);
       break;
     case "tx":
       txCommand();
