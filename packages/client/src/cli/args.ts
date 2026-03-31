@@ -8,9 +8,9 @@ import type {
 } from "./types";
 import { fatal } from "./errors";
 
-const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111] as const;
+export const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111] as const;
 
-const CHAIN_NAMES: Record<number, string> = {
+export const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
   137: "Polygon",
   42161: "Arbitrum One",
