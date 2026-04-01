@@ -37,6 +37,7 @@ describe("User API", () => {
         address: undefined,
         chainId: undefined,
         ensName: undefined,
+        ext: undefined,
       });
     });
 
@@ -56,6 +57,7 @@ describe("User API", () => {
         chainId: 1,
         isConnected: true,
         ensName: undefined,
+        ext: undefined,
       });
     });
   });
@@ -96,6 +98,7 @@ describe("User API", () => {
         chainId: 137,
         isConnected: true,
         ensName: "user.eth",
+        ext: undefined,
       });
     });
 
@@ -127,6 +130,35 @@ describe("User API", () => {
       const messageJson = JSON.parse(call[1]);
       expect(messageJson.type).toBe("wallet:state_changed");
       expect(messageJson.payload.address).toBe("0x789");
+      expect(messageJson.payload.ext).toBeUndefined();
+    });
+  });
+
+  describe("ext helpers", () => {
+    it("adds and removes ext values without manual deep merge", async () => {
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.addExtValue("SIMMER_API_KEY", "sk_123");
+        api.addExtValue("PARA_API_KEY", "para_123");
+      });
+
+      expect(getApi().user.ext).toEqual({
+        SIMMER_API_KEY: "sk_123",
+        PARA_API_KEY: "para_123",
+      });
+
+      await act(async () => {
+        api.removeExtValue("PARA_API_KEY");
+      });
+      expect(getApi().user.ext).toEqual({
+        SIMMER_API_KEY: "sk_123",
+      });
+
+      await act(async () => {
+        api.removeExtValue("SIMMER_API_KEY");
+      });
+      expect(getApi().user.ext).toBeUndefined();
     });
   });
 
