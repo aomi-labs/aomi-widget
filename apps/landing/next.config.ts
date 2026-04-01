@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
+    "@getpara/react-core",
     "@getpara/react-sdk",
   ],
   webpack: (config) => {
@@ -19,6 +20,7 @@ const nextConfig: NextConfig = {
     const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
     const docsSrc = path.resolve(__dirname);
     const landingSrc = path.resolve(__dirname, "src");
+    const landingNodeModules = path.resolve(__dirname, "node_modules");
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       "@/.source": path.join(docsSrc, ".source"),
@@ -29,6 +31,20 @@ const nextConfig: NextConfig = {
       "@/components": path.join(landingSrc, "components"),
       "@/hooks": path.join(landingSrc, "hooks"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
+      "@getpara/react-core": path.join(
+        landingNodeModules,
+        "@getpara/react-core",
+      ),
+      "@getpara/react-sdk": path.join(
+        landingNodeModules,
+        "@getpara/react-sdk",
+      ),
+      "@tanstack/react-query": path.join(
+        landingNodeModules,
+        "@tanstack/react-query",
+      ),
+      viem: path.join(landingNodeModules, "viem"),
+      wagmi: path.join(landingNodeModules, "wagmi"),
     };
     return config;
   },

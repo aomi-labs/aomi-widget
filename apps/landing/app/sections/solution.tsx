@@ -7,7 +7,7 @@ export function Solution() {
     const loadUnicornStudio = () => {
       if (typeof window === "undefined") return;
 
-      if ((window as any).UnicornStudio) {
+      if (typeof (window as any).UnicornStudio?.init === "function") {
         (window as any).UnicornStudio.init();
         return;
       }

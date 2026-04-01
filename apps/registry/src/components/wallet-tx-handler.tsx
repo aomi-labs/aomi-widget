@@ -40,10 +40,40 @@ export function WalletTxHandler() {
     resolveWalletRequest,
     rejectWalletRequest,
   } = useAomiRuntime();
-  const { sendTransactionAsync } = useSendTransaction();
-  const { signTypedDataAsync } = useSignTypedData();
-  const { chainId: currentChainId } = useAccount();
-  const { switchChainAsync } = useSwitchChain();
+  let sendTransactionAsync:
+    | ReturnType<typeof useSendTransaction>["sendTransactionAsync"]
+    | undefined;
+  let signTypedDataAsync:
+    | ReturnType<typeof useSignTypedData>["signTypedDataAsync"]
+    | undefined;
+  let currentChainId: number | undefined;
+  let switchChainAsync:
+    | ReturnType<typeof useSwitchChain>["switchChainAsync"]
+    | undefined;
+
+  try {
+    sendTransactionAsync = useSendTransaction().sendTransactionAsync;
+  } catch {
+    sendTransactionAsync = undefined;
+  }
+
+  try {
+    signTypedDataAsync = useSignTypedData().signTypedDataAsync;
+  } catch {
+    signTypedDataAsync = undefined;
+  }
+
+  try {
+    currentChainId = useAccount().chainId;
+  } catch {
+    currentChainId = undefined;
+  }
+
+  try {
+    switchChainAsync = useSwitchChain().switchChainAsync;
+  } catch {
+    switchChainAsync = undefined;
+  }
   const processingRef = useRef(false);
 
   useEffect(() => {
@@ -62,6 +92,11 @@ export function WalletTxHandler() {
       try {
         if (req.kind === "transaction") {
           const payload = req.payload as WalletTxPayload;
+
+          if (!sendTransactionAsync || !switchChainAsync) {
+            rejectWalletRequest(req.id, "Wallet provider is not ready");
+            return;
+          }
 
           if (payload.chainId && payload.chainId !== currentChainId) {
             await switchChainAsync({ chainId: payload.chainId });
@@ -86,6 +121,11 @@ export function WalletTxHandler() {
 
           if (!signArgs) {
             rejectWalletRequest(req.id, "Missing typed_data payload");
+            return;
+          }
+
+          if (!signTypedDataAsync || !switchChainAsync) {
+            rejectWalletRequest(req.id, "Wallet provider is not ready");
             return;
           }
 

@@ -55,6 +55,7 @@ export const registry: RegistryComponent[] = [
     ],
     dependencies: [
       "@aomi-labs/react",
+      "@getpara/react-core",
       "@getpara/react-sdk",
       "wagmi",
       "lucide-react",
