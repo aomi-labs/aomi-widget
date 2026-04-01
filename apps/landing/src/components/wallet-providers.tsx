@@ -1,48 +1,120 @@
 "use client";
 
-import { createAppKit, AppKitProvider } from "@reown/appkit/react";
-import { Config, WagmiProvider, cookieToInitialState } from "wagmi";
-import type { ReactNode } from "react";
+import "@getpara/react-sdk/styles.css";
+import { ParaProvider } from "@getpara/react-sdk";
+import { useEffect, useState, type ReactNode } from "react";
+import { useAccount, useSwitchChain } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { appKitProviderConfig, wagmiAdapter } from "./config";
+import {
+  LOCALHOST_CHAIN_ID,
+  externalWallets,
+  networks,
+  oAuthMethods,
+  paraApiKey,
+  paraEnvironment,
+  transports,
+  useLocalhost,
+  walletConnectProjectId,
+} from "./config";
 
-const queryClient = new QueryClient();
+function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
+  const { isConnected, chainId, connector } = useAccount();
+  const { switchChain } = useSwitchChain();
 
-// Initialize AppKit (runs once on client-side)
-let appKitInitialized = false;
-const initializeAppKit = (config: Parameters<typeof createAppKit>[0]) => {
-  if (appKitInitialized) return;
-  if (typeof window === "undefined") return;
-  createAppKit(config);
-  appKitInitialized = true;
-};
+  useEffect(() => {
+    if (!useLocalhost) return;
+    if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
 
-initializeAppKit(appKitProviderConfig);
+    const switchToLocalhost = async () => {
+      try {
+        const provider = await connector?.getProvider();
+        if (provider && typeof provider === "object" && "request" in provider) {
+          const ethProvider = provider as {
+            request: (args: {
+              method: string;
+              params: unknown[];
+            }) => Promise<unknown>;
+          };
+
+          try {
+            await ethProvider.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: `0x${LOCALHOST_CHAIN_ID.toString(16)}`,
+                  chainName: "Localhost",
+                  nativeCurrency: {
+                    name: "Ether",
+                    symbol: "ETH",
+                    decimals: 18,
+                  },
+                  rpcUrls: ["http://127.0.0.1:8545"],
+                },
+              ],
+            });
+          } catch {
+            // Ignore "already added" errors and continue with the switch.
+          }
+        }
+
+        switchChain({ chainId: LOCALHOST_CHAIN_ID });
+      } catch (error) {
+        console.error("[LocalhostNetworkEnforcer] Failed to switch:", error);
+      }
+    };
+
+    void switchToLocalhost();
+  }, [chainId, connector, isConnected, switchChain]);
+
+  return <>{children}</>;
+}
 
 function ContextProvider({
   children,
-  cookies,
+  cookies: _cookies,
 }: {
   children: ReactNode;
   cookies: string | null;
 }) {
-  const initialState = cookieToInitialState(
-    wagmiAdapter.wagmiConfig as Config,
-    cookies,
-  );
+  const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <AppKitProvider {...appKitProviderConfig}>
-      <WagmiProvider
-        config={wagmiAdapter.wagmiConfig as Config}
-        initialState={initialState}
+    <QueryClientProvider client={queryClient}>
+      <ParaProvider
+        paraClientConfig={{
+          apiKey: paraApiKey!,
+          env: paraEnvironment,
+        }}
+        config={{
+          appName: "Aomi Widget Docs",
+        }}
+        paraModalConfig={{
+          disableEmailLogin: true,
+          oAuthMethods,
+        }}
+        externalWalletConfig={{
+          appDescription: "Interactive docs and widget demo for Aomi",
+          appUrl:
+            typeof window !== "undefined"
+              ? window.location.origin
+              : "https://aomi.dev",
+          wallets: externalWallets,
+          walletConnect: {
+            projectId: walletConnectProjectId!,
+          },
+          evmConnector: {
+            config: {
+              chains: networks,
+              transports,
+              ssr: true,
+            },
+          },
+        }}
       >
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      </WagmiProvider>
-    </AppKitProvider>
+        <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
+      </ParaProvider>
+    </QueryClientProvider>
   );
 }
 

@@ -1,52 +1,78 @@
-import type { AppKitNetwork } from "@reown/appkit-common";
 import {
   mainnet,
   arbitrum,
   optimism,
   base,
   polygon,
-} from "@reown/appkit/networks";
-import { cookieStorage, createStorage } from "wagmi";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+  sepolia,
+  linea,
+  lineaSepolia,
+} from "wagmi/chains";
+import {
+  Environment,
+  type TOAuthMethod,
+  type TExternalWallet,
+} from "@getpara/react-sdk";
+import { defineChain, http, type Chain, type Transport } from "viem";
 
-// Get projectId from https://dashboard.reown.com
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
+export const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
+export const LOCALHOST_CHAIN_ID = 31337;
 
-if (!projectId) {
-  throw new Error("Project ID is not defined");
-}
+const localhost = defineChain({
+  id: 31337,
+  name: "Localhost",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
+});
 
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
+export const paraApiKey =
+  process.env.NEXT_PUBLIC_PARA_API_KEY ?? "missing-para-api-key";
+
+export const walletConnectProjectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
+  process.env.NEXT_PUBLIC_PROJECT_ID ??
+  "missing-walletconnect-project-id";
+
+export const paraEnvironment =
+  (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
+  Environment.BETA;
+
+const defaultNetworks = [
   mainnet,
   arbitrum,
   optimism,
   base,
   polygon,
+  sepolia,
+  linea,
+  lineaSepolia,
+] as const;
+
+export const networks = (
+  useLocalhost ? [localhost, ...defaultNetworks] : [...defaultNetworks]
+) as readonly [Chain, ...Chain[]];
+
+export const transports = Object.fromEntries(
+  networks.map((network) => [
+    network.id,
+    http(network.rpcUrls.default.http[0]),
+  ]),
+) as Record<number, Transport>;
+
+export const externalWallets: TExternalWallet[] = [
+  "WALLETCONNECT",
+  "METAMASK",
+  "COINBASE",
+  "RAINBOW",
+  "RABBY",
 ];
 
-// Keep AppKit network gating aligned with wagmi adapter networks.
-const appKitNetworks = networks;
-
-// Set up the Wagmi Adapter (Config)
-export const wagmiAdapter = new WagmiAdapter({
-  storage: createStorage({
-    storage: cookieStorage,
-  }),
-  ssr: true,
-  projectId,
-  networks,
-});
-
-export const appKitProviderConfig = {
-  adapters: [wagmiAdapter],
-  projectId,
-  networks: appKitNetworks,
-  defaultNetwork: mainnet,
-  metadata: {
-    name: "aomi-widget-docs",
-    description: "Aomi widget docs demo",
-    url: "https://appkitexampleapp.com", // origin must match your domain & subdomain
-    icons: ["https://avatars.githubusercontent.com/u/179229932"],
-  },
-  features: { analytics: true },
-};
+export const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
