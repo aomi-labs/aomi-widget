@@ -26,6 +26,12 @@ export type AomiClientConfig = {
   sendMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      apiKey?: string;
+      publicKey?: string;
+      userState?: unknown;
+    },
   ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
     sessionId: string,
@@ -53,6 +59,12 @@ export type AomiClientConfig = {
   postChatMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      apiKey?: string;
+      publicKey?: string;
+      userState?: unknown;
+    },
   ) => Promise<AomiChatResponse>;
   postSystemMessage?: (
     sessionId: string,
@@ -126,12 +138,23 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         : { session_id: threadId };
     });
 
-    sendMessage = vi.fn(async (sessionId: string, message: string) => {
+    sendMessage = vi.fn(
+      async (
+        sessionId: string,
+        message: string,
+        options?: {
+          app?: string;
+          apiKey?: string;
+          publicKey?: string;
+          userState?: unknown;
+        },
+      ) => {
       const fn = mockState.config.sendMessage ?? mockState.config.postChatMessage;
       return fn
-        ? await fn(sessionId, message)
+        ? await fn(sessionId, message, options)
         : { is_processing: true, messages: [] };
-    });
+      },
+    );
 
     sendSystemMessage = vi.fn(async (sessionId: string, message: string) => {
       const fn =
@@ -235,6 +258,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
+import { useControl, type ControlContextApi } from "../../contexts/control-context";
 
 // =============================================================================
 // Test Harness Component
@@ -242,12 +266,14 @@ import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
 
 export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
+  control: ControlContextApi;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
   const api = useAomiRuntime();
+  const control = useControl();
 
-  useImperativeHandle(ref, () => ({ api }), [api]);
+  useImperativeHandle(ref, () => ({ api, control }), [api, control]);
 
   return null;
 });
@@ -264,7 +290,9 @@ export type RenderRuntimeOptions = {
 
 export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
+  control: ControlContextApi;
   getApi: () => AomiRuntimeApi;
+  getControl: () => ControlContextApi;
   unmount: () => void;
   rerender: (ui: React.ReactElement) => void;
 };
@@ -286,7 +314,9 @@ export const renderRuntime = ({
 
   return {
     api: ref.current.api,
+    control: ref.current.control,
     getApi: () => ref.current!.api,
+    getControl: () => ref.current!.control,
     unmount,
     rerender,
   };

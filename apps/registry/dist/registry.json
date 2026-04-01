@@ -70,10 +70,16 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/network-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/use-account-identity.ts"
         }
       ],
       "dependencies": [
         "@aomi-labs/react",
+        "@getpara/react-core",
+        "@getpara/react-sdk",
         "wagmi",
         "lucide-react"
       ],

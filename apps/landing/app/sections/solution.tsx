@@ -4,31 +4,36 @@ import { useEffect } from "react";
 
 export function Solution() {
   useEffect(() => {
-    const loadUnicornStudio = () => {
-      if (typeof window === "undefined") return;
+    let cancelled = false;
 
-      if ((window as any).UnicornStudio) {
+    if (typeof (window as any).UnicornStudio?.init === "function") {
+      (window as any).UnicornStudio.init();
+      return;
+    }
+
+    (window as any).UnicornStudio = { isInitialized: false };
+    const script = document.createElement("script");
+    script.src =
+      "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.29/dist/unicornStudio.umd.js";
+    script.onload = () => {
+      if (
+        !cancelled &&
+        (window as any).UnicornStudio &&
+        !(window as any).UnicornStudio.isInitialized
+      ) {
         (window as any).UnicornStudio.init();
-        return;
+        (window as any).UnicornStudio.isInitialized = true;
       }
-
-      (window as any).UnicornStudio = { isInitialized: false };
-      const script = document.createElement("script");
-      script.src =
-        "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.29/dist/unicornStudio.umd.js";
-      script.onload = () => {
-        if (
-          (window as any).UnicornStudio &&
-          !(window as any).UnicornStudio.isInitialized
-        ) {
-          (window as any).UnicornStudio.init();
-          (window as any).UnicornStudio.isInitialized = true;
-        }
-      };
-      document.body.appendChild(script);
     };
+    document.body.appendChild(script);
 
-    loadUnicornStudio();
+    return () => {
+      cancelled = true;
+      script.onload = null;
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
   }, []);
 
   return (
@@ -43,7 +48,7 @@ export function Solution() {
           <div className="relative w-full overflow-hidden rounded-[2.5rem] pl-12">
             <div className="relative grid grid-cols-1 items-center lg:grid-cols-2 lg:gap-20">
               <div className="flex h-full flex-col justify-between">
-                <div className="">
+                <div>
                   <div className="mt-10 mb-6 inline-flex w-fit items-center rounded-full border border-stone-200 bg-stone-100 pt-1 pr-3 pb-1 pl-3 ring-1 ring-stone-200">
                     <span className="font-geist mt-1 mb-1 text-[10px] font-semibold tracking-wider text-stone-800 uppercase">
                       Solution
@@ -59,7 +64,7 @@ export function Solution() {
                   </p>
                   <div className="relative pl-2">
                     <div className="absolute top-3 bottom-8 left-[11px] w-px bg-gradient-to-b from-stone-500/50 via-stone-300 to-transparent"></div>
-                    <div className="flex flex-col gap-10 gap-x-10 gap-y-10">
+                    <div className="flex flex-col gap-10">
                       <div className="relative flex items-start gap-6">
                         <div className="relative z-10 mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border bg-white ring-1">
                           <div className="h-2 w-2 rounded-full bg-[#9D77A8]"></div>
