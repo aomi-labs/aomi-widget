@@ -160,6 +160,27 @@ describe("User API", () => {
       });
       expect(getApi().user.ext).toBeUndefined();
     });
+
+    it("does not send wallet state change to backend for ext-only updates", async () => {
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+      setAomiClientConfig({ postSystemMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.addExtValue("SIMMER_API_KEY", "sk_123");
+        await flushPromises();
+      });
+
+      expect(postSystemMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        api.removeExtValue("SIMMER_API_KEY");
+        await flushPromises();
+      });
+
+      expect(postSystemMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe("getUserState", () => {

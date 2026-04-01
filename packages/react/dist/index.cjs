@@ -1661,22 +1661,40 @@ function AomiRuntimeCore({
     },
     getApiKey: () => getControlState().apiKey
   });
+  const walletSnapshot = (0, import_react9.useCallback)(
+    (nextUser) => ({
+      address: nextUser.address,
+      chainId: nextUser.chainId,
+      isConnected: nextUser.isConnected,
+      ensName: nextUser.ensName
+    }),
+    [getUserState]
+  );
+  const lastWalletStateRef = (0, import_react9.useRef)(walletSnapshot(getUserState()));
   (0, import_react9.useEffect)(() => {
+    lastWalletStateRef.current = walletSnapshot(getUserState());
     const unsubscribe = onUserStateChange(async (newUser) => {
+      const nextWalletState = walletSnapshot(newUser);
+      const prevWalletState = lastWalletStateRef.current;
+      if (prevWalletState.address === nextWalletState.address && prevWalletState.chainId === nextWalletState.chainId && prevWalletState.isConnected === nextWalletState.isConnected && prevWalletState.ensName === nextWalletState.ensName) {
+        return;
+      }
+      lastWalletStateRef.current = nextWalletState;
       const sessionId = threadContext.currentThreadId;
       const message = JSON.stringify({
         type: "wallet:state_changed",
-        payload: {
-          address: newUser.address,
-          chainId: newUser.chainId,
-          isConnected: newUser.isConnected,
-          ensName: newUser.ensName
-        }
+        payload: nextWalletState
       });
       await aomiClientRef.current.sendSystemMessage(sessionId, message);
     });
     return unsubscribe;
-  }, [onUserStateChange, aomiClientRef, threadContext.currentThreadId]);
+  }, [
+    onUserStateChange,
+    aomiClientRef,
+    threadContext.currentThreadId,
+    getUserState,
+    walletSnapshot
+  ]);
   const threadContextRef = (0, import_react9.useRef)(threadContext);
   threadContextRef.current = threadContext;
   const currentThreadIdRef = (0, import_react9.useRef)(threadContext.currentThreadId);
