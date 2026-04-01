@@ -674,6 +674,24 @@ function normalizeEip712Payload(payload) {
   const description = typeof args.description === "string" ? args.description : void 0;
   return { typed_data: typedData, description };
 }
+function toViemSignTypedDataArgs(payload) {
+  var _a;
+  const typedData = payload.typed_data;
+  const primaryType = typeof (typedData == null ? void 0 : typedData.primaryType) === "string" && typedData.primaryType.trim().length > 0 ? typedData.primaryType : void 0;
+  if (!typedData || !primaryType) {
+    return null;
+  }
+  return {
+    domain: asRecord(typedData.domain),
+    types: Object.fromEntries(
+      Object.entries((_a = typedData.types) != null ? _a : {}).filter(
+        ([typeName]) => typeName !== "EIP712Domain"
+      )
+    ),
+    primaryType,
+    message: asRecord(typedData.message)
+  };
+}
 
 // src/session.ts
 function sortJson(value) {
@@ -1880,6 +1898,7 @@ export {
   resolveAlchemyConfig,
   resolveDefaultProvider,
   resolvePimlicoConfig,
+  toViemSignTypedDataArgs,
   unwrapSystemEvent
 };
 //# sourceMappingURL=index.js.map

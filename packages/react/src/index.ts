@@ -14,6 +14,7 @@ export type {
   AomiSystemResponse,
   AomiThread,
 } from "@aomi-labs/client";
+export { toViemSignTypedDataArgs } from "@aomi-labs/client";
 
 // =============================================================================
 // Runtime Provider
