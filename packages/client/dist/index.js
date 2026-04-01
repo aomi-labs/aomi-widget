@@ -604,6 +604,7 @@ function unwrapSystemEvent(event) {
 }
 
 // src/wallet-utils.ts
+import { getAddress } from "viem";
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return void 0;
@@ -627,12 +628,25 @@ function parseChainId(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function normalizeAddress(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    return getAddress(trimmed);
+  } catch (e) {
+    if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+      return getAddress(trimmed.toLowerCase());
+    }
+    return void 0;
+  }
+}
 function normalizeTxPayload(payload) {
   var _a, _b, _c;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
-  const to = typeof args.to === "string" ? args.to : void 0;
+  const to = normalizeAddress(args.to);
   if (!to) return null;
   const valueRaw = args.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
@@ -659,6 +673,24 @@ function normalizeEip712Payload(payload) {
   }
   const description = typeof args.description === "string" ? args.description : void 0;
   return { typed_data: typedData, description };
+}
+function toViemSignTypedDataArgs(payload) {
+  var _a;
+  const typedData = payload.typed_data;
+  const primaryType = typeof (typedData == null ? void 0 : typedData.primaryType) === "string" && typedData.primaryType.trim().length > 0 ? typedData.primaryType : void 0;
+  if (!typedData || !primaryType) {
+    return null;
+  }
+  return {
+    domain: asRecord(typedData.domain),
+    types: Object.fromEntries(
+      Object.entries((_a = typedData.types) != null ? _a : {}).filter(
+        ([typeName]) => typeName !== "EIP712Domain"
+      )
+    ),
+    primaryType,
+    message: asRecord(typedData.message)
+  };
 }
 
 // src/session.ts
@@ -1677,28 +1709,50 @@ async function createAAProviderState(options) {
     apiKey: options.apiKey
   });
 }
-function getOwnerParams(owner) {
-  if (!owner) {
-    return null;
-  }
-  if ("privateKey" in owner) {
-    return {
+function getDirectOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
       para: void 0,
       signer: privateKeyToAccount(owner.privateKey)
+    }
+  };
+}
+function getParaSessionOwnerParams(owner) {
+  if (owner.signer) {
+    return {
+      kind: "ready",
+      ownerParams: __spreadValues({
+        para: owner.session,
+        signer: owner.signer
+      }, owner.address ? { address: owner.address } : {})
     };
   }
-  if ("signer" in owner) {
-    return __spreadValues({
-      para: owner.para,
-      signer: owner.signer
-    }, owner.address ? { address: owner.address } : {});
+  return {
+    kind: "ready",
+    ownerParams: __spreadValues({
+      para: owner.session
+    }, owner.address ? { address: owner.address } : {})
+  };
+}
+function getSessionOwnerParams(owner) {
+  switch (owner.adapter) {
+    case "para":
+      return getParaSessionOwnerParams(owner);
+    default:
+      return { kind: "unsupported_adapter", adapter: owner.adapter };
   }
-  if ("para" in owner) {
-    return __spreadValues({
-      para: owner.para
-    }, owner.address ? { address: owner.address } : {});
+}
+function getOwnerParams(owner) {
+  if (!owner) {
+    return { kind: "missing" };
   }
-  return null;
+  switch (owner.kind) {
+    case "direct":
+      return getDirectOwnerParams(owner);
+    case "session":
+      return getSessionOwnerParams(owner);
+  }
 }
 function getMissingOwnerState(plan, provider) {
   return {
@@ -1706,8 +1760,16 @@ function getMissingOwnerState(plan, provider) {
     AA: null,
     isPending: false,
     error: new Error(
-      `${provider} AA account creation requires a signer or Para session.`
+      `${provider} AA account creation requires a direct owner or a supported session owner.`
     )
+  };
+}
+function getUnsupportedAdapterState(plan, adapter) {
+  return {
+    plan,
+    AA: null,
+    isPending: false,
+    error: new Error(`Session adapter "${adapter}" is not implemented.`)
   };
 }
 async function createAlchemyAAState(options) {
@@ -1739,11 +1801,14 @@ async function createAlchemyAAState(options) {
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
-  if (!ownerParams) {
+  if (ownerParams.kind === "missing") {
     return getMissingOwnerState(plan, "alchemy");
   }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
+  }
   try {
-    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams), {
+    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
       gasPolicyId,
       chain,
@@ -1798,11 +1863,14 @@ async function createPimlicoAAState(options) {
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
-  if (!ownerParams) {
+  if (ownerParams.kind === "missing") {
     return getMissingOwnerState(plan, "pimlico");
   }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
+  }
   try {
-    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams), {
+    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
       chain,
       rpcUrl,
@@ -1857,6 +1925,7 @@ export {
   resolveAlchemyConfig,
   resolveDefaultProvider,
   resolvePimlicoConfig,
+  toViemSignTypedDataArgs,
   unwrapSystemEvent
 };
 //# sourceMappingURL=index.js.map

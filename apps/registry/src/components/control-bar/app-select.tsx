@@ -22,7 +22,7 @@ export const AppSelect: FC<AppSelectProps> = ({
   const {
     state,
     getAuthorizedApps,
-    getCurrentThreadControl,
+    getCurrentThreadApp,
     onAppSelect,
     isProcessing,
   } = useControl();
@@ -33,10 +33,7 @@ export const AppSelect: FC<AppSelectProps> = ({
     void getAuthorizedApps();
   }, [getAuthorizedApps]);
 
-  // Get current thread's selected app (or fall back to default)
-  const threadControl = getCurrentThreadControl();
-  const selectedApp =
-    threadControl.app ?? state.defaultApp ?? "default";
+  const selectedApp = getCurrentThreadApp();
 
   const apps = state.authorizedApps;
 

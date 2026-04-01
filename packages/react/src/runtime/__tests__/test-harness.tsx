@@ -263,6 +263,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
+import { useControl, type ControlContextApi } from "../../contexts/control-context";
 
 // =============================================================================
 // Test Harness Component
@@ -270,12 +271,14 @@ import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
 
 export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
+  control: ControlContextApi;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
   const api = useAomiRuntime();
+  const control = useControl();
 
-  useImperativeHandle(ref, () => ({ api }), [api]);
+  useImperativeHandle(ref, () => ({ api, control }), [api, control]);
 
   return null;
 });
@@ -292,7 +295,9 @@ export type RenderRuntimeOptions = {
 
 export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
+  control: ControlContextApi;
   getApi: () => AomiRuntimeApi;
+  getControl: () => ControlContextApi;
   unmount: () => void;
   rerender: (ui: React.ReactElement) => void;
 };
@@ -314,7 +319,9 @@ export const renderRuntime = ({
 
   return {
     api: ref.current.api,
+    control: ref.current.control,
     getApi: () => ref.current!.api,
+    getControl: () => ref.current!.control,
     unmount,
     rerender,
   };

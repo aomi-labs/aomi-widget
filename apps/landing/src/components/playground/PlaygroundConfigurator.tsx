@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, type FC } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { CopyButton } from "./CopyButton";
+import { useDemoBackendUrl } from "@/components/runtime/use-demo-backend-url";
 import {
   ThemeCustomizer,
   useThemeCustomizer,
@@ -276,6 +277,7 @@ export function PlaygroundConfigurator() {
   const [state, setState] = useState<PlaygroundState>(DEFAULT_STATE);
   const [configTab, setConfigTab] = useState<ConfigTab>("layout");
   const [codeTab, setCodeTab] = useState<CodeTab>("jsx");
+  const backendUrl = useDemoBackendUrl();
 
   const update = useCallback(
     (patch: Partial<PlaygroundState>) => {
@@ -314,6 +316,10 @@ export function PlaygroundConfigurator() {
 
   const activeCode = codeTab === "jsx" ? jsxCode : theme.output.css;
 
+  if (!backendUrl) {
+    return <div className="h-[560px] w-full" />;
+  }
+
   return (
     <div className="space-y-4">
       {/* Main split panel */}
@@ -330,6 +336,7 @@ export function PlaygroundConfigurator() {
               height="560px"
               walletPosition={walletPropValue ?? null}
               showSidebar={state.sidebarShown}
+              backendUrl={backendUrl}
             >
               {hasAnyControl && state.controlPlacement === "header" ? (
                 <AomiFrame.Header

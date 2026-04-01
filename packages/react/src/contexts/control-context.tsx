@@ -42,6 +42,8 @@ export type ControlContextApi = {
   getAuthorizedApps: () => Promise<string[]>;
   /** Get current thread's control state */
   getCurrentThreadControl: () => ThreadControlState;
+  /** Get the current thread's effective app after auth fallback */
+  getCurrentThreadApp: () => string;
   /** Select a model for the current thread (updates metadata + calls backend) */
   onModelSelect: (model: string) => Promise<void>;
   /** Select an app for the current thread (updates metadata only) */
@@ -67,6 +69,21 @@ export type ControlContextApi = {
 // =============================================================================
 
 const API_KEY_STORAGE_KEY = "aomi_api_key";
+
+function getDefaultApp(apps: string[]): string | null {
+  return apps.includes("default") ? "default" : (apps[0] ?? null);
+}
+
+function resolveAuthorizedApp(
+  app: string | null | undefined,
+  authorizedApps: string[],
+  defaultApp: string | null,
+): string | null {
+  if (app && authorizedApps.includes(app)) {
+    return app;
+  }
+  return defaultApp;
+}
 
 // =============================================================================
 // Context
@@ -170,17 +187,18 @@ export function ControlContextProvider({
     }
   }, [state.apiKey]);
 
-  // Fetch apps when apiKey changes
+  // Fetch apps whenever the auth context changes
   useEffect(() => {
     const fetchApps = async () => {
       try {
         const apps = await aomiClientRef.current.getApps(
           sessionIdRef.current,
-          { publicKey: publicKeyRef.current, apiKey: stateRef.current.apiKey ?? undefined },
+          {
+            publicKey: publicKeyRef.current,
+            apiKey: stateRef.current.apiKey ?? undefined,
+          },
         );
-        const defaultApp = apps.includes("default")
-          ? "default"
-          : (apps[0] ?? null);
+        const defaultApp = getDefaultApp(apps);
         setStateInternal((prev) => ({
           ...prev,
           authorizedApps: apps,
@@ -196,7 +214,7 @@ export function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [state.apiKey]);
+  }, [state.apiKey, publicKey, sessionId]);
 
   // Fetch models on mount
   useEffect(() => {
@@ -252,11 +270,12 @@ export function ControlContextProvider({
     try {
       const apps = await aomiClientRef.current.getApps(
         sessionIdRef.current,
-        { publicKey: publicKeyRef.current, apiKey: stateRef.current.apiKey ?? undefined },
+        {
+          publicKey: publicKeyRef.current,
+          apiKey: stateRef.current.apiKey ?? undefined,
+        },
       );
-      const defaultApp = apps.includes("default")
-        ? "default"
-        : (apps[0] ?? null);
+      const defaultApp = getDefaultApp(apps);
       setStateInternal((prev) => ({
         ...prev,
         authorizedApps: apps,
@@ -282,6 +301,19 @@ export function ControlContextProvider({
     return metadata?.control ?? initThreadControl();
   }, []);
 
+  const getCurrentThreadApp = useCallback((): string => {
+    const currentControl =
+      getThreadMetadataRef.current(sessionIdRef.current)?.control ??
+      initThreadControl();
+    return (
+      resolveAuthorizedApp(
+        currentControl.app,
+        stateRef.current.authorizedApps,
+        stateRef.current.defaultApp,
+      ) ?? "default"
+    );
+  }, []);
+
   const onModelSelect = useCallback(async (model: string) => {
     const threadId = sessionIdRef.current;
     const currentControl =
@@ -300,9 +332,11 @@ export function ControlContextProvider({
     }
 
     const app =
-      currentControl.app ??
-      stateRef.current.defaultApp ??
-      "default";
+      resolveAuthorizedApp(
+        currentControl.app,
+        stateRef.current.authorizedApps,
+        stateRef.current.defaultApp,
+      ) ?? "default";
 
     console.log("[control-context] onModelSelect updating metadata", {
       threadId,
@@ -357,6 +391,14 @@ export function ControlContextProvider({
       console.warn(
         "[control-context] Cannot switch app while processing",
       );
+      return;
+    }
+
+    if (
+      stateRef.current.authorizedApps.length > 0 &&
+      !stateRef.current.authorizedApps.includes(app)
+    ) {
+      console.warn("[control-context] Cannot select unauthorized app", { app });
       return;
     }
 
@@ -435,6 +477,7 @@ export function ControlContextProvider({
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,
+        getCurrentThreadApp,
         onModelSelect,
         onAppSelect,
         isProcessing,

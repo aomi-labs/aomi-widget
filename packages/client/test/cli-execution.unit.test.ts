@@ -55,14 +55,14 @@ describe("CLI execution controls", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("defaults to AA when neither --aa nor --eoa is provided", () => {
+  it("defaults to auto mode when neither --aa nor --eoa is provided", () => {
     const config = getConfig({
       command: "sign",
       positional: [],
       flags: {},
     });
 
-    expect(config.execution).toBe("aa");
+    expect(config.execution).toBe("auto");
   });
 
   it("accepts --eoa as an explicit override", () => {
@@ -73,6 +73,34 @@ describe("CLI execution controls", () => {
     });
 
     expect(config.execution).toBe("eoa");
+  });
+
+  it("treats empty AA env vars as unset for forced EOA execution", () => {
+    process.env.AOMI_AA_PROVIDER = "";
+    process.env.AOMI_AA_MODE = "";
+
+    const config = getConfig({
+      command: "sign",
+      positional: [],
+      flags: { eoa: "true" },
+    });
+
+    expect(config.execution).toBe("eoa");
+    expect(config.aaProvider).toBeUndefined();
+    expect(config.aaMode).toBeUndefined();
+  });
+
+  it("keeps auto mode while honoring AA provider preferences from env", () => {
+    process.env.AOMI_AA_PROVIDER = "alchemy";
+
+    const config = getConfig({
+      command: "sign",
+      positional: [],
+      flags: {},
+    });
+
+    expect(config.execution).toBe("auto");
+    expect(config.aaProvider).toBe("alchemy");
   });
 
   it("errors when --aa and --eoa are both provided", () => {
@@ -103,7 +131,7 @@ describe("CLI execution controls", () => {
     errorSpy.mockRestore();
   });
 
-  it("resolves default AA provider and chain default mode", () => {
+  it("auto mode prefers AA and preserves an EOA fallback", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.PIMLICO_API_KEY = "pimlico-key";
 
@@ -111,7 +139,7 @@ describe("CLI execution controls", () => {
       config: {
         baseUrl: "https://api.aomi.dev",
         app: "default",
-        execution: "aa",
+        execution: "auto",
       },
       chain: mainnet,
       callList: [...CALL_LIST],
@@ -121,8 +149,11 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      fallbackToEoa: true,
     });
-    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
+    expect(describeExecutionDecision(decision)).toBe(
+      "aa (alchemy, 7702; fallback: eoa)",
+    );
   });
 
   it("resolves explicit provider and mode selections", () => {
@@ -144,7 +175,22 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "pimlico",
       aaMode: "4337",
+      fallbackToEoa: false,
     });
+  });
+
+  it("auto mode falls back to direct EOA when no AA provider is configured", () => {
+    const decision = resolveCliExecutionDecision({
+      config: {
+        baseUrl: "https://api.aomi.dev",
+        app: "default",
+        execution: "auto",
+      },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+    });
+
+    expect(decision).toEqual({ execution: "eoa" });
   });
 
   it("returns the disabled provider state when EOA is forced", async () => {
@@ -178,6 +224,7 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "7702",
+        fallbackToEoa: false,
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
@@ -224,6 +271,7 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "4337",
+        fallbackToEoa: false,
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
