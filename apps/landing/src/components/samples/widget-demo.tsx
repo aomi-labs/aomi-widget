@@ -2,6 +2,7 @@
 
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { Preview } from "@/components/playground/Preview";
+import ContextProvider from "@/components/wallet-providers";
 
 const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib";
 
@@ -16,10 +17,12 @@ export function WidgetDemo() {
 
 export function WidgetFrame() {
   return (
-    <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
-      <AomiFrame.Header withControl controlBarProps={{ hideNetwork: false }} />
-      <AomiFrame.Composer />
-    </AomiFrame.Root>
+    <ContextProvider>
+      <AomiFrame.Root height="560px" width="100%" walletPosition="footer">
+        <AomiFrame.Header withControl controlBarProps={{ hideNetwork: false }} />
+        <AomiFrame.Composer />
+      </AomiFrame.Root>
+    </ContextProvider>
   );
 }
 

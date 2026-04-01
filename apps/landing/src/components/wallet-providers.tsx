@@ -72,10 +72,9 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
 
 function ContextProvider({
   children,
-  cookies: _cookies,
 }: {
   children: ReactNode;
-  cookies: string | null;
+  cookies?: string | null;
 }) {
   const [queryClient] = useState(() => new QueryClient());
 
