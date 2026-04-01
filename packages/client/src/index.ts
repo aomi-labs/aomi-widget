@@ -39,7 +39,7 @@ export {
 // Session (high-level orchestrated client)
 // =============================================================================
 
-export { Session } from "./session";
+export { ClientSession as Session } from "./session";
 
 export type {
   SessionOptions,
@@ -64,9 +64,65 @@ export { unwrapSystemEvent, type UnwrappedEvent } from "./event-unwrap";
 export {
   normalizeTxPayload,
   normalizeEip712Payload,
+  toViemSignTypedDataArgs,
 } from "./wallet-utils";
 
 export type {
   WalletTxPayload,
   WalletEip712Payload,
+  ViemSignTypedDataArgs,
 } from "./wallet-utils";
+
+// =============================================================================
+// Account Abstraction
+// =============================================================================
+
+export {
+  DEFAULT_AA_CONFIG,
+  parseAAConfig,
+  getAAChainConfig,
+  buildAAExecutionPlan,
+  getWalletExecutorReady,
+  executeWalletCalls,
+  createAlchemyAAProvider,
+  createPimlicoAAProvider,
+  readEnv,
+  isProviderConfigured,
+  resolveDefaultProvider,
+  adaptSmartAccount,
+  isAlchemySponsorshipLimitError,
+  resolveAlchemyConfig,
+  resolvePimlicoConfig,
+  createAAProviderState,
+} from "./aa";
+
+export type {
+  AAExecutionMode,
+  AASponsorshipMode,
+  WalletExecutionCall,
+  AAChainConfig,
+  AAConfig,
+  AAExecutionPlan,
+  WalletAtomicCapability,
+  WalletPrimitiveCall,
+  AALike,
+  AAProviderQuery,
+  AAProviderState,
+  TransactionExecutionResult,
+  SendCallsSyncArgs,
+  ExecuteWalletCallsParams,
+  AlchemyHookParams,
+  UseAlchemyAAHook,
+  CreateAlchemyAAProviderOptions,
+  PimlicoHookParams,
+  UsePimlicoAAHook,
+  CreatePimlicoAAProviderOptions,
+  AAProvider,
+  ParaSmartAccountLike,
+  AlchemyResolveOptions,
+  AlchemyResolvedConfig,
+  PimlicoResolveOptions,
+  PimlicoResolvedConfig,
+  CreateAAOwner,
+  CreateAAProviderStateOptions,
+} from "./aa";

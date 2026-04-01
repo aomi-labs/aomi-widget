@@ -125,16 +125,16 @@ export class AomiClient {
     sessionId: string,
     message: string,
     options?: {
-      namespace?: string;
+      app?: string;
       publicKey?: string;
       apiKey?: string;
       userState?: UserState;
     },
   ): Promise<AomiChatResponse> {
-    const namespace = options?.namespace ?? "default";
+    const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
 
-    const payload: Record<string, unknown> = { message, namespace };
+    const payload: Record<string, unknown> = { message, app };
     if (options?.publicKey) {
       payload.public_key = options.publicKey;
     }
@@ -350,13 +350,13 @@ export class AomiClient {
   // ===========================================================================
 
   /**
-   * Get available namespaces.
+   * Get available apps.
    */
-  async getNamespaces(
+  async getApps(
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ): Promise<string[]> {
-    const url = new URL("/api/control/namespaces", this.baseUrl);
+    const url = new URL("/api/control/apps", this.baseUrl);
     if (options?.publicKey) {
       url.searchParams.set("public_key", options.publicKey);
     }
@@ -370,7 +370,7 @@ export class AomiClient {
     const response = await fetch(url.toString(), { headers });
 
     if (!response.ok) {
-      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
+      throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
 
     return (await response.json()) as string[];
@@ -407,7 +407,7 @@ export class AomiClient {
   async setModel(
     sessionId: string,
     rig: string,
-    options?: { namespace?: string; apiKey?: string },
+    options?: { app?: string; apiKey?: string },
   ): Promise<{
     success: boolean;
     rig: string;
@@ -416,8 +416,8 @@ export class AomiClient {
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
     const payload: Record<string, unknown> = { rig };
-    if (options?.namespace) {
-      payload.namespace = options.namespace;
+    if (options?.app) {
+      payload.app = options.app;
     }
 
     return postState<{

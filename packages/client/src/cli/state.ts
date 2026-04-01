@@ -25,6 +25,14 @@ export type SignedTx = {
   id: string;
   kind: "transaction" | "eip712_sign";
   txHash?: string;
+  txHashes?: string[];
+  executionKind?: string;
+  aaProvider?: string;
+  aaMode?: string;
+  batched?: boolean;
+  sponsored?: boolean;
+  AAAddress?: string;
+  delegationAddress?: string;
   signature?: string;
   from?: string;
   to?: string;
@@ -37,10 +45,11 @@ export type SignedTx = {
 export type CliSessionState = {
   sessionId: string;
   baseUrl: string;
-  namespace?: string;
+  app?: string;
   model?: string;
   apiKey?: string;
   publicKey?: string;
+  chainId?: number;
   pendingTxs?: PendingTx[];
   signedTxs?: SignedTx[];
 };
@@ -92,10 +101,11 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
   return {
     sessionId: stored.sessionId,
     baseUrl: stored.baseUrl,
-    namespace: stored.namespace,
+    app: stored.app,
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
+    chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs,
   };
@@ -114,10 +124,11 @@ function readStoredSession(path: string): StoredSessionState | null {
     return {
       sessionId: parsed.sessionId,
       baseUrl: parsed.baseUrl,
-      namespace: parsed.namespace,
+      app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
+      chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
       localId:

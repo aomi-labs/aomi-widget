@@ -23,6 +23,7 @@ import {
 } from "@aomi-labs/widget-lib/components/ui/breadcrumb";
 import { Thread } from "@aomi-labs/widget-lib/components/assistant-ui/thread";
 import { ThreadListCollapsible } from "./threadlist-collapsible";
+import { useDemoBackendUrl } from "@/components/runtime/use-demo-backend-url";
 
 // =============================================================================
 // Types
@@ -54,8 +55,11 @@ export const AomiFrameCollapsible = ({
   children,
   defaultOpen = false,
 }: AomiFrameCollapsibleProps) => {
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
+  const backendUrl = useDemoBackendUrl();
+
+  if (!backendUrl) {
+    return <div style={{ width, height, ...style }} className={className} />;
+  }
 
   return (
     <AomiRuntimeProvider backendUrl={backendUrl}>

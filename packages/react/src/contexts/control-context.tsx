@@ -23,29 +23,31 @@ export type ControlState = {
   apiKey: string | null;
   /** Available models fetched from backend */
   availableModels: string[];
-  /** Authorized namespaces fetched from backend */
-  authorizedNamespaces: string[];
+  /** Authorized apps fetched from backend */
+  authorizedApps: string[];
   /** Default model (first from availableModels) */
   defaultModel: string | null;
-  /** Default namespace (from authorizedNamespaces) */
-  defaultNamespace: string | null;
+  /** Default app (from authorizedApps) */
+  defaultApp: string | null;
 };
 
 export type ControlContextApi = {
-  /** Global state (apiKey, available models/namespaces) */
+  /** Global state (apiKey, available models/apps) */
   state: ControlState;
   /** Update global state (apiKey only) */
   setApiKey: (apiKey: string | null) => void;
   /** Fetch available models from backend */
   getAvailableModels: () => Promise<string[]>;
-  /** Fetch authorized namespaces from backend */
-  getAuthorizedNamespaces: () => Promise<string[]>;
+  /** Fetch authorized apps from backend */
+  getAuthorizedApps: () => Promise<string[]>;
   /** Get current thread's control state */
   getCurrentThreadControl: () => ThreadControlState;
+  /** Get the current thread's effective app after auth fallback */
+  getCurrentThreadApp: () => string;
   /** Select a model for the current thread (updates metadata + calls backend) */
   onModelSelect: (model: string) => Promise<void>;
-  /** Select a namespace for the current thread (updates metadata only) */
-  onNamespaceSelect: (namespace: string) => void;
+  /** Select an app for the current thread (updates metadata only) */
+  onAppSelect: (app: string) => void;
   /** Whether the current thread is processing (disables control switching) */
   isProcessing: boolean;
   /** Mark control state as synced (called after chat starts) */
@@ -56,9 +58,9 @@ export type ControlContextApi = {
   onControlStateChange: (callback: (state: ControlState) => void) => () => void;
 
   // Legacy compatibility
-  /** @deprecated Use getCurrentThreadControl().namespace instead */
+  /** @deprecated Use getCurrentThreadControl().app instead */
   setState: (
-    updates: Partial<{ namespace: string | null; apiKey: string | null }>,
+    updates: Partial<{ app: string | null; apiKey: string | null }>,
   ) => void;
 };
 
@@ -67,6 +69,21 @@ export type ControlContextApi = {
 // =============================================================================
 
 const API_KEY_STORAGE_KEY = "aomi_api_key";
+
+function getDefaultApp(apps: string[]): string | null {
+  return apps.includes("default") ? "default" : (apps[0] ?? null);
+}
+
+function resolveAuthorizedApp(
+  app: string | null | undefined,
+  authorizedApps: string[],
+  defaultApp: string | null,
+): string | null {
+  if (app && authorizedApps.includes(app)) {
+    return app;
+  }
+  return defaultApp;
+}
 
 // =============================================================================
 // Context
@@ -115,9 +132,9 @@ export function ControlContextProvider({
   const [state, setStateInternal] = useState<ControlState>(() => ({
     apiKey: null,
     availableModels: [],
-    authorizedNamespaces: [],
+    authorizedApps: [],
     defaultModel: null,
-    defaultNamespace: null,
+    defaultApp: null,
   }));
 
   const stateRef = useRef(state);
@@ -170,33 +187,34 @@ export function ControlContextProvider({
     }
   }, [state.apiKey]);
 
-  // Fetch namespaces when apiKey changes
+  // Fetch apps whenever the auth context changes
   useEffect(() => {
-    const fetchNamespaces = async () => {
+    const fetchApps = async () => {
       try {
-        const namespaces = await aomiClientRef.current.getNamespaces(
+        const apps = await aomiClientRef.current.getApps(
           sessionIdRef.current,
-          { publicKey: publicKeyRef.current, apiKey: stateRef.current.apiKey ?? undefined },
+          {
+            publicKey: publicKeyRef.current,
+            apiKey: stateRef.current.apiKey ?? undefined,
+          },
         );
-        const defaultNs = namespaces.includes("default")
-          ? "default"
-          : (namespaces[0] ?? null);
+        const defaultApp = getDefaultApp(apps);
         setStateInternal((prev) => ({
           ...prev,
-          authorizedNamespaces: namespaces,
-          defaultNamespace: defaultNs,
+          authorizedApps: apps,
+          defaultApp,
         }));
       } catch (error) {
-        console.error("Failed to fetch namespaces:", error);
+        console.error("Failed to fetch apps:", error);
         setStateInternal((prev) => ({
           ...prev,
-          authorizedNamespaces: ["default"],
-          defaultNamespace: "default",
+          authorizedApps: ["default"],
+          defaultApp: "default",
         }));
       }
     };
-    void fetchNamespaces();
-  }, [state.apiKey]);
+    void fetchApps();
+  }, [state.apiKey, publicKey, sessionId]);
 
   // Fetch models on mount
   useEffect(() => {
@@ -248,27 +266,28 @@ export function ControlContextProvider({
     }
   }, []);
 
-  const getAuthorizedNamespaces = useCallback(async (): Promise<string[]> => {
+  const getAuthorizedApps = useCallback(async (): Promise<string[]> => {
     try {
-      const namespaces = await aomiClientRef.current.getNamespaces(
+      const apps = await aomiClientRef.current.getApps(
         sessionIdRef.current,
-        { publicKey: publicKeyRef.current, apiKey: stateRef.current.apiKey ?? undefined },
+        {
+          publicKey: publicKeyRef.current,
+          apiKey: stateRef.current.apiKey ?? undefined,
+        },
       );
-      const defaultNs = namespaces.includes("default")
-        ? "default"
-        : (namespaces[0] ?? null);
+      const defaultApp = getDefaultApp(apps);
       setStateInternal((prev) => ({
         ...prev,
-        authorizedNamespaces: namespaces,
-        defaultNamespace: defaultNs,
+        authorizedApps: apps,
+        defaultApp,
       }));
-      return namespaces;
+      return apps;
     } catch (error) {
-      console.error("Failed to fetch namespaces:", error);
+      console.error("Failed to fetch apps:", error);
       setStateInternal((prev) => ({
         ...prev,
-        authorizedNamespaces: ["default"],
-        defaultNamespace: "default",
+        authorizedApps: ["default"],
+        defaultApp: "default",
       }));
       return ["default"];
     }
@@ -280,6 +299,19 @@ export function ControlContextProvider({
   const getCurrentThreadControl = useCallback((): ThreadControlState => {
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
     return metadata?.control ?? initThreadControl();
+  }, []);
+
+  const getCurrentThreadApp = useCallback((): string => {
+    const currentControl =
+      getThreadMetadataRef.current(sessionIdRef.current)?.control ??
+      initThreadControl();
+    return (
+      resolveAuthorizedApp(
+        currentControl.app,
+        stateRef.current.authorizedApps,
+        stateRef.current.defaultApp,
+      ) ?? "default"
+    );
   }, []);
 
   const onModelSelect = useCallback(async (model: string) => {
@@ -299,15 +331,17 @@ export function ControlContextProvider({
       return;
     }
 
-    const namespace =
-      currentControl.namespace ??
-      stateRef.current.defaultNamespace ??
-      "default";
+    const app =
+      resolveAuthorizedApp(
+        currentControl.app,
+        stateRef.current.authorizedApps,
+        stateRef.current.defaultApp,
+      ) ?? "default";
 
     console.log("[control-context] onModelSelect updating metadata", {
       threadId,
       model,
-      namespace,
+      app,
       currentControl,
     });
 
@@ -316,7 +350,7 @@ export function ControlContextProvider({
       control: {
         ...currentControl,
         model,
-        namespace,
+        app,
         controlDirty: true,
       },
     });
@@ -324,7 +358,7 @@ export function ControlContextProvider({
     console.log("[control-context] onModelSelect calling backend setModel", {
       threadId,
       model,
-      namespace,
+      app,
       backendUrl: aomiClientRef.current,
     });
 
@@ -332,7 +366,7 @@ export function ControlContextProvider({
       const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        { namespace, apiKey: stateRef.current.apiKey ?? undefined },
+        { app, apiKey: stateRef.current.apiKey ?? undefined },
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
@@ -341,41 +375,49 @@ export function ControlContextProvider({
     }
   }, []);
 
-  const onNamespaceSelect = useCallback((namespace: string) => {
+  const onAppSelect = useCallback((app: string) => {
     const threadId = sessionIdRef.current;
     const currentControl =
       getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
     const isProcessing = currentControl.isProcessing;
 
-    console.log("[control-context] onNamespaceSelect called", {
-      namespace,
+    console.log("[control-context] onAppSelect called", {
+      app,
       isProcessing,
       threadId,
     });
 
     if (isProcessing) {
       console.warn(
-        "[control-context] Cannot switch namespace while processing",
+        "[control-context] Cannot switch app while processing",
       );
       return;
     }
 
-    console.log("[control-context] onNamespaceSelect updating metadata", {
+    if (
+      stateRef.current.authorizedApps.length > 0 &&
+      !stateRef.current.authorizedApps.includes(app)
+    ) {
+      console.warn("[control-context] Cannot select unauthorized app", { app });
+      return;
+    }
+
+    console.log("[control-context] onAppSelect updating metadata", {
       threadId,
-      namespace,
+      app,
       currentControl,
     });
 
-    // Update thread metadata with new namespace and mark as dirty
+    // Update thread metadata with new app and mark as dirty
     updateThreadMetadataRef.current(threadId, {
       control: {
         ...currentControl,
-        namespace,
+        app,
         controlDirty: true,
       },
     });
 
-    console.log("[control-context] onNamespaceSelect metadata updated");
+    console.log("[control-context] onAppSelect metadata updated");
   }, []);
 
   const markControlSynced = useCallback(() => {
@@ -412,19 +454,19 @@ export function ControlContextProvider({
   // Legacy compatibility
   // ---------------------------------------------------------------------------
   const setState = useCallback(
-    (updates: Partial<{ namespace: string | null; apiKey: string | null }>) => {
+    (updates: Partial<{ app: string | null; apiKey: string | null }>) => {
       if ("apiKey" in updates) {
         setApiKey(updates.apiKey ?? null);
       }
       if (
-        "namespace" in updates &&
-        updates.namespace !== undefined &&
-        updates.namespace !== null
+        "app" in updates &&
+        updates.app !== undefined &&
+        updates.app !== null
       ) {
-        onNamespaceSelect(updates.namespace);
+        onAppSelect(updates.app);
       }
     },
-    [setApiKey, onNamespaceSelect],
+    [setApiKey, onAppSelect],
   );
 
   return (
@@ -433,10 +475,11 @@ export function ControlContextProvider({
         state,
         setApiKey,
         getAvailableModels,
-        getAuthorizedNamespaces,
+        getAuthorizedApps,
         getCurrentThreadControl,
+        getCurrentThreadApp,
         onModelSelect,
-        onNamespaceSelect,
+        onAppSelect,
         isProcessing,
         markControlSynced,
         getControlState,

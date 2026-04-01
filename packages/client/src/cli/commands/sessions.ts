@@ -103,7 +103,7 @@ export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
   printDataFileLocation();
 }
 
-export function sessionCommand(runtime: CliRuntime): void {
+export async function sessionCommand(runtime: CliRuntime): Promise<void> {
   const subcommand = runtime.parsed.positional[0];
   const selector = runtime.parsed.positional[1];
 
@@ -139,7 +139,12 @@ export function sessionCommand(runtime: CliRuntime): void {
     return;
   }
 
+  if (subcommand === "list") {
+    await sessionsCommand(runtime);
+    return;
+  }
+
   fatal(
-    "Usage: aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>",
+    "Usage: aomi session list\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>",
   );
 }

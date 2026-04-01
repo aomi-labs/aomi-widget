@@ -26,6 +26,12 @@ export type AomiClientConfig = {
   sendMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      apiKey?: string;
+      publicKey?: string;
+      userState?: unknown;
+    },
   ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
     sessionId: string,
@@ -37,7 +43,7 @@ export type AomiClientConfig = {
   unarchiveThread?: (sessionId: string) => Promise<void>;
   deleteThread?: (sessionId: string) => Promise<void>;
   // Control API
-  getNamespaces?: (
+  getApps?: (
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ) => Promise<string[]>;
@@ -45,14 +51,20 @@ export type AomiClientConfig = {
   setModel?: (
     sessionId: string,
     rig: string,
-    options?: { namespace?: string; apiKey?: string },
-  ) => Promise<{ rig: string; namespace?: string }>;
+    options?: { app?: string; apiKey?: string },
+  ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
   fetchThreads?: (publicKey: string) => Promise<AomiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      apiKey?: string;
+      publicKey?: string;
+      userState?: unknown;
+    },
   ) => Promise<AomiChatResponse>;
   postSystemMessage?: (
     sessionId: string,
@@ -80,7 +92,7 @@ export type MockAomiClientInstance = {
   unarchiveThread: ReturnType<typeof vi.fn>;
   deleteThread: ReturnType<typeof vi.fn>;
   // Control API
-  getNamespaces: ReturnType<typeof vi.fn>;
+  getApps: ReturnType<typeof vi.fn>;
   getModels: ReturnType<typeof vi.fn>;
   setModel: ReturnType<typeof vi.fn>;
 };
@@ -126,12 +138,23 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         : { session_id: threadId };
     });
 
-    sendMessage = vi.fn(async (sessionId: string, message: string) => {
+    sendMessage = vi.fn(
+      async (
+        sessionId: string,
+        message: string,
+        options?: {
+          app?: string;
+          apiKey?: string;
+          publicKey?: string;
+          userState?: unknown;
+        },
+      ) => {
       const fn = mockState.config.sendMessage ?? mockState.config.postChatMessage;
       return fn
-        ? await fn(sessionId, message)
+        ? await fn(sessionId, message, options)
         : { is_processing: true, messages: [] };
-    });
+      },
+    );
 
     sendSystemMessage = vi.fn(async (sessionId: string, message: string) => {
       const fn =
@@ -173,13 +196,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     });
 
     // Control API
-    getNamespaces = vi.fn(
+    getApps = vi.fn(
       async (
         sessionId: string,
         options?: { publicKey?: string; apiKey?: string },
       ) => {
-        return mockState.config.getNamespaces
-          ? await mockState.config.getNamespaces(sessionId, options)
+        return mockState.config.getApps
+          ? await mockState.config.getApps(sessionId, options)
           : [];
       },
     );
@@ -194,11 +217,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       async (
         sessionId: string,
         rig: string,
-        options?: { namespace?: string; apiKey?: string },
+        options?: { app?: string; apiKey?: string },
       ) => {
         return mockState.config.setModel
           ? await mockState.config.setModel(sessionId, rig, options)
-          : { rig, namespace: options?.namespace };
+          : { rig, app: options?.app };
       },
     );
 
@@ -235,6 +258,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
+import { useControl, type ControlContextApi } from "../../contexts/control-context";
 
 // =============================================================================
 // Test Harness Component
@@ -242,12 +266,14 @@ import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
 
 export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
+  control: ControlContextApi;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
   const api = useAomiRuntime();
+  const control = useControl();
 
-  useImperativeHandle(ref, () => ({ api }), [api]);
+  useImperativeHandle(ref, () => ({ api, control }), [api, control]);
 
   return null;
 });
@@ -264,7 +290,9 @@ export type RenderRuntimeOptions = {
 
 export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
+  control: ControlContextApi;
   getApi: () => AomiRuntimeApi;
+  getControl: () => ControlContextApi;
   unmount: () => void;
   rerender: (ui: React.ReactElement) => void;
 };
@@ -286,7 +314,9 @@ export const renderRuntime = ({
 
   return {
     api: ref.current.api,
+    control: ref.current.control,
     getApi: () => ref.current!.api,
+    getControl: () => ref.current!.control,
     unmount,
     rerender,
   };

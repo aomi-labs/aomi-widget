@@ -169,7 +169,7 @@ before sending the message and updates that persisted state as well.
 The backend builds transactions; the CLI persists and signs them:
 
 ```
-$ npx @aomi-labs/client chat "swap 1 ETH for USDC on Uniswap" --public-key 0xYourAddr
+$ npx @aomi-labs/client chat "swap 1 ETH for USDC on Uniswap" --public-key 0xYourAddr --chain 1
 ⚡ Wallet request queued: tx-1
    to:    0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
    value: 1000000000000000000
@@ -182,10 +182,12 @@ Pending (1):
 
 $ npx @aomi-labs/client sign tx-1 --private-key 0xac0974...
 Signer:  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-ID:      tx-1
+IDs:     tx-1
 Kind:    transaction
-To:      0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
+Tx:      tx-1 -> 0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
 Value:   1000000000000000000
+Chain:   1
+Exec:    aa (alchemy, 7702; fallback: eoa)
 ✅ Sent! Hash: 0xabc123...
 Backend notified.
 
@@ -206,7 +208,7 @@ Pending (1):
 
 $ npx @aomi-labs/client sign tx-2 --private-key 0xac0974...
 Signer:  0xf39Fd...92266
-ID:      tx-2
+IDs:     tx-2
 Kind:    eip712_sign
 Desc:    Sign CoW swap order
 Type:    Order
@@ -214,8 +216,10 @@ Type:    Order
 Backend notified.
 ```
 
-Pending and signed transactions are persisted in `$TMPDIR/aomi-session.json`
-alongside the session pointer, so they survive between CLI invocations.
+By default, `aomi sign` tries account abstraction first. In default mode the CLI
+retries unsponsored Alchemy AA when sponsorship is unavailable, then falls back
+to direct EOA signing automatically if AA still fails. Use `--aa` to require AA
+only, or `--eoa` to force EOA only.
 
 ### Verbose mode & conversation log
 
@@ -251,12 +255,13 @@ All config can be passed as flags (which take priority over env vars):
 | Flag | Env Variable | Default | Description |
 |------|-------------|---------|-------------|
 | `--backend-url` | `AOMI_BASE_URL` | `https://api.aomi.dev` | Backend URL |
-| `--api-key` | `AOMI_API_KEY` | — | API key for non-default namespaces |
-| `--namespace` | `AOMI_NAMESPACE` | `default` | Namespace |
+| `--api-key` | `AOMI_API_KEY` | — | API key for non-default apps |
+| `--app` | `AOMI_APP` | `default` | App |
 | `--model` | `AOMI_MODEL` | — | Model rig to apply before chat |
 | `--public-key` | `AOMI_PUBLIC_KEY` | — | Wallet address (tells agent your wallet) |
 | `--private-key` | `PRIVATE_KEY` | — | Hex private key for `aomi sign` |
 | `--rpc-url` | `CHAIN_RPC_URL` | — | RPC URL for transaction submission |
+| `--chain` | `AOMI_CHAIN_ID` | `1` | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
 | `--verbose`, `-v` | — | — | Stream tool calls and agent responses live |
 
 ```bash
@@ -267,24 +272,33 @@ npx @aomi-labs/client chat "hello" --backend-url https://my-backend.example.com
 npx @aomi-labs/client chat "send 0.1 ETH to vitalik.eth" \
   --public-key 0xYourAddress \
   --api-key sk-abc123 \
-  --namespace my-agent \
+  --app my-agent \
   --model claude-sonnet-4
 npx @aomi-labs/client sign tx-1 \
   --private-key 0xYourPrivateKey \
   --rpc-url https://eth.llamarpc.com
 ```
 
+### Signing modes
+
+`aomi sign` supports three practical modes:
+
+- Default: AA first, then automatic EOA fallback if AA is unavailable or fails
+- `--aa`: require AA and do not fall back to EOA
+- `--eoa`: force direct EOA execution
+
 ### How state works
 
 The CLI is **not** a long-running process — each command starts, runs, and
 exits. Conversation history lives on the backend. Between invocations, the CLI
-persists a small JSON file to `$TMPDIR/aomi-session.json`:
+persists local state under `AOMI_STATE_DIR` or `~/.aomi` by default:
 
 | Field | Purpose |
 |-------|---------|
 | `sessionId` | Which conversation to continue |
 | `model` | Last successfully applied model for the session |
 | `publicKey` | Wallet address (from `--public-key`) |
+| `chainId` | Active chain ID (from `--chain`) |
 | `pendingTxs` | Unsigned transactions waiting for `aomi sign <id>` |
 | `signedTxs` | Completed transactions with hashes/signatures |
 
@@ -293,7 +307,8 @@ $ npx @aomi-labs/client chat "hello"           # creates session, saves sessionI
 $ npx @aomi-labs/client chat "swap 1 ETH"     # reuses session, queues tx-1 if wallet request arrives
 $ npx @aomi-labs/client sign tx-1              # signs tx-1, moves to signedTxs, notifies backend
 $ npx @aomi-labs/client tx                     # shows all txs
-$ npx @aomi-labs/client close                  # wipes state file
+$ npx @aomi-labs/client close                  # clears the active local session pointer
 ```
 
-The state file lives in your OS temp directory and gets cleaned up on reboot.
+Session files live under `~/.aomi/sessions/` by default, with an active session
+pointer stored in the state root.

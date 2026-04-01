@@ -21,8 +21,28 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   className,
   chains = SUPPORTED_CHAINS,
 }) => {
-  const { chainId, isConnected } = useAccount();
-  const { switchChain, isPending } = useSwitchChain();
+  let chainId: number | undefined;
+  let isConnected = false;
+  let switchChain: ((args: { chainId: number }) => void) | undefined;
+  let isPending = false;
+
+  try {
+    const wagmiAccount = useAccount();
+    chainId = wagmiAccount.chainId;
+    isConnected = wagmiAccount.isConnected;
+  } catch {
+    chainId = undefined;
+    isConnected = false;
+  }
+
+  try {
+    const wagmiSwitch = useSwitchChain();
+    switchChain = wagmiSwitch.switchChain;
+    isPending = wagmiSwitch.isPending;
+  } catch {
+    switchChain = undefined;
+    isPending = false;
+  }
   const [open, setOpen] = useState(false);
 
   // Show only when wallet is connected.
@@ -61,7 +81,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
               key={chain.id}
               disabled={isPending}
               onClick={() => {
-                if (isPending || chain.id === chainId) return;
+                if (isPending || chain.id === chainId || !switchChain) return;
                 switchChain({ chainId: chain.id });
                 setOpen(false);
               }}

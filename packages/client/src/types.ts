@@ -26,7 +26,7 @@ export type Logger = {
 export type AomiClientOptions = {
   /** Base URL of the Aomi backend (e.g. "https://aomi.dev") */
   baseUrl: string;
-  /** Default API key for non-default namespaces */
+  /** Default API key for non-default apps */
   apiKey?: string;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
@@ -57,6 +57,7 @@ export interface AomiStateResponse {
   system_events?: AomiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
+  user_state?: UserState | null;
 }
 
 /**
@@ -68,6 +69,7 @@ export interface AomiChatResponse {
   system_events?: AomiSystemEvent[] | null;
   title?: string | null;
   is_processing?: boolean;
+  user_state?: UserState | null;
 }
 
 /**
