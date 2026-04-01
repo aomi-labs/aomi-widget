@@ -6,7 +6,10 @@ import {
   type TransactionExecutionResult,
 } from "../../aa";
 import { ClientSession } from "../../session";
-import type { WalletEip712Payload } from "../../wallet-utils";
+import {
+  toViemSignTypedDataArgs,
+  type WalletEip712Payload,
+} from "../../wallet-utils";
 import { CliExit, fatal } from "../errors";
 import {
   createCliProviderState,
@@ -457,35 +460,21 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
         chain,
         transport: http(resolvedRpcUrl),
       });
-      const typedData = pendingTx.payload.typed_data as {
-        domain?: Record<string, unknown>;
-        types?: Record<string, Array<{ name: string; type: string }>>;
-        primaryType?: string;
-        message?: Record<string, unknown>;
-      } | undefined;
+      const signArgs = toViemSignTypedDataArgs(
+        pendingTx.payload as WalletEip712Payload,
+      );
 
-      if (!typedData) {
+      if (!signArgs) {
         fatal("EIP-712 request is missing typed_data payload.");
       }
 
       if (pendingTx.description) {
         console.log(`Desc:    ${pendingTx.description}`);
       }
-      if (typedData.primaryType) {
-        console.log(`Type:    ${typedData.primaryType}`);
-      }
+      console.log(`Type:    ${signArgs.primaryType}`);
       console.log();
 
-      const { domain, types, primaryType, message } = typedData;
-      const sigTypes = { ...types };
-      delete sigTypes["EIP712Domain"];
-
-      const signature = await walletClient.signTypedData({
-        domain: domain as Record<string, unknown>,
-        types: sigTypes as Record<string, Array<{ name: string; type: string }>>,
-        primaryType: primaryType as string,
-        message: message as Record<string, unknown>,
-      });
+      const signature = await walletClient.signTypedData(signArgs as never);
 
       console.log(`✅ Signed! Signature: ${signature.slice(0, 20)}...`);
 

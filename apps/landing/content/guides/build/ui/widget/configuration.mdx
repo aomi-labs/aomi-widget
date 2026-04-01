@@ -15,8 +15,11 @@ Set these in your `.env` file:
 # Backend API URL (required)
 NEXT_PUBLIC_BACKEND_URL=https://api.example.com
 
-# Reown Web3 Project ID (required for wallet connect)
-NEXT_PUBLIC_PROJECT_ID=your_project_id
+# Para API key (required for wallet connect / social auth)
+NEXT_PUBLIC_PARA_API_KEY=your_para_api_key
+
+# WalletConnect project ID for external wallets in the Para modal
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 ```
 
 ## AomiFrame Props
@@ -31,7 +34,7 @@ import { AomiFrame } from "@/components/aomi-frame";
   height="600px"
   backendUrl="https://api.example.com"
   walletPosition="footer"
-/>
+/>;
 ```
 
 ### Wallet Position Options
@@ -63,7 +66,7 @@ import { AomiFrame } from "@/components/aomi-frame";
     }}
   />
   <AomiFrame.Composer />
-</AomiFrame.Root>
+</AomiFrame.Root>;
 ```
 
 ### Control Bar in Composer Area
@@ -102,15 +105,15 @@ import { ControlBar } from "@/components/control-bar";
 
 ### ControlBar Props Reference
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `hideModel` | `boolean` | `false` | Hide the model selector dropdown |
-| `hideApp` | `boolean` | `false` | Hide the app/agent selector |
-| `hideApiKey` | `boolean` | `false` | Hide the API key input button |
-| `hideWallet` | `boolean` | `true` | Hide the wallet connect button |
-| `hideNetwork` | `boolean` | `false` | Hide the network selector |
-| `className` | `string` | -- | Additional CSS classes |
-| `children` | `ReactNode` | -- | Custom controls to append |
+| Prop          | Type        | Default | Description                      |
+| ------------- | ----------- | ------- | -------------------------------- |
+| `hideModel`   | `boolean`   | `false` | Hide the model selector dropdown |
+| `hideApp`     | `boolean`   | `false` | Hide the app/agent selector      |
+| `hideApiKey`  | `boolean`   | `false` | Hide the API key input button    |
+| `hideWallet`  | `boolean`   | `true`  | Hide the wallet connect button   |
+| `hideNetwork` | `boolean`   | `false` | Hide the network selector        |
+| `className`   | `string`    | --      | Additional CSS classes           |
+| `children`    | `ReactNode` | --      | Custom controls to append        |
 
 ## Control State Management
 
@@ -121,29 +124,29 @@ import { useControl } from "@aomi-labs/react";
 
 function MyComponent() {
   const {
-    state,                    // Global control state
-    setApiKey,                // Update API key
-    getAvailableModels,       // Fetch available models from backend
-    getAuthorizedApps,        // Fetch authorized apps from backend
-    onModelSelect,            // Select a model for the current thread
-    onAppSelect,              // Select an app for the current thread
-    getCurrentThreadControl,  // Get current thread's control state
-    isProcessing,             // Whether model/app switching is disabled
-    getControlState,          // Get state synchronously (for callbacks)
-    onControlStateChange,     // Subscribe to state changes
+    state, // Global control state
+    setApiKey, // Update API key
+    getAvailableModels, // Fetch available models from backend
+    getAuthorizedApps, // Fetch authorized apps from backend
+    onModelSelect, // Select a model for the current thread
+    onAppSelect, // Select an app for the current thread
+    getCurrentThreadControl, // Get current thread's control state
+    isProcessing, // Whether model/app switching is disabled
+    getControlState, // Get state synchronously (for callbacks)
+    onControlStateChange, // Subscribe to state changes
   } = useControl();
 
   // Read global state
-  console.log(state.apiKey);                // "sk-..." | null
-  console.log(state.availableModels);       // ["claude-sonnet-4-20250514", "gpt-4o", ...]
-  console.log(state.authorizedApps);        // ["default", "defi", ...]
-  console.log(state.defaultModel);          // "claude-sonnet-4-20250514"
-  console.log(state.defaultApp);            // "default"
+  console.log(state.apiKey); // "sk-..." | null
+  console.log(state.availableModels); // ["claude-sonnet-4-20250514", "gpt-4o", ...]
+  console.log(state.authorizedApps); // ["default", "defi", ...]
+  console.log(state.defaultModel); // "claude-sonnet-4-20250514"
+  console.log(state.defaultApp); // "default"
 
   // Read per-thread control
   const threadControl = getCurrentThreadControl();
-  console.log(threadControl.model);         // Selected model for this thread
-  console.log(threadControl.app);            // Selected app for this thread
+  console.log(threadControl.model); // Selected model for this thread
+  console.log(threadControl.app); // Selected app for this thread
 
   // Update state
   setApiKey("sk-new-key");
@@ -208,33 +211,67 @@ function MyComponent() {
 }
 ```
 
-## Wagmi Configuration
+## Para Wallet Provider
 
-Wallet integration requires wagmi and Reown AppKit. Configure in your app providers:
+Wallet integration requires Para for the connect/manage flow and wagmi-compatible connectors under the hood. Configure it in your app providers:
 
 ```tsx
 // app/providers.tsx
-import { WagmiProvider, createConfig, http } from "wagmi";
+import "@getpara/react-sdk/styles.css";
+import { ParaProvider, Environment } from "@getpara/react-sdk";
+import { http } from "viem";
 import { mainnet, polygon } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const config = createConfig({
-  chains: [mainnet, polygon],
-  transports: {
-    [mainnet.id]: http(),
-    [polygon.id]: http(),
-  },
-});
-
 const queryClient = new QueryClient();
+const walletConnectProjectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
+  process.env.NEXT_PUBLIC_PROJECT_ID;
 
 export function Providers({ children }) {
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <ParaProvider
+        paraClientConfig={{
+          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
+          env:
+            (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as
+              | Environment
+              | undefined) ?? Environment.BETA,
+        }}
+        config={{ appName: "Your App" }}
+        paraModalConfig={{
+          disableEmailLogin: true,
+          oAuthMethods: ["GOOGLE"],
+        }}
+        externalWalletConfig={{
+          appDescription: "Your app description",
+          appUrl: "https://your-app.com",
+          wallets: [
+            "WALLETCONNECT",
+            "METAMASK",
+            "COINBASE",
+            "RAINBOW",
+            "RABBY",
+          ],
+          walletConnect: {
+            projectId: walletConnectProjectId!,
+          },
+          evmConnector: {
+            config: {
+              chains: [mainnet, polygon],
+              transports: {
+                [mainnet.id]: http(),
+                [polygon.id]: http(),
+              },
+              ssr: true,
+            },
+          },
+        }}
+      >
         {children}
-      </QueryClientProvider>
-    </WagmiProvider>
+      </ParaProvider>
+    </QueryClientProvider>
   );
 }
 ```
@@ -275,14 +312,14 @@ Use props to toggle features:
 
 The widget communicates with your backend via these endpoints:
 
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/chat` | POST | Send a message |
-| `/api/state` | GET | Poll for state updates |
-| `/api/control/models` | GET | Get available models |
-| `/api/control/apps` | GET | Get authorized apps |
-| `/api/control/model` | POST | Set the active model |
-| `/api/sessions` | GET/POST | List/create threads |
-| `/api/sessions/:id` | PATCH/DELETE | Update/delete thread |
+| Endpoint              | Method       | Description            |
+| --------------------- | ------------ | ---------------------- |
+| `/api/chat`           | POST         | Send a message         |
+| `/api/state`          | GET          | Poll for state updates |
+| `/api/control/models` | GET          | Get available models   |
+| `/api/control/apps`   | GET          | Get authorized apps    |
+| `/api/control/model`  | POST         | Set the active model   |
+| `/api/sessions`       | GET/POST     | List/create threads    |
+| `/api/sessions/:id`   | PATCH/DELETE | Update/delete thread   |
 
 See the [API Reference](/docs/build/services/api-reference) for full endpoint documentation.

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import {
   useAomiRuntime,
+  toViemSignTypedDataArgs,
   type WalletRequest,
   type WalletTxPayload,
   type WalletEip712Payload,
@@ -14,7 +15,7 @@ import {
   useSignTypedData,
 } from "wagmi";
 
-function parseChainId(value: number | string | undefined): number | undefined {
+function parseChainId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -39,10 +40,40 @@ export function WalletTxHandler() {
     resolveWalletRequest,
     rejectWalletRequest,
   } = useAomiRuntime();
-  const { sendTransactionAsync } = useSendTransaction();
-  const { signTypedDataAsync } = useSignTypedData();
-  const { chainId: currentChainId } = useAccount();
-  const { switchChainAsync } = useSwitchChain();
+  let sendTransactionAsync:
+    | ReturnType<typeof useSendTransaction>["sendTransactionAsync"]
+    | undefined;
+  let signTypedDataAsync:
+    | ReturnType<typeof useSignTypedData>["signTypedDataAsync"]
+    | undefined;
+  let currentChainId: number | undefined;
+  let switchChainAsync:
+    | ReturnType<typeof useSwitchChain>["switchChainAsync"]
+    | undefined;
+
+  try {
+    sendTransactionAsync = useSendTransaction().sendTransactionAsync;
+  } catch {
+    sendTransactionAsync = undefined;
+  }
+
+  try {
+    signTypedDataAsync = useSignTypedData().signTypedDataAsync;
+  } catch {
+    signTypedDataAsync = undefined;
+  }
+
+  try {
+    currentChainId = useAccount().chainId;
+  } catch {
+    currentChainId = undefined;
+  }
+
+  try {
+    switchChainAsync = useSwitchChain().switchChainAsync;
+  } catch {
+    switchChainAsync = undefined;
+  }
   const processingRef = useRef(false);
 
   useEffect(() => {
@@ -61,6 +92,11 @@ export function WalletTxHandler() {
       try {
         if (req.kind === "transaction") {
           const payload = req.payload as WalletTxPayload;
+
+          if (!sendTransactionAsync || !switchChainAsync) {
+            rejectWalletRequest(req.id, "Wallet provider is not ready");
+            return;
+          }
 
           if (payload.chainId && payload.chainId !== currentChainId) {
             await switchChainAsync({ chainId: payload.chainId });
@@ -81,14 +117,19 @@ export function WalletTxHandler() {
           });
         } else {
           const payload = req.payload as WalletEip712Payload;
-          const typedData = payload.typed_data;
+          const signArgs = toViemSignTypedDataArgs(payload);
 
-          if (!typedData) {
+          if (!signArgs) {
             rejectWalletRequest(req.id, "Missing typed_data payload");
             return;
           }
 
-          const requestChainId = parseChainId(typedData.domain?.chainId);
+          if (!signTypedDataAsync || !switchChainAsync) {
+            rejectWalletRequest(req.id, "Wallet provider is not ready");
+            return;
+          }
+
+          const requestChainId = parseChainId(signArgs.domain?.chainId);
           if (
             requestChainId &&
             currentChainId &&
@@ -97,7 +138,7 @@ export function WalletTxHandler() {
             await switchChainAsync({ chainId: requestChainId });
           }
 
-          const signature = await signTypedDataAsync(typedData as never);
+          const signature = await signTypedDataAsync(signArgs as never);
 
           resolveWalletRequest(req.id, { signature });
         }
