@@ -4,7 +4,7 @@ export type ParsedArgs = {
   flags: Record<string, string>;
 };
 
-export type CliExecutionMode = "aa" | "eoa";
+export type CliExecutionMode = "auto" | "aa" | "eoa";
 export type CliAAProvider = "alchemy" | "pimlico";
 export type CliAAMode = "4337" | "7702";
 

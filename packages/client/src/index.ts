@@ -64,11 +64,13 @@ export { unwrapSystemEvent, type UnwrappedEvent } from "./event-unwrap";
 export {
   normalizeTxPayload,
   normalizeEip712Payload,
+  toViemSignTypedDataArgs,
 } from "./wallet-utils";
 
 export type {
   WalletTxPayload,
   WalletEip712Payload,
+  ViemSignTypedDataArgs,
 } from "./wallet-utils";
 
 // =============================================================================

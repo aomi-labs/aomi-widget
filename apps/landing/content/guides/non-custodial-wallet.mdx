@@ -18,7 +18,7 @@ Aomi is **non-custodial**: it never holds your private keys or funds. You remain
 
 ## How Signing Works
 
-All transaction signing happens locally in your connected wallet — via [Reown AppKit](https://reown.com) (WalletConnect). Aomi constructs and proposes transactions; your wallet signs them. The private key never leaves your device.
+Wallet connection and account management run through [Para](https://www.getpara.com). Transaction signing still happens locally in your connected wallet through wagmi-compatible connectors. Aomi constructs and proposes transactions; your wallet signs them. The private key never leaves your device.
 
 ```
 Aomi Agent → constructs tx → simulates → presents result → your wallet signs

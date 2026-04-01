@@ -22,7 +22,7 @@ Aomi treats every on-chain transaction as a first-class operation with built-in 
 
 Before any transaction reaches a user's wallet, Aomi forks the current network state using [Anvil](https://book.getfoundry.sh/anvil/) and simulates the transaction against it. The user sees exact token changes, gas costs, and contract calls before signing anything. This simulation-first approach is how the system prevents AI-generated transactions from executing without verification.
 
-Aomi is non-custodial by design. It never holds private keys or funds. All signing happens locally in the user's wallet via [Reown AppKit](https://reown.com) (WalletConnect). The AI constructs and proposes transactions; the wallet signs them. Account abstraction is supported for session keys, gas sponsorship, and batched operations — smoother UX without compromising custody.
+Aomi is non-custodial by design. It never holds private keys or funds. Wallet connection and account management run through [Para](https://www.getpara.com), while transaction signing still happens locally in the user's wallet through wagmi-compatible connectors. The AI constructs and proposes transactions; the wallet signs them. Account abstraction is supported for session keys, gas sponsorship, and batched operations — smoother UX without compromising custody.
 
 This pipeline applies across all channels. Whether a user transacts through the web widget or a Telegram bot, the same simulation and approval flow runs.
 
@@ -42,16 +42,16 @@ Choose from Anthropic (Claude), OpenAI (GPT-4), or models via OpenRouter. Switch
 
 ## Integration Paths
 
-| | Widget (shadcn) | Headless Library | Telegram Bot |
-| --- | --- | --- | --- |
-| **Setup time** | Minutes | Hours | Managed by Aomi |
-| **Install method** | `npx shadcn add` | `npm install` | No frontend code |
-| **UI included** | Full chat interface, sidebar, controls | None — build your own | Telegram-native |
-| **Customization** | Edit copied source files | Build from scratch | Bot commands and panels |
-| **Dependencies** | `@aomi-labs/react`, `@assistant-ui/react`, shadcn primitives | `@aomi-labs/react`, `@assistant-ui/react` | None |
-| **Framework** | Next.js (React) | Any React app (API client works anywhere) | N/A |
-| **Code ownership** | Components copied to your project | Library imported from npm | Hosted by Aomi |
-| **Best for** | Quick integration, standard chat UI, projects using shadcn/ui | Fully custom designs, non-standard layouts, maximum control | Reaching users on Telegram without frontend deployment |
+|                    | Widget (shadcn)                                               | Headless Library                                            | Telegram Bot                                           |
+| ------------------ | ------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| **Setup time**     | Minutes                                                       | Hours                                                       | Managed by Aomi                                        |
+| **Install method** | `npx shadcn add`                                              | `npm install`                                               | No frontend code                                       |
+| **UI included**    | Full chat interface, sidebar, controls                        | None — build your own                                       | Telegram-native                                        |
+| **Customization**  | Edit copied source files                                      | Build from scratch                                          | Bot commands and panels                                |
+| **Dependencies**   | `@aomi-labs/react`, `@assistant-ui/react`, shadcn primitives  | `@aomi-labs/react`, `@assistant-ui/react`                   | None                                                   |
+| **Framework**      | Next.js (React)                                               | Any React app (API client works anywhere)                   | N/A                                                    |
+| **Code ownership** | Components copied to your project                             | Library imported from npm                                   | Hosted by Aomi                                         |
+| **Best for**       | Quick integration, standard chat UI, projects using shadcn/ui | Fully custom designs, non-standard layouts, maximum control | Reaching users on Telegram without frontend deployment |
 
 ### Widget (shadcn)
 
@@ -83,11 +83,11 @@ The widget is built on top of the headless library. Installing the widget pulls 
 
 ## Platform Support
 
-| Platform | Support |
-| --- | --- |
-| **Next.js 15** | Primary target. App Router with Server Components. |
-| **React 18 / 19** | Supported via `@aomi-labs/react` and shadcn components. |
-| **Modern Browsers** | Chrome, Firefox, Safari, Edge (latest 2 versions). |
+| Platform            | Support                                                 |
+| ------------------- | ------------------------------------------------------- |
+| **Next.js 15**      | Primary target. App Router with Server Components.      |
+| **React 18 / 19**   | Supported via `@aomi-labs/react` and shadcn components. |
+| **Modern Browsers** | Chrome, Firefox, Safari, Edge (latest 2 versions).      |
 
 ## Next Steps
 

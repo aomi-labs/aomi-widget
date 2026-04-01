@@ -1,5 +1,4 @@
 import { type Chain, createWalletClient, http } from "viem";
-import { createInterface } from "node:readline/promises";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
@@ -7,7 +6,10 @@ import {
   type TransactionExecutionResult,
 } from "../../aa";
 import { ClientSession } from "../../session";
-import type { WalletEip712Payload } from "../../wallet-utils";
+import {
+  toViemSignTypedDataArgs,
+  type WalletEip712Payload,
+} from "../../wallet-utils";
 import { CliExit, fatal } from "../errors";
 import {
   createCliProviderState,
@@ -23,6 +25,7 @@ import {
   writeState,
   type CliSessionState,
 } from "../state";
+import { buildCliUserState } from "../user-state";
 import {
   formatSignedTxLine,
   formatTxLine,
@@ -133,8 +136,9 @@ function createSessionFromState(state: CliSessionState): ClientSession {
     },
   );
 
-  if (state.publicKey) {
-    session.resolveWallet(state.publicKey, state.chainId);
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
   }
 
   return session;
@@ -185,27 +189,6 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
     chain.rpcUrls.public?.http[0] ??
     ""
   );
-}
-
-async function promptForEoaFallback(): Promise<boolean> {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    return false;
-  }
-
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  try {
-    const answer = await rl.question(
-      "Account abstraction not available, use EOA? [yes/no] ",
-    );
-    const normalized = answer.trim().toLowerCase();
-    return normalized === "y" || normalized === "yes";
-  } finally {
-    rl.close();
-  }
 }
 
 async function executeCliTransaction(params: {
@@ -316,12 +299,13 @@ async function executeTransactionWithFallback(params: {
       }
     }
 
-    const useEoa = await promptForEoaFallback();
-    if (!useEoa) {
+    if (!decision.fallbackToEoa) {
       throw error;
     }
 
     const eoaDecision = { execution: "eoa" } as const;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`AA execution failed: ${errorMessage}`);
     console.log("Retrying with EOA execution...");
     const eoaProviderState = await createCliProviderState({
       decision: eoaDecision,
@@ -476,35 +460,21 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
         chain,
         transport: http(resolvedRpcUrl),
       });
-      const typedData = pendingTx.payload.typed_data as {
-        domain?: Record<string, unknown>;
-        types?: Record<string, Array<{ name: string; type: string }>>;
-        primaryType?: string;
-        message?: Record<string, unknown>;
-      } | undefined;
+      const signArgs = toViemSignTypedDataArgs(
+        pendingTx.payload as WalletEip712Payload,
+      );
 
-      if (!typedData) {
+      if (!signArgs) {
         fatal("EIP-712 request is missing typed_data payload.");
       }
 
       if (pendingTx.description) {
         console.log(`Desc:    ${pendingTx.description}`);
       }
-      if (typedData.primaryType) {
-        console.log(`Type:    ${typedData.primaryType}`);
-      }
+      console.log(`Type:    ${signArgs.primaryType}`);
       console.log();
 
-      const { domain, types, primaryType, message } = typedData;
-      const sigTypes = { ...types };
-      delete sigTypes["EIP712Domain"];
-
-      const signature = await walletClient.signTypedData({
-        domain: domain as Record<string, unknown>,
-        types: sigTypes as Record<string, Array<{ name: string; type: string }>>,
-        primaryType: primaryType as string,
-        message: message as Record<string, unknown>,
-      });
+      const signature = await walletClient.signTypedData(signArgs as never);
 
       console.log(`✅ Signed! Signature: ${signature.slice(0, 20)}...`);
 

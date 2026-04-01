@@ -7,7 +7,7 @@ import ContextProvider from "@/components/wallet-providers";
 export function Provider({ children }: { children: ReactNode }) {
   return (
     <RootProvider>
-      <ContextProvider cookies={null}>{children}</ContextProvider>
+      <ContextProvider>{children}</ContextProvider>
     </RootProvider>
   );
 }

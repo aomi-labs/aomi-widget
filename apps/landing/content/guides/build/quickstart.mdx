@@ -72,11 +72,11 @@ your-project/
 
 Components are pulled from three registries, all resolved automatically by the CLI:
 
-| Source | What | Why |
-| --- | --- | --- |
-| **aomi.dev/r** | Customized components (AomiFrame, Thread, ThreadList) | Aomi-specific features like wallet integration |
-| **r.assistant-ui.com** | Unchanged upstream components (markdown, tooltips) | Maintained by assistant-ui, receives upstream fixes |
-| **ui.shadcn.com** | Primitives (Button, Sidebar, Dialog) | Standard UI building blocks |
+| Source                 | What                                                  | Why                                                 |
+| ---------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| **aomi.dev/r**         | Customized components (AomiFrame, Thread, ThreadList) | Aomi-specific features like wallet integration      |
+| **r.assistant-ui.com** | Unchanged upstream components (markdown, tooltips)    | Maintained by assistant-ui, receives upstream fixes |
+| **ui.shadcn.com**      | Primitives (Button, Sidebar, Dialog)                  | Standard UI building blocks                         |
 
 ```
 npx shadcn add https://aomi.dev/r/aomi-frame.json
@@ -102,8 +102,11 @@ NEXT_PUBLIC_BACKEND_URL=https://api.aomi.dev
 For wallet integration, also add:
 
 ```bash
-# Optional: Reown project ID for wallet connect
-NEXT_PUBLIC_PROJECT_ID=your_reown_project_id
+# Required for wallet connect / social auth
+NEXT_PUBLIC_PARA_API_KEY=your_para_api_key
+
+# Required for external wallets in the Para modal
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 ```
 
 ## Add AomiFrame to a Page
@@ -196,8 +199,8 @@ Hide controls you do not need using the compound component API:
   <AomiFrame.Header
     withControl={true}
     controlBarProps={{
-      hideWallet: true,    // No wallet connect
-      hideApiKey: true,    // API key set programmatically
+      hideWallet: true, // No wallet connect
+      hideApiKey: true, // API key set programmatically
     }}
   />
   <AomiFrame.Composer />

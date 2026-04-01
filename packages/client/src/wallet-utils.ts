@@ -10,6 +10,8 @@
 // Types
 // =============================================================================
 
+import { getAddress } from "viem";
+
 export type WalletTxPayload = {
   to: string;
   value?: string;
@@ -25,6 +27,13 @@ export type WalletEip712Payload = {
     message?: Record<string, unknown>;
   };
   description?: string;
+};
+
+export type ViemSignTypedDataArgs = {
+  domain?: Record<string, unknown>;
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: string;
+  message?: Record<string, unknown>;
 };
 
 // =============================================================================
@@ -61,6 +70,21 @@ function parseChainId(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function normalizeAddress(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    return getAddress(trimmed);
+  } catch {
+    if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+      return getAddress(trimmed.toLowerCase());
+    }
+    return undefined;
+  }
+}
+
 // =============================================================================
 // Normalization
 // =============================================================================
@@ -74,7 +98,7 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
   const args = getToolArgs(payload);
   const ctx = asRecord(root?.ctx);
 
-  const to = typeof args.to === "string" ? args.to : undefined;
+  const to = normalizeAddress(args.to);
   if (!to) return null;
 
   const valueRaw = args.value;
@@ -126,4 +150,34 @@ export function normalizeEip712Payload(
     typeof args.description === "string" ? args.description : undefined;
 
   return { typed_data: typedData, description };
+}
+
+/**
+ * Convert normalized EIP-712 payloads into the viem signing shape used by both
+ * the CLI and widget component layers.
+ */
+export function toViemSignTypedDataArgs(
+  payload: WalletEip712Payload,
+): ViemSignTypedDataArgs | null {
+  const typedData = payload.typed_data;
+  const primaryType =
+    typeof typedData?.primaryType === "string" &&
+    typedData.primaryType.trim().length > 0
+      ? typedData.primaryType
+      : undefined;
+
+  if (!typedData || !primaryType) {
+    return null;
+  }
+
+  return {
+    domain: asRecord(typedData.domain),
+    types: Object.fromEntries(
+      Object.entries(typedData.types ?? {}).filter(
+        ([typeName]) => typeName !== "EIP712Domain",
+      ),
+    ) as ViemSignTypedDataArgs["types"],
+    primaryType,
+    message: asRecord(typedData.message),
+  };
 }
