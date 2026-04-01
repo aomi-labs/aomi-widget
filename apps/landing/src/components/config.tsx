@@ -38,8 +38,7 @@ export const paraApiKey =
 
 export const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
-  process.env.NEXT_PUBLIC_PROJECT_ID ??
-  "missing-walletconnect-project-id";
+  process.env.NEXT_PUBLIC_PROJECT_ID;
 
 export const paraEnvironment =
   (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??

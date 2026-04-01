@@ -1,9 +1,10 @@
 "use client";
 
 import "@getpara/react-sdk/styles.css";
-import { ParaProvider } from "@getpara/react-sdk";
+import ParaWeb, { ParaProvider } from "@getpara/react-sdk";
+import { createParaWagmiConfig } from "@getpara/evm-wallet-connectors";
 import { useEffect, useState, type ReactNode } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useAccount, useSwitchChain, WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import {
@@ -17,6 +18,13 @@ import {
   useLocalhost,
   walletConnectProjectId,
 } from "./config";
+
+const APP_NAME = "Aomi Widget Docs";
+const APP_DESCRIPTION = "Interactive docs and widget demo for Aomi";
+
+function getAppUrl() {
+  return typeof window !== "undefined" ? window.location.origin : "https://aomi.dev";
+}
 
 function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
   const { isConnected, chainId, connector } = useAccount();
@@ -70,51 +78,96 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-function ContextProvider({
-  children,
-}: {
-  children: ReactNode;
-  cookies?: string | null;
-}) {
+declare global {
+  interface Window {
+    __AOMI_PARA_CLIENT__?: ParaWeb;
+  }
+}
+
+type WalletProvidersProps = {
+  children?: ReactNode;
+};
+
+export default function WalletProviders({ children }: WalletProvidersProps) {
   const [queryClient] = useState(() => new QueryClient());
+  const [paraClient, setParaClient] = useState<ParaWeb | null>(null);
+  const [wagmiConfig, setWagmiConfig] = useState<ReturnType<
+    typeof createParaWagmiConfig
+  > | null>(null);
+  const wallets = walletConnectProjectId
+    ? externalWallets
+    : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT");
+  const wagmiProjectId =
+    walletConnectProjectId ?? "missing-walletconnect-project-id";
+
+  useEffect(() => {
+    setParaClient(new ParaWeb(paraEnvironment, paraApiKey));
+  }, []);
+
+  useEffect(() => {
+    if (!paraClient) return;
+
+    window.__AOMI_PARA_CLIENT__ = paraClient;
+    setWagmiConfig(
+      createParaWagmiConfig(paraClient, {
+        appName: APP_NAME,
+        appDescription: APP_DESCRIPTION,
+        appUrl: getAppUrl(),
+        wallets,
+        projectId: wagmiProjectId,
+        chains: networks,
+        transports,
+        ssr: true,
+      }),
+    );
+
+    return () => {
+      if (window.__AOMI_PARA_CLIENT__ === paraClient) {
+        delete window.__AOMI_PARA_CLIENT__;
+      }
+    };
+  }, [paraClient, wallets, wagmiProjectId]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ParaProvider
-        paraClientConfig={{
-          apiKey: paraApiKey!,
-          env: paraEnvironment,
-        }}
-        config={{
-          appName: "Aomi Widget Docs",
-        }}
-        paraModalConfig={{
-          disableEmailLogin: true,
-          oAuthMethods,
-        }}
-        externalWalletConfig={{
-          appDescription: "Interactive docs and widget demo for Aomi",
-          appUrl:
-            typeof window !== "undefined"
-              ? window.location.origin
-              : "https://aomi.dev",
-          wallets: externalWallets,
-          walletConnect: {
-            projectId: walletConnectProjectId!,
-          },
-          evmConnector: {
-            config: {
-              chains: networks,
-              transports,
-              ssr: true,
+      {wagmiConfig ? (
+        <WagmiProvider config={wagmiConfig}>
+          <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
+        </WagmiProvider>
+      ) : (
+        <>{children}</>
+      )}
+      {paraClient ? (
+        <ParaProvider
+          paraClientConfig={paraClient}
+          config={{
+            appName: APP_NAME,
+          }}
+          paraModalConfig={{
+            disableEmailLogin: true,
+            oAuthMethods,
+          }}
+          externalWalletConfig={{
+            appDescription: APP_DESCRIPTION,
+            appUrl: getAppUrl(),
+            wallets,
+            ...(walletConnectProjectId
+              ? {
+                  walletConnect: {
+                    projectId: walletConnectProjectId,
+                  },
+                }
+              : {}),
+            evmConnector: {
+              config: {
+                chains: networks,
+                transports,
+                ssr: true,
+              },
             },
-          },
-        }}
-      >
-        <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
-      </ParaProvider>
+          }}
+        />
+      ) : null}
     </QueryClientProvider>
   );
 }
-
-export default ContextProvider;
