@@ -662,6 +662,9 @@ function normalizeEip712Payload(payload) {
 }
 
 // src/session.ts
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 function sortJson(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -883,6 +886,30 @@ var ClientSession = class extends TypedEventEmitter {
     if (typeof address === "string" && address.length > 0) {
       this.publicKey = address;
     }
+  }
+  addExtValue(key, value) {
+    var _a;
+    const current = (_a = this.userState) != null ? _a : {};
+    const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
+    this.resolveUserState(__spreadProps(__spreadValues({}, current), {
+      ext: __spreadProps(__spreadValues({}, currentExt), {
+        [key]: value
+      })
+    }));
+  }
+  removeExtValue(key) {
+    if (!this.userState) return;
+    const currentExt = this.userState["ext"];
+    if (!isRecord(currentExt)) return;
+    const nextExt = __spreadValues({}, currentExt);
+    delete nextExt[key];
+    const nextState = __spreadValues({}, this.userState);
+    if (Object.keys(nextExt).length === 0) {
+      delete nextState["ext"];
+    } else {
+      nextState["ext"] = nextExt;
+    }
+    this.resolveUserState(nextState);
   }
   resolveWallet(address, chainId) {
     this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });

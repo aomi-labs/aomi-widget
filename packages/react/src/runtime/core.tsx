@@ -453,6 +453,8 @@ export function AomiRuntimeCore({
       user: userContext.user,
       getUserState: userContext.getUserState,
       setUser: userContext.setUser,
+      addExtValue: userContext.addExtValue,
+      removeExtValue: userContext.removeExtValue,
       onUserStateChange: userContext.onUserStateChange,
 
       // Thread API

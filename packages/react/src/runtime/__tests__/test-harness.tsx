@@ -18,7 +18,10 @@ import type {
 export type AomiClientConfig = {
   // New names (match AomiClient API)
   listThreads?: (publicKey: string) => Promise<AomiThread[]>;
-  fetchState?: (sessionId: string) => Promise<AomiStateResponse>;
+  fetchState?: (
+    sessionId: string,
+    userState?: Record<string, unknown>,
+  ) => Promise<AomiStateResponse>;
   createThread?: (
     threadId: string,
     publicKey?: string,
@@ -26,6 +29,12 @@ export type AomiClientConfig = {
   sendMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      publicKey?: string;
+      apiKey?: string;
+      userState?: Record<string, unknown>;
+    },
   ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
     sessionId: string,
@@ -53,6 +62,12 @@ export type AomiClientConfig = {
   postChatMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      publicKey?: string;
+      apiKey?: string;
+      userState?: Record<string, unknown>;
+    },
   ) => Promise<AomiChatResponse>;
   postSystemMessage?: (
     sessionId: string,
@@ -114,11 +129,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       return fn ? await fn(publicKey) : [];
     });
 
-    fetchState = vi.fn(async (sessionId: string) => {
-      return mockState.config.fetchState
-        ? await mockState.config.fetchState(sessionId)
-        : { is_processing: false, messages: [] };
-    });
+    fetchState = vi.fn(
+      async (sessionId: string, userState?: Record<string, unknown>) => {
+        return mockState.config.fetchState
+          ? await mockState.config.fetchState(sessionId, userState)
+          : { is_processing: false, messages: [] };
+      },
+    );
 
     createThread = vi.fn(async (threadId: string, publicKey?: string) => {
       return mockState.config.createThread
@@ -126,12 +143,23 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         : { session_id: threadId };
     });
 
-    sendMessage = vi.fn(async (sessionId: string, message: string) => {
-      const fn = mockState.config.sendMessage ?? mockState.config.postChatMessage;
-      return fn
-        ? await fn(sessionId, message)
-        : { is_processing: true, messages: [] };
-    });
+    sendMessage = vi.fn(
+      async (
+        sessionId: string,
+        message: string,
+        options?: {
+          app?: string;
+          publicKey?: string;
+          apiKey?: string;
+          userState?: Record<string, unknown>;
+        },
+      ) => {
+        const fn = mockState.config.sendMessage ?? mockState.config.postChatMessage;
+        return fn
+          ? await fn(sessionId, message, options)
+          : { is_processing: true, messages: [] };
+      },
+    );
 
     sendSystemMessage = vi.fn(async (sessionId: string, message: string) => {
       const fn =
