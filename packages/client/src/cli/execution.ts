@@ -27,34 +27,47 @@ type CliExecutionDecision =
       execution: "aa";
       provider: CliAAProvider;
       aaMode: CliAAMode;
+      fallbackToEoa: boolean;
     };
 
-function resolveAAProvider(config: CliConfig): CliAAProvider {
-  const provider = config.aaProvider ?? resolveDefaultProvider();
-  if (!isProviderConfigured(provider)) {
+function resolveAAProvider(
+  config: CliConfig,
+  options: { required: boolean },
+): CliAAProvider | null {
+  const provider = config.aaProvider;
+  if (provider) {
+    if (isProviderConfigured(provider)) {
+      return provider;
+    }
+    if (!options.required) {
+      return null;
+    }
     const envName =
       provider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
     throw new Error(
       `AA provider "${provider}" is selected but ${envName} is not configured.`,
     );
   }
-  return provider;
+
+  try {
+    return resolveDefaultProvider();
+  } catch (error) {
+    if (!options.required) {
+      return null;
+    }
+    throw error;
+  }
 }
 
-export function resolveCliExecutionDecision(params: {
+function getResolvedAAMode(params: {
+  provider: CliAAProvider;
   config: CliConfig;
   chain: Chain;
   callList: WalletExecutionCall[];
+  fallbackToEoa: boolean;
 }): CliExecutionDecision {
-  const { config, chain, callList } = params;
+  const { provider, config, chain, callList, fallbackToEoa } = params;
 
-  if (config.execution === "eoa") {
-    return { execution: "eoa" };
-  }
-
-  const provider = resolveAAProvider(config);
-
-  // Resolve plan via the unified config resolver to get the mode
   const resolveOpts = {
     calls: callList,
     chainsById: { [chain.id]: chain },
@@ -75,7 +88,41 @@ export function resolveCliExecutionDecision(params: {
     execution: "aa",
     provider,
     aaMode: resolved.plan.mode,
+    fallbackToEoa,
   };
+}
+
+export function resolveCliExecutionDecision(params: {
+  config: CliConfig;
+  chain: Chain;
+  callList: WalletExecutionCall[];
+}): CliExecutionDecision {
+  const { config, chain, callList } = params;
+
+  if (config.execution === "eoa") {
+    return { execution: "eoa" };
+  }
+
+  const requireAA = config.execution === "aa";
+  const provider = resolveAAProvider(config, { required: requireAA });
+  if (!provider) {
+    return { execution: "eoa" };
+  }
+
+  try {
+    return getResolvedAAMode({
+      provider,
+      config,
+      chain,
+      callList,
+      fallbackToEoa: !requireAA,
+    });
+  } catch (error) {
+    if (!requireAA) {
+      return { execution: "eoa" };
+    }
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -118,5 +165,7 @@ export function describeExecutionDecision(
     return "eoa";
   }
 
-  return `aa (${decision.provider}, ${decision.aaMode})`;
+  return decision.fallbackToEoa
+    ? `aa (${decision.provider}, ${decision.aaMode}; fallback: eoa)`
+    : `aa (${decision.provider}, ${decision.aaMode})`;
 }

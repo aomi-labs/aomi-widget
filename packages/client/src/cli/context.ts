@@ -2,6 +2,7 @@ import { AomiClient } from "../client";
 import { ClientSession } from "../session";
 import type { CliRuntime } from "./types";
 import { readState, writeState, type CliSessionState } from "./state";
+import { buildCliUserState } from "./user-state";
 
 export function getOrCreateSession(
   runtime: CliRuntime,
@@ -54,8 +55,9 @@ export function getOrCreateSession(
     },
   );
 
-  if (state.publicKey) {
-    session.resolveWallet(state.publicKey, state.chainId);
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
   }
 
   return { session, state };

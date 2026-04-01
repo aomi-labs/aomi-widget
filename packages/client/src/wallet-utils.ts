@@ -10,6 +10,8 @@
 // Types
 // =============================================================================
 
+import { getAddress } from "viem";
+
 export type WalletTxPayload = {
   to: string;
   value?: string;
@@ -61,6 +63,21 @@ function parseChainId(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function normalizeAddress(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    return getAddress(trimmed);
+  } catch {
+    if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+      return getAddress(trimmed.toLowerCase());
+    }
+    return undefined;
+  }
+}
+
 // =============================================================================
 // Normalization
 // =============================================================================
@@ -74,7 +91,7 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
   const args = getToolArgs(payload);
   const ctx = asRecord(root?.ctx);
 
-  const to = typeof args.to === "string" ? args.to : undefined;
+  const to = normalizeAddress(args.to);
   if (!to) return null;
 
   const valueRaw = args.value;
