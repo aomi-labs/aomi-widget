@@ -68,26 +68,53 @@ export function AomiRuntimeCore({
     getApiKey: () => getControlState().apiKey,
   });
 
+  const walletSnapshot = useCallback(
+    (nextUser: ReturnType<typeof getUserState>) => ({
+      address: nextUser.address,
+      chainId: nextUser.chainId,
+      isConnected: nextUser.isConnected,
+      ensName: nextUser.ensName,
+    }),
+    [getUserState],
+  );
+
+  const lastWalletStateRef = useRef(walletSnapshot(getUserState()));
+
   // ---------------------------------------------------------------------------
   // Send wallet state changes to backend
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    lastWalletStateRef.current = walletSnapshot(getUserState());
+
     const unsubscribe = onUserStateChange(async (newUser) => {
+      const nextWalletState = walletSnapshot(newUser);
+      const prevWalletState = lastWalletStateRef.current;
+      if (
+        prevWalletState.address === nextWalletState.address &&
+        prevWalletState.chainId === nextWalletState.chainId &&
+        prevWalletState.isConnected === nextWalletState.isConnected &&
+        prevWalletState.ensName === nextWalletState.ensName
+      ) {
+        return;
+      }
+
+      lastWalletStateRef.current = nextWalletState;
       const sessionId = threadContext.currentThreadId;
       const message = JSON.stringify({
         type: "wallet:state_changed",
-        payload: {
-          address: newUser.address,
-          chainId: newUser.chainId,
-          isConnected: newUser.isConnected,
-          ensName: newUser.ensName,
-        },
+        payload: nextWalletState,
       });
       await aomiClientRef.current.sendSystemMessage(sessionId, message);
     });
 
     return unsubscribe;
-  }, [onUserStateChange, aomiClientRef, threadContext.currentThreadId]);
+  }, [
+    onUserStateChange,
+    aomiClientRef,
+    threadContext.currentThreadId,
+    getUserState,
+    walletSnapshot,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Refs for stable access
