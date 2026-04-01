@@ -1,4 +1,3 @@
-import type { AppKitNetwork } from "@reown/appkit-common";
 import {
   mainnet,
   arbitrum,
@@ -6,57 +5,74 @@ import {
   base,
   polygon,
   sepolia,
-} from "@reown/appkit/networks";
-import { cookieStorage, createStorage } from "wagmi";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+  linea,
+  lineaSepolia,
+} from "wagmi/chains";
+import {
+  Environment,
+  type TOAuthMethod,
+  type TExternalWallet,
+} from "@getpara/react-sdk";
+import { defineChain, http, type Chain, type Transport } from "viem";
 
-// Get projectId from https://dashboard.reown.com
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
+export const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
+export const LOCALHOST_CHAIN_ID = 31337;
 
-if (!projectId) {
-  throw new Error("Project ID is not defined");
-}
-
-// Enable localhost/Anvil network for E2E testing with `pnpm --filter landing dev:localhost`
-const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
-
-// Custom localhost network for Anvil (local testing)
-const localhost = {
+const localhost = defineChain({
   id: 31337,
   name: "Localhost",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["http://127.0.0.1:8545"] },
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
   },
-} as const satisfies AppKitNetwork;
-
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = useLocalhost
-  ? [localhost, mainnet, arbitrum, optimism, base, polygon, sepolia]
-  : [mainnet, arbitrum, optimism, base, polygon, sepolia];
-
-// Keep AppKit network gating aligned with wagmi adapter networks.
-const appKitNetworks = networks;
-
-// Set up the Wagmi Adapter (Config)
-export const wagmiAdapter = new WagmiAdapter({
-  storage: createStorage({
-    storage: cookieStorage,
-  }) as any,
-  ssr: true,
-  projectId,
-  networks,
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
 });
 
-export const appKitProviderConfig = {
-  adapters: [wagmiAdapter],
-  projectId,
-  networks: appKitNetworks,
-  defaultNetwork: useLocalhost ? localhost : mainnet,
-  metadata: {
-    name: "aomi-widget-docs",
-    description: "Aomi widget docs demo",
-    url: "https://appkitexampleapp.com", // origin must match your domain & subdomain
-    icons: ["https://avatars.githubusercontent.com/u/179229932"],
-  },
-  features: { analytics: !useLocalhost },
-};
+export const paraApiKey =
+  process.env.NEXT_PUBLIC_PARA_API_KEY ?? "missing-para-api-key";
+
+export const walletConnectProjectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
+  process.env.NEXT_PUBLIC_PROJECT_ID ??
+  "missing-walletconnect-project-id";
+
+export const paraEnvironment =
+  (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
+  Environment.BETA;
+
+const defaultNetworks = [
+  mainnet,
+  arbitrum,
+  optimism,
+  base,
+  polygon,
+  sepolia,
+  linea,
+  lineaSepolia,
+] as const;
+
+export const networks = (
+  useLocalhost ? [localhost, ...defaultNetworks] : [...defaultNetworks]
+) as readonly [Chain, ...Chain[]];
+
+export const transports = Object.fromEntries(
+  networks.map((network) => [
+    network.id,
+    http(network.rpcUrls.default.http[0]),
+  ]),
+) as Record<number, Transport>;
+
+export const externalWallets: TExternalWallet[] = [
+  "WALLETCONNECT",
+  "METAMASK",
+  "COINBASE",
+  "RAINBOW",
+  "RABBY",
+];
+
+export const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];

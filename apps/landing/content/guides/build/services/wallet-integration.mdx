@@ -5,85 +5,118 @@ description: Connect wallets, sign transactions, and switch networks.
 
 # Wallet Integration
 
-Aomi integrates with wallets via Reown AppKit (built on wagmi and viem). Users can connect wallets, sign transactions requested by the AI, and switch networks.
+Aomi integrates with wallets via Para for connection and account management, with wagmi and viem handling transaction execution and typed-data signing. Users can connect wallets, sign transactions requested by the AI, and switch networks.
 
 ## Setup
 
 ### Install Dependencies
 
 ```bash
-npm install @reown/appkit @reown/appkit-adapter-wagmi wagmi viem @tanstack/react-query
+npm install @getpara/react-sdk @getpara/evm-wallet-connectors wagmi viem @tanstack/react-query
 ```
 
-### Configure AppKit
+### Configure Para
 
 ```tsx
-// lib/wagmi-config.ts
-import { createAppKit } from "@reown/appkit/react";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { mainnet, polygon, arbitrum, base } from "@reown/appkit/networks";
-
-const projectId = process.env.NEXT_PUBLIC_PROJECT_ID!;
-
-const metadata = {
-  name: "Your App",
-  description: "Your app description",
-  url: "https://your-app.com",
-  icons: ["https://your-app.com/icon.png"],
-};
-
-export const wagmiAdapter = new WagmiAdapter({
-  networks: [mainnet, polygon, arbitrum, base],
-  projectId,
-});
-
-createAppKit({
-  adapters: [wagmiAdapter],
-  networks: [mainnet, polygon, arbitrum, base],
-  projectId,
-  metadata,
-});
-
-export const wagmiConfig = wagmiAdapter.wagmiConfig;
-```
-
-### Provider Setup
-
-```tsx
-// app/providers.tsx
 "use client";
 
-import { WagmiProvider } from "wagmi";
+import "@getpara/react-sdk/styles.css";
+import { ParaProvider, Environment } from "@getpara/react-sdk";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AomiRuntimeProvider } from "@aomi-labs/react";
-import { wagmiConfig } from "@/lib/wagmi-config";
+import { defineChain, http } from "viem";
+import { mainnet, polygon, arbitrum, base } from "wagmi/chains";
 
 const queryClient = new QueryClient();
+const walletConnectProjectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
+  process.env.NEXT_PUBLIC_PROJECT_ID;
+
+const localhost = defineChain({
+  id: 31337,
+  name: "Localhost",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
+});
+
+const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
+const networks = useLocalhost
+  ? [localhost, mainnet, polygon, arbitrum, base]
+  : [mainnet, polygon, arbitrum, base];
+
+const transports = Object.fromEntries(
+  networks.map((chain) => [chain.id, http(chain.rpcUrls.default.http[0])]),
+);
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <AomiRuntimeProvider backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL!}>
-          {children}
-        </AomiRuntimeProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <QueryClientProvider client={queryClient}>
+      <ParaProvider
+        paraClientConfig={{
+          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
+          env:
+            (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as
+              | Environment
+              | undefined) ?? Environment.BETA,
+        }}
+        config={{ appName: "Your App" }}
+        paraModalConfig={{
+          disableEmailLogin: true,
+          oAuthMethods: ["GOOGLE"],
+        }}
+        externalWalletConfig={{
+          appDescription: "Your app description",
+          appUrl: "https://your-app.com",
+          wallets: [
+            "WALLETCONNECT",
+            "METAMASK",
+            "COINBASE",
+            "RAINBOW",
+            "RABBY",
+          ],
+          walletConnect: {
+            projectId: walletConnectProjectId!,
+          },
+          evmConnector: {
+            config: {
+              chains: networks,
+              transports,
+              ssr: true,
+            },
+          },
+        }}
+      >
+        {children}
+      </ParaProvider>
+    </QueryClientProvider>
   );
 }
 ```
 
 ## Supported Chains
 
-Configure which chains are available by passing them to the WagmiAdapter:
+Configure which chains are available by passing them to Para's EVM connector:
 
 ```tsx
-import { mainnet, polygon, arbitrum, base, optimism } from "@reown/appkit/networks";
+import { mainnet, polygon, arbitrum, base, optimism } from "wagmi/chains";
 
-const wagmiAdapter = new WagmiAdapter({
-  networks: [mainnet, polygon, arbitrum, base, optimism],
-  projectId,
-});
+externalWalletConfig={{
+  evmConnector: {
+    config: {
+      chains: [mainnet, polygon, arbitrum, base, optimism],
+      transports: {
+        [mainnet.id]: http(),
+        [polygon.id]: http(),
+        [arbitrum.id]: http(),
+        [base.id]: http(),
+        [optimism.id]: http(),
+      },
+    },
+  },
+}}
 ```
 
 The `NetworkSelect` component in the widget (or `getChainInfo` / `SUPPORTED_CHAINS` in the headless library) will reflect the configured chains.
@@ -195,10 +228,10 @@ function NetworkSwitcher() {
 
 The widget's `WalletConnect` component handles the full lifecycle:
 
-1. Renders a connect/disconnect button
-2. On connect: opens Reown AppKit modal
+1. Renders a connect/manage account button
+2. On connect: opens the Para auth modal
 3. On successful connection: syncs address, chainId, and connection status to `useUser`
-4. On disconnect: clears user state
+4. When already connected: opens the Para account modal
 
 ```tsx
 import { WalletConnect } from "@/components/control-bar";
@@ -208,7 +241,7 @@ import { WalletConnect } from "@/components/control-bar";
   onConnectionChange={(isConnected) => {
     console.log("Wallet connected:", isConnected);
   }}
-/>
+/>;
 ```
 
 ## Utilities
@@ -216,7 +249,12 @@ import { WalletConnect } from "@/components/control-bar";
 The headless library provides wallet-related utilities:
 
 ```tsx
-import { formatAddress, getNetworkName, getChainInfo, SUPPORTED_CHAINS } from "@aomi-labs/react";
+import {
+  formatAddress,
+  getNetworkName,
+  getChainInfo,
+  SUPPORTED_CHAINS,
+} from "@aomi-labs/react";
 
 formatAddress("0x1234567890abcdef1234567890abcdef12345678");
 // "0x1234...5678"

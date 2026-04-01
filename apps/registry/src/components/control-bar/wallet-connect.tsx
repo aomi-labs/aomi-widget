@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, type FC } from "react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useModal } from "@getpara/react-sdk";
 import { cn, getChainInfo, useUser } from "@aomi-labs/react";
+import { useAccountIdentity } from "../../lib/use-account-identity";
 
 export type WalletConnectProps = {
   className?: string;
@@ -12,36 +13,45 @@ export type WalletConnectProps = {
 
 export const WalletConnect: FC<WalletConnectProps> = ({
   className,
-  connectLabel = "Connect Wallet",
+  connectLabel = "Connect Account",
   onConnectionChange,
 }) => {
-  const { address, isConnected, chainId } = useAccount();
-  const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
+  const { openModal } = useModal();
   const { setUser } = useUser();
+  const identity = useAccountIdentity();
 
-  // Sync wallet state to UserContext
   useEffect(() => {
     setUser({
-      address: address ?? undefined,
-      chainId: chainId ?? undefined,
-      isConnected,
+      address: identity.address ?? undefined,
+      chainId: identity.chainId ?? undefined,
+      isConnected: identity.isConnected,
     });
-    onConnectionChange?.(isConnected);
-  }, [address, chainId, isConnected, setUser, onConnectionChange]);
+    onConnectionChange?.(identity.isConnected);
+  }, [
+    identity.address,
+    identity.chainId,
+    identity.isConnected,
+    setUser,
+    onConnectionChange,
+  ]);
 
   const handleClick = () => {
-    if (isConnected) {
-      disconnect();
-    } else {
-      const connector = connectors[0];
-      if (connector) {
-        connect({ connector });
-      }
+    if (identity.isConnected) {
+      openModal({ step: "ACCOUNT_MAIN" });
+      return;
     }
+
+    openModal({ step: "AUTH_MAIN" });
   };
 
-  const ticker = chainId ? getChainInfo(chainId)?.ticker : undefined;
+  const ticker = identity.chainId
+    ? getChainInfo(identity.chainId)?.ticker
+    : undefined;
+  const secondaryLabel =
+    identity.kind === "social" ? identity.secondaryLabel : ticker;
+  const primaryLabel =
+    identity.kind === "disconnected" ? connectLabel : identity.primaryLabel;
+  const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
 
   return (
     <button
@@ -57,15 +67,11 @@ export const WalletConnect: FC<WalletConnectProps> = ({
         "disabled:pointer-events-none disabled:opacity-50",
         className,
       )}
-      aria-label={isConnected ? "Disconnect wallet" : "Connect wallet"}
+      aria-label={ariaLabel}
     >
-      <span>
-        {isConnected && address
-          ? `${address.slice(0, 5)}..${address.slice(-2)}`
-          : connectLabel}
-      </span>
-      {isConnected && ticker && (
-        <span className="opacity-50">{ticker}</span>
+      <span className="max-w-[180px] truncate">{primaryLabel}</span>
+      {identity.isConnected && secondaryLabel && (
+        <span className="opacity-50">{secondaryLabel}</span>
       )}
     </button>
   );

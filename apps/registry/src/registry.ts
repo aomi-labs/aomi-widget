@@ -19,7 +19,8 @@ export const registry: RegistryComponent[] = [
     name: "aomi-theme",
     file: "themes/default.css",
     type: "registry:style",
-    description: "Shadcn-compatible theme variables (light + dark) for Aomi components.",
+    description:
+      "Shadcn-compatible theme variables (light + dark) for Aomi components.",
   },
   {
     name: "aomi-frame",
@@ -50,10 +51,17 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/wallet-connect.tsx",
       "components/control-bar/network-select.tsx",
+      "lib/use-account-identity.ts",
     ],
-    dependencies: ["@aomi-labs/react", "wagmi", "lucide-react"],
+    dependencies: [
+      "@aomi-labs/react",
+      "@getpara/react-sdk",
+      "wagmi",
+      "lucide-react",
+    ],
     registryDependencies: ["button", "popover", "dialog", "input", "label"],
-    description: "Control bar with model/App selectors, API key input, and wallet connect.",
+    description:
+      "Control bar with model/App selectors, API key input, and wallet connect.",
   },
   {
     name: "assistant-thread",
@@ -108,14 +116,20 @@ export const registry: RegistryComponent[] = [
   {
     name: "attachment",
     file: "components/assistant-ui/attachment.tsx",
-    dependencies: ["@assistant-ui/react@~0.11.28", "@aomi-labs/react", "lucide-react", "zustand"],
+    dependencies: [
+      "@assistant-ui/react@~0.11.28",
+      "@aomi-labs/react",
+      "lucide-react",
+      "zustand",
+    ],
     registryDependencies: [
       assistantUI("tooltip-icon-button"),
       "tooltip",
       "dialog",
       "avatar",
     ],
-    description: "Attachment renderer compatible with @assistant-ui/react 0.11.x.",
+    description:
+      "Attachment renderer compatible with @assistant-ui/react 0.11.x.",
   },
   {
     name: "notification",

@@ -8,7 +8,11 @@ const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
   },
-  transpilePackages: ["@aomi-labs/react", "@aomi-labs/widget-lib"],
+  transpilePackages: [
+    "@aomi-labs/react",
+    "@aomi-labs/widget-lib",
+    "@getpara/react-sdk",
+  ],
   webpack: (config) => {
     // Resolve @/ imports from registry to its src folder
     const registrySrc = path.resolve(__dirname, "../registry/src");
