@@ -8,9 +8,9 @@ import type {
 } from "./types";
 import { fatal } from "./errors";
 
-const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111] as const;
+export const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111] as const;
 
-const CHAIN_NAMES: Record<number, string> = {
+export const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
   137: "Polygon",
   42161: "Arbitrum One",
@@ -35,18 +35,21 @@ function parseChainId(value: string | undefined): number | undefined {
 function resolveExecutionMode(flags: Record<string, string>): CliExecutionMode {
   const flagAA = flags["aa"] === "true";
   const flagEoa = flags["eoa"] === "true";
+  const hasAASelection =
+    flags["aa-provider"] !== undefined || flags["aa-mode"] !== undefined;
   if (flagAA && flagEoa) {
     fatal("Choose only one of `--aa` or `--eoa`.");
   }
 
   if (flagAA) return "aa";
   if (flagEoa) return "eoa";
+  if (hasAASelection) return "aa";
 
-  return "aa";
+  return "auto";
 }
 
 function parseAAProvider(value: string | undefined): CliAAProvider | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined || value.trim() === "") return undefined;
   if (value === "alchemy" || value === "pimlico") {
     return value;
   }
@@ -54,7 +57,7 @@ function parseAAProvider(value: string | undefined): CliAAProvider | undefined {
 }
 
 function parseAAMode(value: string | undefined): CliAAMode | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined || value.trim() === "") return undefined;
   if (value === "4337" || value === "7702") {
     return value;
   }
