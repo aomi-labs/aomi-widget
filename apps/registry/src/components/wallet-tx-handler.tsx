@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import {
   useAomiRuntime,
+  toViemSignTypedDataArgs,
   type WalletRequest,
   type WalletTxPayload,
   type WalletEip712Payload,
@@ -14,7 +15,7 @@ import {
   useSignTypedData,
 } from "wagmi";
 
-function parseChainId(value: number | string | undefined): number | undefined {
+function parseChainId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -81,14 +82,14 @@ export function WalletTxHandler() {
           });
         } else {
           const payload = req.payload as WalletEip712Payload;
-          const typedData = payload.typed_data;
+          const signArgs = toViemSignTypedDataArgs(payload);
 
-          if (!typedData) {
+          if (!signArgs) {
             rejectWalletRequest(req.id, "Missing typed_data payload");
             return;
           }
 
-          const requestChainId = parseChainId(typedData.domain?.chainId);
+          const requestChainId = parseChainId(signArgs.domain?.chainId);
           if (
             requestChainId &&
             currentChainId &&
@@ -97,7 +98,7 @@ export function WalletTxHandler() {
             await switchChainAsync({ chainId: requestChainId });
           }
 
-          const signature = await signTypedDataAsync(typedData as never);
+          const signature = await signTypedDataAsync(signArgs as never);
 
           resolveWalletRequest(req.id, { signature });
         }

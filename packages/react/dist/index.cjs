@@ -34,10 +34,10 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// packages/react/src/index.ts
+// src/index.ts
 var index_exports = {};
 __export(index_exports, {
-  AomiClient: () => import_client3.AomiClient,
+  AomiClient: () => import_client4.AomiClient,
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   ControlContextProvider: () => ControlContextProvider,
   EventContextProvider: () => EventContextProvider,
@@ -50,6 +50,7 @@ __export(index_exports, {
   getChainInfo: () => getChainInfo,
   getNetworkName: () => getNetworkName,
   initThreadControl: () => initThreadControl,
+  toViemSignTypedDataArgs: () => import_client5.toViemSignTypedDataArgs,
   useAomiRuntime: () => useAomiRuntime,
   useControl: () => useControl,
   useCurrentThreadMessages: () => useCurrentThreadMessages,
@@ -62,16 +63,17 @@ __export(index_exports, {
   useWalletHandler: () => useWalletHandler
 });
 module.exports = __toCommonJS(index_exports);
+var import_client4 = require("@aomi-labs/client");
+var import_client5 = require("@aomi-labs/client");
+
+// src/runtime/aomi-runtime.tsx
+var import_react11 = require("react");
 var import_client3 = require("@aomi-labs/client");
 
-// packages/react/src/runtime/aomi-runtime.tsx
-var import_react11 = require("react");
-var import_client2 = require("@aomi-labs/client");
-
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 var import_react = require("react");
 
-// packages/react/src/utils/uuid.ts
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -83,7 +85,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -242,9 +244,19 @@ var ThreadStore = class {
   }
 };
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var API_KEY_STORAGE_KEY = "aomi_api_key";
+function getDefaultApp(apps) {
+  var _a;
+  return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
+}
+function resolveAuthorizedApp(app, authorizedApps, defaultApp) {
+  if (app && authorizedApps.includes(app)) {
+    return app;
+  }
+  return defaultApp;
+}
 var ControlContext = (0, import_react.createContext)(null);
 function useControl() {
   const ctx = (0, import_react.useContext)(ControlContext);
@@ -307,13 +319,16 @@ function ControlContextProvider({
   }, [state.apiKey]);
   (0, import_react.useEffect)(() => {
     const fetchApps = async () => {
-      var _a2, _b2;
+      var _a2;
       try {
         const apps = await aomiClientRef.current.getApps(
           sessionIdRef.current,
-          { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
+          {
+            publicKey: publicKeyRef.current,
+            apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+          }
         );
-        const defaultApp = apps.includes("default") ? "default" : (_b2 = apps[0]) != null ? _b2 : null;
+        const defaultApp = getDefaultApp(apps);
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
           authorizedApps: apps,
           defaultApp
@@ -327,7 +342,7 @@ function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [state.apiKey]);
+  }, [state.apiKey, publicKey, sessionId]);
   (0, import_react.useEffect)(() => {
     const fetchModels = async () => {
       try {
@@ -373,13 +388,16 @@ function ControlContextProvider({
     }
   }, []);
   const getAuthorizedApps = (0, import_react.useCallback)(async () => {
-    var _a2, _b2;
+    var _a2;
     try {
       const apps = await aomiClientRef.current.getApps(
         sessionIdRef.current,
-        { publicKey: publicKeyRef.current, apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0 }
+        {
+          publicKey: publicKeyRef.current,
+          apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+        }
       );
-      const defaultApp = apps.includes("default") ? "default" : (_b2 = apps[0]) != null ? _b2 : null;
+      const defaultApp = getDefaultApp(apps);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
         authorizedApps: apps,
         defaultApp
@@ -399,8 +417,17 @@ function ControlContextProvider({
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
     return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : initThreadControl();
   }, []);
+  const getCurrentThreadApp = (0, import_react.useCallback)(() => {
+    var _a2, _b2, _c;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    return (_c = resolveAuthorizedApp(
+      currentControl.app,
+      stateRef.current.authorizedApps,
+      stateRef.current.defaultApp
+    )) != null ? _c : "default";
+  }, []);
   const onModelSelect = (0, import_react.useCallback)(async (model) => {
-    var _a2, _b2, _c, _d, _e;
+    var _a2, _b2, _c, _d;
     const threadId = sessionIdRef.current;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     const isProcessing2 = currentControl.isProcessing;
@@ -413,7 +440,11 @@ function ControlContextProvider({
       console.warn("[control-context] Cannot switch model while processing");
       return;
     }
-    const app = (_d = (_c = currentControl.app) != null ? _c : stateRef.current.defaultApp) != null ? _d : "default";
+    const app = (_c = resolveAuthorizedApp(
+      currentControl.app,
+      stateRef.current.authorizedApps,
+      stateRef.current.defaultApp
+    )) != null ? _c : "default";
     console.log("[control-context] onModelSelect updating metadata", {
       threadId,
       model,
@@ -437,7 +468,7 @@ function ControlContextProvider({
       const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        { app, apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0 }
+        { app, apiKey: (_d = stateRef.current.apiKey) != null ? _d : void 0 }
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
@@ -459,6 +490,10 @@ function ControlContextProvider({
       console.warn(
         "[control-context] Cannot switch app while processing"
       );
+      return;
+    }
+    if (stateRef.current.authorizedApps.length > 0 && !stateRef.current.authorizedApps.includes(app)) {
+      console.warn("[control-context] Cannot select unauthorized app", { app });
       return;
     }
     console.log("[control-context] onAppSelect updating metadata", {
@@ -517,6 +552,7 @@ function ControlContextProvider({
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,
+        getCurrentThreadApp,
         onModelSelect,
         onAppSelect,
         isProcessing,
@@ -530,11 +566,11 @@ function ControlContextProvider({
   );
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 var import_react2 = require("react");
 var import_client = require("@aomi-labs/client");
 
-// packages/react/src/state/event-buffer.ts
+// src/state/event-buffer.ts
 function createEventBuffer() {
   return {
     inboundQueue: [],
@@ -578,7 +614,7 @@ function setSSEStatus(state, status) {
   state.sseStatus = status;
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var EventContextState = (0, import_react2.createContext)(null);
 function useEventContext() {
@@ -703,7 +739,7 @@ function EventContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 var import_react3 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 var NotificationContext = (0, import_react3.createContext)(null);
@@ -748,7 +784,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 var import_react4 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var ThreadContextState = (0, import_react4.createContext)(null);
@@ -792,7 +828,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/user-context.tsx
+// src/contexts/user-context.tsx
 var import_react5 = require("react");
 var import_jsx_runtime5 = require("react/jsx-runtime");
 var UserContext = (0, import_react5.createContext)(void 0);
@@ -853,14 +889,14 @@ function UserContextProvider({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 var import_react9 = require("react");
 var import_react10 = require("@assistant-ui/react");
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 var import_react6 = require("react");
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/utils.ts
 var import_clsx = require("clsx");
 var import_tailwind_merge = require("tailwind-merge");
 function cn(...inputs) {
@@ -962,7 +998,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/state/backend-state.ts
+// src/state/backend-state.ts
 function createBackendState() {
   return {
     runningThreads: /* @__PURE__ */ new Set()
@@ -982,7 +1018,7 @@ function isThreadRunning(state, threadId) {
   return state.runningThreads.has(threadId);
 }
 
-// packages/react/src/runtime/message-controller.ts
+// src/runtime/message-controller.ts
 var MessageController = class {
   constructor(config) {
     this.config = config;
@@ -1077,7 +1113,7 @@ var MessageController = class {
   }
 };
 
-// packages/react/src/runtime/polling-controller.ts
+// src/runtime/polling-controller.ts
 var PollingController = class {
   constructor(config) {
     this.config = config;
@@ -1147,7 +1183,7 @@ var PollingController = class {
   }
 };
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = (0, import_react6.useRef)(threadContext);
@@ -1238,7 +1274,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1370,7 +1406,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 var import_react7 = require("react");
 var AomiRuntimeContext = (0, import_react7.createContext)(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1384,10 +1420,11 @@ function useAomiRuntime() {
   return context;
 }
 
-// packages/react/src/handlers/wallet-handler.ts
+// src/handlers/wallet-handler.ts
 var import_react8 = require("react");
+var import_client2 = require("@aomi-labs/client");
 
-// packages/react/src/state/wallet-buffer.ts
+// src/state/wallet-buffer.ts
 function createWalletBuffer() {
   return { queue: [], nextId: 1 };
 }
@@ -1417,69 +1454,7 @@ function getAll(buffer) {
   return [...buffer.queue];
 }
 
-// packages/react/src/handlers/wallet-handler.ts
-function asRecord(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
-  return value;
-}
-function getToolArgs(payload) {
-  const root = asRecord(payload);
-  const nestedArgs = asRecord(root == null ? void 0 : root.args);
-  return nestedArgs != null ? nestedArgs : root != null ? root : {};
-}
-function parseChainId(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : void 0;
-  }
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
-}
-function normalizeTxPayload(payload) {
-  var _a, _b, _c;
-  const root = asRecord(payload);
-  const args = getToolArgs(payload);
-  const ctx = asRecord(root == null ? void 0 : root.ctx);
-  const to = typeof args.to === "string" ? args.to : void 0;
-  if (!to) return null;
-  const valueRaw = args.value;
-  const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
-  const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
-  return {
-    to,
-    value,
-    data,
-    chainId
-  };
-}
-function normalizeEip712Payload(payload) {
-  var _a;
-  const args = getToolArgs(payload);
-  const typedDataRaw = (_a = args.typed_data) != null ? _a : args.typedData;
-  let typedData;
-  if (typeof typedDataRaw === "string") {
-    try {
-      const parsed = JSON.parse(typedDataRaw);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        typedData = parsed;
-      }
-    } catch (e) {
-      typedData = void 0;
-    }
-  } else if (typedDataRaw && typeof typedDataRaw === "object" && !Array.isArray(typedDataRaw)) {
-    typedData = typedDataRaw;
-  }
-  const description = typeof args.description === "string" ? args.description : void 0;
-  return {
-    typed_data: typedData,
-    description
-  };
-}
+// src/handlers/wallet-handler.ts
 function useWalletHandler({
   sessionId,
   onRequestComplete
@@ -1494,7 +1469,7 @@ function useWalletHandler({
     const unsubscribe = subscribe2(
       "wallet_tx_request",
       (event) => {
-        const payload = normalizeTxPayload(event.payload);
+        const payload = (0, import_client2.normalizeTxPayload)(event.payload);
         if (!payload) {
           console.warn("[aomi][wallet] Ignoring tx request with invalid payload", event.payload);
           return;
@@ -1510,7 +1485,7 @@ function useWalletHandler({
       "wallet_eip712_request",
       (event) => {
         var _a;
-        const payload = normalizeEip712Payload((_a = event.payload) != null ? _a : {});
+        const payload = (0, import_client2.normalizeEip712Payload)((_a = event.payload) != null ? _a : {});
         enqueue(bufferRef.current, "eip712_sign", payload);
         syncState();
       }
@@ -1596,7 +1571,7 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 var import_jsx_runtime6 = require("react/jsx-runtime");
 function AomiRuntimeCore({
   children,
@@ -1607,7 +1582,7 @@ function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadControl } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
   const {
     backendStateRef,
     polling,
@@ -1620,10 +1595,7 @@ function AomiRuntimeCore({
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
-    getApp: () => {
-      var _a, _b;
-      return (_b = (_a = getCurrentThreadControl().app) != null ? _a : getControlState().defaultApp) != null ? _b : "default";
-    },
+    getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey
   });
   (0, import_react9.useEffect)(() => {
@@ -1737,10 +1709,7 @@ function AomiRuntimeCore({
       polling,
       userAddress: user.address,
       setIsRunning,
-      getApp: () => {
-        var _a, _b;
-        return (_b = (_a = getCurrentThreadControl().app) != null ? _a : getControlState().defaultApp) != null ? _b : "default";
-      },
+      getApp: getCurrentThreadApp,
       getApiKey: () => getControlState().apiKey,
       getUserState
     }),
@@ -1754,6 +1723,7 @@ function AomiRuntimeCore({
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
       getControlState,
+      getCurrentThreadApp,
       getUserState
     ]
   );
@@ -1953,13 +1923,13 @@ function AomiRuntimeCore({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(AomiRuntimeApiProvider, { value: aomiRuntimeApi, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_react10.AssistantRuntimeProvider, { runtime, children }) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080"
 }) {
-  const aomiClient = (0, import_react11.useMemo)(() => new import_client2.AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  const aomiClient = (0, import_react11.useMemo)(() => new import_client3.AomiClient({ baseUrl: backendUrl }), [backendUrl]);
   return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(UserContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
@@ -1989,7 +1959,7 @@ function AomiRuntimeInner({
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
+// src/handlers/notification-handler.ts
 var import_react12 = require("react");
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
@@ -2045,6 +2015,7 @@ function useNotificationHandler({
   getChainInfo,
   getNetworkName,
   initThreadControl,
+  toViemSignTypedDataArgs,
   useAomiRuntime,
   useControl,
   useCurrentThreadMessages,

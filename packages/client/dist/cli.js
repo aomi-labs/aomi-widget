@@ -1208,6 +1208,24 @@ function normalizeEip712Payload(payload) {
   const description = typeof args.description === "string" ? args.description : void 0;
   return { typed_data: typedData, description };
 }
+function toViemSignTypedDataArgs(payload) {
+  var _a3;
+  const typedData = payload.typed_data;
+  const primaryType = typeof (typedData == null ? void 0 : typedData.primaryType) === "string" && typedData.primaryType.trim().length > 0 ? typedData.primaryType : void 0;
+  if (!typedData || !primaryType) {
+    return null;
+  }
+  return {
+    domain: asRecord(typedData.domain),
+    types: Object.fromEntries(
+      Object.entries((_a3 = typedData.types) != null ? _a3 : {}).filter(
+        ([typeName]) => typeName !== "EIP712Domain"
+      )
+    ),
+    primaryType,
+    message: asRecord(typedData.message)
+  };
+}
 
 // src/session.ts
 function sortJson(value) {
@@ -3492,26 +3510,18 @@ async function signCommand(runtime) {
         chain,
         transport: http(resolvedRpcUrl)
       });
-      const typedData = pendingTx.payload.typed_data;
-      if (!typedData) {
+      const signArgs = toViemSignTypedDataArgs(
+        pendingTx.payload
+      );
+      if (!signArgs) {
         fatal("EIP-712 request is missing typed_data payload.");
       }
       if (pendingTx.description) {
         console.log(`Desc:    ${pendingTx.description}`);
       }
-      if (typedData.primaryType) {
-        console.log(`Type:    ${typedData.primaryType}`);
-      }
+      console.log(`Type:    ${signArgs.primaryType}`);
       console.log();
-      const { domain, types, primaryType, message } = typedData;
-      const sigTypes = __spreadValues({}, types);
-      delete sigTypes["EIP712Domain"];
-      const signature = await walletClient.signTypedData({
-        domain,
-        types: sigTypes,
-        primaryType,
-        message
-      });
+      const signature = await walletClient.signTypedData(signArgs);
       console.log(`\u2705 Signed! Signature: ${signature.slice(0, 20)}...`);
       signedRecords = [{
         id: pendingTx.id,

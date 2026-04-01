@@ -29,6 +29,13 @@ export type WalletEip712Payload = {
   description?: string;
 };
 
+export type ViemSignTypedDataArgs = {
+  domain?: Record<string, unknown>;
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: string;
+  message?: Record<string, unknown>;
+};
+
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -143,4 +150,34 @@ export function normalizeEip712Payload(
     typeof args.description === "string" ? args.description : undefined;
 
   return { typed_data: typedData, description };
+}
+
+/**
+ * Convert normalized EIP-712 payloads into the viem signing shape used by both
+ * the CLI and widget component layers.
+ */
+export function toViemSignTypedDataArgs(
+  payload: WalletEip712Payload,
+): ViemSignTypedDataArgs | null {
+  const typedData = payload.typed_data;
+  const primaryType =
+    typeof typedData?.primaryType === "string" &&
+    typedData.primaryType.trim().length > 0
+      ? typedData.primaryType
+      : undefined;
+
+  if (!typedData || !primaryType) {
+    return null;
+  }
+
+  return {
+    domain: asRecord(typedData.domain),
+    types: Object.fromEntries(
+      Object.entries(typedData.types ?? {}).filter(
+        ([typeName]) => typeName !== "EIP712Domain",
+      ),
+    ) as ViemSignTypedDataArgs["types"],
+    primaryType,
+    message: asRecord(typedData.message),
+  };
 }

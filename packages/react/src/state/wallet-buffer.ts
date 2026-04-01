@@ -2,24 +2,14 @@
 // Wallet Request Types
 // =============================================================================
 
+import type {
+  WalletEip712Payload,
+  WalletTxPayload,
+} from "@aomi-labs/client";
+
+export type { WalletEip712Payload, WalletTxPayload };
+
 export type WalletRequestKind = "transaction" | "eip712_sign";
-
-export type WalletTxPayload = {
-  to: string;
-  value?: string;
-  data?: string;
-  chainId?: number;
-};
-
-export type WalletEip712Payload = {
-  typed_data?: {
-    domain?: { chainId?: number | string };
-    types?: Record<string, Array<{ name: string; type: string }>>;
-    primaryType?: string;
-    message?: Record<string, unknown>;
-  };
-  description?: string;
-};
 
 export type WalletRequestStatus = "pending" | "processing";
 
