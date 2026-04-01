@@ -4,25 +4,25 @@ import "./globals.css";
 import { Provider } from "./provider";
 
 export const metadata: Metadata = {
-  title: "Aomi Labs",
+  title: "Blockchain AI Infrastructure for Web3 Builders | Aomi",
   description:
-    "Your agentic terminal for blockchain automation. Transform natural language into secure, multi-chain transactions.",
+    "Blockchain AI infrastructure for Web3 builders. Embed AI features with our React SDK. Simulation-first, human-in-the-loop, multi-chain. Ship in minutes.",
   icons: {
     icon: "/assets/images/bubble.svg",
   },
   metadataBase: new URL("https://aomi.dev"),
   openGraph: {
-    title: "Aomi Labs",
+    title: "Blockchain AI Infrastructure for Web3 Builders | Aomi",
     description:
-      "Your agentic terminal for blockchain automation. Transform natural language into secure, multi-chain transactions.",
+      "Blockchain AI infrastructure for Web3 builders. Embed AI features with our React SDK. Simulation-first, human-in-the-loop, multi-chain.",
     url: "https://aomi.dev",
-    siteName: "Aomi Labs",
+    siteName: "Aomi",
     images: [
       {
         url: "/api/og",
         width: 1200,
         height: 630,
-        alt: "Aomi Labs - AI-powered blockchain automation",
+        alt: "Aomi - Blockchain AI Infrastructure for Web3 Builders",
       },
     ],
     locale: "en_US",
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Aomi Labs",
+    title: "Blockchain AI Infrastructure for Web3 Builders | Aomi",
     description:
-      "Your agentic terminal for blockchain automation. Transform natural language into secure, multi-chain transactions.",
+      "Blockchain AI infrastructure for Web3 builders. Embed AI features with our React SDK. Simulation-first, human-in-the-loop, multi-chain.",
     images: ["/api/og"],
     creator: "@aomi_labs",
   },

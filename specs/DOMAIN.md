@@ -109,7 +109,7 @@ Backend → /api/state response → system_events[]
 ```
 ControlContextProvider mounts (or apiKey changes)
   → useEffect() → aomiClient.getNamespaces(sessionId, publicKey, apiKey)
-  → GET /api/control/namespaces → string[]
+  → GET /api/control/apps → string[]
   → setStateInternal({ authorizedNamespaces, namespace })
 ```
 
@@ -136,7 +136,7 @@ User selects model in ModelSelect
 | `DELETE /api/sessions/:id`         | Delete         | 204                       |
 | `POST /api/sessions/:id/archive`   | Archive        | 200                       |
 | `POST /api/sessions/:id/unarchive` | Unarchive      | 200                       |
-| `GET /api/control/namespaces`      | Get namespaces | `string[]`                |
+| `GET /api/control/apps`      | Get namespaces | `string[]`                |
 | `GET /api/control/models`          | Get models     | `string[]`                |
 | `POST /api/control/model`          | Set model      | `{ success, rig, baml }`  |
 

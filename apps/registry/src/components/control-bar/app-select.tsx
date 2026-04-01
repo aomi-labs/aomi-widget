@@ -21,24 +21,21 @@ export const AppSelect: FC<AppSelectProps> = ({
 }) => {
   const {
     state,
-    getAuthorizedNamespaces,
-    getCurrentThreadControl,
-    onNamespaceSelect,
+    getAuthorizedApps,
+    getCurrentThreadApp,
+    onAppSelect,
     isProcessing,
   } = useControl();
   const [open, setOpen] = useState(false);
 
   // Fetch authorized apps on mount
   useEffect(() => {
-    void getAuthorizedNamespaces();
-  }, [getAuthorizedNamespaces]);
+    void getAuthorizedApps();
+  }, [getAuthorizedApps]);
 
-  // Get current thread's selected app (or fall back to default)
-  const threadControl = getCurrentThreadControl();
-  const selectedApp =
-    threadControl.namespace ?? state.defaultNamespace ?? "default";
+  const selectedApp = getCurrentThreadApp();
 
-  const apps = state.authorizedNamespaces;
+  const apps = state.authorizedApps;
 
   // Show loading state if no apps yet
   if (apps.length === 0) {
@@ -96,7 +93,7 @@ export const AppSelect: FC<AppSelectProps> = ({
               disabled={isProcessing}
               onClick={() => {
                 if (isProcessing) return;
-                onNamespaceSelect(app);
+                onAppSelect(app);
                 setOpen(false);
               }}
               className={cn(

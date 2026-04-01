@@ -47,7 +47,7 @@ export function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadControl } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
 
   const {
     backendStateRef,
@@ -61,10 +61,7 @@ export function AomiRuntimeCore({
     onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
-    getNamespace: () =>
-      getCurrentThreadControl().namespace ??
-      getControlState().defaultNamespace ??
-      "default",
+    getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
   });
 
@@ -222,10 +219,7 @@ export function AomiRuntimeCore({
         polling,
         userAddress: user.address,
         setIsRunning,
-        getNamespace: () =>
-          getCurrentThreadControl().namespace ??
-          getControlState().defaultNamespace ??
-          "default",
+        getApp: getCurrentThreadApp,
         getApiKey: () => getControlState().apiKey,
         getUserState,
       }),
@@ -239,6 +233,7 @@ export function AomiRuntimeCore({
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
       getControlState,
+      getCurrentThreadApp,
       getUserState,
     ],
   );

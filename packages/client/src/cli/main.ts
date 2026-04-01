@@ -1,13 +1,14 @@
 import { createRuntime } from "./args";
 import { chatCommand } from "./commands/chat";
 import {
+  appCommand,
+  chainCommand,
   eventsCommand,
   modelCommand,
-  modelsCommand,
   statusCommand,
 } from "./commands/control";
 import { closeCommand, logCommand } from "./commands/history";
-import { sessionCommand, sessionsCommand } from "./commands/sessions";
+import { sessionCommand } from "./commands/sessions";
 import { signCommand, txCommand } from "./commands/wallet";
 import { CliExit } from "./errors";
 import type { CliRuntime } from "./types";
@@ -21,36 +22,61 @@ Usage:
   aomi chat --model <rig>
                         Set the session model before sending the message
   aomi chat --verbose   Stream agent responses, tool calls, and events live
-  aomi models           List models available to the current backend
+  aomi app list         List available apps
+  aomi app current      Show the current app
+  aomi model list       List models available to the current backend
   aomi model set <rig>  Set the active model for the current session
-  aomi sessions         List local sessions with metadata tables
+  aomi chain list       List supported chains
+  aomi session list     List local sessions with metadata
   aomi session resume <id>
                         Resume a local session (session-id or session-N)
   aomi session delete <id>
                         Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
-  aomi sign <tx-id>     Sign and submit a pending transaction
+  aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
+                        Sign and submit a pending transaction
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
 
 Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
-  --api-key <key>       API key for non-default namespaces
-  --namespace <ns>      Namespace (default: "default")
+  --api-key <key>       API key for non-default apps
+  --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
   --verbose, -v         Show tool calls and streaming output (for chat)
 
+Sign options:
+  aomi sign <tx-id> --eoa
+                        Force plain EOA execution
+  aomi sign <tx-id> --aa
+                        Require account-abstraction execution with no EOA fallback
+  aomi sign <tx-id> --aa-provider <name>
+                        AA provider: alchemy | pimlico
+  aomi sign <tx-id> --aa-mode <mode>
+                        AA mode: 4337 | 7702
+
+Default signing behavior:
+  aomi sign <tx-id>
+                        Try AA first, retry unsponsored AA when supported, then
+                        fall back to EOA automatically if AA is unavailable
+
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
   AOMI_API_KEY          API key
-  AOMI_NAMESPACE        Namespace
+  AOMI_APP              App
   AOMI_MODEL            Model rig
   AOMI_PUBLIC_KEY       Wallet address
+  AOMI_AA_PROVIDER      AA provider: alchemy | pimlico
+  AOMI_AA_MODE          AA mode: 4337 | 7702
+  ALCHEMY_API_KEY       Alchemy AA API key
+  ALCHEMY_GAS_POLICY_ID
+                        Optional Alchemy gas sponsorship policy ID
+  PIMLICO_API_KEY       Pimlico AA API key
   PRIVATE_KEY           Hex private key for signing
   CHAIN_RPC_URL         RPC URL for transaction submission
 `.trim());
@@ -70,17 +96,17 @@ async function main(runtime: CliRuntime): Promise<void> {
     case "log":
       await logCommand(runtime);
       break;
-    case "models":
-      await modelsCommand(runtime);
+    case "app":
+      await appCommand(runtime);
       break;
     case "model":
       await modelCommand(runtime);
       break;
-    case "sessions":
-      await sessionsCommand(runtime);
+    case "chain":
+      chainCommand(runtime);
       break;
     case "session":
-      sessionCommand(runtime);
+      await sessionCommand(runtime);
       break;
     case "tx":
       txCommand();

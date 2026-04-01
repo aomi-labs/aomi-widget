@@ -1,18 +1,37 @@
 import { type Chain, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
-import { Session } from "../../session";
-import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
-import { getOrCreateSession } from "../context";
+import {
+  executeWalletCalls,
+  type TransactionExecutionResult,
+} from "../../aa";
+import { ClientSession } from "../../session";
+import {
+  toViemSignTypedDataArgs,
+  type WalletEip712Payload,
+} from "../../wallet-utils";
 import { CliExit, fatal } from "../errors";
+import {
+  createCliProviderState,
+  describeExecutionDecision,
+  isAlchemySponsorshipLimitError,
+  resolveCliExecutionDecision,
+} from "../execution";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
 import {
   addSignedTx,
   readState,
   removePendingTx,
+  writeState,
   type CliSessionState,
 } from "../state";
-import { formatTxLine } from "../transactions";
+import { buildCliUserState } from "../user-state";
+import {
+  formatSignedTxLine,
+  formatTxLine,
+  pendingTxToCallList,
+  toSignedTransactionRecord,
+} from "../transactions";
 import type { CliRuntime } from "../types";
 
 export function txCommand(): void {
@@ -43,17 +62,7 @@ export function txCommand(): void {
     if (pending.length > 0) console.log();
     console.log(`Signed (${signed.length}):`);
     for (const tx of signed) {
-      const parts = [`  ✅ ${tx.id}`];
-      if (tx.kind === "eip712_sign") {
-        parts.push(`sig: ${tx.signature?.slice(0, 20)}...`);
-        if (tx.description) parts.push(tx.description);
-      } else {
-        parts.push(`hash: ${tx.txHash}`);
-        if (tx.to) parts.push(`to: ${tx.to}`);
-        if (tx.value) parts.push(`value: ${tx.value}`);
-      }
-      parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-      console.log(parts.join("  "));
+      console.log(formatSignedTxLine(tx, "  ✅"));
     }
   }
 
@@ -70,11 +79,253 @@ function requirePendingTx(state: CliSessionState, txId: string) {
   return pendingTx;
 }
 
+function requirePendingTxs(
+  state: CliSessionState,
+  txIds: string[],
+): ReturnType<typeof requirePendingTx>[] {
+  const uniqueIds = Array.from(new Set(txIds));
+  if (uniqueIds.length !== txIds.length) {
+    fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
+  }
+
+  return uniqueIds.map((txId) => requirePendingTx(state, txId));
+}
+
+function rewriteSessionState(
+  runtime: CliRuntime,
+  state: CliSessionState,
+): void {
+  let changed = false;
+
+  if (runtime.config.baseUrl !== state.baseUrl) {
+    state.baseUrl = runtime.config.baseUrl;
+    changed = true;
+  }
+
+  if (runtime.config.app !== state.app) {
+    state.app = runtime.config.app;
+    changed = true;
+  }
+
+  if (
+    runtime.config.apiKey !== undefined &&
+    runtime.config.apiKey !== state.apiKey
+  ) {
+    state.apiKey = runtime.config.apiKey;
+    changed = true;
+  }
+
+  if (runtime.config.chain !== undefined && runtime.config.chain !== state.chainId) {
+    state.chainId = runtime.config.chain;
+    changed = true;
+  }
+
+  if (changed) {
+    writeState(state);
+  }
+}
+
+function createSessionFromState(state: CliSessionState): ClientSession {
+  const session = new ClientSession(
+    { baseUrl: state.baseUrl, apiKey: state.apiKey },
+    {
+      sessionId: state.sessionId,
+      app: state.app,
+      apiKey: state.apiKey,
+      publicKey: state.publicKey,
+    },
+  );
+
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
+  }
+
+  return session;
+}
+
+async function persistResolvedSignerState(
+  session: ClientSession,
+  state: CliSessionState,
+  address: string,
+  chainId?: number,
+): Promise<void> {
+  state.publicKey = address;
+  writeState(state);
+
+  session.resolveWallet(address, chainId);
+  await session.syncUserState();
+}
+
+function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
+  return (
+    Object.values(viemChains).find(
+      (candidate): candidate is Chain =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        "id" in candidate &&
+        (candidate as { id: number }).id === targetChainId,
+    ) ?? {
+      id: targetChainId,
+      name: `Chain ${targetChainId}`,
+      nativeCurrency: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18,
+      },
+      rpcUrls: {
+        default: {
+          http: rpcUrl ? [rpcUrl] : [],
+        },
+      },
+    }
+  );
+}
+
+function getPreferredRpcUrl(chain: Chain, override?: string): string {
+  return (
+    override ??
+    chain.rpcUrls.default.http[0] ??
+    chain.rpcUrls.public?.http[0] ??
+    ""
+  );
+}
+
+async function executeCliTransaction(params: {
+  privateKey: `0x${string}`;
+  currentChainId: number;
+  chainsById: Record<number, Chain>;
+  rpcUrl?: string;
+  providerState: Awaited<ReturnType<typeof createCliProviderState>>;
+  callList: ReturnType<typeof pendingTxToCallList>;
+}): Promise<TransactionExecutionResult> {
+  const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
+  const unsupportedWalletMethod = async (): Promise<never> => {
+    throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
+  };
+
+  return executeWalletCalls({
+    callList,
+    currentChainId,
+    capabilities: undefined,
+    localPrivateKey: privateKey,
+    providerState,
+    sendCallsSyncAsync: unsupportedWalletMethod,
+    sendTransactionAsync: unsupportedWalletMethod,
+    switchChainAsync: async () => undefined,
+    chainsById,
+    getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl),
+  });
+}
+
+async function executeTransactionWithFallback(params: {
+  decision: ReturnType<typeof resolveCliExecutionDecision>;
+  privateKey: `0x${string}`;
+  currentChainId: number;
+  chainsById: Record<number, Chain>;
+  primaryChain: Chain;
+  rpcUrl?: string;
+  callList: ReturnType<typeof pendingTxToCallList>;
+}): Promise<{
+  execution: TransactionExecutionResult;
+  finalDecision: ReturnType<typeof resolveCliExecutionDecision>;
+}> {
+  const { decision, privateKey, currentChainId, chainsById, primaryChain, rpcUrl, callList } =
+    params;
+
+  const runExecution = async (
+    providerState: Awaited<ReturnType<typeof createCliProviderState>>,
+  ) =>
+    executeCliTransaction({
+      privateKey,
+      currentChainId,
+      chainsById,
+      rpcUrl,
+      providerState,
+      callList,
+    });
+
+  if (decision.execution === "eoa") {
+    const providerState = await createCliProviderState({
+      decision,
+      chain: primaryChain,
+      privateKey,
+      rpcUrl: rpcUrl ?? "",
+      callList,
+    });
+    return {
+      execution: await runExecution(providerState),
+      finalDecision: decision,
+    };
+  }
+
+  let providerState = await createCliProviderState({
+    decision,
+    chain: primaryChain,
+    privateKey,
+    rpcUrl: rpcUrl ?? "",
+    callList,
+    sponsored: true,
+  });
+
+  try {
+    return {
+      execution: await runExecution(providerState),
+      finalDecision: decision,
+    };
+  } catch (error) {
+    const shouldRetryUnsponsored =
+      decision.provider === "alchemy" &&
+      isAlchemySponsorshipLimitError(error);
+
+    if (shouldRetryUnsponsored) {
+      console.log("AA sponsorship unavailable. Retrying AA with user-funded gas...");
+      providerState = await createCliProviderState({
+        decision,
+        chain: primaryChain,
+        privateKey,
+        rpcUrl: rpcUrl ?? "",
+        callList,
+        sponsored: false,
+      });
+
+      try {
+        return {
+          execution: await runExecution(providerState),
+          finalDecision: decision,
+        };
+      } catch (retryError) {
+        error = retryError;
+      }
+    }
+
+    if (!decision.fallbackToEoa) {
+      throw error;
+    }
+
+    const eoaDecision = { execution: "eoa" } as const;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`AA execution failed: ${errorMessage}`);
+    console.log("Retrying with EOA execution...");
+    const eoaProviderState = await createCliProviderState({
+      decision: eoaDecision,
+      chain: primaryChain,
+      privateKey,
+      rpcUrl: rpcUrl ?? "",
+      callList,
+    });
+    return {
+      execution: await runExecution(eoaProviderState),
+      finalDecision: eoaDecision,
+    };
+  }
+}
+
 export async function signCommand(runtime: CliRuntime): Promise<void> {
-  const txId = runtime.parsed.positional[0];
-  if (!txId) {
+  const txIds = runtime.parsed.positional;
+  if (txIds.length === 0) {
     fatal(
-      "Usage: aomi sign <tx-id>\nRun `aomi tx` to see pending transaction IDs.",
+      "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs.",
     );
   }
 
@@ -95,137 +346,175 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
     fatal("No active session. Run `aomi chat` first.");
   }
 
-  const pendingTx = requirePendingTx(state, txId);
-  const { session } = getOrCreateSession(runtime);
+  rewriteSessionState(runtime, state);
+
+  const pendingTxs = requirePendingTxs(state, txIds);
+  const session = createSessionFromState(state);
 
   try {
     const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const rpcUrl = runtime.config.chainRpcUrl;
-    const targetChainId = pendingTx.chainId ?? 1;
-    const chain =
-      Object.values(viemChains).find(
-        (candidate): candidate is Chain =>
-          typeof candidate === "object" &&
-          candidate !== null &&
-          "id" in candidate &&
-          (candidate as { id: number }).id === targetChainId,
-      ) ??
-      {
-        id: targetChainId,
-        name: `Chain ${targetChainId}`,
-        nativeCurrency: {
-          name: "ETH",
-          symbol: "ETH",
-          decimals: 18,
-        },
-        rpcUrls: {
-          default: {
-            http: [rpcUrl ?? ""],
-          },
-        },
-      };
 
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl),
-    });
+    if (
+      state.publicKey &&
+      account.address.toLowerCase() !== state.publicKey.toLowerCase()
+    ) {
+      console.log(
+        `⚠️  Signer ${account.address} differs from session public key ${state.publicKey}`,
+      );
+      console.log("   Updating session to match the signing key...");
+    }
+
+    const rpcUrl = runtime.config.chainRpcUrl;
+    const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? state.chainId ?? 1);
+    const primaryChainId = resolvedChainIds[0];
+    const chain = resolveChain(primaryChainId, rpcUrl);
+    const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
+    const chainsById = Object.fromEntries(
+      Array.from(new Set(resolvedChainIds)).map((chainId) => [
+        chainId,
+        resolveChain(chainId, rpcUrl),
+      ]),
+    ) as Record<number, Chain>;
 
     console.log(`Signer:  ${account.address}`);
-    console.log(`ID:      ${pendingTx.id}`);
-    console.log(`Kind:    ${pendingTx.kind}`);
+    console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
 
-    if (pendingTx.kind === "transaction") {
-      console.log(`To:      ${pendingTx.to}`);
-      if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
-      if (pendingTx.chainId) console.log(`Chain:   ${pendingTx.chainId}`);
-      if (pendingTx.data) {
-        console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
+    let signedRecords: Parameters<typeof addSignedTx>[1][] = [];
+    let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
+
+    if (pendingTxs.every((tx) => tx.kind === "transaction")) {
+      console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
+      for (const tx of pendingTxs) {
+        console.log(`Tx:      ${tx.id} -> ${tx.to}`);
+        if (tx.value) console.log(`Value:   ${tx.value}`);
+        if (tx.chainId ?? state.chainId) console.log(`Chain:   ${tx.chainId ?? state.chainId}`);
+        if (tx.data) {
+          console.log(`Data:    ${tx.data.slice(0, 40)}...`);
+        }
       }
       console.log();
 
-      const hash = await walletClient.sendTransaction({
-        to: pendingTx.to as `0x${string}`,
-        value: pendingTx.value ? BigInt(pendingTx.value) : 0n,
-        data: (pendingTx.data as `0x${string}`) ?? undefined,
-      });
-
-      console.log(`✅ Sent! Hash: ${hash}`);
-
-      removePendingTx(state, txId);
-      const freshState = readState()!;
-      addSignedTx(freshState, {
-        id: txId,
-        kind: "transaction",
-        txHash: hash,
-        from: account.address,
-        to: pendingTx.to,
-        value: pendingTx.value,
-        chainId: pendingTx.chainId,
-        timestamp: Date.now(),
-      });
-
-      await session.client.sendSystemMessage(
-        state.sessionId,
-        JSON.stringify({
-          type: "wallet:tx_complete",
-          payload: { txHash: hash, status: "success" },
+      const callList = pendingTxs.flatMap((tx, index) =>
+        pendingTxToCallList({
+          ...tx,
+          chainId: resolvedChainIds[index],
         }),
       );
-    } else {
-      const typedData = pendingTx.payload.typed_data as {
-        domain?: Record<string, unknown>;
-        types?: Record<string, Array<{ name: string; type: string }>>;
-        primaryType?: string;
-        message?: Record<string, unknown>;
-      } | undefined;
+      if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
+        fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
+      }
+      const decision = resolveCliExecutionDecision({
+        config: runtime.config,
+        chain,
+        callList,
+      });
+      console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      if (!typedData) {
+      const { execution, finalDecision } = await executeTransactionWithFallback({
+        decision,
+        privateKey: privateKey as `0x${string}`,
+        currentChainId: primaryChainId,
+        chainsById,
+        primaryChain: chain,
+        rpcUrl,
+        callList,
+      });
+
+      console.log(`✅ Sent! Hash: ${execution.txHash}`);
+      if (execution.txHashes.length > 1) {
+        console.log(`Count:   ${execution.txHashes.length}`);
+      }
+      if (execution.sponsored) {
+        console.log("Gas:     sponsored");
+      }
+      if (execution.AAAddress) {
+        console.log(`AA:      ${execution.AAAddress}`);
+      }
+      if (execution.delegationAddress) {
+        console.log(`Deleg:   ${execution.delegationAddress}`);
+      }
+
+      signedRecords = pendingTxs.map((tx, index) =>
+        toSignedTransactionRecord(
+          tx,
+          execution,
+          account.address,
+          resolvedChainIds[index],
+          Date.now(),
+          finalDecision.execution === "aa" ? finalDecision.provider : undefined,
+          finalDecision.execution === "aa" ? finalDecision.aaMode : undefined,
+        ),
+      );
+      backendNotifications = pendingTxs.map(() => ({
+        type: "wallet:tx_complete",
+        payload: { txHash: execution.txHash, status: "success" },
+      }));
+    } else {
+      if (pendingTxs.length > 1) {
+        fatal("Batch signing is only supported for transaction requests, not EIP-712 requests.");
+      }
+
+      const pendingTx = pendingTxs[0];
+      const walletClient = createWalletClient({
+        account,
+        chain,
+        transport: http(resolvedRpcUrl),
+      });
+      const signArgs = toViemSignTypedDataArgs(
+        pendingTx.payload as WalletEip712Payload,
+      );
+
+      if (!signArgs) {
         fatal("EIP-712 request is missing typed_data payload.");
       }
 
       if (pendingTx.description) {
         console.log(`Desc:    ${pendingTx.description}`);
       }
-      if (typedData.primaryType) {
-        console.log(`Type:    ${typedData.primaryType}`);
-      }
+      console.log(`Type:    ${signArgs.primaryType}`);
       console.log();
 
-      const { domain, types, primaryType, message } = typedData;
-      const sigTypes = { ...types };
-      delete sigTypes["EIP712Domain"];
-
-      const signature = await walletClient.signTypedData({
-        domain: domain as Record<string, unknown>,
-        types: sigTypes as Record<string, Array<{ name: string; type: string }>>,
-        primaryType: primaryType as string,
-        message: message as Record<string, unknown>,
-      });
+      const signature = await walletClient.signTypedData(signArgs as never);
 
       console.log(`✅ Signed! Signature: ${signature.slice(0, 20)}...`);
 
-      removePendingTx(state, txId);
-      const freshState = readState()!;
-      addSignedTx(freshState, {
-        id: txId,
+      signedRecords = [{
+        id: pendingTx.id,
         kind: "eip712_sign",
         signature,
         from: account.address,
         description: pendingTx.description,
         timestamp: Date.now(),
-      });
+      }];
+      backendNotifications = [{
+        type: "wallet_eip712_response",
+        payload: {
+          status: "success",
+          signature,
+          description: pendingTx.description,
+        },
+      }];
+    }
 
+    await persistResolvedSignerState(
+      session,
+      state,
+      account.address,
+      primaryChainId,
+    );
+
+    for (const txId of txIds) {
+      removePendingTx(state, txId);
+    }
+    const freshState = readState()!;
+    for (const signedRecord of signedRecords) {
+      addSignedTx(freshState, signedRecord);
+    }
+
+    for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
         state.sessionId,
-        JSON.stringify({
-          type: "wallet_eip712_response",
-          payload: {
-            status: "success",
-            signature,
-            description: pendingTx.description,
-          },
-        }),
+        JSON.stringify(backendNotification),
       );
     }
 

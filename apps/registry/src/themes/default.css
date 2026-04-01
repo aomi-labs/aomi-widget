@@ -166,24 +166,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-/* ============================================
-   AppKit CSS Variable Overrides (Web3 Wallet)
-   ============================================ */
-
-:root {
-  --apkt-tokens-theme-textInverted: var(--background) !important;
-  --apkt-tokens-core-backgroundAccentPrimary: var(--foreground) !important;
-  --apkt-tokens-core-backgroundAccentSecondary: var(--background) !important;
-  --apkt-tokens-core-foregroundPrimary: var(--background) !important;
-  --apkt-tokens-core-borderPrimary: var(--background) !important;
-  --apkt-color-accent: var(--background) !important;
-  --apkt-color-foreground: var(--background) !important;
-  --apkt-color-background: var(--background) !important;
-}
-
-.dark {
-  --apkt-tokens-core-backgroundAccentPrimary: var(--muted) !important;
-  --apkt-tokens-core-backgroundAccentSecondary: var(--accent) !important;
-  --apkt-tokens-core-foregroundPrimary: var(--foreground) !important;
-}

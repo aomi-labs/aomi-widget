@@ -14,7 +14,7 @@ Most endpoints require two headers:
 | Header | Description |
 | --- | --- |
 | `X-Session-Id` | UUID identifying the conversation session |
-| `X-API-Key` | Your Aomi API key (required for non-default namespaces) |
+| `X-API-Key` | Your Aomi API key (required for non-default apps) |
 
 ## Endpoints
 
@@ -82,21 +82,21 @@ GET /api/sessions/{id}
 Send a message to the AI assistant. Returns a Server-Sent Events (SSE) stream.
 
 ```
-POST /api/chat?namespace={namespace}
+POST /api/chat?app={app}
 ```
 
 **Query Parameters:**
 
 | Parameter | Required | Description |
 | --- | --- | --- |
-| `namespace` | No | Target namespace (defaults to `default`) |
+| `app` | No | Target app (defaults to `default`) |
 
 **Headers:**
 
 | Header | Required | Description |
 | --- | --- | --- |
 | `X-Session-Id` | Yes | Session UUID |
-| `X-API-Key` | For non-default namespaces | Your API key |
+| `X-API-Key` | For non-default apps | Your API key |
 | `Content-Type` | Yes | `application/json` |
 
 **Request Body:**
@@ -278,12 +278,12 @@ GET /api/control/models
 
 ---
 
-### List Authorized Namespaces
+### List Authorized Apps
 
-Get the namespaces your API key is authorized to access.
+Get the apps your API key is authorized to access.
 
 ```
-GET /api/control/namespaces
+GET /api/control/apps
 ```
 
 **Headers:**
@@ -296,7 +296,7 @@ GET /api/control/namespaces
 
 ```json
 {
-  "namespaces": [
+  "apps": [
     {
       "id": "mycoindex",
       "name": "MyCoinDex"
@@ -324,7 +324,7 @@ Each line starts with `data: ` followed by a JSON object and ends with two newli
 ### Consuming SSE in JavaScript
 
 ```ts
-const response = await fetch("/api/chat?namespace=mycoindex", {
+const response = await fetch("/api/chat?app=mycoindex", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -388,12 +388,12 @@ All error responses follow this format:
 | --- | --- |
 | `400` | Bad request (missing or invalid parameters) |
 | `401` | Unauthorized (invalid or missing API key) |
-| `403` | Forbidden (API key does not authorize this namespace) |
+| `403` | Forbidden (API key does not authorize this app) |
 | `404` | Not found (session or resource does not exist) |
 | `500` | Internal server error |
 
 ## Next Steps
 
 - [Sessions](/docs/build/services/sessions) -- how sessions and threads are managed.
-- [Namespaces and Authentication](/docs/build/namespaces) -- API key scoping and auth flow.
+- [Apps and Authentication](/docs/build/namespaces) -- API key scoping and auth flow.
 - [Quickstart](/docs/build/quickstart) -- get a working integration in 5 minutes.

@@ -36,7 +36,7 @@ Sessions are created by the client. The client generates a UUID and sends it as 
 ```ts
 const sessionId = crypto.randomUUID();
 
-const response = await fetch("/api/chat?namespace=mycoindex", {
+const response = await fetch("/api/chat?app=mycoindex", {
   method: "POST",
   headers: {
     "X-Session-Id": sessionId,
@@ -217,5 +217,5 @@ events.onmessage = (event) => {
 ## Next Steps
 
 - [API Reference](/docs/build/services/api-reference) -- full endpoint documentation for session operations.
-- [Namespaces and Authentication](/docs/build/namespaces) -- how sessions relate to namespaces and API keys.
+- [Apps and Authentication](/docs/build/namespaces) -- how sessions relate to apps and API keys.
 - [Configuration](/docs/build/ui/widget/configuration) -- customize session behavior and thread management in the widget.

@@ -65,7 +65,7 @@ export type ThreadListAdapterConfig = {
   polling: PollingController;
   userAddress?: string;
   setIsRunning: (running: boolean) => void;
-  getNamespace: () => string;
+  getApp: () => string;
   getApiKey?: () => string | null;
   getUserState?: () => UserState;
 };

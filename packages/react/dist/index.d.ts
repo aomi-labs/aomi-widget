@@ -1,5 +1,5 @@
-import { AomiSystemEvent, AomiClient } from '@aomi-labs/client';
-export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread } from '@aomi-labs/client';
+import { WalletTxPayload, WalletEip712Payload, AomiSystemEvent, AomiClient } from '@aomi-labs/client';
+export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, WalletEip712Payload, WalletTxPayload, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -56,8 +56,8 @@ type ThreadStatus = "regular" | "archived";
 type ThreadControlState = {
     /** Selected model for this thread (human-readable label) */
     model: string | null;
-    /** Selected namespace for this thread */
-    namespace: string | null;
+    /** Selected app for this thread */
+    app: string | null;
     /** Whether control state has changed but chat hasn't started yet */
     controlDirty: boolean;
     /** Whether this thread is currently processing (assistant generating) */
@@ -67,7 +67,7 @@ type ThreadMetadata = {
     title: string;
     status: ThreadStatus;
     lastActiveAt?: string | number;
-    /** Per-thread control state (model, namespace selection) */
+    /** Per-thread control state (model, app selection) */
     control: ThreadControlState;
 };
 /** Create default control state for a new thread */
@@ -123,26 +123,6 @@ type NotificationContextProviderProps = {
 declare function NotificationContextProvider({ children, }: NotificationContextProviderProps): react_jsx_runtime.JSX.Element;
 
 type WalletRequestKind = "transaction" | "eip712_sign";
-type WalletTxPayload = {
-    to: string;
-    value?: string;
-    data?: string;
-    chainId?: number;
-};
-type WalletEip712Payload = {
-    typed_data?: {
-        domain?: {
-            chainId?: number | string;
-        };
-        types?: Record<string, Array<{
-            name: string;
-            type: string;
-        }>>;
-        primaryType?: string;
-        message?: Record<string, unknown>;
-    };
-    description?: string;
-};
 type WalletRequestStatus = "pending" | "processing";
 type WalletRequest = {
     id: string;
@@ -340,28 +320,30 @@ type ControlState = {
     apiKey: string | null;
     /** Available models fetched from backend */
     availableModels: string[];
-    /** Authorized namespaces fetched from backend */
-    authorizedNamespaces: string[];
+    /** Authorized apps fetched from backend */
+    authorizedApps: string[];
     /** Default model (first from availableModels) */
     defaultModel: string | null;
-    /** Default namespace (from authorizedNamespaces) */
-    defaultNamespace: string | null;
+    /** Default app (from authorizedApps) */
+    defaultApp: string | null;
 };
 type ControlContextApi = {
-    /** Global state (apiKey, available models/namespaces) */
+    /** Global state (apiKey, available models/apps) */
     state: ControlState;
     /** Update global state (apiKey only) */
     setApiKey: (apiKey: string | null) => void;
     /** Fetch available models from backend */
     getAvailableModels: () => Promise<string[]>;
-    /** Fetch authorized namespaces from backend */
-    getAuthorizedNamespaces: () => Promise<string[]>;
+    /** Fetch authorized apps from backend */
+    getAuthorizedApps: () => Promise<string[]>;
     /** Get current thread's control state */
     getCurrentThreadControl: () => ThreadControlState;
+    /** Get the current thread's effective app after auth fallback */
+    getCurrentThreadApp: () => string;
     /** Select a model for the current thread (updates metadata + calls backend) */
     onModelSelect: (model: string) => Promise<void>;
-    /** Select a namespace for the current thread (updates metadata only) */
-    onNamespaceSelect: (namespace: string) => void;
+    /** Select an app for the current thread (updates metadata only) */
+    onAppSelect: (app: string) => void;
     /** Whether the current thread is processing (disables control switching) */
     isProcessing: boolean;
     /** Mark control state as synced (called after chat starts) */
@@ -370,9 +352,9 @@ type ControlContextApi = {
     getControlState: () => ControlState;
     /** Subscribe to global state changes */
     onControlStateChange: (callback: (state: ControlState) => void) => () => void;
-    /** @deprecated Use getCurrentThreadControl().namespace instead */
+    /** @deprecated Use getCurrentThreadControl().app instead */
     setState: (updates: Partial<{
-        namespace: string | null;
+        app: string | null;
         apiKey: string | null;
     }>) => void;
 };
@@ -389,4 +371,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletBuffer, type WalletEip712Payload, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, type WalletTxPayload, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletBuffer, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };

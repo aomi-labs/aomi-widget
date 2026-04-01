@@ -19,7 +19,80 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
+// src/cli/errors.ts
+var CliExit = class extends Error {
+  constructor(code) {
+    super();
+    this.code = code;
+  }
+};
+function fatal(message) {
+  const RED = "\x1B[31m";
+  const DIM3 = "\x1B[2m";
+  const RESET3 = "\x1B[0m";
+  const lines = message.split("\n");
+  const [headline, ...details] = lines;
+  console.error(`${RED}\u274C ${headline}${RESET3}`);
+  for (const detail of details) {
+    if (!detail.trim()) {
+      console.error("");
+      continue;
+    }
+    console.error(`${DIM3}${detail}${RESET3}`);
+  }
+  throw new CliExit(1);
+}
+
 // src/cli/args.ts
+var SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111];
+var CHAIN_NAMES = {
+  1: "Ethereum",
+  137: "Polygon",
+  42161: "Arbitrum One",
+  8453: "Base",
+  10: "Optimism",
+  11155111: "Sepolia"
+};
+function parseChainId(value) {
+  if (value === void 0) return void 0;
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n)) return void 0;
+  if (!SUPPORTED_CHAIN_IDS.includes(n)) {
+    const list = SUPPORTED_CHAIN_IDS.map(
+      (id) => `  ${id} (${CHAIN_NAMES[id]})`
+    ).join("\n");
+    fatal(`Unsupported chain ID: ${n}
+Supported chains:
+${list}`);
+  }
+  return n;
+}
+function resolveExecutionMode(flags) {
+  const flagAA = flags["aa"] === "true";
+  const flagEoa = flags["eoa"] === "true";
+  const hasAASelection = flags["aa-provider"] !== void 0 || flags["aa-mode"] !== void 0;
+  if (flagAA && flagEoa) {
+    fatal("Choose only one of `--aa` or `--eoa`.");
+  }
+  if (flagAA) return "aa";
+  if (flagEoa) return "eoa";
+  if (hasAASelection) return "aa";
+  return "auto";
+}
+function parseAAProvider(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  if (value === "alchemy" || value === "pimlico") {
+    return value;
+  }
+  fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
+}
+function parseAAMode(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  if (value === "4337" || value === "7702") {
+    return value;
+  }
+  fatal("Unsupported AA mode. Use `4337` or `7702`.");
+}
 function parseArgs(argv) {
   const raw = argv.slice(2);
   const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : void 0;
@@ -49,15 +122,35 @@ function parseArgs(argv) {
   return { command, positional, flags };
 }
 function getConfig(parsed) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  const usesSignFlags = parsed.flags["aa"] === "true" || parsed.flags["eoa"] === "true" || parsed.flags["aa-provider"] !== void 0 || parsed.flags["aa-mode"] !== void 0;
+  if (usesSignFlags && parsed.command !== "sign") {
+    fatal(
+      "AA/EOA execution flags are only supported on `aomi sign <tx-id>`."
+    );
+  }
+  const execution = resolveExecutionMode(parsed.flags);
+  const aaProvider = parseAAProvider(
+    (_a3 = parsed.flags["aa-provider"]) != null ? _a3 : process.env.AOMI_AA_PROVIDER
+  );
+  const aaMode = parseAAMode(
+    (_b = parsed.flags["aa-mode"]) != null ? _b : process.env.AOMI_AA_MODE
+  );
+  if (execution === "eoa" && (aaProvider || aaMode)) {
+    fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
+  }
   return {
-    baseUrl: (_b = (_a3 = parsed.flags["backend-url"]) != null ? _a3 : process.env.AOMI_BASE_URL) != null ? _b : "https://api.aomi.dev",
-    apiKey: (_c = parsed.flags["api-key"]) != null ? _c : process.env.AOMI_API_KEY,
-    namespace: (_e = (_d = parsed.flags["namespace"]) != null ? _d : process.env.AOMI_NAMESPACE) != null ? _e : "default",
-    model: (_f = parsed.flags["model"]) != null ? _f : process.env.AOMI_MODEL,
-    publicKey: (_g = parsed.flags["public-key"]) != null ? _g : process.env.AOMI_PUBLIC_KEY,
-    privateKey: (_h = parsed.flags["private-key"]) != null ? _h : process.env.PRIVATE_KEY,
-    chainRpcUrl: (_i = parsed.flags["rpc-url"]) != null ? _i : process.env.CHAIN_RPC_URL
+    baseUrl: (_d = (_c = parsed.flags["backend-url"]) != null ? _c : process.env.AOMI_BASE_URL) != null ? _d : "https://api.aomi.dev",
+    apiKey: (_e = parsed.flags["api-key"]) != null ? _e : process.env.AOMI_API_KEY,
+    app: (_g = (_f = parsed.flags["app"]) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
+    model: (_h = parsed.flags["model"]) != null ? _h : process.env.AOMI_MODEL,
+    publicKey: (_i = parsed.flags["public-key"]) != null ? _i : process.env.AOMI_PUBLIC_KEY,
+    privateKey: (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY,
+    chainRpcUrl: (_k = parsed.flags["rpc-url"]) != null ? _k : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_l = parsed.flags["chain"]) != null ? _l : process.env.AOMI_CHAIN_ID),
+    execution,
+    aaProvider,
+    aaMode
   };
 }
 function createRuntime(argv) {
@@ -106,10 +199,11 @@ function toCliSessionState(stored) {
   return {
     sessionId: stored.sessionId,
     baseUrl: stored.baseUrl,
-    namespace: stored.namespace,
+    app: stored.app,
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
+    chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs
   };
@@ -126,10 +220,11 @@ function readStoredSession(path) {
     return {
       sessionId: parsed.sessionId,
       baseUrl: parsed.baseUrl,
-      namespace: parsed.namespace,
+      app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
+      chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
@@ -699,9 +794,9 @@ var AomiClient = class {
    */
   async sendMessage(sessionId, message, options) {
     var _a3, _b;
-    const namespace = (_a3 = options == null ? void 0 : options.namespace) != null ? _a3 : "default";
+    const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const payload = { message, namespace };
+    const payload = { message, app };
     if (options == null ? void 0 : options.publicKey) {
       payload.public_key = options.publicKey;
     }
@@ -874,11 +969,11 @@ var AomiClient = class {
   // Control API
   // ===========================================================================
   /**
-   * Get available namespaces.
+   * Get available apps.
    */
-  async getNamespaces(sessionId, options) {
+  async getApps(sessionId, options) {
     var _a3;
-    const url = new URL("/api/control/namespaces", this.baseUrl);
+    const url = new URL("/api/control/apps", this.baseUrl);
     if (options == null ? void 0 : options.publicKey) {
       url.searchParams.set("public_key", options.publicKey);
     }
@@ -889,7 +984,7 @@ var AomiClient = class {
     }
     const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
-      throw new Error(`Failed to get namespaces: HTTP ${response.status}`);
+      throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
     return await response.json();
   }
@@ -919,8 +1014,8 @@ var AomiClient = class {
     var _a3;
     const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
     const payload = { rig };
-    if (options == null ? void 0 : options.namespace) {
-      payload.namespace = options.namespace;
+    if (options == null ? void 0 : options.app) {
+      payload.app = options.app;
     }
     return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
   }
@@ -1043,6 +1138,7 @@ function unwrapSystemEvent(event) {
 }
 
 // src/wallet-utils.ts
+import { getAddress } from "viem";
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return void 0;
@@ -1054,7 +1150,7 @@ function getToolArgs(payload) {
   const nestedArgs = asRecord(root == null ? void 0 : root.args);
   return (_a3 = nestedArgs != null ? nestedArgs : root) != null ? _a3 : {};
 }
-function parseChainId(value) {
+function parseChainId2(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
@@ -1066,17 +1162,30 @@ function parseChainId(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function normalizeAddress(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    return getAddress(trimmed);
+  } catch (e) {
+    if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+      return getAddress(trimmed.toLowerCase());
+    }
+    return void 0;
+  }
+}
 function normalizeTxPayload(payload) {
   var _a3, _b, _c;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
-  const to = typeof args.to === "string" ? args.to : void 0;
+  const to = normalizeAddress(args.to);
   if (!to) return null;
   const valueRaw = args.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
   const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_c = (_b = (_a3 = parseChainId(args.chainId)) != null ? _a3 : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  const chainId = (_c = (_b = (_a3 = parseChainId2(args.chainId)) != null ? _a3 : parseChainId2(args.chain_id)) != null ? _b : parseChainId2(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId2(ctx == null ? void 0 : ctx.userChainId);
   return { to, value, data, chainId };
 }
 function normalizeEip712Payload(payload) {
@@ -1099,9 +1208,58 @@ function normalizeEip712Payload(payload) {
   const description = typeof args.description === "string" ? args.description : void 0;
   return { typed_data: typedData, description };
 }
+function toViemSignTypedDataArgs(payload) {
+  var _a3;
+  const typedData = payload.typed_data;
+  const primaryType = typeof (typedData == null ? void 0 : typedData.primaryType) === "string" && typedData.primaryType.trim().length > 0 ? typedData.primaryType : void 0;
+  if (!typedData || !primaryType) {
+    return null;
+  }
+  return {
+    domain: asRecord(typedData.domain),
+    types: Object.fromEntries(
+      Object.entries((_a3 = typedData.types) != null ? _a3 : {}).filter(
+        ([typeName]) => typeName !== "EIP712Domain"
+      )
+    ),
+    primaryType,
+    message: asRecord(typedData.message)
+  };
+}
 
 // src/session.ts
-var Session = class extends TypedEventEmitter {
+function sortJson(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sortJson(entry));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      acc[key] = sortJson(value[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+function isSubsetMatch(expected, actual) {
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || expected.length !== actual.length) {
+      return false;
+    }
+    return expected.every(
+      (entry, index) => isSubsetMatch(entry, actual[index])
+    );
+  }
+  if (expected && typeof expected === "object") {
+    if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
+      return false;
+    }
+    return Object.entries(expected).every(
+      ([key, value]) => isSubsetMatch(value, actual[key])
+    );
+  }
+  return expected === actual;
+}
+var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a3, _b, _c;
     super();
@@ -1117,7 +1275,7 @@ var Session = class extends TypedEventEmitter {
     this.pendingResolve = null;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
-    this.namespace = (_b = sessionOptions == null ? void 0 : sessionOptions.namespace) != null ? _b : "default";
+    this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
@@ -1143,11 +1301,12 @@ var Session = class extends TypedEventEmitter {
   async send(message) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState
     });
+    this.assertUserStateAligned(response.user_state);
     this.applyState(response);
     if (!response.is_processing && this.walletRequests.length === 0) {
       return { messages: this._messages, title: this._title };
@@ -1166,11 +1325,12 @@ var Session = class extends TypedEventEmitter {
   async sendAsync(message) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
-      namespace: this.namespace,
+      app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState
     });
+    this.assertUserStateAligned(response.user_state);
     this.applyState(response);
     if (response.is_processing) {
       this._isProcessing = true;
@@ -1283,6 +1443,23 @@ var Session = class extends TypedEventEmitter {
   getIsProcessing() {
     return this._isProcessing;
   }
+  resolveUserState(userState) {
+    this.userState = userState;
+    const address = userState["address"];
+    if (typeof address === "string" && address.length > 0) {
+      this.publicKey = address;
+    }
+  }
+  resolveWallet(address, chainId) {
+    this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });
+  }
+  async syncUserState() {
+    this.assertOpen();
+    const state = await this.client.fetchState(this.sessionId, this.userState);
+    this.assertUserStateAligned(state.user_state);
+    this.applyState(state);
+    return state;
+  }
   // ===========================================================================
   // Internal — Polling (ported from PollingController)
   // ===========================================================================
@@ -1311,6 +1488,7 @@ var Session = class extends TypedEventEmitter {
         this.userState
       );
       if (!this.pollTimer) return;
+      this.assertUserStateAligned(state.user_state);
       this.applyState(state);
       if (!state.is_processing && this.walletRequests.length === 0) {
         this.stopPolling();
@@ -1412,7 +1590,35 @@ var Session = class extends TypedEventEmitter {
       throw new Error("Session is closed");
     }
   }
+  assertUserStateAligned(actualUserState) {
+    if (!this.userState || !actualUserState) {
+      return;
+    }
+    if (!isSubsetMatch(this.userState, actualUserState)) {
+      const expected = JSON.stringify(sortJson(this.userState));
+      const actual = JSON.stringify(sortJson(actualUserState));
+      throw new Error(
+        `Backend user_state mismatch. expected subset=${expected} actual=${actual}`
+      );
+    }
+  }
 };
+
+// src/cli/user-state.ts
+function buildCliUserState(publicKey, chainId) {
+  if (publicKey === void 0 && chainId === void 0) {
+    return void 0;
+  }
+  const userState = {};
+  if (publicKey !== void 0) {
+    userState.address = publicKey;
+    userState.isConnected = true;
+  }
+  if (chainId !== void 0) {
+    userState.chainId = chainId;
+  }
+  return userState;
+}
 
 // src/cli/context.ts
 function getOrCreateSession(runtime) {
@@ -1422,9 +1628,10 @@ function getOrCreateSession(runtime) {
     state = {
       sessionId: crypto.randomUUID(),
       baseUrl: config.baseUrl,
-      namespace: config.namespace,
+      app: config.app,
       apiKey: config.apiKey,
-      publicKey: config.publicKey
+      publicKey: config.publicKey,
+      chainId: config.chain
     };
     writeState(state);
   } else {
@@ -1433,8 +1640,8 @@ function getOrCreateSession(runtime) {
       state.baseUrl = config.baseUrl;
       changed = true;
     }
-    if (config.namespace !== state.namespace) {
-      state.namespace = config.namespace;
+    if (config.app !== state.app) {
+      state.app = config.app;
       changed = true;
     }
     if (config.apiKey !== void 0 && config.apiKey !== state.apiKey) {
@@ -1445,22 +1652,25 @@ function getOrCreateSession(runtime) {
       state.publicKey = config.publicKey;
       changed = true;
     }
+    if (config.chain !== void 0 && config.chain !== state.chainId) {
+      state.chainId = config.chain;
+      changed = true;
+    }
     if (changed) writeState(state);
   }
-  const session = new Session(
+  const session = new ClientSession(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
-      namespace: state.namespace,
+      app: state.app,
       apiKey: state.apiKey,
-      publicKey: state.publicKey,
-      userState: state.publicKey ? {
-        address: state.publicKey,
-        chainId: 1,
-        isConnected: true
-      } : void 0
+      publicKey: state.publicKey
     }
   );
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
+  }
   return { session, state };
 }
 function createControlClient(runtime) {
@@ -1471,7 +1681,7 @@ function createControlClient(runtime) {
 }
 async function applyModelSelection(session, state, model) {
   await session.client.setModel(state.sessionId, model, {
-    namespace: state.namespace,
+    app: state.app,
     apiKey: state.apiKey
   });
   state.model = model;
@@ -1483,30 +1693,6 @@ async function applyRequestedModelIfPresent(runtime, session, state) {
     return;
   }
   await applyModelSelection(session, state, requestedModel);
-}
-
-// src/cli/errors.ts
-var CliExit = class extends Error {
-  constructor(code) {
-    super();
-    this.code = code;
-  }
-};
-function fatal(message) {
-  const RED = "\x1B[31m";
-  const DIM3 = "\x1B[2m";
-  const RESET3 = "\x1B[0m";
-  const lines = message.split("\n");
-  const [headline, ...details] = lines;
-  console.error(`${RED}\u274C ${headline}${RESET3}`);
-  for (const detail of details) {
-    if (!detail.trim()) {
-      console.error("");
-      continue;
-    }
-    console.error(`${DIM3}${detail}${RESET3}`);
-  }
-  throw new CliExit(1);
 }
 
 // src/cli/transactions.ts
@@ -1531,6 +1717,40 @@ function walletRequestToPendingTx(request) {
     payload: request.payload
   };
 }
+function pendingTxToCallList(tx) {
+  var _a3, _b;
+  if (tx.kind !== "transaction" || !tx.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return [
+    {
+      to: tx.to,
+      value: (_a3 = tx.value) != null ? _a3 : "0",
+      data: tx.data,
+      chainId: (_b = tx.chainId) != null ? _b : 1
+    }
+  ];
+}
+function toSignedTransactionRecord(tx, execution, from, chainId, timestamp, aaProvider, aaMode) {
+  return {
+    id: tx.id,
+    kind: "transaction",
+    txHash: execution.txHash,
+    txHashes: execution.txHashes,
+    executionKind: execution.executionKind,
+    aaProvider,
+    aaMode,
+    batched: execution.batched,
+    sponsored: execution.sponsored,
+    AAAddress: execution.AAAddress,
+    delegationAddress: execution.delegationAddress,
+    from,
+    to: tx.to,
+    value: tx.value,
+    chainId,
+    timestamp
+  };
+}
 function formatTxLine(tx, prefix) {
   var _a3;
   const parts = [`${prefix} ${tx.id}`];
@@ -1546,6 +1766,29 @@ function formatTxLine(tx, prefix) {
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
+function formatSignedTxLine(tx, prefix) {
+  var _a3;
+  const parts = [`${prefix} ${tx.id}`];
+  if (tx.kind === "eip712_sign") {
+    parts.push(`sig: ${(_a3 = tx.signature) == null ? void 0 : _a3.slice(0, 20)}...`);
+    if (tx.description) parts.push(tx.description);
+  } else {
+    parts.push(`hash: ${tx.txHash}`);
+    if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
+    if (tx.aaProvider) parts.push(`provider: ${tx.aaProvider}`);
+    if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
+    if (tx.txHashes && tx.txHashes.length > 1) {
+      parts.push(`txs: ${tx.txHashes.length}`);
+    }
+    if (tx.sponsored) parts.push("sponsored");
+    if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
+    if (tx.delegationAddress) parts.push(`delegation: ${tx.delegationAddress}`);
+    if (tx.to) parts.push(`to: ${tx.to}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+  }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
 
 // src/cli/commands/chat.ts
 async function chatCommand(runtime) {
@@ -1557,18 +1800,9 @@ async function chatCommand(runtime) {
   const { session, state } = getOrCreateSession(runtime);
   try {
     await applyRequestedModelIfPresent(runtime, session, state);
-    if (state.publicKey) {
-      await session.client.sendSystemMessage(
-        session.sessionId,
-        JSON.stringify({
-          type: "wallet:state_changed",
-          payload: {
-            address: state.publicKey,
-            chainId: 1,
-            isConnected: true
-          }
-        })
-      );
+    const userState = buildCliUserState(state.publicKey, state.chainId);
+    if (userState) {
+      session.resolveUserState(userState);
     }
     const capturedRequests = [];
     let printedAgentCount = 0;
@@ -1700,9 +1934,255 @@ async function chatCommand(runtime) {
   }
 }
 
+// src/aa/types.ts
+function getAAChainConfig(config, calls, chainsById) {
+  if (!config.enabled || calls.length === 0) {
+    return null;
+  }
+  const chainIds = Array.from(new Set(calls.map((call) => call.chainId)));
+  if (chainIds.length !== 1) {
+    return null;
+  }
+  const chainId = chainIds[0];
+  if (!chainsById[chainId]) {
+    return null;
+  }
+  const chainConfig = config.chains.find((item) => item.chainId === chainId);
+  if (!(chainConfig == null ? void 0 : chainConfig.enabled)) {
+    return null;
+  }
+  if (calls.length > 1 && !chainConfig.allowBatching) {
+    return null;
+  }
+  return chainConfig;
+}
+function buildAAExecutionPlan(config, chainConfig) {
+  const mode = chainConfig.supportedModes.includes(chainConfig.defaultMode) ? chainConfig.defaultMode : chainConfig.supportedModes[0];
+  if (!mode) {
+    throw new Error(`No smart account mode configured for chain ${chainConfig.chainId}`);
+  }
+  return {
+    provider: config.provider,
+    chainId: chainConfig.chainId,
+    mode,
+    batchingEnabled: chainConfig.allowBatching,
+    sponsorship: chainConfig.sponsorship,
+    fallbackToEoa: config.fallbackToEoa
+  };
+}
+function mapCall(call) {
+  return {
+    to: call.to,
+    value: BigInt(call.value),
+    data: call.data ? call.data : void 0
+  };
+}
+var DEFAULT_AA_CONFIG = {
+  enabled: true,
+  provider: "alchemy",
+  fallbackToEoa: true,
+  chains: [
+    {
+      chainId: 1,
+      enabled: true,
+      defaultMode: "7702",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 137,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 42161,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 10,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    },
+    {
+      chainId: 8453,
+      enabled: true,
+      defaultMode: "4337",
+      supportedModes: ["4337", "7702"],
+      allowBatching: true,
+      sponsorship: "optional"
+    }
+  ]
+};
+var DISABLED_PROVIDER_STATE = {
+  plan: null,
+  AA: void 0,
+  isPending: false,
+  error: null
+};
+async function executeWalletCalls(params) {
+  const {
+    callList,
+    currentChainId,
+    capabilities,
+    localPrivateKey,
+    providerState,
+    sendCallsSyncAsync,
+    sendTransactionAsync,
+    switchChainAsync,
+    chainsById,
+    getPreferredRpcUrl: getPreferredRpcUrl2
+  } = params;
+  if (providerState.plan && providerState.AA) {
+    return executeViaAA(callList, providerState);
+  }
+  if (providerState.plan && providerState.error && !providerState.plan.fallbackToEoa) {
+    throw providerState.error;
+  }
+  return executeViaEoa({
+    callList,
+    currentChainId,
+    capabilities,
+    localPrivateKey,
+    sendCallsSyncAsync,
+    sendTransactionAsync,
+    switchChainAsync,
+    chainsById,
+    getPreferredRpcUrl: getPreferredRpcUrl2
+  });
+}
+async function executeViaAA(callList, providerState) {
+  var _a3;
+  const AA = providerState.AA;
+  const plan = providerState.plan;
+  if (!AA || !plan) {
+    throw (_a3 = providerState.error) != null ? _a3 : new Error("smart_account_unavailable");
+  }
+  const callsPayload = callList.map(mapCall);
+  const receipt = callList.length > 1 ? await AA.sendBatchTransaction(callsPayload) : await AA.sendTransaction(callsPayload[0]);
+  const txHash = receipt.transactionHash;
+  const providerPrefix = AA.provider.toLowerCase();
+  return {
+    txHash,
+    txHashes: [txHash],
+    executionKind: `${providerPrefix}_${AA.mode}`,
+    batched: callList.length > 1,
+    sponsored: plan.sponsorship !== "disabled",
+    AAAddress: AA.AAAddress,
+    delegationAddress: AA.mode === "7702" ? AA.delegationAddress : void 0
+  };
+}
+async function executeViaEoa({
+  callList,
+  currentChainId,
+  capabilities,
+  localPrivateKey,
+  sendCallsSyncAsync,
+  sendTransactionAsync,
+  switchChainAsync,
+  chainsById,
+  getPreferredRpcUrl: getPreferredRpcUrl2
+}) {
+  var _a3, _b;
+  const { createPublicClient, createWalletClient: createWalletClient2, http: http2 } = await import("viem");
+  const { privateKeyToAccount: privateKeyToAccount3 } = await import("viem/accounts");
+  const hashes = [];
+  if (localPrivateKey) {
+    for (const call of callList) {
+      const chain = chainsById[call.chainId];
+      if (!chain) {
+        throw new Error(`Unsupported chain ${call.chainId}`);
+      }
+      const rpcUrl = getPreferredRpcUrl2(chain);
+      if (!rpcUrl) {
+        throw new Error(`No RPC for chain ${call.chainId}`);
+      }
+      const account = privateKeyToAccount3(localPrivateKey);
+      const walletClient = createWalletClient2({
+        account,
+        chain,
+        transport: http2(rpcUrl)
+      });
+      const hash = await walletClient.sendTransaction({
+        account,
+        to: call.to,
+        value: BigInt(call.value),
+        data: call.data ? call.data : void 0
+      });
+      const publicClient = createPublicClient({
+        chain,
+        transport: http2(rpcUrl)
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      hashes.push(hash);
+    }
+    return {
+      txHash: hashes[hashes.length - 1],
+      txHashes: hashes,
+      executionKind: "eoa",
+      batched: hashes.length > 1,
+      sponsored: false
+    };
+  }
+  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
+  if (chainIds.length > 1) {
+    throw new Error("mixed_chain_bundle_not_supported");
+  }
+  const chainId = chainIds[0];
+  if (currentChainId !== chainId) {
+    await switchChainAsync({ chainId });
+  }
+  const chainCaps = capabilities == null ? void 0 : capabilities[`eip155:${chainId}`];
+  const atomicStatus = (_a3 = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a3.status;
+  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  if (canUseSendCalls) {
+    const batchResult = await sendCallsSyncAsync({
+      calls: callList.map(mapCall),
+      capabilities: {
+        atomic: {
+          required: true
+        }
+      }
+    });
+    const receipts = (_b = batchResult.receipts) != null ? _b : [];
+    for (const receipt of receipts) {
+      if (receipt.transactionHash) {
+        hashes.push(receipt.transactionHash);
+      }
+    }
+  } else {
+    for (const call of callList) {
+      const hash = await sendTransactionAsync({
+        chainId: call.chainId,
+        to: call.to,
+        value: BigInt(call.value),
+        data: call.data ? call.data : void 0
+      });
+      hashes.push(hash);
+    }
+  }
+  return {
+    txHash: hashes[hashes.length - 1],
+    txHashes: hashes,
+    executionKind: "eoa",
+    batched: hashes.length > 1,
+    sponsored: false
+  };
+}
+
 // src/cli/commands/control.ts
 async function statusCommand(runtime) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   if (!readState()) {
     console.log("No active session");
     printDataFileLocation();
@@ -1716,13 +2196,14 @@ async function statusCommand(runtime) {
         {
           sessionId: state.sessionId,
           baseUrl: state.baseUrl,
-          namespace: state.namespace,
+          app: state.app,
           model: (_a3 = state.model) != null ? _a3 : null,
-          isProcessing: (_b = apiState.is_processing) != null ? _b : false,
-          messageCount: (_d = (_c = apiState.messages) == null ? void 0 : _c.length) != null ? _d : 0,
-          title: (_e = apiState.title) != null ? _e : null,
-          pendingTxs: (_g = (_f = state.pendingTxs) == null ? void 0 : _f.length) != null ? _g : 0,
-          signedTxs: (_i = (_h = state.signedTxs) == null ? void 0 : _h.length) != null ? _i : 0
+          chainId: (_b = state.chainId) != null ? _b : null,
+          isProcessing: (_c = apiState.is_processing) != null ? _c : false,
+          messageCount: (_e = (_d = apiState.messages) == null ? void 0 : _d.length) != null ? _e : 0,
+          title: (_f = apiState.title) != null ? _f : null,
+          pendingTxs: (_h = (_g = state.pendingTxs) == null ? void 0 : _g.length) != null ? _h : 0,
+          signedTxs: (_j = (_i = state.signedTxs) == null ? void 0 : _i.length) != null ? _j : 0
         },
         null,
         2
@@ -1746,6 +2227,25 @@ async function eventsCommand(runtime) {
     session.close();
   }
 }
+async function appsCommand(runtime) {
+  var _a3, _b, _c;
+  const client = createControlClient(runtime);
+  const state = readState();
+  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
+  const apps = await client.getApps(sessionId, {
+    publicKey: runtime.config.publicKey,
+    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+  });
+  if (apps.length === 0) {
+    console.log("No apps available.");
+    return;
+  }
+  const currentApp = (_c = state == null ? void 0 : state.app) != null ? _c : runtime.config.app;
+  for (const app of apps) {
+    const marker = currentApp === app ? "  (current)" : "";
+    console.log(`${app}${marker}`);
+  }
+}
 async function modelsCommand(runtime) {
   var _a3, _b;
   const client = createControlClient(runtime);
@@ -1763,6 +2263,26 @@ async function modelsCommand(runtime) {
     console.log(`${model}${marker}`);
   }
 }
+async function appCommand(runtime) {
+  var _a3;
+  const subcommand = runtime.parsed.positional[0];
+  if (!subcommand || subcommand === "current") {
+    const state = readState();
+    if (!state) {
+      console.log("No active session");
+      printDataFileLocation();
+      return;
+    }
+    console.log((_a3 = state.app) != null ? _a3 : "(default)");
+    printDataFileLocation();
+    return;
+  }
+  if (subcommand === "list") {
+    await appsCommand(runtime);
+    return;
+  }
+  fatal("Usage: aomi app list\n       aomi app current");
+}
 async function modelCommand(runtime) {
   var _a3;
   const subcommand = runtime.parsed.positional[0];
@@ -1777,8 +2297,12 @@ async function modelCommand(runtime) {
     printDataFileLocation();
     return;
   }
+  if (subcommand === "list") {
+    await modelsCommand(runtime);
+    return;
+  }
   if (subcommand !== "set") {
-    fatal("Usage: aomi model set <rig>\n       aomi model current");
+    fatal("Usage: aomi model list\n       aomi model set <rig>\n       aomi model current");
   }
   const model = runtime.parsed.positional.slice(1).join(" ").trim();
   if (!model) {
@@ -1792,6 +2316,26 @@ async function modelCommand(runtime) {
   } finally {
     session.close();
   }
+}
+function chainsCommand() {
+  var _a3;
+  const state = readState();
+  const currentChainId = state == null ? void 0 : state.chainId;
+  for (const id of SUPPORTED_CHAIN_IDS) {
+    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
+    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
+    const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
+    const marker = currentChainId === id ? "  (current)" : "";
+    console.log(`${id}  ${name}${aaInfo}${marker}`);
+  }
+}
+function chainCommand(runtime) {
+  const subcommand = runtime.parsed.positional[0];
+  if (!subcommand || subcommand === "list") {
+    chainsCommand();
+    return;
+  }
+  fatal("Usage: aomi chain list");
 }
 
 // src/cli/tables.ts
@@ -1832,17 +2376,25 @@ function toPendingTxMetadata(tx) {
   };
 }
 function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   return {
     id: tx.id,
     kind: tx.kind,
     txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    signature: (_b = tx.signature) != null ? _b : null,
-    from: (_c = tx.from) != null ? _c : null,
-    to: (_d = tx.to) != null ? _d : null,
-    value: (_e = tx.value) != null ? _e : null,
-    chainId: (_f = tx.chainId) != null ? _f : null,
-    description: (_g = tx.description) != null ? _g : null,
+    txHashes: (_b = tx.txHashes) != null ? _b : null,
+    executionKind: (_c = tx.executionKind) != null ? _c : null,
+    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
+    aaMode: (_e = tx.aaMode) != null ? _e : null,
+    batched: (_f = tx.batched) != null ? _f : null,
+    sponsored: (_g = tx.sponsored) != null ? _g : null,
+    AAAddress: (_h = tx.AAAddress) != null ? _h : null,
+    delegationAddress: (_i = tx.delegationAddress) != null ? _i : null,
+    signature: (_j = tx.signature) != null ? _j : null,
+    from: (_k = tx.from) != null ? _k : null,
+    to: (_l = tx.to) != null ? _l : null,
+    value: (_m = tx.value) != null ? _m : null,
+    chainId: (_n = tx.chainId) != null ? _n : null,
+    description: (_o = tx.description) != null ? _o : null,
     timestamp: new Date(tx.timestamp).toISOString()
   };
 }
@@ -2061,7 +2613,7 @@ async function sessionsCommand(_runtime) {
   }
   printDataFileLocation();
 }
-function sessionCommand(runtime) {
+async function sessionCommand(runtime) {
   const subcommand = runtime.parsed.positional[0];
   const selector = runtime.parsed.positional[1];
   if (subcommand === "resume") {
@@ -2094,17 +2646,538 @@ function sessionCommand(runtime) {
     printDataFileLocation();
     return;
   }
+  if (subcommand === "list") {
+    await sessionsCommand(runtime);
+    return;
+  }
   fatal(
-    "Usage: aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>"
+    "Usage: aomi session list\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>"
   );
 }
 
 // src/cli/commands/wallet.ts
 import { createWalletClient, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 import * as viemChains from "viem/chains";
+
+// src/aa/env.ts
+var ALCHEMY_API_KEY_ENVS = [
+  "ALCHEMY_API_KEY",
+  "NEXT_PUBLIC_ALCHEMY_API_KEY"
+];
+var ALCHEMY_GAS_POLICY_ENVS = [
+  "ALCHEMY_GAS_POLICY_ID",
+  "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID"
+];
+var PIMLICO_API_KEY_ENVS = [
+  "PIMLICO_API_KEY",
+  "NEXT_PUBLIC_PIMLICO_API_KEY"
+];
+function readEnv(candidates, options = {}) {
+  var _a3;
+  const { publicOnly = false } = options;
+  for (const name of candidates) {
+    if (publicOnly && !name.startsWith("NEXT_PUBLIC_")) {
+      continue;
+    }
+    const value = (_a3 = process.env[name]) == null ? void 0 : _a3.trim();
+    if (value) return value;
+  }
+  return void 0;
+}
+function readGasPolicyEnv(chainId, chainSlugById, baseCandidates, options = {}) {
+  const slug = chainSlugById[chainId];
+  if (slug) {
+    const chainSpecific = baseCandidates.map(
+      (base) => `${base}_${slug.toUpperCase()}`
+    );
+    const found = readEnv(chainSpecific, options);
+    if (found) return found;
+  }
+  return readEnv(baseCandidates, options);
+}
+function isProviderConfigured(provider, options = {}) {
+  return provider === "alchemy" ? Boolean(readEnv(ALCHEMY_API_KEY_ENVS, options)) : Boolean(readEnv(PIMLICO_API_KEY_ENVS, options));
+}
+function resolveDefaultProvider(options = {}) {
+  if (isProviderConfigured("alchemy", options)) return "alchemy";
+  if (isProviderConfigured("pimlico", options)) return "pimlico";
+  throw new Error(
+    "AA requires provider credentials. Set ALCHEMY_API_KEY or PIMLICO_API_KEY, or use --eoa."
+  );
+}
+
+// src/aa/resolve.ts
+function resolveAlchemyConfig(options) {
+  const {
+    calls,
+    localPrivateKey,
+    accountAbstractionConfig = DEFAULT_AA_CONFIG,
+    chainsById,
+    chainSlugById = {},
+    getPreferredRpcUrl: getPreferredRpcUrl2 = (chain2) => {
+      var _a3;
+      return (_a3 = chain2.rpcUrls.default.http[0]) != null ? _a3 : "";
+    },
+    modeOverride,
+    publicOnly = false,
+    throwOnMissingConfig = false,
+    apiKey: preResolvedApiKey,
+    gasPolicyId: preResolvedGasPolicyId
+  } = options;
+  if (!calls || localPrivateKey) {
+    return null;
+  }
+  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
+    provider: "alchemy"
+  });
+  const chainConfig = getAAChainConfig(config, calls, chainsById);
+  if (!chainConfig) {
+    if (throwOnMissingConfig) {
+      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
+      throw new Error(
+        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
+      );
+    }
+    return null;
+  }
+  const apiKey = preResolvedApiKey != null ? preResolvedApiKey : readEnv(ALCHEMY_API_KEY_ENVS, { publicOnly });
+  if (!apiKey) {
+    if (throwOnMissingConfig) {
+      throw new Error("Alchemy AA requires ALCHEMY_API_KEY.");
+    }
+    return null;
+  }
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) {
+    return null;
+  }
+  const gasPolicyId = preResolvedGasPolicyId != null ? preResolvedGasPolicyId : readGasPolicyEnv(
+    chainConfig.chainId,
+    chainSlugById,
+    ALCHEMY_GAS_POLICY_ENVS,
+    { publicOnly }
+  );
+  if (chainConfig.sponsorship === "required" && !gasPolicyId) {
+    if (throwOnMissingConfig) {
+      throw new Error(
+        `Alchemy gas policy required for chain ${chainConfig.chainId} but not configured.`
+      );
+    }
+    return null;
+  }
+  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
+    if (throwOnMissingConfig) {
+      throw new Error(
+        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
+      );
+    }
+    return null;
+  }
+  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
+  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
+  return {
+    chainConfig: resolvedChainConfig,
+    plan,
+    apiKey,
+    chain,
+    rpcUrl: getPreferredRpcUrl2(chain),
+    gasPolicyId,
+    mode: resolvedChainConfig.defaultMode
+  };
+}
+function resolvePimlicoConfig(options) {
+  const {
+    calls,
+    localPrivateKey,
+    accountAbstractionConfig = DEFAULT_AA_CONFIG,
+    chainsById,
+    rpcUrl,
+    modeOverride,
+    publicOnly = false,
+    throwOnMissingConfig = false,
+    apiKey: preResolvedApiKey
+  } = options;
+  if (!calls || localPrivateKey) {
+    return null;
+  }
+  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
+    provider: "pimlico"
+  });
+  const chainConfig = getAAChainConfig(config, calls, chainsById);
+  if (!chainConfig) {
+    if (throwOnMissingConfig) {
+      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
+      throw new Error(
+        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
+      );
+    }
+    return null;
+  }
+  const apiKey = preResolvedApiKey != null ? preResolvedApiKey : readEnv(PIMLICO_API_KEY_ENVS, { publicOnly });
+  if (!apiKey) {
+    if (throwOnMissingConfig) {
+      throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
+    }
+    return null;
+  }
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) {
+    return null;
+  }
+  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
+    if (throwOnMissingConfig) {
+      throw new Error(
+        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
+      );
+    }
+    return null;
+  }
+  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
+  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
+  return {
+    chainConfig: resolvedChainConfig,
+    plan,
+    apiKey,
+    chain,
+    rpcUrl,
+    mode: resolvedChainConfig.defaultMode
+  };
+}
+
+// src/aa/adapt.ts
+function adaptSmartAccount(account) {
+  return {
+    provider: account.provider,
+    mode: account.mode,
+    AAAddress: account.smartAccountAddress,
+    delegationAddress: account.delegationAddress,
+    sendTransaction: async (call) => {
+      const receipt = await account.sendTransaction(call);
+      return { transactionHash: receipt.transactionHash };
+    },
+    sendBatchTransaction: async (calls) => {
+      const receipt = await account.sendBatchTransaction(calls);
+      return { transactionHash: receipt.transactionHash };
+    }
+  };
+}
+function isAlchemySponsorshipLimitError(error) {
+  const message = error instanceof Error ? error.message : String(error != null ? error : "");
+  const normalized = message.toLowerCase();
+  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
+}
+
+// src/aa/create.ts
+import { createAlchemySmartAccount } from "@getpara/aa-alchemy";
+import { createPimlicoSmartAccount } from "@getpara/aa-pimlico";
+import { privateKeyToAccount } from "viem/accounts";
+async function createAAProviderState(options) {
+  if (options.provider === "alchemy") {
+    return createAlchemyAAState({
+      chain: options.chain,
+      owner: options.owner,
+      rpcUrl: options.rpcUrl,
+      callList: options.callList,
+      mode: options.mode,
+      apiKey: options.apiKey,
+      gasPolicyId: options.gasPolicyId,
+      sponsored: options.sponsored
+    });
+  }
+  return createPimlicoAAState({
+    chain: options.chain,
+    owner: options.owner,
+    rpcUrl: options.rpcUrl,
+    callList: options.callList,
+    mode: options.mode,
+    apiKey: options.apiKey
+  });
+}
+function getDirectOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: void 0,
+      signer: privateKeyToAccount(owner.privateKey)
+    }
+  };
+}
+function getParaSessionOwnerParams(owner) {
+  if (owner.signer) {
+    return {
+      kind: "ready",
+      ownerParams: __spreadValues({
+        para: owner.session,
+        signer: owner.signer
+      }, owner.address ? { address: owner.address } : {})
+    };
+  }
+  return {
+    kind: "ready",
+    ownerParams: __spreadValues({
+      para: owner.session
+    }, owner.address ? { address: owner.address } : {})
+  };
+}
+function getSessionOwnerParams(owner) {
+  switch (owner.adapter) {
+    case "para":
+      return getParaSessionOwnerParams(owner);
+    default:
+      return { kind: "unsupported_adapter", adapter: owner.adapter };
+  }
+}
+function getOwnerParams(owner) {
+  if (!owner) {
+    return { kind: "missing" };
+  }
+  switch (owner.kind) {
+    case "direct":
+      return getDirectOwnerParams(owner);
+    case "session":
+      return getSessionOwnerParams(owner);
+  }
+}
+function getMissingOwnerState(plan, provider) {
+  return {
+    plan,
+    AA: null,
+    isPending: false,
+    error: new Error(
+      `${provider} AA account creation requires a direct owner or a supported session owner.`
+    )
+  };
+}
+function getUnsupportedAdapterState(plan, adapter) {
+  return {
+    plan,
+    AA: null,
+    isPending: false,
+    error: new Error(`Session adapter "${adapter}" is not implemented.`)
+  };
+}
+async function createAlchemyAAState(options) {
+  var _a3, _b;
+  const {
+    chain,
+    owner,
+    rpcUrl,
+    callList,
+    mode,
+    sponsored = true
+  } = options;
+  const resolved = resolveAlchemyConfig({
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    modeOverride: mode,
+    throwOnMissingConfig: true,
+    getPreferredRpcUrl: () => rpcUrl,
+    apiKey: options.apiKey,
+    gasPolicyId: options.gasPolicyId
+  });
+  if (!resolved) {
+    throw new Error("Alchemy AA config resolution failed.");
+  }
+  const apiKey = (_a3 = options.apiKey) != null ? _a3 : resolved.apiKey;
+  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : readEnv(ALCHEMY_GAS_POLICY_ENVS) : void 0;
+  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
+    sponsorship: gasPolicyId ? resolved.plan.sponsorship : "disabled",
+    fallbackToEoa: false
+  });
+  const ownerParams = getOwnerParams(owner);
+  if (ownerParams.kind === "missing") {
+    return getMissingOwnerState(plan, "alchemy");
+  }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
+  }
+  try {
+    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
+      apiKey,
+      gasPolicyId,
+      chain,
+      rpcUrl,
+      mode: plan.mode
+    }));
+    if (!smartAccount) {
+      return {
+        plan,
+        AA: null,
+        isPending: false,
+        error: new Error("Alchemy AA account could not be initialized.")
+      };
+    }
+    return {
+      plan,
+      AA: adaptSmartAccount(smartAccount),
+      isPending: false,
+      error: null
+    };
+  } catch (error) {
+    return {
+      plan,
+      AA: null,
+      isPending: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+async function createPimlicoAAState(options) {
+  var _a3;
+  const {
+    chain,
+    owner,
+    rpcUrl,
+    callList,
+    mode
+  } = options;
+  const resolved = resolvePimlicoConfig({
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    rpcUrl,
+    modeOverride: mode,
+    throwOnMissingConfig: true,
+    apiKey: options.apiKey
+  });
+  if (!resolved) {
+    throw new Error("Pimlico AA config resolution failed.");
+  }
+  const apiKey = (_a3 = options.apiKey) != null ? _a3 : resolved.apiKey;
+  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
+    fallbackToEoa: false
+  });
+  const ownerParams = getOwnerParams(owner);
+  if (ownerParams.kind === "missing") {
+    return getMissingOwnerState(plan, "pimlico");
+  }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(plan, ownerParams.adapter);
+  }
+  try {
+    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
+      apiKey,
+      chain,
+      rpcUrl,
+      mode: plan.mode
+    }));
+    if (!smartAccount) {
+      return {
+        plan,
+        AA: null,
+        isPending: false,
+        error: new Error("Pimlico AA account could not be initialized.")
+      };
+    }
+    return {
+      plan,
+      AA: adaptSmartAccount(smartAccount),
+      isPending: false,
+      error: null
+    };
+  } catch (error) {
+    return {
+      plan,
+      AA: null,
+      isPending: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+
+// src/cli/execution.ts
+function resolveAAProvider(config, options) {
+  const provider = config.aaProvider;
+  if (provider) {
+    if (isProviderConfigured(provider)) {
+      return provider;
+    }
+    if (!options.required) {
+      return null;
+    }
+    const envName = provider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
+    throw new Error(
+      `AA provider "${provider}" is selected but ${envName} is not configured.`
+    );
+  }
+  try {
+    return resolveDefaultProvider();
+  } catch (error) {
+    if (!options.required) {
+      return null;
+    }
+    throw error;
+  }
+}
+function getResolvedAAMode(params) {
+  const { provider, config, chain, callList, fallbackToEoa } = params;
+  const resolveOpts = {
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    modeOverride: config.aaMode,
+    throwOnMissingConfig: true
+  };
+  const resolved = provider === "alchemy" ? resolveAlchemyConfig(resolveOpts) : resolvePimlicoConfig(resolveOpts);
+  if (!resolved) {
+    throw new Error(`AA config resolution failed for provider "${provider}".`);
+  }
+  return {
+    execution: "aa",
+    provider,
+    aaMode: resolved.plan.mode,
+    fallbackToEoa
+  };
+}
+function resolveCliExecutionDecision(params) {
+  const { config, chain, callList } = params;
+  if (config.execution === "eoa") {
+    return { execution: "eoa" };
+  }
+  const requireAA = config.execution === "aa";
+  const provider = resolveAAProvider(config, { required: requireAA });
+  if (!provider) {
+    return { execution: "eoa" };
+  }
+  try {
+    return getResolvedAAMode({
+      provider,
+      config,
+      chain,
+      callList,
+      fallbackToEoa: !requireAA
+    });
+  } catch (error) {
+    if (!requireAA) {
+      return { execution: "eoa" };
+    }
+    throw error;
+  }
+}
+async function createCliProviderState(params) {
+  const { decision, chain, privateKey, rpcUrl, callList, sponsored } = params;
+  if (decision.execution === "eoa") {
+    return DISABLED_PROVIDER_STATE;
+  }
+  return createAAProviderState({
+    provider: decision.provider,
+    chain,
+    owner: { kind: "direct", privateKey },
+    rpcUrl,
+    callList,
+    mode: decision.aaMode,
+    sponsored
+  });
+}
+function describeExecutionDecision(decision) {
+  if (decision.execution === "eoa") {
+    return "eoa";
+  }
+  return decision.fallbackToEoa ? `aa (${decision.provider}, ${decision.aaMode}; fallback: eoa)` : `aa (${decision.provider}, ${decision.aaMode})`;
+}
+
+// src/cli/commands/wallet.ts
 function txCommand() {
-  var _a3, _b, _c;
+  var _a3, _b;
   const state = readState();
   if (!state) {
     console.log("No active session");
@@ -2128,17 +3201,7 @@ function txCommand() {
     if (pending.length > 0) console.log();
     console.log(`Signed (${signed.length}):`);
     for (const tx of signed) {
-      const parts = [`  \u2705 ${tx.id}`];
-      if (tx.kind === "eip712_sign") {
-        parts.push(`sig: ${(_c = tx.signature) == null ? void 0 : _c.slice(0, 20)}...`);
-        if (tx.description) parts.push(tx.description);
-      } else {
-        parts.push(`hash: ${tx.txHash}`);
-        if (tx.to) parts.push(`to: ${tx.to}`);
-        if (tx.value) parts.push(`value: ${tx.value}`);
-      }
-      parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-      console.log(parts.join("  "));
+      console.log(formatSignedTxLine(tx, "  \u2705"));
     }
   }
   printDataFileLocation();
@@ -2154,12 +3217,181 @@ Run \`aomi tx\` to see available IDs.`
   }
   return pendingTx;
 }
-async function signCommand(runtime) {
+function requirePendingTxs(state, txIds) {
+  const uniqueIds = Array.from(new Set(txIds));
+  if (uniqueIds.length !== txIds.length) {
+    fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
+  }
+  return uniqueIds.map((txId) => requirePendingTx(state, txId));
+}
+function rewriteSessionState(runtime, state) {
+  let changed = false;
+  if (runtime.config.baseUrl !== state.baseUrl) {
+    state.baseUrl = runtime.config.baseUrl;
+    changed = true;
+  }
+  if (runtime.config.app !== state.app) {
+    state.app = runtime.config.app;
+    changed = true;
+  }
+  if (runtime.config.apiKey !== void 0 && runtime.config.apiKey !== state.apiKey) {
+    state.apiKey = runtime.config.apiKey;
+    changed = true;
+  }
+  if (runtime.config.chain !== void 0 && runtime.config.chain !== state.chainId) {
+    state.chainId = runtime.config.chain;
+    changed = true;
+  }
+  if (changed) {
+    writeState(state);
+  }
+}
+function createSessionFromState(state) {
+  const session = new ClientSession(
+    { baseUrl: state.baseUrl, apiKey: state.apiKey },
+    {
+      sessionId: state.sessionId,
+      app: state.app,
+      apiKey: state.apiKey,
+      publicKey: state.publicKey
+    }
+  );
+  const userState = buildCliUserState(state.publicKey, state.chainId);
+  if (userState) {
+    session.resolveUserState(userState);
+  }
+  return session;
+}
+async function persistResolvedSignerState(session, state, address, chainId) {
+  state.publicKey = address;
+  writeState(state);
+  session.resolveWallet(address, chainId);
+  await session.syncUserState();
+}
+function resolveChain(targetChainId, rpcUrl) {
+  var _a3;
+  return (_a3 = Object.values(viemChains).find(
+    (candidate) => typeof candidate === "object" && candidate !== null && "id" in candidate && candidate.id === targetChainId
+  )) != null ? _a3 : {
+    id: targetChainId,
+    name: `Chain ${targetChainId}`,
+    nativeCurrency: {
+      name: "ETH",
+      symbol: "ETH",
+      decimals: 18
+    },
+    rpcUrls: {
+      default: {
+        http: rpcUrl ? [rpcUrl] : []
+      }
+    }
+  };
+}
+function getPreferredRpcUrl(chain, override) {
   var _a3, _b, _c;
-  const txId = runtime.parsed.positional[0];
-  if (!txId) {
+  return (_c = (_b = override != null ? override : chain.rpcUrls.default.http[0]) != null ? _b : (_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) != null ? _c : "";
+}
+async function executeCliTransaction(params) {
+  const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
+  const unsupportedWalletMethod = async () => {
+    throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
+  };
+  return executeWalletCalls({
+    callList,
+    currentChainId,
+    capabilities: void 0,
+    localPrivateKey: privateKey,
+    providerState,
+    sendCallsSyncAsync: unsupportedWalletMethod,
+    sendTransactionAsync: unsupportedWalletMethod,
+    switchChainAsync: async () => void 0,
+    chainsById,
+    getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl)
+  });
+}
+async function executeTransactionWithFallback(params) {
+  const { decision, privateKey, currentChainId, chainsById, primaryChain, rpcUrl, callList } = params;
+  const runExecution = async (providerState2) => executeCliTransaction({
+    privateKey,
+    currentChainId,
+    chainsById,
+    rpcUrl,
+    providerState: providerState2,
+    callList
+  });
+  if (decision.execution === "eoa") {
+    const providerState2 = await createCliProviderState({
+      decision,
+      chain: primaryChain,
+      privateKey,
+      rpcUrl: rpcUrl != null ? rpcUrl : "",
+      callList
+    });
+    return {
+      execution: await runExecution(providerState2),
+      finalDecision: decision
+    };
+  }
+  let providerState = await createCliProviderState({
+    decision,
+    chain: primaryChain,
+    privateKey,
+    rpcUrl: rpcUrl != null ? rpcUrl : "",
+    callList,
+    sponsored: true
+  });
+  try {
+    return {
+      execution: await runExecution(providerState),
+      finalDecision: decision
+    };
+  } catch (error) {
+    const shouldRetryUnsponsored = decision.provider === "alchemy" && isAlchemySponsorshipLimitError(error);
+    if (shouldRetryUnsponsored) {
+      console.log("AA sponsorship unavailable. Retrying AA with user-funded gas...");
+      providerState = await createCliProviderState({
+        decision,
+        chain: primaryChain,
+        privateKey,
+        rpcUrl: rpcUrl != null ? rpcUrl : "",
+        callList,
+        sponsored: false
+      });
+      try {
+        return {
+          execution: await runExecution(providerState),
+          finalDecision: decision
+        };
+      } catch (retryError) {
+        error = retryError;
+      }
+    }
+    if (!decision.fallbackToEoa) {
+      throw error;
+    }
+    const eoaDecision = { execution: "eoa" };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`AA execution failed: ${errorMessage}`);
+    console.log("Retrying with EOA execution...");
+    const eoaProviderState = await createCliProviderState({
+      decision: eoaDecision,
+      chain: primaryChain,
+      privateKey,
+      rpcUrl: rpcUrl != null ? rpcUrl : "",
+      callList
+    });
+    return {
+      execution: await runExecution(eoaProviderState),
+      finalDecision: eoaDecision
+    };
+  }
+}
+async function signCommand(runtime) {
+  var _a3, _b;
+  const txIds = runtime.parsed.positional;
+  if (txIds.length === 0) {
     fatal(
-      "Usage: aomi sign <tx-id>\nRun `aomi tx` to see pending transaction IDs."
+      "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs."
     );
   }
   const privateKey = runtime.config.privateKey;
@@ -2177,111 +3409,154 @@ async function signCommand(runtime) {
   if (!state) {
     fatal("No active session. Run `aomi chat` first.");
   }
-  const pendingTx = requirePendingTx(state, txId);
-  const { session } = getOrCreateSession(runtime);
+  rewriteSessionState(runtime, state);
+  const pendingTxs = requirePendingTxs(state, txIds);
+  const session = createSessionFromState(state);
   try {
-    const account = privateKeyToAccount(privateKey);
+    const account = privateKeyToAccount2(privateKey);
+    if (state.publicKey && account.address.toLowerCase() !== state.publicKey.toLowerCase()) {
+      console.log(
+        `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${state.publicKey}`
+      );
+      console.log("   Updating session to match the signing key...");
+    }
     const rpcUrl = runtime.config.chainRpcUrl;
-    const targetChainId = (_a3 = pendingTx.chainId) != null ? _a3 : 1;
-    const chain = (_b = Object.values(viemChains).find(
-      (candidate) => typeof candidate === "object" && candidate !== null && "id" in candidate && candidate.id === targetChainId
-    )) != null ? _b : {
-      id: targetChainId,
-      name: `Chain ${targetChainId}`,
-      nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-      },
-      rpcUrls: {
-        default: {
-          http: [rpcUrl != null ? rpcUrl : ""]
+    const resolvedChainIds = pendingTxs.map((tx) => {
+      var _a4, _b2;
+      return (_b2 = (_a4 = tx.chainId) != null ? _a4 : state.chainId) != null ? _b2 : 1;
+    });
+    const primaryChainId = resolvedChainIds[0];
+    const chain = resolveChain(primaryChainId, rpcUrl);
+    const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
+    const chainsById = Object.fromEntries(
+      Array.from(new Set(resolvedChainIds)).map((chainId) => [
+        chainId,
+        resolveChain(chainId, rpcUrl)
+      ])
+    );
+    console.log(`Signer:  ${account.address}`);
+    console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
+    let signedRecords = [];
+    let backendNotifications = [];
+    if (pendingTxs.every((tx) => tx.kind === "transaction")) {
+      console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
+      for (const tx of pendingTxs) {
+        console.log(`Tx:      ${tx.id} -> ${tx.to}`);
+        if (tx.value) console.log(`Value:   ${tx.value}`);
+        if ((_a3 = tx.chainId) != null ? _a3 : state.chainId) console.log(`Chain:   ${(_b = tx.chainId) != null ? _b : state.chainId}`);
+        if (tx.data) {
+          console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
       }
-    };
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl)
-    });
-    console.log(`Signer:  ${account.address}`);
-    console.log(`ID:      ${pendingTx.id}`);
-    console.log(`Kind:    ${pendingTx.kind}`);
-    if (pendingTx.kind === "transaction") {
-      console.log(`To:      ${pendingTx.to}`);
-      if (pendingTx.value) console.log(`Value:   ${pendingTx.value}`);
-      if (pendingTx.chainId) console.log(`Chain:   ${pendingTx.chainId}`);
-      if (pendingTx.data) {
-        console.log(`Data:    ${pendingTx.data.slice(0, 40)}...`);
-      }
       console.log();
-      const hash = await walletClient.sendTransaction({
-        to: pendingTx.to,
-        value: pendingTx.value ? BigInt(pendingTx.value) : /* @__PURE__ */ BigInt("0"),
-        data: (_c = pendingTx.data) != null ? _c : void 0
-      });
-      console.log(`\u2705 Sent! Hash: ${hash}`);
-      removePendingTx(state, txId);
-      const freshState = readState();
-      addSignedTx(freshState, {
-        id: txId,
-        kind: "transaction",
-        txHash: hash,
-        from: account.address,
-        to: pendingTx.to,
-        value: pendingTx.value,
-        chainId: pendingTx.chainId,
-        timestamp: Date.now()
-      });
-      await session.client.sendSystemMessage(
-        state.sessionId,
-        JSON.stringify({
-          type: "wallet:tx_complete",
-          payload: { txHash: hash, status: "success" }
-        })
+      const callList = pendingTxs.flatMap(
+        (tx, index) => pendingTxToCallList(__spreadProps(__spreadValues({}, tx), {
+          chainId: resolvedChainIds[index]
+        }))
       );
+      if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
+        fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
+      }
+      const decision = resolveCliExecutionDecision({
+        config: runtime.config,
+        chain,
+        callList
+      });
+      console.log(`Exec:    ${describeExecutionDecision(decision)}`);
+      const { execution, finalDecision } = await executeTransactionWithFallback({
+        decision,
+        privateKey,
+        currentChainId: primaryChainId,
+        chainsById,
+        primaryChain: chain,
+        rpcUrl,
+        callList
+      });
+      console.log(`\u2705 Sent! Hash: ${execution.txHash}`);
+      if (execution.txHashes.length > 1) {
+        console.log(`Count:   ${execution.txHashes.length}`);
+      }
+      if (execution.sponsored) {
+        console.log("Gas:     sponsored");
+      }
+      if (execution.AAAddress) {
+        console.log(`AA:      ${execution.AAAddress}`);
+      }
+      if (execution.delegationAddress) {
+        console.log(`Deleg:   ${execution.delegationAddress}`);
+      }
+      signedRecords = pendingTxs.map(
+        (tx, index) => toSignedTransactionRecord(
+          tx,
+          execution,
+          account.address,
+          resolvedChainIds[index],
+          Date.now(),
+          finalDecision.execution === "aa" ? finalDecision.provider : void 0,
+          finalDecision.execution === "aa" ? finalDecision.aaMode : void 0
+        )
+      );
+      backendNotifications = pendingTxs.map(() => ({
+        type: "wallet:tx_complete",
+        payload: { txHash: execution.txHash, status: "success" }
+      }));
     } else {
-      const typedData = pendingTx.payload.typed_data;
-      if (!typedData) {
+      if (pendingTxs.length > 1) {
+        fatal("Batch signing is only supported for transaction requests, not EIP-712 requests.");
+      }
+      const pendingTx = pendingTxs[0];
+      const walletClient = createWalletClient({
+        account,
+        chain,
+        transport: http(resolvedRpcUrl)
+      });
+      const signArgs = toViemSignTypedDataArgs(
+        pendingTx.payload
+      );
+      if (!signArgs) {
         fatal("EIP-712 request is missing typed_data payload.");
       }
       if (pendingTx.description) {
         console.log(`Desc:    ${pendingTx.description}`);
       }
-      if (typedData.primaryType) {
-        console.log(`Type:    ${typedData.primaryType}`);
-      }
+      console.log(`Type:    ${signArgs.primaryType}`);
       console.log();
-      const { domain, types, primaryType, message } = typedData;
-      const sigTypes = __spreadValues({}, types);
-      delete sigTypes["EIP712Domain"];
-      const signature = await walletClient.signTypedData({
-        domain,
-        types: sigTypes,
-        primaryType,
-        message
-      });
+      const signature = await walletClient.signTypedData(signArgs);
       console.log(`\u2705 Signed! Signature: ${signature.slice(0, 20)}...`);
-      removePendingTx(state, txId);
-      const freshState = readState();
-      addSignedTx(freshState, {
-        id: txId,
+      signedRecords = [{
+        id: pendingTx.id,
         kind: "eip712_sign",
         signature,
         from: account.address,
         description: pendingTx.description,
         timestamp: Date.now()
-      });
+      }];
+      backendNotifications = [{
+        type: "wallet_eip712_response",
+        payload: {
+          status: "success",
+          signature,
+          description: pendingTx.description
+        }
+      }];
+    }
+    await persistResolvedSignerState(
+      session,
+      state,
+      account.address,
+      primaryChainId
+    );
+    for (const txId of txIds) {
+      removePendingTx(state, txId);
+    }
+    const freshState = readState();
+    for (const signedRecord of signedRecords) {
+      addSignedTx(freshState, signedRecord);
+    }
+    for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
         state.sessionId,
-        JSON.stringify({
-          type: "wallet_eip712_response",
-          payload: {
-            status: "success",
-            signature,
-            description: pendingTx.description
-          }
-        })
+        JSON.stringify(backendNotification)
       );
     }
     console.log("Backend notified.");
@@ -2304,36 +3579,61 @@ Usage:
   aomi chat --model <rig>
                         Set the session model before sending the message
   aomi chat --verbose   Stream agent responses, tool calls, and events live
-  aomi models           List models available to the current backend
+  aomi app list         List available apps
+  aomi app current      Show the current app
+  aomi model list       List models available to the current backend
   aomi model set <rig>  Set the active model for the current session
-  aomi sessions         List local sessions with metadata tables
+  aomi chain list       List supported chains
+  aomi session list     List local sessions with metadata
   aomi session resume <id>
                         Resume a local session (session-id or session-N)
   aomi session delete <id>
                         Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
-  aomi sign <tx-id>     Sign and submit a pending transaction
+  aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
+                        Sign and submit a pending transaction
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
 
 Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
-  --api-key <key>       API key for non-default namespaces
-  --namespace <ns>      Namespace (default: "default")
+  --api-key <key>       API key for non-default apps
+  --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
   --verbose, -v         Show tool calls and streaming output (for chat)
 
+Sign options:
+  aomi sign <tx-id> --eoa
+                        Force plain EOA execution
+  aomi sign <tx-id> --aa
+                        Require account-abstraction execution with no EOA fallback
+  aomi sign <tx-id> --aa-provider <name>
+                        AA provider: alchemy | pimlico
+  aomi sign <tx-id> --aa-mode <mode>
+                        AA mode: 4337 | 7702
+
+Default signing behavior:
+  aomi sign <tx-id>
+                        Try AA first, retry unsponsored AA when supported, then
+                        fall back to EOA automatically if AA is unavailable
+
 Environment (overridden by flags):
   AOMI_BASE_URL         Backend URL
   AOMI_API_KEY          API key
-  AOMI_NAMESPACE        Namespace
+  AOMI_APP              App
   AOMI_MODEL            Model rig
   AOMI_PUBLIC_KEY       Wallet address
+  AOMI_AA_PROVIDER      AA provider: alchemy | pimlico
+  AOMI_AA_MODE          AA mode: 4337 | 7702
+  ALCHEMY_API_KEY       Alchemy AA API key
+  ALCHEMY_GAS_POLICY_ID
+                        Optional Alchemy gas sponsorship policy ID
+  PIMLICO_API_KEY       Pimlico AA API key
   PRIVATE_KEY           Hex private key for signing
   CHAIN_RPC_URL         RPC URL for transaction submission
 `.trim());
@@ -2348,17 +3648,17 @@ async function main(runtime) {
     case "log":
       await logCommand(runtime);
       break;
-    case "models":
-      await modelsCommand(runtime);
+    case "app":
+      await appCommand(runtime);
       break;
     case "model":
       await modelCommand(runtime);
       break;
-    case "sessions":
-      await sessionsCommand(runtime);
+    case "chain":
+      chainCommand(runtime);
       break;
     case "session":
-      sessionCommand(runtime);
+      await sessionCommand(runtime);
       break;
     case "tx":
       txCommand();

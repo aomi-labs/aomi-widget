@@ -22,6 +22,7 @@ import {
 import { fatal } from "../errors";
 import { walletRequestToPendingTx } from "../transactions";
 import type { CliRuntime } from "../types";
+import { buildCliUserState } from "../user-state";
 
 export async function chatCommand(runtime: CliRuntime): Promise<void> {
   const message = runtime.parsed.positional.join(" ");
@@ -38,18 +39,9 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
   try {
     await applyRequestedModelIfPresent(runtime, session, state);
 
-    if (state.publicKey) {
-      await session.client.sendSystemMessage(
-        session.sessionId,
-        JSON.stringify({
-          type: "wallet:state_changed",
-          payload: {
-            address: state.publicKey,
-            chainId: 1,
-            isConnected: true,
-          },
-        }),
-      );
+    const userState = buildCliUserState(state.publicKey, state.chainId);
+    if (userState) {
+      session.resolveUserState(userState);
     }
 
     const capturedRequests: WalletRequest[] = [];
