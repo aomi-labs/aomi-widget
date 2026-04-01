@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
+import ContextProvider from "@/components/wallet-providers";
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -264,13 +265,15 @@ export function Hero() {
             id="terminal-container"
             className="h-[680px] w-full max-w-[900px] origin-bottom-left transform transition-all duration-300"
           >
-            <AomiFrame.Root height="100%" width="100%" walletPosition="footer">
-              <AomiFrame.Header />
-              <AomiFrame.Composer
-                withControl
-                controlBarProps={{ hideApiKey: true, hideNetwork: false }}
-              />
-            </AomiFrame.Root>
+            <ContextProvider>
+              <AomiFrame.Root height="100%" width="100%" walletPosition="footer">
+                <AomiFrame.Header />
+                <AomiFrame.Composer
+                  withControl
+                  controlBarProps={{ hideApiKey: true, hideNetwork: false }}
+                />
+              </AomiFrame.Root>
+            </ContextProvider>
           </div>
         </div>
       </div>

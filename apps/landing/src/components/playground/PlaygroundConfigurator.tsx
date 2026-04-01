@@ -7,6 +7,7 @@ import {
   ThemeCustomizer,
   useThemeCustomizer,
 } from "./ThemeCustomizer";
+import ContextProvider from "@/components/wallet-providers";
 
 // =============================================================================
 // Types
@@ -326,29 +327,31 @@ export function PlaygroundConfigurator() {
             }`}
             style={theme.output.styleObject}
           >
-            <AomiFrame.Root
-              height="560px"
-              walletPosition={walletPropValue ?? null}
-              showSidebar={state.sidebarShown}
-            >
-              {hasAnyControl && state.controlPlacement === "header" ? (
-                <AomiFrame.Header
-                  showSidebarTrigger={state.sidebarShown}
-                  withControl
-                  controlBarProps={controlBarProps}
-                />
-              ) : (
-                <AomiFrame.Header showSidebarTrigger={state.sidebarShown} />
-              )}
-              {hasAnyControl && state.controlPlacement === "composer" ? (
-                <AomiFrame.Composer
-                  withControl
-                  controlBarProps={controlBarProps}
-                />
-              ) : (
-                <AomiFrame.Composer />
-              )}
-            </AomiFrame.Root>
+            <ContextProvider>
+              <AomiFrame.Root
+                height="560px"
+                walletPosition={walletPropValue ?? null}
+                showSidebar={state.sidebarShown}
+              >
+                {hasAnyControl && state.controlPlacement === "header" ? (
+                  <AomiFrame.Header
+                    showSidebarTrigger={state.sidebarShown}
+                    withControl
+                    controlBarProps={controlBarProps}
+                  />
+                ) : (
+                  <AomiFrame.Header showSidebarTrigger={state.sidebarShown} />
+                )}
+                {hasAnyControl && state.controlPlacement === "composer" ? (
+                  <AomiFrame.Composer
+                    withControl
+                    controlBarProps={controlBarProps}
+                  />
+                ) : (
+                  <AomiFrame.Composer />
+                )}
+              </AomiFrame.Root>
+            </ContextProvider>
           </div>
         </div>
 
