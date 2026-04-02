@@ -12,7 +12,7 @@ type Logger = {
     debug: (...args: unknown[]) => void;
 };
 type AomiClientOptions = {
-    /** Base URL of the Aomi backend (e.g. "https://aomi.dev") */
+    /** Base URL of the Aomi backend (e.g. "https://api.aomi.dev" or "/" for same-origin proxying) */
     baseUrl: string;
     /** Default API key for non-default apps */
     apiKey?: string;

@@ -1,6 +1,11 @@
 // Main entry point for @aomi-labs/widget-lib
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
+export {
+  AomiAdapterProvider,
+  useAomiAdapter,
+  type AomiAdapter,
+} from "./components/aomi-adapter-provider";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
@@ -24,3 +29,8 @@ export {
 // Re-export types and utilities from @aomi-labs/react
 export type { UserConfig } from "@aomi-labs/react";
 export { formatAddress, getNetworkName } from "@aomi-labs/react";
+export type {
+  AccountIdentity,
+  AccountIdentityKind,
+} from "./lib/account-identity";
+export { useAomiAccountIdentity } from "./lib/account-identity";

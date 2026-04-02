@@ -21,6 +21,30 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 const SESSION_ID_HEADER = "X-Session-Id";
 const API_KEY_HEADER = "X-API-Key";
 
+function joinApiPath(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}` || normalizedPath;
+}
+
+function buildApiUrl(
+  baseUrl: string,
+  path: string,
+  query?: Record<string, string | undefined>,
+): string {
+  const url = joinApiPath(baseUrl, path);
+  if (!query) return url;
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined) continue;
+    params.set(key, value);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `${url}?${queryString}` : url;
+}
+
 function toQueryString(payload: Record<string, unknown>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(payload)) {
@@ -102,12 +126,11 @@ export class AomiClient {
     sessionId: string,
     userState?: UserState,
   ): Promise<AomiStateResponse> {
-    const url = new URL("/api/state", this.baseUrl);
-    if (userState) {
-      url.searchParams.set("user_state", JSON.stringify(userState));
-    }
+    const url = buildApiUrl(this.baseUrl, "/api/state", {
+      user_state: userState ? JSON.stringify(userState) : undefined,
+    });
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -203,7 +226,9 @@ export class AomiClient {
    * List all threads for a wallet address.
    */
   async listThreads(publicKey: string): Promise<AomiThread[]> {
-    const url = `${this.baseUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
+    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
+      public_key: publicKey,
+    });
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -217,7 +242,10 @@ export class AomiClient {
    * Get a single thread by ID.
    */
   async getThread(sessionId: string): Promise<AomiThread> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+    );
     const response = await fetch(url, {
       headers: withSessionHeader(sessionId),
     });
@@ -239,7 +267,7 @@ export class AomiClient {
     const body: Record<string, string> = {};
     if (publicKey) body.public_key = publicKey;
 
-    const url = `${this.baseUrl}/api/sessions`;
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await fetch(url, {
       method: "POST",
       headers: withSessionHeader(threadId, {
@@ -259,7 +287,10 @@ export class AomiClient {
    * Delete a thread by ID.
    */
   async deleteThread(sessionId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+    );
     const response = await fetch(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId),
@@ -274,7 +305,10 @@ export class AomiClient {
    * Rename a thread.
    */
   async renameThread(sessionId: string, newTitle: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+    );
     const response = await fetch(url, {
       method: "PATCH",
       headers: withSessionHeader(sessionId, {
@@ -292,7 +326,10 @@ export class AomiClient {
    * Archive a thread.
    */
   async archiveThread(sessionId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
+    );
     const response = await fetch(url, {
       method: "POST",
       headers: withSessionHeader(sessionId),
@@ -307,7 +344,10 @@ export class AomiClient {
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`,
+    );
     const response = await fetch(url, {
       method: "POST",
       headers: withSessionHeader(sessionId),
@@ -329,11 +369,10 @@ export class AomiClient {
     sessionId: string,
     count?: number,
   ): Promise<AomiSystemEvent[]> {
-    const url = new URL("/api/events", this.baseUrl);
-    if (count !== undefined) {
-      url.searchParams.set("count", String(count));
-    }
-    const response = await fetch(url.toString(), {
+    const url = buildApiUrl(this.baseUrl, "/api/events", {
+      count: count !== undefined ? String(count) : undefined,
+    });
+    const response = await fetch(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -356,10 +395,9 @@ export class AomiClient {
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ): Promise<string[]> {
-    const url = new URL("/api/control/apps", this.baseUrl);
-    if (options?.publicKey) {
-      url.searchParams.set("public_key", options.publicKey);
-    }
+    const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+      public_key: options?.publicKey,
+    });
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -367,7 +405,7 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await fetch(url.toString(), { headers });
+    const response = await fetch(url, { headers });
 
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
@@ -383,14 +421,14 @@ export class AomiClient {
     sessionId: string,
     options?: { apiKey?: string },
   ): Promise<string[]> {
-    const url = new URL("/api/control/models", this.baseUrl);
+    const url = buildApiUrl(this.baseUrl, "/api/control/models");
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       headers,
     });
 
