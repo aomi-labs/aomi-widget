@@ -27,11 +27,11 @@
         }
       ],
       "dependencies": [
-        "@aomi-labs/react",
-        "wagmi"
+        "@aomi-labs/react"
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
+        "https://aomi.dev/r/aomi-adapter-provider.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
@@ -41,6 +41,31 @@
         "breadcrumb",
         "sidebar"
       ]
+    },
+    {
+      "name": "aomi-adapter-provider",
+      "type": "registry:component",
+      "description": "Default Para-backed wallet adapter provider with an override path for custom wallet adapters.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/aomi-adapter-provider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/account-identity.ts"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "@getpara/evm-wallet-connectors",
+        "@getpara/react-core",
+        "@getpara/react-sdk",
+        "@tanstack/react-query",
+        "viem",
+        "wagmi"
+      ],
+      "registryDependencies": []
     },
     {
       "name": "control-bar",
@@ -70,20 +95,14 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/network-select.tsx"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/use-account-identity.ts"
         }
       ],
       "dependencies": [
         "@aomi-labs/react",
-        "@getpara/react-core",
-        "@getpara/react-sdk",
-        "wagmi",
         "lucide-react"
       ],
       "registryDependencies": [
+        "https://aomi.dev/r/aomi-adapter-provider.json",
         "button",
         "popover",
         "dialog",
@@ -232,7 +251,7 @@
     {
       "name": "wallet-tx-handler",
       "type": "registry:component",
-      "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
+      "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to the active Aomi adapter.",
       "files": [
         {
           "type": "registry:component",
@@ -240,10 +259,11 @@
         }
       ],
       "dependencies": [
-        "@aomi-labs/react",
-        "wagmi"
+        "@aomi-labs/react"
       ],
-      "registryDependencies": []
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-adapter-provider.json"
+      ]
     },
     {
       "name": "button",

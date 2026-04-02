@@ -1,15 +1,9 @@
 "use client";
 
 import { useEffect, type FC } from "react";
-import ParaWeb, { useClient, useModal } from "@getpara/react-sdk";
 import { cn, getChainInfo, useUser } from "@aomi-labs/react";
-import { useAccountIdentity } from "../../lib/use-account-identity";
-
-declare global {
-  interface Window {
-    __AOMI_PARA_CLIENT__?: ParaWeb;
-  }
-}
+import { useAomiAdapter } from "@/components/aomi-adapter-provider";
+import { useAccountIdentity } from "../../lib/account-identity";
 
 export type WalletConnectProps = {
   className?: string;
@@ -22,13 +16,9 @@ export const WalletConnect: FC<WalletConnectProps> = ({
   connectLabel = "Connect Account",
   onConnectionChange,
 }) => {
-  const paraFromContext = useClient();
-  const { openModal } = useModal();
+  const adapter = useAomiAdapter();
   const { setUser } = useUser();
   const identity = useAccountIdentity();
-  const para =
-    paraFromContext ??
-    (typeof window !== "undefined" ? window.__AOMI_PARA_CLIENT__ : undefined);
 
   useEffect(() => {
     setUser({
@@ -46,28 +36,10 @@ export const WalletConnect: FC<WalletConnectProps> = ({
   ]);
 
   const handleClick = () => {
-    if (identity.isConnected) {
-      if (paraFromContext) {
-        openModal({ step: "ACCOUNT_MAIN" });
-      }
-      return;
-    }
-
-    if (para) {
-      void para
-        .authenticateWithOAuth({
-          method: "GOOGLE",
-          redirectCallbacks: {
-            onOAuthPopup: () => undefined,
-          },
-        })
-        .catch((error) => {
-          console.error("[WalletConnect] Para OAuth popup failed:", error);
-        });
-      return;
-    }
-
-    openModal({ step: "AUTH_MAIN" });
+    const action = identity.isConnected ? adapter.manageAccount : adapter.connect;
+    void action().catch((error) => {
+      console.error("[WalletConnect] Wallet action failed:", error);
+    });
   };
 
   const ticker = identity.chainId
@@ -94,6 +66,9 @@ export const WalletConnect: FC<WalletConnectProps> = ({
         className,
       )}
       aria-label={ariaLabel}
+      disabled={
+        identity.isConnected ? !adapter.canManageAccount : !adapter.canConnect
+      }
     >
       <span className="max-w-[180px] truncate">{primaryLabel}</span>
       {identity.isConnected && secondaryLabel && (
