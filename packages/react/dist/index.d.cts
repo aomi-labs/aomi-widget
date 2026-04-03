@@ -16,10 +16,13 @@ type UserState = {
     chainId?: number;
     isConnected: boolean;
     ensName?: string;
+    ext?: Record<string, unknown>;
 };
 declare function useUser(): {
     user: UserState;
     setUser: (data: Partial<UserState>) => void;
+    addExtValue: (key: string, value: unknown) => void;
+    removeExtValue: (key: string) => void;
     getUserState: () => UserState;
     onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
@@ -166,6 +169,10 @@ type AomiRuntimeApi = {
     getUserState: () => UserState;
     /** Update user state (partial updates merged with existing state) */
     setUser: (data: Partial<UserState>) => void;
+    /** Add or overwrite a value in user_state.ext */
+    addExtValue: (key: string, value: unknown) => void;
+    /** Remove a value from user_state.ext */
+    removeExtValue: (key: string) => void;
     /** Subscribe to user state changes. Returns unsubscribe function. */
     onUserStateChange: (callback: (user: UserState) => void) => () => void;
     /** ID of the currently active thread */

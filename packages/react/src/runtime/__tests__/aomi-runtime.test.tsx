@@ -37,6 +37,8 @@ describe("AomiRuntimeProvider", () => {
     expect(api.user).toBeDefined();
     expect(api.getUserState).toBeInstanceOf(Function);
     expect(api.setUser).toBeInstanceOf(Function);
+    expect(api.addExtValue).toBeInstanceOf(Function);
+    expect(api.removeExtValue).toBeInstanceOf(Function);
     expect(api.onUserStateChange).toBeInstanceOf(Function);
 
     // Thread API

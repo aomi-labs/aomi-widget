@@ -21,6 +21,7 @@ import type {
 
 const BACKEND_URL = "https://api.aomi.dev";
 const TEST_TIMEOUT = 30_000; // 30s — AI responses can be slow
+const describeLive = process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
 
 let client: AomiClient;
 
@@ -55,7 +56,7 @@ beforeAll(() => {
 // Chat Scenarios
 // =============================================================================
 
-describe("Chat scenarios (live backend)", () => {
+describeLive("Chat scenarios (live backend)", () => {
   it(
     "sends a message and gets a response",
     async () => {
@@ -206,7 +207,7 @@ describe("Chat scenarios (live backend)", () => {
 // Thread / Session Management
 // =============================================================================
 
-describe("Thread management (live backend)", () => {
+describeLive("Thread management (live backend)", () => {
   it(
     "creates, fetches, and deletes a thread",
     async () => {
@@ -282,7 +283,7 @@ describe("Thread management (live backend)", () => {
 // SSE (brief connection test)
 // =============================================================================
 
-describe("SSE subscription (live backend)", () => {
+describeLive("SSE subscription (live backend)", () => {
   it(
     "connects to SSE stream and receives events on message",
     async () => {
@@ -328,7 +329,7 @@ describe("SSE subscription (live backend)", () => {
 // Control API
 // =============================================================================
 
-describe("Control API (live backend)", () => {
+describeLive("Control API (live backend)", () => {
   it(
     "fetches available apps",
     async () => {
