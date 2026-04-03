@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import ParaWeb, {
   Environment,
+  ParaEvent,
   ParaModal,
   type TExternalWallet,
   type TOAuthMethod,
@@ -161,8 +162,49 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const [modalOpen, setModalOpen] = useState(false);
 
-  const openModal = useCallback(() => setModalOpen(true), []);
-  const closeModal = useCallback(() => setModalOpen(false), []);
+  const openModal = useCallback(() => {
+    // The SDK's XState state machine can get stuck in "auth_flow" even when
+    // the user has an active session (checkUserState network call failed or
+    // raced during init). Body.js uses corePhase to decide between the login
+    // screen (auth_flow) and the account screen (authenticated).
+    //
+    // Before opening, verify against the client and correct the store if
+    // needed so logged-in users see account management, not a second login.
+    const state = paraLiteStore.getState() as any;
+    const client = state.client as ParaWeb | null;
+    const corePhase = state.paraState?.corePhase;
+
+    if (client && corePhase === "auth_flow") {
+      client
+        .isFullyLoggedIn()
+        .then((loggedIn: boolean) => {
+          if (loggedIn) {
+            paraLiteStore.setState({
+              paraState: { ...state.paraState, corePhase: "authenticated" },
+            });
+          }
+        })
+        .catch(() => {})
+        .finally(() => setModalOpen(true));
+      return;
+    }
+
+    setModalOpen(true);
+  }, []);
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    // After the modal closes, nudge the bridge to re-sync auth state.
+    // The bridge already listens for WALLETS_CHANGE_EVENT and calls
+    // paraClient.isFullyLoggedIn() — this ensures disconnect is detected
+    // even if LOGOUT_EVENT was swallowed by a race condition.
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent(ParaEvent.WALLETS_CHANGE_EVENT, {
+          detail: { data: null },
+        }),
+      );
+    }, 200);
+  }, []);
 
   if (!paraApiKey) {
     return <>{children}</>;
