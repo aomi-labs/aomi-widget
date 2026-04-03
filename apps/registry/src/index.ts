@@ -1,11 +1,20 @@
 // Main entry point for @aomi-labs/widget-lib
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
+
+// Wallet adapter (provider-agnostic context + types)
 export {
-  AomiAdapterProvider,
-  useAomiAdapter,
+  type WalletAdapter,
   type AomiAdapter,
-} from "./components/aomi-adapter-provider";
+  WalletAdapterContext,
+  AomiAdapterContext,
+  DISCONNECTED_ADAPTER,
+  useWalletAdapter,
+  useAomiAdapter,
+} from "./lib/wallet-adapter";
+
+// Para wallet bridge (runs inside ParaProviderMin)
+export { ParaWalletBridge } from "./components/para-wallet-bridge";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";

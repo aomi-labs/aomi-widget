@@ -2,9 +2,24 @@
 
 ## Last Updated
 
-2026-03-22 - Consolidate AA into Universal Integration
+2026-04-03 - Wallet Bridge Architecture
 
 ## Recent Changes
+
+### Wallet Bridge Architecture (2026-04-03)
+
+- **New file `apps/registry/src/lib/wallet-adapter.ts`** — extracted `WalletAdapter` type, `WalletAdapterContext`, `DISCONNECTED_ADAPTER`, `useWalletAdapter()` hook. Backward-compat aliases: `AomiAdapter`, `AomiAdapterContext`, `useAomiAdapter`.
+- **New file `apps/registry/src/components/para-wallet-bridge.tsx`** — `ParaWalletBridge` component runs inside `ParaProviderMin`, reads wagmi + Para auth hooks, writes `WalletAdapterContext`. Includes `LocalhostNetworkEnforcer`.
+- **New file `apps/landing/app/components/landing-para-provider.tsx`** — `LandingParaProvider` wraps `ParaProviderMin` + `ParaWalletBridge` with all Para SDK config (apiKey, env, chains, wallets, oAuth).
+- **Modified `apps/registry/src/components/aomi-frame.tsx`** — removed `AomiAdapterProvider` wrapper and `adapter` prop from `Root`. Widget now reads from `WalletAdapterContext` provided by an ancestor bridge.
+- **Modified `apps/landing/app/sections/hero.tsx`** — wrapped `AomiFrame.Root` with `LandingParaProvider`.
+- **Modified consumer imports** — `wallet-connect.tsx`, `wallet-tx-handler.tsx`, `network-select.tsx`, `account-identity.ts` now import from `lib/wallet-adapter` (relative paths).
+- **Updated `apps/registry/src/index.ts`** — exports `WalletAdapter`, `useWalletAdapter`, `ParaWalletBridge` + backward-compat aliases.
+- **Updated `apps/registry/src/registry.ts`** — replaced `aomi-adapter-provider` entry with `wallet-adapter` + `para-wallet-bridge` entries.
+- **Deleted `apps/registry/src/components/aomi-adapter-provider.tsx`** — replaced by `lib/wallet-adapter.ts`.
+- **Deleted `apps/registry/src/components/para-adapter-provider.tsx`** (564 lines) — replaced by `para-wallet-bridge.tsx` + consumer-side `LandingParaProvider`.
+- **Modified `apps/registry/package.json`** — removed `@getpara/react-sdk`, `@getpara/react-core`, `@getpara/evm-wallet-connectors` from deps; added `@getpara/react-sdk` as optional peer dep.
+- **Fixed Para modal not opening** — `ParaProviderMin` gates both children AND `ParaModal` behind `isReady` (which never fires due to Zustand store duplication). Fix: render `ParaModal` outside `ParaProviderMin` wrapped in `ParaProviderCore` (from `@getpara/react-core/internal`) with `waitForReady: false` + `AuthProvider` (from `@getpara/react-sdk-lite` internal dist, accessed via turbopack alias `@para-internal/auth-provider`). This provides both `CoreStoreContext` and `AuthContext` that `ParaModal` requires for OAuth/phone/wallet auth flows. Added corresponding turbopack + webpack aliases in `next.config.ts`.
 
 ### AA Consolidation (2026-03-22)
 
