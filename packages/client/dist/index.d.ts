@@ -431,6 +431,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     /** Whether the AI is currently processing. */
     getIsProcessing(): boolean;
     resolveUserState(userState: UserState): void;
+    addExtValue(key: string, value: unknown): void;
+    removeExtValue(key: string): void;
     resolveWallet(address: string, chainId?: number): void;
     syncUserState(): Promise<AomiStateResponse>;
     private startPolling;
