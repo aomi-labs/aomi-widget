@@ -1,6 +1,6 @@
 "use client";
 
-import { useAomiAdapter } from "@/components/aomi-adapter-provider";
+import { useWalletAdapter } from "./wallet-adapter";
 
 export type AccountIdentityKind = "disconnected" | "social" | "wallet";
 
@@ -76,7 +76,7 @@ export function inferAuthProvider(authMethods: unknown): string | undefined {
 }
 
 export function useAomiAccountIdentity(): AccountIdentity {
-  return useAomiAdapter().identity;
+  return useWalletAdapter().identity;
 }
 
 export const useAccountIdentity = useAomiAccountIdentity;

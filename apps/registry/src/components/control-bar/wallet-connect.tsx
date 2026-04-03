@@ -2,7 +2,7 @@
 
 import { useEffect, type FC } from "react";
 import { cn, getChainInfo, useUser } from "@aomi-labs/react";
-import { useAomiAdapter } from "@/components/aomi-adapter-provider";
+import { useWalletAdapter } from "../../lib/wallet-adapter";
 import { useAccountIdentity } from "../../lib/account-identity";
 
 export type WalletConnectProps = {
@@ -16,7 +16,7 @@ export const WalletConnect: FC<WalletConnectProps> = ({
   connectLabel = "Connect Account",
   onConnectionChange,
 }) => {
-  const adapter = useAomiAdapter();
+  const adapter = useWalletAdapter();
   const { setUser } = useUser();
   const identity = useAccountIdentity();
 

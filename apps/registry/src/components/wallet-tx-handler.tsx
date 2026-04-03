@@ -7,7 +7,7 @@ import {
   type WalletRequest,
   type WalletTxPayload,
 } from "@aomi-labs/react";
-import { useAomiAdapter } from "@/components/aomi-adapter-provider";
+import { useWalletAdapter } from "../lib/wallet-adapter";
 
 /**
  * Invisible bridge component that processes wallet transaction and EIP-712
@@ -22,7 +22,7 @@ export function WalletTxHandler() {
     resolveWalletRequest,
     rejectWalletRequest,
   } = useAomiRuntime();
-  const adapter = useAomiAdapter();
+  const adapter = useWalletAdapter();
   const processingRef = useRef(false);
 
   useEffect(() => {
