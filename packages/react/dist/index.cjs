@@ -840,6 +840,8 @@ function useUser() {
   return {
     user: context.user,
     setUser: context.setUser,
+    addExtValue: context.addExtValue,
+    removeExtValue: context.removeExtValue,
     getUserState: context.getUserState,
     onUserStateChange: context.onUserStateChange
   };
@@ -849,7 +851,8 @@ function UserContextProvider({ children }) {
     isConnected: false,
     address: void 0,
     chainId: void 0,
-    ensName: void 0
+    ensName: void 0,
+    ext: void 0
   });
   const userRef = (0, import_react5.useRef)(user);
   userRef.current = user;
@@ -859,6 +862,36 @@ function UserContextProvider({ children }) {
   const setUser = (0, import_react5.useCallback)((data) => {
     setUserState((prev) => {
       const next = __spreadValues(__spreadValues({}, prev), data);
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+      return next;
+    });
+  }, []);
+  const addExtValue = (0, import_react5.useCallback)((key, value) => {
+    setUserState((prev) => {
+      var _a;
+      const next = __spreadProps(__spreadValues({}, prev), {
+        ext: __spreadProps(__spreadValues({}, (_a = prev.ext) != null ? _a : {}), {
+          [key]: value
+        })
+      });
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+      return next;
+    });
+  }, []);
+  const removeExtValue = (0, import_react5.useCallback)((key) => {
+    setUserState((prev) => {
+      if (!prev.ext || !(key in prev.ext)) {
+        return prev;
+      }
+      const nextExt = __spreadValues({}, prev.ext);
+      delete nextExt[key];
+      const next = __spreadProps(__spreadValues({}, prev), {
+        ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
+      });
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
@@ -881,6 +914,8 @@ function UserContextProvider({ children }) {
       value: {
         user,
         setUser,
+        addExtValue,
+        removeExtValue,
         getUserState,
         onUserStateChange
       },
@@ -1598,22 +1633,40 @@ function AomiRuntimeCore({
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey
   });
+  const walletSnapshot = (0, import_react9.useCallback)(
+    (nextUser) => ({
+      address: nextUser.address,
+      chainId: nextUser.chainId,
+      isConnected: nextUser.isConnected,
+      ensName: nextUser.ensName
+    }),
+    [getUserState]
+  );
+  const lastWalletStateRef = (0, import_react9.useRef)(walletSnapshot(getUserState()));
   (0, import_react9.useEffect)(() => {
+    lastWalletStateRef.current = walletSnapshot(getUserState());
     const unsubscribe = onUserStateChange(async (newUser) => {
+      const nextWalletState = walletSnapshot(newUser);
+      const prevWalletState = lastWalletStateRef.current;
+      if (prevWalletState.address === nextWalletState.address && prevWalletState.chainId === nextWalletState.chainId && prevWalletState.isConnected === nextWalletState.isConnected && prevWalletState.ensName === nextWalletState.ensName) {
+        return;
+      }
+      lastWalletStateRef.current = nextWalletState;
       const sessionId = threadContext.currentThreadId;
       const message = JSON.stringify({
         type: "wallet:state_changed",
-        payload: {
-          address: newUser.address,
-          chainId: newUser.chainId,
-          isConnected: newUser.isConnected,
-          ensName: newUser.ensName
-        }
+        payload: nextWalletState
       });
       await aomiClientRef.current.sendSystemMessage(sessionId, message);
     });
     return unsubscribe;
-  }, [onUserStateChange, aomiClientRef, threadContext.currentThreadId]);
+  }, [
+    onUserStateChange,
+    aomiClientRef,
+    threadContext.currentThreadId,
+    getUserState,
+    walletSnapshot
+  ]);
   const threadContextRef = (0, import_react9.useRef)(threadContext);
   threadContextRef.current = threadContext;
   const currentThreadIdRef = (0, import_react9.useRef)(threadContext.currentThreadId);
@@ -1869,6 +1922,8 @@ function AomiRuntimeCore({
       user: userContext.user,
       getUserState: userContext.getUserState,
       setUser: userContext.setUser,
+      addExtValue: userContext.addExtValue,
+      removeExtValue: userContext.removeExtValue,
       onUserStateChange: userContext.onUserStateChange,
       // Thread API
       currentThreadId: threadContext.currentThreadId,

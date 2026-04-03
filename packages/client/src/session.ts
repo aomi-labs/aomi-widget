@@ -57,6 +57,10 @@ export type SendResult = {
   title?: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function sortJson(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -389,6 +393,35 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (typeof address === "string" && address.length > 0) {
       this.publicKey = address;
     }
+  }
+
+  addExtValue(key: string, value: unknown): void {
+    const current = this.userState ?? {};
+    const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
+    this.resolveUserState({
+      ...current,
+      ext: {
+        ...currentExt,
+        [key]: value,
+      },
+    });
+  }
+
+  removeExtValue(key: string): void {
+    if (!this.userState) return;
+    const currentExt = this.userState["ext"];
+    if (!isRecord(currentExt)) return;
+
+    const nextExt = { ...currentExt };
+    delete nextExt[key];
+
+    const nextState = { ...this.userState };
+    if (Object.keys(nextExt).length === 0) {
+      delete nextState["ext"];
+    } else {
+      nextState["ext"] = nextExt;
+    }
+    this.resolveUserState(nextState);
   }
 
   resolveWallet(address: string, chainId?: number): void {
