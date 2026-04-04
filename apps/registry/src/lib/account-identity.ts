@@ -1,6 +1,6 @@
 "use client";
 
-import { useWalletAdapter } from "./wallet-adapter";
+import { useWalletAdapter } from "./aomi-wallet-adapter";
 
 export type AccountIdentityKind = "disconnected" | "social" | "wallet";
 

@@ -2,21 +2,39 @@
 
 ## Last Updated
 
-2026-04-03 - Wallet Bridge Architecture
+2026-04-03 - Renamed `lib/wallet-adapter.ts` → `lib/aomi-wallet-adapter.ts` (registry slug `aomi-wallet-adapter`)
 
 ## Recent Changes
 
+### Aomi wallet adapter rename (2026-04-03)
+
+- **`apps/registry/src/lib/wallet-adapter.ts` → `aomi-wallet-adapter.ts`** — same exports (`WalletAdapter`, `useWalletAdapter`, etc.); all internal imports updated.
+- **Registry** — item `wallet-adapter` renamed to **`aomi-wallet-adapter`**; install URL is now `https://aomi.dev/r/aomi-wallet-adapter.json` (rebuilt `apps/registry/dist/` → `apps/landing/public/r/`).
+- **`apps/registry/scripts/build-registry.js`** — clears `dist/` before writing so renamed/removed registry items do not leave stale `*.json` artifacts.
+
+### Landing cleanup (2026-04-03)
+
+- **Deleted `apps/landing/src/components/wallet-providers.tsx`** — unused; hero uses `LandingParaProvider` instead.
+- **Deleted `apps/landing/src/components/config.tsx`** — only imported by the removed wallet providers file.
+
+### Registry file renames (2026-04-03)
+
+- **`control-bar/wallet-connect.tsx` → `connect-button.tsx`** — exports `ConnectButton` / `ConnectButtonProps`; `WalletConnect` / `WalletConnectProps` kept as deprecated aliases.
+- **`wallet-tx-handler.tsx` → `runtime-tx-handler.tsx`** — exports `RuntimeTxHandler`; `WalletTxHandler` kept as deprecated alias. Registry item slug **`wallet-tx-handler` → `runtime-tx-handler`** (shadcn URL is now `https://aomi.dev/r/runtime-tx-handler.json`).
+- **`apps/registry/src/registry.ts`** — updated `control-bar` file list, `aomi-frame` registry dependency, and runtime handler entry.
+- **Rebuilt `apps/registry/dist/`** and synced to `apps/landing/public/r/`.
+
 ### Wallet Bridge Architecture (2026-04-03)
 
-- **New file `apps/registry/src/lib/wallet-adapter.ts`** — extracted `WalletAdapter` type, `WalletAdapterContext`, `DISCONNECTED_ADAPTER`, `useWalletAdapter()` hook. Backward-compat aliases: `AomiAdapter`, `AomiAdapterContext`, `useAomiAdapter`.
+- **New file `apps/registry/src/lib/aomi-wallet-adapter.ts`** — extracted `WalletAdapter` type, `WalletAdapterContext`, `DISCONNECTED_ADAPTER`, `useWalletAdapter()` hook. Backward-compat aliases: `AomiAdapter`, `AomiAdapterContext`, `useAomiAdapter`.
 - **New file `apps/registry/src/components/para-wallet-bridge.tsx`** — `ParaWalletBridge` component runs inside `ParaProviderMin`, reads wagmi + Para auth hooks, writes `WalletAdapterContext`. Includes `LocalhostNetworkEnforcer`.
 - **New file `apps/landing/app/components/landing-para-provider.tsx`** — `LandingParaProvider` wraps `ParaProviderMin` + `ParaWalletBridge` with all Para SDK config (apiKey, env, chains, wallets, oAuth).
 - **Modified `apps/registry/src/components/aomi-frame.tsx`** — removed `AomiAdapterProvider` wrapper and `adapter` prop from `Root`. Widget now reads from `WalletAdapterContext` provided by an ancestor bridge.
 - **Modified `apps/landing/app/sections/hero.tsx`** — wrapped `AomiFrame.Root` with `LandingParaProvider`.
-- **Modified consumer imports** — `wallet-connect.tsx`, `wallet-tx-handler.tsx`, `network-select.tsx`, `account-identity.ts` now import from `lib/wallet-adapter` (relative paths).
+- **Modified consumer imports** — `connect-button.tsx`, `runtime-tx-handler.tsx`, `network-select.tsx`, `account-identity.ts` now import from `lib/aomi-wallet-adapter` (relative paths).
 - **Updated `apps/registry/src/index.ts`** — exports `WalletAdapter`, `useWalletAdapter`, `ParaWalletBridge` + backward-compat aliases.
-- **Updated `apps/registry/src/registry.ts`** — replaced `aomi-adapter-provider` entry with `wallet-adapter` + `para-wallet-bridge` entries.
-- **Deleted `apps/registry/src/components/aomi-adapter-provider.tsx`** — replaced by `lib/wallet-adapter.ts`.
+- **Updated `apps/registry/src/registry.ts`** — replaced `aomi-adapter-provider` entry with `aomi-wallet-adapter` + `para-wallet-bridge` entries.
+- **Deleted `apps/registry/src/components/aomi-adapter-provider.tsx`** — replaced by `lib/aomi-wallet-adapter.ts`.
 - **Deleted `apps/registry/src/components/para-adapter-provider.tsx`** (564 lines) — replaced by `para-wallet-bridge.tsx` + consumer-side `LandingParaProvider`.
 - **Modified `apps/registry/package.json`** — removed `@getpara/react-sdk`, `@getpara/react-core`, `@getpara/evm-wallet-connectors` from deps; added `@getpara/react-sdk` as optional peer dep.
 - **Fixed Para modal not opening** — `ParaProviderMin` gates both children AND `ParaModal` behind `isReady` (which never fires due to Zustand store duplication). Fix: render `ParaModal` outside `ParaProviderMin` wrapped in `ParaProviderCore` (from `@getpara/react-core/internal`) with `waitForReady: false` + `AuthProvider` (from `@getpara/react-sdk-lite` internal dist, accessed via turbopack alias `@para-internal/auth-provider`). This provides both `CoreStoreContext` and `AuthContext` that `ParaModal` requires for OAuth/phone/wallet auth flows. Added corresponding turbopack + webpack aliases in `next.config.ts`.
@@ -141,7 +159,7 @@
 - **`default.css`** — extended `@theme inline` with `--radius-2xl`, `--radius-3xl`, `--radius-4xl` tokens (calc offsets from `--radius`)
 - **`theme-utils.ts`** — `themeToStyleObject` now sets all 7 radius tokens (`sm` through `4xl`) as inline style overrides
 - **`thread-list.tsx`** — "New Chat" button and thread list items changed from `rounded-full` → `rounded-3xl`
-- **`wallet-connect.tsx`** — wallet connect button changed from `rounded-full` → `rounded-3xl`
+- **`connect-button.tsx`** — account connect button changed from `rounded-full` → `rounded-3xl`
 - **`attachment.tsx`** — attachment tiles changed from `rounded-[14px]` → `rounded-xl`
 - Components using `rounded-3xl`/`rounded-4xl` (suggestion cards, composer, frame wrapper) now automatically use the new tokens
 - `rounded-full` kept on intentionally circular elements (send/cancel buttons, avatars, control bar pills)
