@@ -152,6 +152,12 @@ function DirectParaModal({
           onClose={onClose}
           disableEmailLogin
           oAuthMethods={oAuthMethods}
+          externalWallets={adapterWallets}
+          walletConnect={
+            walletConnectProjectId
+              ? { projectId: walletConnectProjectId }
+              : undefined
+          }
         />
       </ParaAuthProvider>
     </ParaProviderCore>
