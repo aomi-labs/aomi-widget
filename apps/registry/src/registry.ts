@@ -78,6 +78,7 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/connect-button.tsx",
       "components/control-bar/network-select.tsx",
+      "components/control-bar/secret-input.tsx",
     ],
     dependencies: ["@aomi-labs/react", "lucide-react"],
     registryDependencies: [

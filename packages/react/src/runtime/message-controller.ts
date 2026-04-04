@@ -21,6 +21,7 @@ type MessageControllerConfig = {
   getPublicKey?: () => string | undefined;
   getApp: () => string;
   getApiKey?: () => string | null;
+  getClientId?: () => string | undefined;
   getUserState?: () => UserState;
   onSyncEvents?: (sessionId: string, events: AomiSystemEvent[]) => void;
 };
@@ -79,6 +80,7 @@ export class MessageController {
     const app = this.config.getApp();
     const publicKey = this.config.getPublicKey?.();
     const apiKey = this.config.getApiKey?.() ?? undefined;
+    const clientId = this.config.getClientId?.();
     const userState = this.config.getUserState?.();
 
     try {
@@ -86,7 +88,7 @@ export class MessageController {
       const response = await this.config.aomiClientRef.current.sendMessage(
         backendThreadId,
         text,
-        { app, publicKey, apiKey, userState },
+        { app, publicKey, apiKey, userState, clientId },
       );
 
       // Apply the latest messages immediately so sync tool results appear without waiting for polling.

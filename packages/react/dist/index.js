@@ -18,15 +18,15 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
-// packages/react/src/index.ts
+// src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import { toViemSignTypedDataArgs } from "@aomi-labs/client";
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
 import { AomiClient } from "@aomi-labs/client";
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import {
   createContext,
   useCallback,
@@ -36,7 +36,7 @@ import {
   useEffect
 } from "react";
 
-// packages/react/src/utils/uuid.ts
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -48,7 +48,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -207,7 +207,7 @@ var ThreadStore = class {
   }
 };
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 function getDefaultApp(apps) {
@@ -239,6 +239,7 @@ function ControlContextProvider({
   var _a, _b;
   const [state, setStateInternal] = useState(() => ({
     apiKey: null,
+    clientId: null,
     availableModels: [],
     authorizedApps: [],
     defaultModel: null,
@@ -259,6 +260,11 @@ function ControlContextProvider({
   const callbacks = useRef(/* @__PURE__ */ new Set());
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = (_b = (_a = currentThreadMetadata == null ? void 0 : currentThreadMetadata.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
+  useEffect(() => {
+    var _a2, _b2, _c;
+    const clientId = (_c = (_b2 = (_a2 = globalThis.crypto) == null ? void 0 : _a2.randomUUID) == null ? void 0 : _b2.call(_a2)) != null ? _c : `client-${Date.now()}`;
+    setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { clientId }));
+  }, []);
   useEffect(() => {
     var _a2, _b2;
     try {
@@ -331,6 +337,23 @@ function ControlContextProvider({
       callbacks.current.forEach((cb) => cb(next));
       return next;
     });
+  }, []);
+  const ingestSecrets = useCallback(
+    async (secrets) => {
+      const clientId = stateRef.current.clientId;
+      if (!clientId) throw new Error("clientId not initialized");
+      const { handles } = await aomiClientRef.current.ingestSecrets(
+        clientId,
+        secrets
+      );
+      return handles;
+    },
+    []
+  );
+  const clearSecrets = useCallback(async () => {
+    const clientId = stateRef.current.clientId;
+    if (!clientId) return;
+    await aomiClientRef.current.clearSecrets(clientId);
   }, []);
   const getAvailableModels = useCallback(async () => {
     try {
@@ -512,6 +535,8 @@ function ControlContextProvider({
       value: {
         state,
         setApiKey,
+        ingestSecrets,
+        clearSecrets,
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,
@@ -529,7 +554,7 @@ function ControlContextProvider({
   );
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 import {
   createContext as createContext2,
   useCallback as useCallback2,
@@ -545,7 +570,7 @@ import {
   isAsyncCallback
 } from "@aomi-labs/client";
 
-// packages/react/src/state/event-buffer.ts
+// src/state/event-buffer.ts
 function createEventBuffer() {
   return {
     inboundQueue: [],
@@ -589,7 +614,7 @@ function setSSEStatus(state, status) {
   state.sseStatus = status;
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 import { jsx as jsx2 } from "react/jsx-runtime";
 var EventContextState = createContext2(null);
 function useEventContext() {
@@ -714,7 +739,7 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
   useCallback as useCallback3,
@@ -764,7 +789,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -814,7 +839,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/user-context.tsx
+// src/contexts/user-context.tsx
 import {
   createContext as createContext5,
   useCallback as useCallback4,
@@ -916,17 +941,17 @@ function UserContextProvider({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef7 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
 } from "@assistant-ui/react";
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useRef as useRef5, useState as useState5 } from "react";
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/utils.ts
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1028,7 +1053,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/state/backend-state.ts
+// src/state/backend-state.ts
 function createBackendState() {
   return {
     runningThreads: /* @__PURE__ */ new Set()
@@ -1048,7 +1073,7 @@ function isThreadRunning(state, threadId) {
   return state.runningThreads.has(threadId);
 }
 
-// packages/react/src/runtime/message-controller.ts
+// src/runtime/message-controller.ts
 var MessageController = class {
   constructor(config) {
     this.config = config;
@@ -1065,7 +1090,7 @@ var MessageController = class {
     this.getThreadContextApi().setThreadMessages(threadId, threadMessages);
   }
   async outbound(message, threadId) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     const backendState = this.config.backendStateRef.current;
     const text = message.content.filter(
       (part) => part.type === "text"
@@ -1088,18 +1113,19 @@ var MessageController = class {
     const app = this.config.getApp();
     const publicKey = (_b = (_a = this.config).getPublicKey) == null ? void 0 : _b.call(_a);
     const apiKey = (_e = (_d = (_c = this.config).getApiKey) == null ? void 0 : _d.call(_c)) != null ? _e : void 0;
-    const userState = (_g = (_f = this.config).getUserState) == null ? void 0 : _g.call(_f);
+    const clientId = (_g = (_f = this.config).getClientId) == null ? void 0 : _g.call(_f);
+    const userState = (_i = (_h = this.config).getUserState) == null ? void 0 : _i.call(_h);
     try {
       this.markRunning(threadId, true);
       const response = await this.config.aomiClientRef.current.sendMessage(
         backendThreadId,
         text,
-        { app, publicKey, apiKey, userState }
+        { app, publicKey, apiKey, userState, clientId }
       );
       if (response == null ? void 0 : response.messages) {
         this.inbound(threadId, response.messages);
       }
-      if (((_h = response == null ? void 0 : response.system_events) == null ? void 0 : _h.length) && this.config.onSyncEvents) {
+      if (((_j = response == null ? void 0 : response.system_events) == null ? void 0 : _j.length) && this.config.onSyncEvents) {
         this.config.onSyncEvents(backendThreadId, response.system_events);
       }
       if (response == null ? void 0 : response.is_processing) {
@@ -1143,7 +1169,7 @@ var MessageController = class {
   }
 };
 
-// packages/react/src/runtime/polling-controller.ts
+// src/runtime/polling-controller.ts
 var PollingController = class {
   constructor(config) {
     this.config = config;
@@ -1158,7 +1184,7 @@ var PollingController = class {
     const backendThreadId = resolveThreadId(backendState, threadId);
     setThreadRunning(backendState, threadId, true);
     const tick = async () => {
-      var _a2, _b2;
+      var _a2, _b2, _c, _d;
       if (!this.intervals.has(threadId)) return;
       try {
         console.log(
@@ -1166,9 +1192,11 @@ var PollingController = class {
           threadId
         );
         const userState = (_b2 = (_a2 = this.config).getUserState) == null ? void 0 : _b2.call(_a2);
+        const clientId = (_d = (_c = this.config).getClientId) == null ? void 0 : _d.call(_c);
         const state = await this.config.aomiClientRef.current.fetchState(
           backendThreadId,
-          userState
+          userState,
+          clientId
         );
         if (!this.intervals.has(threadId)) return;
         this.handleState(threadId, state);
@@ -1213,7 +1241,7 @@ var PollingController = class {
   }
 };
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef5(threadContext);
@@ -1235,6 +1263,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       },
       onSyncEvents: options.onSyncEvents,
       getUserState: options.getUserState,
+      getClientId: options.getClientId,
       onStart: (threadId) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);
@@ -1257,29 +1286,32 @@ function useRuntimeOrchestrator(aomiClient, options) {
       getPublicKey: options.getPublicKey,
       getApp: options.getApp,
       getApiKey: options.getApiKey,
+      getClientId: options.getClientId,
       getUserState: options.getUserState,
       onSyncEvents: options.onSyncEvents
     });
   }
   const ensureInitialState = useCallback5(async (threadId) => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     if (pendingFetches.current.has(threadId)) return;
     const backendThreadId = resolveThreadId(backendStateRef.current, threadId);
     pendingFetches.current.add(threadId);
     try {
       const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
+      const clientId = (_b = options.getClientId) == null ? void 0 : _b.call(options);
       const state = await aomiClientRef.current.fetchState(
         backendThreadId,
-        userState
+        userState,
+        clientId
       );
-      (_b = messageControllerRef.current) == null ? void 0 : _b.inbound(threadId, state.messages);
-      if (((_c = state.system_events) == null ? void 0 : _c.length) && options.onSyncEvents) {
+      (_c = messageControllerRef.current) == null ? void 0 : _c.inbound(threadId, state.messages);
+      if (((_d = state.system_events) == null ? void 0 : _d.length) && options.onSyncEvents) {
         options.onSyncEvents(backendThreadId, state.system_events);
       }
       if (threadContextRef.current.currentThreadId === threadId) {
         if (state.is_processing) {
           setIsRunning(true);
-          (_d = pollingRef.current) == null ? void 0 : _d.start(threadId);
+          (_e = pollingRef.current) == null ? void 0 : _e.start(threadId);
         } else {
           setIsRunning(false);
         }
@@ -1304,7 +1336,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1436,7 +1468,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1450,14 +1482,14 @@ function useAomiRuntime() {
   return context;
 }
 
-// packages/react/src/handlers/wallet-handler.ts
+// src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useEffect as useEffect3, useRef as useRef6, useState as useState6 } from "react";
 import {
   normalizeEip712Payload,
   normalizeTxPayload
 } from "@aomi-labs/client";
 
-// packages/react/src/state/wallet-buffer.ts
+// src/state/wallet-buffer.ts
 function createWalletBuffer() {
   return { queue: [], nextId: 1 };
 }
@@ -1487,7 +1519,7 @@ function getAll(buffer) {
   return [...buffer.queue];
 }
 
-// packages/react/src/handlers/wallet-handler.ts
+// src/handlers/wallet-handler.ts
 function useWalletHandler({
   sessionId,
   onRequestComplete
@@ -1604,7 +1636,7 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { jsx as jsx6 } from "react/jsx-runtime";
 function AomiRuntimeCore({
   children,
@@ -1615,7 +1647,7 @@ function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
   const {
     backendStateRef,
     polling,
@@ -1629,7 +1661,11 @@ function AomiRuntimeCore({
     getPublicKey: () => getUserState().address,
     getUserState,
     getApp: getCurrentThreadApp,
-    getApiKey: () => getControlState().apiKey
+    getApiKey: () => getControlState().apiKey,
+    getClientId: () => {
+      var _a;
+      return (_a = getControlState().clientId) != null ? _a : void 0;
+    }
   });
   const walletSnapshot = useCallback7(
     (nextUser) => ({
@@ -1856,8 +1892,9 @@ function AomiRuntimeCore({
   useEffect4(() => {
     return () => {
       polling.stopAll();
+      void clearSecrets();
     };
-  }, [polling]);
+  }, [polling, clearSecrets]);
   const userContext = useUser();
   const sendMessage = useCallback7(
     async (text) => {
@@ -1976,7 +2013,7 @@ function AomiRuntimeCore({
   return /* @__PURE__ */ jsx6(AomiRuntimeApiProvider, { value: aomiRuntimeApi, children: /* @__PURE__ */ jsx6(AssistantRuntimeProvider, { runtime, children }) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
@@ -2012,7 +2049,7 @@ function AomiRuntimeInner({
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
+// src/handlers/notification-handler.ts
 import { useCallback as useCallback8, useEffect as useEffect5, useState as useState7 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {

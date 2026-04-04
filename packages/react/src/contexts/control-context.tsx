@@ -21,6 +21,8 @@ import { initThreadControl } from "../state/thread-store";
 export type ControlState = {
   /** API key for authenticated requests */
   apiKey: string | null;
+  /** Stable client identifier for this browser tab (associates sessions with secrets) */
+  clientId: string | null;
   /** Available models fetched from backend */
   availableModels: string[];
   /** Authorized apps fetched from backend */
@@ -32,10 +34,14 @@ export type ControlState = {
 };
 
 export type ControlContextApi = {
-  /** Global state (apiKey, available models/apps) */
+  /** Global state (apiKey, clientId, available models/apps) */
   state: ControlState;
   /** Update global state (apiKey only) */
   setApiKey: (apiKey: string | null) => void;
+  /** Ingest secrets into the backend vault, returns opaque handles */
+  ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
+  /** Clear all secrets from the backend vault */
+  clearSecrets: () => Promise<void>;
   /** Fetch available models from backend */
   getAvailableModels: () => Promise<string[]>;
   /** Fetch authorized apps from backend */
@@ -131,6 +137,7 @@ export function ControlContextProvider({
 }: ControlContextProviderProps) {
   const [state, setStateInternal] = useState<ControlState>(() => ({
     apiKey: null,
+    clientId: null,
     availableModels: [],
     authorizedApps: [],
     defaultModel: null,
@@ -160,6 +167,12 @@ export function ControlContextProvider({
   // Compute isProcessing from current thread's control state
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = currentThreadMetadata?.control?.isProcessing ?? false;
+
+  // Generate a stable client_id for this browser tab on mount
+  useEffect(() => {
+    const clientId = globalThis.crypto?.randomUUID?.() ?? `client-${Date.now()}`;
+    setStateInternal((prev) => ({ ...prev, clientId }));
+  }, []);
 
   // Load API key from localStorage on mount
   useEffect(() => {
@@ -244,6 +257,28 @@ export function ControlContextProvider({
       callbacks.current.forEach((cb) => cb(next));
       return next;
     });
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Secrets
+  // ---------------------------------------------------------------------------
+  const ingestSecrets = useCallback(
+    async (secrets: Record<string, string>): Promise<Record<string, string>> => {
+      const clientId = stateRef.current.clientId;
+      if (!clientId) throw new Error("clientId not initialized");
+      const { handles } = await aomiClientRef.current.ingestSecrets(
+        clientId,
+        secrets,
+      );
+      return handles;
+    },
+    [],
+  );
+
+  const clearSecrets = useCallback(async (): Promise<void> => {
+    const clientId = stateRef.current.clientId;
+    if (!clientId) return;
+    await aomiClientRef.current.clearSecrets(clientId);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -474,6 +509,8 @@ export function ControlContextProvider({
       value={{
         state,
         setApiKey,
+        ingestSecrets,
+        clearSecrets,
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,
