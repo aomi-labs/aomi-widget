@@ -20,6 +20,7 @@ type OrchestratorOptions = {
   getUserState?: () => UserState;
   getApp: () => string;
   getApiKey?: () => string | null;
+  getClientId?: () => string | undefined;
   onSyncEvents?: (sessionId: string, events: AomiSystemEvent[]) => void;
 };
 
@@ -50,6 +51,7 @@ export function useRuntimeOrchestrator(
       },
       onSyncEvents: options.onSyncEvents,
       getUserState: options.getUserState,
+      getClientId: options.getClientId,
       onStart: (threadId: string) => {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(true);
@@ -73,6 +75,7 @@ export function useRuntimeOrchestrator(
       getPublicKey: options.getPublicKey,
       getApp: options.getApp,
       getApiKey: options.getApiKey,
+      getClientId: options.getClientId,
       getUserState: options.getUserState,
       onSyncEvents: options.onSyncEvents,
     });
@@ -87,9 +90,11 @@ export function useRuntimeOrchestrator(
 
     try {
       const userState = options.getUserState?.();
+      const clientId = options.getClientId?.();
       const state = await aomiClientRef.current.fetchState(
         backendThreadId,
         userState,
+        clientId,
       );
       messageControllerRef.current?.inbound(threadId, state.messages);
       if (state.system_events?.length && options.onSyncEvents) {

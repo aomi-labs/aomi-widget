@@ -325,6 +325,8 @@ declare const getChainInfo: (chainId: number | undefined) => ChainInfo | undefin
 type ControlState = {
     /** API key for authenticated requests */
     apiKey: string | null;
+    /** Stable client identifier for this browser tab (associates sessions with secrets) */
+    clientId: string | null;
     /** Available models fetched from backend */
     availableModels: string[];
     /** Authorized apps fetched from backend */
@@ -335,10 +337,14 @@ type ControlState = {
     defaultApp: string | null;
 };
 type ControlContextApi = {
-    /** Global state (apiKey, available models/apps) */
+    /** Global state (apiKey, clientId, available models/apps) */
     state: ControlState;
     /** Update global state (apiKey only) */
     setApiKey: (apiKey: string | null) => void;
+    /** Ingest secrets into the backend vault, returns opaque handles */
+    ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
+    /** Clear all secrets from the backend vault */
+    clearSecrets: () => Promise<void>;
     /** Fetch available models from backend */
     getAvailableModels: () => Promise<string[]>;
     /** Fetch authorized apps from backend */

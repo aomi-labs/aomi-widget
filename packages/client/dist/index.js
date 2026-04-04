@@ -258,9 +258,10 @@ var AomiClient = class {
   /**
    * Fetch current session state (messages, processing status, title).
    */
-  async fetchState(sessionId, userState) {
+  async fetchState(sessionId, userState, clientId) {
     const url = buildApiUrl(this.baseUrl, "/api/state", {
-      user_state: userState ? JSON.stringify(userState) : void 0
+      user_state: userState ? JSON.stringify(userState) : void 0,
+      client_id: clientId
     });
     const response = await fetch(url, {
       headers: withSessionHeader(sessionId)
@@ -283,6 +284,9 @@ var AomiClient = class {
     }
     if (options == null ? void 0 : options.userState) {
       payload.user_state = JSON.stringify(options.userState);
+    }
+    if (options == null ? void 0 : options.clientId) {
+      payload.client_id = options.clientId;
     }
     return postState(
       this.baseUrl,
@@ -313,6 +317,40 @@ var AomiClient = class {
       {},
       sessionId
     );
+  }
+  // ===========================================================================
+  // Secrets
+  // ===========================================================================
+  /**
+   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   * Call this once at page load (or when secrets change) with a stable
+   * client_id for the browser tab. The same client_id should be passed
+   * to `sendMessage` / `fetchState` so sessions get associated.
+   */
+  async ingestSecrets(clientId, secrets) {
+    const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, secrets })
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  }
+  /**
+   * Clear all secrets for a client (e.g. on page unload or logout).
+   */
+  async clearSecrets(clientId) {
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId
+    });
+    const response = await fetch(url, { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   // ===========================================================================
   // SSE (Real-time Updates)
