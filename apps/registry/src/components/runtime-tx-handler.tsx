@@ -7,7 +7,7 @@ import {
   type WalletRequest,
   type WalletTxPayload,
 } from "@aomi-labs/react";
-import { useWalletAdapter } from "../lib/wallet-adapter";
+import { useWalletAdapter } from "../lib/aomi-wallet-adapter";
 
 /**
  * Invisible bridge component that processes wallet transaction and EIP-712
@@ -15,7 +15,7 @@ import { useWalletAdapter } from "../lib/wallet-adapter";
  *
  * Auto-mounted inside AomiFrame.Root.
  */
-export function WalletTxHandler() {
+export function RuntimeTxHandler() {
   const {
     pendingWalletRequests,
     startWalletRequest,
@@ -57,7 +57,7 @@ export function WalletTxHandler() {
           resolveWalletRequest(req.id, result);
         }
       } catch (error) {
-        console.error("[WalletTxHandler] Request failed:", error);
+        console.error("[RuntimeTxHandler] Request failed:", error);
         rejectWalletRequest(
           req.id,
           error instanceof Error ? error.message : "Request failed",
@@ -74,3 +74,6 @@ export function WalletTxHandler() {
 
   return null;
 }
+
+/** @deprecated Use {@link RuntimeTxHandler} */
+export const WalletTxHandler = RuntimeTxHandler;

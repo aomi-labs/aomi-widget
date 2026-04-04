@@ -6,7 +6,7 @@ import { NetworkSelect } from "./network-select";
 import { ModelSelect } from "./model-select";
 import { AppSelect } from "./app-select";
 import { ApiKeyInput } from "./api-key-input";
-import { WalletConnect } from "./wallet-connect";
+import { ConnectButton } from "./connect-button";
 
 // =============================================================================
 // Types
@@ -46,7 +46,7 @@ export const ControlBar: FC<ControlBarProps> = ({
       {!hideNetwork && <NetworkSelect />}
       {!hideModel && <ModelSelect />}
       {!hideApp && <AppSelect />}
-      {!hideWallet && <WalletConnect />}
+      {!hideWallet && <ConnectButton />}
       {children}
       {!hideApiKey && <ApiKeyInput />}
     </div>
@@ -60,5 +60,10 @@ export const ControlBar: FC<ControlBarProps> = ({
 export { ModelSelect, type ModelSelectProps } from "./model-select";
 export { AppSelect, type AppSelectProps } from "./app-select";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
-export { WalletConnect, type WalletConnectProps } from "./wallet-connect";
+export {
+  ConnectButton,
+  type ConnectButtonProps,
+  WalletConnect,
+  type WalletConnectProps,
+} from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";

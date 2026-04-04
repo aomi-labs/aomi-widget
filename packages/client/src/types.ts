@@ -124,6 +124,22 @@ export type AomiSSEEvent = {
   [key: string]: unknown;
 };
 
+/**
+ * POST /api/secrets
+ * Ingests secrets for a client, returns opaque handles
+ */
+export interface AomiIngestSecretsResponse {
+  handles: Record<string, string>;
+}
+
+/**
+ * DELETE /api/secrets
+ * Clears all secrets for a client
+ */
+export interface AomiClearSecretsResponse {
+  cleared: boolean;
+}
+
 export type AomiSSEEventType =
   | "title_changed"
   | "tool_update"

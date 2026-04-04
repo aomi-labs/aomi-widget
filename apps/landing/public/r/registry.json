@@ -31,25 +31,26 @@
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
-        "https://aomi.dev/r/aomi-adapter-provider.json",
+        "https://aomi.dev/r/aomi-wallet-adapter.json",
+        "https://aomi.dev/r/para-wallet-bridge.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
         "https://aomi.dev/r/notification.json",
-        "https://aomi.dev/r/wallet-tx-handler.json",
+        "https://aomi.dev/r/runtime-tx-handler.json",
         "separator",
         "breadcrumb",
         "sidebar"
       ]
     },
     {
-      "name": "aomi-adapter-provider",
+      "name": "aomi-wallet-adapter",
       "type": "registry:component",
-      "description": "Default Para-backed wallet adapter provider with an override path for custom wallet adapters.",
+      "description": "Provider-agnostic wallet adapter context, types, and hook.",
       "files": [
         {
           "type": "registry:component",
-          "path": "components/aomi-adapter-provider.tsx"
+          "path": "lib/aomi-wallet-adapter.ts"
         },
         {
           "type": "registry:component",
@@ -57,15 +58,29 @@
         }
       ],
       "dependencies": [
+        "@aomi-labs/react"
+      ],
+      "registryDependencies": []
+    },
+    {
+      "name": "para-wallet-bridge",
+      "type": "registry:component",
+      "description": "Para wallet bridge — runs inside ParaProviderMin, writes WalletAdapterContext.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/para-wallet-bridge.tsx"
+        }
+      ],
+      "dependencies": [
         "@aomi-labs/react",
-        "@getpara/evm-wallet-connectors",
-        "@getpara/react-core",
         "@getpara/react-sdk",
-        "@tanstack/react-query",
         "viem",
         "wagmi"
       ],
-      "registryDependencies": []
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-wallet-adapter.json"
+      ]
     },
     {
       "name": "control-bar",
@@ -90,7 +105,7 @@
         },
         {
           "type": "registry:component",
-          "path": "components/control-bar/wallet-connect.tsx"
+          "path": "components/control-bar/connect-button.tsx"
         },
         {
           "type": "registry:component",
@@ -102,7 +117,7 @@
         "lucide-react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-adapter-provider.json",
+        "https://aomi.dev/r/aomi-wallet-adapter.json",
         "button",
         "popover",
         "dialog",
@@ -249,20 +264,20 @@
       "registryDependencies": []
     },
     {
-      "name": "wallet-tx-handler",
+      "name": "runtime-tx-handler",
       "type": "registry:component",
       "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to the active Aomi adapter.",
       "files": [
         {
           "type": "registry:component",
-          "path": "components/wallet-tx-handler.tsx"
+          "path": "components/runtime-tx-handler.tsx"
         }
       ],
       "dependencies": [
         "@aomi-labs/react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-adapter-provider.json"
+        "https://aomi.dev/r/aomi-wallet-adapter.json"
       ]
     },
     {

@@ -2,7 +2,9 @@ import type {
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
+  AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiSSEEvent,
   AomiStateResponse,
@@ -125,9 +127,11 @@ export class AomiClient {
   async fetchState(
     sessionId: string,
     userState?: UserState,
+    clientId?: string,
   ): Promise<AomiStateResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/state", {
       user_state: userState ? JSON.stringify(userState) : undefined,
+      client_id: clientId,
     });
 
     const response = await fetch(url, {
@@ -152,6 +156,7 @@ export class AomiClient {
       publicKey?: string;
       apiKey?: string;
       userState?: UserState;
+      clientId?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -163,6 +168,9 @@ export class AomiClient {
     }
     if (options?.userState) {
       payload.user_state = JSON.stringify(options.userState);
+    }
+    if (options?.clientId) {
+      payload.client_id = options.clientId;
     }
 
     return postState<AomiChatResponse>(
@@ -199,6 +207,50 @@ export class AomiClient {
       {},
       sessionId,
     );
+  }
+
+  // ===========================================================================
+  // Secrets
+  // ===========================================================================
+
+  /**
+   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   * Call this once at page load (or when secrets change) with a stable
+   * client_id for the browser tab. The same client_id should be passed
+   * to `sendMessage` / `fetchState` so sessions get associated.
+   */
+  async ingestSecrets(
+    clientId: string,
+    secrets: Record<string, string>,
+  ): Promise<AomiIngestSecretsResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, secrets }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiIngestSecretsResponse;
+  }
+
+  /**
+   * Clear all secrets for a client (e.g. on page unload or logout).
+   */
+  async clearSecrets(clientId: string): Promise<AomiClearSecretsResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId,
+    });
+    const response = await fetch(url, { method: "DELETE" });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiClearSecretsResponse;
   }
 
   // ===========================================================================

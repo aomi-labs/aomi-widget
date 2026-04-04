@@ -190,17 +190,19 @@ import {
   ModelSelect,
   NamespaceSelect,
   ApiKeyInput,
-  WalletConnect,
-} from "@aomi-labs/react";
+  ConnectButton,
+} from "@aomi-labs/widget-lib/control-bar";
 
 // Custom layout
 <div className="flex gap-2">
   <ModelSelect placeholder="Choose model" />
   <NamespaceSelect placeholder="Choose agent" />
   <ApiKeyInput title="API Key" description="Enter your key" />
-  <WalletConnect connectLabel="Connect" />
+  <ConnectButton connectLabel="Connect" />
 </div>;
 ```
+
+`WalletConnect` remains available as a deprecated alias for `ConnectButton`.
 
 #### ModelSelect Props
 
@@ -224,13 +226,13 @@ import {
 | `title`       | `string` | `"Aomi API Key"`          | Dialog title           |
 | `description` | `string` | `"Enter your API key..."` | Dialog description     |
 
-#### WalletConnect Props
+#### ConnectButton props
 
-| Prop                 | Type                           | Default            | Description                   |
-| -------------------- | ------------------------------ | ------------------ | ----------------------------- |
-| `className`          | `string`                       | -                  | Additional CSS classes        |
-| `connectLabel`       | `string`                       | `"Connect Wallet"` | Button text when disconnected |
-| `onConnectionChange` | `(connected: boolean) => void` | -                  | Callback on connection change |
+| Prop                 | Type                           | Default             | Description                   |
+| -------------------- | ------------------------------ | ------------------- | ----------------------------- |
+| `className`          | `string`                       | -                   | Additional CSS classes        |
+| `connectLabel`       | `string`                       | `"Connect Account"` | Button text when disconnected |
+| `onConnectionChange` | `(connected: boolean) => void` | -                   | Callback on connection change |
 
 ## Hooks
 
