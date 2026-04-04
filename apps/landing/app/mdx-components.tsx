@@ -11,10 +11,10 @@ import {
 } from "fumadocs-ui/components/codeblock";
 import * as Twoslash from "fumadocs-twoslash/ui";
 
-import { WidgetDemo } from "@/components/samples/widget-demo";
-import { PlaygroundConfigurator } from "@/components/playground/PlaygroundConfigurator";
-import { SessionsConsole } from "@/components/api-console/SessionsConsole";
-import { SystemConsole } from "@/components/api-console/SystemConsole";
+import { WidgetDemo } from "@/content/components/samples/widget-demo";
+import { PlaygroundConfigurator } from "@/content/components/playground/PlaygroundConfigurator";
+import { SessionsConsole } from "@/components/examples/SessionsConsole";
+import { SystemConsole } from "@/components/examples/SystemConsole";
 
 import "fumadocs-twoslash/twoslash.css";
 

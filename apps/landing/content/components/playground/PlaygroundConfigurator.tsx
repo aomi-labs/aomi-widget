@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback, type FC } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { CopyButton } from "./CopyButton";
-import { useDemoBackendUrl } from "@/components/runtime/use-demo-backend-url";
 import {
   ThemeCustomizer,
   useThemeCustomizer,
@@ -277,7 +276,7 @@ export function PlaygroundConfigurator() {
   const [state, setState] = useState<PlaygroundState>(DEFAULT_STATE);
   const [configTab, setConfigTab] = useState<ConfigTab>("layout");
   const [codeTab, setCodeTab] = useState<CodeTab>("jsx");
-  const backendUrl = useDemoBackendUrl();
+  const backendUrl = "/";
 
   const update = useCallback(
     (patch: Partial<PlaygroundState>) => {
@@ -315,10 +314,6 @@ export function PlaygroundConfigurator() {
     state.showNetwork;
 
   const activeCode = codeTab === "jsx" ? jsxCode : theme.output.css;
-
-  if (!backendUrl) {
-    return <div className="h-[560px] w-full" />;
-  }
 
   return (
     <div className="space-y-4">
