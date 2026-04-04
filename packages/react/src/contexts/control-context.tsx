@@ -278,7 +278,7 @@ export function ControlContextProvider({
   const clearSecrets = useCallback(async (): Promise<void> => {
     const clientId = stateRef.current.clientId;
     if (!clientId) return;
-    await aomiClientRef.current.clearSecrets(clientId);
+    await aomiClientRef.current.clearSecrets?.(clientId);
   }, []);
 
   // ---------------------------------------------------------------------------

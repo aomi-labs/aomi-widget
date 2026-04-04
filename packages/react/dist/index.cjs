@@ -388,9 +388,10 @@ function ControlContextProvider({
     []
   );
   const clearSecrets = (0, import_react.useCallback)(async () => {
+    var _a2, _b2;
     const clientId = stateRef.current.clientId;
     if (!clientId) return;
-    await aomiClientRef.current.clearSecrets(clientId);
+    await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(_a2, clientId));
   }, []);
   const getAvailableModels = (0, import_react.useCallback)(async () => {
     try {
