@@ -14,6 +14,10 @@ Or install via shadcn registry:
 npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
+The registry install now includes a default Para-backed `AomiAdapterProvider`.
+Consumers can use the built-in wallet flow with Para env vars, pass a custom
+adapter to `AomiFrame`, or wrap the frame in their own `AomiAdapterProvider`.
+
 ## Quick Start
 
 Drop the frame into your app with zero configuration:
@@ -23,6 +27,32 @@ import { AomiFrame } from "@aomi-labs/react";
 
 export function Assistant() {
   return <AomiFrame height="640px" width="100%" />;
+}
+```
+
+Bring your own wallet adapter when needed:
+
+```tsx
+import { AomiFrame, type AomiAdapter } from "@aomi-labs/react";
+
+const adapter: AomiAdapter = {
+  identity: {
+    kind: "disconnected",
+    isConnected: false,
+    primaryLabel: "Not connected",
+  },
+  isReady: true,
+  isSwitchingChain: false,
+  canConnect: true,
+  canManageAccount: false,
+  connect: async () => {
+    // open your wallet flow
+  },
+  manageAccount: async () => undefined,
+};
+
+export function Assistant() {
+  return <AomiFrame adapter={adapter} height="640px" width="100%" />;
 }
 ```
 
@@ -61,6 +91,7 @@ import { AomiFrame } from "@aomi-labs/react";
 | `style`          | `CSSProperties`                | -                                             | Inline styles                       |
 | `walletPosition` | `"header" \| "footer" \| null` | `"footer"`                                    | Where to show wallet connect button |
 | `backendUrl`     | `string`                       | `NEXT_PUBLIC_BACKEND_URL` or `localhost:8080` | Backend API URL                     |
+| `adapter`        | `AomiAdapter \| null`          | Para-backed default                           | Override or disable wallet features |
 
 ### Compound Components (Advanced)
 
@@ -84,7 +115,8 @@ export function CustomAssistant() {
 
 #### AomiFrame.Root
 
-The root container that provides all necessary contexts.
+The root container that provides all necessary contexts, including the default
+wallet adapter unless you override it.
 
 | Prop             | Type                           | Default                 | Description                       |
 | ---------------- | ------------------------------ | ----------------------- | --------------------------------- |
@@ -95,6 +127,7 @@ The root container that provides all necessary contexts.
 | `style`          | `CSSProperties`                | -                       | Inline styles                     |
 | `walletPosition` | `"header" \| "footer" \| null` | `"footer"`              | Wallet button position in sidebar |
 | `backendUrl`     | `string`                       | env or `localhost:8080` | Backend API URL                   |
+| `adapter`        | `AomiAdapter \| null`          | Para-backed default     | Override or disable wallet flow   |
 
 #### AomiFrame.Header
 

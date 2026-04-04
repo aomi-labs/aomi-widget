@@ -5,11 +5,19 @@ description: Connect wallets, sign transactions, and switch networks.
 
 # Wallet Integration
 
-Aomi integrates with wallets via Para for connection and account management, with wagmi and viem handling transaction execution and typed-data signing. Users can connect wallets, sign transactions requested by the AI, and switch networks.
+Aomi widgets now expose wallet behavior through `AomiAdapterProvider`. The
+default registry install ships with a Para-backed adapter for connection,
+account management, transaction execution, typed-data signing, and chain
+switching. Advanced consumers can still replace that adapter with their own
+wallet stack.
 
 ## Setup
 
 ### Install Dependencies
+
+If you installed the widget through `npx shadcn add https://aomi.dev/r/aomi-frame.json`,
+the default adapter files and their dependencies are already included. Use the
+setup below only when you are customizing the wallet provider layer directly.
 
 ```bash
 npm install @getpara/react-sdk @getpara/evm-wallet-connectors wagmi viem @tanstack/react-query

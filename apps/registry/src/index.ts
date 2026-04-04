@@ -2,6 +2,20 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 
+// Wallet adapter (provider-agnostic context + types)
+export {
+  type WalletAdapter,
+  type AomiAdapter,
+  WalletAdapterContext,
+  AomiAdapterContext,
+  DISCONNECTED_ADAPTER,
+  useWalletAdapter,
+  useAomiAdapter,
+} from "./lib/wallet-adapter";
+
+// Para wallet bridge (runs inside ParaProviderMin)
+export { ParaWalletBridge } from "./components/para-wallet-bridge";
+
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
 
@@ -24,3 +38,8 @@ export {
 // Re-export types and utilities from @aomi-labs/react
 export type { UserConfig } from "@aomi-labs/react";
 export { formatAddress, getNetworkName } from "@aomi-labs/react";
+export type {
+  AccountIdentity,
+  AccountIdentityKind,
+} from "./lib/account-identity";
+export { useAomiAccountIdentity } from "./lib/account-identity";
