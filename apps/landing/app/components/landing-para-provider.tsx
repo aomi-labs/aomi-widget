@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import ParaWeb, {
   Environment,
   ParaEvent,
-  ParaModal,
+  ParaProviderMin,
   type TExternalWallet,
   type TOAuthMethod,
 } from "@getpara/react-sdk";
-import { ParaProviderCore } from "@getpara/react-core/internal";
-// @ts-expect-error — internal SDK provider via turbopack alias (see next.config.ts)
-import { AuthProvider as ParaAuthProvider } from "@para-internal/auth-provider";
 // @ts-expect-error — internal SDK store via turbopack alias (see next.config.ts)
 import { store as paraLiteStore } from "@para-internal/store";
 import "@getpara/react-sdk/styles.css";
@@ -100,68 +103,44 @@ const wagmiConfig = createConfig({
 });
 
 // ---------------------------------------------------------------------------
-// ParaModal wrapper — bypasses ParaProviderMin entirely.
+// ParaProviderMin wrapper
 //
-// ParaProviderMin's isReady gate never opens because the Zustand store
-// subscription between @getpara/react-sdk-lite (Zustand 4) and
-// @getpara/react-core (Zustand 5) is broken in pnpm monorepos.
+// ParaProviderMin gates its children + embedded modal behind `isReady`,
+// which may never fire in pnpm monorepos due to Zustand store version
+// mismatch between @getpara/react-sdk-lite and @getpara/react-core.
 //
-// Instead we build a minimal provider chain from the SDK's primitives:
-//   ParaProviderCore (CoreStoreContext, client init)
-//     → AuthProvider (OAuth / phone / passkey flows)
-//       → ParaModal (controlled by our own isOpen state)
-//
-// We pass the lite SDK's singleton store to ParaProviderCore so that
-// getClient() and the bridge's useParaClient() hook continue to work.
+// Workaround: after the Para client initialises, force isReady = true in
+// the lite store so the embedded modal renders with full ExternalWallet
+// context (WalletConnect, MetaMask, Coinbase, etc.).
 // ---------------------------------------------------------------------------
 
-function DirectParaModal({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  // Memoize the store ref — it's a module singleton and never changes, but
-  // ParaProviderCore's useMemo depends on referential stability.
-  const storeRef = useRef(paraLiteStore);
+/** Force the lite store's isReady flag so ParaProviderMin unblocks. */
+function useForceParaReady() {
+  useEffect(() => {
+    // Poll briefly — the client is created async inside ParaProviderCore.
+    const id = setInterval(() => {
+      const s = paraLiteStore.getState() as any;
+      if (s.client && !s.paraState?.isReady) {
+        paraLiteStore.setState({
+          paraState: { ...s.paraState, isReady: true },
+        });
+        clearInterval(id);
+      } else if (s.paraState?.isReady) {
+        clearInterval(id);
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+}
 
-  // Create the client config once. ParaProviderCore calls
-  // paraClientConfig.createClient() to instantiate the ParaWeb client and
-  // stores it in the lite store (where getClient() reads it).
-  const clientConfig = useMemo(
-    () => ({
-      apiKey: paraApiKey!,
-      env: paraEnvironment,
-      createClient: (apiKey: string, env?: Environment) =>
-        env ? new ParaWeb(env, apiKey) : new ParaWeb(apiKey),
-    }),
-    [],
-  );
-
-  return (
-    <ParaProviderCore
-      paraClientConfig={clientConfig}
-      config={{ appName: "Aomi Labs" }}
-      store={storeRef.current}
-      waitForReady={false}
-    >
-      <ParaAuthProvider>
-        <ParaModal
-          isOpen={isOpen}
-          onClose={onClose}
-          disableEmailLogin
-          oAuthMethods={oAuthMethods}
-          externalWallets={adapterWallets}
-          walletConnect={
-            walletConnectProjectId
-              ? { projectId: walletConnectProjectId }
-              : undefined
-          }
-        />
-      </ParaAuthProvider>
-    </ParaProviderCore>
-  );
+/**
+ * Invisible child of ParaProviderMin that:
+ * 1. Forces isReady so the embedded modal can render
+ * 2. Renders nothing itself — the widget lives outside ParaProviderMin
+ */
+function ParaReadyForcer() {
+  useForceParaReady();
+  return null;
 }
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
@@ -169,13 +148,6 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
   const [modalOpen, setModalOpen] = useState(false);
 
   const openModal = useCallback(() => {
-    // The SDK's XState state machine can get stuck in "auth_flow" even when
-    // the user has an active session (checkUserState network call failed or
-    // raced during init). Body.js uses corePhase to decide between the login
-    // screen (auth_flow) and the account screen (authenticated).
-    //
-    // Before opening, verify against the client and correct the store if
-    // needed so logged-in users see account management, not a second login.
     const state = paraLiteStore.getState() as any;
     const client = state.client as ParaWeb | null;
     const corePhase = state.paraState?.corePhase;
@@ -197,12 +169,9 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
 
     setModalOpen(true);
   }, []);
+
   const closeModal = useCallback(() => {
     setModalOpen(false);
-    // After the modal closes, nudge the bridge to re-sync auth state.
-    // The bridge already listens for WALLETS_CHANGE_EVENT and calls
-    // paraClient.isFullyLoggedIn() — this ensures disconnect is detected
-    // even if LOGOUT_EVENT was swallowed by a race condition.
     setTimeout(() => {
       window.dispatchEvent(
         new CustomEvent(ParaEvent.WALLETS_CHANGE_EVENT, {
@@ -212,17 +181,50 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
     }, 200);
   }, []);
 
+  const paraModalConfig = useMemo(
+    () => ({
+      isOpen: modalOpen,
+      onClose: closeModal,
+      disableEmailLogin: true,
+      oAuthMethods,
+    }),
+    [modalOpen, closeModal],
+  );
+
+  const externalWalletConfig = useMemo(
+    () => ({
+      wallets: adapterWallets,
+      ...(walletConnectProjectId
+        ? { walletConnect: { projectId: walletConnectProjectId } }
+        : {}),
+    }),
+    [],
+  );
+
   if (!paraApiKey) {
     return <>{children}</>;
   }
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Our own ParaProviderCore + AuthProvider replaces ParaProviderMin.
-          The lite SDK's singleton store is passed so getClient() works. */}
-      <DirectParaModal isOpen={modalOpen} onClose={closeModal} />
+      {/* ParaProviderMin sets up the full provider chain including
+          ExternalWalletWrapper so the modal shows wallet buttons.
+          We force isReady via ParaReadyForcer so the embedded modal
+          renders despite the Zustand version mismatch. */}
+      <ParaProviderMin
+        paraClientConfig={{
+          apiKey: paraApiKey,
+          env: paraEnvironment,
+        }}
+        config={{ appName: "Aomi Labs" }}
+        paraModalConfig={paraModalConfig}
+        externalWalletConfig={externalWalletConfig}
+      >
+        <ParaReadyForcer />
+      </ParaProviderMin>
 
-      {/* Widget renders immediately. Bridge polls getClient() for auth. */}
+      {/* Widget renders immediately outside ParaProviderMin.
+          Bridge polls the shared lite store for auth state. */}
       <WagmiProvider config={wagmiConfig}>
         <ParaWalletBridge onOpenModal={openModal}>
           {children}
