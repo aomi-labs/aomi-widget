@@ -25,10 +25,12 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-frame",
     file: "components/aomi-frame.tsx",
-    dependencies: ["@aomi-labs/react", "wagmi"],
+    dependencies: ["@aomi-labs/react"],
     registryDependencies: [
       // Theme (CSS variables required by all components)
       aomi("aomi-theme"),
+      aomi("wallet-adapter"),
+      aomi("para-wallet-bridge"),
       // Internal aomi components (customized)
       aomi("assistant-thread"),
       aomi("assistant-threadlist-sidebar"),
@@ -43,6 +45,31 @@ export const registry: RegistryComponent[] = [
     description: "Full assistant shell with thread list and runtime wiring.",
   },
   {
+    name: "wallet-adapter",
+    file: [
+      "lib/wallet-adapter.ts",
+      "lib/account-identity.ts",
+    ],
+    dependencies: [
+      "@aomi-labs/react",
+    ],
+    description:
+      "Provider-agnostic wallet adapter context, types, and hook.",
+  },
+  {
+    name: "para-wallet-bridge",
+    file: "components/para-wallet-bridge.tsx",
+    dependencies: [
+      "@aomi-labs/react",
+      "@getpara/react-sdk",
+      "viem",
+      "wagmi",
+    ],
+    registryDependencies: [aomi("wallet-adapter")],
+    description:
+      "Para wallet bridge — runs inside ParaProviderMin, writes WalletAdapterContext.",
+  },
+  {
     name: "control-bar",
     file: [
       "components/control-bar/index.tsx",
@@ -51,16 +78,16 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/wallet-connect.tsx",
       "components/control-bar/network-select.tsx",
-      "lib/use-account-identity.ts",
     ],
-    dependencies: [
-      "@aomi-labs/react",
-      "@getpara/react-core",
-      "@getpara/react-sdk",
-      "wagmi",
-      "lucide-react",
+    dependencies: ["@aomi-labs/react", "lucide-react"],
+    registryDependencies: [
+      aomi("wallet-adapter"),
+      "button",
+      "popover",
+      "dialog",
+      "input",
+      "label",
     ],
-    registryDependencies: ["button", "popover", "dialog", "input", "label"],
     description:
       "Control bar with model/App selectors, API key input, and wallet connect.",
   },
@@ -149,9 +176,10 @@ export const registry: RegistryComponent[] = [
   {
     name: "wallet-tx-handler",
     file: "components/wallet-tx-handler.tsx",
-    dependencies: ["@aomi-labs/react", "wagmi"],
+    dependencies: ["@aomi-labs/react"],
+    registryDependencies: [aomi("wallet-adapter")],
     description:
-      "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
+      "Bridges wallet transaction and EIP-712 signing requests from the AI backend to the active Aomi adapter.",
   },
   // === SHADCN UI PRIMITIVES ===
   {

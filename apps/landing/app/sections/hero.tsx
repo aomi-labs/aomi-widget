@@ -2,11 +2,12 @@
 
 import { useState, type CSSProperties } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import { useDemoBackendUrl } from "@/components/runtime/use-demo-backend-url";
+import { LandingParaProvider } from "../components/landing-para-provider";
+
+const DEMO_BACKEND_URL = "/";
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const backendUrl = useDemoBackendUrl();
 
   return (
     <>
@@ -266,12 +267,12 @@ export function Hero() {
             id="terminal-container"
             className="h-[680px] w-full max-w-[900px] origin-bottom-left transform transition-all duration-300"
           >
-            {backendUrl ? (
+            <LandingParaProvider>
               <AomiFrame.Root
                 height="100%"
                 width="100%"
                 walletPosition="footer"
-                backendUrl={backendUrl}
+                backendUrl={DEMO_BACKEND_URL}
               >
                 <AomiFrame.Header />
                 <AomiFrame.Composer
@@ -279,9 +280,7 @@ export function Hero() {
                   controlBarProps={{ hideApiKey: true, hideNetwork: false }}
                 />
               </AomiFrame.Root>
-            ) : (
-              <div className="h-full w-full" />
-            )}
+            </LandingParaProvider>
           </div>
         </div>
       </div>
