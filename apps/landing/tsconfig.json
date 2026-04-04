@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
+      "@/components/examples/*": ["./content/components/examples/*"],
       "@/*": ["./src/*", "../registry/src/*"],
+      "@/content/*": ["./content/*"],
       "@/.source/*": ["./.source/*"],
       "@/app/*": ["./app/*"],
       "@/lib/*": ["./lib/*"],
