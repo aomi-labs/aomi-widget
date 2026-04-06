@@ -2,6 +2,7 @@ export type ParsedArgs = {
   command: string | undefined;
   positional: string[];
   flags: Record<string, string>;
+  multiFlags: Record<string, string[]>;
 };
 
 export type CliExecutionMode = "auto" | "aa" | "eoa";
@@ -13,6 +14,7 @@ export type CliConfig = {
   apiKey?: string;
   app: string;
   model?: string;
+  secrets: Record<string, string>;
   publicKey?: string;
   privateKey?: string;
   chainRpcUrl?: string;

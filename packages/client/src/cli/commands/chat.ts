@@ -16,6 +16,7 @@ import {
   toToolResultKey,
 } from "../output";
 import {
+  ingestSecretsIfPresent,
   applyRequestedModelIfPresent,
   getOrCreateSession,
 } from "../context";
@@ -37,6 +38,7 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
   const { session, state } = getOrCreateSession(runtime);
 
   try {
+    await ingestSecretsIfPresent(runtime, state, session.client);
     await applyRequestedModelIfPresent(runtime, session, state);
 
     const userState = buildCliUserState(state.publicKey, state.chainId);

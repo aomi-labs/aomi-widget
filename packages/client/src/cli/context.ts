@@ -13,6 +13,7 @@ export function getOrCreateSession(
   if (!state) {
     state = {
       sessionId: crypto.randomUUID(),
+      clientId: crypto.randomUUID(),
       baseUrl: config.baseUrl,
       app: config.app,
       apiKey: config.apiKey,
@@ -22,6 +23,10 @@ export function getOrCreateSession(
     writeState(state);
   } else {
     let changed = false;
+    if (!state.clientId) {
+      state.clientId = crypto.randomUUID();
+      changed = true;
+    }
     if (config.baseUrl !== state.baseUrl) {
       state.baseUrl = config.baseUrl;
       changed = true;
@@ -49,6 +54,7 @@ export function getOrCreateSession(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
+      clientId: state.clientId,
       app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey,
@@ -68,6 +74,29 @@ export function createControlClient(runtime: CliRuntime): AomiClient {
     baseUrl: runtime.config.baseUrl,
     apiKey: runtime.config.apiKey,
   });
+}
+
+export async function ingestSecretsIfPresent(
+  runtime: CliRuntime,
+  state: CliSessionState,
+  client = createControlClient(runtime),
+): Promise<Record<string, string>> {
+  const secretNames = Object.keys(runtime.config.secrets);
+  if (secretNames.length === 0) {
+    return {};
+  }
+
+  const { handles } = await client.ingestSecrets(
+    state.clientId,
+    runtime.config.secrets,
+  );
+  state.secretHandles = {
+    ...(state.secretHandles ?? {}),
+    ...handles,
+  };
+  writeState(state);
+
+  return handles;
 }
 
 export async function applyModelSelection(

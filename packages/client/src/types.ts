@@ -105,6 +105,22 @@ export interface AomiCreateThreadResponse {
   title?: string;
 }
 
+/**
+ * POST /api/secrets
+ * Ingests secrets for a client, returns opaque handles
+ */
+export interface AomiIngestSecretsResponse {
+  handles: Record<string, string>;
+}
+
+/**
+ * DELETE /api/secrets
+ * Clears all secrets for a client
+ */
+export interface AomiClearSecretsResponse {
+  cleared: boolean;
+}
+
 // =============================================================================
 // SSE Event Types (/api/updates)
 // =============================================================================

@@ -53,6 +53,18 @@ var CHAIN_NAMES = {
   10: "Optimism",
   11155111: "Sepolia"
 };
+var LONG_FLAGS_WITH_VALUES = /* @__PURE__ */ new Set([
+  "backend-url",
+  "api-key",
+  "app",
+  "model",
+  "public-key",
+  "private-key",
+  "rpc-url",
+  "chain",
+  "aa-provider",
+  "aa-mode"
+]);
 function parseChainId(value) {
   if (value === void 0) return void 0;
   const n = parseInt(value, 10);
@@ -93,21 +105,66 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
+function parseSecretAssignments(values) {
+  const secrets = {};
+  for (const rawValue of values) {
+    const separatorIndex = rawValue.indexOf("=");
+    if (separatorIndex <= 0) {
+      fatal(`Invalid secret assignment: ${rawValue}
+Use --secret NAME=value`);
+    }
+    const name = rawValue.slice(0, separatorIndex).trim();
+    const value = rawValue.slice(separatorIndex + 1);
+    if (!name) {
+      fatal(
+        `Invalid secret assignment: ${rawValue}
+Secret names cannot be empty.`
+      );
+    }
+    if (!value) {
+      fatal(
+        `Invalid secret assignment: ${rawValue}
+Secret values cannot be empty.`
+      );
+    }
+    secrets[name] = value;
+  }
+  return secrets;
+}
 function parseArgs(argv) {
+  var _a3, _b;
   const raw = argv.slice(2);
-  const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : void 0;
-  const rest = command ? raw.slice(1) : raw;
+  let command;
   const positional = [];
   const flags = {};
-  for (let i = 0; i < rest.length; i++) {
-    const arg = rest[i];
-    if (arg.startsWith("--") && arg.includes("=")) {
+  const multiFlags = {};
+  for (let i = 0; i < raw.length; i++) {
+    const arg = raw[i];
+    if (arg.startsWith("--secret=")) {
+      const value = arg.slice("--secret=".length);
+      (_a3 = multiFlags["secret"]) != null ? _a3 : multiFlags["secret"] = [];
+      multiFlags["secret"].push(value);
+    } else if (arg === "--secret") {
+      const values = [];
+      while (i + 1 < raw.length && !raw[i + 1].startsWith("-") && raw[i + 1].includes("=")) {
+        values.push(raw[i + 1]);
+        i++;
+      }
+      if (values.length === 0) {
+        fatal("`--secret` requires at least one NAME=value entry.");
+      }
+      (_b = multiFlags["secret"]) != null ? _b : multiFlags["secret"] = [];
+      multiFlags["secret"].push(...values);
+    } else if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
       flags[key] = val.join("=");
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
-      const next = rest[i + 1];
-      if (next && !next.startsWith("-")) {
+      if (LONG_FLAGS_WITH_VALUES.has(key)) {
+        const next = raw[i + 1];
+        if (!next || next.startsWith("-")) {
+          fatal(`\`--${key}\` requires a value.`);
+        }
         flags[key] = next;
         i++;
       } else {
@@ -115,14 +172,16 @@ function parseArgs(argv) {
       }
     } else if (arg.startsWith("-") && arg.length === 2) {
       flags[arg.slice(1)] = "true";
+    } else if (!command) {
+      command = arg;
     } else {
       positional.push(arg);
     }
   }
-  return { command, positional, flags };
+  return { command, positional, flags, multiFlags };
 }
 function getConfig(parsed) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const usesSignFlags = parsed.flags["aa"] === "true" || parsed.flags["eoa"] === "true" || parsed.flags["aa-provider"] !== void 0 || parsed.flags["aa-mode"] !== void 0;
   if (usesSignFlags && parsed.command !== "sign") {
     fatal(
@@ -144,10 +203,11 @@ function getConfig(parsed) {
     apiKey: (_e = parsed.flags["api-key"]) != null ? _e : process.env.AOMI_API_KEY,
     app: (_g = (_f = parsed.flags["app"]) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
     model: (_h = parsed.flags["model"]) != null ? _h : process.env.AOMI_MODEL,
-    publicKey: (_i = parsed.flags["public-key"]) != null ? _i : process.env.AOMI_PUBLIC_KEY,
-    privateKey: (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY,
-    chainRpcUrl: (_k = parsed.flags["rpc-url"]) != null ? _k : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_l = parsed.flags["chain"]) != null ? _l : process.env.AOMI_CHAIN_ID),
+    secrets: parseSecretAssignments((_i = parsed.multiFlags["secret"]) != null ? _i : []),
+    publicKey: (_j = parsed.flags["public-key"]) != null ? _j : process.env.AOMI_PUBLIC_KEY,
+    privateKey: (_k = parsed.flags["private-key"]) != null ? _k : process.env.PRIVATE_KEY,
+    chainRpcUrl: (_l = parsed.flags["rpc-url"]) != null ? _l : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_m = parsed.flags["chain"]) != null ? _m : process.env.AOMI_CHAIN_ID),
     execution,
     aaProvider,
     aaMode
@@ -198,12 +258,14 @@ function toSessionFilePath(localId) {
 function toCliSessionState(stored) {
   return {
     sessionId: stored.sessionId,
+    clientId: stored.clientId,
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
     chainId: stored.chainId,
+    secretHandles: stored.secretHandles,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs
   };
@@ -219,12 +281,14 @@ function readStoredSession(path) {
     const fallbackLocalId = (_a3 = parseSessionFileLocalId(basename(path))) != null ? _a3 : 0;
     return {
       sessionId: parsed.sessionId,
+      clientId: typeof parsed.clientId === "string" && parsed.clientId.length > 0 ? parsed.clientId : crypto.randomUUID(),
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
       chainId: parsed.chainId,
+      secretHandles: parsed.secretHandles,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
@@ -792,9 +856,10 @@ var AomiClient = class {
   /**
    * Fetch current session state (messages, processing status, title).
    */
-  async fetchState(sessionId, userState) {
+  async fetchState(sessionId, userState, clientId) {
     const url = buildApiUrl(this.baseUrl, "/api/state", {
-      user_state: userState ? JSON.stringify(userState) : void 0
+      user_state: userState ? JSON.stringify(userState) : void 0,
+      client_id: clientId
     });
     const response = await fetch(url, {
       headers: withSessionHeader(sessionId)
@@ -817,6 +882,9 @@ var AomiClient = class {
     }
     if (options == null ? void 0 : options.userState) {
       payload.user_state = JSON.stringify(options.userState);
+    }
+    if (options == null ? void 0 : options.clientId) {
+      payload.client_id = options.clientId;
     }
     return postState(
       this.baseUrl,
@@ -847,6 +915,34 @@ var AomiClient = class {
       {},
       sessionId
     );
+  }
+  /**
+   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   */
+  async ingestSecrets(clientId, secrets) {
+    const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, secrets })
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  }
+  /**
+   * Clear all secrets for a client.
+   */
+  async clearSecrets(clientId) {
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId
+    });
+    const response = await fetch(url, { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   // ===========================================================================
   // SSE (Real-time Updates)
@@ -1308,6 +1404,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.pendingResolve = null;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
+    this.clientId = sessionOptions == null ? void 0 : sessionOptions.clientId;
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
@@ -1337,7 +1434,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1361,7 +1459,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1512,7 +1611,11 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1542,7 +1645,8 @@ var ClientSession = class extends TypedEventEmitter {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState
+        this.userState,
+        this.clientId
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
@@ -1684,6 +1788,7 @@ function getOrCreateSession(runtime) {
   if (!state) {
     state = {
       sessionId: crypto.randomUUID(),
+      clientId: crypto.randomUUID(),
       baseUrl: config.baseUrl,
       app: config.app,
       apiKey: config.apiKey,
@@ -1693,6 +1798,10 @@ function getOrCreateSession(runtime) {
     writeState(state);
   } else {
     let changed = false;
+    if (!state.clientId) {
+      state.clientId = crypto.randomUUID();
+      changed = true;
+    }
     if (config.baseUrl !== state.baseUrl) {
       state.baseUrl = config.baseUrl;
       changed = true;
@@ -1719,6 +1828,7 @@ function getOrCreateSession(runtime) {
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
+      clientId: state.clientId,
       app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey
@@ -1735,6 +1845,20 @@ function createControlClient(runtime) {
     baseUrl: runtime.config.baseUrl,
     apiKey: runtime.config.apiKey
   });
+}
+async function ingestSecretsIfPresent(runtime, state, client = createControlClient(runtime)) {
+  var _a3;
+  const secretNames = Object.keys(runtime.config.secrets);
+  if (secretNames.length === 0) {
+    return {};
+  }
+  const { handles } = await client.ingestSecrets(
+    state.clientId,
+    runtime.config.secrets
+  );
+  state.secretHandles = __spreadValues(__spreadValues({}, (_a3 = state.secretHandles) != null ? _a3 : {}), handles);
+  writeState(state);
+  return handles;
 }
 async function applyModelSelection(session, state, model) {
   await session.client.setModel(state.sessionId, model, {
@@ -1856,6 +1980,7 @@ async function chatCommand(runtime) {
   const verbose = runtime.parsed.flags["verbose"] === "true" || runtime.parsed.flags["v"] === "true";
   const { session, state } = getOrCreateSession(runtime);
   try {
+    await ingestSecretsIfPresent(runtime, state, session.client);
     await applyRequestedModelIfPresent(runtime, session, state);
     const userState = buildCliUserState(state.publicKey, state.chainId);
     if (userState) {
@@ -2247,7 +2372,11 @@ async function statusCommand(runtime) {
   }
   const { session, state } = getOrCreateSession(runtime);
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(
+      state.sessionId,
+      void 0,
+      state.clientId
+    );
     console.log(
       JSON.stringify(
         {
@@ -2527,7 +2656,11 @@ async function logCommand(runtime) {
   }
   const { session, state } = getOrCreateSession(runtime);
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(
+      state.sessionId,
+      void 0,
+      state.clientId
+    );
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
     const signedTxs = (_c = state.signedTxs) != null ? _c : [];
@@ -2603,6 +2736,65 @@ function closeCommand(runtime) {
   console.log("Session closed");
 }
 
+// src/cli/commands/secrets.ts
+async function ingestSecretsCommand(runtime) {
+  if (Object.keys(runtime.config.secrets).length === 0) {
+    fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    const handles = await ingestSecretsIfPresent(runtime, state, session.client);
+    const names = Object.keys(handles).sort();
+    console.log(
+      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${state.sessionId}.`
+    );
+    for (const name of names) {
+      console.log(`${name}  ${handles[name]}`);
+    }
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+async function secretCommand(runtime) {
+  var _a3;
+  const subcommand = runtime.parsed.positional[0];
+  if (!subcommand || subcommand === "list") {
+    const state = readState();
+    if (!state) {
+      console.log("No active session");
+      printDataFileLocation();
+      return;
+    }
+    const secretHandles = (_a3 = state.secretHandles) != null ? _a3 : {};
+    const names = Object.keys(secretHandles).sort();
+    if (names.length === 0) {
+      console.log("No secrets configured.");
+      printDataFileLocation();
+      return;
+    }
+    for (const name of names) {
+      console.log(`${name}  ${secretHandles[name]}`);
+    }
+    printDataFileLocation();
+    return;
+  }
+  if (subcommand === "clear") {
+    const { session, state } = getOrCreateSession(runtime);
+    try {
+      await session.client.clearSecrets(state.clientId);
+      state.secretHandles = {};
+      writeState(state);
+      console.log("Cleared all secrets for the active session.");
+      printDataFileLocation();
+    } finally {
+      session.close();
+    }
+    return;
+  }
+  fatal("Usage: aomi secret list\n       aomi secret clear");
+}
+
 // src/cli/commands/sessions.ts
 async function fetchRemoteSessionStats(record) {
   var _a3, _b;
@@ -2611,7 +2803,11 @@ async function fetchRemoteSessionStats(record) {
     apiKey: record.state.apiKey
   });
   try {
-    const apiState = await client.fetchState(record.sessionId);
+    const apiState = await client.fetchState(
+      record.sessionId,
+      void 0,
+      record.state.clientId
+    );
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     return {
       topic: (_b = apiState.title) != null ? _b : "Untitled Session",
@@ -3641,6 +3837,10 @@ Usage:
   aomi model list       List models available to the current backend
   aomi model set <rig>  Set the active model for the current session
   aomi chain list       List supported chains
+  aomi secret list      List configured secret handles for the active session
+  aomi secret clear     Clear configured secrets for the active session
+  aomi --secret NAME=value [NAME=value ...]
+                        Ingest secrets into the active session
   aomi session list     List local sessions with metadata
   aomi session resume <id>
                         Resume a local session (session-id or session-N)
@@ -3659,6 +3859,8 @@ Options:
   --api-key <key>       API key for non-default apps
   --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
+  --secret <name=value> [<name=value> ...]
+                        Ingest secret values for the active session
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
@@ -3697,6 +3899,10 @@ Environment (overridden by flags):
 }
 async function main(runtime) {
   var _a3;
+  if (!runtime.parsed.command && Object.keys(runtime.config.secrets).length > 0) {
+    await ingestSecretsCommand(runtime);
+    return;
+  }
   const command = (_a3 = runtime.parsed.command) != null ? _a3 : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
   switch (command) {
     case "chat":
@@ -3716,6 +3922,9 @@ async function main(runtime) {
       break;
     case "session":
       await sessionCommand(runtime);
+      break;
+    case "secret":
+      await secretCommand(runtime);
       break;
     case "tx":
       txCommand();

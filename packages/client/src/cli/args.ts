@@ -19,6 +19,19 @@ export const CHAIN_NAMES: Record<number, string> = {
   11155111: "Sepolia",
 };
 
+const LONG_FLAGS_WITH_VALUES = new Set([
+  "backend-url",
+  "api-key",
+  "app",
+  "model",
+  "public-key",
+  "private-key",
+  "rpc-url",
+  "chain",
+  "aa-provider",
+  "aa-mode",
+]);
+
 function parseChainId(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
   const n = parseInt(value, 10);
@@ -64,23 +77,76 @@ function parseAAMode(value: string | undefined): CliAAMode | undefined {
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
 
+function parseSecretAssignments(values: string[]): Record<string, string> {
+  const secrets: Record<string, string> = {};
+
+  for (const rawValue of values) {
+    const separatorIndex = rawValue.indexOf("=");
+    if (separatorIndex <= 0) {
+      fatal(`Invalid secret assignment: ${rawValue}\nUse --secret NAME=value`);
+    }
+
+    const name = rawValue.slice(0, separatorIndex).trim();
+    const value = rawValue.slice(separatorIndex + 1);
+
+    if (!name) {
+      fatal(
+        `Invalid secret assignment: ${rawValue}\nSecret names cannot be empty.`,
+      );
+    }
+
+    if (!value) {
+      fatal(
+        `Invalid secret assignment: ${rawValue}\nSecret values cannot be empty.`,
+      );
+    }
+
+    secrets[name] = value;
+  }
+
+  return secrets;
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const raw = argv.slice(2);
-  const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : undefined;
-  const rest = command ? raw.slice(1) : raw;
-
+  let command: string | undefined;
   const positional: string[] = [];
   const flags: Record<string, string> = {};
+  const multiFlags: Record<string, string[]> = {};
 
-  for (let i = 0; i < rest.length; i++) {
-    const arg = rest[i];
-    if (arg.startsWith("--") && arg.includes("=")) {
+  for (let i = 0; i < raw.length; i++) {
+    const arg = raw[i];
+    if (arg.startsWith("--secret=")) {
+      const value = arg.slice("--secret=".length);
+      multiFlags["secret"] ??= [];
+      multiFlags["secret"].push(value);
+    } else if (arg === "--secret") {
+      const values: string[] = [];
+      while (
+        i + 1 < raw.length &&
+        !raw[i + 1].startsWith("-") &&
+        raw[i + 1].includes("=")
+      ) {
+        values.push(raw[i + 1]);
+        i++;
+      }
+
+      if (values.length === 0) {
+        fatal("`--secret` requires at least one NAME=value entry.");
+      }
+
+      multiFlags["secret"] ??= [];
+      multiFlags["secret"].push(...values);
+    } else if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
       flags[key] = val.join("=");
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
-      const next = rest[i + 1];
-      if (next && !next.startsWith("-")) {
+      if (LONG_FLAGS_WITH_VALUES.has(key)) {
+        const next = raw[i + 1];
+        if (!next || next.startsWith("-")) {
+          fatal(`\`--${key}\` requires a value.`);
+        }
         flags[key] = next;
         i++;
       } else {
@@ -88,12 +154,14 @@ export function parseArgs(argv: string[]): ParsedArgs {
       }
     } else if (arg.startsWith("-") && arg.length === 2) {
       flags[arg.slice(1)] = "true";
+    } else if (!command) {
+      command = arg;
     } else {
       positional.push(arg);
     }
   }
 
-  return { command, positional, flags };
+  return { command, positional, flags, multiFlags };
 }
 
 export function getConfig(parsed: ParsedArgs): CliConfig {
@@ -136,6 +204,7 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
     model:
       parsed.flags["model"] ??
       process.env.AOMI_MODEL,
+    secrets: parseSecretAssignments(parsed.multiFlags["secret"] ?? []),
     publicKey:
       parsed.flags["public-key"] ??
       process.env.AOMI_PUBLIC_KEY,

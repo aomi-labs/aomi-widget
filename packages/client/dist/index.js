@@ -258,9 +258,10 @@ var AomiClient = class {
   /**
    * Fetch current session state (messages, processing status, title).
    */
-  async fetchState(sessionId, userState) {
+  async fetchState(sessionId, userState, clientId) {
     const url = buildApiUrl(this.baseUrl, "/api/state", {
-      user_state: userState ? JSON.stringify(userState) : void 0
+      user_state: userState ? JSON.stringify(userState) : void 0,
+      client_id: clientId
     });
     const response = await fetch(url, {
       headers: withSessionHeader(sessionId)
@@ -283,6 +284,9 @@ var AomiClient = class {
     }
     if (options == null ? void 0 : options.userState) {
       payload.user_state = JSON.stringify(options.userState);
+    }
+    if (options == null ? void 0 : options.clientId) {
+      payload.client_id = options.clientId;
     }
     return postState(
       this.baseUrl,
@@ -313,6 +317,34 @@ var AomiClient = class {
       {},
       sessionId
     );
+  }
+  /**
+   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   */
+  async ingestSecrets(clientId, secrets) {
+    const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, secrets })
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  }
+  /**
+   * Clear all secrets for a client.
+   */
+  async clearSecrets(clientId) {
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId
+    });
+    const response = await fetch(url, { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   // ===========================================================================
   // SSE (Real-time Updates)
@@ -774,6 +806,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.pendingResolve = null;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
+    this.clientId = sessionOptions == null ? void 0 : sessionOptions.clientId;
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
@@ -803,7 +836,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -827,7 +861,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -978,7 +1013,11 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1008,7 +1047,8 @@ var ClientSession = class extends TypedEventEmitter {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState
+        this.userState,
+        this.clientId
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
