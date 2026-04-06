@@ -6,7 +6,8 @@ import { NetworkSelect } from "./network-select";
 import { ModelSelect } from "./model-select";
 import { AppSelect } from "./app-select";
 import { ApiKeyInput } from "./api-key-input";
-import { WalletConnect } from "./wallet-connect";
+import { ConnectButton } from "./connect-button";
+import { SecretInput } from "./secret-input";
 
 // =============================================================================
 // Types
@@ -26,6 +27,8 @@ export type ControlBarProps = {
   hideWallet?: boolean;
   /** Hide the network selector (default: false) */
   hideNetwork?: boolean;
+  /** Hide the secrets input */
+  hideSecrets?: boolean;
 };
 
 // =============================================================================
@@ -40,13 +43,15 @@ export const ControlBar: FC<ControlBarProps> = ({
   hideApiKey = false,
   hideWallet = true,
   hideNetwork = false,
+  hideSecrets = false,
 }) => {
   return (
     <div className={cn("flex items-center gap-2", className)}>
       {!hideNetwork && <NetworkSelect />}
       {!hideModel && <ModelSelect />}
       {!hideApp && <AppSelect />}
-      {!hideWallet && <WalletConnect />}
+      {!hideWallet && <ConnectButton />}
+      {!hideSecrets && <SecretInput />}
       {children}
       {!hideApiKey && <ApiKeyInput />}
     </div>
@@ -60,5 +65,11 @@ export const ControlBar: FC<ControlBarProps> = ({
 export { ModelSelect, type ModelSelectProps } from "./model-select";
 export { AppSelect, type AppSelectProps } from "./app-select";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
-export { WalletConnect, type WalletConnectProps } from "./wallet-connect";
+export {
+  ConnectButton,
+  type ConnectButtonProps,
+  WalletConnect,
+  type WalletConnectProps,
+} from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
+export { SecretInput, type SecretInputProps } from "./secret-input";

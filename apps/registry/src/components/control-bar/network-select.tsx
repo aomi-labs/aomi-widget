@@ -3,7 +3,7 @@
 import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
 import { cn, SUPPORTED_CHAINS, getChainInfo } from "@aomi-labs/react";
-import { useWalletAdapter } from "../../lib/wallet-adapter";
+import { useWalletAdapter } from "../../lib/aomi-wallet-adapter";
 import { Button } from "@/components/ui/button";
 import {
   Popover,

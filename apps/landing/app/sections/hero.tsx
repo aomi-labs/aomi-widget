@@ -225,7 +225,7 @@ export function Hero() {
           <span className="font-pt-serif italic"> from action.</span>
         </p>
         <p className="font-geist mr-auto mb-10 ml-auto max-w-xl text-sm leading-relaxed font-light tracking-wide text-neutral-50 drop-shadow-lg md:text-base">
-          Embed AI features in your crypto product. Simulation-first,
+          Embed AI features in your crypto product. Universal Smart Contract support,
           <br className="hidden md:block" />
           human-in-the-loop, multi-chain. Ship in minutes.
         </p>

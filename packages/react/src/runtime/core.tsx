@@ -47,7 +47,7 @@ export function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
 
   const {
     backendStateRef,
@@ -63,6 +63,7 @@ export function AomiRuntimeCore({
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
+    getClientId: () => getControlState().clientId ?? undefined,
   });
 
   const walletSnapshot = useCallback(
@@ -389,13 +390,14 @@ export function AomiRuntimeCore({
   });
 
   // ---------------------------------------------------------------------------
-  // Cleanup polling on unmount
+  // Cleanup polling and secrets on unmount
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return () => {
       polling.stopAll();
+      void clearSecrets();
     };
-  }, [polling]);
+  }, [polling, clearSecrets]);
 
   // ---------------------------------------------------------------------------
   // Build AomiRuntimeApi
