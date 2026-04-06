@@ -7,7 +7,7 @@ import {
   type FC,
   type ReactNode,
 } from "react";
-import { CopyButton } from "@/components/playground/CopyButton";
+import { CopyButton } from "@/content/components/playground/CopyButton";
 
 // =============================================================================
 // Types

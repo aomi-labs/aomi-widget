@@ -2,16 +2,16 @@
 
 import { useEffect, type FC } from "react";
 import { cn, getChainInfo, useUser } from "@aomi-labs/react";
-import { useWalletAdapter } from "../../lib/wallet-adapter";
+import { useWalletAdapter } from "../../lib/aomi-wallet-adapter";
 import { useAccountIdentity } from "../../lib/account-identity";
 
-export type WalletConnectProps = {
+export type ConnectButtonProps = {
   className?: string;
   connectLabel?: string;
   onConnectionChange?: (connected: boolean) => void;
 };
 
-export const WalletConnect: FC<WalletConnectProps> = ({
+export const ConnectButton: FC<ConnectButtonProps> = ({
   className,
   connectLabel = "Connect Account",
   onConnectionChange,
@@ -38,7 +38,7 @@ export const WalletConnect: FC<WalletConnectProps> = ({
   const handleClick = () => {
     const action = identity.isConnected ? adapter.manageAccount : adapter.connect;
     void action().catch((error) => {
-      console.error("[WalletConnect] Wallet action failed:", error);
+      console.error("[ConnectButton] Wallet action failed:", error);
     });
   };
 
@@ -77,3 +77,8 @@ export const WalletConnect: FC<WalletConnectProps> = ({
     </button>
   );
 };
+
+/** @deprecated Use {@link ConnectButton} */
+export const WalletConnect = ConnectButton;
+/** @deprecated Use {@link ConnectButtonProps} */
+export type WalletConnectProps = ConnectButtonProps;

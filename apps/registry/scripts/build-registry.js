@@ -1,4 +1,9 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -52,6 +57,7 @@ function buildComponent(entry) {
 }
 
 function main() {
+  rmSync(distDir, { recursive: true, force: true });
   mkdirSync(distDir, { recursive: true });
 
   const items = registry.map(buildComponent);

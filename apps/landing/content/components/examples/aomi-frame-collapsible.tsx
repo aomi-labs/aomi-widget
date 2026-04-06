@@ -23,7 +23,6 @@ import {
 } from "@aomi-labs/widget-lib/components/ui/breadcrumb";
 import { Thread } from "@aomi-labs/widget-lib/components/assistant-ui/thread";
 import { ThreadListCollapsible } from "./threadlist-collapsible";
-import { useDemoBackendUrl } from "@/components/runtime/use-demo-backend-url";
 
 // =============================================================================
 // Types
@@ -55,11 +54,8 @@ export const AomiFrameCollapsible = ({
   children,
   defaultOpen = false,
 }: AomiFrameCollapsibleProps) => {
-  const backendUrl = useDemoBackendUrl();
-
-  if (!backendUrl) {
-    return <div style={{ width, height, ...style }} className={className} />;
-  }
+  // Same-origin proxy — stable across SSR and hydration (matches playground / widget demo).
+  const backendUrl = "/";
 
   return (
     <AomiRuntimeProvider backendUrl={backendUrl}>

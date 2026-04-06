@@ -2,7 +2,7 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 
-// Wallet adapter (provider-agnostic context + types)
+// Aomi wallet adapter (provider-agnostic context + types)
 export {
   type WalletAdapter,
   type AomiAdapter,
@@ -11,7 +11,7 @@ export {
   DISCONNECTED_ADAPTER,
   useWalletAdapter,
   useAomiAdapter,
-} from "./lib/wallet-adapter";
+} from "./lib/aomi-wallet-adapter";
 
 // Para wallet bridge (runs inside ParaProviderMin)
 export { ParaWalletBridge } from "./components/para-wallet-bridge";

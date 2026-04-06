@@ -9,6 +9,13 @@ const landingNodeModules = path.resolve(__dirname, "node_modules");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
+const registryComponents = path.resolve(__dirname, "../registry/src/components");
+const contentDir = path.resolve(__dirname, "content");
+const contentExamplesComponents = path.join(
+  contentDir,
+  "components",
+  "examples",
+);
 
 // Turbopack resolveAlias needs package specifiers or relative paths, not absolute.
 // We point singleton packages to the landing app's copies so registry code
@@ -17,7 +24,12 @@ const turbopackAliases: Record<string, string> = {
   "@/.source": "./.source",
   "@/app": "./app",
   "@/lib": "./lib",
-  "@/components": "./src/components",
+  // Docs-only examples (API consoles, etc.) — must be listed before `@/components`.
+  "@/components/examples": "./content/components/examples",
+  // Widget + shadcn UI live in the registry package (docs MDX imports @/components/...).
+  "@/components": "../registry/src/components",
+  // Docs-only interactive components (playground, API consoles) live under content/.
+  "@/content": "./content",
   "@/hooks": "./src/hooks",
   "@aomi-labs/react": "../../packages/react/src/index.ts",
   "@getpara/react-core": "./node_modules/@getpara/react-core",
@@ -64,7 +76,9 @@ const nextConfig: NextConfig = {
       "@/.source": path.join(docsSrc, ".source"),
       "@/app": path.join(docsSrc, "app"),
       "@/lib": path.join(docsSrc, "lib"),
-      "@/components": path.join(landingSrc, "components"),
+      "@/components/examples": contentExamplesComponents,
+      "@/components": registryComponents,
+      "@/content": contentDir,
       "@/hooks": path.join(landingSrc, "hooks"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
       "@getpara/react-core": path.join(

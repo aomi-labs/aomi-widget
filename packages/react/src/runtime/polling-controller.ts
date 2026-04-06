@@ -19,6 +19,7 @@ type PollingConfig = {
   applyMessages: (threadId: string, messages?: AomiMessage[] | null) => void;
   onSyncEvents?: (sessionId: string, events: AomiSystemEvent[]) => void;
   getUserState?: () => UserState;
+  getClientId?: () => string | undefined;
   onStart?: (threadId: string) => void;
   onStop?: (threadId: string) => void;
   intervalMs?: number;
@@ -48,9 +49,11 @@ export class PollingController {
           threadId,
         );
         const userState = this.config.getUserState?.();
+        const clientId = this.config.getClientId?.();
         const state = await this.config.aomiClientRef.current.fetchState(
           backendThreadId,
           userState,
+          clientId,
         );
 
         if (!this.intervals.has(threadId)) return;

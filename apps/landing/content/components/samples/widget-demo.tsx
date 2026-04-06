@@ -1,8 +1,7 @@
 "use client";
 
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import { Preview } from "@/components/playground/Preview";
-import { useDemoBackendUrl } from "@/components/runtime/use-demo-backend-url";
+import { Preview } from "@/content/components/playground/Preview";
 
 const widgetCode = `import { AomiFrame } from "@aomi-labs/widget-lib";
 
@@ -16,11 +15,7 @@ export function WidgetDemo() {
 }`;
 
 export function WidgetFrame() {
-  const backendUrl = useDemoBackendUrl();
-
-  if (!backendUrl) {
-    return <div className="h-[560px] w-full" />;
-  }
+  const backendUrl = "/";
 
   return (
     <AomiFrame.Root

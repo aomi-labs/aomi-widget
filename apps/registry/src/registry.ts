@@ -29,14 +29,14 @@ export const registry: RegistryComponent[] = [
     registryDependencies: [
       // Theme (CSS variables required by all components)
       aomi("aomi-theme"),
-      aomi("wallet-adapter"),
+      aomi("aomi-wallet-adapter"),
       aomi("para-wallet-bridge"),
       // Internal aomi components (customized)
       aomi("assistant-thread"),
       aomi("assistant-threadlist-sidebar"),
       aomi("control-bar"),
       aomi("notification"),
-      aomi("wallet-tx-handler"),
+      aomi("runtime-tx-handler"),
       // shadcn primitives
       "separator",
       "breadcrumb",
@@ -45,9 +45,9 @@ export const registry: RegistryComponent[] = [
     description: "Full assistant shell with thread list and runtime wiring.",
   },
   {
-    name: "wallet-adapter",
+    name: "aomi-wallet-adapter",
     file: [
-      "lib/wallet-adapter.ts",
+      "lib/aomi-wallet-adapter.ts",
       "lib/account-identity.ts",
     ],
     dependencies: [
@@ -65,7 +65,7 @@ export const registry: RegistryComponent[] = [
       "viem",
       "wagmi",
     ],
-    registryDependencies: [aomi("wallet-adapter")],
+    registryDependencies: [aomi("aomi-wallet-adapter")],
     description:
       "Para wallet bridge — runs inside ParaProviderMin, writes WalletAdapterContext.",
   },
@@ -76,12 +76,13 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/model-select.tsx",
       "components/control-bar/app-select.tsx",
       "components/control-bar/api-key-input.tsx",
-      "components/control-bar/wallet-connect.tsx",
+      "components/control-bar/connect-button.tsx",
       "components/control-bar/network-select.tsx",
+      "components/control-bar/secret-input.tsx",
     ],
     dependencies: ["@aomi-labs/react", "lucide-react"],
     registryDependencies: [
-      aomi("wallet-adapter"),
+      aomi("aomi-wallet-adapter"),
       "button",
       "popover",
       "dialog",
@@ -174,10 +175,10 @@ export const registry: RegistryComponent[] = [
     description: "Shadcn wrapper for Sonner toasts.",
   },
   {
-    name: "wallet-tx-handler",
-    file: "components/wallet-tx-handler.tsx",
+    name: "runtime-tx-handler",
+    file: "components/runtime-tx-handler.tsx",
     dependencies: ["@aomi-labs/react"],
-    registryDependencies: [aomi("wallet-adapter")],
+    registryDependencies: [aomi("aomi-wallet-adapter")],
     description:
       "Bridges wallet transaction and EIP-712 signing requests from the AI backend to the active Aomi adapter.",
   },

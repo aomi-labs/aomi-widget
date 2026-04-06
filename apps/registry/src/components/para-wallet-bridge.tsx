@@ -29,7 +29,7 @@ import {
   WalletAdapterContext,
   DISCONNECTED_ADAPTER,
   type WalletAdapter,
-} from "../lib/wallet-adapter";
+} from "../lib/aomi-wallet-adapter";
 
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
 const LOCALHOST_CHAIN_ID = 31337;
