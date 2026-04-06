@@ -63,30 +63,30 @@ new Session(clientOptions: AomiClientOptions, sessionOptions?: SessionOptions)
 new Session(client: AomiClient, sessionOptions?: SessionOptions)
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `sessionId` | `crypto.randomUUID()` | Thread/session ID |
-| `namespace` | `"default"` | Backend namespace |
-| `publicKey` | — | Wallet address |
-| `apiKey` | — | API key for private namespaces |
-| `userState` | — | Arbitrary user state sent with requests |
-| `pollIntervalMs` | `500` | Polling interval in ms |
-| `logger` | — | Pass `console` for debug output |
+| Option           | Default               | Description                             |
+| ---------------- | --------------------- | --------------------------------------- |
+| `sessionId`      | `crypto.randomUUID()` | Thread/session ID                       |
+| `namespace`      | `"default"`           | Backend namespace                       |
+| `publicKey`      | —                     | Wallet address                          |
+| `apiKey`         | —                     | API key for private namespaces          |
+| `userState`      | —                     | Arbitrary user state sent with requests |
+| `pollIntervalMs` | `500`                 | Polling interval in ms                  |
+| `logger`         | —                     | Pass `console` for debug output         |
 
 #### Methods
 
-| Method | Description |
-|--------|-------------|
-| `send(message)` | Send a message, wait for completion, return `{ messages, title }` |
-| `sendAsync(message)` | Send without waiting — poll in background, listen via events |
-| `resolve(id, result)` | Resolve a pending wallet request |
-| `reject(id, reason?)` | Reject a pending wallet request |
-| `interrupt()` | Cancel current processing |
-| `close()` | Stop polling, unsubscribe SSE, clean up |
-| `getMessages()` | Current messages |
-| `getTitle()` | Current session title |
-| `getPendingRequests()` | Pending wallet requests |
-| `getIsProcessing()` | Whether the agent is processing |
+| Method                 | Description                                                       |
+| ---------------------- | ----------------------------------------------------------------- |
+| `send(message)`        | Send a message, wait for completion, return `{ messages, title }` |
+| `sendAsync(message)`   | Send without waiting — poll in background, listen via events      |
+| `resolve(id, result)`  | Resolve a pending wallet request                                  |
+| `reject(id, reason?)`  | Reject a pending wallet request                                   |
+| `interrupt()`          | Cancel current processing                                         |
+| `close()`              | Stop polling, unsubscribe SSE, clean up                           |
+| `getMessages()`        | Current messages                                                  |
+| `getTitle()`           | Current session title                                             |
+| `getPendingRequests()` | Pending wallet requests                                           |
+| `getIsProcessing()`    | Whether the agent is processing                                   |
 
 #### Events
 
@@ -122,8 +122,11 @@ For one-off usage, run commands via `npx @aomi-labs/client ...`.
 npx @aomi-labs/client chat "swap 1 ETH for USDC"        # talk to the agent
 npx @aomi-labs/client chat "swap 1 ETH for USDC" --model claude-sonnet-4
 npx @aomi-labs/client chat "swap 1 ETH" --verbose        # stream tool calls + responses live
-npx @aomi-labs/client models                             # list available models
+npx @aomi-labs/client app list                           # list available apps
+npx @aomi-labs/client model list                         # list available models
 npx @aomi-labs/client model set claude-sonnet-4          # switch the current session model
+npx @aomi-labs/client secret list                        # list configured secret handles
+npx @aomi-labs/client --secret ALCHEMY_API_KEY=...       # ingest a secret for the active session
 npx @aomi-labs/client log                                # show full conversation history
 npx @aomi-labs/client tx                                 # list pending + signed txs
 npx @aomi-labs/client sign tx-1                          # sign a specific pending tx
@@ -150,7 +153,7 @@ session don't need it again.
 The CLI can discover and switch backend models for the active session:
 
 ```bash
-$ npx @aomi-labs/client models
+$ npx @aomi-labs/client model list
 claude-sonnet-4
 gpt-5
 
@@ -163,6 +166,29 @@ $ npx @aomi-labs/client chat "hello" --model claude-sonnet-4
 `aomi model set` persists the selected model in the local session state after a
 successful backend update. `aomi chat --model ...` applies the requested model
 before sending the message and updates that persisted state as well.
+
+### Secret management
+
+The CLI supports per-session secret ingestion. This lets the backend use opaque
+handles instead of raw secret values:
+
+```bash
+$ npx @aomi-labs/client --secret ALCHEMY_API_KEY=sk_live_123
+Configured 1 secret for session 7f8a...
+ALCHEMY_API_KEY  $SECRET:ALCHEMY_API_KEY
+
+$ npx @aomi-labs/client --secret ALCHEMY_API_KEY=sk_live_123 chat "simulate a swap on Base"
+```
+
+You can inspect or clear the current session's secret handles:
+
+```bash
+$ npx @aomi-labs/client secret list
+ALCHEMY_API_KEY  $SECRET:ALCHEMY_API_KEY
+
+$ npx @aomi-labs/client secret clear
+Cleared all secrets for the active session.
+```
 
 ### Transaction flow
 
@@ -252,17 +278,18 @@ $ npx @aomi-labs/client log
 
 All config can be passed as flags (which take priority over env vars):
 
-| Flag | Env Variable | Default | Description |
-|------|-------------|---------|-------------|
-| `--backend-url` | `AOMI_BASE_URL` | `https://api.aomi.dev` | Backend URL |
-| `--api-key` | `AOMI_API_KEY` | — | API key for non-default apps |
-| `--app` | `AOMI_APP` | `default` | App |
-| `--model` | `AOMI_MODEL` | — | Model rig to apply before chat |
-| `--public-key` | `AOMI_PUBLIC_KEY` | — | Wallet address (tells agent your wallet) |
-| `--private-key` | `PRIVATE_KEY` | — | Hex private key for `aomi sign` |
-| `--rpc-url` | `CHAIN_RPC_URL` | — | RPC URL for transaction submission |
-| `--chain` | `AOMI_CHAIN_ID` | `1` | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
-| `--verbose`, `-v` | — | — | Stream tool calls and agent responses live |
+| Flag                    | Env Variable      | Default                | Description                                  |
+| ----------------------- | ----------------- | ---------------------- | -------------------------------------------- |
+| `--backend-url`         | `AOMI_BASE_URL`   | `https://api.aomi.dev` | Backend URL                                  |
+| `--api-key`             | `AOMI_API_KEY`    | —                      | API key for non-default apps                 |
+| `--app`                 | `AOMI_APP`        | `default`              | App                                          |
+| `--model`               | `AOMI_MODEL`      | —                      | Model rig to apply before chat               |
+| `--secret <NAME=value>` | —                 | —                      | Ingest secret values for the active session  |
+| `--public-key`          | `AOMI_PUBLIC_KEY` | —                      | Wallet address (tells agent your wallet)     |
+| `--private-key`         | `PRIVATE_KEY`     | —                      | Hex private key for `aomi sign`              |
+| `--rpc-url`             | `CHAIN_RPC_URL`   | —                      | RPC URL for transaction submission           |
+| `--chain`               | `AOMI_CHAIN_ID`   | `1`                    | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
+| `--verbose`, `-v`       | —                 | —                      | Stream tool calls and agent responses live   |
 
 ```bash
 # Use a custom backend
@@ -293,14 +320,16 @@ The CLI is **not** a long-running process — each command starts, runs, and
 exits. Conversation history lives on the backend. Between invocations, the CLI
 persists local state under `AOMI_STATE_DIR` or `~/.aomi` by default:
 
-| Field | Purpose |
-|-------|---------|
-| `sessionId` | Which conversation to continue |
-| `model` | Last successfully applied model for the session |
-| `publicKey` | Wallet address (from `--public-key`) |
-| `chainId` | Active chain ID (from `--chain`) |
-| `pendingTxs` | Unsigned transactions waiting for `aomi sign <id>` |
-| `signedTxs` | Completed transactions with hashes/signatures |
+| Field           | Purpose                                                |
+| --------------- | ------------------------------------------------------ |
+| `sessionId`     | Which conversation to continue                         |
+| `clientId`      | Stable client identity used for session secret handles |
+| `model`         | Last successfully applied model for the session        |
+| `publicKey`     | Wallet address (from `--public-key`)                   |
+| `chainId`       | Active chain ID (from `--chain`)                       |
+| `secretHandles` | Opaque handles returned for ingested secrets           |
+| `pendingTxs`    | Unsigned transactions waiting for `aomi sign <id>`     |
+| `signedTxs`     | Completed transactions with hashes/signatures          |
 
 ```
 $ npx @aomi-labs/client chat "hello"           # creates session, saves sessionId
