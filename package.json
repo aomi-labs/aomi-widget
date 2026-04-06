@@ -1,6 +1,6 @@
 {
   "name": "aomi-widget",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "AI-powered assistant UI widget library",
   "type": "module",

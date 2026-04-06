@@ -16,7 +16,11 @@ export async function statusCommand(runtime: CliRuntime): Promise<void> {
   const { session, state } = getOrCreateSession(runtime);
 
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(
+      state.sessionId,
+      undefined,
+      state.clientId,
+    );
     console.log(
       JSON.stringify(
         {

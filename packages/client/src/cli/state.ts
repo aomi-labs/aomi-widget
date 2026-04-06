@@ -44,12 +44,14 @@ export type SignedTx = {
 
 export type CliSessionState = {
   sessionId: string;
+  clientId: string;
   baseUrl: string;
   app?: string;
   model?: string;
   apiKey?: string;
   publicKey?: string;
   chainId?: number;
+  secretHandles?: Record<string, string>;
   pendingTxs?: PendingTx[];
   signedTxs?: SignedTx[];
 };
@@ -100,12 +102,14 @@ function toSessionFilePath(localId: number): string {
 function toCliSessionState(stored: StoredSessionState): CliSessionState {
   return {
     sessionId: stored.sessionId,
+    clientId: stored.clientId,
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
     chainId: stored.chainId,
+    secretHandles: stored.secretHandles,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs,
   };
@@ -123,12 +127,17 @@ function readStoredSession(path: string): StoredSessionState | null {
     const fallbackLocalId = parseSessionFileLocalId(basename(path)) ?? 0;
     return {
       sessionId: parsed.sessionId,
+      clientId:
+        typeof parsed.clientId === "string" && parsed.clientId.length > 0
+          ? parsed.clientId
+          : crypto.randomUUID(),
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
       chainId: parsed.chainId,
+      secretHandles: parsed.secretHandles,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
       localId:

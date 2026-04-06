@@ -18,7 +18,7 @@ vi.mock("@getpara/aa-pimlico", () => ({
   createPimlicoSmartAccount: createPimlicoSmartAccountMock,
 }));
 
-import { getConfig } from "../src/cli/args";
+import { getConfig, parseArgs } from "../src/cli/args";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -60,6 +60,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: {},
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("auto");
@@ -70,6 +71,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: { eoa: "true" },
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("eoa");
@@ -83,6 +85,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: { eoa: "true" },
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("eoa");
@@ -97,6 +100,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: {},
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("auto");
@@ -111,6 +115,7 @@ describe("CLI execution controls", () => {
         command: "sign",
         positional: [],
         flags: { aa: "true", eoa: "true" },
+        secretAssignments: [],
       }),
     ).toThrow(CliExit);
 
@@ -125,6 +130,7 @@ describe("CLI execution controls", () => {
         command: "tx",
         positional: [],
         flags: { aa: "true" },
+        secretAssignments: [],
       }),
     ).toThrow(CliExit);
 
@@ -154,6 +160,68 @@ describe("CLI execution controls", () => {
     expect(describeExecutionDecision(decision)).toBe(
       "aa (alchemy, 7702; fallback: eoa)",
     );
+  });
+
+  it("parses commands when global flags appear before the command", () => {
+    const parsed = parseArgs([
+      "node",
+      "cli.js",
+      "--backend-url",
+      "http://127.0.0.1:8080",
+      "secret",
+      "list",
+    ]);
+
+    expect(parsed.command).toBe("secret");
+    expect(parsed.positional).toEqual(["list"]);
+    expect(parsed.flags["backend-url"]).toBe("http://127.0.0.1:8080");
+  });
+
+  it("keeps standalone secret ingestion commandless", () => {
+    const parsed = parseArgs([
+      "node",
+      "cli.js",
+      "--backend-url",
+      "http://127.0.0.1:8080",
+      "--secret",
+      "API-KEY-A=sk_123",
+      "API-KEY-B=sk_456",
+    ]);
+
+    expect(parsed.command).toBeUndefined();
+    expect(parsed.positional).toEqual([]);
+    expect(parsed.secretAssignments).toEqual([
+      "API-KEY-A=sk_123",
+      "API-KEY-B=sk_456",
+    ]);
+  });
+
+  it("keeps secret assignments when a command is also present", () => {
+    const parsed = parseArgs([
+      "node",
+      "cli.js",
+      "--secret",
+      "API-KEY-A=sk_123",
+      "status",
+    ]);
+
+    expect(parsed.command).toBe("status");
+    expect(parsed.positional).toEqual([]);
+    expect(parsed.secretAssignments).toEqual(["API-KEY-A=sk_123"]);
+  });
+
+  it("does not let boolean flags consume the command when flags come first", () => {
+    const parsed = parseArgs([
+      "node",
+      "cli.js",
+      "--verbose",
+      "chat",
+      "hello",
+    ]);
+
+    expect(parsed.command).toBe("chat");
+    expect(parsed.positional).toEqual(["hello"]);
+    expect(parsed.flags["verbose"]).toBe("true");
   });
 
   it("resolves explicit provider and mode selections", () => {

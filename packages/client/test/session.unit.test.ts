@@ -104,9 +104,13 @@ describe("ClientSession ext helpers", () => {
     session.addExtValue("SIMMER_API_KEY", "sk_live_4");
     await session.syncUserState();
 
-    expect(fetchState).toHaveBeenCalledWith("session-unit-4", {
-      ext: { SIMMER_API_KEY: "sk_live_4" },
-    });
+    expect(fetchState).toHaveBeenCalledWith(
+      "session-unit-4",
+      {
+        ext: { SIMMER_API_KEY: "sk_live_4" },
+      },
+      undefined,
+    );
 
     session.close();
   });

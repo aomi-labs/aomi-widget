@@ -78,6 +78,20 @@ interface AomiCreateThreadResponse {
     title?: string;
 }
 /**
+ * POST /api/secrets
+ * Ingests secrets for a client, returns opaque handles
+ */
+interface AomiIngestSecretsResponse {
+    handles: Record<string, string>;
+}
+/**
+ * DELETE /api/secrets
+ * Clears all secrets for a client
+ */
+interface AomiClearSecretsResponse {
+    cleared: boolean;
+}
+/**
  * Base SSE event - all events have session_id and type
  */
 type AomiSSEEvent = {
@@ -132,7 +146,7 @@ declare class AomiClient {
     /**
      * Fetch current session state (messages, processing status, title).
      */
-    fetchState(sessionId: string, userState?: UserState): Promise<AomiStateResponse>;
+    fetchState(sessionId: string, userState?: UserState, clientId?: string): Promise<AomiStateResponse>;
     /**
      * Send a chat message and return updated session state.
      */
@@ -141,6 +155,7 @@ declare class AomiClient {
         publicKey?: string;
         apiKey?: string;
         userState?: UserState;
+        clientId?: string;
     }): Promise<AomiChatResponse>;
     /**
      * Send a system-level message (e.g. wallet state changes, context switches).
@@ -150,6 +165,14 @@ declare class AomiClient {
      * Interrupt the AI's current response.
      */
     interrupt(sessionId: string): Promise<AomiInterruptResponse>;
+    /**
+     * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+     */
+    ingestSecrets(clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
+    /**
+     * Clear all secrets for a client.
+     */
+    clearSecrets(clientId: string): Promise<AomiClearSecretsResponse>;
     /**
      * Subscribe to real-time SSE updates for a session.
      * Automatically reconnects with exponential backoff on disconnects.
@@ -313,6 +336,8 @@ type SendResult = {
 type SessionOptions = {
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;
+    /** Stable client ID used for associating secrets with a session. */
+    clientId?: string;
     /** App for chat messages. Default: "default" */
     app?: string;
     /** User public key (wallet address). */
@@ -374,6 +399,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     /** The session (thread) ID. */
     readonly sessionId: string;
     private app;
+    private clientId?;
     private publicKey?;
     private apiKey?;
     private userState?;

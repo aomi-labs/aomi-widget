@@ -103,6 +103,8 @@ function isSubsetMatch(expected: unknown, actual: unknown): boolean {
 export type SessionOptions = {
   /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
   sessionId?: string;
+  /** Stable client ID used for associating secrets with a session. */
+  clientId?: string;
   /** App for chat messages. Default: "default" */
   app?: string;
   /** User public key (wallet address). */
@@ -158,6 +160,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly sessionId: string;
 
   private app: string;
+  private clientId?: string;
   private publicKey?: string;
   private apiKey?: string;
   private userState?: UserState;
@@ -189,6 +192,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         : new AomiClient(clientOrOptions);
 
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
+    this.clientId = sessionOptions?.clientId;
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
@@ -224,6 +228,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
+      clientId: this.clientId,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -254,6 +259,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
+      clientId: this.clientId,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -431,7 +437,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async syncUserState(): Promise<AomiStateResponse> {
     this.assertOpen();
 
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId,
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -465,6 +475,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       const state = await this.client.fetchState(
         this.sessionId,
         this.userState,
+        this.clientId,
       );
 
       // Guard: polling may have been stopped while awaiting fetch

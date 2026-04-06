@@ -8,9 +8,10 @@ import {
   statusCommand,
 } from "./commands/control";
 import { closeCommand, logCommand } from "./commands/history";
+import { ingestSecretsCommand, secretCommand } from "./commands/secrets";
 import { sessionCommand } from "./commands/sessions";
 import { signCommand, txCommand } from "./commands/wallet";
-import { CliExit } from "./errors";
+import { CliExit, fatal } from "./errors";
 import type { CliRuntime } from "./types";
 
 function printUsage(): void {
@@ -27,6 +28,10 @@ Usage:
   aomi model list       List models available to the current backend
   aomi model set <rig>  Set the active model for the current session
   aomi chain list       List supported chains
+  aomi secret list      List configured secret handles for the active session
+  aomi secret clear     Clear configured secrets for the active session
+  aomi --secret NAME=value [NAME=value ...]
+                        Ingest secrets into the active session
   aomi session list     List local sessions with metadata
   aomi session resume <id>
                         Resume a local session (session-id or session-N)
@@ -45,6 +50,8 @@ Options:
   --api-key <key>       API key for non-default apps
   --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
+  --secret <name=value> [<name=value> ...]
+                        Ingest secret values for the active session
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
@@ -83,6 +90,23 @@ Environment (overridden by flags):
 }
 
 async function main(runtime: CliRuntime): Promise<void> {
+  const hasSecrets = Object.keys(runtime.config.secrets).length > 0;
+  if (hasSecrets) {
+    if (!runtime.parsed.command) {
+      await ingestSecretsCommand(runtime);
+      return;
+    }
+
+    if (
+      runtime.parsed.command === "secret" &&
+      runtime.parsed.positional[0] === "clear"
+    ) {
+      fatal("`--secret` cannot be combined with `aomi secret clear`.");
+    }
+
+    await ingestSecretsCommand(runtime);
+  }
+
   const command =
     runtime.parsed.command ??
     (runtime.parsed.flags["help"] || runtime.parsed.flags["h"]
@@ -107,6 +131,9 @@ async function main(runtime: CliRuntime): Promise<void> {
       break;
     case "session":
       await sessionCommand(runtime);
+      break;
+    case "secret":
+      await secretCommand(runtime);
       break;
     case "tx":
       txCommand();
