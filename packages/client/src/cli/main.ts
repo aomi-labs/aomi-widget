@@ -11,7 +11,7 @@ import { closeCommand, logCommand } from "./commands/history";
 import { ingestSecretsCommand, secretCommand } from "./commands/secrets";
 import { sessionCommand } from "./commands/sessions";
 import { signCommand, txCommand } from "./commands/wallet";
-import { CliExit } from "./errors";
+import { CliExit, fatal } from "./errors";
 import type { CliRuntime } from "./types";
 
 function printUsage(): void {
@@ -90,9 +90,21 @@ Environment (overridden by flags):
 }
 
 async function main(runtime: CliRuntime): Promise<void> {
-  if (!runtime.parsed.command && Object.keys(runtime.config.secrets).length > 0) {
+  const hasSecrets = Object.keys(runtime.config.secrets).length > 0;
+  if (hasSecrets) {
+    if (!runtime.parsed.command) {
+      await ingestSecretsCommand(runtime);
+      return;
+    }
+
+    if (
+      runtime.parsed.command === "secret" &&
+      runtime.parsed.positional[0] === "clear"
+    ) {
+      fatal("`--secret` cannot be combined with `aomi secret clear`.");
+    }
+
     await ingestSecretsCommand(runtime);
-    return;
   }
 
   const command =

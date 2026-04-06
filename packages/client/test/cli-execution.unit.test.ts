@@ -60,7 +60,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: {},
-      multiFlags: {},
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("auto");
@@ -71,7 +71,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: { eoa: "true" },
-      multiFlags: {},
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("eoa");
@@ -85,7 +85,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: { eoa: "true" },
-      multiFlags: {},
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("eoa");
@@ -100,7 +100,7 @@ describe("CLI execution controls", () => {
       command: "sign",
       positional: [],
       flags: {},
-      multiFlags: {},
+      secretAssignments: [],
     });
 
     expect(config.execution).toBe("auto");
@@ -115,7 +115,7 @@ describe("CLI execution controls", () => {
         command: "sign",
         positional: [],
         flags: { aa: "true", eoa: "true" },
-        multiFlags: {},
+        secretAssignments: [],
       }),
     ).toThrow(CliExit);
 
@@ -130,7 +130,7 @@ describe("CLI execution controls", () => {
         command: "tx",
         positional: [],
         flags: { aa: "true" },
-        multiFlags: {},
+        secretAssignments: [],
       }),
     ).toThrow(CliExit);
 
@@ -190,10 +190,24 @@ describe("CLI execution controls", () => {
 
     expect(parsed.command).toBeUndefined();
     expect(parsed.positional).toEqual([]);
-    expect(parsed.multiFlags["secret"]).toEqual([
+    expect(parsed.secretAssignments).toEqual([
       "API-KEY-A=sk_123",
       "API-KEY-B=sk_456",
     ]);
+  });
+
+  it("keeps secret assignments when a command is also present", () => {
+    const parsed = parseArgs([
+      "node",
+      "cli.js",
+      "--secret",
+      "API-KEY-A=sk_123",
+      "status",
+    ]);
+
+    expect(parsed.command).toBe("status");
+    expect(parsed.positional).toEqual([]);
+    expect(parsed.secretAssignments).toEqual(["API-KEY-A=sk_123"]);
   });
 
   it("does not let boolean flags consume the command when flags come first", () => {

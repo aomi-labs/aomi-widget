@@ -54,6 +54,13 @@ export async function secretCommand(runtime: CliRuntime): Promise<void> {
   }
 
   if (subcommand === "clear") {
+    const state = readState();
+    if (!state) {
+      console.log("No active session");
+      printDataFileLocation();
+      return;
+    }
+
     const { session, state } = getOrCreateSession(runtime);
 
     try {

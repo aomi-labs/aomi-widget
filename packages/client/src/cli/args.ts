@@ -19,18 +19,31 @@ export const CHAIN_NAMES: Record<number, string> = {
   11155111: "Sepolia",
 };
 
-const LONG_FLAGS_WITH_VALUES = new Set([
-  "backend-url",
-  "api-key",
-  "app",
-  "model",
-  "public-key",
-  "private-key",
-  "rpc-url",
-  "chain",
-  "aa-provider",
-  "aa-mode",
-]);
+type FlagKind = "boolean" | "value" | "multi-value";
+
+const FLAG_SPECS: Record<string, { kind: FlagKind }> = {
+  help: { kind: "boolean" },
+  h: { kind: "boolean" },
+  verbose: { kind: "boolean" },
+  v: { kind: "boolean" },
+  aa: { kind: "boolean" },
+  eoa: { kind: "boolean" },
+  "backend-url": { kind: "value" },
+  "api-key": { kind: "value" },
+  app: { kind: "value" },
+  model: { kind: "value" },
+  "public-key": { kind: "value" },
+  "private-key": { kind: "value" },
+  "rpc-url": { kind: "value" },
+  chain: { kind: "value" },
+  "aa-provider": { kind: "value" },
+  "aa-mode": { kind: "value" },
+  secret: { kind: "multi-value" },
+};
+
+function getFlagKind(key: string): FlagKind {
+  return FLAG_SPECS[key]?.kind ?? "boolean";
+}
 
 function parseChainId(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
@@ -112,43 +125,50 @@ export function parseArgs(argv: string[]): ParsedArgs {
   let command: string | undefined;
   const positional: string[] = [];
   const flags: Record<string, string> = {};
-  const multiFlags: Record<string, string[]> = {};
+  const repeatedFlags: Record<string, string[]> = {};
+
+  function appendRepeatedFlag(key: string, values: string[]): void {
+    repeatedFlags[key] ??= [];
+    repeatedFlags[key].push(...values);
+  }
 
   for (let i = 0; i < raw.length; i++) {
     const arg = raw[i];
-    if (arg.startsWith("--secret=")) {
-      const value = arg.slice("--secret=".length);
-      multiFlags["secret"] ??= [];
-      multiFlags["secret"].push(value);
-    } else if (arg === "--secret") {
-      const values: string[] = [];
-      while (
-        i + 1 < raw.length &&
-        !raw[i + 1].startsWith("-") &&
-        raw[i + 1].includes("=")
-      ) {
-        values.push(raw[i + 1]);
-        i++;
-      }
-
-      if (values.length === 0) {
-        fatal("`--secret` requires at least one NAME=value entry.");
-      }
-
-      multiFlags["secret"] ??= [];
-      multiFlags["secret"].push(...values);
-    } else if (arg.startsWith("--") && arg.includes("=")) {
+    if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
-      flags[key] = val.join("=");
+      const value = val.join("=");
+      if (getFlagKind(key) === "multi-value") {
+        appendRepeatedFlag(key, [value]);
+      } else {
+        flags[key] = value;
+      }
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
-      if (LONG_FLAGS_WITH_VALUES.has(key)) {
+      const kind = getFlagKind(key);
+
+      if (kind === "value") {
         const next = raw[i + 1];
         if (!next || next.startsWith("-")) {
           fatal(`\`--${key}\` requires a value.`);
         }
         flags[key] = next;
         i++;
+      } else if (kind === "multi-value") {
+        const values: string[] = [];
+        while (
+          i + 1 < raw.length &&
+          !raw[i + 1].startsWith("-") &&
+          raw[i + 1].includes("=")
+        ) {
+          values.push(raw[i + 1]);
+          i++;
+        }
+
+        if (values.length === 0) {
+          fatal(`\`--${key}\` requires at least one NAME=value entry.`);
+        }
+
+        appendRepeatedFlag(key, values);
       } else {
         flags[key] = "true";
       }
@@ -161,7 +181,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { command, positional, flags, multiFlags };
+  return {
+    command,
+    positional,
+    flags,
+    secretAssignments: repeatedFlags["secret"] ?? [],
+  };
 }
 
 export function getConfig(parsed: ParsedArgs): CliConfig {
@@ -204,7 +229,7 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
     model:
       parsed.flags["model"] ??
       process.env.AOMI_MODEL,
-    secrets: parseSecretAssignments(parsed.multiFlags["secret"] ?? []),
+    secrets: parseSecretAssignments(parsed.secretAssignments),
     publicKey:
       parsed.flags["public-key"] ??
       process.env.AOMI_PUBLIC_KEY,

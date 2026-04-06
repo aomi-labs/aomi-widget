@@ -2,7 +2,7 @@ export type ParsedArgs = {
   command: string | undefined;
   positional: string[];
   flags: Record<string, string>;
-  multiFlags: Record<string, string[]>;
+  secretAssignments: string[];
 };
 
 export type CliExecutionMode = "auto" | "aa" | "eoa";
