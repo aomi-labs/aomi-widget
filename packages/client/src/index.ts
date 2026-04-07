@@ -9,6 +9,7 @@ export { AomiClient } from "./client";
 // =============================================================================
 
 export type {
+  AomiClientType,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
@@ -31,6 +32,9 @@ export type {
 // =============================================================================
 
 export {
+  addUserStateExt,
+  CLIENT_TYPE_TS_CLI,
+  CLIENT_TYPE_WEB_UI,
   isAsyncCallback,
   isInlineCall,
   isSystemError,

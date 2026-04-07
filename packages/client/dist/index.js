@@ -798,7 +798,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     super();
     // Internal state
     this.pollTimer = null;
@@ -816,7 +816,8 @@ var ClientSession = class extends TypedEventEmitter {
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.pollIntervalMs = (_c = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _c : 500;
+    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -841,7 +842,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -865,7 +867,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1016,7 +1019,7 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1046,7 +1049,8 @@ var ClientSession = class extends TypedEventEmitter {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState
+        this.userState,
+        this.clientId
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);

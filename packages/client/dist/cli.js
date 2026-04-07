@@ -278,6 +278,7 @@ function readStoredSession(path) {
     const fallbackLocalId = (_a3 = parseSessionFileLocalId(basename(path))) != null ? _a3 : 0;
     return {
       sessionId: parsed.sessionId,
+      clientId: parsed.clientId,
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
@@ -286,6 +287,7 @@ function readStoredSession(path) {
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
+      secretHandles: parsed.secretHandles,
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
       createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
       updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
@@ -1391,7 +1393,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a3, _b, _c;
+    var _a3, _b, _c, _d;
     super();
     // Internal state
     this.pollTimer = null;
@@ -1409,7 +1411,8 @@ var ClientSession = class extends TypedEventEmitter {
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.pollIntervalMs = (_c = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _c : 500;
+    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1434,7 +1437,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1458,7 +1462,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1609,7 +1614,7 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1639,7 +1644,8 @@ var ClientSession = class extends TypedEventEmitter {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState
+        this.userState,
+        this.clientId
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
@@ -1785,7 +1791,8 @@ function getOrCreateSession(runtime) {
       app: config.app,
       apiKey: config.apiKey,
       publicKey: config.publicKey,
-      chainId: config.chain
+      chainId: config.chain,
+      clientId: crypto.randomUUID()
     };
     writeState(state);
   } else {
@@ -1810,12 +1817,17 @@ function getOrCreateSession(runtime) {
       state.chainId = config.chain;
       changed = true;
     }
+    if (!state.clientId) {
+      state.clientId = crypto.randomUUID();
+      changed = true;
+    }
     if (changed) writeState(state);
   }
   const session = new ClientSession(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
+      clientId: state.clientId,
       app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey
@@ -1969,6 +1981,7 @@ async function chatCommand(runtime) {
   const verbose = runtime.parsed.flags["verbose"] === "true" || runtime.parsed.flags["v"] === "true";
   const { session, state } = getOrCreateSession(runtime);
   try {
+    await ingestSecretsIfPresent(runtime, state, session.client);
     await applyRequestedModelIfPresent(runtime, session, state);
     const userState = buildCliUserState(state.publicKey, state.chainId);
     if (userState) {
@@ -2360,7 +2373,7 @@ async function statusCommand(runtime) {
   }
   const { session, state } = getOrCreateSession(runtime);
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
     console.log(
       JSON.stringify(
         {
@@ -2640,7 +2653,7 @@ async function logCommand(runtime) {
   }
   const { session, state } = getOrCreateSession(runtime);
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
     const signedTxs = (_c = state.signedTxs) != null ? _c : [];
@@ -2767,6 +2780,11 @@ async function secretCommand(runtime) {
   if (subcommand === "clear") {
     const { session, state } = getOrCreateSession(runtime);
     try {
+      if (!state.clientId) {
+        console.log("No secrets configured.");
+        printDataFileLocation();
+        return;
+      }
       await session.client.clearSecrets(state.clientId);
       state.secretHandles = {};
       writeState(state);
@@ -2788,7 +2806,7 @@ async function fetchRemoteSessionStats(record) {
     apiKey: record.state.apiKey
   });
   try {
-    const apiState = await client.fetchState(record.sessionId);
+    const apiState = await client.fetchState(record.sessionId, void 0, record.state.clientId);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     return {
       topic: (_b = apiState.title) != null ? _b : "Untitled Session",

@@ -110,6 +110,10 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/network-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/secret-input.tsx"
         }
       ],
       "dependencies": [
