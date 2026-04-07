@@ -64,6 +64,13 @@ function parseAAMode(value: string | undefined): CliAAMode | undefined {
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
 
+function parseSecret(value: string, secrets: Record<string, string>): void {
+  const eqIdx = value.indexOf("=");
+  if (eqIdx > 0) {
+    secrets[value.slice(0, eqIdx)] = value.slice(eqIdx + 1);
+  }
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const raw = argv.slice(2);
   const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : undefined;
@@ -75,29 +82,23 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (arg === "--secret") {
-      const next = rest[i + 1];
-      if (next && next.includes("=")) {
-        const eqIdx = next.indexOf("=");
-        secrets[next.slice(0, eqIdx)] = next.slice(eqIdx + 1);
-        i++;
-      } else {
-        flags["secret"] = "true";
-      }
-    } else if (arg.startsWith("--secret=")) {
-      const val = arg.slice("--secret=".length);
-      if (val.includes("=")) {
-        const eqIdx = val.indexOf("=");
-        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
-      }
-    } else if (arg.startsWith("--") && arg.includes("=")) {
+    if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
-      flags[key] = val.join("=");
+      const value = val.join("=");
+      if (key === "secret") {
+        parseSecret(value, secrets);
+      } else {
+        flags[key] = value;
+      }
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = rest[i + 1];
       if (next && !next.startsWith("-")) {
-        flags[key] = next;
+        if (key === "secret") {
+          parseSecret(next, secrets);
+        } else {
+          flags[key] = next;
+        }
         i++;
       } else {
         flags[key] = "true";
