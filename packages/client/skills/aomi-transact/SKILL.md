@@ -48,6 +48,7 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 Run this once at the start of the session:
 
 ```bash
+aomi --version
 aomi status 2>/dev/null || echo "no session"
 ```
 
@@ -78,6 +79,7 @@ aomi tx
 aomi log
 aomi status
 aomi events
+aomi --version
 aomi app list
 aomi app current
 aomi model list
