@@ -71,10 +71,26 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   const positional: string[] = [];
   const flags: Record<string, string> = {};
+  const secrets: Record<string, string> = {};
 
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (arg.startsWith("--") && arg.includes("=")) {
+    if (arg === "--secret") {
+      const next = rest[i + 1];
+      if (next && next.includes("=")) {
+        const eqIdx = next.indexOf("=");
+        secrets[next.slice(0, eqIdx)] = next.slice(eqIdx + 1);
+        i++;
+      } else {
+        flags["secret"] = "true";
+      }
+    } else if (arg.startsWith("--secret=")) {
+      const val = arg.slice("--secret=".length);
+      if (val.includes("=")) {
+        const eqIdx = val.indexOf("=");
+        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
+      }
+    } else if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
       flags[key] = val.join("=");
     } else if (arg.startsWith("--")) {
@@ -93,7 +109,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { command, positional, flags };
+  return { command, positional, flags, secrets };
 }
 
 export function getConfig(parsed: ParsedArgs): CliConfig {
@@ -146,6 +162,7 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
       parsed.flags["rpc-url"] ??
       process.env.CHAIN_RPC_URL,
     chain: parseChainId(parsed.flags["chain"] ?? process.env.AOMI_CHAIN_ID),
+    secrets: parsed.secrets,
     execution,
     aaProvider,
     aaMode,
