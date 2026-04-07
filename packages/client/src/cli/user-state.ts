@@ -1,13 +1,13 @@
-import type { UserState } from "../types";
+import {
+  addUserStateExt,
+  CLIENT_TYPE_TS_CLI,
+  type UserState,
+} from "../types";
 
 export function buildCliUserState(
   publicKey?: string,
   chainId?: number,
-): UserState | undefined {
-  if (publicKey === undefined && chainId === undefined) {
-    return undefined;
-  }
-
+): UserState {
   const userState: UserState = {};
 
   if (publicKey !== undefined) {
@@ -19,5 +19,5 @@ export function buildCliUserState(
     userState.chainId = chainId;
   }
 
-  return userState;
+  return addUserStateExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }

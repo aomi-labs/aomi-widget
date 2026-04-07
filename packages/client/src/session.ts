@@ -16,6 +16,7 @@
 
 import { AomiClient } from "./client";
 import type {
+  AomiClientType,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
@@ -24,6 +25,7 @@ import type {
   AomiSystemEvent,
   UserState,
 } from "./types";
+import { addUserStateExt } from "./types";
 import { TypedEventEmitter } from "./event-emitter";
 import { unwrapSystemEvent } from "./event-unwrap";
 import {
@@ -111,6 +113,8 @@ export type SessionOptions = {
   apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
   userState?: UserState;
+  /** Optional client type hint forwarded to the backend via userState.ext.client_type. */
+  clientType?: AomiClientType;
   /** Stable client ID used for secret-vault association. */
   clientId?: string;
   /** Polling interval in ms. Default: 500 */
@@ -195,7 +199,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
-    this.userState = sessionOptions?.userState;
+    this.userState = sessionOptions?.clientType
+      ? addUserStateExt(sessionOptions?.userState ?? {}, "client_type", sessionOptions.clientType)
+      : sessionOptions?.userState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
@@ -399,6 +405,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (typeof address === "string" && address.length > 0) {
       this.publicKey = address;
     }
+  }
+
+  setClientType(clientType: AomiClientType): void {
+    this.resolveUserState(addUserStateExt(this.userState ?? {}, "client_type", clientType));
   }
 
   addExtValue(key: string, value: unknown): void {
