@@ -119,6 +119,7 @@ When installed globally or in a project, the executable name is `aomi`.
 For one-off usage, run commands via `npx @aomi-labs/client ...`.
 
 ```bash
+npx @aomi-labs/client --version                         # print installed CLI version
 npx @aomi-labs/client chat "swap 1 ETH for USDC"        # talk to the agent
 npx @aomi-labs/client chat "swap 1 ETH for USDC" --model claude-sonnet-4
 npx @aomi-labs/client chat "swap 1 ETH" --verbose        # stream tool calls + responses live
@@ -290,6 +291,7 @@ All config can be passed as flags (which take priority over env vars):
 | `--rpc-url`             | `CHAIN_RPC_URL`   | —                      | RPC URL for transaction submission           |
 | `--chain`               | `AOMI_CHAIN_ID`   | `1`                    | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
 | `--verbose`, `-v`       | —                 | —                      | Stream tool calls and agent responses live   |
+| `--version`, `-V`       | —                 | —                      | Print the installed CLI version              |
 
 ```bash
 # Use a custom backend

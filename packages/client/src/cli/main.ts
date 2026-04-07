@@ -1,3 +1,4 @@
+import packageJson from "../../package.json";
 import { createRuntime } from "./args";
 import { chatCommand } from "./commands/chat";
 import {
@@ -12,6 +13,8 @@ import { sessionCommand } from "./commands/sessions";
 import { signCommand, txCommand } from "./commands/wallet";
 import { CliExit } from "./errors";
 import type { CliRuntime } from "./types";
+
+const CLI_VERSION = packageJson.version;
 
 function printUsage(): void {
   console.log(`
@@ -39,6 +42,7 @@ Usage:
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
+  aomi --version        Print the installed CLI version
 
 Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
@@ -49,6 +53,7 @@ Options:
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
   --verbose, -v         Show tool calls and streaming output (for chat)
+  --version, -V         Print the installed CLI version
 
 Sign options:
   aomi sign <tx-id> --eoa
@@ -85,6 +90,9 @@ Environment (overridden by flags):
 async function main(runtime: CliRuntime): Promise<void> {
   const command =
     runtime.parsed.command ??
+    (runtime.parsed.flags["version"] || runtime.parsed.flags["V"]
+      ? "version"
+      : undefined) ??
     (runtime.parsed.flags["help"] || runtime.parsed.flags["h"]
       ? "help"
       : undefined);
@@ -122,6 +130,9 @@ async function main(runtime: CliRuntime): Promise<void> {
       break;
     case "close":
       closeCommand(runtime);
+      break;
+    case "version":
+      console.log(CLI_VERSION);
       break;
     case "help":
       printUsage();
