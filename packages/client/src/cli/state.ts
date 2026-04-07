@@ -44,6 +44,7 @@ export type SignedTx = {
 
 export type CliSessionState = {
   sessionId: string;
+  clientId?: string;
   baseUrl: string;
   app?: string;
   model?: string;
@@ -52,6 +53,7 @@ export type CliSessionState = {
   chainId?: number;
   pendingTxs?: PendingTx[];
   signedTxs?: SignedTx[];
+  secretHandles?: Record<string, string>;
 };
 
 type StoredSessionState = CliSessionState & {
@@ -100,6 +102,7 @@ function toSessionFilePath(localId: number): string {
 function toCliSessionState(stored: StoredSessionState): CliSessionState {
   return {
     sessionId: stored.sessionId,
+    clientId: stored.clientId,
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
@@ -108,6 +111,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs,
+    secretHandles: stored.secretHandles,
   };
 }
 

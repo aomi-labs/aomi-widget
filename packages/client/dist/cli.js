@@ -22,7 +22,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.14",
+  version: "0.1.15",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -133,22 +133,38 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
+function parseSecret(value, secrets) {
+  const eqIdx = value.indexOf("=");
+  if (eqIdx > 0) {
+    secrets[value.slice(0, eqIdx)] = value.slice(eqIdx + 1);
+  }
+}
 function parseArgs(argv) {
   const raw = argv.slice(2);
   const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : void 0;
   const rest = command ? raw.slice(1) : raw;
   const positional = [];
   const flags = {};
+  const secrets = {};
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
-      flags[key] = val.join("=");
+      const value = val.join("=");
+      if (key === "secret") {
+        parseSecret(value, secrets);
+      } else {
+        flags[key] = value;
+      }
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = rest[i + 1];
       if (next && !next.startsWith("-")) {
-        flags[key] = next;
+        if (key === "secret") {
+          parseSecret(next, secrets);
+        } else {
+          flags[key] = next;
+        }
         i++;
       } else {
         flags[key] = "true";
@@ -159,7 +175,7 @@ function parseArgs(argv) {
       positional.push(arg);
     }
   }
-  return { command, positional, flags };
+  return { command, positional, flags, secrets };
 }
 function getConfig(parsed) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
@@ -188,6 +204,7 @@ function getConfig(parsed) {
     privateKey: (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY,
     chainRpcUrl: (_k = parsed.flags["rpc-url"]) != null ? _k : process.env.CHAIN_RPC_URL,
     chain: parseChainId((_l = parsed.flags["chain"]) != null ? _l : process.env.AOMI_CHAIN_ID),
+    secrets: parsed.secrets,
     execution,
     aaProvider,
     aaMode
@@ -238,6 +255,7 @@ function toSessionFilePath(localId) {
 function toCliSessionState(stored) {
   return {
     sessionId: stored.sessionId,
+    clientId: stored.clientId,
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
@@ -245,7 +263,8 @@ function toCliSessionState(stored) {
     publicKey: stored.publicKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
-    signedTxs: stored.signedTxs
+    signedTxs: stored.signedTxs,
+    secretHandles: stored.secretHandles
   };
 }
 function readStoredSession(path) {
@@ -1822,6 +1841,22 @@ async function applyModelSelection(session, state, model) {
   state.model = model;
   writeState(state);
 }
+async function ingestSecretsIfPresent(runtime, state, client) {
+  var _a3;
+  const secrets = runtime.config.secrets;
+  if (Object.keys(secrets).length === 0) return {};
+  if (!state.clientId) {
+    state.clientId = crypto.randomUUID();
+    writeState(state);
+  }
+  const response = await client.ingestSecrets(
+    state.clientId,
+    secrets
+  );
+  state.secretHandles = __spreadValues(__spreadValues({}, (_a3 = state.secretHandles) != null ? _a3 : {}), response.handles);
+  writeState(state);
+  return response.handles;
+}
 async function applyRequestedModelIfPresent(runtime, session, state) {
   const requestedModel = runtime.config.model;
   if (!requestedModel || requestedModel === state.model) {
@@ -2679,6 +2714,70 @@ function closeCommand(runtime) {
   }
   clearState();
   console.log("Session closed");
+}
+
+// src/cli/commands/secrets.ts
+async function ingestSecretsCommand(runtime) {
+  const secretEntries = Object.entries(runtime.config.secrets);
+  if (secretEntries.length === 0) {
+    fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    const handles = await ingestSecretsIfPresent(
+      runtime,
+      state,
+      session.client
+    );
+    const names = Object.keys(handles).sort();
+    console.log(
+      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${state.sessionId}.`
+    );
+    for (const name of names) {
+      console.log(`${name}  ${handles[name]}`);
+    }
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+async function secretCommand(runtime) {
+  var _a3;
+  const subcommand = runtime.parsed.positional[0];
+  if (!subcommand || subcommand === "list") {
+    const state = readState();
+    if (!state) {
+      console.log("No active session");
+      printDataFileLocation();
+      return;
+    }
+    const secretHandles = (_a3 = state.secretHandles) != null ? _a3 : {};
+    const names = Object.keys(secretHandles).sort();
+    if (names.length === 0) {
+      console.log("No secrets configured.");
+      printDataFileLocation();
+      return;
+    }
+    for (const name of names) {
+      console.log(`${name}  ${secretHandles[name]}`);
+    }
+    printDataFileLocation();
+    return;
+  }
+  if (subcommand === "clear") {
+    const { session, state } = getOrCreateSession(runtime);
+    try {
+      await session.client.clearSecrets(state.clientId);
+      state.secretHandles = {};
+      writeState(state);
+      console.log("Cleared all secrets for the active session.");
+      printDataFileLocation();
+    } finally {
+      session.close();
+    }
+    return;
+  }
+  fatal("Usage: aomi secret list\n       aomi secret clear");
 }
 
 // src/cli/commands/sessions.ts
@@ -3729,6 +3828,8 @@ Usage:
   aomi tx               List pending and signed transactions
   aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
                         Sign and submit a pending transaction
+  aomi secret list      List configured secrets for the active session
+  aomi secret clear     Clear all secrets for the active session
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
@@ -3742,6 +3843,7 @@ Options:
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
+  --secret NAME=value   Ingest a secret (repeatable, e.g. --secret X_API_KEY=abc)
   --verbose, -v         Show tool calls and streaming output (for chat)
   --version, -V         Print the installed CLI version
 
@@ -3777,8 +3879,9 @@ Environment (overridden by flags):
 `.trim());
 }
 async function main(runtime) {
-  var _a3, _b;
-  const command = (_b = (_a3 = runtime.parsed.command) != null ? _a3 : runtime.parsed.flags["version"] || runtime.parsed.flags["V"] ? "version" : void 0) != null ? _b : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
+  var _a3, _b, _c;
+  const hasSecrets = Object.keys(runtime.parsed.secrets).length > 0;
+  const command = (_c = (_b = (_a3 = runtime.parsed.command) != null ? _a3 : hasSecrets ? "ingest-secrets" : void 0) != null ? _b : runtime.parsed.flags["version"] || runtime.parsed.flags["V"] ? "version" : void 0) != null ? _c : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
   switch (command) {
     case "chat":
       await chatCommand(runtime);
@@ -3809,6 +3912,12 @@ async function main(runtime) {
       break;
     case "events":
       await eventsCommand(runtime);
+      break;
+    case "secret":
+      await secretCommand(runtime);
+      break;
+    case "ingest-secrets":
+      await ingestSecretsCommand(runtime);
       break;
     case "close":
       closeCommand(runtime);
