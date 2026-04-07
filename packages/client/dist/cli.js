@@ -19,6 +19,46 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
+// package.json
+var package_default = {
+  name: "@aomi-labs/client",
+  version: "0.1.14",
+  description: "Platform-agnostic TypeScript client for the Aomi backend API",
+  type: "module",
+  main: "./dist/index.cjs",
+  module: "./dist/index.js",
+  types: "./dist/index.d.ts",
+  bin: {
+    aomi: "./dist/cli.js"
+  },
+  exports: {
+    ".": {
+      import: {
+        types: "./dist/index.d.ts",
+        default: "./dist/index.js"
+      },
+      require: {
+        types: "./dist/index.d.cts",
+        default: "./dist/index.cjs"
+      }
+    }
+  },
+  files: [
+    "dist",
+    "skills",
+    "README.md"
+  ],
+  scripts: {
+    build: "tsup",
+    "clean:dist": "rm -rf dist"
+  },
+  dependencies: {
+    "@getpara/aa-alchemy": "2.18.0",
+    "@getpara/aa-pimlico": "2.18.0",
+    viem: "^2.40.3"
+  }
+};
+
 // src/cli/errors.ts
 var CliExit = class extends Error {
   constructor(code) {
@@ -95,7 +135,7 @@ function parseAAMode(value) {
 }
 function parseArgs(argv) {
   const raw = argv.slice(2);
-  const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : void 0;
+  const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : void 0;
   const rest = command ? raw.slice(1) : raw;
   const positional = [];
   const flags = {};
@@ -3665,6 +3705,7 @@ async function signCommand(runtime) {
 }
 
 // src/cli/main.ts
+var CLI_VERSION = package_default.version;
 function printUsage() {
   console.log(`
 aomi \u2014 CLI client for Aomi on-chain agent
@@ -3691,6 +3732,7 @@ Usage:
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
+  aomi --version        Print the installed CLI version
 
 Options:
   --backend-url <url>   Backend URL (default: https://api.aomi.dev)
@@ -3701,6 +3743,7 @@ Options:
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
   --verbose, -v         Show tool calls and streaming output (for chat)
+  --version, -V         Print the installed CLI version
 
 Sign options:
   aomi sign <tx-id> --eoa
@@ -3734,8 +3777,8 @@ Environment (overridden by flags):
 `.trim());
 }
 async function main(runtime) {
-  var _a3;
-  const command = (_a3 = runtime.parsed.command) != null ? _a3 : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
+  var _a3, _b;
+  const command = (_b = (_a3 = runtime.parsed.command) != null ? _a3 : runtime.parsed.flags["version"] || runtime.parsed.flags["V"] ? "version" : void 0) != null ? _b : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
   switch (command) {
     case "chat":
       await chatCommand(runtime);
@@ -3769,6 +3812,9 @@ async function main(runtime) {
       break;
     case "close":
       closeCommand(runtime);
+      break;
+    case "version":
+      console.log(CLI_VERSION);
       break;
     case "help":
       printUsage();

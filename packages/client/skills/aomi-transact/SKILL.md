@@ -5,13 +5,14 @@ description: >
   check balances or prices, build wallet requests, confirm quotes or routes,
   sign transactions or EIP-712 payloads, switch apps or chains, or execute
   swaps, transfers, and DeFi actions on-chain. Covers Aomi chat, transaction
-  review, AA-first signing with automatic EOA fallback, and session controls.
-compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Requires viem for signing (`npm install viem`). Use AOMI_APP / --app, AOMI_MODEL / --model, AOMI_CHAIN_ID / --chain, CHAIN_RPC_URL / --rpc-url, and AOMI_STATE_DIR for local session storage."
+  review, AA-first signing with automatic EOA fallback, session controls, and
+  per-session secret ingestion.
+compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Requires viem for signing (`npm install viem`). Use AOMI_APP / --app, AOMI_MODEL / --model, AOMI_CHAIN_ID / --chain, CHAIN_RPC_URL / --rpc-url, optional --secret NAME=value ingestion, and AOMI_STATE_DIR for local session storage."
 license: MIT
 allowed-tools: Bash
 metadata:
   author: aomi-labs
-  version: "0.4"
+  version: "0.5"
 ---
 
 # Aomi Transact
@@ -26,12 +27,14 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 - The user wants balances, prices, routes, quotes, or transaction status.
 - The user wants to build, confirm, sign, or broadcast wallet requests.
 - The user wants to inspect or switch apps, models, chains, or sessions.
+- The user wants to inject API keys or other backend secrets for the current session.
 
 ## Hard Rules
 
 - Never print secrets verbatim in normal status, preflight, or confirmation output.
 - Treat `PRIVATE_KEY`, `AOMI_API_KEY`, `ALCHEMY_API_KEY`, `PIMLICO_API_KEY`, and private RPC URLs as secrets.
 - If the user provides a private key or API key, do not repeat it back unless they explicitly ask for that exact value to be reformatted.
+- Prefer `aomi --secret NAME=value ...` over stuffing provider API keys into normal chat text.
 - Do not sign anything unless the CLI has actually queued a wallet request and you can identify its `tx-N` ID.
 - If `PRIVATE_KEY` is set in the environment, do not also pass `--private-key` unless you intentionally want to override the environment value.
 - `--public-key` must match the address derived from the signing key. If they differ, `aomi sign` will update the session to the signer address.
@@ -45,6 +48,7 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 Run this once at the start of the session:
 
 ```bash
+aomi --version
 aomi status 2>/dev/null || echo "no session"
 ```
 
@@ -75,6 +79,7 @@ aomi tx
 aomi log
 aomi status
 aomi events
+aomi --version
 aomi app list
 aomi app current
 aomi model list
@@ -89,7 +94,28 @@ Notes:
 - Quote the chat message.
 - Use `--verbose` when debugging tool calls or streaming behavior.
 - Pass `--public-key` on the first wallet-aware chat if the backend needs the user's address.
+- Use `aomi secret list` to inspect configured secret handles for the active session.
 - `aomi close` wipes the active local session pointer and starts a fresh thread next time.
+
+### Secret Ingestion
+
+Use this when the backend or selected app needs API keys, provider tokens, or
+other named secrets for the current session:
+
+```bash
+aomi --secret ALCHEMY_API_KEY=sk_live_123
+aomi --secret ALCHEMY_API_KEY=sk_live_123 chat "simulate a swap on Base"
+aomi secret list
+aomi secret clear
+```
+
+Important behavior:
+
+- `aomi --secret NAME=value` with no command ingests secrets into the active session and exits.
+- `aomi --secret NAME=value chat "..."` ingests first, then runs the command.
+- `aomi secret list` prints secret handle names, not raw values.
+- `aomi secret clear` removes all secrets for the active session.
+- Do not combine `--secret` with `aomi secret clear`.
 
 ### Building Wallet Requests
 
@@ -203,12 +229,16 @@ aomi tx
 aomi log
 aomi status
 aomi events
+aomi secret list
+aomi secret clear
 ```
 
 - `aomi tx` inspects pending and signed requests.
 - `aomi log` replays conversation and tool output.
 - `aomi status` shows the current session summary.
 - `aomi events` shows raw backend system events.
+- `aomi secret list` shows configured secret handles for the active session.
+- `aomi secret clear` removes all configured secrets for the active session.
 
 ### App And Model Commands
 
@@ -253,10 +283,10 @@ aomi close
 
 ### AA Providers
 
-| Provider | Flag | Env Var | Notes |
-|----------|------|---------|-------|
-| Alchemy | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | Supports sponsorship, 4337, 7702 |
-| Pimlico | `--aa-provider pimlico` | `PIMLICO_API_KEY` | Supports 4337 and 7702 |
+| Provider | Flag                    | Env Var           | Notes                            |
+| -------- | ----------------------- | ----------------- | -------------------------------- |
+| Alchemy  | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | Supports sponsorship, 4337, 7702 |
+| Pimlico  | `--aa-provider pimlico` | `PIMLICO_API_KEY` | Supports 4337 and 7702           |
 
 Provider selection rules:
 
@@ -266,20 +296,20 @@ Provider selection rules:
 
 ### AA Modes
 
-| Mode | Flag | Meaning |
-|------|------|---------|
+| Mode   | Flag             | Meaning                          |
+| ------ | ---------------- | -------------------------------- |
 | `4337` | `--aa-mode 4337` | Bundler-based smart account flow |
-| `7702` | `--aa-mode 7702` | Delegated execution flow |
+| `7702` | `--aa-mode 7702` | Delegated execution flow         |
 
 ### Default Chain Modes
 
-| Chain | ID | Default AA Mode |
-|-------|----|-----------------|
-| Ethereum | 1 | 7702 |
-| Polygon | 137 | 4337 |
-| Arbitrum | 42161 | 4337 |
-| Base | 8453 | 4337 |
-| Optimism | 10 | 4337 |
+| Chain    | ID    | Default AA Mode |
+| -------- | ----- | --------------- |
+| Ethereum | 1     | 7702            |
+| Polygon  | 137   | 4337            |
+| Arbitrum | 42161 | 4337            |
+| Base     | 8453  | 4337            |
+| Optimism | 10    | 4337            |
 
 ### Sponsorship
 
@@ -299,14 +329,14 @@ Default signing behavior for Alchemy:
 
 ### Supported Chains
 
-| Chain | ID |
-|-------|----|
-| Ethereum | 1 |
-| Polygon | 137 |
-| Arbitrum One | 42161 |
-| Base | 8453 |
-| Optimism | 10 |
-| Sepolia | 11155111 |
+| Chain        | ID       |
+| ------------ | -------- |
+| Ethereum     | 1        |
+| Polygon      | 137      |
+| Arbitrum One | 42161    |
+| Base         | 8453     |
+| Optimism     | 10       |
+| Sepolia      | 11155111 |
 
 ### RPC Guidance By Chain
 
@@ -331,42 +361,42 @@ Practical rule:
 
 All config can be passed as flags. Flags override environment variables.
 
-| Flag | Env Var | Default | Purpose |
-|------|---------|---------|---------|
-| `--backend-url` | `AOMI_BASE_URL` | `https://api.aomi.dev` | Backend URL |
-| `--api-key` | `AOMI_API_KEY` | none | API key for non-default apps |
-| `--app` | `AOMI_APP` | `default` | Backend app |
-| `--model` | `AOMI_MODEL` | backend default | Session model |
-| `--public-key` | `AOMI_PUBLIC_KEY` | none | Wallet address for chat/session context |
-| `--private-key` | `PRIVATE_KEY` | none | Signing key for `aomi sign` |
-| `--rpc-url` | `CHAIN_RPC_URL` | chain RPC default | RPC override for signing |
-| `--chain` | `AOMI_CHAIN_ID` | `1` | Active wallet chain |
-| `--aa-provider` | `AOMI_AA_PROVIDER` | auto | AA provider override |
-| `--aa-mode` | `AOMI_AA_MODE` | chain default | AA mode override |
+| Flag            | Env Var            | Default                | Purpose                                 |
+| --------------- | ------------------ | ---------------------- | --------------------------------------- |
+| `--backend-url` | `AOMI_BASE_URL`    | `https://api.aomi.dev` | Backend URL                             |
+| `--api-key`     | `AOMI_API_KEY`     | none                   | API key for non-default apps            |
+| `--app`         | `AOMI_APP`         | `default`              | Backend app                             |
+| `--model`       | `AOMI_MODEL`       | backend default        | Session model                           |
+| `--public-key`  | `AOMI_PUBLIC_KEY`  | none                   | Wallet address for chat/session context |
+| `--private-key` | `PRIVATE_KEY`      | none                   | Signing key for `aomi sign`             |
+| `--rpc-url`     | `CHAIN_RPC_URL`    | chain RPC default      | RPC override for signing                |
+| `--chain`       | `AOMI_CHAIN_ID`    | `1`                    | Active wallet chain                     |
+| `--aa-provider` | `AOMI_AA_PROVIDER` | auto                   | AA provider override                    |
+| `--aa-mode`     | `AOMI_AA_MODE`     | chain default          | AA mode override                        |
 
 ### AA Provider Credentials
 
-| Env Var | Purpose |
-|---------|---------|
-| `ALCHEMY_API_KEY` | Enables Alchemy AA |
+| Env Var                 | Purpose                             |
+| ----------------------- | ----------------------------------- |
+| `ALCHEMY_API_KEY`       | Enables Alchemy AA                  |
 | `ALCHEMY_GAS_POLICY_ID` | Optional Alchemy sponsorship policy |
-| `PIMLICO_API_KEY` | Enables Pimlico AA |
+| `PIMLICO_API_KEY`       | Enables Pimlico AA                  |
 
 `ALCHEMY_API_KEY` can also be used to construct chain-specific signing RPCs:
 
-| Chain | Example Alchemy RPC |
-|-------|---------------------|
-| Ethereum | `https://eth-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
-| Polygon | `https://polygon-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
-| Arbitrum | `https://arb-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
-| Base | `https://base-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
-| Optimism | `https://opt-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
-| Sepolia | `https://eth-sepolia.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
+| Chain    | Example Alchemy RPC                                          |
+| -------- | ------------------------------------------------------------ |
+| Ethereum | `https://eth-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
+| Polygon  | `https://polygon-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
+| Arbitrum | `https://arb-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
+| Base     | `https://base-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`    |
+| Optimism | `https://opt-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
+| Sepolia  | `https://eth-sepolia.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
 
 ### Storage
 
-| Env Var | Default | Purpose |
-|---------|---------|---------|
+| Env Var          | Default   | Purpose                                |
+| ---------------- | --------- | -------------------------------------- |
 | `AOMI_STATE_DIR` | `~/.aomi` | Root directory for local session state |
 
 Storage layout by default:

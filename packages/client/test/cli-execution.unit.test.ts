@@ -18,7 +18,7 @@ vi.mock("@getpara/aa-pimlico", () => ({
   createPimlicoSmartAccount: createPimlicoSmartAccountMock,
 }));
 
-import { getConfig } from "../src/cli/args";
+import { getConfig, parseArgs } from "../src/cli/args";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -63,6 +63,13 @@ describe("CLI execution controls", () => {
     });
 
     expect(config.execution).toBe("auto");
+  });
+
+  it("treats -V as a short flag instead of a command", () => {
+    const parsed = parseArgs(["node", "aomi", "-V"]);
+
+    expect(parsed.command).toBeUndefined();
+    expect(parsed.flags["V"]).toBe("true");
   });
 
   it("accepts --eoa as an explicit override", () => {

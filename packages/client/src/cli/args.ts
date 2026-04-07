@@ -66,7 +66,7 @@ function parseAAMode(value: string | undefined): CliAAMode | undefined {
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const raw = argv.slice(2);
-  const command = raw[0] && !raw[0].startsWith("--") ? raw[0] : undefined;
+  const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : undefined;
   const rest = command ? raw.slice(1) : raw;
 
   const positional: string[] = [];
