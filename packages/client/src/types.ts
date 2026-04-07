@@ -8,6 +8,29 @@
  */
 export type UserState = Record<string, unknown>;
 
+/**
+ * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
+ */
+export function addUserStateExt(
+  userState: UserState,
+  key: string,
+  value: unknown,
+): UserState {
+  const currentExt = userState["ext"];
+  const extRecord =
+    typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt)
+      ? (currentExt as Record<string, unknown>)
+      : {};
+
+  return {
+    ...userState,
+    ext: {
+      ...extRecord,
+      [key]: value,
+    },
+  };
+}
+
 // =============================================================================
 // Logger
 // =============================================================================
