@@ -61,6 +61,24 @@ aomi events
 aomi close
 ```
 
+```mermaid
+flowchart TD
+    START["aomi"] --> MODE{"Command type"}
+    MODE -->|"chat"| CHAT["aomi chat \"...\""]
+    MODE -->|"inspect"| INSPECT["aomi tx / log / status / events"]
+    MODE -->|"session"| SESSION["aomi session list/resume/delete"]
+    MODE -->|"secrets"| SECRET["aomi --secret ... / aomi secret list|clear"]
+    MODE -->|"sign"| SIGN["aomi sign tx-N"]
+
+    CHAT --> BACKEND["Send request to backend"]
+    SECRET --> STATE["Persist secret handles in local session state"]
+    BACKEND --> QUEUE{"Wallet request queued?"}
+    QUEUE -->|"no"| DONE["Return final output"]
+    QUEUE -->|"yes"| TX["Inspect with aomi tx"]
+    TX --> SIGN
+    SIGN --> RESULT["Submit tx or signature"]
+```
+
 ## Secrets
 
 The CLI supports per-session secret ingestion. This is the feature that lets the backend refer to opaque handles instead of raw secret values.
@@ -159,6 +177,19 @@ By default it stores session files under `~/.aomi/`:
 - `secretHandles`: ingested secret handles for the session
 - `pendingTxs`: unsigned wallet requests
 - `signedTxs`: completed transactions
+
+```mermaid
+flowchart LR
+    USER["Terminal user"] --> CLI["aomi CLI"]
+    CLI --> STATE["~/.aomi session state"]
+    CLI --> API["Aomi backend API"]
+    STATE --> SID["sessionId"]
+    STATE --> CID["clientId"]
+    STATE --> SH["secretHandles"]
+    STATE --> TXS["pendingTxs / signedTxs"]
+    CID --> API
+    SH --> API
+```
 
 ## Examples
 
