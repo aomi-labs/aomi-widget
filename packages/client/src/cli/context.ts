@@ -1,4 +1,5 @@
 import { AomiClient } from "../client";
+import type { AomiIngestSecretsResponse } from "../types";
 import { ClientSession } from "../session";
 import type { CliRuntime } from "./types";
 import { readState, writeState, type CliSessionState } from "./state";
@@ -81,6 +82,31 @@ export async function applyModelSelection(
   });
   state.model = model;
   writeState(state);
+}
+
+export async function ingestSecretsIfPresent(
+  runtime: CliRuntime,
+  state: CliSessionState,
+  client: AomiClient,
+): Promise<Record<string, string>> {
+  const secrets = runtime.config.secrets;
+  if (Object.keys(secrets).length === 0) return {};
+
+  // Ensure we have a stable clientId for this session
+  if (!state.clientId) {
+    state.clientId = crypto.randomUUID();
+    writeState(state);
+  }
+
+  const response: AomiIngestSecretsResponse = await client.ingestSecrets(
+    state.clientId,
+    secrets,
+  );
+
+  state.secretHandles = { ...(state.secretHandles ?? {}), ...response.handles };
+  writeState(state);
+
+  return response.handles;
 }
 
 export async function applyRequestedModelIfPresent(
