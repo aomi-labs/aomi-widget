@@ -9,8 +9,6 @@ export function getOrCreateSession(
   runtime: CliRuntime,
 ): { session: ClientSession; state: CliSessionState } {
   const { config } = runtime;
-  const shouldProvisionClientId = Object.keys(config.secrets).length > 0;
-
   let state = readState();
   if (!state) {
     state = {
@@ -20,7 +18,7 @@ export function getOrCreateSession(
       apiKey: config.apiKey,
       publicKey: config.publicKey,
       chainId: config.chain,
-      clientId: shouldProvisionClientId ? crypto.randomUUID() : undefined,
+      clientId: crypto.randomUUID(),
     };
     writeState(state);
   } else {
@@ -45,7 +43,7 @@ export function getOrCreateSession(
       state.chainId = config.chain;
       changed = true;
     }
-    if (!state.clientId && (shouldProvisionClientId || Object.keys(state.secretHandles ?? {}).length > 0)) {
+    if (!state.clientId) {
       state.clientId = crypto.randomUUID();
       changed = true;
     }

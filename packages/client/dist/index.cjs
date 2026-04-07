@@ -857,7 +857,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     super();
     // Internal state
     this.pollTimer = null;
@@ -875,8 +875,8 @@ var ClientSession = class extends TypedEventEmitter {
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.clientId = sessionOptions == null ? void 0 : sessionOptions.clientId;
-    this.pollIntervalMs = (_c = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _c : 500;
+    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
