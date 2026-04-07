@@ -9,6 +9,7 @@ import {
   statusCommand,
 } from "./commands/control";
 import { closeCommand, logCommand } from "./commands/history";
+import { ingestSecretsCommand, secretCommand } from "./commands/secrets";
 import { sessionCommand } from "./commands/sessions";
 import { signCommand, txCommand } from "./commands/wallet";
 import { CliExit } from "./errors";
@@ -39,6 +40,8 @@ Usage:
   aomi tx               List pending and signed transactions
   aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
                         Sign and submit a pending transaction
+  aomi secret list      List configured secrets for the active session
+  aomi secret clear     Clear all secrets for the active session
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
@@ -52,6 +55,7 @@ Options:
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
+  --secret NAME=value   Ingest a secret (repeatable, e.g. --secret X_API_KEY=abc)
   --verbose, -v         Show tool calls and streaming output (for chat)
   --version, -V         Print the installed CLI version
 
@@ -88,8 +92,11 @@ Environment (overridden by flags):
 }
 
 async function main(runtime: CliRuntime): Promise<void> {
+  const hasSecrets = Object.keys(runtime.parsed.secrets).length > 0;
+
   const command =
     runtime.parsed.command ??
+    (hasSecrets ? "ingest-secrets" : undefined) ??
     (runtime.parsed.flags["version"] || runtime.parsed.flags["V"]
       ? "version"
       : undefined) ??
@@ -127,6 +134,12 @@ async function main(runtime: CliRuntime): Promise<void> {
       break;
     case "events":
       await eventsCommand(runtime);
+      break;
+    case "secret":
+      await secretCommand(runtime);
+      break;
+    case "ingest-secrets":
+      await ingestSecretsCommand(runtime);
       break;
     case "close":
       closeCommand(runtime);
