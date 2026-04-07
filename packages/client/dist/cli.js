@@ -1393,7 +1393,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a3, _b, _c;
+    var _a3, _b, _c, _d;
     super();
     // Internal state
     this.pollTimer = null;
@@ -1411,8 +1411,8 @@ var ClientSession = class extends TypedEventEmitter {
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.clientId = sessionOptions == null ? void 0 : sessionOptions.clientId;
-    this.pollIntervalMs = (_c = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _c : 500;
+    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1782,9 +1782,7 @@ function buildCliUserState(publicKey, chainId) {
 
 // src/cli/context.ts
 function getOrCreateSession(runtime) {
-  var _a3;
   const { config } = runtime;
-  const shouldProvisionClientId = Object.keys(config.secrets).length > 0;
   let state = readState();
   if (!state) {
     state = {
@@ -1794,7 +1792,7 @@ function getOrCreateSession(runtime) {
       apiKey: config.apiKey,
       publicKey: config.publicKey,
       chainId: config.chain,
-      clientId: shouldProvisionClientId ? crypto.randomUUID() : void 0
+      clientId: crypto.randomUUID()
     };
     writeState(state);
   } else {
@@ -1819,7 +1817,7 @@ function getOrCreateSession(runtime) {
       state.chainId = config.chain;
       changed = true;
     }
-    if (!state.clientId && (shouldProvisionClientId || Object.keys((_a3 = state.secretHandles) != null ? _a3 : {}).length > 0)) {
+    if (!state.clientId) {
       state.clientId = crypto.randomUUID();
       changed = true;
     }

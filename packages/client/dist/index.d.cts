@@ -405,7 +405,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private publicKey?;
     private apiKey?;
     private userState?;
-    private clientId?;
+    private clientId;
     private pollIntervalMs;
     private logger?;
     private pollTimer;

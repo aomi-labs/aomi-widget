@@ -163,7 +163,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private publicKey?: string;
   private apiKey?: string;
   private userState?: UserState;
-  private clientId?: string;
+  private clientId: string;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
 
@@ -196,7 +196,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
     this.userState = sessionOptions?.userState;
-    this.clientId = sessionOptions?.clientId;
+    this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
 
