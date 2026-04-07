@@ -28,7 +28,7 @@ export async function logCommand(runtime: CliRuntime): Promise<void> {
   const { session, state } = getOrCreateSession(runtime);
 
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(state.sessionId, undefined, state.clientId);
     const messages = apiState.messages ?? [];
     const pendingTxs = state.pendingTxs ?? [];
     const signedTxs = state.signedTxs ?? [];

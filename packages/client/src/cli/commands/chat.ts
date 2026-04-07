@@ -18,6 +18,7 @@ import {
 import {
   applyRequestedModelIfPresent,
   getOrCreateSession,
+  ingestSecretsIfPresent,
 } from "../context";
 import { fatal } from "../errors";
 import { walletRequestToPendingTx } from "../transactions";
@@ -37,6 +38,7 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
   const { session, state } = getOrCreateSession(runtime);
 
   try {
+    await ingestSecretsIfPresent(runtime, state, session.client);
     await applyRequestedModelIfPresent(runtime, session, state);
 
     const userState = buildCliUserState(state.publicKey, state.chainId);

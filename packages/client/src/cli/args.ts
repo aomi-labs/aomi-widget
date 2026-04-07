@@ -64,6 +64,13 @@ function parseAAMode(value: string | undefined): CliAAMode | undefined {
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
 
+function parseSecret(value: string, secrets: Record<string, string>): void {
+  const eqIdx = value.indexOf("=");
+  if (eqIdx > 0) {
+    secrets[value.slice(0, eqIdx)] = value.slice(eqIdx + 1);
+  }
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const raw = argv.slice(2);
   const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : undefined;
@@ -71,17 +78,27 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   const positional: string[] = [];
   const flags: Record<string, string> = {};
+  const secrets: Record<string, string> = {};
 
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
-      flags[key] = val.join("=");
+      const value = val.join("=");
+      if (key === "secret") {
+        parseSecret(value, secrets);
+      } else {
+        flags[key] = value;
+      }
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = rest[i + 1];
       if (next && !next.startsWith("-")) {
-        flags[key] = next;
+        if (key === "secret") {
+          parseSecret(next, secrets);
+        } else {
+          flags[key] = next;
+        }
         i++;
       } else {
         flags[key] = "true";
@@ -93,7 +110,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { command, positional, flags };
+  return { command, positional, flags, secrets };
 }
 
 export function getConfig(parsed: ParsedArgs): CliConfig {
@@ -146,6 +163,7 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
       parsed.flags["rpc-url"] ??
       process.env.CHAIN_RPC_URL,
     chain: parseChainId(parsed.flags["chain"] ?? process.env.AOMI_CHAIN_ID),
+    secrets: parsed.secrets,
     execution,
     aaProvider,
     aaMode,

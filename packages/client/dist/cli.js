@@ -133,22 +133,38 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
+function parseSecret(value, secrets) {
+  const eqIdx = value.indexOf("=");
+  if (eqIdx > 0) {
+    secrets[value.slice(0, eqIdx)] = value.slice(eqIdx + 1);
+  }
+}
 function parseArgs(argv) {
   const raw = argv.slice(2);
   const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : void 0;
   const rest = command ? raw.slice(1) : raw;
   const positional = [];
   const flags = {};
+  const secrets = {};
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg.startsWith("--") && arg.includes("=")) {
       const [key, ...val] = arg.slice(2).split("=");
-      flags[key] = val.join("=");
+      const value = val.join("=");
+      if (key === "secret") {
+        parseSecret(value, secrets);
+      } else {
+        flags[key] = value;
+      }
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = rest[i + 1];
       if (next && !next.startsWith("-")) {
-        flags[key] = next;
+        if (key === "secret") {
+          parseSecret(next, secrets);
+        } else {
+          flags[key] = next;
+        }
         i++;
       } else {
         flags[key] = "true";
@@ -159,7 +175,7 @@ function parseArgs(argv) {
       positional.push(arg);
     }
   }
-  return { command, positional, flags };
+  return { command, positional, flags, secrets };
 }
 function getConfig(parsed) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
@@ -188,6 +204,7 @@ function getConfig(parsed) {
     privateKey: (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY,
     chainRpcUrl: (_k = parsed.flags["rpc-url"]) != null ? _k : process.env.CHAIN_RPC_URL,
     chain: parseChainId((_l = parsed.flags["chain"]) != null ? _l : process.env.AOMI_CHAIN_ID),
+    secrets: parsed.secrets,
     execution,
     aaProvider,
     aaMode
@@ -238,6 +255,7 @@ function toSessionFilePath(localId) {
 function toCliSessionState(stored) {
   return {
     sessionId: stored.sessionId,
+    clientId: stored.clientId,
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
@@ -245,7 +263,8 @@ function toCliSessionState(stored) {
     publicKey: stored.publicKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
-    signedTxs: stored.signedTxs
+    signedTxs: stored.signedTxs,
+    secretHandles: stored.secretHandles
   };
 }
 function readStoredSession(path) {
@@ -259,6 +278,7 @@ function readStoredSession(path) {
     const fallbackLocalId = (_a3 = parseSessionFileLocalId(basename(path))) != null ? _a3 : 0;
     return {
       sessionId: parsed.sessionId,
+      clientId: parsed.clientId,
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
@@ -267,6 +287,7 @@ function readStoredSession(path) {
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
+      secretHandles: parsed.secretHandles,
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
       createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
       updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
@@ -1390,6 +1411,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
+    this.clientId = sessionOptions == null ? void 0 : sessionOptions.clientId;
     this.pollIntervalMs = (_c = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _c : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
@@ -1415,7 +1437,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1439,7 +1462,8 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       publicKey: this.publicKey,
       apiKey: this.apiKey,
-      userState: this.userState
+      userState: this.userState,
+      clientId: this.clientId
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1590,7 +1614,7 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1620,7 +1644,8 @@ var ClientSession = class extends TypedEventEmitter {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState
+        this.userState,
+        this.clientId
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
@@ -1757,7 +1782,9 @@ function buildCliUserState(publicKey, chainId) {
 
 // src/cli/context.ts
 function getOrCreateSession(runtime) {
+  var _a3;
   const { config } = runtime;
+  const shouldProvisionClientId = Object.keys(config.secrets).length > 0;
   let state = readState();
   if (!state) {
     state = {
@@ -1766,7 +1793,8 @@ function getOrCreateSession(runtime) {
       app: config.app,
       apiKey: config.apiKey,
       publicKey: config.publicKey,
-      chainId: config.chain
+      chainId: config.chain,
+      clientId: shouldProvisionClientId ? crypto.randomUUID() : void 0
     };
     writeState(state);
   } else {
@@ -1791,12 +1819,17 @@ function getOrCreateSession(runtime) {
       state.chainId = config.chain;
       changed = true;
     }
+    if (!state.clientId && (shouldProvisionClientId || Object.keys((_a3 = state.secretHandles) != null ? _a3 : {}).length > 0)) {
+      state.clientId = crypto.randomUUID();
+      changed = true;
+    }
     if (changed) writeState(state);
   }
   const session = new ClientSession(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
+      clientId: state.clientId,
       app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey
@@ -1821,6 +1854,22 @@ async function applyModelSelection(session, state, model) {
   });
   state.model = model;
   writeState(state);
+}
+async function ingestSecretsIfPresent(runtime, state, client) {
+  var _a3;
+  const secrets = runtime.config.secrets;
+  if (Object.keys(secrets).length === 0) return {};
+  if (!state.clientId) {
+    state.clientId = crypto.randomUUID();
+    writeState(state);
+  }
+  const response = await client.ingestSecrets(
+    state.clientId,
+    secrets
+  );
+  state.secretHandles = __spreadValues(__spreadValues({}, (_a3 = state.secretHandles) != null ? _a3 : {}), response.handles);
+  writeState(state);
+  return response.handles;
 }
 async function applyRequestedModelIfPresent(runtime, session, state) {
   const requestedModel = runtime.config.model;
@@ -1934,6 +1983,7 @@ async function chatCommand(runtime) {
   const verbose = runtime.parsed.flags["verbose"] === "true" || runtime.parsed.flags["v"] === "true";
   const { session, state } = getOrCreateSession(runtime);
   try {
+    await ingestSecretsIfPresent(runtime, state, session.client);
     await applyRequestedModelIfPresent(runtime, session, state);
     const userState = buildCliUserState(state.publicKey, state.chainId);
     if (userState) {
@@ -2325,7 +2375,7 @@ async function statusCommand(runtime) {
   }
   const { session, state } = getOrCreateSession(runtime);
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
     console.log(
       JSON.stringify(
         {
@@ -2605,7 +2655,7 @@ async function logCommand(runtime) {
   }
   const { session, state } = getOrCreateSession(runtime);
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
     const signedTxs = (_c = state.signedTxs) != null ? _c : [];
@@ -2681,6 +2731,75 @@ function closeCommand(runtime) {
   console.log("Session closed");
 }
 
+// src/cli/commands/secrets.ts
+async function ingestSecretsCommand(runtime) {
+  const secretEntries = Object.entries(runtime.config.secrets);
+  if (secretEntries.length === 0) {
+    fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    const handles = await ingestSecretsIfPresent(
+      runtime,
+      state,
+      session.client
+    );
+    const names = Object.keys(handles).sort();
+    console.log(
+      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${state.sessionId}.`
+    );
+    for (const name of names) {
+      console.log(`${name}  ${handles[name]}`);
+    }
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+async function secretCommand(runtime) {
+  var _a3;
+  const subcommand = runtime.parsed.positional[0];
+  if (!subcommand || subcommand === "list") {
+    const state = readState();
+    if (!state) {
+      console.log("No active session");
+      printDataFileLocation();
+      return;
+    }
+    const secretHandles = (_a3 = state.secretHandles) != null ? _a3 : {};
+    const names = Object.keys(secretHandles).sort();
+    if (names.length === 0) {
+      console.log("No secrets configured.");
+      printDataFileLocation();
+      return;
+    }
+    for (const name of names) {
+      console.log(`${name}  ${secretHandles[name]}`);
+    }
+    printDataFileLocation();
+    return;
+  }
+  if (subcommand === "clear") {
+    const { session, state } = getOrCreateSession(runtime);
+    try {
+      if (!state.clientId) {
+        console.log("No secrets configured.");
+        printDataFileLocation();
+        return;
+      }
+      await session.client.clearSecrets(state.clientId);
+      state.secretHandles = {};
+      writeState(state);
+      console.log("Cleared all secrets for the active session.");
+      printDataFileLocation();
+    } finally {
+      session.close();
+    }
+    return;
+  }
+  fatal("Usage: aomi secret list\n       aomi secret clear");
+}
+
 // src/cli/commands/sessions.ts
 async function fetchRemoteSessionStats(record) {
   var _a3, _b;
@@ -2689,7 +2808,7 @@ async function fetchRemoteSessionStats(record) {
     apiKey: record.state.apiKey
   });
   try {
-    const apiState = await client.fetchState(record.sessionId);
+    const apiState = await client.fetchState(record.sessionId, void 0, record.state.clientId);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     return {
       topic: (_b = apiState.title) != null ? _b : "Untitled Session",
@@ -3729,6 +3848,8 @@ Usage:
   aomi tx               List pending and signed transactions
   aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
                         Sign and submit a pending transaction
+  aomi secret list      List configured secrets for the active session
+  aomi secret clear     Clear all secrets for the active session
   aomi status           Show current session state
   aomi events           List system events
   aomi close            Close the current session
@@ -3742,6 +3863,7 @@ Options:
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
+  --secret NAME=value   Ingest a secret (repeatable, e.g. --secret X_API_KEY=abc)
   --verbose, -v         Show tool calls and streaming output (for chat)
   --version, -V         Print the installed CLI version
 
@@ -3777,8 +3899,9 @@ Environment (overridden by flags):
 `.trim());
 }
 async function main(runtime) {
-  var _a3, _b;
-  const command = (_b = (_a3 = runtime.parsed.command) != null ? _a3 : runtime.parsed.flags["version"] || runtime.parsed.flags["V"] ? "version" : void 0) != null ? _b : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
+  var _a3, _b, _c;
+  const hasSecrets = Object.keys(runtime.parsed.secrets).length > 0;
+  const command = (_c = (_b = (_a3 = runtime.parsed.command) != null ? _a3 : hasSecrets ? "ingest-secrets" : void 0) != null ? _b : runtime.parsed.flags["version"] || runtime.parsed.flags["V"] ? "version" : void 0) != null ? _c : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
   switch (command) {
     case "chat":
       await chatCommand(runtime);
@@ -3809,6 +3932,12 @@ async function main(runtime) {
       break;
     case "events":
       await eventsCommand(runtime);
+      break;
+    case "secret":
+      await secretCommand(runtime);
+      break;
+    case "ingest-secrets":
+      await ingestSecretsCommand(runtime);
       break;
     case "close":
       closeCommand(runtime);

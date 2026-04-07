@@ -1,4 +1,5 @@
 import { AomiClient } from "../client";
+import type { AomiIngestSecretsResponse } from "../types";
 import { ClientSession } from "../session";
 import type { CliRuntime } from "./types";
 import { readState, writeState, type CliSessionState } from "./state";
@@ -8,6 +9,7 @@ export function getOrCreateSession(
   runtime: CliRuntime,
 ): { session: ClientSession; state: CliSessionState } {
   const { config } = runtime;
+  const shouldProvisionClientId = Object.keys(config.secrets).length > 0;
 
   let state = readState();
   if (!state) {
@@ -18,6 +20,7 @@ export function getOrCreateSession(
       apiKey: config.apiKey,
       publicKey: config.publicKey,
       chainId: config.chain,
+      clientId: shouldProvisionClientId ? crypto.randomUUID() : undefined,
     };
     writeState(state);
   } else {
@@ -42,6 +45,10 @@ export function getOrCreateSession(
       state.chainId = config.chain;
       changed = true;
     }
+    if (!state.clientId && (shouldProvisionClientId || Object.keys(state.secretHandles ?? {}).length > 0)) {
+      state.clientId = crypto.randomUUID();
+      changed = true;
+    }
     if (changed) writeState(state);
   }
 
@@ -49,6 +56,7 @@ export function getOrCreateSession(
     { baseUrl: state.baseUrl, apiKey: state.apiKey },
     {
       sessionId: state.sessionId,
+      clientId: state.clientId,
       app: state.app,
       apiKey: state.apiKey,
       publicKey: state.publicKey,
@@ -81,6 +89,31 @@ export async function applyModelSelection(
   });
   state.model = model;
   writeState(state);
+}
+
+export async function ingestSecretsIfPresent(
+  runtime: CliRuntime,
+  state: CliSessionState,
+  client: AomiClient,
+): Promise<Record<string, string>> {
+  const secrets = runtime.config.secrets;
+  if (Object.keys(secrets).length === 0) return {};
+
+  // Ensure we have a stable clientId for this session
+  if (!state.clientId) {
+    state.clientId = crypto.randomUUID();
+    writeState(state);
+  }
+
+  const response: AomiIngestSecretsResponse = await client.ingestSecrets(
+    state.clientId,
+    secrets,
+  );
+
+  state.secretHandles = { ...(state.secretHandles ?? {}), ...response.handles };
+  writeState(state);
+
+  return response.handles;
 }
 
 export async function applyRequestedModelIfPresent(
