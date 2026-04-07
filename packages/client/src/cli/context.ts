@@ -61,10 +61,7 @@ export function getOrCreateSession(
     },
   );
 
-  const userState = buildCliUserState(state.publicKey, state.chainId);
-  if (userState) {
-    session.resolveUserState(userState);
-  }
+  session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
 
   return { session, state };
 }

@@ -3,9 +3,16 @@ import { describe, expect, it } from "vitest";
 import { buildCliUserState } from "../src/cli/user-state";
 
 describe("CLI user state builder", () => {
+  it("builds CLI client state even before wallet metadata is known", () => {
+    expect(buildCliUserState()).toEqual({
+      ext: { client_type: "ts_cli" },
+    });
+  });
+
   it("builds chain-only user state when no public key is present", () => {
     expect(buildCliUserState(undefined, 137)).toEqual({
       chainId: 137,
+      ext: { client_type: "ts_cli" },
     });
   });
 
@@ -19,6 +26,7 @@ describe("CLI user state builder", () => {
       address: "0x9cb9ec43b1Dcbe0ea37bfA9A99f2c9AAe2eBf2EB",
       isConnected: true,
       chainId: 137,
+      ext: { client_type: "ts_cli" },
     });
   });
 });

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AomiClient, Session } from "../src/index";
 import type { AomiChatResponse, AomiStateResponse } from "../src/index";
+import { CLIENT_TYPE_WEB_UI } from "../src/index";
 
 function createMockClient() {
   const client = new AomiClient({ baseUrl: "http://unit.test" });
@@ -111,6 +112,25 @@ describe("ClientSession ext helpers", () => {
       },
       expect.any(String),
     );
+
+    session.close();
+  });
+
+  it("applies clientType onto userState ext from session options", async () => {
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-4b",
+      clientType: CLIENT_TYPE_WEB_UI,
+      userState: { address: "0x123", isConnected: true },
+    });
+
+    await session.sendAsync("hello from web");
+
+    expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
+      address: "0x123",
+      isConnected: true,
+      ext: { client_type: CLIENT_TYPE_WEB_UI },
+    });
 
     session.close();
   });

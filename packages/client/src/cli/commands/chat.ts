@@ -41,10 +41,7 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
     await ingestSecretsIfPresent(runtime, state, session.client);
     await applyRequestedModelIfPresent(runtime, session, state);
 
-    const userState = buildCliUserState(state.publicKey, state.chainId);
-    if (userState) {
-      session.resolveUserState(userState);
-    }
+    session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
 
     const capturedRequests: WalletRequest[] = [];
     let printedAgentCount = 0;
