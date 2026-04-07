@@ -2,6 +2,7 @@ export type ParsedArgs = {
   command: string | undefined;
   positional: string[];
   flags: Record<string, string>;
+  secrets: Record<string, string>;
 };
 
 export type CliExecutionMode = "auto" | "aa" | "eoa";
@@ -17,6 +18,7 @@ export type CliConfig = {
   privateKey?: string;
   chainRpcUrl?: string;
   chain?: number;
+  secrets: Record<string, string>;
   execution: CliExecutionMode;
   aaProvider?: CliAAProvider;
   aaMode?: CliAAMode;
