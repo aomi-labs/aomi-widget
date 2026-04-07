@@ -22,7 +22,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.14",
+  version: "0.1.15",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
