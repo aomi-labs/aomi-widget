@@ -8,6 +8,38 @@
  */
 export type UserState = Record<string, unknown>;
 
+/**
+ * Known client surfaces that may want backend-specific UX strategies.
+ * Additional string values are allowed for forward compatibility.
+ */
+export type AomiClientType = "ts_cli" | "web_ui" | (string & {});
+
+export const CLIENT_TYPE_TS_CLI: AomiClientType = "ts_cli";
+export const CLIENT_TYPE_WEB_UI: AomiClientType = "web_ui";
+
+/**
+ * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
+ */
+export function addUserStateExt(
+  userState: UserState,
+  key: string,
+  value: unknown,
+): UserState {
+  const currentExt = userState["ext"];
+  const extRecord =
+    typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt)
+      ? (currentExt as Record<string, unknown>)
+      : {};
+
+  return {
+    ...userState,
+    ext: {
+      ...extRecord,
+      [key]: value,
+    },
+  };
+}
+
 // =============================================================================
 // Logger
 // =============================================================================

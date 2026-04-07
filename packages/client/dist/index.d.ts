@@ -347,6 +347,8 @@ type SessionOptions = {
     apiKey?: string;
     /** User state to send with requests (wallet connection info, etc). */
     userState?: UserState;
+    /** Stable client ID used for secret-vault association. */
+    clientId?: string;
     /** Polling interval in ms. Default: 500 */
     pollIntervalMs?: number;
     /** Logger for debug output. Pass `console` for verbose logging. */
@@ -403,6 +405,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private publicKey?;
     private apiKey?;
     private userState?;
+    private clientId;
     private pollIntervalMs;
     private logger?;
     private pollTimer;

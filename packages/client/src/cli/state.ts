@@ -127,6 +127,7 @@ function readStoredSession(path: string): StoredSessionState | null {
     const fallbackLocalId = parseSessionFileLocalId(basename(path)) ?? 0;
     return {
       sessionId: parsed.sessionId,
+      clientId: parsed.clientId,
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
@@ -135,6 +136,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
+      secretHandles: parsed.secretHandles,
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
           ? parsed.localId

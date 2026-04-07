@@ -31,7 +31,7 @@ async function fetchRemoteSessionStats(
   });
 
   try {
-    const apiState = await client.fetchState(record.sessionId);
+    const apiState = await client.fetchState(record.sessionId, undefined, record.state.clientId);
     const messages = apiState.messages ?? [];
     return {
       topic: apiState.title ?? "Untitled Session",

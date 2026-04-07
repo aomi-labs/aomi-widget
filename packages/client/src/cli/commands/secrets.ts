@@ -64,6 +64,11 @@ export async function secretCommand(runtime: CliRuntime): Promise<void> {
     const { session, state } = getOrCreateSession(runtime);
 
     try {
+      if (!state.clientId) {
+        console.log("No secrets configured.");
+        printDataFileLocation();
+        return;
+      }
       await session.client.clearSecrets(state.clientId);
       state.secretHandles = {};
       writeState(state);

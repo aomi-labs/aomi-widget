@@ -16,6 +16,7 @@
 
 import { AomiClient } from "./client";
 import type {
+  AomiClientType,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
@@ -24,6 +25,7 @@ import type {
   AomiSystemEvent,
   UserState,
 } from "./types";
+import { addUserStateExt } from "./types";
 import { TypedEventEmitter } from "./event-emitter";
 import { unwrapSystemEvent } from "./event-unwrap";
 import {
@@ -111,6 +113,10 @@ export type SessionOptions = {
   apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
   userState?: UserState;
+  /** Optional client type hint forwarded to the backend via userState.ext.client_type. */
+  clientType?: AomiClientType;
+  /** Stable client ID used for secret-vault association. */
+  clientId?: string;
   /** Polling interval in ms. Default: 500 */
   pollIntervalMs?: number;
   /** Logger for debug output. Pass `console` for verbose logging. */
@@ -161,6 +167,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private publicKey?: string;
   private apiKey?: string;
   private userState?: UserState;
+  private clientId: string;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
 
@@ -192,7 +199,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
-    this.userState = sessionOptions?.userState;
+    this.userState = sessionOptions?.clientType
+      ? addUserStateExt(sessionOptions?.userState ?? {}, "client_type", sessionOptions.clientType)
+      : sessionOptions?.userState;
+    this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
 
@@ -224,6 +234,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
+      clientId: this.clientId,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -254,6 +265,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
+      clientId: this.clientId,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -395,6 +407,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
+  setClientType(clientType: AomiClientType): void {
+    this.resolveUserState(addUserStateExt(this.userState ?? {}, "client_type", clientType));
+  }
+
   addExtValue(key: string, value: unknown): void {
     const current = this.userState ?? {};
     const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
@@ -431,7 +447,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async syncUserState(): Promise<AomiStateResponse> {
     this.assertOpen();
 
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -465,6 +481,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       const state = await this.client.fetchState(
         this.sessionId,
         this.userState,
+        this.clientId,
       );
 
       // Guard: polling may have been stopped while awaiting fetch
