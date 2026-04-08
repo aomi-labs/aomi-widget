@@ -36,6 +36,7 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 - If the user provides a private key or API key, do not repeat it back unless they explicitly ask for that exact value to be reformatted.
 - Prefer `aomi --secret NAME=value ...` over stuffing provider API keys into normal chat text.
 - Do not sign anything unless the CLI has actually queued a wallet request and you can identify its `tx-N` ID.
+- When starting work from a new Codex or assistant chat thread, default the first Aomi command to `--new-session` unless the user explicitly wants to continue an existing session.
 - If `PRIVATE_KEY` is set in the environment, do not also pass `--private-key` unless you intentionally want to override the environment value.
 - `--public-key` must match the address derived from the signing key. If they differ, `aomi sign` will update the session to the signer address.
 - Private keys must start with `0x`. Add the prefix if missing.
@@ -73,7 +74,7 @@ tx-N`, there is nothing to sign yet.
 Use these when the user does not need signing:
 
 ```bash
-aomi chat "<message>"
+aomi chat "<message>" --new-session
 aomi chat "<message>" --verbose
 aomi tx
 aomi log
@@ -92,8 +93,10 @@ aomi session resume <id>
 Notes:
 
 - Quote the chat message.
+- On the first command in a new Codex or assistant thread, prefer `--new-session` so old local/backend state does not bleed into the new task.
 - Use `--verbose` when debugging tool calls or streaming behavior.
 - Pass `--public-key` on the first wallet-aware chat if the backend needs the user's address.
+- For chain-specific requests, prefer `--chain <id>` on the command itself. Use `AOMI_CHAIN_ID=<id>` only when multiple consecutive commands should stay on the same chain.
 - Use `aomi secret list` to inspect configured secret handles for the active session.
 - `aomi close` wipes the active local session pointer and starts a fresh thread next time.
 
@@ -103,8 +106,8 @@ Use this when the backend or selected app needs API keys, provider tokens, or
 other named secrets for the current session:
 
 ```bash
-aomi --secret ALCHEMY_API_KEY=sk_live_123
-aomi --secret ALCHEMY_API_KEY=sk_live_123 chat "simulate a swap on Base"
+aomi --secret ALCHEMY_API_KEY=sk_live_123 --new-session
+aomi --secret ALCHEMY_API_KEY=sk_live_123 chat "simulate a swap on Base" --new-session
 aomi secret list
 aomi secret clear
 ```
@@ -123,7 +126,7 @@ Use the first chat turn to give the agent the task and, if relevant, the wallet
 address and chain:
 
 ```bash
-aomi chat "swap 1 ETH for USDC" --public-key 0xYourAddress --chain 1
+aomi chat "swap 1 ETH for USDC" --new-session --public-key 0xYourAddress --chain 1
 ```
 
 If the user wants a different backend app or chain, pass them explicitly on the
@@ -210,7 +213,7 @@ aomi close
 ### Chat
 
 ```bash
-aomi chat "<message>"
+aomi chat "<message>" --new-session
 aomi chat "<message>" --verbose
 aomi chat "<message>" --model <rig>
 aomi chat "<message>" --public-key 0xYourAddress --chain 1
@@ -218,9 +221,11 @@ aomi chat "<message>" --app khalani --chain 137
 ```
 
 - Quote the message.
+- On the first command in a new Codex or assistant thread, prefer `--new-session`.
 - Use `--verbose` to stream tool calls and agent output.
 - Use `--public-key` on the first wallet-aware message.
 - Use `--app`, `--model`, and `--chain` to change the active context for the next request.
+- Prefer `--chain <id>` for one-off chain-specific requests. Use `AOMI_CHAIN_ID=<id>` when several consecutive commands should share the same chain context.
 
 ### Transaction Inspection
 
@@ -265,6 +270,7 @@ aomi chain list
 
 ```bash
 aomi session list
+aomi session new
 aomi session resume <id>
 aomi session delete <id>
 aomi close
