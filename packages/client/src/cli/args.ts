@@ -153,6 +153,8 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
     model:
       parsed.flags["model"] ??
       process.env.AOMI_MODEL,
+    freshSession:
+      parsed.flags["new-session"] === "true",
     publicKey:
       parsed.flags["public-key"] ??
       process.env.AOMI_PUBLIC_KEY,

@@ -22,7 +22,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.15",
+  version: "0.1.16",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -200,6 +200,7 @@ function getConfig(parsed) {
     apiKey: (_e = parsed.flags["api-key"]) != null ? _e : process.env.AOMI_API_KEY,
     app: (_g = (_f = parsed.flags["app"]) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
     model: (_h = parsed.flags["model"]) != null ? _h : process.env.AOMI_MODEL,
+    freshSession: parsed.flags["new-session"] === "true",
     publicKey: (_i = parsed.flags["public-key"]) != null ? _i : process.env.AOMI_PUBLIC_KEY,
     privateKey: (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY,
     chainRpcUrl: (_k = parsed.flags["rpc-url"]) != null ? _k : process.env.CHAIN_RPC_URL,
@@ -1150,6 +1151,30 @@ var AomiClient = class {
   }
 };
 
+// src/types.ts
+var CLIENT_TYPE_TS_CLI = "ts_cli";
+function addUserStateExt(userState, key, value) {
+  const currentExt = userState["ext"];
+  const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
+  return __spreadProps(__spreadValues({}, userState), {
+    ext: __spreadProps(__spreadValues({}, extRecord), {
+      [key]: value
+    })
+  });
+}
+function isInlineCall(event) {
+  return "InlineCall" in event;
+}
+function isSystemNotice(event) {
+  return "SystemNotice" in event;
+}
+function isSystemError(event) {
+  return "SystemError" in event;
+}
+function isAsyncCallback(event) {
+  return "AsyncCallback" in event;
+}
+
 // src/event-emitter.ts
 var TypedEventEmitter = class {
   constructor() {
@@ -1221,20 +1246,6 @@ var TypedEventEmitter = class {
     this.listeners.clear();
   }
 };
-
-// src/types.ts
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
-}
 
 // src/event-unwrap.ts
 function unwrapSystemEvent(event) {
@@ -1393,7 +1404,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a3, _b, _c, _d;
+    var _a3, _b, _c, _d, _e;
     super();
     // Internal state
     this.pollTimer = null;
@@ -1410,9 +1421,9 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? addUserStateExt((_c = sessionOptions == null ? void 0 : sessionOptions.userState) != null ? _c : {}, "client_type", sessionOptions.clientType) : sessionOptions == null ? void 0 : sessionOptions.userState;
+    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
+    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1584,6 +1595,10 @@ var ClientSession = class extends TypedEventEmitter {
     if (typeof address === "string" && address.length > 0) {
       this.publicKey = address;
     }
+  }
+  setClientType(clientType) {
+    var _a3;
+    this.resolveUserState(addUserStateExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType));
   }
   addExtValue(key, value) {
     var _a3;
@@ -1766,9 +1781,6 @@ var ClientSession = class extends TypedEventEmitter {
 
 // src/cli/user-state.ts
 function buildCliUserState(publicKey, chainId) {
-  if (publicKey === void 0 && chainId === void 0) {
-    return void 0;
-  }
   const userState = {};
   if (publicKey !== void 0) {
     userState.address = publicKey;
@@ -1777,24 +1789,33 @@ function buildCliUserState(publicKey, chainId) {
   if (chainId !== void 0) {
     userState.chainId = chainId;
   }
-  return userState;
+  return addUserStateExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
 
 // src/cli/context.ts
-function getOrCreateSession(runtime) {
+function buildSessionState(runtime) {
   const { config } = runtime;
-  let state = readState();
+  return {
+    sessionId: crypto.randomUUID(),
+    baseUrl: config.baseUrl,
+    app: config.app,
+    model: config.model,
+    apiKey: config.apiKey,
+    publicKey: config.publicKey,
+    chainId: config.chain,
+    clientId: crypto.randomUUID()
+  };
+}
+function createFreshSessionState(runtime) {
+  const state = buildSessionState(runtime);
+  writeState(state);
+  return state;
+}
+function getOrCreateSession(runtime, options = {}) {
+  const { config } = runtime;
+  let state = options.fresh || config.freshSession ? createFreshSessionState(runtime) : readState();
   if (!state) {
-    state = {
-      sessionId: crypto.randomUUID(),
-      baseUrl: config.baseUrl,
-      app: config.app,
-      apiKey: config.apiKey,
-      publicKey: config.publicKey,
-      chainId: config.chain,
-      clientId: crypto.randomUUID()
-    };
-    writeState(state);
+    state = createFreshSessionState(runtime);
   } else {
     let changed = false;
     if (config.baseUrl !== state.baseUrl) {
@@ -1833,10 +1854,7 @@ function getOrCreateSession(runtime) {
       publicKey: state.publicKey
     }
   );
-  const userState = buildCliUserState(state.publicKey, state.chainId);
-  if (userState) {
-    session.resolveUserState(userState);
-  }
+  session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
   return { session, state };
 }
 function createControlClient(runtime) {
@@ -1979,14 +1997,13 @@ async function chatCommand(runtime) {
     fatal("Usage: aomi chat <message>");
   }
   const verbose = runtime.parsed.flags["verbose"] === "true" || runtime.parsed.flags["v"] === "true";
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(runtime, {
+    fresh: runtime.config.freshSession
+  });
   try {
     await ingestSecretsIfPresent(runtime, state, session.client);
     await applyRequestedModelIfPresent(runtime, session, state);
-    const userState = buildCliUserState(state.publicKey, state.chainId);
-    if (userState) {
-      session.resolveUserState(userState);
-    }
+    session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
     const capturedRequests = [];
     let printedAgentCount = 0;
     const seenToolResults = /* @__PURE__ */ new Set();
@@ -2735,7 +2752,9 @@ async function ingestSecretsCommand(runtime) {
   if (secretEntries.length === 0) {
     fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
   }
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(runtime, {
+    fresh: runtime.config.freshSession
+  });
   try {
     const handles = await ingestSecretsIfPresent(
       runtime,
@@ -2868,6 +2887,12 @@ async function sessionsCommand(_runtime) {
 async function sessionCommand(runtime) {
   const subcommand = runtime.parsed.positional[0];
   const selector = runtime.parsed.positional[1];
+  if (subcommand === "new") {
+    const state = createFreshSessionState(runtime);
+    console.log(`Active session set to ${state.sessionId} (new).`);
+    printDataFileLocation();
+    return;
+  }
   if (subcommand === "resume") {
     if (!selector) {
       fatal("Usage: aomi session resume <session-id|session-N|N>");
@@ -2903,7 +2928,7 @@ async function sessionCommand(runtime) {
     return;
   }
   fatal(
-    "Usage: aomi session list\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>"
+    "Usage: aomi session list\n       aomi session new\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>"
   );
 }
 
@@ -3508,10 +3533,7 @@ function createSessionFromState(state) {
       publicKey: state.publicKey
     }
   );
-  const userState = buildCliUserState(state.publicKey, state.chainId);
-  if (userState) {
-    session.resolveUserState(userState);
-  }
+  session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
   return session;
 }
 async function persistResolvedSignerState(session, state, address, chainId) {
@@ -3838,6 +3860,7 @@ Usage:
   aomi model set <rig>  Set the active model for the current session
   aomi chain list       List supported chains
   aomi session list     List local sessions with metadata
+  aomi session new      Start a fresh local/backend session and make it active
   aomi session resume <id>
                         Resume a local session (session-id or session-N)
   aomi session delete <id>
@@ -3858,6 +3881,7 @@ Options:
   --api-key <key>       API key for non-default apps
   --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
+  --new-session         Create a fresh active session for this command
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission

@@ -72,6 +72,17 @@ describe("CLI execution controls", () => {
     expect(parsed.flags["V"]).toBe("true");
   });
 
+  it("parses --new-session for chat flows", () => {
+    const config = getConfig({
+      command: "chat",
+      positional: [],
+      flags: { "new-session": "true" },
+      secrets: {},
+    });
+
+    expect(config.freshSession).toBe(true);
+  });
+
   it("accepts --eoa as an explicit override", () => {
     const config = getConfig({
       command: "sign",

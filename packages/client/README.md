@@ -126,6 +126,7 @@ npx @aomi-labs/client chat "swap 1 ETH" --verbose        # stream tool calls + r
 npx @aomi-labs/client app list                           # list available apps
 npx @aomi-labs/client model list                         # list available models
 npx @aomi-labs/client model set claude-sonnet-4          # switch the current session model
+npx @aomi-labs/client session new                        # create a fresh active session
 npx @aomi-labs/client secret list                        # list configured secret handles
 npx @aomi-labs/client --secret ALCHEMY_API_KEY=...       # ingest a secret for the active session
 npx @aomi-labs/client log                                # show full conversation history
@@ -148,6 +149,20 @@ npx @aomi-labs/client chat "send 0 ETH to myself" \
 
 The address is persisted in the state file, so subsequent commands in the same
 session don't need it again.
+
+### Fresh sessions
+
+Use `--new-session` when you want a command to start a fresh backend/local
+session instead of reusing the currently active one:
+
+```bash
+$ npx @aomi-labs/client chat "show my balances" --new-session
+$ npx @aomi-labs/client --secret ALCHEMY_API_KEY=... --new-session
+$ npx @aomi-labs/client session new
+```
+
+This is useful when starting a new operator flow or a new external chat thread
+and you do not want stale session state to bleed into the next run.
 
 ### Model selection
 
