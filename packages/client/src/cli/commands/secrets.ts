@@ -13,7 +13,9 @@ export async function ingestSecretsCommand(runtime: CliRuntime): Promise<void> {
     fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
   }
 
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(runtime, {
+    fresh: runtime.config.freshSession,
+  });
 
   try {
     const handles = await ingestSecretsIfPresent(

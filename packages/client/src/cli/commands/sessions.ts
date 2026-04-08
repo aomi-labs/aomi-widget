@@ -1,4 +1,5 @@
 import { AomiClient } from "../../client";
+import { createFreshSessionState } from "../context";
 import { fatal } from "../errors";
 import { RESET, YELLOW, printDataFileLocation } from "../output";
 import {
@@ -107,6 +108,13 @@ export async function sessionCommand(runtime: CliRuntime): Promise<void> {
   const subcommand = runtime.parsed.positional[0];
   const selector = runtime.parsed.positional[1];
 
+  if (subcommand === "new") {
+    const state = createFreshSessionState(runtime);
+    console.log(`Active session set to ${state.sessionId} (new).`);
+    printDataFileLocation();
+    return;
+  }
+
   if (subcommand === "resume") {
     if (!selector) {
       fatal("Usage: aomi session resume <session-id|session-N|N>");
@@ -145,6 +153,6 @@ export async function sessionCommand(runtime: CliRuntime): Promise<void> {
   }
 
   fatal(
-    "Usage: aomi session list\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>",
+    "Usage: aomi session list\n       aomi session new\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>",
   );
 }

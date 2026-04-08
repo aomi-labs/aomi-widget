@@ -5,22 +5,37 @@ import type { CliRuntime } from "./types";
 import { readState, writeState, type CliSessionState } from "./state";
 import { buildCliUserState } from "./user-state";
 
+function buildSessionState(runtime: CliRuntime): CliSessionState {
+  const { config } = runtime;
+  return {
+    sessionId: crypto.randomUUID(),
+    baseUrl: config.baseUrl,
+    app: config.app,
+    model: config.model,
+    apiKey: config.apiKey,
+    publicKey: config.publicKey,
+    chainId: config.chain,
+    clientId: crypto.randomUUID(),
+  };
+}
+
+export function createFreshSessionState(runtime: CliRuntime): CliSessionState {
+  const state = buildSessionState(runtime);
+  writeState(state);
+  return state;
+}
+
 export function getOrCreateSession(
   runtime: CliRuntime,
+  options: { fresh?: boolean } = {},
 ): { session: ClientSession; state: CliSessionState } {
   const { config } = runtime;
-  let state = readState();
+  let state =
+    options.fresh || config.freshSession
+      ? createFreshSessionState(runtime)
+      : readState();
   if (!state) {
-    state = {
-      sessionId: crypto.randomUUID(),
-      baseUrl: config.baseUrl,
-      app: config.app,
-      apiKey: config.apiKey,
-      publicKey: config.publicKey,
-      chainId: config.chain,
-      clientId: crypto.randomUUID(),
-    };
-    writeState(state);
+    state = createFreshSessionState(runtime);
   } else {
     let changed = false;
     if (config.baseUrl !== state.baseUrl) {
