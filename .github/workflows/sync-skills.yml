@@ -1,0 +1,42 @@
+name: Sync Skills
+
+on:
+  schedule:
+    - cron: "19 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync-skills:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout widget repo
+        uses: actions/checkout@v4
+
+      - name: Checkout upstream skills repo
+        uses: actions/checkout@v4
+        with:
+          repository: aomi-labs/skills
+          path: skills-upstream
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync vendored skills
+        run: node ./scripts/sync-skills.mjs --source ./skills-upstream
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/sync-skills
+          commit-message: "chore: sync vendored skills"
+          title: "chore: sync vendored skills"
+          body: |
+            Syncs the vendored Aomi skills from `aomi-labs/skills`.
+          labels: automation,dependencies
+          delete-branch: true
