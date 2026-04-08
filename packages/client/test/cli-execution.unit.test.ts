@@ -83,6 +83,35 @@ describe("CLI execution controls", () => {
     expect(config.freshSession).toBe(true);
   });
 
+  it("normalizes bare private keys by adding the 0x prefix", () => {
+    const config = getConfig({
+      command: "sign",
+      positional: [],
+      flags: {
+        "private-key":
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      },
+      secrets: {},
+    });
+
+    expect(config.privateKey).toBe(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
+  });
+
+  it("reads the active chain from AOMI_CHAIN_ID", () => {
+    process.env.AOMI_CHAIN_ID = "137";
+
+    const config = getConfig({
+      command: "chat",
+      positional: [],
+      flags: {},
+      secrets: {},
+    });
+
+    expect(config.chain).toBe(137);
+  });
+
   it("accepts --eoa as an explicit override", () => {
     const config = getConfig({
       command: "sign",

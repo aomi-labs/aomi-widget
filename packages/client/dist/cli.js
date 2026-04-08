@@ -139,6 +139,12 @@ function parseSecret(value, secrets) {
     secrets[value.slice(0, eqIdx)] = value.slice(eqIdx + 1);
   }
 }
+function normalizePrivateKey(value) {
+  if (value === void 0) return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+}
 function parseArgs(argv) {
   const raw = argv.slice(2);
   const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : void 0;
@@ -202,7 +208,9 @@ function getConfig(parsed) {
     model: (_h = parsed.flags["model"]) != null ? _h : process.env.AOMI_MODEL,
     freshSession: parsed.flags["new-session"] === "true",
     publicKey: (_i = parsed.flags["public-key"]) != null ? _i : process.env.AOMI_PUBLIC_KEY,
-    privateKey: (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY,
+    privateKey: normalizePrivateKey(
+      (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY
+    ),
     chainRpcUrl: (_k = parsed.flags["rpc-url"]) != null ? _k : process.env.CHAIN_RPC_URL,
     chain: parseChainId((_l = parsed.flags["chain"]) != null ? _l : process.env.AOMI_CHAIN_ID),
     secrets: parsed.secrets,
@@ -3882,6 +3890,7 @@ Options:
   --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
   --new-session         Create a fresh active session for this command
+  --chain <id>          Active chain for chat/session context
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
@@ -3909,6 +3918,7 @@ Environment (overridden by flags):
   AOMI_API_KEY          API key
   AOMI_APP              App
   AOMI_MODEL            Model rig
+  AOMI_CHAIN_ID         Active chain for chat/session context
   AOMI_PUBLIC_KEY       Wallet address
   AOMI_AA_PROVIDER      AA provider: alchemy | pimlico
   AOMI_AA_MODE          AA mode: 4337 | 7702

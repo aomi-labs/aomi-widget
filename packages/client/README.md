@@ -150,6 +150,17 @@ npx @aomi-labs/client chat "send 0 ETH to myself" \
 The address is persisted in the state file, so subsequent commands in the same
 session don't need it again.
 
+### Chain selection
+
+Use `--chain <id>` for the current command when the task is chain-specific:
+
+```bash
+$ npx @aomi-labs/client chat "swap 1 POL for USDC on Polygon" --chain 137
+```
+
+Use `AOMI_CHAIN_ID` when several consecutive commands should share the same
+chain context.
+
 ### Fresh sessions
 
 Use `--new-session` when you want a command to start a fresh backend/local
