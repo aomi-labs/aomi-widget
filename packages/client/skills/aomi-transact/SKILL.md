@@ -5,8 +5,8 @@ description: >
   check balances or prices, build wallet requests, confirm quotes or routes,
   sign transactions or EIP-712 payloads, switch apps or chains, or execute
   swaps, transfers, and DeFi actions on-chain. Covers Aomi chat, transaction
-  review, AA-first signing with automatic EOA fallback, session controls, and
-  per-session secret ingestion.
+  review, account-abstraction signing with automatic EOA fallback, session
+  controls, and per-session secret ingestion.
 compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Requires viem for signing (`npm install viem`). Use AOMI_APP / --app, AOMI_MODEL / --model, AOMI_CHAIN_ID / --chain, CHAIN_RPC_URL / --rpc-url, optional --secret NAME=value ingestion, and AOMI_STATE_DIR for local session storage."
 license: MIT
 allowed-tools: Bash
@@ -162,7 +162,7 @@ Run `aomi tx` to see pending transactions, `aomi sign <id>` to sign.
 Use these rules exactly:
 
 - Default command: `aomi sign <tx-id> [<tx-id> ...]`
-- Default behavior: try AA first, retry unsponsored AA when Alchemy sponsorship is unavailable, then fall back to EOA automatically if AA still fails.
+- Default behavior: try account abstraction (AA) first, retry unsponsored AA when Alchemy sponsorship is unavailable, then fall back to EOA automatically if AA still fails.
 - `--aa`: require AA with no EOA fallback.
 - `--eoa`: force direct EOA execution.
 - `--aa-provider` or `--aa-mode`: AA-specific controls. Use them only when the user explicitly wants a provider or mode.
@@ -182,6 +182,25 @@ aomi sign tx-1 --eoa --private-key 0xYourPrivateKey --rpc-url https://eth.llamar
 # Explicit AA provider and mode
 aomi sign tx-1 --aa-provider pimlico --aa-mode 4337 --private-key 0xYourPrivateKey
 ```
+
+### Account Abstraction
+
+AA is the preferred signing path when the user wants smart-account behavior,
+gas sponsorship, or the CLI's automated fallback handling.
+
+Use AA when:
+
+- The user wants the most hands-off signing flow and is fine with the CLI trying AA before EOA.
+- The user wants sponsored or user-funded smart-account execution through Alchemy or Pimlico.
+- The user explicitly asks for `4337` or `7702` account-abstraction mode.
+
+How to choose:
+
+- `aomi sign` with no AA flags: try AA first, then fall back to EOA automatically if AA is unavailable.
+- `aomi sign --aa`: require AA only. Use this when the user does not want an EOA fallback.
+- `aomi sign --eoa`: bypass AA entirely and sign directly with the wallet key.
+- `aomi sign --aa-provider alchemy|pimlico`: force a specific AA provider.
+- `aomi sign --aa-mode 4337|7702`: force the execution mode when the user wants a specific AA path.
 
 More signing notes:
 
