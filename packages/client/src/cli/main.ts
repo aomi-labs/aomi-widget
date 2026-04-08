@@ -32,6 +32,7 @@ Usage:
   aomi model set <rig>  Set the active model for the current session
   aomi chain list       List supported chains
   aomi session list     List local sessions with metadata
+  aomi session new      Start a fresh local/backend session and make it active
   aomi session resume <id>
                         Resume a local session (session-id or session-N)
   aomi session delete <id>
@@ -52,6 +53,8 @@ Options:
   --api-key <key>       API key for non-default apps
   --app <name>          App (default: "default")
   --model <rig>         Set the active model for this session
+  --new-session         Create a fresh active session for this command
+  --chain <id>          Active chain for chat/session context
   --public-key <addr>   Wallet address (so the agent knows your wallet)
   --private-key <key>   Hex private key for signing
   --rpc-url <url>       RPC URL for transaction submission
@@ -79,6 +82,7 @@ Environment (overridden by flags):
   AOMI_API_KEY          API key
   AOMI_APP              App
   AOMI_MODEL            Model rig
+  AOMI_CHAIN_ID         Active chain for chat/session context
   AOMI_PUBLIC_KEY       Wallet address
   AOMI_AA_PROVIDER      AA provider: alchemy | pimlico
   AOMI_AA_MODE          AA mode: 4337 | 7702
