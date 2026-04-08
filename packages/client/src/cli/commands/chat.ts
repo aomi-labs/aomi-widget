@@ -35,7 +35,9 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
     runtime.parsed.flags["verbose"] === "true" ||
     runtime.parsed.flags["v"] === "true";
 
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(runtime, {
+    fresh: runtime.config.freshSession,
+  });
 
   try {
     await ingestSecretsIfPresent(runtime, state, session.client);

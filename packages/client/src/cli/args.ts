@@ -71,6 +71,13 @@ function parseSecret(value: string, secrets: Record<string, string>): void {
   }
 }
 
+function normalizePrivateKey(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const raw = argv.slice(2);
   const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : undefined;
@@ -153,12 +160,15 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
     model:
       parsed.flags["model"] ??
       process.env.AOMI_MODEL,
+    freshSession:
+      parsed.flags["new-session"] === "true",
     publicKey:
       parsed.flags["public-key"] ??
       process.env.AOMI_PUBLIC_KEY,
-    privateKey:
+    privateKey: normalizePrivateKey(
       parsed.flags["private-key"] ??
-      process.env.PRIVATE_KEY,
+        process.env.PRIVATE_KEY,
+    ),
     chainRpcUrl:
       parsed.flags["rpc-url"] ??
       process.env.CHAIN_RPC_URL,
