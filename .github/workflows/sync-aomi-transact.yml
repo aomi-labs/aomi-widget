@@ -34,6 +34,7 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           branch: chore/sync-aomi-transact
           commit-message: "chore: sync aomi-transact skill"
           title: "chore: sync aomi-transact skill"
