@@ -1,0 +1,44 @@
+name: Sync Aomi Transact Skill
+
+on:
+  repository_dispatch:
+    types:
+      - sync-aomi-transact
+  workflow_dispatch:
+
+jobs:
+  sync-aomi-transact:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout widget repo
+        uses: actions/checkout@v4
+
+      - name: Checkout skills repo
+        uses: actions/checkout@v4
+        with:
+          repository: aomi-labs/skills
+          path: skills-upstream
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync skill file
+        run: node ./scripts/sync-aomi-transact.mjs --source ./skills-upstream
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/sync-aomi-transact
+          commit-message: "chore: sync aomi-transact skill"
+          title: "chore: sync aomi-transact skill"
+          body: |
+            Syncs `packages/client/skills/aomi-transact/SKILL.md` from `aomi-labs/skills`.
+          labels: automation,dependencies
+          delete-branch: true

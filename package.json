@@ -30,7 +30,7 @@
     "build:client": "pnpm --filter @aomi-labs/client build",
     "build:landing": "pnpm --filter landing build",
     "build:registry": "pnpm --filter @aomi-labs/widget-lib build",
-    "sync:skills": "node ./scripts/sync-skills.mjs",
+    "sync:aomi-transact": "node ./scripts/sync-aomi-transact.mjs",
     "clean:next": "rm -rf .next apps/landing/.next",
     "clean:all": "rm -rf .next apps/landing/.next dist .turbo node_modules/.cache .eslintcache",
     "clean": "rm -rf .next apps/landing/.next dist .turbo node_modules/.cache .eslintcache",
