@@ -1,0 +1,4 @@
+[submodule "packages/client/skills"]
+	path = packages/client/skills
+	url = git@github.com:aomi-labs/skills.git
+	branch = main
