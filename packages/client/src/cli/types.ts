@@ -14,6 +14,7 @@ export type CliConfig = {
   apiKey?: string;
   app: string;
   model?: string;
+  freshSession?: boolean;
   publicKey?: string;
   privateKey?: string;
   chainRpcUrl?: string;

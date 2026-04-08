@@ -556,6 +556,17 @@ var AomiClient = class {
 };
 
 // src/types.ts
+var CLIENT_TYPE_TS_CLI = "ts_cli";
+var CLIENT_TYPE_WEB_UI = "web_ui";
+function addUserStateExt(userState, key, value) {
+  const currentExt = userState["ext"];
+  const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
+  return __spreadProps(__spreadValues({}, userState), {
+    ext: __spreadProps(__spreadValues({}, extRecord), {
+      [key]: value
+    })
+  });
+}
 function isInlineCall(event) {
   return "InlineCall" in event;
 }
@@ -798,7 +809,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     super();
     // Internal state
     this.pollTimer = null;
@@ -815,9 +826,9 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    this.userState = sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? addUserStateExt((_c = sessionOptions == null ? void 0 : sessionOptions.userState) != null ? _c : {}, "client_type", sessionOptions.clientType) : sessionOptions == null ? void 0 : sessionOptions.userState;
+    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
+    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -989,6 +1000,10 @@ var ClientSession = class extends TypedEventEmitter {
     if (typeof address === "string" && address.length > 0) {
       this.publicKey = address;
     }
+  }
+  setClientType(clientType) {
+    var _a;
+    this.resolveUserState(addUserStateExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
   }
   addExtValue(key, value) {
     var _a;
@@ -1973,10 +1988,13 @@ async function createPimlicoAAState(options) {
 }
 export {
   AomiClient,
+  CLIENT_TYPE_TS_CLI,
+  CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG,
   ClientSession as Session,
   TypedEventEmitter,
   adaptSmartAccount,
+  addUserStateExt,
   buildAAExecutionPlan,
   createAAProviderState,
   createAlchemyAAProvider,
