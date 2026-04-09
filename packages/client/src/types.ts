@@ -113,6 +113,39 @@ export interface AomiSystemResponse {
 }
 
 /**
+ * POST /api/simulate
+ * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
+ */
+export interface AomiSimulateFee {
+  /** Treasury address to receive the fee. */
+  recipient: string;
+  /** Fee amount in wei (decimal string). */
+  amount_wei: string;
+  /** Token type — always "native" for now. */
+  token: "native";
+}
+
+export interface AomiSimulateResponse {
+  result: {
+    batch_success: boolean;
+    stateful: boolean;
+    from: string;
+    network: string;
+    total_gas?: number;
+    fee?: AomiSimulateFee;
+    steps: Array<{
+      step: number;
+      label: string;
+      success: boolean;
+      result?: string | null;
+      revert_reason?: string | null;
+      gas_used?: number;
+      tx: { to: string; value_wei: string; value_eth: string; data: string };
+    }>;
+  };
+}
+
+/**
  * POST /api/interrupt
  * Interrupts current processing and returns updated session state
  */

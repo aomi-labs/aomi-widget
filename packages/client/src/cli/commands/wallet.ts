@@ -400,6 +400,37 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
       }
+
+      // Simulate batch to validate and compute service fee.
+      try {
+        const simResponse = await session.client.simulateBatch(
+          state.sessionId,
+          pendingTxs.map((tx) => tx.id),
+        );
+        const { result: sim } = simResponse;
+        if (!sim.batch_success) {
+          const failed = sim.steps.find((s) => !s.success);
+          fatal(
+            `Simulation failed at step ${failed?.step ?? "?"}: ${failed?.revert_reason ?? "unknown"}`,
+          );
+        }
+        if (sim.fee) {
+          const feeEth = (Number(sim.fee.amount_wei) / 1e18).toFixed(6);
+          console.log(
+            `Fee:     ${feeEth} ETH → ${sim.fee.recipient.slice(0, 10)}...`,
+          );
+          callList.push({
+            to: sim.fee.recipient,
+            value: sim.fee.amount_wei,
+            chainId: primaryChainId,
+          });
+        }
+      } catch (e) {
+        console.log(
+          `${DIM}Simulation unavailable, skipping fee injection.${RESET}`,
+        );
+      }
+
       const decision = resolveCliExecutionDecision({
         config: runtime.config,
         chain,
