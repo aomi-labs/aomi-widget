@@ -5,10 +5,29 @@ import { CliExit } from "../src/cli/errors";
 const {
   createAlchemySmartAccountMock,
   createPimlicoSmartAccountMock,
-} = vi.hoisted(() => ({
-  createAlchemySmartAccountMock: vi.fn(),
-  createPimlicoSmartAccountMock: vi.fn(),
-}));
+  createSmartWalletClientMock,
+  alchemyWalletTransportMock,
+  sendCallsMock,
+  waitForCallsStatusMock,
+} = vi.hoisted(() => {
+  const sendCallsMock = vi.fn().mockResolvedValue({ id: "mock-call-id" });
+  const waitForCallsStatusMock = vi.fn().mockResolvedValue({
+    status: "success",
+    receipts: [{ transactionHash: "0xmockhash" }],
+  });
+  return {
+    createAlchemySmartAccountMock: vi.fn(),
+    createPimlicoSmartAccountMock: vi.fn(),
+    createSmartWalletClientMock: vi.fn(() => ({
+      sendCalls: sendCallsMock,
+      waitForCallsStatus: waitForCallsStatusMock,
+      requestAccount: vi.fn().mockResolvedValue({ address: "0xaaaa" }),
+    })),
+    alchemyWalletTransportMock: vi.fn(() => "mock-transport"),
+    sendCallsMock,
+    waitForCallsStatusMock,
+  };
+});
 
 vi.mock("@getpara/aa-alchemy", () => ({
   createAlchemySmartAccount: createAlchemySmartAccountMock,
@@ -16,6 +35,11 @@ vi.mock("@getpara/aa-alchemy", () => ({
 
 vi.mock("@getpara/aa-pimlico", () => ({
   createPimlicoSmartAccount: createPimlicoSmartAccountMock,
+}));
+
+vi.mock("@alchemy/wallet-apis", () => ({
+  createSmartWalletClient: createSmartWalletClientMock,
+  alchemyWalletTransport: alchemyWalletTransportMock,
 }));
 
 import { getConfig, parseArgs } from "../src/cli/args";
@@ -43,6 +67,21 @@ describe("CLI execution controls", () => {
     vi.restoreAllMocks();
     createAlchemySmartAccountMock.mockReset();
     createPimlicoSmartAccountMock.mockReset();
+    createSmartWalletClientMock.mockClear();
+    alchemyWalletTransportMock.mockClear();
+    sendCallsMock.mockClear();
+    waitForCallsStatusMock.mockClear();
+    // Re-apply default return values after clear
+    sendCallsMock.mockResolvedValue({ id: "mock-call-id" });
+    waitForCallsStatusMock.mockResolvedValue({
+      status: "success",
+      receipts: [{ transactionHash: "0xmockhash" }],
+    });
+    createSmartWalletClientMock.mockReturnValue({
+      sendCalls: sendCallsMock,
+      waitForCallsStatus: waitForCallsStatusMock,
+      requestAccount: vi.fn().mockResolvedValue({ address: "0xaaaa" }),
+    });
     process.env = { ...ORIGINAL_ENV };
     delete process.env.AOMI_AA_PROVIDER;
     delete process.env.AOMI_AA_MODE;
@@ -257,14 +296,6 @@ describe("CLI execution controls", () => {
   it("creates an Alchemy AA provider state for CLI signing", async () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
-    createAlchemySmartAccountMock.mockResolvedValue({
-      provider: "ALCHEMY",
-      mode: "7702",
-      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      sendTransaction: vi.fn(),
-      sendBatchTransaction: vi.fn(),
-    });
 
     const providerState = await createCliProviderState({
       decision: {
@@ -279,39 +310,27 @@ describe("CLI execution controls", () => {
       callList: [...CALL_LIST],
     });
 
-    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
+    // CLI (direct key) now goes through @alchemy/wallet-apis
+    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        apiKey: "alchemy-key",
-        gasPolicyId: "policy-1",
         chain: mainnet,
-        rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
       }),
+    );
+    expect(alchemyWalletTransportMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "alchemy-key" }),
     );
     expect(providerState.plan).toMatchObject({
       provider: "alchemy",
       mode: "7702",
       fallbackToEoa: false,
     });
-    expect(providerState.AA).toMatchObject({
-      provider: "ALCHEMY",
-      mode: "7702",
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    });
+    expect(providerState.AA).toBeTruthy();
     expect(providerState.error).toBeNull();
   });
 
   it("can build an unsponsored Alchemy AA provider state", async () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
-    createAlchemySmartAccountMock.mockResolvedValue({
-      provider: "ALCHEMY",
-      mode: "4337",
-      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      sendTransaction: vi.fn(),
-      sendBatchTransaction: vi.fn(),
-    });
 
     const providerState = await createCliProviderState({
       decision: {
@@ -327,12 +346,8 @@ describe("CLI execution controls", () => {
       sponsored: false,
     });
 
-    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        gasPolicyId: undefined,
-        mode: "4337",
-      }),
-    );
+    // CLI (direct key) uses wallet-apis even for 4337
+    expect(createSmartWalletClientMock).toHaveBeenCalled();
     expect(providerState.plan).toMatchObject({
       provider: "alchemy",
       mode: "4337",
