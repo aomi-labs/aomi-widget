@@ -202,7 +202,7 @@ function getConfig(parsed) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
   return {
-    baseUrl: (_d = (_c = parsed.flags["backend-url"]) != null ? _c : process.env.AOMI_BASE_URL) != null ? _d : "https://api.aomi.dev",
+    baseUrl: (_d = (_c = parsed.flags["backend-url"]) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev",
     apiKey: (_e = parsed.flags["api-key"]) != null ? _e : process.env.AOMI_API_KEY,
     app: (_g = (_f = parsed.flags["app"]) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
     model: (_h = parsed.flags["model"]) != null ? _h : process.env.AOMI_MODEL,
@@ -3914,7 +3914,7 @@ Default signing behavior:
                         fall back to EOA automatically if AA is unavailable
 
 Environment (overridden by flags):
-  AOMI_BASE_URL         Backend URL
+  AOMI_BACKEND_URL         Backend URL
   AOMI_API_KEY          API key
   AOMI_APP              App
   AOMI_MODEL            Model rig

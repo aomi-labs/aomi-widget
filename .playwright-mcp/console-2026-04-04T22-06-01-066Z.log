@@ -1,0 +1,30 @@
+[     219ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[     287ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[     418ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[     425ms] [LOG] [Fast Refresh] done in 124ms @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   82317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   82818ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   83317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   83817ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   84317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   84817ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   85317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   85818ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   86317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   86818ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   87318ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   87817ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   88317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   88817ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   89317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   89817ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   90317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   90817ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   91317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   91817ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   92317ms] [LOG] [PollingController] Fetching state for threadId: 52339634-f51b-4f0b-8864-176288eb9686 @ http://localhost:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   95631ms] [INFO] Autofocus processing was blocked because a document already has a focused element. @ http://localhost:3000/:0
+[  114217ms] [ERROR] Cross-Origin-Opener-Policy policy would block the window.closed call. @ http://localhost:3000/_next/static/chunks/69904_%40getpara_react-sdk-lite_dist_provider_3a4af7f0._.js:4322
+[  114217ms] [ERROR] Cross-Origin-Opener-Policy policy would block the window.closed call. @ http://localhost:3000/_next/static/chunks/69904_%40getpara_react-sdk-lite_dist_provider_3a4af7f0._.js:4322
+[  131248ms] [ERROR] Cross-Origin-Opener-Policy policy would block the window.closed call. @ http://localhost:3000/_next/static/chunks/69904_%40getpara_react-sdk-lite_dist_modal_components_flows_094064e0._.js:951
+[  131248ms] [ERROR] Cross-Origin-Opener-Policy policy would block the window.closed call. @ http://localhost:3000/_next/static/chunks/69904_%40getpara_react-sdk-lite_dist_modal_components_flows_094064e0._.js:951

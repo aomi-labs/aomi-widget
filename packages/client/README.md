@@ -307,7 +307,7 @@ All config can be passed as flags (which take priority over env vars):
 
 | Flag                    | Env Variable      | Default                | Description                                  |
 | ----------------------- | ----------------- | ---------------------- | -------------------------------------------- |
-| `--backend-url`         | `AOMI_BASE_URL`   | `https://api.aomi.dev` | Backend URL                                  |
+| `--backend-url`         | `AOMI_BACKEND_URL`   | `https://api.aomi.dev` | Backend URL                                  |
 | `--api-key`             | `AOMI_API_KEY`    | —                      | API key for non-default apps                 |
 | `--app`                 | `AOMI_APP`        | `default`              | App                                          |
 | `--model`               | `AOMI_MODEL`      | —                      | Model rig to apply before chat               |
