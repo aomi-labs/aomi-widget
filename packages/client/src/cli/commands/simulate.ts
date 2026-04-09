@@ -48,6 +48,10 @@ export async function simulateCommand(runtime: CliRuntime): Promise<void> {
   const response = await client.simulateBatch(
     state.sessionId,
     transactions,
+    {
+      from: state.publicKey ?? undefined,
+      chainId: state.chainId ?? undefined,
+    },
   );
   const { result } = response;
 

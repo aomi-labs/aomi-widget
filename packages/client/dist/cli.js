@@ -22,7 +22,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.18",
+  version: "0.1.19",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -53,9 +53,10 @@ var package_default = {
     "clean:dist": "rm -rf dist"
   },
   dependencies: {
-    "@getpara/aa-alchemy": "2.18.0",
-    "@getpara/aa-pimlico": "2.18.0",
-    viem: "^2.40.3"
+    "@alchemy/wallet-apis": "5.0.0-beta.22",
+    "@getpara/aa-alchemy": "2.21.0",
+    "@getpara/aa-pimlico": "2.21.0",
+    viem: "^2.47.11"
   }
 };
 
@@ -1173,17 +1174,20 @@ var AomiClient = class {
     if (this.apiKey) {
       headers.set(API_KEY_HEADER, this.apiKey);
     }
+    const payload = {
+      transactions,
+      from: options == null ? void 0 : options.from,
+      chain_id: options == null ? void 0 : options.chainId
+    };
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        transactions,
-        from: options == null ? void 0 : options.from,
-        chain_id: options == null ? void 0 : options.chainId
-      })
+      body: JSON.stringify(payload)
     });
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const body = await response.text().catch(() => "");
+      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`);
     }
     return await response.json();
   }
@@ -2983,7 +2987,7 @@ Run \`aomi tx\` to see available IDs.`
   return pendingTx;
 }
 async function simulateCommand(runtime) {
-  var _a3;
+  var _a3, _b, _c;
   const state = readState();
   if (!state) {
     fatal("No active session. Run `aomi chat` first.");
@@ -3011,7 +3015,11 @@ async function simulateCommand(runtime) {
   });
   const response = await client.simulateBatch(
     state.sessionId,
-    transactions
+    transactions,
+    {
+      from: (_a3 = state.publicKey) != null ? _a3 : void 0,
+      chainId: (_b = state.chainId) != null ? _b : void 0
+    }
   );
   const { result } = response;
   const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
@@ -3047,7 +3055,7 @@ ${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`);
   } else {
     const failed = result.steps.find((s) => !s.success);
     console.log(
-      `\x1B[31mBatch failed at step ${(_a3 = failed == null ? void 0 : failed.step) != null ? _a3 : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`
+      `\x1B[31mBatch failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`
     );
   }
 }
@@ -3389,6 +3397,25 @@ async function createAlchemyAAState(options) {
   if (ownerParams.kind === "unsupported_adapter") {
     return getUnsupportedAdapterState(plan, ownerParams.adapter);
   }
+  if (owner.kind === "direct") {
+    try {
+      return await createAlchemyWalletApisState({
+        plan,
+        chain,
+        privateKey: owner.privateKey,
+        apiKey,
+        gasPolicyId,
+        mode: plan.mode
+      });
+    } catch (error) {
+      return {
+        plan,
+        AA: null,
+        isPending: false,
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }
   try {
     const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
@@ -3419,6 +3446,46 @@ async function createAlchemyAAState(options) {
       error: error instanceof Error ? error : new Error(String(error))
     };
   }
+}
+async function createAlchemyWalletApisState(params) {
+  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
+  const signer = privateKeyToAccount(params.privateKey);
+  const walletClient = createSmartWalletClient(__spreadValues({
+    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
+    chain: params.chain,
+    signer
+  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
+  let accountAddress = signer.address;
+  if (params.mode === "4337") {
+    const account = await walletClient.requestAccount();
+    accountAddress = account.address;
+  }
+  const sendCalls = async (calls) => {
+    var _a3, _b;
+    const result = await walletClient.sendCalls(__spreadProps(__spreadValues({}, params.mode === "4337" ? { account: accountAddress } : {}), {
+      calls
+    }));
+    const status = await walletClient.waitForCallsStatus({ id: result.id });
+    const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
+    if (!transactionHash) {
+      throw new Error("Alchemy Wallets API did not return a transaction hash.");
+    }
+    return { transactionHash };
+  };
+  const AA = {
+    provider: "alchemy",
+    mode: params.mode,
+    AAAddress: accountAddress,
+    delegationAddress: params.mode === "7702" ? signer.address : void 0,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls)
+  };
+  return {
+    plan: params.plan,
+    AA,
+    isPending: false,
+    error: null
+  };
 }
 async function createPimlicoAAState(options) {
   var _a3;
@@ -3862,7 +3929,11 @@ async function signCommand(runtime) {
               data: tx.data,
               label: (_a4 = tx.description) != null ? _a4 : tx.id
             };
-          })
+          }),
+          {
+            from: account.address,
+            chainId: primaryChainId
+          }
         );
         const { result: sim } = simResponse;
         if (!sim.batch_success) {

@@ -1,4 +1,4 @@
-import { Hex, Chain, TransactionReceipt } from 'viem';
+import { Chain, Hex, TransactionReceipt } from 'viem';
 
 /**
  * Client-side user state synced with the backend.
