@@ -546,18 +546,21 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, this.apiKey);
     }
 
+    const payload = {
+      transactions,
+      from: options?.from,
+      chain_id: options?.chainId,
+    };
+
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        transactions,
-        from: options?.from,
-        chain_id: options?.chainId,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const body = await response.text().catch(() => "");
+      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`);
     }
 
     return (await response.json()) as AomiSimulateResponse;

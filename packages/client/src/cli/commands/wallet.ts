@@ -411,6 +411,10 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
             data: tx.data,
             label: tx.description ?? tx.id,
           })),
+          {
+            from: account.address,
+            chainId: primaryChainId,
+          },
         );
         const { result: sim } = simResponse;
         if (!sim.batch_success) {
