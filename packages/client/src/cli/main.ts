@@ -11,6 +11,7 @@ import {
 import { closeCommand, logCommand } from "./commands/history";
 import { ingestSecretsCommand, secretCommand } from "./commands/secrets";
 import { sessionCommand } from "./commands/sessions";
+import { simulateCommand } from "./commands/simulate";
 import { signCommand, txCommand } from "./commands/wallet";
 import { CliExit } from "./errors";
 import type { CliRuntime } from "./types";
@@ -39,6 +40,8 @@ Usage:
                         Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
+  aomi simulate <tx-id> [<tx-id> ...]
+                        Batch-simulate pending txs atomically (approve → swap)
   aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
                         Sign and submit a pending transaction
   aomi secret list      List configured secrets for the active session
@@ -78,7 +81,7 @@ Default signing behavior:
                         fall back to EOA automatically if AA is unavailable
 
 Environment (overridden by flags):
-  AOMI_BASE_URL         Backend URL
+  AOMI_BACKEND_URL         Backend URL
   AOMI_API_KEY          API key
   AOMI_APP              App
   AOMI_MODEL            Model rig
@@ -132,6 +135,9 @@ async function main(runtime: CliRuntime): Promise<void> {
       break;
     case "sign":
       await signCommand(runtime);
+      break;
+    case "simulate":
+      await simulateCommand(runtime);
       break;
     case "status":
       await statusCommand(runtime);
