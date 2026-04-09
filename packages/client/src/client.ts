@@ -7,6 +7,7 @@ import type {
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiSSEEvent,
+  AomiSimulateResponse,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
@@ -516,5 +517,38 @@ export class AomiClient {
       baml: string;
       created: boolean;
     }>(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+  }
+
+  // ===========================================================================
+  // Batch Simulation
+  // ===========================================================================
+
+  /**
+   * Simulate pending transactions as an atomic batch.
+   * Each tx sees state changes from previous txs (e.g., approve → swap).
+   */
+  async simulateBatch(
+    sessionId: string,
+    txIds: string[],
+  ): Promise<AomiSimulateResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const headers = new Headers(
+      withSessionHeader(sessionId, { "Content-Type": "application/json" }),
+    );
+    if (this.apiKey) {
+      headers.set(API_KEY_HEADER, this.apiKey);
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ tx_ids: txIds }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiSimulateResponse;
   }
 }
