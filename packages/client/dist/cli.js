@@ -1161,10 +1161,11 @@ var AomiClient = class {
   // Batch Simulation
   // ===========================================================================
   /**
-   * Simulate pending transactions as an atomic batch.
+   * Simulate transactions as an atomic batch.
    * Each tx sees state changes from previous txs (e.g., approve → swap).
+   * Sends full tx payloads — the backend does not look up by ID.
    */
-  async simulateBatch(sessionId, txIds) {
+  async simulateBatch(sessionId, transactions, options) {
     const url = joinApiPath(this.baseUrl, "/api/simulate");
     const headers = new Headers(
       withSessionHeader(sessionId, { "Content-Type": "application/json" })
@@ -1175,7 +1176,11 @@ var AomiClient = class {
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tx_ids: txIds })
+      body: JSON.stringify({
+        transactions,
+        from: options == null ? void 0 : options.from,
+        chain_id: options == null ? void 0 : options.chainId
+      })
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -2987,9 +2992,7 @@ async function simulateCommand(runtime) {
   if (txIds.length === 0) {
     fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
   }
-  for (const txId of txIds) {
-    requirePendingTx(state, txId);
-  }
+  const pendingTxs = txIds.map((txId) => requirePendingTx(state, txId));
   console.log(
     `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`
   );
@@ -2997,7 +3000,19 @@ async function simulateCommand(runtime) {
     baseUrl: state.baseUrl,
     apiKey: state.apiKey
   });
-  const response = await client.simulateBatch(state.sessionId, txIds);
+  const transactions = pendingTxs.map((tx) => {
+    var _a4;
+    return {
+      to: tx.to,
+      value: tx.value,
+      data: tx.data,
+      label: (_a4 = tx.description) != null ? _a4 : tx.id
+    };
+  });
+  const response = await client.simulateBatch(
+    state.sessionId,
+    transactions
+  );
   const { result } = response;
   const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
   console.log(`
@@ -3839,7 +3854,15 @@ async function signCommand(runtime) {
       try {
         const simResponse = await session.client.simulateBatch(
           state.sessionId,
-          pendingTxs.map((tx) => tx.id)
+          pendingTxs.map((tx) => {
+            var _a4;
+            return {
+              to: tx.to,
+              value: tx.value,
+              data: tx.data,
+              label: (_a4 = tx.description) != null ? _a4 : tx.id
+            };
+          })
         );
         const { result: sim } = simResponse;
         if (!sim.batch_success) {

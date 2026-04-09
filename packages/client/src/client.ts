@@ -524,12 +524,19 @@ export class AomiClient {
   // ===========================================================================
 
   /**
-   * Simulate pending transactions as an atomic batch.
+   * Simulate transactions as an atomic batch.
    * Each tx sees state changes from previous txs (e.g., approve → swap).
+   * Sends full tx payloads — the backend does not look up by ID.
    */
   async simulateBatch(
     sessionId: string,
-    txIds: string[],
+    transactions: Array<{
+      to: string;
+      value?: string;
+      data?: string;
+      label?: string;
+    }>,
+    options?: { from?: string; chainId?: number },
   ): Promise<AomiSimulateResponse> {
     const url = joinApiPath(this.baseUrl, "/api/simulate");
     const headers = new Headers(
@@ -542,7 +549,11 @@ export class AomiClient {
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tx_ids: txIds }),
+      body: JSON.stringify({
+        transactions,
+        from: options?.from,
+        chain_id: options?.chainId,
+      }),
     });
 
     if (!response.ok) {
