@@ -148,7 +148,7 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
   return {
     baseUrl:
       parsed.flags["backend-url"] ??
-      process.env.AOMI_BASE_URL ??
+      process.env.AOMI_BACKEND_URL ??
       "https://api.aomi.dev",
     apiKey:
       parsed.flags["api-key"] ??

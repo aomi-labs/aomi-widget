@@ -22,7 +22,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.17",
+  version: "0.1.18",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -68,17 +68,17 @@ var CliExit = class extends Error {
 };
 function fatal(message) {
   const RED = "\x1B[31m";
-  const DIM3 = "\x1B[2m";
-  const RESET3 = "\x1B[0m";
+  const DIM2 = "\x1B[2m";
+  const RESET2 = "\x1B[0m";
   const lines = message.split("\n");
   const [headline, ...details] = lines;
-  console.error(`${RED}\u274C ${headline}${RESET3}`);
+  console.error(`${RED}\u274C ${headline}${RESET2}`);
   for (const detail of details) {
     if (!detail.trim()) {
       console.error("");
       continue;
     }
-    console.error(`${DIM3}${detail}${RESET3}`);
+    console.error(`${DIM2}${detail}${RESET2}`);
   }
   throw new CliExit(1);
 }
@@ -202,7 +202,7 @@ function getConfig(parsed) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
   return {
-    baseUrl: (_d = (_c = parsed.flags["backend-url"]) != null ? _c : process.env.AOMI_BASE_URL) != null ? _d : "https://api.aomi.dev",
+    baseUrl: (_d = (_c = parsed.flags["backend-url"]) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev",
     apiKey: (_e = parsed.flags["api-key"]) != null ? _e : process.env.AOMI_API_KEY,
     app: (_g = (_f = parsed.flags["app"]) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
     model: (_h = parsed.flags["model"]) != null ? _h : process.env.AOMI_MODEL,
@@ -1156,6 +1156,31 @@ var AomiClient = class {
       payload.app = options.app;
     }
     return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+  }
+  // ===========================================================================
+  // Batch Simulation
+  // ===========================================================================
+  /**
+   * Simulate pending transactions as an atomic batch.
+   * Each tx sees state changes from previous txs (e.g., approve → swap).
+   */
+  async simulateBatch(sessionId, txIds) {
+    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const headers = new Headers(
+      withSessionHeader(sessionId, { "Content-Type": "application/json" })
+    );
+    if (this.apiKey) {
+      headers.set(API_KEY_HEADER, this.apiKey);
+    }
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ tx_ids: txIds })
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
 };
 
@@ -2940,6 +2965,78 @@ async function sessionCommand(runtime) {
   );
 }
 
+// src/cli/commands/simulate.ts
+function requirePendingTx(state, txId) {
+  var _a3;
+  const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
+  if (!pendingTx) {
+    fatal(
+      `No pending transaction with id "${txId}".
+Run \`aomi tx\` to see available IDs.`
+    );
+  }
+  return pendingTx;
+}
+async function simulateCommand(runtime) {
+  var _a3;
+  const state = readState();
+  if (!state) {
+    fatal("No active session. Run `aomi chat` first.");
+  }
+  const txIds = runtime.parsed.positional;
+  if (txIds.length === 0) {
+    fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
+  }
+  for (const txId of txIds) {
+    requirePendingTx(state, txId);
+  }
+  console.log(
+    `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`
+  );
+  const client = new AomiClient({
+    baseUrl: state.baseUrl,
+    apiKey: state.apiKey
+  });
+  const response = await client.simulateBatch(state.sessionId, txIds);
+  const { result } = response;
+  const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
+  console.log(`
+Batch simulation (${modeLabel}):`);
+  console.log(`From: ${result.from} | Network: ${result.network}
+`);
+  for (const step of result.steps) {
+    const icon = step.success ? `${GREEN}\u2713${RESET}` : `\x1B[31m\u2717${RESET}`;
+    const label = step.label || `Step ${step.step}`;
+    const gasInfo = step.gas_used ? ` | gas: ${step.gas_used.toLocaleString()}` : "";
+    console.log(`  ${icon} ${step.step}. ${label}`);
+    console.log(`    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`);
+    if (!step.success && step.revert_reason) {
+      console.log(`    \x1B[31mRevert: ${step.revert_reason}${RESET}`);
+    }
+  }
+  if (result.total_gas) {
+    console.log(`
+${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`);
+  }
+  if (result.fee) {
+    const feeEth = (Number(result.fee.amount_wei) / 1e18).toFixed(6);
+    console.log(
+      `Service fee: ${feeEth} ETH \u2192 ${result.fee.recipient}`
+    );
+  }
+  console.log();
+  if (result.batch_success) {
+    console.log(
+      `${GREEN}All steps passed.${RESET} Run \`aomi sign ${txIds.join(" ")}\` to execute.`
+    );
+  } else {
+    const failed = result.steps.find((s) => !s.success);
+    console.log(
+      `\x1B[31mBatch failed at step ${(_a3 = failed == null ? void 0 : failed.step) != null ? _a3 : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`
+    );
+  }
+}
+
 // src/cli/commands/wallet.ts
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
@@ -3491,7 +3588,7 @@ function txCommand() {
   }
   printDataFileLocation();
 }
-function requirePendingTx(state, txId) {
+function requirePendingTx2(state, txId) {
   var _a3;
   const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
   if (!pendingTx) {
@@ -3507,7 +3604,7 @@ function requirePendingTxs(state, txIds) {
   if (uniqueIds.length !== txIds.length) {
     fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
   }
-  return uniqueIds.map((txId) => requirePendingTx(state, txId));
+  return uniqueIds.map((txId) => requirePendingTx2(state, txId));
 }
 function rewriteSessionState(runtime, state) {
   let changed = false;
@@ -3669,7 +3766,7 @@ async function executeTransactionWithFallback(params) {
   }
 }
 async function signCommand(runtime) {
-  var _a3, _b;
+  var _a3, _b, _c, _d;
   const txIds = runtime.parsed.positional;
   if (txIds.length === 0) {
     fatal(
@@ -3738,6 +3835,34 @@ async function signCommand(runtime) {
       );
       if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
+      }
+      try {
+        const simResponse = await session.client.simulateBatch(
+          state.sessionId,
+          pendingTxs.map((tx) => tx.id)
+        );
+        const { result: sim } = simResponse;
+        if (!sim.batch_success) {
+          const failed = sim.steps.find((s) => !s.success);
+          fatal(
+            `Simulation failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}: ${(_d = failed == null ? void 0 : failed.revert_reason) != null ? _d : "unknown"}`
+          );
+        }
+        if (sim.fee) {
+          const feeEth = (Number(sim.fee.amount_wei) / 1e18).toFixed(6);
+          console.log(
+            `Fee:     ${feeEth} ETH \u2192 ${sim.fee.recipient.slice(0, 10)}...`
+          );
+          callList.push({
+            to: sim.fee.recipient,
+            value: sim.fee.amount_wei,
+            chainId: primaryChainId
+          });
+        }
+      } catch (e) {
+        console.log(
+          `${DIM}Simulation unavailable, skipping fee injection.${RESET}`
+        );
       }
       const decision = resolveCliExecutionDecision({
         config: runtime.config,
@@ -3875,6 +4000,8 @@ Usage:
                         Delete a local session file (session-id or session-N)
   aomi log              Show full conversation history with tool results
   aomi tx               List pending and signed transactions
+  aomi simulate <tx-id> [<tx-id> ...]
+                        Batch-simulate pending txs atomically (approve \u2192 swap)
   aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
                         Sign and submit a pending transaction
   aomi secret list      List configured secrets for the active session
@@ -3914,7 +4041,7 @@ Default signing behavior:
                         fall back to EOA automatically if AA is unavailable
 
 Environment (overridden by flags):
-  AOMI_BASE_URL         Backend URL
+  AOMI_BACKEND_URL         Backend URL
   AOMI_API_KEY          API key
   AOMI_APP              App
   AOMI_MODEL            Model rig
@@ -3959,6 +4086,9 @@ async function main(runtime) {
     case "sign":
       await signCommand(runtime);
       break;
+    case "simulate":
+      await simulateCommand(runtime);
+      break;
     case "status":
       await statusCommand(runtime);
       break;
@@ -3996,7 +4126,7 @@ function isPnpmExecWrapper() {
 async function runCli(argv = process.argv) {
   const runtime = createRuntime(argv);
   const RED = "\x1B[31m";
-  const RESET3 = "\x1B[0m";
+  const RESET2 = "\x1B[0m";
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
   try {
     await main(runtime);
@@ -4009,7 +4139,7 @@ async function runCli(argv = process.argv) {
       return;
     }
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`${RED}\u274C ${message}${RESET3}`);
+    console.error(`${RED}\u274C ${message}${RESET2}`);
     process.exit(1);
   }
 }

@@ -17,6 +17,8 @@ export type {
   AomiCreateThreadResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiSimulateFee,
+  AomiSimulateResponse,
   AomiSSEEvent,
   AomiSSEEventType,
   AomiStateResponse,
