@@ -1,4 +1,4 @@
-import { Chain, Hex, TransactionReceipt } from 'viem';
+import { Hex, Chain, TransactionReceipt } from 'viem';
 
 /**
  * Client-side user state synced with the backend.
@@ -65,6 +65,42 @@ interface AomiChatResponse {
  */
 interface AomiSystemResponse {
     res?: AomiMessage | null;
+}
+/**
+ * POST /api/simulate
+ * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
+ */
+interface AomiSimulateFee {
+    /** Treasury address to receive the fee. */
+    recipient: string;
+    /** Fee amount in wei (decimal string). */
+    amount_wei: string;
+    /** Token type — always "native" for now. */
+    token: "native";
+}
+interface AomiSimulateResponse {
+    result: {
+        batch_success: boolean;
+        stateful: boolean;
+        from: string;
+        network: string;
+        total_gas?: number;
+        fee?: AomiSimulateFee;
+        steps: Array<{
+            step: number;
+            label: string;
+            success: boolean;
+            result?: string | null;
+            revert_reason?: string | null;
+            gas_used?: number;
+            tx: {
+                to: string;
+                value_wei: string;
+                value_eth: string;
+                data: string;
+            };
+        }>;
+    };
 }
 /**
  * POST /api/interrupt
@@ -250,6 +286,11 @@ declare class AomiClient {
         baml: string;
         created: boolean;
     }>;
+    /**
+     * Simulate pending transactions as an atomic batch.
+     * Each tx sees state changes from previous txs (e.g., approve → swap).
+     */
+    simulateBatch(sessionId: string, txIds: string[]): Promise<AomiSimulateResponse>;
 }
 
 type Listener<T = unknown> = (payload: T) => void;
@@ -774,4 +815,4 @@ interface CreateAAProviderStateOptions {
  */
 declare function createAAProviderState(options: CreateAAProviderStateOptions): Promise<AAProviderState>;
 
-export { type AAChainConfig, type AAConfig, type AAExecutionMode, type AAExecutionPlan, type AALike, type AAProvider, type AAProviderQuery, type AAProviderState, type AASponsorshipMode, type AlchemyHookParams, type AlchemyResolveOptions, type AlchemyResolvedConfig, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAOwner, type CreateAAProviderStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type Logger, type ParaSmartAccountLike, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendCallsSyncArgs, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type TransactionExecutionResult, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletEip712Payload, type WalletExecutionCall, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isProviderConfigured, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, readEnv, resolveAlchemyConfig, resolveDefaultProvider, resolvePimlicoConfig, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AAChainConfig, type AAConfig, type AAExecutionMode, type AAExecutionPlan, type AALike, type AAProvider, type AAProviderQuery, type AAProviderState, type AASponsorshipMode, type AlchemyHookParams, type AlchemyResolveOptions, type AlchemyResolvedConfig, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAOwner, type CreateAAProviderStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type Logger, type ParaSmartAccountLike, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendCallsSyncArgs, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type TransactionExecutionResult, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletEip712Payload, type WalletExecutionCall, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isProviderConfigured, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, readEnv, resolveAlchemyConfig, resolveDefaultProvider, resolvePimlicoConfig, toViemSignTypedDataArgs, unwrapSystemEvent };
