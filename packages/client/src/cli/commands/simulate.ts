@@ -26,10 +26,8 @@ export async function simulateCommand(runtime: CliRuntime): Promise<void> {
     fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
   }
 
-  // Validate all tx IDs exist in pending queue.
-  for (const txId of txIds) {
-    requirePendingTx(state, txId);
-  }
+  // Resolve tx IDs to local pending tx payloads.
+  const pendingTxs = txIds.map((txId) => requirePendingTx(state, txId));
 
   console.log(
     `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`,
@@ -40,7 +38,17 @@ export async function simulateCommand(runtime: CliRuntime): Promise<void> {
     apiKey: state.apiKey,
   });
 
-  const response = await client.simulateBatch(state.sessionId, txIds);
+  const transactions = pendingTxs.map((tx) => ({
+    to: tx.to,
+    value: tx.value,
+    data: tx.data,
+    label: tx.description ?? tx.id,
+  }));
+
+  const response = await client.simulateBatch(
+    state.sessionId,
+    transactions,
+  );
   const { result } = response;
 
   // Print header.

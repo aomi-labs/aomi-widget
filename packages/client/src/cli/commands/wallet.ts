@@ -405,7 +405,12 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       try {
         const simResponse = await session.client.simulateBatch(
           state.sessionId,
-          pendingTxs.map((tx) => tx.id),
+          pendingTxs.map((tx) => ({
+            to: tx.to,
+            value: tx.value,
+            data: tx.data,
+            label: tx.description ?? tx.id,
+          })),
         );
         const { result: sim } = simResponse;
         if (!sim.batch_success) {

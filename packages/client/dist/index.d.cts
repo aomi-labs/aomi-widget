@@ -287,10 +287,19 @@ declare class AomiClient {
         created: boolean;
     }>;
     /**
-     * Simulate pending transactions as an atomic batch.
+     * Simulate transactions as an atomic batch.
      * Each tx sees state changes from previous txs (e.g., approve → swap).
+     * Sends full tx payloads — the backend does not look up by ID.
      */
-    simulateBatch(sessionId: string, txIds: string[]): Promise<AomiSimulateResponse>;
+    simulateBatch(sessionId: string, transactions: Array<{
+        to: string;
+        value?: string;
+        data?: string;
+        label?: string;
+    }>, options?: {
+        from?: string;
+        chainId?: number;
+    }): Promise<AomiSimulateResponse>;
 }
 
 type Listener<T = unknown> = (payload: T) => void;
