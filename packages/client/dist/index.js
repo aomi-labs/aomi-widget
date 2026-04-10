@@ -1845,6 +1845,7 @@ function isAlchemySponsorshipLimitError(error) {
 import { createAlchemySmartAccount } from "@getpara/aa-alchemy";
 import { createPimlicoSmartAccount } from "@getpara/aa-pimlico";
 import { privateKeyToAccount } from "viem/accounts";
+var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
 async function createAAProviderState(options) {
   if (options.provider === "alchemy") {
     return createAlchemyAAState({
@@ -2044,7 +2045,7 @@ async function createAlchemyWalletApisState(params) {
     provider: "alchemy",
     mode: params.mode,
     AAAddress: accountAddress,
-    delegationAddress: params.mode === "7702" ? signer.address : void 0,
+    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls)
   };
