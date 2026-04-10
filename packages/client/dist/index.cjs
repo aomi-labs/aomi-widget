@@ -619,10 +619,11 @@ var AomiClient = class {
   // Batch Simulation
   // ===========================================================================
   /**
-   * Simulate pending transactions as an atomic batch.
+   * Simulate transactions as an atomic batch.
    * Each tx sees state changes from previous txs (e.g., approve → swap).
+   * Sends full tx payloads — the backend does not look up by ID.
    */
-  async simulateBatch(sessionId, txIds) {
+  async simulateBatch(sessionId, transactions, options) {
     const url = joinApiPath(this.baseUrl, "/api/simulate");
     const headers = new Headers(
       withSessionHeader(sessionId, { "Content-Type": "application/json" })
@@ -630,13 +631,20 @@ var AomiClient = class {
     if (this.apiKey) {
       headers.set(API_KEY_HEADER, this.apiKey);
     }
+    const payload = {
+      transactions,
+      from: options == null ? void 0 : options.from,
+      chain_id: options == null ? void 0 : options.chainId
+    };
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tx_ids: txIds })
+      body: JSON.stringify(payload)
     });
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const body = await response.text().catch(() => "");
+      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`);
     }
     return await response.json();
   }
@@ -1981,6 +1989,25 @@ async function createAlchemyAAState(options) {
   if (ownerParams.kind === "unsupported_adapter") {
     return getUnsupportedAdapterState(plan, ownerParams.adapter);
   }
+  if (owner.kind === "direct") {
+    try {
+      return await createAlchemyWalletApisState({
+        plan,
+        chain,
+        privateKey: owner.privateKey,
+        apiKey,
+        gasPolicyId,
+        mode: plan.mode
+      });
+    } catch (error) {
+      return {
+        plan,
+        AA: null,
+        isPending: false,
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }
   try {
     const smartAccount = await (0, import_aa_alchemy.createAlchemySmartAccount)(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
@@ -2011,6 +2038,46 @@ async function createAlchemyAAState(options) {
       error: error instanceof Error ? error : new Error(String(error))
     };
   }
+}
+async function createAlchemyWalletApisState(params) {
+  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
+  const signer = (0, import_accounts.privateKeyToAccount)(params.privateKey);
+  const walletClient = createSmartWalletClient(__spreadValues({
+    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
+    chain: params.chain,
+    signer
+  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
+  let accountAddress = signer.address;
+  if (params.mode === "4337") {
+    const account = await walletClient.requestAccount();
+    accountAddress = account.address;
+  }
+  const sendCalls = async (calls) => {
+    var _a, _b;
+    const result = await walletClient.sendCalls(__spreadProps(__spreadValues({}, params.mode === "4337" ? { account: accountAddress } : {}), {
+      calls
+    }));
+    const status = await walletClient.waitForCallsStatus({ id: result.id });
+    const transactionHash = (_b = (_a = status.receipts) == null ? void 0 : _a[0]) == null ? void 0 : _b.transactionHash;
+    if (!transactionHash) {
+      throw new Error("Alchemy Wallets API did not return a transaction hash.");
+    }
+    return { transactionHash };
+  };
+  const AA = {
+    provider: "alchemy",
+    mode: params.mode,
+    AAAddress: accountAddress,
+    delegationAddress: params.mode === "7702" ? signer.address : void 0,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls)
+  };
+  return {
+    plan: params.plan,
+    AA,
+    isPending: false,
+    error: null
+  };
 }
 async function createPimlicoAAState(options) {
   var _a;
