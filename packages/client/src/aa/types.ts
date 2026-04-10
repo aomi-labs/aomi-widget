@@ -415,6 +415,16 @@ async function executeViaAA(
   const txHash = receipt.transactionHash;
   const providerPrefix = AA.provider.toLowerCase();
 
+  // For 7702, the SDK may not provide the delegation address (or provide the
+  // EOA which is already filtered out by adaptSmartAccount).  Fall back to
+  // reading the authorization list from the on-chain transaction.
+  let delegationAddress: Hex | undefined =
+    AA.mode === "7702" ? AA.delegationAddress : undefined;
+
+  if (AA.mode === "7702" && !delegationAddress) {
+    delegationAddress = await resolve7702Delegation(txHash, callList);
+  }
+
   return {
     txHash,
     txHashes: [txHash],
@@ -422,9 +432,46 @@ async function executeViaAA(
     batched: callList.length > 1,
     sponsored: plan.sponsorship !== "disabled",
     AAAddress: AA.AAAddress,
-    delegationAddress:
-      AA.mode === "7702" ? AA.delegationAddress : undefined,
+    delegationAddress,
   };
+}
+
+/**
+ * Best-effort extraction of the 7702 delegation target from the on-chain
+ * transaction's authorization list.  Returns `undefined` on any failure so
+ * the caller can safely fall through.
+ */
+async function resolve7702Delegation(
+  txHash: string,
+  callList: WalletExecutionCall[],
+): Promise<Hex | undefined> {
+  try {
+    const { createPublicClient, http } = await import("viem");
+    const chainId = callList[0]?.chainId;
+    if (!chainId) return undefined;
+
+    const { mainnet, polygon, arbitrum, optimism, base } = await import("viem/chains");
+    const knownChains: Record<number, Parameters<typeof createPublicClient>[0]["chain"]> = {
+      1: mainnet, 137: polygon, 42161: arbitrum, 10: optimism, 8453: base,
+    };
+    const chain = knownChains[chainId];
+    if (!chain) return undefined;
+
+    const client = createPublicClient({ chain, transport: http() });
+    const tx = await client.getTransaction({ hash: txHash as Hex });
+    const authList = (
+      tx as unknown as {
+        authorizationList?: Array<{ address?: Hex; contractAddress?: Hex }>;
+      }
+    ).authorizationList;
+    const target = authList?.[0]?.address ?? authList?.[0]?.contractAddress;
+    if (target) {
+      return target;
+    }
+  } catch {
+    // Best-effort — don't fail the whole execution.
+  }
+  return undefined;
 }
 
 async function executeViaEoa({

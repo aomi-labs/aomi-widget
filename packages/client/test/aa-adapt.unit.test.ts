@@ -33,6 +33,34 @@ describe("adaptSmartAccount", () => {
     expect(adapted.delegationAddress).toBe("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
   });
 
+  it("drops a 7702 delegation address when it matches the smart account address", () => {
+    const account = {
+      ...makeMockAccount(),
+      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      delegationAddress: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    } satisfies ParaSmartAccountLike;
+
+    const adapted = adaptSmartAccount(account);
+
+    expect(adapted.AAAddress).toBe("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(adapted.delegationAddress).toBeUndefined();
+  });
+
+  it("preserves matching smart and delegation addresses outside 7702 mode", () => {
+    const account = {
+      ...makeMockAccount(),
+      mode: "4337",
+      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      delegationAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    } satisfies ParaSmartAccountLike;
+
+    const adapted = adaptSmartAccount(account);
+
+    expect(adapted.delegationAddress).toBe(
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
+  });
+
   it("unwraps TransactionReceipt to { transactionHash }", async () => {
     const account = makeMockAccount();
     const adapted = adaptSmartAccount(account);

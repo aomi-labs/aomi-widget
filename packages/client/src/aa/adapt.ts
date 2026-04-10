@@ -36,11 +36,25 @@ export type ParaSmartAccountLike = {
  * - Unwraps `TransactionReceipt` → `{ transactionHash }`
  */
 export function adaptSmartAccount(account: ParaSmartAccountLike): AALike {
+  // In 7702 mode the smart-account address IS the user's EOA.  If the SDK
+  // returns the EOA as the delegation address it's a known bug — the real
+  // delegation target should be the implementation contract (e.g. Alchemy's
+  // SemiModularAccount7702), not the EOA itself.  Drop the bogus value so
+  // callers don't display a misleading "Deleg: <own-address>".
+  const delegationAddress =
+    account.mode === "7702" &&
+    account.delegationAddress &&
+    account.smartAccountAddress &&
+    account.delegationAddress.toLowerCase() ===
+      account.smartAccountAddress.toLowerCase()
+      ? undefined
+      : account.delegationAddress;
+
   return {
     provider: account.provider,
     mode: account.mode,
     AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+    delegationAddress,
     sendTransaction: async (call) => {
       const receipt = await account.sendTransaction(call);
       return { transactionHash: receipt.transactionHash };

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mainnet } from "viem/chains";
+import { mainnet, polygon } from "viem/chains";
 import { CliExit } from "../src/cli/errors";
 
 const {
@@ -57,6 +57,14 @@ const CALL_LIST = [
     to: "0x1111111111111111111111111111111111111111",
     value: "1",
     chainId: 1,
+  },
+] as const;
+const ERC20_TRANSFER_CALL_LIST = [
+  {
+    to: "0x2222222222222222222222222222222222222222",
+    value: "0",
+    data: "0xa9059cbb00000000000000000000000033333333333333333333333333333333333333330000000000000000000000000000000000000000000000000000000000000001",
+    chainId: 137,
   },
 ] as const;
 
@@ -263,6 +271,63 @@ describe("CLI execution controls", () => {
       aaMode: "4337",
       fallbackToEoa: false,
     });
+  });
+
+  it("auto-switches default 4337 ERC-20 calls to 7702 when supported", () => {
+    process.env.ALCHEMY_API_KEY = "alchemy-key";
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const decision = resolveCliExecutionDecision({
+      config: {
+        baseUrl: "https://api.aomi.dev",
+        app: "default",
+        execution: "aa",
+        aaProvider: "alchemy",
+      },
+      chain: polygon,
+      callList: [...ERC20_TRANSFER_CALL_LIST],
+    });
+
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+      fallbackToEoa: false,
+    });
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Switching to 7702"),
+    );
+
+    logSpy.mockRestore();
+  });
+
+  it("warns but preserves explicit 4337 mode for ERC-20 calls", () => {
+    process.env.ALCHEMY_API_KEY = "alchemy-key";
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const decision = resolveCliExecutionDecision({
+      config: {
+        baseUrl: "https://api.aomi.dev",
+        app: "default",
+        execution: "aa",
+        aaProvider: "alchemy",
+        aaMode: "4337",
+      },
+      chain: polygon,
+      callList: [...ERC20_TRANSFER_CALL_LIST],
+    });
+
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "4337",
+      fallbackToEoa: false,
+    });
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Tokens must be in the smart account"),
+    );
+
+    logSpy.mockRestore();
   });
 
   it("auto mode falls back to direct EOA when no AA provider is configured", () => {
