@@ -110,11 +110,13 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
 
     if (session.getIsProcessing()) {
       await new Promise<void>((resolve) => {
-        const checkWallet = () => {
-          if (capturedRequests.length > 0) resolve();
-        };
-        session.on("wallet_tx_request", checkWallet);
-        session.on("wallet_eip712_request", checkWallet);
+        // Wait for the backend to finish its turn so ALL system events
+        // (including every wallet request) have been delivered.
+        // `backend_idle` fires when is_processing goes false, even if
+        // there are unresolved local wallet requests.
+        // `processing_end` fires when both backend is idle AND there
+        // are no local wallet requests (e.g. pure-text response).
+        session.on("backend_idle", () => resolve());
         session.on("processing_end", () => resolve());
       });
     }
@@ -154,6 +156,10 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
 
     for (const request of capturedRequests) {
       const pending = addPendingTx(state, walletRequestToPendingTx(request));
+      if (!pending) {
+        console.log("⚠️  Duplicate wallet request skipped");
+        continue;
+      }
       console.log(`⚡ Wallet request queued: ${pending.id}`);
       if (request.kind === "transaction") {
         const payload = request.payload as WalletTxPayload;

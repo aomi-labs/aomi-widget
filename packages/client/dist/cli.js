@@ -500,6 +500,12 @@ function getNextTxId(state) {
 }
 function addPendingTx(state, tx) {
   if (!state.pendingTxs) state.pendingTxs = [];
+  const isDuplicate = state.pendingTxs.some(
+    (existing) => existing.kind === tx.kind && existing.to === tx.to && existing.data === tx.data && existing.value === tx.value && existing.chainId === tx.chainId
+  );
+  if (isDuplicate) {
+    return null;
+  }
   const pending = __spreadProps(__spreadValues({}, tx), {
     id: getNextTxId(state)
   });
@@ -1452,6 +1458,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.pollTimer = null;
     this.unsubscribeSSE = null;
     this._isProcessing = false;
+    this._backendWasProcessing = false;
     this.walletRequests = [];
     this.walletRequestNextId = 1;
     this._messages = [];
@@ -1682,6 +1689,7 @@ var ClientSession = class extends TypedEventEmitter {
   startPolling() {
     var _a3;
     if (this.pollTimer || this.closed) return;
+    this._backendWasProcessing = true;
     (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
     this.pollTimer = setInterval(() => {
       void this.pollTick();
@@ -1707,6 +1715,10 @@ var ClientSession = class extends TypedEventEmitter {
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
+      if (this._backendWasProcessing && !state.is_processing) {
+        this.emit("backend_idle", void 0);
+      }
+      this._backendWasProcessing = !!state.is_processing;
       if (!state.is_processing && this.walletRequests.length === 0) {
         this.stopPolling();
         this._isProcessing = false;
@@ -2102,11 +2114,7 @@ async function chatCommand(runtime) {
     }
     if (session.getIsProcessing()) {
       await new Promise((resolve) => {
-        const checkWallet = () => {
-          if (capturedRequests.length > 0) resolve();
-        };
-        session.on("wallet_tx_request", checkWallet);
-        session.on("wallet_eip712_request", checkWallet);
+        session.on("backend_idle", () => resolve());
         session.on("processing_end", () => resolve());
       });
     }
@@ -2142,6 +2150,10 @@ async function chatCommand(runtime) {
     }
     for (const request of capturedRequests) {
       const pending = addPendingTx(state, walletRequestToPendingTx(request));
+      if (!pending) {
+        console.log("\u26A0\uFE0F  Duplicate wallet request skipped");
+        continue;
+      }
       console.log(`\u26A1 Wallet request queued: ${pending.id}`);
       if (request.kind === "transaction") {
         const payload = request.payload;
@@ -2314,6 +2326,10 @@ async function executeViaAA(callList, providerState) {
   const receipt = callList.length > 1 ? await AA.sendBatchTransaction(callsPayload) : await AA.sendTransaction(callsPayload[0]);
   const txHash = receipt.transactionHash;
   const providerPrefix = AA.provider.toLowerCase();
+  let delegationAddress = AA.mode === "7702" ? AA.delegationAddress : void 0;
+  if (AA.mode === "7702" && !delegationAddress) {
+    delegationAddress = await resolve7702Delegation(txHash, callList);
+  }
   return {
     txHash,
     txHashes: [txHash],
@@ -2321,8 +2337,35 @@ async function executeViaAA(callList, providerState) {
     batched: callList.length > 1,
     sponsored: plan.sponsorship !== "disabled",
     AAAddress: AA.AAAddress,
-    delegationAddress: AA.mode === "7702" ? AA.delegationAddress : void 0
+    delegationAddress
   };
+}
+async function resolve7702Delegation(txHash, callList) {
+  var _a3, _b, _c, _d;
+  try {
+    const { createPublicClient, http: http2 } = await import("viem");
+    const chainId = (_a3 = callList[0]) == null ? void 0 : _a3.chainId;
+    if (!chainId) return void 0;
+    const { mainnet, polygon, arbitrum, optimism, base } = await import("viem/chains");
+    const knownChains = {
+      1: mainnet,
+      137: polygon,
+      42161: arbitrum,
+      10: optimism,
+      8453: base
+    };
+    const chain = knownChains[chainId];
+    if (!chain) return void 0;
+    const client = createPublicClient({ chain, transport: http2() });
+    const tx = await client.getTransaction({ hash: txHash });
+    const authList = tx.authorizationList;
+    const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
+    if (target) {
+      return target;
+    }
+  } catch (e) {
+  }
+  return void 0;
 }
 async function executeViaEoa({
   callList,
@@ -3252,11 +3295,12 @@ function resolvePimlicoConfig(options) {
 
 // src/aa/adapt.ts
 function adaptSmartAccount(account) {
+  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
   return {
     provider: account.provider,
     mode: account.mode,
     AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+    delegationAddress,
     sendTransaction: async (call) => {
       const receipt = await account.sendTransaction(call);
       return { transactionHash: receipt.transactionHash };
@@ -3550,6 +3594,42 @@ async function createPimlicoAAState(options) {
 }
 
 // src/cli/execution.ts
+var ERC20_SELECTORS = /* @__PURE__ */ new Set([
+  "0x095ea7b3",
+  // approve(address,uint256)
+  "0xa9059cbb",
+  // transfer(address,uint256)
+  "0x23b872dd"
+  // transferFrom(address,address,uint256)
+]);
+function callsContainTokenOperations(calls) {
+  return calls.some(
+    (call) => call.data && ERC20_SELECTORS.has(call.data.slice(0, 10).toLowerCase())
+  );
+}
+function maybeOverride4337ForTokenOps(params) {
+  const { mode, callList, chain, explicitMode } = params;
+  if (mode !== "4337" || !callsContainTokenOperations(callList)) {
+    return { mode, warned: false };
+  }
+  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
+    [chain.id]: chain
+  });
+  if ((chainConfig == null ? void 0 : chainConfig.supportedModes.includes("7702")) && !explicitMode) {
+    console.log(
+      "\u26A0\uFE0F  4337 batch contains ERC-20 calls but tokens are in your EOA, not the 4337 smart account."
+    );
+    console.log("   Switching to 7702 (EOA keeps smart-account capabilities, no token transfer needed).");
+    return { mode: "7702", warned: true };
+  }
+  console.log(
+    "\u26A0\uFE0F  4337 batch contains ERC-20 calls. Tokens must be in the smart account, not your EOA."
+  );
+  console.log(
+    "   This batch may revert. Consider transferring tokens to the smart account first."
+  );
+  return { mode, warned: true };
+}
 function resolveAAProvider(config, options) {
   const provider = config.aaProvider;
   if (provider) {
@@ -3585,10 +3665,16 @@ function getResolvedAAMode(params) {
   if (!resolved) {
     throw new Error(`AA config resolution failed for provider "${provider}".`);
   }
+  const { mode: finalMode } = maybeOverride4337ForTokenOps({
+    mode: resolved.plan.mode,
+    callList,
+    chain,
+    explicitMode: Boolean(config.aaMode)
+  });
   return {
     execution: "aa",
     provider,
-    aaMode: resolved.plan.mode,
+    aaMode: finalMode,
     fallbackToEoa
   };
 }

@@ -147,6 +147,13 @@ export type SessionEventMap = {
   processing_start: undefined;
   /** AI finished processing. */
   processing_end: undefined;
+  /**
+   * Backend transitioned from processing to idle (is_processing went false).
+   * Unlike `processing_end`, this fires even when there are unresolved local
+   * wallet requests.  CLI consumers use it to know that all system events
+   * (including wallet requests) have been delivered for the current turn.
+   */
+  backend_idle: undefined;
   /** An error occurred during polling or SSE. */
   error: { error: unknown };
   /** Wildcard: receives all events as { type, payload }. */
@@ -175,6 +182,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private unsubscribeSSE: (() => void) | null = null;
   private _isProcessing = false;
+  private _backendWasProcessing = false;
   private walletRequests: WalletRequest[] = [];
   private walletRequestNextId = 1;
   private _messages: AomiMessage[] = [];
@@ -460,6 +468,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private startPolling(): void {
     if (this.pollTimer || this.closed) return;
 
+    this._backendWasProcessing = true;
     this.logger?.debug("[session] polling started", this.sessionId);
     this.pollTimer = setInterval(() => {
       void this.pollTick();
@@ -489,6 +498,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
+
+      // Detect backend processing → idle transition.
+      // Fires even when local wallet requests are pending, so CLI consumers
+      // know all system events for this turn have been delivered.
+      if (this._backendWasProcessing && !state.is_processing) {
+        this.emit("backend_idle", undefined);
+      }
+      this._backendWasProcessing = !!state.is_processing;
 
       if (!state.is_processing && this.walletRequests.length === 0) {
         this.stopPolling();
