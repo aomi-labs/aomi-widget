@@ -848,6 +848,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.pollTimer = null;
     this.unsubscribeSSE = null;
     this._isProcessing = false;
+    this._backendWasProcessing = false;
     this.walletRequests = [];
     this.walletRequestNextId = 1;
     this._messages = [];
@@ -1078,6 +1079,7 @@ var ClientSession = class extends TypedEventEmitter {
   startPolling() {
     var _a;
     if (this.pollTimer || this.closed) return;
+    this._backendWasProcessing = true;
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
     this.pollTimer = setInterval(() => {
       void this.pollTick();
@@ -1103,6 +1105,10 @@ var ClientSession = class extends TypedEventEmitter {
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
+      if (this._backendWasProcessing && !state.is_processing) {
+        this.emit("backend_idle", void 0);
+      }
+      this._backendWasProcessing = !!state.is_processing;
       if (!state.is_processing && this.walletRequests.length === 0) {
         this.stopPolling();
         this._isProcessing = false;
@@ -1414,6 +1420,10 @@ async function executeViaAA(callList, providerState) {
   const receipt = callList.length > 1 ? await AA.sendBatchTransaction(callsPayload) : await AA.sendTransaction(callsPayload[0]);
   const txHash = receipt.transactionHash;
   const providerPrefix = AA.provider.toLowerCase();
+  let delegationAddress = AA.mode === "7702" ? AA.delegationAddress : void 0;
+  if (AA.mode === "7702" && !delegationAddress) {
+    delegationAddress = await resolve7702Delegation(txHash, callList);
+  }
   return {
     txHash,
     txHashes: [txHash],
@@ -1421,8 +1431,35 @@ async function executeViaAA(callList, providerState) {
     batched: callList.length > 1,
     sponsored: plan.sponsorship !== "disabled",
     AAAddress: AA.AAAddress,
-    delegationAddress: AA.mode === "7702" ? AA.delegationAddress : void 0
+    delegationAddress
   };
+}
+async function resolve7702Delegation(txHash, callList) {
+  var _a, _b, _c, _d;
+  try {
+    const { createPublicClient, http } = await import("viem");
+    const chainId = (_a = callList[0]) == null ? void 0 : _a.chainId;
+    if (!chainId) return void 0;
+    const { mainnet, polygon, arbitrum, optimism, base } = await import("viem/chains");
+    const knownChains = {
+      1: mainnet,
+      137: polygon,
+      42161: arbitrum,
+      10: optimism,
+      8453: base
+    };
+    const chain = knownChains[chainId];
+    if (!chain) return void 0;
+    const client = createPublicClient({ chain, transport: http() });
+    const tx = await client.getTransaction({ hash: txHash });
+    const authList = tx.authorizationList;
+    const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
+    if (target) {
+      return target;
+    }
+  } catch (e) {
+  }
+  return void 0;
 }
 async function executeViaEoa({
   callList,
@@ -1782,11 +1819,12 @@ function createPimlicoAAProvider({
 
 // src/aa/adapt.ts
 function adaptSmartAccount(account) {
+  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
   return {
     provider: account.provider,
     mode: account.mode,
     AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+    delegationAddress,
     sendTransaction: async (call) => {
       const receipt = await account.sendTransaction(call);
       return { transactionHash: receipt.transactionHash };

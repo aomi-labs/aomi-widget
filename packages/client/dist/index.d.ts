@@ -449,6 +449,13 @@ type SessionEventMap = {
     processing_start: undefined;
     /** AI finished processing. */
     processing_end: undefined;
+    /**
+     * Backend transitioned from processing to idle (is_processing went false).
+     * Unlike `processing_end`, this fires even when there are unresolved local
+     * wallet requests.  CLI consumers use it to know that all system events
+     * (including wallet requests) have been delivered for the current turn.
+     */
+    backend_idle: undefined;
     /** An error occurred during polling or SSE. */
     error: {
         error: unknown;
@@ -474,6 +481,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private pollTimer;
     private unsubscribeSSE;
     private _isProcessing;
+    private _backendWasProcessing;
     private walletRequests;
     private walletRequestNextId;
     private _messages;

@@ -397,8 +397,22 @@ function getNextTxId(state: CliSessionState): string {
 export function addPendingTx(
   state: CliSessionState,
   tx: Omit<PendingTx, "id">,
-): PendingTx {
+): PendingTx | null {
   if (!state.pendingTxs) state.pendingTxs = [];
+
+  // Dedup: skip if an identical pending tx already exists (same to/data/value/chainId).
+  // Prevents duplicates when the agent re-queues a wallet request across turns.
+  const isDuplicate = state.pendingTxs.some(
+    (existing) =>
+      existing.kind === tx.kind &&
+      existing.to === tx.to &&
+      existing.data === tx.data &&
+      existing.value === tx.value &&
+      existing.chainId === tx.chainId,
+  );
+  if (isDuplicate) {
+    return null;
+  }
 
   const pending: PendingTx = {
     ...tx,
