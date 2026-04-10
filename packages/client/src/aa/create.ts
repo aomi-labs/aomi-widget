@@ -14,6 +14,13 @@ import { readEnv, ALCHEMY_GAS_POLICY_ENVS } from "./env";
 import type { AAProvider } from "./env";
 import type { AALike } from "./types";
 
+// Alchemy's SemiModularAccount7702 implementation contract.
+// The @getpara/aa-alchemy SDK hardcodes this same address.
+// The @alchemy/wallet-apis SDK does NOT expose the delegation target,
+// so we must use this constant for the Wallet APIs code path.
+const ALCHEMY_7702_DELEGATION_ADDRESS =
+  "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
+
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
@@ -370,7 +377,7 @@ async function createAlchemyWalletApisState(params: {
     provider: "alchemy",
     mode: params.mode,
     AAAddress: accountAddress,
-    delegationAddress: params.mode === "7702" ? (signer.address as Hex) : undefined,
+    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : undefined,
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls),
   };
