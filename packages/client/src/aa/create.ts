@@ -12,6 +12,7 @@ import { adaptSmartAccount } from "./adapt";
 import { resolveAlchemyConfig, resolvePimlicoConfig } from "./resolve";
 import { readEnv, ALCHEMY_GAS_POLICY_ENVS } from "./env";
 import type { AAProvider } from "./env";
+import type { AALike } from "./types";
 
 // ---------------------------------------------------------------------------
 // Options
@@ -269,6 +270,26 @@ async function createAlchemyAAState(
     return getUnsupportedAdapterState(plan, ownerParams.adapter);
   }
 
+  if (owner.kind === "direct") {
+    try {
+      return await createAlchemyWalletApisState({
+        plan: plan!,
+        chain,
+        privateKey: owner.privateKey,
+        apiKey,
+        gasPolicyId,
+        mode: plan!.mode,
+      });
+    } catch (error) {
+      return {
+        plan,
+        AA: null,
+        isPending: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  }
+
   try {
     const smartAccount = await createAlchemySmartAccount({
       ...ownerParams.ownerParams,
@@ -302,6 +323,64 @@ async function createAlchemyAAState(
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }
+}
+
+async function createAlchemyWalletApisState(params: {
+  plan: NonNullable<AAProviderState["plan"]>;
+  chain: Chain;
+  privateKey: `0x${string}`;
+  apiKey: string;
+  gasPolicyId?: string;
+  mode: AAExecutionMode;
+}): Promise<AAProviderState> {
+  const { createSmartWalletClient, alchemyWalletTransport } = await import(
+    "@alchemy/wallet-apis"
+  );
+
+  const signer = privateKeyToAccount(params.privateKey);
+  const walletClient = createSmartWalletClient({
+    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
+    chain: params.chain,
+    signer,
+    ...(params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}),
+  });
+
+  let accountAddress = signer.address as Hex;
+  if (params.mode === "4337") {
+    const account = await walletClient.requestAccount();
+    accountAddress = account.address as Hex;
+  }
+
+  const sendCalls = async (
+    calls: Array<{ to: Hex; value: bigint; data?: Hex }>,
+  ): Promise<{ transactionHash: string }> => {
+    const result = await walletClient.sendCalls({
+      ...(params.mode === "4337" ? { account: accountAddress } : {}),
+      calls,
+    });
+    const status = await walletClient.waitForCallsStatus({ id: result.id });
+    const transactionHash = status.receipts?.[0]?.transactionHash;
+    if (!transactionHash) {
+      throw new Error("Alchemy Wallets API did not return a transaction hash.");
+    }
+    return { transactionHash };
+  };
+
+  const AA: AALike = {
+    provider: "alchemy",
+    mode: params.mode,
+    AAAddress: accountAddress,
+    delegationAddress: params.mode === "7702" ? (signer.address as Hex) : undefined,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls),
+  };
+
+  return {
+    plan: params.plan,
+    AA,
+    isPending: false,
+    error: null,
+  };
 }
 
 // ---------------------------------------------------------------------------
