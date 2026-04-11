@@ -3,7 +3,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
   executeWalletCalls,
-  type TransactionExecutionResult,
+  type ExecutionResult,
 } from "../../aa";
 import { ClientSession } from "../../session";
 import {
@@ -195,7 +195,7 @@ async function executeCliTransaction(params: {
   rpcUrl?: string;
   providerState: Awaited<ReturnType<typeof createCliProviderState>>;
   callList: ReturnType<typeof pendingTxToCallList>;
-}): Promise<TransactionExecutionResult> {
+}): Promise<ExecutionResult> {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
   const unsupportedWalletMethod = async (): Promise<never> => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
@@ -224,7 +224,7 @@ async function executeTransactionWithFallback(params: {
   rpcUrl?: string;
   callList: ReturnType<typeof pendingTxToCallList>;
 }): Promise<{
-  execution: TransactionExecutionResult;
+  execution: ExecutionResult;
   finalDecision: ReturnType<typeof resolveCliExecutionDecision>;
 }> {
   const { decision, privateKey, currentChainId, chainsById, primaryChain, rpcUrl, callList } =

@@ -2,6 +2,7 @@
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
 var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getOwnPropSymbols = Object.getOwnPropertySymbols;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __propIsEnum = Object.prototype.propertyIsEnumerable;
@@ -18,55 +19,15 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
-
-// package.json
-var package_default = {
-  name: "@aomi-labs/client",
-  version: "0.1.20",
-  description: "Platform-agnostic TypeScript client for the Aomi backend API",
-  type: "module",
-  main: "./dist/index.cjs",
-  module: "./dist/index.js",
-  types: "./dist/index.d.ts",
-  bin: {
-    aomi: "./dist/cli.js"
-  },
-  exports: {
-    ".": {
-      import: {
-        types: "./dist/index.d.ts",
-        default: "./dist/index.js"
-      },
-      require: {
-        types: "./dist/index.d.cts",
-        default: "./dist/index.cjs"
-      }
-    }
-  },
-  files: [
-    "dist",
-    "skills",
-    "README.md"
-  ],
-  scripts: {
-    build: "tsup",
-    "clean:dist": "rm -rf dist"
-  },
-  dependencies: {
-    "@alchemy/wallet-apis": "5.0.0-beta.22",
-    "@getpara/aa-alchemy": "2.21.0",
-    "@getpara/aa-pimlico": "2.21.0",
-    viem: "^2.47.11"
-  }
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
 
 // src/cli/errors.ts
-var CliExit = class extends Error {
-  constructor(code) {
-    super();
-    this.code = code;
-  }
-};
 function fatal(message) {
   const RED = "\x1B[31m";
   const DIM2 = "\x1B[2m";
@@ -83,17 +44,20 @@ function fatal(message) {
   }
   throw new CliExit(1);
 }
+var CliExit;
+var init_errors = __esm({
+  "src/cli/errors.ts"() {
+    "use strict";
+    CliExit = class extends Error {
+      constructor(code) {
+        super();
+        this.code = code;
+      }
+    };
+  }
+});
 
 // src/cli/args.ts
-var SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111];
-var CHAIN_NAMES = {
-  1: "Ethereum",
-  137: "Polygon",
-  42161: "Arbitrum One",
-  8453: "Base",
-  10: "Optimism",
-  11155111: "Sepolia"
-};
 function parseChainId(value) {
   if (value === void 0) return void 0;
   const n = parseInt(value, 10);
@@ -220,13 +184,22 @@ function getConfig(parsed) {
     aaMode
   };
 }
-function createRuntime(argv) {
-  const parsed = parseArgs(argv);
-  return {
-    parsed,
-    config: getConfig(parsed)
-  };
-}
+var SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
+var init_args = __esm({
+  "src/cli/args.ts"() {
+    "use strict";
+    init_errors();
+    SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111];
+    CHAIN_NAMES = {
+      1: "Ethereum",
+      137: "Polygon",
+      42161: "Arbitrum One",
+      8453: "Base",
+      10: "Optimism",
+      11155111: "Sepolia"
+    };
+  }
+});
 
 // src/cli/state.ts
 import {
@@ -239,17 +212,6 @@ import {
 } from "fs";
 import { basename, join } from "path";
 import { homedir, tmpdir } from "os";
-var SESSION_FILE_PREFIX = "session-";
-var SESSION_FILE_SUFFIX = ".json";
-var _a;
-var LEGACY_STATE_FILE = join(
-  (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
-  "aomi-session.json"
-);
-var _a2;
-var STATE_ROOT_DIR = (_a2 = process.env.AOMI_STATE_DIR) != null ? _a2 : join(homedir(), ".aomi");
-var SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
-var ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
 function ensureStorageDirs() {
   mkdirSync(SESSIONS_DIR, { recursive: true });
 }
@@ -355,7 +317,6 @@ function getNextLocalId(sessions) {
   }, 0);
   return maxLocalId + 1;
 }
-var _migrationDone = false;
 function migrateLegacyStateIfNeeded() {
   if (_migrationDone) return;
   _migrationDone = true;
@@ -526,13 +487,24 @@ function addSignedTx(state, tx) {
   state.signedTxs.push(tx);
   writeState(state);
 }
+var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
+var init_state = __esm({
+  "src/cli/state.ts"() {
+    "use strict";
+    SESSION_FILE_PREFIX = "session-";
+    SESSION_FILE_SUFFIX = ".json";
+    LEGACY_STATE_FILE = join(
+      (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
+      "aomi-session.json"
+    );
+    STATE_ROOT_DIR = (_a2 = process.env.AOMI_STATE_DIR) != null ? _a2 : join(homedir(), ".aomi");
+    SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
+    ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
+    _migrationDone = false;
+  }
+});
 
 // src/cli/output.ts
-var DIM = "\x1B[2m";
-var CYAN = "\x1B[36m";
-var YELLOW = "\x1B[33m";
-var GREEN = "\x1B[32m";
-var RESET = "\x1B[0m";
 function printDataFileLocation() {
   const activeFile = getActiveStateFilePath();
   if (activeFile) {
@@ -628,6 +600,18 @@ function formatToolResultLine(name, result) {
   }
   return `${GREEN}\u2714 [tool] ${name} \u2192 ${formatToolResultPreview(result, 120)}${RESET}`;
 }
+var DIM, CYAN, YELLOW, GREEN, RESET;
+var init_output = __esm({
+  "src/cli/output.ts"() {
+    "use strict";
+    init_state();
+    DIM = "\x1B[2m";
+    CYAN = "\x1B[36m";
+    YELLOW = "\x1B[33m";
+    GREEN = "\x1B[32m";
+    RESET = "\x1B[0m";
+  }
+});
 
 // src/sse.ts
 function extractSseData(rawEvent) {
@@ -802,10 +786,13 @@ function createSseSubscriber({
   };
   return { subscribe };
 }
+var init_sse = __esm({
+  "src/sse.ts"() {
+    "use strict";
+  }
+});
 
 // src/client.ts
-var SESSION_ID_HEADER = "X-Session-Id";
-var API_KEY_HEADER = "X-API-Key";
 function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -852,355 +839,363 @@ async function postState(baseUrl, path, payload, sessionId, apiKey) {
   }
   return await response.json();
 }
-var AomiClient = class {
-  constructor(options) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
-    this.apiKey = options.apiKey;
-    this.logger = options.logger;
-    this.sseSubscriber = createSseSubscriber({
-      backendUrl: this.baseUrl,
-      getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
-      logger: this.logger
-    });
-  }
-  // ===========================================================================
-  // Chat & State
-  // ===========================================================================
-  /**
-   * Fetch current session state (messages, processing status, title).
-   */
-  async fetchState(sessionId, userState, clientId) {
-    const url = buildApiUrl(this.baseUrl, "/api/state", {
-      user_state: userState ? JSON.stringify(userState) : void 0,
-      client_id: clientId
-    });
-    const response = await fetch(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Send a chat message and return updated session state.
-   */
-  async sendMessage(sessionId, message, options) {
-    var _a3, _b;
-    const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
-    const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const payload = { message, app };
-    if (options == null ? void 0 : options.publicKey) {
-      payload.public_key = options.publicKey;
-    }
-    if (options == null ? void 0 : options.userState) {
-      payload.user_state = JSON.stringify(options.userState);
-    }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
-    }
-    return postState(
-      this.baseUrl,
-      "/api/chat",
-      payload,
-      sessionId,
-      apiKey
-    );
-  }
-  /**
-   * Send a system-level message (e.g. wallet state changes, context switches).
-   */
-  async sendSystemMessage(sessionId, message) {
-    return postState(
-      this.baseUrl,
-      "/api/system",
-      { message },
-      sessionId
-    );
-  }
-  /**
-   * Interrupt the AI's current response.
-   */
-  async interrupt(sessionId) {
-    return postState(
-      this.baseUrl,
-      "/api/interrupt",
-      {},
-      sessionId
-    );
-  }
-  // ===========================================================================
-  // Secrets
-  // ===========================================================================
-  /**
-   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
-   * Call this once at page load (or when secrets change) with a stable
-   * client_id for the browser tab. The same client_id should be passed
-   * to `sendMessage` / `fetchState` so sessions get associated.
-   */
-  async ingestSecrets(clientId, secrets) {
-    const url = joinApiPath(this.baseUrl, "/api/secrets");
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ client_id: clientId, secrets })
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Clear all secrets for a client (e.g. on page unload or logout).
-   */
-  async clearSecrets(clientId) {
-    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
-      client_id: clientId
-    });
-    const response = await fetch(url, { method: "DELETE" });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  // ===========================================================================
-  // SSE (Real-time Updates)
-  // ===========================================================================
-  /**
-   * Subscribe to real-time SSE updates for a session.
-   * Automatically reconnects with exponential backoff on disconnects.
-   * Returns an unsubscribe function.
-   */
-  subscribeSSE(sessionId, onUpdate, onError) {
-    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
-  }
-  // ===========================================================================
-  // Thread / Session Management
-  // ===========================================================================
-  /**
-   * List all threads for a wallet address.
-   */
-  async listThreads(publicKey) {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-      public_key: publicKey
-    });
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Get a single thread by ID.
-   */
-  async getThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`
-    );
-    const response = await fetch(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Create a new thread. The client generates the session ID.
-   */
-  async createThread(threadId, publicKey) {
-    const body = {};
-    if (publicKey) body.public_key = publicKey;
-    const url = buildApiUrl(this.baseUrl, "/api/sessions");
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify(body)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create thread: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Delete a thread by ID.
-   */
-  async deleteThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`
-    );
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete thread: HTTP ${response.status}`);
-    }
-  }
-  /**
-   * Rename a thread.
-   */
-  async renameThread(sessionId, newTitle) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`
-    );
-    const response = await fetch(url, {
-      method: "PATCH",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify({ title: newTitle })
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to rename thread: HTTP ${response.status}`);
-    }
-  }
-  /**
-   * Archive a thread.
-   */
-  async archiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/archive`
-    );
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
-  }
-  /**
-   * Unarchive a thread.
-   */
-  async unarchiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`
-    );
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
-  }
-  // ===========================================================================
-  // System Events
-  // ===========================================================================
-  /**
-   * Get system events for a session.
-   */
-  async getSystemEvents(sessionId, count) {
-    const url = buildApiUrl(this.baseUrl, "/api/events", {
-      count: count !== void 0 ? String(count) : void 0
-    });
-    const response = await fetch(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      if (response.status === 404) return [];
-      throw new Error(`Failed to get system events: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  // ===========================================================================
-  // Control API
-  // ===========================================================================
-  /**
-   * Get available apps.
-   */
-  async getApps(sessionId, options) {
-    var _a3;
-    const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
-      public_key: options == null ? void 0 : options.publicKey
-    });
-    const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-    const headers = new Headers(withSessionHeader(sessionId));
-    if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
-    }
-    const response = await fetch(url, { headers });
-    if (!response.ok) {
-      throw new Error(`Failed to get apps: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Get available models.
-   */
-  async getModels(sessionId, options) {
-    var _a3;
-    const url = buildApiUrl(this.baseUrl, "/api/control/models");
-    const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-    const headers = new Headers(withSessionHeader(sessionId));
-    if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
-    }
-    const response = await fetch(url, {
-      headers
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to get models: HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Set the model for a session.
-   */
-  async setModel(sessionId, rig, options) {
-    var _a3;
-    const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-    const payload = { rig };
-    if (options == null ? void 0 : options.app) {
-      payload.app = options.app;
-    }
-    return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
-  }
-  // ===========================================================================
-  // Batch Simulation
-  // ===========================================================================
-  /**
-   * Simulate transactions as an atomic batch.
-   * Each tx sees state changes from previous txs (e.g., approve → swap).
-   * Sends full tx payloads — the backend does not look up by ID.
-   */
-  async simulateBatch(sessionId, transactions, options) {
-    const url = joinApiPath(this.baseUrl, "/api/simulate");
-    const headers = new Headers(
-      withSessionHeader(sessionId, { "Content-Type": "application/json" })
-    );
-    if (this.apiKey) {
-      headers.set(API_KEY_HEADER, this.apiKey);
-    }
-    const payload = {
-      transactions,
-      from: options == null ? void 0 : options.from,
-      chain_id: options == null ? void 0 : options.chainId
-    };
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
+var SESSION_ID_HEADER, API_KEY_HEADER, AomiClient;
+var init_client = __esm({
+  "src/client.ts"() {
+    "use strict";
+    init_sse();
+    SESSION_ID_HEADER = "X-Session-Id";
+    API_KEY_HEADER = "X-API-Key";
+    AomiClient = class {
+      constructor(options) {
+        this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+        this.apiKey = options.apiKey;
+        this.logger = options.logger;
+        this.sseSubscriber = createSseSubscriber({
+          backendUrl: this.baseUrl,
+          getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
+          logger: this.logger
+        });
+      }
+      // ===========================================================================
+      // Chat & State
+      // ===========================================================================
+      /**
+       * Fetch current session state (messages, processing status, title).
+       */
+      async fetchState(sessionId, userState, clientId) {
+        const url = buildApiUrl(this.baseUrl, "/api/state", {
+          user_state: userState ? JSON.stringify(userState) : void 0,
+          client_id: clientId
+        });
+        const response = await fetch(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Send a chat message and return updated session state.
+       */
+      async sendMessage(sessionId, message, options) {
+        var _a3, _b;
+        const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
+        const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
+        const payload = { message, app };
+        if (options == null ? void 0 : options.publicKey) {
+          payload.public_key = options.publicKey;
+        }
+        if (options == null ? void 0 : options.userState) {
+          payload.user_state = JSON.stringify(options.userState);
+        }
+        if (options == null ? void 0 : options.clientId) {
+          payload.client_id = options.clientId;
+        }
+        return postState(
+          this.baseUrl,
+          "/api/chat",
+          payload,
+          sessionId,
+          apiKey
+        );
+      }
+      /**
+       * Send a system-level message (e.g. wallet state changes, context switches).
+       */
+      async sendSystemMessage(sessionId, message) {
+        return postState(
+          this.baseUrl,
+          "/api/system",
+          { message },
+          sessionId
+        );
+      }
+      /**
+       * Interrupt the AI's current response.
+       */
+      async interrupt(sessionId) {
+        return postState(
+          this.baseUrl,
+          "/api/interrupt",
+          {},
+          sessionId
+        );
+      }
+      // ===========================================================================
+      // Secrets
+      // ===========================================================================
+      /**
+       * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+       * Call this once at page load (or when secrets change) with a stable
+       * client_id for the browser tab. The same client_id should be passed
+       * to `sendMessage` / `fetchState` so sessions get associated.
+       */
+      async ingestSecrets(clientId, secrets) {
+        const url = joinApiPath(this.baseUrl, "/api/secrets");
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: clientId, secrets })
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Clear all secrets for a client (e.g. on page unload or logout).
+       */
+      async clearSecrets(clientId) {
+        const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+          client_id: clientId
+        });
+        const response = await fetch(url, { method: "DELETE" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
+      }
+      // ===========================================================================
+      // SSE (Real-time Updates)
+      // ===========================================================================
+      /**
+       * Subscribe to real-time SSE updates for a session.
+       * Automatically reconnects with exponential backoff on disconnects.
+       * Returns an unsubscribe function.
+       */
+      subscribeSSE(sessionId, onUpdate, onError) {
+        return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
+      }
+      // ===========================================================================
+      // Thread / Session Management
+      // ===========================================================================
+      /**
+       * List all threads for a wallet address.
+       */
+      async listThreads(publicKey) {
+        const url = buildApiUrl(this.baseUrl, "/api/sessions", {
+          public_key: publicKey
+        });
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Get a single thread by ID.
+       */
+      async getThread(sessionId) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/sessions/${encodeURIComponent(sessionId)}`
+        );
+        const response = await fetch(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Create a new thread. The client generates the session ID.
+       */
+      async createThread(threadId, publicKey) {
+        const body = {};
+        if (publicKey) body.public_key = publicKey;
+        const url = buildApiUrl(this.baseUrl, "/api/sessions");
+        const response = await fetch(url, {
+          method: "POST",
+          headers: withSessionHeader(threadId, {
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to create thread: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Delete a thread by ID.
+       */
+      async deleteThread(sessionId) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/sessions/${encodeURIComponent(sessionId)}`
+        );
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to delete thread: HTTP ${response.status}`);
+        }
+      }
+      /**
+       * Rename a thread.
+       */
+      async renameThread(sessionId, newTitle) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/sessions/${encodeURIComponent(sessionId)}`
+        );
+        const response = await fetch(url, {
+          method: "PATCH",
+          headers: withSessionHeader(sessionId, {
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({ title: newTitle })
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to rename thread: HTTP ${response.status}`);
+        }
+      }
+      /**
+       * Archive a thread.
+       */
+      async archiveThread(sessionId) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/sessions/${encodeURIComponent(sessionId)}/archive`
+        );
+        const response = await fetch(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to archive thread: HTTP ${response.status}`);
+        }
+      }
+      /**
+       * Unarchive a thread.
+       */
+      async unarchiveThread(sessionId) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`
+        );
+        const response = await fetch(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
+        }
+      }
+      // ===========================================================================
+      // System Events
+      // ===========================================================================
+      /**
+       * Get system events for a session.
+       */
+      async getSystemEvents(sessionId, count) {
+        const url = buildApiUrl(this.baseUrl, "/api/events", {
+          count: count !== void 0 ? String(count) : void 0
+        });
+        const response = await fetch(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          if (response.status === 404) return [];
+          throw new Error(`Failed to get system events: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      // ===========================================================================
+      // Control API
+      // ===========================================================================
+      /**
+       * Get available apps.
+       */
+      async getApps(sessionId, options) {
+        var _a3;
+        const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+          public_key: options == null ? void 0 : options.publicKey
+        });
+        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        const headers = new Headers(withSessionHeader(sessionId));
+        if (apiKey) {
+          headers.set(API_KEY_HEADER, apiKey);
+        }
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+          throw new Error(`Failed to get apps: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Get available models.
+       */
+      async getModels(sessionId, options) {
+        var _a3;
+        const url = buildApiUrl(this.baseUrl, "/api/control/models");
+        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        const headers = new Headers(withSessionHeader(sessionId));
+        if (apiKey) {
+          headers.set(API_KEY_HEADER, apiKey);
+        }
+        const response = await fetch(url, {
+          headers
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to get models: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Set the model for a session.
+       */
+      async setModel(sessionId, rig, options) {
+        var _a3;
+        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        const payload = { rig };
+        if (options == null ? void 0 : options.app) {
+          payload.app = options.app;
+        }
+        return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+      }
+      // ===========================================================================
+      // Batch Simulation
+      // ===========================================================================
+      /**
+       * Simulate transactions as an atomic batch.
+       * Each tx sees state changes from previous txs (e.g., approve → swap).
+       * Sends full tx payloads — the backend does not look up by ID.
+       */
+      async simulateBatch(sessionId, transactions, options) {
+        const url = joinApiPath(this.baseUrl, "/api/simulate");
+        const headers = new Headers(
+          withSessionHeader(sessionId, { "Content-Type": "application/json" })
+        );
+        if (this.apiKey) {
+          headers.set(API_KEY_HEADER, this.apiKey);
+        }
+        const payload = {
+          transactions,
+          from: options == null ? void 0 : options.from,
+          chain_id: options == null ? void 0 : options.chainId
+        };
+        const response = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
 ${body}` : ""}`);
-    }
-    return await response.json();
+        }
+        return await response.json();
+      }
+    };
   }
-};
+});
 
 // src/types.ts
-var CLIENT_TYPE_TS_CLI = "ts_cli";
 function addUserStateExt(userState, key, value) {
   const currentExt = userState["ext"];
   const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
@@ -1222,78 +1217,91 @@ function isSystemError(event) {
 function isAsyncCallback(event) {
   return "AsyncCallback" in event;
 }
+var CLIENT_TYPE_TS_CLI;
+var init_types = __esm({
+  "src/types.ts"() {
+    "use strict";
+    CLIENT_TYPE_TS_CLI = "ts_cli";
+  }
+});
 
 // src/event-emitter.ts
-var TypedEventEmitter = class {
-  constructor() {
-    this.listeners = /* @__PURE__ */ new Map();
-  }
-  /**
-   * Subscribe to an event type. Returns an unsubscribe function.
-   */
-  on(type, handler) {
-    let set = this.listeners.get(type);
-    if (!set) {
-      set = /* @__PURE__ */ new Set();
-      this.listeners.set(type, set);
-    }
-    set.add(handler);
-    return () => {
-      set.delete(handler);
-      if (set.size === 0) {
-        this.listeners.delete(type);
+var TypedEventEmitter;
+var init_event_emitter = __esm({
+  "src/event-emitter.ts"() {
+    "use strict";
+    TypedEventEmitter = class {
+      constructor() {
+        this.listeners = /* @__PURE__ */ new Map();
+      }
+      /**
+       * Subscribe to an event type. Returns an unsubscribe function.
+       */
+      on(type, handler) {
+        let set = this.listeners.get(type);
+        if (!set) {
+          set = /* @__PURE__ */ new Set();
+          this.listeners.set(type, set);
+        }
+        set.add(handler);
+        return () => {
+          set.delete(handler);
+          if (set.size === 0) {
+            this.listeners.delete(type);
+          }
+        };
+      }
+      /**
+       * Subscribe to an event type for a single emission, then auto-unsubscribe.
+       */
+      once(type, handler) {
+        const wrapper = ((payload) => {
+          unsub();
+          handler(payload);
+        });
+        const unsub = this.on(type, wrapper);
+        return unsub;
+      }
+      /**
+       * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
+       */
+      emit(type, payload) {
+        const typeSet = this.listeners.get(type);
+        if (typeSet) {
+          for (const handler of typeSet) {
+            handler(payload);
+          }
+        }
+        if (type !== "*") {
+          const wildcardSet = this.listeners.get("*");
+          if (wildcardSet) {
+            for (const handler of wildcardSet) {
+              handler({ type, payload });
+            }
+          }
+        }
+      }
+      /**
+       * Remove a specific handler from an event type.
+       */
+      off(type, handler) {
+        const set = this.listeners.get(type);
+        if (set) {
+          set.delete(handler);
+          if (set.size === 0) {
+            this.listeners.delete(type);
+          }
+        }
+      }
+      /**
+       * Remove all listeners for all event types.
+       */
+      removeAllListeners() {
+        this.listeners.clear();
       }
     };
   }
-  /**
-   * Subscribe to an event type for a single emission, then auto-unsubscribe.
-   */
-  once(type, handler) {
-    const wrapper = ((payload) => {
-      unsub();
-      handler(payload);
-    });
-    const unsub = this.on(type, wrapper);
-    return unsub;
-  }
-  /**
-   * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
-   */
-  emit(type, payload) {
-    const typeSet = this.listeners.get(type);
-    if (typeSet) {
-      for (const handler of typeSet) {
-        handler(payload);
-      }
-    }
-    if (type !== "*") {
-      const wildcardSet = this.listeners.get("*");
-      if (wildcardSet) {
-        for (const handler of wildcardSet) {
-          handler({ type, payload });
-        }
-      }
-    }
-  }
-  /**
-   * Remove a specific handler from an event type.
-   */
-  off(type, handler) {
-    const set = this.listeners.get(type);
-    if (set) {
-      set.delete(handler);
-      if (set.size === 0) {
-        this.listeners.delete(type);
-      }
-    }
-  }
-  /**
-   * Remove all listeners for all event types.
-   */
-  removeAllListeners() {
-    this.listeners.clear();
-  }
-};
+});
 
 // src/event-unwrap.ts
 function unwrapSystemEvent(event) {
@@ -1324,6 +1332,12 @@ function unwrapSystemEvent(event) {
   }
   return null;
 }
+var init_event_unwrap = __esm({
+  "src/event-unwrap.ts"() {
+    "use strict";
+    init_types();
+  }
+});
 
 // src/wallet-utils.ts
 import { getAddress } from "viem";
@@ -1334,9 +1348,9 @@ function asRecord(value) {
 }
 function getToolArgs(payload) {
   var _a3;
-  const root = asRecord(payload);
-  const nestedArgs = asRecord(root == null ? void 0 : root.args);
-  return (_a3 = nestedArgs != null ? nestedArgs : root) != null ? _a3 : {};
+  const root2 = asRecord(payload);
+  const nestedArgs = asRecord(root2 == null ? void 0 : root2.args);
+  return (_a3 = nestedArgs != null ? nestedArgs : root2) != null ? _a3 : {};
 }
 function parseChainId2(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -1365,9 +1379,9 @@ function normalizeAddress(value) {
 }
 function normalizeTxPayload(payload) {
   var _a3, _b, _c;
-  const root = asRecord(payload);
+  const root2 = asRecord(payload);
   const args = getToolArgs(payload);
-  const ctx = asRecord(root == null ? void 0 : root.ctx);
+  const ctx = asRecord(root2 == null ? void 0 : root2.ctx);
   const to = normalizeAddress(args.to);
   if (!to) return null;
   const valueRaw = args.value;
@@ -1414,6 +1428,11 @@ function toViemSignTypedDataArgs(payload) {
     message: asRecord(typedData.message)
   };
 }
+var init_wallet_utils = __esm({
+  "src/wallet-utils.ts"() {
+    "use strict";
+  }
+});
 
 // src/session.ts
 function isRecord(value) {
@@ -1450,388 +1469,399 @@ function isSubsetMatch(expected, actual) {
   }
   return expected === actual;
 }
-var ClientSession = class extends TypedEventEmitter {
-  constructor(clientOrOptions, sessionOptions) {
-    var _a3, _b, _c, _d, _e;
-    super();
-    // Internal state
-    this.pollTimer = null;
-    this.unsubscribeSSE = null;
-    this._isProcessing = false;
-    this._backendWasProcessing = false;
-    this.walletRequests = [];
-    this.walletRequestNextId = 1;
-    this._messages = [];
-    this.closed = false;
-    // For send() blocking behavior
-    this.pendingResolve = null;
-    this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
-    this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
-    this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-    this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
-    this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? addUserStateExt((_c = sessionOptions == null ? void 0 : sessionOptions.userState) != null ? _c : {}, "client_type", sessionOptions.clientType) : sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
-    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
-    this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
-    this.unsubscribeSSE = this.client.subscribeSSE(
-      this.sessionId,
-      (event) => this.handleSSEEvent(event),
-      (error) => this.emit("error", { error })
-    );
-  }
-  // ===========================================================================
-  // Public API — Chat
-  // ===========================================================================
-  /**
-   * Send a message and wait for the AI to finish processing.
-   *
-   * The returned promise resolves when `is_processing` becomes `false` AND
-   * there are no pending wallet requests. If a wallet request arrives
-   * mid-processing, polling continues but the promise pauses until the
-   * request is resolved or rejected via `resolve()` / `reject()`.
-   */
-  async send(message) {
-    this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      publicKey: this.publicKey,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
-    if (!response.is_processing && this.walletRequests.length === 0) {
-      return { messages: this._messages, title: this._title };
-    }
-    this._isProcessing = true;
-    this.emit("processing_start", void 0);
-    return new Promise((resolve) => {
-      this.pendingResolve = resolve;
-      this.startPolling();
-    });
-  }
-  /**
-   * Send a message without waiting for completion.
-   * Polling starts in the background; listen to events for updates.
-   */
-  async sendAsync(message) {
-    this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      publicKey: this.publicKey,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
-    if (response.is_processing) {
-      this._isProcessing = true;
-      this.emit("processing_start", void 0);
-      this.startPolling();
-    }
-    return response;
-  }
-  // ===========================================================================
-  // Public API — Wallet Request Resolution
-  // ===========================================================================
-  /**
-   * Resolve a pending wallet request (transaction or EIP-712 signing).
-   * Sends the result to the backend and resumes polling.
-   */
-  async resolve(requestId, result) {
-    var _a3;
-    const req = this.removeWalletRequest(requestId);
-    if (!req) {
-      throw new Error(`No pending wallet request with id "${requestId}"`);
-    }
-    if (req.kind === "transaction") {
-      await this.sendSystemEvent("wallet:tx_complete", {
-        txHash: (_a3 = result.txHash) != null ? _a3 : "",
-        status: "success",
-        amount: result.amount
-      });
-    } else {
-      const eip712Payload = req.payload;
-      await this.sendSystemEvent("wallet_eip712_response", {
-        status: "success",
-        signature: result.signature,
-        description: eip712Payload.description
-      });
-    }
-    if (this._isProcessing) {
-      this.startPolling();
-    }
-  }
-  /**
-   * Reject a pending wallet request.
-   * Sends an error to the backend and resumes polling.
-   */
-  async reject(requestId, reason) {
-    const req = this.removeWalletRequest(requestId);
-    if (!req) {
-      throw new Error(`No pending wallet request with id "${requestId}"`);
-    }
-    if (req.kind === "transaction") {
-      await this.sendSystemEvent("wallet:tx_complete", {
-        txHash: "",
-        status: "failed"
-      });
-    } else {
-      const eip712Payload = req.payload;
-      await this.sendSystemEvent("wallet_eip712_response", {
-        status: "failed",
-        error: reason != null ? reason : "Request rejected",
-        description: eip712Payload.description
-      });
-    }
-    if (this._isProcessing) {
-      this.startPolling();
-    }
-  }
-  // ===========================================================================
-  // Public API — Control
-  // ===========================================================================
-  /**
-   * Cancel the AI's current response.
-   */
-  async interrupt() {
-    this.stopPolling();
-    const response = await this.client.interrupt(this.sessionId);
-    this.applyState(response);
-    this._isProcessing = false;
-    this.emit("processing_end", void 0);
-    this.resolvePending();
-  }
-  /**
-   * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
-   * The session cannot be used after closing.
-   */
-  close() {
-    var _a3;
-    if (this.closed) return;
-    this.closed = true;
-    this.stopPolling();
-    (_a3 = this.unsubscribeSSE) == null ? void 0 : _a3.call(this);
-    this.unsubscribeSSE = null;
-    this.resolvePending();
-    this.removeAllListeners();
-  }
-  // ===========================================================================
-  // Public API — Accessors
-  // ===========================================================================
-  /** Current messages in the session. */
-  getMessages() {
-    return this._messages;
-  }
-  /** Current session title. */
-  getTitle() {
-    return this._title;
-  }
-  /** Pending wallet requests waiting for resolve/reject. */
-  getPendingRequests() {
-    return [...this.walletRequests];
-  }
-  /** Whether the AI is currently processing. */
-  getIsProcessing() {
-    return this._isProcessing;
-  }
-  resolveUserState(userState) {
-    this.userState = userState;
-    const address = userState["address"];
-    if (typeof address === "string" && address.length > 0) {
-      this.publicKey = address;
-    }
-  }
-  setClientType(clientType) {
-    var _a3;
-    this.resolveUserState(addUserStateExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType));
-  }
-  addExtValue(key, value) {
-    var _a3;
-    const current = (_a3 = this.userState) != null ? _a3 : {};
-    const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
-    this.resolveUserState(__spreadProps(__spreadValues({}, current), {
-      ext: __spreadProps(__spreadValues({}, currentExt), {
-        [key]: value
-      })
-    }));
-  }
-  removeExtValue(key) {
-    if (!this.userState) return;
-    const currentExt = this.userState["ext"];
-    if (!isRecord(currentExt)) return;
-    const nextExt = __spreadValues({}, currentExt);
-    delete nextExt[key];
-    const nextState = __spreadValues({}, this.userState);
-    if (Object.keys(nextExt).length === 0) {
-      delete nextState["ext"];
-    } else {
-      nextState["ext"] = nextExt;
-    }
-    this.resolveUserState(nextState);
-  }
-  resolveWallet(address, chainId) {
-    this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });
-  }
-  async syncUserState() {
-    this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
-    this.assertUserStateAligned(state.user_state);
-    this.applyState(state);
-    return state;
-  }
-  // ===========================================================================
-  // Internal — Polling (ported from PollingController)
-  // ===========================================================================
-  startPolling() {
-    var _a3;
-    if (this.pollTimer || this.closed) return;
-    this._backendWasProcessing = true;
-    (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
-    this.pollTimer = setInterval(() => {
-      void this.pollTick();
-    }, this.pollIntervalMs);
-  }
-  stopPolling() {
-    var _a3;
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-      (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
-    }
-  }
-  async pollTick() {
-    var _a3;
-    if (!this.pollTimer) return;
-    try {
-      const state = await this.client.fetchState(
-        this.sessionId,
-        this.userState,
-        this.clientId
-      );
-      if (!this.pollTimer) return;
-      this.assertUserStateAligned(state.user_state);
-      this.applyState(state);
-      if (this._backendWasProcessing && !state.is_processing) {
-        this.emit("backend_idle", void 0);
+var ClientSession;
+var init_session = __esm({
+  "src/session.ts"() {
+    "use strict";
+    init_client();
+    init_types();
+    init_event_emitter();
+    init_event_unwrap();
+    init_wallet_utils();
+    ClientSession = class extends TypedEventEmitter {
+      constructor(clientOrOptions, sessionOptions) {
+        var _a3, _b, _c, _d, _e;
+        super();
+        // Internal state
+        this.pollTimer = null;
+        this.unsubscribeSSE = null;
+        this._isProcessing = false;
+        this._backendWasProcessing = false;
+        this.walletRequests = [];
+        this.walletRequestNextId = 1;
+        this._messages = [];
+        this.closed = false;
+        // For send() blocking behavior
+        this.pendingResolve = null;
+        this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
+        this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
+        this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+        this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
+        this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? addUserStateExt((_c = sessionOptions == null ? void 0 : sessionOptions.userState) != null ? _c : {}, "client_type", sessionOptions.clientType) : sessionOptions == null ? void 0 : sessionOptions.userState;
+        this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
+        this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+        this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
+        this.unsubscribeSSE = this.client.subscribeSSE(
+          this.sessionId,
+          (event) => this.handleSSEEvent(event),
+          (error) => this.emit("error", { error })
+        );
       }
-      this._backendWasProcessing = !!state.is_processing;
-      if (!state.is_processing && this.walletRequests.length === 0) {
+      // ===========================================================================
+      // Public API — Chat
+      // ===========================================================================
+      /**
+       * Send a message and wait for the AI to finish processing.
+       *
+       * The returned promise resolves when `is_processing` becomes `false` AND
+       * there are no pending wallet requests. If a wallet request arrives
+       * mid-processing, polling continues but the promise pauses until the
+       * request is resolved or rejected via `resolve()` / `reject()`.
+       */
+      async send(message) {
+        this.assertOpen();
+        const response = await this.client.sendMessage(this.sessionId, message, {
+          app: this.app,
+          publicKey: this.publicKey,
+          apiKey: this.apiKey,
+          userState: this.userState,
+          clientId: this.clientId
+        });
+        this.assertUserStateAligned(response.user_state);
+        this.applyState(response);
+        if (!response.is_processing && this.walletRequests.length === 0) {
+          return { messages: this._messages, title: this._title };
+        }
+        this._isProcessing = true;
+        this.emit("processing_start", void 0);
+        return new Promise((resolve) => {
+          this.pendingResolve = resolve;
+          this.startPolling();
+        });
+      }
+      /**
+       * Send a message without waiting for completion.
+       * Polling starts in the background; listen to events for updates.
+       */
+      async sendAsync(message) {
+        this.assertOpen();
+        const response = await this.client.sendMessage(this.sessionId, message, {
+          app: this.app,
+          publicKey: this.publicKey,
+          apiKey: this.apiKey,
+          userState: this.userState,
+          clientId: this.clientId
+        });
+        this.assertUserStateAligned(response.user_state);
+        this.applyState(response);
+        if (response.is_processing) {
+          this._isProcessing = true;
+          this.emit("processing_start", void 0);
+          this.startPolling();
+        }
+        return response;
+      }
+      // ===========================================================================
+      // Public API — Wallet Request Resolution
+      // ===========================================================================
+      /**
+       * Resolve a pending wallet request (transaction or EIP-712 signing).
+       * Sends the result to the backend and resumes polling.
+       */
+      async resolve(requestId, result) {
+        var _a3;
+        const req = this.removeWalletRequest(requestId);
+        if (!req) {
+          throw new Error(`No pending wallet request with id "${requestId}"`);
+        }
+        if (req.kind === "transaction") {
+          await this.sendSystemEvent("wallet:tx_complete", {
+            txHash: (_a3 = result.txHash) != null ? _a3 : "",
+            status: "success",
+            amount: result.amount
+          });
+        } else {
+          const eip712Payload = req.payload;
+          await this.sendSystemEvent("wallet_eip712_response", {
+            status: "success",
+            signature: result.signature,
+            description: eip712Payload.description
+          });
+        }
+        if (this._isProcessing) {
+          this.startPolling();
+        }
+      }
+      /**
+       * Reject a pending wallet request.
+       * Sends an error to the backend and resumes polling.
+       */
+      async reject(requestId, reason) {
+        const req = this.removeWalletRequest(requestId);
+        if (!req) {
+          throw new Error(`No pending wallet request with id "${requestId}"`);
+        }
+        if (req.kind === "transaction") {
+          await this.sendSystemEvent("wallet:tx_complete", {
+            txHash: "",
+            status: "failed"
+          });
+        } else {
+          const eip712Payload = req.payload;
+          await this.sendSystemEvent("wallet_eip712_response", {
+            status: "failed",
+            error: reason != null ? reason : "Request rejected",
+            description: eip712Payload.description
+          });
+        }
+        if (this._isProcessing) {
+          this.startPolling();
+        }
+      }
+      // ===========================================================================
+      // Public API — Control
+      // ===========================================================================
+      /**
+       * Cancel the AI's current response.
+       */
+      async interrupt() {
         this.stopPolling();
+        const response = await this.client.interrupt(this.sessionId);
+        this.applyState(response);
         this._isProcessing = false;
         this.emit("processing_end", void 0);
         this.resolvePending();
       }
-    } catch (error) {
-      (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] poll error", error);
-      this.emit("error", { error });
-    }
-  }
-  // ===========================================================================
-  // Internal — State Application
-  // ===========================================================================
-  applyState(state) {
-    var _a3;
-    if (state.messages) {
-      this._messages = state.messages;
-      this.emit("messages", this._messages);
-    }
-    if (state.title) {
-      this._title = state.title;
-    }
-    if ((_a3 = state.system_events) == null ? void 0 : _a3.length) {
-      this.dispatchSystemEvents(state.system_events);
-    }
-  }
-  dispatchSystemEvents(events) {
-    var _a3;
-    for (const event of events) {
-      const unwrapped = unwrapSystemEvent(event);
-      if (!unwrapped) continue;
-      if (unwrapped.type === "wallet_tx_request") {
-        const payload = normalizeTxPayload(unwrapped.payload);
-        if (payload) {
-          const req = this.enqueueWalletRequest("transaction", payload);
-          this.emit("wallet_tx_request", req);
-        }
-      } else if (unwrapped.type === "wallet_eip712_request") {
-        const payload = normalizeEip712Payload((_a3 = unwrapped.payload) != null ? _a3 : {});
-        const req = this.enqueueWalletRequest("eip712_sign", payload);
-        this.emit("wallet_eip712_request", req);
-      } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
-        this.emit(
-          unwrapped.type,
-          unwrapped.payload
-        );
+      /**
+       * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
+       * The session cannot be used after closing.
+       */
+      close() {
+        var _a3;
+        if (this.closed) return;
+        this.closed = true;
+        this.stopPolling();
+        (_a3 = this.unsubscribeSSE) == null ? void 0 : _a3.call(this);
+        this.unsubscribeSSE = null;
+        this.resolvePending();
+        this.removeAllListeners();
       }
-    }
-  }
-  // ===========================================================================
-  // Internal — SSE Handling
-  // ===========================================================================
-  handleSSEEvent(event) {
-    if (event.type === "title_changed" && event.new_title) {
-      this._title = event.new_title;
-      this.emit("title_changed", { title: event.new_title });
-    } else if (event.type === "tool_update") {
-      this.emit("tool_update", event);
-    } else if (event.type === "tool_complete") {
-      this.emit("tool_complete", event);
-    }
-  }
-  // ===========================================================================
-  // Internal — Wallet Request Queue
-  // ===========================================================================
-  enqueueWalletRequest(kind, payload) {
-    const req = {
-      id: `wreq-${this.walletRequestNextId++}`,
-      kind,
-      payload,
-      timestamp: Date.now()
+      // ===========================================================================
+      // Public API — Accessors
+      // ===========================================================================
+      /** Current messages in the session. */
+      getMessages() {
+        return this._messages;
+      }
+      /** Current session title. */
+      getTitle() {
+        return this._title;
+      }
+      /** Pending wallet requests waiting for resolve/reject. */
+      getPendingRequests() {
+        return [...this.walletRequests];
+      }
+      /** Whether the AI is currently processing. */
+      getIsProcessing() {
+        return this._isProcessing;
+      }
+      resolveUserState(userState) {
+        this.userState = userState;
+        const address = userState["address"];
+        if (typeof address === "string" && address.length > 0) {
+          this.publicKey = address;
+        }
+      }
+      setClientType(clientType) {
+        var _a3;
+        this.resolveUserState(addUserStateExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType));
+      }
+      addExtValue(key, value) {
+        var _a3;
+        const current = (_a3 = this.userState) != null ? _a3 : {};
+        const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
+        this.resolveUserState(__spreadProps(__spreadValues({}, current), {
+          ext: __spreadProps(__spreadValues({}, currentExt), {
+            [key]: value
+          })
+        }));
+      }
+      removeExtValue(key) {
+        if (!this.userState) return;
+        const currentExt = this.userState["ext"];
+        if (!isRecord(currentExt)) return;
+        const nextExt = __spreadValues({}, currentExt);
+        delete nextExt[key];
+        const nextState = __spreadValues({}, this.userState);
+        if (Object.keys(nextExt).length === 0) {
+          delete nextState["ext"];
+        } else {
+          nextState["ext"] = nextExt;
+        }
+        this.resolveUserState(nextState);
+      }
+      resolveWallet(address, chainId) {
+        this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });
+      }
+      async syncUserState() {
+        this.assertOpen();
+        const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
+        this.assertUserStateAligned(state.user_state);
+        this.applyState(state);
+        return state;
+      }
+      // ===========================================================================
+      // Internal — Polling (ported from PollingController)
+      // ===========================================================================
+      startPolling() {
+        var _a3;
+        if (this.pollTimer || this.closed) return;
+        this._backendWasProcessing = true;
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
+        this.pollTimer = setInterval(() => {
+          void this.pollTick();
+        }, this.pollIntervalMs);
+      }
+      stopPolling() {
+        var _a3;
+        if (this.pollTimer) {
+          clearInterval(this.pollTimer);
+          this.pollTimer = null;
+          (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
+        }
+      }
+      async pollTick() {
+        var _a3;
+        if (!this.pollTimer) return;
+        try {
+          const state = await this.client.fetchState(
+            this.sessionId,
+            this.userState,
+            this.clientId
+          );
+          if (!this.pollTimer) return;
+          this.assertUserStateAligned(state.user_state);
+          this.applyState(state);
+          if (this._backendWasProcessing && !state.is_processing) {
+            this.emit("backend_idle", void 0);
+          }
+          this._backendWasProcessing = !!state.is_processing;
+          if (!state.is_processing && this.walletRequests.length === 0) {
+            this.stopPolling();
+            this._isProcessing = false;
+            this.emit("processing_end", void 0);
+            this.resolvePending();
+          }
+        } catch (error) {
+          (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] poll error", error);
+          this.emit("error", { error });
+        }
+      }
+      // ===========================================================================
+      // Internal — State Application
+      // ===========================================================================
+      applyState(state) {
+        var _a3;
+        if (state.messages) {
+          this._messages = state.messages;
+          this.emit("messages", this._messages);
+        }
+        if (state.title) {
+          this._title = state.title;
+        }
+        if ((_a3 = state.system_events) == null ? void 0 : _a3.length) {
+          this.dispatchSystemEvents(state.system_events);
+        }
+      }
+      dispatchSystemEvents(events) {
+        var _a3;
+        for (const event of events) {
+          const unwrapped = unwrapSystemEvent(event);
+          if (!unwrapped) continue;
+          if (unwrapped.type === "wallet_tx_request") {
+            const payload = normalizeTxPayload(unwrapped.payload);
+            if (payload) {
+              const req = this.enqueueWalletRequest("transaction", payload);
+              this.emit("wallet_tx_request", req);
+            }
+          } else if (unwrapped.type === "wallet_eip712_request") {
+            const payload = normalizeEip712Payload((_a3 = unwrapped.payload) != null ? _a3 : {});
+            const req = this.enqueueWalletRequest("eip712_sign", payload);
+            this.emit("wallet_eip712_request", req);
+          } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
+            this.emit(
+              unwrapped.type,
+              unwrapped.payload
+            );
+          }
+        }
+      }
+      // ===========================================================================
+      // Internal — SSE Handling
+      // ===========================================================================
+      handleSSEEvent(event) {
+        if (event.type === "title_changed" && event.new_title) {
+          this._title = event.new_title;
+          this.emit("title_changed", { title: event.new_title });
+        } else if (event.type === "tool_update") {
+          this.emit("tool_update", event);
+        } else if (event.type === "tool_complete") {
+          this.emit("tool_complete", event);
+        }
+      }
+      // ===========================================================================
+      // Internal — Wallet Request Queue
+      // ===========================================================================
+      enqueueWalletRequest(kind, payload) {
+        const req = {
+          id: `wreq-${this.walletRequestNextId++}`,
+          kind,
+          payload,
+          timestamp: Date.now()
+        };
+        this.walletRequests.push(req);
+        return req;
+      }
+      removeWalletRequest(id) {
+        const idx = this.walletRequests.findIndex((r) => r.id === id);
+        if (idx === -1) return null;
+        return this.walletRequests.splice(idx, 1)[0];
+      }
+      // ===========================================================================
+      // Internal — Helpers
+      // ===========================================================================
+      async sendSystemEvent(type, payload) {
+        const message = JSON.stringify({ type, payload });
+        await this.client.sendSystemMessage(this.sessionId, message);
+      }
+      resolvePending() {
+        if (this.pendingResolve) {
+          const resolve = this.pendingResolve;
+          this.pendingResolve = null;
+          resolve({ messages: this._messages, title: this._title });
+        }
+      }
+      assertOpen() {
+        if (this.closed) {
+          throw new Error("Session is closed");
+        }
+      }
+      assertUserStateAligned(actualUserState) {
+        if (!this.userState || !actualUserState) {
+          return;
+        }
+        if (!isSubsetMatch(this.userState, actualUserState)) {
+          const expected = JSON.stringify(sortJson(this.userState));
+          const actual = JSON.stringify(sortJson(actualUserState));
+          throw new Error(
+            `Backend user_state mismatch. expected subset=${expected} actual=${actual}`
+          );
+        }
+      }
     };
-    this.walletRequests.push(req);
-    return req;
   }
-  removeWalletRequest(id) {
-    const idx = this.walletRequests.findIndex((r) => r.id === id);
-    if (idx === -1) return null;
-    return this.walletRequests.splice(idx, 1)[0];
-  }
-  // ===========================================================================
-  // Internal — Helpers
-  // ===========================================================================
-  async sendSystemEvent(type, payload) {
-    const message = JSON.stringify({ type, payload });
-    await this.client.sendSystemMessage(this.sessionId, message);
-  }
-  resolvePending() {
-    if (this.pendingResolve) {
-      const resolve = this.pendingResolve;
-      this.pendingResolve = null;
-      resolve({ messages: this._messages, title: this._title });
-    }
-  }
-  assertOpen() {
-    if (this.closed) {
-      throw new Error("Session is closed");
-    }
-  }
-  assertUserStateAligned(actualUserState) {
-    if (!this.userState || !actualUserState) {
-      return;
-    }
-    if (!isSubsetMatch(this.userState, actualUserState)) {
-      const expected = JSON.stringify(sortJson(this.userState));
-      const actual = JSON.stringify(sortJson(actualUserState));
-      throw new Error(
-        `Backend user_state mismatch. expected subset=${expected} actual=${actual}`
-      );
-    }
-  }
-};
+});
 
 // src/cli/user-state.ts
 function buildCliUserState(publicKey, chainId) {
@@ -1845,6 +1875,12 @@ function buildCliUserState(publicKey, chainId) {
   }
   return addUserStateExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
+var init_user_state = __esm({
+  "src/cli/user-state.ts"() {
+    "use strict";
+    init_types();
+  }
+});
 
 // src/cli/context.ts
 function buildSessionState(runtime) {
@@ -1948,6 +1984,15 @@ async function applyRequestedModelIfPresent(runtime, session, state) {
   }
   await applyModelSelection(session, state, requestedModel);
 }
+var init_context = __esm({
+  "src/cli/context.ts"() {
+    "use strict";
+    init_client();
+    init_session();
+    init_state();
+    init_user_state();
+  }
+});
 
 // src/cli/transactions.ts
 function walletRequestToPendingTx(request) {
@@ -2043,8 +2088,17 @@ function formatSignedTxLine(tx, prefix) {
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
+var init_transactions = __esm({
+  "src/cli/transactions.ts"() {
+    "use strict";
+  }
+});
 
 // src/cli/commands/chat.ts
+var chat_exports = {};
+__export(chat_exports, {
+  chatCommand: () => chatCommand
+});
 async function chatCommand(runtime) {
   const message = runtime.parsed.positional.join(" ");
   if (!message) {
@@ -2187,6 +2241,17 @@ async function chatCommand(runtime) {
     session.close();
   }
 }
+var init_chat = __esm({
+  "src/cli/commands/chat.ts"() {
+    "use strict";
+    init_state();
+    init_output();
+    init_context();
+    init_errors();
+    init_transactions();
+    init_user_state();
+  }
+});
 
 // src/aa/types.ts
 function getAAChainConfig(config, calls, chainsById) {
@@ -2231,59 +2296,6 @@ function mapCall(call) {
     data: call.data ? call.data : void 0
   };
 }
-var DEFAULT_AA_CONFIG = {
-  enabled: true,
-  provider: "alchemy",
-  fallbackToEoa: true,
-  chains: [
-    {
-      chainId: 1,
-      enabled: true,
-      defaultMode: "7702",
-      supportedModes: ["4337", "7702"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 137,
-      enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 42161,
-      enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 10,
-      enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 8453,
-      enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
-      allowBatching: true,
-      sponsorship: "optional"
-    }
-  ]
-};
-var DISABLED_PROVIDER_STATE = {
-  plan: null,
-  AA: void 0,
-  isPending: false,
-  error: null
-};
 async function executeWalletCalls(params) {
   const {
     callList,
@@ -2297,10 +2309,10 @@ async function executeWalletCalls(params) {
     chainsById,
     getPreferredRpcUrl: getPreferredRpcUrl2
   } = params;
-  if (providerState.plan && providerState.AA) {
+  if (providerState.resolved && providerState.account) {
     return executeViaAA(callList, providerState);
   }
-  if (providerState.plan && providerState.error && !providerState.plan.fallbackToEoa) {
+  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
     throw providerState.error;
   }
   return executeViaEoa({
@@ -2317,26 +2329,26 @@ async function executeWalletCalls(params) {
 }
 async function executeViaAA(callList, providerState) {
   var _a3;
-  const AA = providerState.AA;
-  const plan = providerState.plan;
-  if (!AA || !plan) {
+  const account = providerState.account;
+  const resolved = providerState.resolved;
+  if (!account || !resolved) {
     throw (_a3 = providerState.error) != null ? _a3 : new Error("smart_account_unavailable");
   }
   const callsPayload = callList.map(mapCall);
-  const receipt = callList.length > 1 ? await AA.sendBatchTransaction(callsPayload) : await AA.sendTransaction(callsPayload[0]);
+  const receipt = callList.length > 1 ? await account.sendBatchTransaction(callsPayload) : await account.sendTransaction(callsPayload[0]);
   const txHash = receipt.transactionHash;
-  const providerPrefix = AA.provider.toLowerCase();
-  let delegationAddress = AA.mode === "7702" ? AA.delegationAddress : void 0;
-  if (AA.mode === "7702" && !delegationAddress) {
+  const providerPrefix = account.provider.toLowerCase();
+  let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
+  if (account.mode === "7702" && !delegationAddress) {
     delegationAddress = await resolve7702Delegation(txHash, callList);
   }
   return {
     txHash,
     txHashes: [txHash],
-    executionKind: `${providerPrefix}_${AA.mode}`,
+    executionKind: `${providerPrefix}_${account.mode}`,
     batched: callList.length > 1,
-    sponsored: plan.sponsorship !== "disabled",
-    AAAddress: AA.AAAddress,
+    sponsored: resolved.sponsorship !== "disabled",
+    AAAddress: account.AAAddress,
     delegationAddress
   };
 }
@@ -2380,7 +2392,7 @@ async function executeViaEoa({
 }) {
   var _a3, _b;
   const { createPublicClient, createWalletClient: createWalletClient2, http: http2 } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount3 } = await import("viem/accounts");
+  const { privateKeyToAccount: privateKeyToAccount4 } = await import("viem/accounts");
   const hashes = [];
   if (localPrivateKey) {
     for (const call of callList) {
@@ -2392,7 +2404,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount3(localPrivateKey);
+      const account = privateKeyToAccount4(localPrivateKey);
       const walletClient = createWalletClient2({
         account,
         chain,
@@ -2464,663 +2476,95 @@ async function executeViaEoa({
     sponsored: false
   };
 }
-
-// src/cli/commands/control.ts
-async function statusCommand(runtime) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-  if (!readState()) {
-    console.log("No active session");
-    printDataFileLocation();
-    return;
-  }
-  const { session, state } = getOrCreateSession(runtime);
-  try {
-    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
-    console.log(
-      JSON.stringify(
+var DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE;
+var init_types2 = __esm({
+  "src/aa/types.ts"() {
+    "use strict";
+    DEFAULT_AA_CONFIG = {
+      enabled: true,
+      provider: "alchemy",
+      fallbackToEoa: true,
+      chains: [
         {
-          sessionId: state.sessionId,
-          baseUrl: state.baseUrl,
-          app: state.app,
-          model: (_a3 = state.model) != null ? _a3 : null,
-          chainId: (_b = state.chainId) != null ? _b : null,
-          isProcessing: (_c = apiState.is_processing) != null ? _c : false,
-          messageCount: (_e = (_d = apiState.messages) == null ? void 0 : _d.length) != null ? _e : 0,
-          title: (_f = apiState.title) != null ? _f : null,
-          pendingTxs: (_h = (_g = state.pendingTxs) == null ? void 0 : _g.length) != null ? _h : 0,
-          signedTxs: (_j = (_i = state.signedTxs) == null ? void 0 : _i.length) != null ? _j : 0
+          chainId: 1,
+          enabled: true,
+          defaultMode: "7702",
+          supportedModes: ["4337", "7702"],
+          allowBatching: true,
+          sponsorship: "optional"
         },
-        null,
-        2
-      )
-    );
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-async function eventsCommand(runtime) {
-  if (!readState()) {
-    console.log("No active session");
-    return;
-  }
-  const { session, state } = getOrCreateSession(runtime);
-  try {
-    const events = await session.client.getSystemEvents(state.sessionId);
-    console.log(JSON.stringify(events, null, 2));
-  } finally {
-    session.close();
-  }
-}
-async function appsCommand(runtime) {
-  var _a3, _b, _c;
-  const client = createControlClient(runtime);
-  const state = readState();
-  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
-  const apps = await client.getApps(sessionId, {
-    publicKey: runtime.config.publicKey,
-    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
-  });
-  if (apps.length === 0) {
-    console.log("No apps available.");
-    return;
-  }
-  const currentApp = (_c = state == null ? void 0 : state.app) != null ? _c : runtime.config.app;
-  for (const app of apps) {
-    const marker = currentApp === app ? "  (current)" : "";
-    console.log(`${app}${marker}`);
-  }
-}
-async function modelsCommand(runtime) {
-  var _a3, _b;
-  const client = createControlClient(runtime);
-  const state = readState();
-  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
-  const models = await client.getModels(sessionId, {
-    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
-  });
-  if (models.length === 0) {
-    console.log("No models available.");
-    return;
-  }
-  for (const model of models) {
-    const marker = (state == null ? void 0 : state.model) === model ? "  (current)" : "";
-    console.log(`${model}${marker}`);
-  }
-}
-async function appCommand(runtime) {
-  var _a3;
-  const subcommand = runtime.parsed.positional[0];
-  if (!subcommand || subcommand === "current") {
-    const state = readState();
-    if (!state) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-    console.log((_a3 = state.app) != null ? _a3 : "(default)");
-    printDataFileLocation();
-    return;
-  }
-  if (subcommand === "list") {
-    await appsCommand(runtime);
-    return;
-  }
-  fatal("Usage: aomi app list\n       aomi app current");
-}
-async function modelCommand(runtime) {
-  var _a3;
-  const subcommand = runtime.parsed.positional[0];
-  if (!subcommand || subcommand === "current") {
-    const state2 = readState();
-    if (!state2) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-    console.log((_a3 = state2.model) != null ? _a3 : "(default backend model)");
-    printDataFileLocation();
-    return;
-  }
-  if (subcommand === "list") {
-    await modelsCommand(runtime);
-    return;
-  }
-  if (subcommand !== "set") {
-    fatal("Usage: aomi model list\n       aomi model set <rig>\n       aomi model current");
-  }
-  const model = runtime.parsed.positional.slice(1).join(" ").trim();
-  if (!model) {
-    fatal("Usage: aomi model set <rig>");
-  }
-  const { session, state } = getOrCreateSession(runtime);
-  try {
-    await applyModelSelection(session, state, model);
-    console.log(`Model set to ${model}`);
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-function chainsCommand() {
-  var _a3;
-  const state = readState();
-  const currentChainId = state == null ? void 0 : state.chainId;
-  for (const id of SUPPORTED_CHAIN_IDS) {
-    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
-    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
-    const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
-    const marker = currentChainId === id ? "  (current)" : "";
-    console.log(`${id}  ${name}${aaInfo}${marker}`);
-  }
-}
-function chainCommand(runtime) {
-  const subcommand = runtime.parsed.positional[0];
-  if (!subcommand || subcommand === "list") {
-    chainsCommand();
-    return;
-  }
-  fatal("Usage: aomi chain list");
-}
-
-// src/cli/tables.ts
-var MAX_TABLE_VALUE_WIDTH = 72;
-var MAX_TX_JSON_WIDTH = 96;
-var MAX_TX_ROWS = 8;
-function truncateCell(value, maxWidth) {
-  if (value.length <= maxWidth) return value;
-  return `${value.slice(0, maxWidth - 1)}\u2026`;
-}
-function padRight(value, width) {
-  return value.padEnd(width, " ");
-}
-function estimateTokenCount(messages) {
-  var _a3;
-  let totalChars = 0;
-  for (const message of messages) {
-    const content = formatLogContent(message.content);
-    if (content) {
-      totalChars += content.length + 1;
-    }
-    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
-      totalChars += message.tool_result[1].length;
-    }
-  }
-  return Math.round(totalChars / 4);
-}
-function toPendingTxMetadata(tx) {
-  var _a3, _b, _c, _d;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    to: (_a3 = tx.to) != null ? _a3 : null,
-    value: (_b = tx.value) != null ? _b : null,
-    chainId: (_c = tx.chainId) != null ? _c : null,
-    description: (_d = tx.description) != null ? _d : null,
-    timestamp: new Date(tx.timestamp).toISOString()
-  };
-}
-function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    txHashes: (_b = tx.txHashes) != null ? _b : null,
-    executionKind: (_c = tx.executionKind) != null ? _c : null,
-    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
-    aaMode: (_e = tx.aaMode) != null ? _e : null,
-    batched: (_f = tx.batched) != null ? _f : null,
-    sponsored: (_g = tx.sponsored) != null ? _g : null,
-    AAAddress: (_h = tx.AAAddress) != null ? _h : null,
-    delegationAddress: (_i = tx.delegationAddress) != null ? _i : null,
-    signature: (_j = tx.signature) != null ? _j : null,
-    from: (_k = tx.from) != null ? _k : null,
-    to: (_l = tx.to) != null ? _l : null,
-    value: (_m = tx.value) != null ? _m : null,
-    chainId: (_n = tx.chainId) != null ? _n : null,
-    description: (_o = tx.description) != null ? _o : null,
-    timestamp: new Date(tx.timestamp).toISOString()
-  };
-}
-function printKeyValueTable(rows, color = CYAN) {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(
-    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
-  );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-}
-function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
-  const rows = [
-    ...pendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata(tx)
-    })),
-    ...signedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata(tx)
-    }))
-  ];
-  if (rows.length === 0) {
-    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
-    return;
-  }
-  const visibleRows = rows.slice(0, MAX_TX_ROWS);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length)
-  );
-  const jsonCells = visibleRows.map(
-    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
-  );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-  if (rows.length > MAX_TX_ROWS) {
-    const omitted = rows.length - MAX_TX_ROWS;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
-
-// src/cli/commands/history.ts
-async function logCommand(runtime) {
-  var _a3, _b, _c, _d, _e;
-  if (!readState()) {
-    console.log("No active session");
-    printDataFileLocation();
-    return;
-  }
-  const { session, state } = getOrCreateSession(runtime);
-  try {
-    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
-    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
-    const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
-    const signedTxs = (_c = state.signedTxs) != null ? _c : [];
-    const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
-    const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = (_d = apiState.title) != null ? _d : "Untitled Session";
-    if (messages.length === 0) {
-      console.log("No messages in this session.");
-      printDataFileLocation();
-      return;
-    }
-    console.log(`------ Session id: ${state.sessionId} ------`);
-    printKeyValueTable([
-      ["topic", topic],
-      ["msg count", String(messages.length)],
-      ["token count", `${tokenCountEstimate} (estimated)`],
-      ["tool calls", String(toolCalls)],
-      [
-        "transactions",
-        `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`
+        {
+          chainId: 137,
+          enabled: true,
+          defaultMode: "4337",
+          supportedModes: ["4337", "7702"],
+          allowBatching: true,
+          sponsorship: "optional"
+        },
+        {
+          chainId: 42161,
+          enabled: true,
+          defaultMode: "4337",
+          supportedModes: ["4337", "7702"],
+          allowBatching: true,
+          sponsorship: "optional"
+        },
+        {
+          chainId: 10,
+          enabled: true,
+          defaultMode: "4337",
+          supportedModes: ["4337", "7702"],
+          allowBatching: true,
+          sponsorship: "optional"
+        },
+        {
+          chainId: 8453,
+          enabled: true,
+          defaultMode: "4337",
+          supportedModes: ["4337", "7702"],
+          allowBatching: true,
+          sponsorship: "optional"
+        }
       ]
-    ]);
-    console.log("Transactions metadata (JSON):");
-    printTransactionTable(pendingTxs, signedTxs);
-    console.log("-------------------- Messages --------------------");
-    for (const msg of messages) {
-      const content = formatLogContent(msg.content);
-      let time = "";
-      if (msg.timestamp) {
-        const raw = msg.timestamp;
-        const numeric = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
-        const date = !Number.isNaN(numeric) ? new Date(numeric < 1e12 ? numeric * 1e3 : numeric) : new Date(raw);
-        time = Number.isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
-      }
-      const sender = (_e = msg.sender) != null ? _e : "unknown";
-      if (sender === "user") {
-        if (content) {
-          console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${content}`);
-        }
-      } else if (sender === "agent" || sender === "assistant") {
-        if (msg.tool_result) {
-          const [toolName, result] = msg.tool_result;
-          console.log(
-            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${formatToolResultPreview(result)}`
-          );
-        }
-        if (content) {
-          console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${content}`);
-        }
-      } else if (sender === "system") {
-        if (content && !content.startsWith("Response of system endpoint:")) {
-          console.log(`${time}${YELLOW}\u2699\uFE0F  System:${RESET} ${content}`);
-        }
-      } else {
-        if (content) {
-          console.log(`${time}${DIM}[${sender}]${RESET} ${content}`);
-        }
-      }
-    }
-    console.log(`
-${DIM}\u2014 ${messages.length} messages \u2014${RESET}`);
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-function closeCommand(runtime) {
-  if (readState()) {
-    const { session } = getOrCreateSession(runtime);
-    session.close();
-  }
-  clearState();
-  console.log("Session closed");
-}
-
-// src/cli/commands/secrets.ts
-async function ingestSecretsCommand(runtime) {
-  const secretEntries = Object.entries(runtime.config.secrets);
-  if (secretEntries.length === 0) {
-    fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
-  }
-  const { session, state } = getOrCreateSession(runtime, {
-    fresh: runtime.config.freshSession
-  });
-  try {
-    const handles = await ingestSecretsIfPresent(
-      runtime,
-      state,
-      session.client
-    );
-    const names = Object.keys(handles).sort();
-    console.log(
-      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${state.sessionId}.`
-    );
-    for (const name of names) {
-      console.log(`${name}  ${handles[name]}`);
-    }
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-async function secretCommand(runtime) {
-  var _a3;
-  const subcommand = runtime.parsed.positional[0];
-  if (!subcommand || subcommand === "list") {
-    const state = readState();
-    if (!state) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-    const secretHandles = (_a3 = state.secretHandles) != null ? _a3 : {};
-    const names = Object.keys(secretHandles).sort();
-    if (names.length === 0) {
-      console.log("No secrets configured.");
-      printDataFileLocation();
-      return;
-    }
-    for (const name of names) {
-      console.log(`${name}  ${secretHandles[name]}`);
-    }
-    printDataFileLocation();
-    return;
-  }
-  if (subcommand === "clear") {
-    const { session, state } = getOrCreateSession(runtime);
-    try {
-      if (!state.clientId) {
-        console.log("No secrets configured.");
-        printDataFileLocation();
-        return;
-      }
-      await session.client.clearSecrets(state.clientId);
-      state.secretHandles = {};
-      writeState(state);
-      console.log("Cleared all secrets for the active session.");
-      printDataFileLocation();
-    } finally {
-      session.close();
-    }
-    return;
-  }
-  fatal("Usage: aomi secret list\n       aomi secret clear");
-}
-
-// src/cli/commands/sessions.ts
-async function fetchRemoteSessionStats(record) {
-  var _a3, _b;
-  const client = new AomiClient({
-    baseUrl: record.state.baseUrl,
-    apiKey: record.state.apiKey
-  });
-  try {
-    const apiState = await client.fetchState(record.sessionId, void 0, record.state.clientId);
-    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
-    return {
-      topic: (_b = apiState.title) != null ? _b : "Untitled Session",
-      messageCount: messages.length,
-      tokenCountEstimate: estimateTokenCount(messages),
-      toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length
     };
-  } catch (e) {
-    return null;
-  }
-}
-function printSessionSummary(record, stats, isActive) {
-  var _a3, _b, _c;
-  const pendingTxs = (_a3 = record.state.pendingTxs) != null ? _a3 : [];
-  const signedTxs = (_b = record.state.signedTxs) != null ? _b : [];
-  const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
-  console.log(`${YELLOW}------ ${header} ------${RESET}`);
-  printKeyValueTable([
-    ["\u{1F9E0} topic", (_c = stats == null ? void 0 : stats.topic) != null ? _c : "Unavailable (fetch failed)"],
-    ["\u{1F4AC} msg count", stats ? String(stats.messageCount) : "n/a"],
-    [
-      "\u{1F9EE} token count",
-      stats ? `${stats.tokenCountEstimate} (estimated)` : "n/a"
-    ],
-    ["\u{1F6E0} tool calls", stats ? String(stats.toolCalls) : "n/a"],
-    [
-      "\u{1F4B8} transactions",
-      `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`
-    ]
-  ]);
-  console.log();
-  console.log(`${YELLOW}\u{1F4BE} Transactions metadata (JSON):${RESET}`);
-  printTransactionTable(pendingTxs, signedTxs);
-}
-async function sessionsCommand(_runtime) {
-  var _a3;
-  const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
-  if (sessions.length === 0) {
-    console.log("No local sessions.");
-    printDataFileLocation();
-    return;
-  }
-  const activeSessionId = (_a3 = readState()) == null ? void 0 : _a3.sessionId;
-  const statsResults = await Promise.all(
-    sessions.map((record) => fetchRemoteSessionStats(record))
-  );
-  for (let i = 0; i < sessions.length; i++) {
-    printSessionSummary(
-      sessions[i],
-      statsResults[i],
-      sessions[i].sessionId === activeSessionId
-    );
-    if (i < sessions.length - 1) {
-      console.log();
-    }
-  }
-  printDataFileLocation();
-}
-async function sessionCommand(runtime) {
-  const subcommand = runtime.parsed.positional[0];
-  const selector = runtime.parsed.positional[1];
-  if (subcommand === "new") {
-    const state = createFreshSessionState(runtime);
-    console.log(`Active session set to ${state.sessionId} (new).`);
-    printDataFileLocation();
-    return;
-  }
-  if (subcommand === "resume") {
-    if (!selector) {
-      fatal("Usage: aomi session resume <session-id|session-N|N>");
-    }
-    const resumed = setActiveSession(selector);
-    if (!resumed) {
-      fatal(`No local session found for selector "${selector}".`);
-    }
-    console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
-    printDataFileLocation();
-    return;
-  }
-  if (subcommand === "delete") {
-    if (!selector) {
-      fatal("Usage: aomi session delete <session-id|session-N|N>");
-    }
-    const deleted = deleteStoredSession(selector);
-    if (!deleted) {
-      fatal(`No local session found for selector "${selector}".`);
-    }
-    console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
-    const active = readState();
-    if (active) {
-      console.log(`Active session: ${active.sessionId}`);
-    } else {
-      console.log("No active session");
-    }
-    printDataFileLocation();
-    return;
-  }
-  if (subcommand === "list") {
-    await sessionsCommand(runtime);
-    return;
-  }
-  fatal(
-    "Usage: aomi session list\n       aomi session new\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>"
-  );
-}
-
-// src/cli/commands/simulate.ts
-function requirePendingTx(state, txId) {
-  var _a3;
-  const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
-  if (!pendingTx) {
-    fatal(
-      `No pending transaction with id "${txId}".
-Run \`aomi tx\` to see available IDs.`
-    );
-  }
-  return pendingTx;
-}
-async function simulateCommand(runtime) {
-  var _a3, _b, _c;
-  const state = readState();
-  if (!state) {
-    fatal("No active session. Run `aomi chat` first.");
-  }
-  const txIds = runtime.parsed.positional;
-  if (txIds.length === 0) {
-    fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
-  }
-  const pendingTxs = txIds.map((txId) => requirePendingTx(state, txId));
-  console.log(
-    `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`
-  );
-  const client = new AomiClient({
-    baseUrl: state.baseUrl,
-    apiKey: state.apiKey
-  });
-  const transactions = pendingTxs.map((tx) => {
-    var _a4;
-    return {
-      to: tx.to,
-      value: tx.value,
-      data: tx.data,
-      label: (_a4 = tx.description) != null ? _a4 : tx.id
+    DISABLED_PROVIDER_STATE = {
+      resolved: null,
+      account: void 0,
+      pending: false,
+      error: null
     };
-  });
-  const response = await client.simulateBatch(
-    state.sessionId,
-    transactions,
-    {
-      from: (_a3 = state.publicKey) != null ? _a3 : void 0,
-      chainId: (_b = state.chainId) != null ? _b : void 0
-    }
-  );
-  const { result } = response;
-  const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
-  console.log(`
-Batch simulation (${modeLabel}):`);
-  console.log(`From: ${result.from} | Network: ${result.network}
-`);
-  for (const step of result.steps) {
-    const icon = step.success ? `${GREEN}\u2713${RESET}` : `\x1B[31m\u2717${RESET}`;
-    const label = step.label || `Step ${step.step}`;
-    const gasInfo = step.gas_used ? ` | gas: ${step.gas_used.toLocaleString()}` : "";
-    console.log(`  ${icon} ${step.step}. ${label}`);
-    console.log(`    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`);
-    if (!step.success && step.revert_reason) {
-      console.log(`    \x1B[31mRevert: ${step.revert_reason}${RESET}`);
-    }
   }
-  if (result.total_gas) {
-    console.log(`
-${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`);
-  }
-  if (result.fee) {
-    const feeEth = (Number(result.fee.amount_wei) / 1e18).toFixed(6);
-    console.log(
-      `Service fee: ${feeEth} ETH \u2192 ${result.fee.recipient}`
-    );
-  }
-  console.log();
-  if (result.batch_success) {
-    console.log(
-      `${GREEN}All steps passed.${RESET} Run \`aomi sign ${txIds.join(" ")}\` to execute.`
-    );
-  } else {
-    const failed = result.steps.find((s) => !s.success);
-    console.log(
-      `\x1B[31mBatch failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`
-    );
-  }
-}
+});
 
-// src/cli/commands/wallet.ts
-import { createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
-import * as viemChains from "viem/chains";
+// src/aa/alchemy/env.ts
+var ALCHEMY_API_KEY_ENVS, ALCHEMY_GAS_POLICY_ENVS;
+var init_env = __esm({
+  "src/aa/alchemy/env.ts"() {
+    "use strict";
+    ALCHEMY_API_KEY_ENVS = [
+      "ALCHEMY_API_KEY",
+      "NEXT_PUBLIC_ALCHEMY_API_KEY"
+    ];
+    ALCHEMY_GAS_POLICY_ENVS = [
+      "ALCHEMY_GAS_POLICY_ID",
+      "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID"
+    ];
+  }
+});
+
+// src/aa/pimlico/env.ts
+var PIMLICO_API_KEY_ENVS;
+var init_env2 = __esm({
+  "src/aa/pimlico/env.ts"() {
+    "use strict";
+    PIMLICO_API_KEY_ENVS = [
+      "PIMLICO_API_KEY",
+      "NEXT_PUBLIC_PIMLICO_API_KEY"
+    ];
+  }
+});
 
 // src/aa/env.ts
-var ALCHEMY_API_KEY_ENVS = [
-  "ALCHEMY_API_KEY",
-  "NEXT_PUBLIC_ALCHEMY_API_KEY"
-];
-var ALCHEMY_GAS_POLICY_ENVS = [
-  "ALCHEMY_GAS_POLICY_ID",
-  "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID"
-];
-var PIMLICO_API_KEY_ENVS = [
-  "PIMLICO_API_KEY",
-  "NEXT_PUBLIC_PIMLICO_API_KEY"
-];
 function readEnv(candidates, options = {}) {
   var _a3;
   const { publicOnly = false } = options;
@@ -3144,18 +2588,15 @@ function readGasPolicyEnv(chainId, chainSlugById, baseCandidates, options = {}) 
   }
   return readEnv(baseCandidates, options);
 }
-function isProviderConfigured(provider, options = {}) {
-  return provider === "alchemy" ? Boolean(readEnv(ALCHEMY_API_KEY_ENVS, options)) : Boolean(readEnv(PIMLICO_API_KEY_ENVS, options));
-}
-function resolveDefaultProvider(options = {}) {
-  if (isProviderConfigured("alchemy", options)) return "alchemy";
-  if (isProviderConfigured("pimlico", options)) return "pimlico";
-  throw new Error(
-    "AA requires provider credentials. Set ALCHEMY_API_KEY or PIMLICO_API_KEY, or use --eoa."
-  );
-}
+var init_env3 = __esm({
+  "src/aa/env.ts"() {
+    "use strict";
+    init_env();
+    init_env2();
+  }
+});
 
-// src/aa/resolve.ts
+// src/aa/alchemy/resolve.ts
 function resolveAlchemyConfig(options) {
   const {
     calls,
@@ -3223,17 +2664,286 @@ function resolveAlchemyConfig(options) {
     return null;
   }
   const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
-  return {
-    chainConfig: resolvedChainConfig,
-    plan,
+  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
+  return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
     chain,
     rpcUrl: getPreferredRpcUrl2(chain),
     gasPolicyId,
     mode: resolvedChainConfig.defaultMode
+  });
+}
+var init_resolve = __esm({
+  "src/aa/alchemy/resolve.ts"() {
+    "use strict";
+    init_types2();
+    init_env3();
+    init_env();
+  }
+});
+
+// src/aa/alchemy/provider.ts
+var init_provider = __esm({
+  "src/aa/alchemy/provider.ts"() {
+    "use strict";
+    init_types2();
+    init_resolve();
+  }
+});
+
+// src/aa/adapt.ts
+function adaptSmartAccount(account) {
+  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
+  return {
+    provider: account.provider,
+    mode: account.mode,
+    AAAddress: account.smartAccountAddress,
+    delegationAddress,
+    sendTransaction: async (call) => {
+      const receipt = await account.sendTransaction(call);
+      return { transactionHash: receipt.transactionHash };
+    },
+    sendBatchTransaction: async (calls) => {
+      const receipt = await account.sendBatchTransaction(calls);
+      return { transactionHash: receipt.transactionHash };
+    }
   };
 }
+function isAlchemySponsorshipLimitError(error) {
+  const message = error instanceof Error ? error.message : String(error != null ? error : "");
+  const normalized = message.toLowerCase();
+  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
+}
+var init_adapt = __esm({
+  "src/aa/adapt.ts"() {
+    "use strict";
+  }
+});
+
+// src/aa/owner.ts
+import { privateKeyToAccount } from "viem/accounts";
+function getDirectOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: void 0,
+      signer: privateKeyToAccount(owner.privateKey)
+    }
+  };
+}
+function getParaSessionOwnerParams(owner) {
+  if (owner.signer) {
+    return {
+      kind: "ready",
+      ownerParams: __spreadValues({
+        para: owner.session,
+        signer: owner.signer
+      }, owner.address ? { address: owner.address } : {})
+    };
+  }
+  return {
+    kind: "ready",
+    ownerParams: __spreadValues({
+      para: owner.session
+    }, owner.address ? { address: owner.address } : {})
+  };
+}
+function getSessionOwnerParams(owner) {
+  switch (owner.adapter) {
+    case "para":
+      return getParaSessionOwnerParams(owner);
+    default:
+      return { kind: "unsupported_adapter", adapter: owner.adapter };
+  }
+}
+function getOwnerParams(owner) {
+  if (!owner) {
+    return { kind: "missing" };
+  }
+  switch (owner.kind) {
+    case "direct":
+      return getDirectOwnerParams(owner);
+    case "session":
+      return getSessionOwnerParams(owner);
+  }
+}
+function getMissingOwnerState(resolved, provider) {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(
+      `${provider} AA account creation requires a direct owner or a supported session owner.`
+    )
+  };
+}
+function getUnsupportedAdapterState(resolved, adapter) {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(`Session adapter "${adapter}" is not implemented.`)
+  };
+}
+var init_owner = __esm({
+  "src/aa/owner.ts"() {
+    "use strict";
+  }
+});
+
+// src/aa/alchemy/create.ts
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+async function createAlchemyAAState(options) {
+  var _a3, _b;
+  const {
+    chain,
+    owner,
+    rpcUrl,
+    callList,
+    mode,
+    sponsored = true
+  } = options;
+  const resolved = resolveAlchemyConfig({
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    modeOverride: mode,
+    throwOnMissingConfig: true,
+    getPreferredRpcUrl: () => rpcUrl,
+    apiKey: options.apiKey,
+    gasPolicyId: options.gasPolicyId
+  });
+  if (!resolved) {
+    throw new Error("Alchemy AA config resolution failed.");
+  }
+  const apiKey = (_a3 = options.apiKey) != null ? _a3 : resolved.apiKey;
+  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : readEnv(ALCHEMY_GAS_POLICY_ENVS) : void 0;
+  const execution = __spreadProps(__spreadValues({}, resolved), {
+    sponsorship: gasPolicyId ? resolved.sponsorship : "disabled",
+    fallbackToEoa: false
+  });
+  const ownerParams = getOwnerParams(owner);
+  if (ownerParams.kind === "missing") {
+    return getMissingOwnerState(execution, "alchemy");
+  }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(execution, ownerParams.adapter);
+  }
+  if (owner.kind === "direct") {
+    try {
+      return await createAlchemyWalletApisState({
+        resolved: execution,
+        chain,
+        privateKey: owner.privateKey,
+        apiKey,
+        gasPolicyId,
+        mode: execution.mode
+      });
+    } catch (error) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }
+  try {
+    const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
+    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
+      apiKey,
+      gasPolicyId,
+      chain,
+      rpcUrl,
+      mode: execution.mode
+    }));
+    if (!smartAccount) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: new Error("Alchemy AA account could not be initialized.")
+      };
+    }
+    return {
+      resolved: execution,
+      account: adaptSmartAccount(smartAccount),
+      pending: false,
+      error: null
+    };
+  } catch (error) {
+    return {
+      resolved: execution,
+      account: null,
+      pending: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+async function createAlchemyWalletApisState(params) {
+  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
+  const signer = privateKeyToAccount2(params.privateKey);
+  const walletClient = createSmartWalletClient(__spreadValues({
+    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
+    chain: params.chain,
+    signer
+  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
+  let accountAddress = signer.address;
+  if (params.mode === "4337") {
+    const account2 = await walletClient.requestAccount();
+    accountAddress = account2.address;
+  }
+  const sendCalls = async (calls) => {
+    var _a3, _b;
+    const result = await walletClient.sendCalls(__spreadProps(__spreadValues({}, params.mode === "4337" ? { account: accountAddress } : {}), {
+      calls
+    }));
+    const status = await walletClient.waitForCallsStatus({ id: result.id });
+    const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
+    if (!transactionHash) {
+      throw new Error("Alchemy Wallets API did not return a transaction hash.");
+    }
+    return { transactionHash };
+  };
+  const account = {
+    provider: "alchemy",
+    mode: params.mode,
+    AAAddress: accountAddress,
+    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls)
+  };
+  return {
+    resolved: params.resolved,
+    account,
+    pending: false,
+    error: null
+  };
+}
+var ALCHEMY_7702_DELEGATION_ADDRESS;
+var init_create = __esm({
+  "src/aa/alchemy/create.ts"() {
+    "use strict";
+    init_adapt();
+    init_env3();
+    init_owner();
+    init_env();
+    init_resolve();
+    ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
+  }
+});
+
+// src/aa/alchemy/index.ts
+var init_alchemy = __esm({
+  "src/aa/alchemy/index.ts"() {
+    "use strict";
+    init_env();
+    init_resolve();
+    init_provider();
+    init_create();
+  }
+});
+
+// src/aa/pimlico/resolve.ts
 function resolvePimlicoConfig(options) {
   const {
     calls,
@@ -3282,46 +2992,125 @@ function resolvePimlicoConfig(options) {
     return null;
   }
   const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
-  return {
-    chainConfig: resolvedChainConfig,
-    plan,
+  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
+  return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
     chain,
     rpcUrl,
     mode: resolvedChainConfig.defaultMode
-  };
+  });
 }
+var init_resolve2 = __esm({
+  "src/aa/pimlico/resolve.ts"() {
+    "use strict";
+    init_types2();
+    init_env3();
+    init_env2();
+  }
+});
 
-// src/aa/adapt.ts
-function adaptSmartAccount(account) {
-  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
-  return {
-    provider: account.provider,
-    mode: account.mode,
-    AAAddress: account.smartAccountAddress,
-    delegationAddress,
-    sendTransaction: async (call) => {
-      const receipt = await account.sendTransaction(call);
-      return { transactionHash: receipt.transactionHash };
-    },
-    sendBatchTransaction: async (calls) => {
-      const receipt = await account.sendBatchTransaction(calls);
-      return { transactionHash: receipt.transactionHash };
+// src/aa/pimlico/provider.ts
+var init_provider2 = __esm({
+  "src/aa/pimlico/provider.ts"() {
+    "use strict";
+    init_types2();
+    init_resolve2();
+  }
+});
+
+// src/aa/pimlico/create.ts
+async function createPimlicoAAState(options) {
+  var _a3;
+  const {
+    chain,
+    owner,
+    rpcUrl,
+    callList,
+    mode
+  } = options;
+  const resolved = resolvePimlicoConfig({
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    rpcUrl,
+    modeOverride: mode,
+    throwOnMissingConfig: true,
+    apiKey: options.apiKey
+  });
+  if (!resolved) {
+    throw new Error("Pimlico AA config resolution failed.");
+  }
+  const apiKey = (_a3 = options.apiKey) != null ? _a3 : resolved.apiKey;
+  const execution = __spreadProps(__spreadValues({}, resolved), {
+    fallbackToEoa: false
+  });
+  const ownerParams = getOwnerParams(owner);
+  if (ownerParams.kind === "missing") {
+    return getMissingOwnerState(execution, "pimlico");
+  }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(execution, ownerParams.adapter);
+  }
+  try {
+    const { createPimlicoSmartAccount } = await import("@getpara/aa-pimlico");
+    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
+      apiKey,
+      chain,
+      rpcUrl,
+      mode: execution.mode
+    }));
+    if (!smartAccount) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: new Error("Pimlico AA account could not be initialized.")
+      };
     }
-  };
+    return {
+      resolved: execution,
+      account: adaptSmartAccount(smartAccount),
+      pending: false,
+      error: null
+    };
+  } catch (error) {
+    return {
+      resolved: execution,
+      account: null,
+      pending: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
 }
-function isAlchemySponsorshipLimitError(error) {
-  const message = error instanceof Error ? error.message : String(error != null ? error : "");
-  const normalized = message.toLowerCase();
-  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
-}
+var init_create2 = __esm({
+  "src/aa/pimlico/create.ts"() {
+    "use strict";
+    init_adapt();
+    init_owner();
+    init_resolve2();
+  }
+});
+
+// src/aa/pimlico/index.ts
+var init_pimlico = __esm({
+  "src/aa/pimlico/index.ts"() {
+    "use strict";
+    init_env2();
+    init_resolve2();
+    init_provider2();
+    init_create2();
+  }
+});
+
+// src/aa/resolve.ts
+var init_resolve3 = __esm({
+  "src/aa/resolve.ts"() {
+    "use strict";
+    init_resolve();
+    init_resolve2();
+  }
+});
 
 // src/aa/create.ts
-import { createAlchemySmartAccount } from "@getpara/aa-alchemy";
-import { createPimlicoSmartAccount } from "@getpara/aa-pimlico";
-import { privateKeyToAccount } from "viem/accounts";
-var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
 async function createAAProviderState(options) {
   if (options.provider === "alchemy") {
     return createAlchemyAAState({
@@ -3344,265 +3133,229 @@ async function createAAProviderState(options) {
     apiKey: options.apiKey
   });
 }
-function getDirectOwnerParams(owner) {
-  return {
-    kind: "ready",
-    ownerParams: {
-      para: void 0,
-      signer: privateKeyToAccount(owner.privateKey)
-    }
-  };
-}
-function getParaSessionOwnerParams(owner) {
-  if (owner.signer) {
-    return {
-      kind: "ready",
-      ownerParams: __spreadValues({
-        para: owner.session,
-        signer: owner.signer
-      }, owner.address ? { address: owner.address } : {})
-    };
+var init_create3 = __esm({
+  "src/aa/create.ts"() {
+    "use strict";
+    init_create();
+    init_create2();
   }
-  return {
-    kind: "ready",
-    ownerParams: __spreadValues({
-      para: owner.session
-    }, owner.address ? { address: owner.address } : {})
-  };
-}
-function getSessionOwnerParams(owner) {
-  switch (owner.adapter) {
-    case "para":
-      return getParaSessionOwnerParams(owner);
-    default:
-      return { kind: "unsupported_adapter", adapter: owner.adapter };
+});
+
+// src/aa/index.ts
+var init_aa = __esm({
+  "src/aa/index.ts"() {
+    "use strict";
+    init_types2();
+    init_alchemy();
+    init_pimlico();
+    init_env3();
+    init_adapt();
+    init_resolve3();
+    init_create3();
   }
+});
+
+// src/cli/aa-config.ts
+import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "fs";
+import { homedir as homedir2 } from "os";
+import { join as join2 } from "path";
+function isObject(value) {
+  return typeof value === "object" && value !== null;
 }
-function getOwnerParams(owner) {
-  if (!owner) {
-    return { kind: "missing" };
+function cleanString(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function isProvider(value) {
+  return value === "alchemy" || value === "pimlico";
+}
+function isMode(value) {
+  return value === "4337" || value === "7702";
+}
+function isFallback(value) {
+  return value === "eoa" || value === "none";
+}
+function normalizeProviderConfig(value) {
+  if (!isObject(value)) {
+    return void 0;
   }
-  switch (owner.kind) {
-    case "direct":
-      return getDirectOwnerParams(owner);
-    case "session":
-      return getSessionOwnerParams(owner);
+  const config = {};
+  const apiKey = cleanString(value.apiKey);
+  const gasPolicyId = cleanString(value.gasPolicyId);
+  if (apiKey) {
+    config.apiKey = apiKey;
   }
+  if (gasPolicyId) {
+    config.gasPolicyId = gasPolicyId;
+  }
+  return Object.keys(config).length > 0 ? config : void 0;
 }
-function getMissingOwnerState(plan, provider) {
-  return {
-    plan,
-    AA: null,
-    isPending: false,
-    error: new Error(
-      `${provider} AA account creation requires a direct owner or a supported session owner.`
-    )
-  };
-}
-function getUnsupportedAdapterState(plan, adapter) {
-  return {
-    plan,
-    AA: null,
-    isPending: false,
-    error: new Error(`Session adapter "${adapter}" is not implemented.`)
-  };
-}
-async function createAlchemyAAState(options) {
+function pruneAAConfig(config) {
   var _a3, _b;
-  const {
-    chain,
-    owner,
-    rpcUrl,
-    callList,
-    mode,
-    sponsored = true
-  } = options;
-  const resolved = resolveAlchemyConfig({
-    calls: callList,
-    chainsById: { [chain.id]: chain },
-    modeOverride: mode,
-    throwOnMissingConfig: true,
-    getPreferredRpcUrl: () => rpcUrl,
-    apiKey: options.apiKey,
-    gasPolicyId: options.gasPolicyId
-  });
-  if (!resolved) {
-    throw new Error("Alchemy AA config resolution failed.");
+  const providers = {};
+  const alchemy = normalizeProviderConfig((_a3 = config.providers) == null ? void 0 : _a3.alchemy);
+  if (alchemy) {
+    providers.alchemy = alchemy;
   }
-  const apiKey = (_a3 = options.apiKey) != null ? _a3 : resolved.apiKey;
-  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : readEnv(ALCHEMY_GAS_POLICY_ENVS) : void 0;
-  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
-    sponsorship: gasPolicyId ? resolved.plan.sponsorship : "disabled",
-    fallbackToEoa: false
-  });
-  const ownerParams = getOwnerParams(owner);
-  if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(plan, "alchemy");
+  const pimlico = normalizeProviderConfig((_b = config.providers) == null ? void 0 : _b.pimlico);
+  if (pimlico) {
+    providers.pimlico = pimlico;
   }
-  if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(plan, ownerParams.adapter);
-  }
-  if (owner.kind === "direct") {
-    try {
-      return await createAlchemyWalletApisState({
-        plan,
-        chain,
-        privateKey: owner.privateKey,
-        apiKey,
-        gasPolicyId,
-        mode: plan.mode
-      });
-    } catch (error) {
-      return {
-        plan,
-        AA: null,
-        isPending: false,
-        error: error instanceof Error ? error : new Error(String(error))
-      };
-    }
-  }
-  try {
-    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey,
-      gasPolicyId,
-      chain,
-      rpcUrl,
-      mode: plan.mode
-    }));
-    if (!smartAccount) {
-      return {
-        plan,
-        AA: null,
-        isPending: false,
-        error: new Error("Alchemy AA account could not be initialized.")
-      };
-    }
-    return {
-      plan,
-      AA: adaptSmartAccount(smartAccount),
-      isPending: false,
-      error: null
-    };
-  } catch (error) {
-    return {
-      plan,
-      AA: null,
-      isPending: false,
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
+  return __spreadValues(__spreadValues(__spreadValues(__spreadValues({}, config.provider ? { provider: config.provider } : {}), config.mode ? { mode: config.mode } : {}), config.fallback ? { fallback: config.fallback } : {}), Object.keys(providers).length > 0 ? { providers } : {});
 }
-async function createAlchemyWalletApisState(params) {
-  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
-  const signer = privateKeyToAccount(params.privateKey);
-  const walletClient = createSmartWalletClient(__spreadValues({
-    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
-    chain: params.chain,
-    signer
-  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
-  let accountAddress = signer.address;
-  if (params.mode === "4337") {
-    const account = await walletClient.requestAccount();
-    accountAddress = account.address;
+function normalizeAAConfig(value) {
+  var _a3, _b;
+  if (!isObject(value)) {
+    return {};
   }
-  const sendCalls = async (calls) => {
-    var _a3, _b;
-    const result = await walletClient.sendCalls(__spreadProps(__spreadValues({}, params.mode === "4337" ? { account: accountAddress } : {}), {
-      calls
-    }));
-    const status = await walletClient.waitForCallsStatus({ id: result.id });
-    const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
-    if (!transactionHash) {
-      throw new Error("Alchemy Wallets API did not return a transaction hash.");
-    }
-    return { transactionHash };
-  };
-  const AA = {
-    provider: "alchemy",
-    mode: params.mode,
-    AAAddress: accountAddress,
-    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  };
-  return {
-    plan: params.plan,
-    AA,
-    isPending: false,
-    error: null
-  };
+  const config = {};
+  if (isProvider(value.provider)) {
+    config.provider = value.provider;
+  }
+  if (isMode(value.mode)) {
+    config.mode = value.mode;
+  }
+  if (isFallback(value.fallback)) {
+    config.fallback = value.fallback;
+  }
+  const providers = {};
+  const storedProviders = isObject(value.providers) ? value.providers : void 0;
+  const alchemy = (_a3 = normalizeProviderConfig(storedProviders == null ? void 0 : storedProviders.alchemy)) != null ? _a3 : normalizeProviderConfig({
+    apiKey: cleanString(value.alchemyApiKey),
+    gasPolicyId: cleanString(value.alchemyGasPolicyId)
+  });
+  if (alchemy) {
+    providers.alchemy = alchemy;
+  }
+  const pimlico = (_b = normalizeProviderConfig(storedProviders == null ? void 0 : storedProviders.pimlico)) != null ? _b : normalizeProviderConfig({
+    apiKey: cleanString(value.pimlicoApiKey)
+  });
+  if (pimlico) {
+    providers.pimlico = pimlico;
+  }
+  if (Object.keys(providers).length > 0) {
+    config.providers = providers;
+  }
+  return pruneAAConfig(config);
 }
-async function createPimlicoAAState(options) {
+function configDir() {
   var _a3;
-  const {
-    chain,
-    owner,
-    rpcUrl,
-    callList,
-    mode
-  } = options;
-  const resolved = resolvePimlicoConfig({
-    calls: callList,
-    chainsById: { [chain.id]: chain },
-    rpcUrl,
-    modeOverride: mode,
-    throwOnMissingConfig: true,
-    apiKey: options.apiKey
-  });
-  if (!resolved) {
-    throw new Error("Pimlico AA config resolution failed.");
-  }
-  const apiKey = (_a3 = options.apiKey) != null ? _a3 : resolved.apiKey;
-  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
-    fallbackToEoa: false
-  });
-  const ownerParams = getOwnerParams(owner);
-  if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(plan, "pimlico");
-  }
-  if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(plan, ownerParams.adapter);
-  }
+  const dir = (_a3 = process.env.AOMI_CONFIG_DIR) != null ? _a3 : join2(homedir2(), ".aomi");
+  if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
+  return dir;
+}
+function configPath() {
+  return join2(configDir(), "aa.json");
+}
+function readAAConfig() {
+  const path = configPath();
+  if (!existsSync2(path)) return {};
   try {
-    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey,
-      chain,
-      rpcUrl,
-      mode: plan.mode
-    }));
-    if (!smartAccount) {
-      return {
-        plan,
-        AA: null,
-        isPending: false,
-        error: new Error("Pimlico AA account could not be initialized.")
-      };
-    }
-    return {
-      plan,
-      AA: adaptSmartAccount(smartAccount),
-      isPending: false,
-      error: null
-    };
-  } catch (error) {
-    return {
-      plan,
-      AA: null,
-      isPending: false,
-      error: error instanceof Error ? error : new Error(String(error))
-    };
+    return normalizeAAConfig(JSON.parse(readFileSync2(path, "utf-8")));
+  } catch (e) {
+    return {};
   }
 }
+function writeAAConfig(config) {
+  writeFileSync2(configPath(), JSON.stringify(pruneAAConfig(config), null, 2) + "\n");
+}
+function clearAAConfig() {
+  writeAAConfig({});
+}
+function getPersistedAAApiKey(config, provider) {
+  var _a3, _b;
+  return cleanString((_b = (_a3 = config.providers) == null ? void 0 : _a3[provider]) == null ? void 0 : _b.apiKey);
+}
+function getPersistedAlchemyGasPolicyId(config) {
+  var _a3, _b;
+  return cleanString((_b = (_a3 = config.providers) == null ? void 0 : _a3.alchemy) == null ? void 0 : _b.gasPolicyId);
+}
+function validateSetValue(field, value) {
+  switch (field) {
+    case "provider":
+      if (!isProvider(value)) {
+        return "Provider must be 'alchemy' or 'pimlico'.";
+      }
+      break;
+    case "mode":
+      if (!isMode(value)) {
+        return "Mode must be '4337' or '7702'.";
+      }
+      break;
+    case "fallback":
+      if (!isFallback(value)) {
+        return "Fallback must be 'eoa' or 'none'.";
+      }
+      break;
+  }
+  return null;
+}
+function ensureProviderConfig(config, provider) {
+  var _a3, _b, _c;
+  (_a3 = config.providers) != null ? _a3 : config.providers = {};
+  (_c = (_b = config.providers)[provider]) != null ? _c : _b[provider] = {};
+  return config.providers[provider];
+}
+function setAAConfigValue(input, field, value) {
+  const error = validateSetValue(field, value);
+  if (error) {
+    throw new Error(error);
+  }
+  const config = normalizeAAConfig(input);
+  switch (field) {
+    case "provider":
+      config.provider = value;
+      return config;
+    case "mode":
+      config.mode = value;
+      return config;
+    case "fallback":
+      config.fallback = value;
+      return config;
+    case "key": {
+      if (!config.provider) {
+        throw new Error(
+          "No default provider set. Run `aomi aa set provider <alchemy|pimlico>` first, or use `alchemy-key` / `pimlico-key`."
+        );
+      }
+      ensureProviderConfig(config, config.provider).apiKey = value;
+      return config;
+    }
+    case "alchemy-key":
+      ensureProviderConfig(config, "alchemy").apiKey = value;
+      return config;
+    case "pimlico-key":
+      ensureProviderConfig(config, "pimlico").apiKey = value;
+      return config;
+    case "policy":
+    case "alchemy-policy":
+      ensureProviderConfig(config, "alchemy").gasPolicyId = value;
+      return config;
+    default:
+      throw new Error(
+        `Unknown AA config key "${field}". Valid keys: ${SETTABLE_AA_FIELDS.join(", ")}`
+      );
+  }
+}
+var SETTABLE_AA_FIELDS;
+var init_aa_config = __esm({
+  "src/cli/aa-config.ts"() {
+    "use strict";
+    SETTABLE_AA_FIELDS = [
+      "provider",
+      "mode",
+      "key",
+      "alchemy-key",
+      "pimlico-key",
+      "policy",
+      "alchemy-policy",
+      "fallback"
+    ];
+  }
+});
 
 // src/cli/execution.ts
-var ERC20_SELECTORS = /* @__PURE__ */ new Set([
-  "0x095ea7b3",
-  // approve(address,uint256)
-  "0xa9059cbb",
-  // transfer(address,uint256)
-  "0x23b872dd"
-  // transferFrom(address,address,uint256)
-]);
 function callsContainTokenOperations(calls) {
   return calls.some(
     (call) => call.data && ERC20_SELECTORS.has(call.data.slice(0, 10).toLowerCase())
@@ -3631,43 +3384,70 @@ function maybeOverride4337ForTokenOps(params) {
   );
   return { mode, warned: true };
 }
+function getCliAAApiKey(provider, persisted = readAAConfig()) {
+  var _a3, _b;
+  if (provider === "alchemy") {
+    return (_a3 = readEnv(ALCHEMY_API_KEY_ENVS)) != null ? _a3 : getPersistedAAApiKey(persisted, "alchemy");
+  }
+  return (_b = readEnv(PIMLICO_API_KEY_ENVS)) != null ? _b : getPersistedAAApiKey(persisted, "pimlico");
+}
+function getCliAlchemyGasPolicyId(persisted = readAAConfig()) {
+  var _a3;
+  return (_a3 = readEnv(ALCHEMY_GAS_POLICY_ENVS)) != null ? _a3 : getPersistedAlchemyGasPolicyId(persisted);
+}
+function isCliProviderConfigured(provider, persisted = readAAConfig()) {
+  return Boolean(getCliAAApiKey(provider, persisted));
+}
 function resolveAAProvider(config, options) {
-  const provider = config.aaProvider;
-  if (provider) {
-    if (isProviderConfigured(provider)) {
-      return provider;
+  const persisted = readAAConfig();
+  const selectedProvider = config.aaProvider;
+  const preferredProvider = persisted.provider;
+  if (selectedProvider) {
+    if (isCliProviderConfigured(selectedProvider, persisted)) {
+      return selectedProvider;
     }
-    if (!options.required) {
-      return null;
+    if (options.required) {
+      const envName = selectedProvider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
+      throw new Error(
+        `AA provider "${selectedProvider}" is selected but ${envName} is not configured.
+Run \`aomi aa set key <your-key>\` or set ${envName}.`
+      );
     }
-    const envName = provider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
-    throw new Error(
-      `AA provider "${provider}" is selected but ${envName} is not configured.`
-    );
   }
-  try {
-    return resolveDefaultProvider();
-  } catch (error) {
-    if (!options.required) {
-      return null;
-    }
-    throw error;
+  if (preferredProvider && isCliProviderConfigured(preferredProvider, persisted)) {
+    return preferredProvider;
   }
+  if (isCliProviderConfigured("alchemy", persisted)) return "alchemy";
+  if (isCliProviderConfigured("pimlico", persisted)) return "pimlico";
+  if (!options.required) {
+    return null;
+  }
+  throw new Error(
+    "AA requires provider credentials. Run `aomi aa set key <your-key>` or set ALCHEMY_API_KEY / PIMLICO_API_KEY, or use --eoa."
+  );
 }
 function getResolvedAAMode(params) {
+  var _a3;
   const { provider, config, chain, callList, fallbackToEoa } = params;
+  const persisted = readAAConfig();
+  const effectiveMode = (_a3 = config.aaMode) != null ? _a3 : persisted.mode;
   const resolveOpts = {
     calls: callList,
     chainsById: { [chain.id]: chain },
-    modeOverride: config.aaMode,
+    modeOverride: effectiveMode,
     throwOnMissingConfig: true
   };
-  const resolved = provider === "alchemy" ? resolveAlchemyConfig(resolveOpts) : resolvePimlicoConfig(resolveOpts);
+  const resolved = provider === "alchemy" ? resolveAlchemyConfig(__spreadProps(__spreadValues({}, resolveOpts), {
+    apiKey: getCliAAApiKey("alchemy", persisted),
+    gasPolicyId: getCliAlchemyGasPolicyId(persisted)
+  })) : resolvePimlicoConfig(__spreadProps(__spreadValues({}, resolveOpts), {
+    apiKey: getCliAAApiKey("pimlico", persisted)
+  }));
   if (!resolved) {
     throw new Error(`AA config resolution failed for provider "${provider}".`);
   }
   const { mode: finalMode } = maybeOverride4337ForTokenOps({
-    mode: resolved.plan.mode,
+    mode: resolved.mode,
     callList,
     chain,
     explicitMode: Boolean(config.aaMode)
@@ -3689,13 +3469,16 @@ function resolveCliExecutionDecision(params) {
   if (!provider) {
     return { execution: "eoa" };
   }
+  const persisted = readAAConfig();
+  const persistedFallbackToEoa = persisted.fallback !== "none";
+  const fallbackToEoa = requireAA ? false : persistedFallbackToEoa;
   try {
     return getResolvedAAMode({
       provider,
       config,
       chain,
       callList,
-      fallbackToEoa: !requireAA
+      fallbackToEoa
     });
   } catch (error) {
     if (!requireAA) {
@@ -3706,6 +3489,7 @@ function resolveCliExecutionDecision(params) {
 }
 async function createCliProviderState(params) {
   const { decision, chain, privateKey, rpcUrl, callList, sponsored } = params;
+  const persisted = readAAConfig();
   if (decision.execution === "eoa") {
     return DISABLED_PROVIDER_STATE;
   }
@@ -3716,6 +3500,8 @@ async function createCliProviderState(params) {
     rpcUrl,
     callList,
     mode: decision.aaMode,
+    apiKey: getCliAAApiKey(decision.provider, persisted),
+    gasPolicyId: decision.provider === "alchemy" ? getCliAlchemyGasPolicyId(persisted) : void 0,
     sponsored
   });
 }
@@ -3725,8 +3511,33 @@ function describeExecutionDecision(decision) {
   }
   return decision.fallbackToEoa ? `aa (${decision.provider}, ${decision.aaMode}; fallback: eoa)` : `aa (${decision.provider}, ${decision.aaMode})`;
 }
+var ERC20_SELECTORS;
+var init_execution = __esm({
+  "src/cli/execution.ts"() {
+    "use strict";
+    init_aa();
+    init_aa_config();
+    init_aa();
+    ERC20_SELECTORS = /* @__PURE__ */ new Set([
+      "0x095ea7b3",
+      // approve(address,uint256)
+      "0xa9059cbb",
+      // transfer(address,uint256)
+      "0x23b872dd"
+      // transferFrom(address,address,uint256)
+    ]);
+  }
+});
 
 // src/cli/commands/wallet.ts
+var wallet_exports = {};
+__export(wallet_exports, {
+  signCommand: () => signCommand,
+  txCommand: () => txCommand
+});
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import * as viemChains from "viem/chains";
 function txCommand() {
   var _a3, _b;
   const state = readState();
@@ -3757,7 +3568,7 @@ function txCommand() {
   }
   printDataFileLocation();
 }
-function requirePendingTx2(state, txId) {
+function requirePendingTx(state, txId) {
   var _a3;
   const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
   if (!pendingTx) {
@@ -3773,7 +3584,7 @@ function requirePendingTxs(state, txIds) {
   if (uniqueIds.length !== txIds.length) {
     fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
   }
-  return uniqueIds.map((txId) => requirePendingTx2(state, txId));
+  return uniqueIds.map((txId) => requirePendingTx(state, txId));
 }
 function rewriteSessionState(runtime, state) {
   let changed = false;
@@ -3961,7 +3772,7 @@ async function signCommand(runtime) {
   const pendingTxs = requirePendingTxs(state, txIds);
   const session = createSessionFromState(state);
   try {
-    const account = privateKeyToAccount2(privateKey);
+    const account = privateKeyToAccount3(privateKey);
     if (state.publicKey && account.address.toLowerCase() !== state.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${state.publicKey}`
@@ -4156,161 +3967,1401 @@ async function signCommand(runtime) {
     session.close();
   }
 }
+var init_wallet = __esm({
+  "src/cli/commands/wallet.ts"() {
+    "use strict";
+    init_aa();
+    init_session();
+    init_wallet_utils();
+    init_errors();
+    init_execution();
+    init_output();
+    init_state();
+    init_user_state();
+    init_transactions();
+  }
+});
 
-// src/cli/main.ts
-var CLI_VERSION = package_default.version;
-function printUsage() {
-  console.log(`
-aomi \u2014 CLI client for Aomi on-chain agent
-
-Usage:
-  aomi chat <message>   Send a message and print the response
-  aomi chat --model <rig>
-                        Set the session model before sending the message
-  aomi chat --verbose   Stream agent responses, tool calls, and events live
-  aomi app list         List available apps
-  aomi app current      Show the current app
-  aomi model list       List models available to the current backend
-  aomi model set <rig>  Set the active model for the current session
-  aomi chain list       List supported chains
-  aomi session list     List local sessions with metadata
-  aomi session new      Start a fresh local/backend session and make it active
-  aomi session resume <id>
-                        Resume a local session (session-id or session-N)
-  aomi session delete <id>
-                        Delete a local session file (session-id or session-N)
-  aomi log              Show full conversation history with tool results
-  aomi tx               List pending and signed transactions
-  aomi simulate <tx-id> [<tx-id> ...]
-                        Batch-simulate pending txs atomically (approve \u2192 swap)
-  aomi sign <tx-id> [<tx-id> ...] [--eoa | --aa] [--aa-provider <name>] [--aa-mode <mode>]
-                        Sign and submit a pending transaction
-  aomi secret list      List configured secrets for the active session
-  aomi secret clear     Clear all secrets for the active session
-  aomi status           Show current session state
-  aomi events           List system events
-  aomi close            Close the current session
-  aomi --version        Print the installed CLI version
-
-Options:
-  --backend-url <url>   Backend URL (default: https://api.aomi.dev)
-  --api-key <key>       API key for non-default apps
-  --app <name>          App (default: "default")
-  --model <rig>         Set the active model for this session
-  --new-session         Create a fresh active session for this command
-  --chain <id>          Active chain for chat/session context
-  --public-key <addr>   Wallet address (so the agent knows your wallet)
-  --private-key <key>   Hex private key for signing
-  --rpc-url <url>       RPC URL for transaction submission
-  --secret NAME=value   Ingest a secret (repeatable, e.g. --secret X_API_KEY=abc)
-  --verbose, -v         Show tool calls and streaming output (for chat)
-  --version, -V         Print the installed CLI version
-
-Sign options:
-  aomi sign <tx-id> --eoa
-                        Force plain EOA execution
-  aomi sign <tx-id> --aa
-                        Require account-abstraction execution with no EOA fallback
-  aomi sign <tx-id> --aa-provider <name>
-                        AA provider: alchemy | pimlico
-  aomi sign <tx-id> --aa-mode <mode>
-                        AA mode: 4337 | 7702
-
-Default signing behavior:
-  aomi sign <tx-id>
-                        Try AA first, retry unsponsored AA when supported, then
-                        fall back to EOA automatically if AA is unavailable
-
-Environment (overridden by flags):
-  AOMI_BACKEND_URL         Backend URL
-  AOMI_API_KEY          API key
-  AOMI_APP              App
-  AOMI_MODEL            Model rig
-  AOMI_CHAIN_ID         Active chain for chat/session context
-  AOMI_PUBLIC_KEY       Wallet address
-  AOMI_AA_PROVIDER      AA provider: alchemy | pimlico
-  AOMI_AA_MODE          AA mode: 4337 | 7702
-  ALCHEMY_API_KEY       Alchemy AA API key
-  ALCHEMY_GAS_POLICY_ID
-                        Optional Alchemy gas sponsorship policy ID
-  PIMLICO_API_KEY       Pimlico AA API key
-  PRIVATE_KEY           Hex private key for signing
-  CHAIN_RPC_URL         RPC URL for transaction submission
-`.trim());
+// src/cli/commands/simulate.ts
+var simulate_exports = {};
+__export(simulate_exports, {
+  simulateCommand: () => simulateCommand
+});
+function requirePendingTx2(state, txId) {
+  var _a3;
+  const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
+  if (!pendingTx) {
+    fatal(
+      `No pending transaction with id "${txId}".
+Run \`aomi tx\` to see available IDs.`
+    );
+  }
+  return pendingTx;
 }
-async function main(runtime) {
+async function simulateCommand(runtime) {
   var _a3, _b, _c;
-  const hasSecrets = Object.keys(runtime.parsed.secrets).length > 0;
-  const command = (_c = (_b = (_a3 = runtime.parsed.command) != null ? _a3 : hasSecrets ? "ingest-secrets" : void 0) != null ? _b : runtime.parsed.flags["version"] || runtime.parsed.flags["V"] ? "version" : void 0) != null ? _c : runtime.parsed.flags["help"] || runtime.parsed.flags["h"] ? "help" : void 0;
-  switch (command) {
-    case "chat":
-      await chatCommand(runtime);
-      break;
-    case "log":
-      await logCommand(runtime);
-      break;
-    case "app":
-      await appCommand(runtime);
-      break;
-    case "model":
-      await modelCommand(runtime);
-      break;
-    case "chain":
-      chainCommand(runtime);
-      break;
-    case "session":
-      await sessionCommand(runtime);
-      break;
-    case "tx":
-      txCommand();
-      break;
-    case "sign":
-      await signCommand(runtime);
-      break;
-    case "simulate":
-      await simulateCommand(runtime);
-      break;
-    case "status":
-      await statusCommand(runtime);
-      break;
-    case "events":
-      await eventsCommand(runtime);
-      break;
-    case "secret":
-      await secretCommand(runtime);
-      break;
-    case "ingest-secrets":
-      await ingestSecretsCommand(runtime);
-      break;
-    case "close":
-      closeCommand(runtime);
-      break;
-    case "version":
-      console.log(CLI_VERSION);
-      break;
-    case "help":
-      printUsage();
-      break;
-    default:
-      printUsage();
-      if (command) {
-        throw new CliExit(1);
-      }
+  const state = readState();
+  if (!state) {
+    fatal("No active session. Run `aomi chat` first.");
+  }
+  const txIds = runtime.parsed.positional;
+  if (txIds.length === 0) {
+    fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
+  }
+  const pendingTxs = txIds.map((txId) => requirePendingTx2(state, txId));
+  console.log(
+    `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`
+  );
+  const client = new AomiClient({
+    baseUrl: state.baseUrl,
+    apiKey: state.apiKey
+  });
+  const transactions = pendingTxs.map((tx) => {
+    var _a4;
+    return {
+      to: tx.to,
+      value: tx.value,
+      data: tx.data,
+      label: (_a4 = tx.description) != null ? _a4 : tx.id
+    };
+  });
+  const response = await client.simulateBatch(
+    state.sessionId,
+    transactions,
+    {
+      from: (_a3 = state.publicKey) != null ? _a3 : void 0,
+      chainId: (_b = state.chainId) != null ? _b : void 0
+    }
+  );
+  const { result } = response;
+  const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
+  console.log(`
+Batch simulation (${modeLabel}):`);
+  console.log(`From: ${result.from} | Network: ${result.network}
+`);
+  for (const step of result.steps) {
+    const icon = step.success ? `${GREEN}\u2713${RESET}` : `\x1B[31m\u2717${RESET}`;
+    const label = step.label || `Step ${step.step}`;
+    const gasInfo = step.gas_used ? ` | gas: ${step.gas_used.toLocaleString()}` : "";
+    console.log(`  ${icon} ${step.step}. ${label}`);
+    console.log(`    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`);
+    if (!step.success && step.revert_reason) {
+      console.log(`    \x1B[31mRevert: ${step.revert_reason}${RESET}`);
+    }
+  }
+  if (result.total_gas) {
+    console.log(`
+${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`);
+  }
+  if (result.fee) {
+    const feeEth = (Number(result.fee.amount_wei) / 1e18).toFixed(6);
+    console.log(
+      `Service fee: ${feeEth} ETH \u2192 ${result.fee.recipient}`
+    );
+  }
+  console.log();
+  if (result.batch_success) {
+    console.log(
+      `${GREEN}All steps passed.${RESET} Run \`aomi sign ${txIds.join(" ")}\` to execute.`
+    );
+  } else {
+    const failed = result.steps.find((s) => !s.success);
+    console.log(
+      `\x1B[31mBatch failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`
+    );
   }
 }
+var init_simulate = __esm({
+  "src/cli/commands/simulate.ts"() {
+    "use strict";
+    init_client();
+    init_errors();
+    init_output();
+    init_state();
+  }
+});
+
+// src/cli/tables.ts
+function truncateCell(value, maxWidth) {
+  if (value.length <= maxWidth) return value;
+  return `${value.slice(0, maxWidth - 1)}\u2026`;
+}
+function padRight(value, width) {
+  return value.padEnd(width, " ");
+}
+function estimateTokenCount(messages) {
+  var _a3;
+  let totalChars = 0;
+  for (const message of messages) {
+    const content = formatLogContent(message.content);
+    if (content) {
+      totalChars += content.length + 1;
+    }
+    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
+      totalChars += message.tool_result[1].length;
+    }
+  }
+  return Math.round(totalChars / 4);
+}
+function toPendingTxMetadata(tx) {
+  var _a3, _b, _c, _d;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    to: (_a3 = tx.to) != null ? _a3 : null,
+    value: (_b = tx.value) != null ? _b : null,
+    chainId: (_c = tx.chainId) != null ? _c : null,
+    description: (_d = tx.description) != null ? _d : null,
+    timestamp: new Date(tx.timestamp).toISOString()
+  };
+}
+function toSignedTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
+    txHashes: (_b = tx.txHashes) != null ? _b : null,
+    executionKind: (_c = tx.executionKind) != null ? _c : null,
+    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
+    aaMode: (_e = tx.aaMode) != null ? _e : null,
+    batched: (_f = tx.batched) != null ? _f : null,
+    sponsored: (_g = tx.sponsored) != null ? _g : null,
+    AAAddress: (_h = tx.AAAddress) != null ? _h : null,
+    delegationAddress: (_i = tx.delegationAddress) != null ? _i : null,
+    signature: (_j = tx.signature) != null ? _j : null,
+    from: (_k = tx.from) != null ? _k : null,
+    to: (_l = tx.to) != null ? _l : null,
+    value: (_m = tx.value) != null ? _m : null,
+    chainId: (_n = tx.chainId) != null ? _n : null,
+    description: (_o = tx.description) != null ? _o : null,
+    timestamp: new Date(tx.timestamp).toISOString()
+  };
+}
+function printKeyValueTable(rows, color = CYAN) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+}
+function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
+  const rows = [
+    ...pendingTxs.map((tx) => ({
+      status: "pending",
+      metadata: toPendingTxMetadata(tx)
+    })),
+    ...signedTxs.map((tx) => ({
+      status: "signed",
+      metadata: toSignedTxMetadata(tx)
+    }))
+  ];
+  if (rows.length === 0) {
+    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
+    return;
+  }
+  const visibleRows = rows.slice(0, MAX_TX_ROWS);
+  const statusWidth = Math.max(
+    "status".length,
+    ...visibleRows.map((row) => row.status.length)
+  );
+  const jsonCells = visibleRows.map(
+    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
+  );
+  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < visibleRows.length; i++) {
+    console.log(
+      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+  if (rows.length > MAX_TX_ROWS) {
+    const omitted = rows.length - MAX_TX_ROWS;
+    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
+  }
+}
+var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
+var init_tables = __esm({
+  "src/cli/tables.ts"() {
+    "use strict";
+    init_output();
+    MAX_TABLE_VALUE_WIDTH = 72;
+    MAX_TX_JSON_WIDTH = 96;
+    MAX_TX_ROWS = 8;
+  }
+});
+
+// src/cli/commands/sessions.ts
+var sessions_exports = {};
+__export(sessions_exports, {
+  deleteSessionCommand: () => deleteSessionCommand,
+  newSessionCommand: () => newSessionCommand,
+  resumeSessionCommand: () => resumeSessionCommand,
+  sessionsCommand: () => sessionsCommand
+});
+async function fetchRemoteSessionStats(record) {
+  var _a3, _b;
+  const client = new AomiClient({
+    baseUrl: record.state.baseUrl,
+    apiKey: record.state.apiKey
+  });
+  try {
+    const apiState = await client.fetchState(record.sessionId, void 0, record.state.clientId);
+    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
+    return {
+      topic: (_b = apiState.title) != null ? _b : "Untitled Session",
+      messageCount: messages.length,
+      tokenCountEstimate: estimateTokenCount(messages),
+      toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function printSessionSummary(record, stats, isActive) {
+  var _a3, _b, _c;
+  const pendingTxs = (_a3 = record.state.pendingTxs) != null ? _a3 : [];
+  const signedTxs = (_b = record.state.signedTxs) != null ? _b : [];
+  const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
+  console.log(`${YELLOW}------ ${header} ------${RESET}`);
+  printKeyValueTable([
+    ["\u{1F9E0} topic", (_c = stats == null ? void 0 : stats.topic) != null ? _c : "Unavailable (fetch failed)"],
+    ["\u{1F4AC} msg count", stats ? String(stats.messageCount) : "n/a"],
+    [
+      "\u{1F9EE} token count",
+      stats ? `${stats.tokenCountEstimate} (estimated)` : "n/a"
+    ],
+    ["\u{1F6E0} tool calls", stats ? String(stats.toolCalls) : "n/a"],
+    [
+      "\u{1F4B8} transactions",
+      `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`
+    ]
+  ]);
+  console.log();
+  console.log(`${YELLOW}\u{1F4BE} Transactions metadata (JSON):${RESET}`);
+  printTransactionTable(pendingTxs, signedTxs);
+}
+async function sessionsCommand(_runtime) {
+  var _a3;
+  const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+  if (sessions.length === 0) {
+    console.log("No local sessions.");
+    printDataFileLocation();
+    return;
+  }
+  const activeSessionId = (_a3 = readState()) == null ? void 0 : _a3.sessionId;
+  const statsResults = await Promise.all(
+    sessions.map((record) => fetchRemoteSessionStats(record))
+  );
+  for (let i = 0; i < sessions.length; i++) {
+    printSessionSummary(
+      sessions[i],
+      statsResults[i],
+      sessions[i].sessionId === activeSessionId
+    );
+    if (i < sessions.length - 1) {
+      console.log();
+    }
+  }
+  printDataFileLocation();
+}
+function newSessionCommand(runtime) {
+  const state = createFreshSessionState(runtime);
+  console.log(`Active session set to ${state.sessionId} (new).`);
+  printDataFileLocation();
+}
+function resumeSessionCommand(selector) {
+  const resumed = setActiveSession(selector);
+  if (!resumed) {
+    fatal(`No local session found for selector "${selector}".`);
+  }
+  console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+  printDataFileLocation();
+}
+function deleteSessionCommand(selector) {
+  const deleted = deleteStoredSession(selector);
+  if (!deleted) {
+    fatal(`No local session found for selector "${selector}".`);
+  }
+  console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+  const active = readState();
+  if (active) {
+    console.log(`Active session: ${active.sessionId}`);
+  } else {
+    console.log("No active session");
+  }
+  printDataFileLocation();
+}
+var init_sessions = __esm({
+  "src/cli/commands/sessions.ts"() {
+    "use strict";
+    init_client();
+    init_context();
+    init_errors();
+    init_output();
+    init_state();
+    init_tables();
+  }
+});
+
+// src/cli/commands/control.ts
+var control_exports = {};
+__export(control_exports, {
+  appsCommand: () => appsCommand,
+  chainsCommand: () => chainsCommand,
+  currentAppCommand: () => currentAppCommand,
+  currentModelCommand: () => currentModelCommand,
+  eventsCommand: () => eventsCommand,
+  modelsCommand: () => modelsCommand,
+  setModelCommand: () => setModelCommand,
+  statusCommand: () => statusCommand
+});
+async function statusCommand(runtime) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  if (!readState()) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
+    console.log(
+      JSON.stringify(
+        {
+          sessionId: state.sessionId,
+          baseUrl: state.baseUrl,
+          app: state.app,
+          model: (_a3 = state.model) != null ? _a3 : null,
+          chainId: (_b = state.chainId) != null ? _b : null,
+          isProcessing: (_c = apiState.is_processing) != null ? _c : false,
+          messageCount: (_e = (_d = apiState.messages) == null ? void 0 : _d.length) != null ? _e : 0,
+          title: (_f = apiState.title) != null ? _f : null,
+          pendingTxs: (_h = (_g = state.pendingTxs) == null ? void 0 : _g.length) != null ? _h : 0,
+          signedTxs: (_j = (_i = state.signedTxs) == null ? void 0 : _i.length) != null ? _j : 0
+        },
+        null,
+        2
+      )
+    );
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+async function eventsCommand(runtime) {
+  if (!readState()) {
+    console.log("No active session");
+    return;
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    const events = await session.client.getSystemEvents(state.sessionId);
+    console.log(JSON.stringify(events, null, 2));
+  } finally {
+    session.close();
+  }
+}
+async function appsCommand(runtime) {
+  var _a3, _b, _c;
+  const client = createControlClient(runtime);
+  const state = readState();
+  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
+  const apps = await client.getApps(sessionId, {
+    publicKey: runtime.config.publicKey,
+    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+  });
+  if (apps.length === 0) {
+    console.log("No apps available.");
+    return;
+  }
+  const currentApp = (_c = state == null ? void 0 : state.app) != null ? _c : runtime.config.app;
+  for (const app of apps) {
+    const marker = currentApp === app ? "  (current)" : "";
+    console.log(`${app}${marker}`);
+  }
+}
+async function modelsCommand(runtime) {
+  var _a3, _b;
+  const client = createControlClient(runtime);
+  const state = readState();
+  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
+  const models = await client.getModels(sessionId, {
+    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+  });
+  if (models.length === 0) {
+    console.log("No models available.");
+    return;
+  }
+  for (const model of models) {
+    const marker = (state == null ? void 0 : state.model) === model ? "  (current)" : "";
+    console.log(`${model}${marker}`);
+  }
+}
+function currentAppCommand() {
+  var _a3;
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  console.log((_a3 = state.app) != null ? _a3 : "(default)");
+  printDataFileLocation();
+}
+function currentModelCommand() {
+  var _a3;
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  console.log((_a3 = state.model) != null ? _a3 : "(default backend model)");
+  printDataFileLocation();
+}
+async function setModelCommand(runtime, model) {
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    await applyModelSelection(session, state, model);
+    console.log(`Model set to ${model}`);
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+function chainsCommand() {
+  var _a3;
+  const state = readState();
+  const currentChainId = state == null ? void 0 : state.chainId;
+  for (const id of SUPPORTED_CHAIN_IDS) {
+    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
+    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
+    const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
+    const marker = currentChainId === id ? "  (current)" : "";
+    console.log(`${id}  ${name}${aaInfo}${marker}`);
+  }
+}
+var init_control = __esm({
+  "src/cli/commands/control.ts"() {
+    "use strict";
+    init_args();
+    init_context();
+    init_output();
+    init_state();
+    init_types2();
+  }
+});
+
+// src/cli/commands/history.ts
+var history_exports = {};
+__export(history_exports, {
+  closeCommand: () => closeCommand,
+  logCommand: () => logCommand
+});
+async function logCommand(runtime) {
+  var _a3, _b, _c, _d, _e;
+  if (!readState()) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
+    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
+    const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
+    const signedTxs = (_c = state.signedTxs) != null ? _c : [];
+    const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
+    const tokenCountEstimate = estimateTokenCount(messages);
+    const topic = (_d = apiState.title) != null ? _d : "Untitled Session";
+    if (messages.length === 0) {
+      console.log("No messages in this session.");
+      printDataFileLocation();
+      return;
+    }
+    console.log(`------ Session id: ${state.sessionId} ------`);
+    printKeyValueTable([
+      ["topic", topic],
+      ["msg count", String(messages.length)],
+      ["token count", `${tokenCountEstimate} (estimated)`],
+      ["tool calls", String(toolCalls)],
+      [
+        "transactions",
+        `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`
+      ]
+    ]);
+    console.log("Transactions metadata (JSON):");
+    printTransactionTable(pendingTxs, signedTxs);
+    console.log("-------------------- Messages --------------------");
+    for (const msg of messages) {
+      const content = formatLogContent(msg.content);
+      let time = "";
+      if (msg.timestamp) {
+        const raw = msg.timestamp;
+        const numeric = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
+        const date = !Number.isNaN(numeric) ? new Date(numeric < 1e12 ? numeric * 1e3 : numeric) : new Date(raw);
+        time = Number.isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
+      }
+      const sender = (_e = msg.sender) != null ? _e : "unknown";
+      if (sender === "user") {
+        if (content) {
+          console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${content}`);
+        }
+      } else if (sender === "agent" || sender === "assistant") {
+        if (msg.tool_result) {
+          const [toolName, result] = msg.tool_result;
+          console.log(
+            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${formatToolResultPreview(result)}`
+          );
+        }
+        if (content) {
+          console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${content}`);
+        }
+      } else if (sender === "system") {
+        if (content && !content.startsWith("Response of system endpoint:")) {
+          console.log(`${time}${YELLOW}\u2699\uFE0F  System:${RESET} ${content}`);
+        }
+      } else {
+        if (content) {
+          console.log(`${time}${DIM}[${sender}]${RESET} ${content}`);
+        }
+      }
+    }
+    console.log(`
+${DIM}\u2014 ${messages.length} messages \u2014${RESET}`);
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+function closeCommand(runtime) {
+  if (readState()) {
+    const { session } = getOrCreateSession(runtime);
+    session.close();
+  }
+  clearState();
+  console.log("Session closed");
+}
+var init_history = __esm({
+  "src/cli/commands/history.ts"() {
+    "use strict";
+    init_context();
+    init_output();
+    init_state();
+    init_tables();
+  }
+});
+
+// src/cli/commands/secrets.ts
+var secrets_exports = {};
+__export(secrets_exports, {
+  clearSecretsCommand: () => clearSecretsCommand,
+  ingestSecretsCommand: () => ingestSecretsCommand,
+  listSecretsCommand: () => listSecretsCommand
+});
+async function ingestSecretsCommand(runtime) {
+  const secretEntries = Object.entries(runtime.config.secrets);
+  if (secretEntries.length === 0) {
+    fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
+  }
+  const { session, state } = getOrCreateSession(runtime, {
+    fresh: runtime.config.freshSession
+  });
+  try {
+    const handles = await ingestSecretsIfPresent(
+      runtime,
+      state,
+      session.client
+    );
+    const names = Object.keys(handles).sort();
+    console.log(
+      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${state.sessionId}.`
+    );
+    for (const name of names) {
+      console.log(`${name}  ${handles[name]}`);
+    }
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+function listSecretsCommand() {
+  var _a3;
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  const secretHandles = (_a3 = state.secretHandles) != null ? _a3 : {};
+  const names = Object.keys(secretHandles).sort();
+  if (names.length === 0) {
+    console.log("No secrets configured.");
+    printDataFileLocation();
+    return;
+  }
+  for (const name of names) {
+    console.log(`${name}  ${secretHandles[name]}`);
+  }
+  printDataFileLocation();
+}
+async function clearSecretsCommand(runtime) {
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    if (!state.clientId) {
+      console.log("No secrets configured.");
+      printDataFileLocation();
+      return;
+    }
+    await session.client.clearSecrets(state.clientId);
+    state.secretHandles = {};
+    writeState(state);
+    console.log("Cleared all secrets for the active session.");
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+var init_secrets = __esm({
+  "src/cli/commands/secrets.ts"() {
+    "use strict";
+    init_context();
+    init_errors();
+    init_output();
+    init_state();
+  }
+});
+
+// src/cli/commands/aa.ts
+var aa_exports = {};
+__export(aa_exports, {
+  aaResetCommand: () => aaResetCommand,
+  aaSetCommand: () => aaSetCommand,
+  aaStatusCommand: () => aaStatusCommand,
+  aaTestCommand: () => aaTestCommand
+});
+import * as viemChains2 from "viem/chains";
+function maskSecret(value) {
+  return value.slice(0, 6) + "..." + value.slice(-4);
+}
+function getCliAAApiKey2(provider) {
+  var _a3, _b;
+  const config = readAAConfig();
+  if (provider === "alchemy") {
+    return (_a3 = readEnv(ALCHEMY_API_KEY_ENVS)) != null ? _a3 : getPersistedAAApiKey(config, "alchemy");
+  }
+  return (_b = readEnv(PIMLICO_API_KEY_ENVS)) != null ? _b : getPersistedAAApiKey(config, "pimlico");
+}
+function getCliAlchemyGasPolicyId2() {
+  var _a3;
+  const config = readAAConfig();
+  return (_a3 = readEnv(ALCHEMY_GAS_POLICY_ENVS)) != null ? _a3 : getPersistedAlchemyGasPolicyId(config);
+}
+function resolveChain2(chainId) {
+  var _a3, _b;
+  return (_b = Object.values(viemChains2).find(
+    (candidate) => typeof candidate === "object" && candidate !== null && "id" in candidate && candidate.id === chainId
+  )) != null ? _b : {
+    id: chainId,
+    name: (_a3 = CHAIN_NAMES[chainId]) != null ? _a3 : `Chain ${chainId}`,
+    nativeCurrency: {
+      name: "ETH",
+      symbol: "ETH",
+      decimals: 18
+    },
+    rpcUrls: {
+      default: {
+        http: []
+      }
+    }
+  };
+}
+function normalizePrivateKey2(value) {
+  if (!value) {
+    return void 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return void 0;
+  }
+  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+}
+async function aaStatusCommand(_runtime) {
+  var _a3;
+  const config = readAAConfig();
+  const alchemyApiKey = getCliAAApiKey2("alchemy");
+  const pimlicoApiKey = getCliAAApiKey2("pimlico");
+  const alchemyGasPolicyId = getCliAlchemyGasPolicyId2();
+  const hasConfig = Object.keys(config).length > 0 || Boolean(alchemyApiKey) || Boolean(pimlicoApiKey) || Boolean(alchemyGasPolicyId);
+  if (!hasConfig) {
+    console.log("No AA configuration set.");
+    console.log(`${DIM}Run \`aomi aa set provider alchemy\` to get started.${RESET}`);
+    printDataFileLocation();
+    return;
+  }
+  console.log(`${YELLOW}AA Configuration:${RESET}`);
+  if (config.provider) console.log(`  provider:     ${config.provider}`);
+  if (config.mode) console.log(`  mode:         ${config.mode}`);
+  if (config.fallback) console.log(`  fallback:     ${config.fallback}`);
+  const storedAlchemyKey = getPersistedAAApiKey(config, "alchemy");
+  if (alchemyApiKey) {
+    console.log(
+      `  alchemy key:  ${maskSecret(alchemyApiKey)}${storedAlchemyKey === alchemyApiKey ? " (stored)" : " (env)"}`
+    );
+  }
+  if (alchemyGasPolicyId) {
+    console.log(
+      `  gas policy:   ${alchemyGasPolicyId}${getPersistedAlchemyGasPolicyId(config) === alchemyGasPolicyId ? " (stored)" : " (env)"}`
+    );
+  }
+  const storedPimlicoKey = getPersistedAAApiKey(config, "pimlico");
+  if (pimlicoApiKey) {
+    console.log(
+      `  pimlico key:  ${maskSecret(pimlicoApiKey)}${storedPimlicoKey === pimlicoApiKey ? " (stored)" : " (env)"}`
+    );
+  }
+  console.log();
+  console.log(`${DIM}Supported chains:${RESET}`);
+  for (const id of SUPPORTED_CHAIN_IDS) {
+    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
+    console.log(`  ${id}  ${name}`);
+  }
+  printDataFileLocation();
+}
+async function aaSetCommand(key, value) {
+  const config = readAAConfig();
+  try {
+    const next = setAAConfigValue(config, key, value);
+    writeAAConfig(next);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    fatal(
+      message.includes("Unknown AA config key") ? `${message}` : `${message}
+Valid keys: ${SETTABLE_AA_FIELDS.join(", ")}`
+    );
+  }
+  console.log(
+    `${GREEN}\u2713${RESET} Set ${key} = ${key.includes("key") ? maskSecret(value) : value}`
+  );
+  printDataFileLocation();
+}
+async function aaTestCommand(chainId) {
+  var _a3, _b, _c, _d, _e;
+  const config = readAAConfig();
+  const provider = config.provider;
+  if (!provider) {
+    fatal(
+      "No AA provider configured.\nRun `aomi aa set provider alchemy` first."
+    );
+  }
+  const apiKey = getCliAAApiKey2(provider);
+  if (!apiKey) {
+    fatal(
+      `No API key for ${provider}.
+Run \`aomi aa set key <your-key>\` or set ${provider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY"}.`
+    );
+  }
+  const chain = resolveChain2(chainId != null ? chainId : 8453);
+  const calls = [
+    {
+      to: "0x1111111111111111111111111111111111111111",
+      value: "0",
+      chainId: chain.id
+    }
+  ];
+  const resolved = provider === "alchemy" ? resolveAlchemyConfig({
+    calls,
+    chainsById: { [chain.id]: chain },
+    modeOverride: config.mode,
+    throwOnMissingConfig: true,
+    apiKey,
+    gasPolicyId: getCliAlchemyGasPolicyId2()
+  }) : resolvePimlicoConfig({
+    calls,
+    chainsById: { [chain.id]: chain },
+    modeOverride: config.mode,
+    throwOnMissingConfig: true,
+    apiKey
+  });
+  if (!resolved) {
+    fatal(`Unable to resolve ${provider} AA configuration.`);
+  }
+  console.log(`Testing ${provider} AA on chain ${chain.id} (${chain.name})...`);
+  console.log(`${GREEN}\u2713${RESET} Provider: ${provider}`);
+  console.log(`${GREEN}\u2713${RESET} API key: ${maskSecret(apiKey)}`);
+  console.log(`${GREEN}\u2713${RESET} Mode: ${resolved.mode}`);
+  console.log(`${GREEN}\u2713${RESET} Batching: ${resolved.batchingEnabled ? "enabled" : "disabled"}`);
+  console.log(`${GREEN}\u2713${RESET} Sponsorship: ${resolved.sponsorship}`);
+  if (provider === "alchemy") {
+    console.log(
+      `${GREEN}\u2713${RESET} Gas policy: ${(_a3 = resolved.gasPolicyId) != null ? _a3 : "(none configured, unsponsored AA only)"}`
+    );
+  }
+  const privateKey = normalizePrivateKey2(process.env.PRIVATE_KEY);
+  if (!privateKey) {
+    console.log(
+      `${DIM}No PRIVATE_KEY set, so smart-account instantiation was skipped.${RESET}`
+    );
+    return;
+  }
+  const state = await createAAProviderState({
+    provider,
+    chain,
+    owner: { kind: "direct", privateKey },
+    rpcUrl: provider === "alchemy" ? resolved.rpcUrl : (_c = (_b = resolved.rpcUrl) != null ? _b : chain.rpcUrls.default.http[0]) != null ? _c : "",
+    callList: calls,
+    mode: resolved.mode,
+    apiKey,
+    gasPolicyId: provider === "alchemy" ? resolved.gasPolicyId : void 0
+  });
+  if (state.error) {
+    fatal(`Smart-account creation failed: ${state.error.message}`);
+  }
+  console.log(`${GREEN}\u2713${RESET} Smart account created.`);
+  if ((_d = state.account) == null ? void 0 : _d.AAAddress) {
+    console.log(`${GREEN}\u2713${RESET} AA address: ${state.account.AAAddress}`);
+  }
+  if ((_e = state.account) == null ? void 0 : _e.delegationAddress) {
+    console.log(`${GREEN}\u2713${RESET} Delegation: ${state.account.delegationAddress}`);
+  }
+}
+async function aaResetCommand() {
+  clearAAConfig();
+  console.log("AA configuration cleared.");
+  printDataFileLocation();
+}
+var init_aa2 = __esm({
+  "src/cli/commands/aa.ts"() {
+    "use strict";
+    init_aa();
+    init_aa_config();
+    init_args();
+    init_errors();
+    init_output();
+  }
+});
+
+// src/cli/main.ts
+import { runMain } from "citty";
+
+// src/cli/root.ts
+import { defineCommand as defineCommand9 } from "citty";
+
+// src/cli/commands/defs/chat.ts
+import { defineCommand } from "citty";
+
+// src/cli/commands/defs/shared.ts
+init_args();
+var globalArgs = {
+  "backend-url": {
+    type: "string",
+    description: "Backend URL (default: https://api.aomi.dev)"
+  },
+  "api-key": {
+    type: "string",
+    description: "API key for non-default apps"
+  },
+  app: {
+    type: "string",
+    description: 'App (default: "default")'
+  },
+  model: {
+    type: "string",
+    description: "Set the active model for this session"
+  },
+  "new-session": {
+    type: "boolean",
+    description: "Create a fresh active session for this command"
+  },
+  chain: {
+    type: "string",
+    description: "Active chain for chat/session context"
+  },
+  "public-key": {
+    type: "string",
+    description: "Wallet address (so the agent knows your wallet)"
+  },
+  "private-key": {
+    type: "string",
+    description: "Hex private key for signing"
+  },
+  "rpc-url": {
+    type: "string",
+    description: "RPC URL for transaction submission"
+  },
+  secret: {
+    type: "string",
+    description: "Ingest a secret (NAME=value)"
+  }
+};
+function toCliRuntime(argv = process.argv) {
+  const parsed = parseArgs(argv);
+  return {
+    parsed,
+    config: getConfig(parsed)
+  };
+}
+
+// src/cli/commands/defs/chat.ts
+var chatDef = defineCommand({
+  meta: { name: "chat", description: "Send a message and print the response" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    verbose: {
+      type: "boolean",
+      alias: "v",
+      description: "Stream agent responses, tool calls, and events live"
+    },
+    message: {
+      type: "positional",
+      description: "Message to send",
+      required: false
+    }
+  }),
+  async run() {
+    const { chatCommand: chatCommand2 } = await Promise.resolve().then(() => (init_chat(), chat_exports));
+    await chatCommand2(toCliRuntime());
+  }
+});
+
+// src/cli/commands/defs/tx.ts
+import { defineCommand as defineCommand2 } from "citty";
+var txListDef = defineCommand2({
+  meta: { name: "list", description: "List pending and signed transactions" },
+  args: {},
+  async run() {
+    const { txCommand: txCommand2 } = await Promise.resolve().then(() => (init_wallet(), wallet_exports));
+    txCommand2();
+  }
+});
+var txSimulateDef = defineCommand2({
+  meta: { name: "simulate", description: "Simulate a batch of pending transactions" },
+  args: {
+    txIds: {
+      type: "positional",
+      description: "Transaction IDs to simulate",
+      required: false
+    }
+  },
+  async run() {
+    const { simulateCommand: simulateCommand2 } = await Promise.resolve().then(() => (init_simulate(), simulate_exports));
+    await simulateCommand2(toCliRuntime());
+  }
+});
+var txSignDef = defineCommand2({
+  meta: { name: "sign", description: "Sign and submit pending transactions" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    eoa: {
+      type: "boolean",
+      description: "Force plain EOA execution"
+    },
+    aa: {
+      type: "boolean",
+      description: "Require account-abstraction execution with no EOA fallback"
+    },
+    "aa-provider": {
+      type: "string",
+      description: "AA provider: alchemy | pimlico"
+    },
+    "aa-mode": {
+      type: "string",
+      description: "AA mode: 4337 | 7702"
+    },
+    txIds: {
+      type: "positional",
+      description: "Transaction IDs to sign",
+      required: false
+    }
+  }),
+  async run() {
+    const { signCommand: signCommand2 } = await Promise.resolve().then(() => (init_wallet(), wallet_exports));
+    await signCommand2(toCliRuntime());
+  }
+});
+var txDef = defineCommand2({
+  meta: { name: "tx", description: "Transaction management" },
+  subCommands: {
+    list: txListDef,
+    simulate: txSimulateDef,
+    sign: txSignDef
+  }
+});
+
+// src/cli/commands/defs/session.ts
+import { defineCommand as defineCommand3 } from "citty";
+var sessionListDef = defineCommand3({
+  meta: { name: "list", description: "List local sessions with metadata" },
+  args: {},
+  async run() {
+    const { sessionsCommand: sessionsCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
+    await sessionsCommand2(toCliRuntime());
+  }
+});
+var sessionNewDef = defineCommand3({
+  meta: { name: "new", description: "Start a fresh session and make it active" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { newSessionCommand: newSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
+    newSessionCommand2(toCliRuntime());
+  }
+});
+var sessionResumeDef = defineCommand3({
+  meta: { name: "resume", description: "Resume a local session" },
+  args: {
+    id: {
+      type: "positional",
+      description: "Session ID or session-N",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { resumeSessionCommand: resumeSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
+    resumeSessionCommand2(args.id);
+  }
+});
+var sessionDeleteDef = defineCommand3({
+  meta: { name: "delete", description: "Delete a local session" },
+  args: {
+    id: {
+      type: "positional",
+      description: "Session ID or session-N",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { deleteSessionCommand: deleteSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
+    deleteSessionCommand2(args.id);
+  }
+});
+var sessionStatusDef = defineCommand3({
+  meta: { name: "status", description: "Show current session state" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { statusCommand: statusCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await statusCommand2(toCliRuntime());
+  }
+});
+var sessionLogDef = defineCommand3({
+  meta: { name: "log", description: "Show conversation history" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { logCommand: logCommand2 } = await Promise.resolve().then(() => (init_history(), history_exports));
+    await logCommand2(toCliRuntime());
+  }
+});
+var sessionEventsDef = defineCommand3({
+  meta: { name: "events", description: "List system events" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { eventsCommand: eventsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await eventsCommand2(toCliRuntime());
+  }
+});
+var sessionCloseDef = defineCommand3({
+  meta: { name: "close", description: "Close the current session" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { closeCommand: closeCommand2 } = await Promise.resolve().then(() => (init_history(), history_exports));
+    closeCommand2(toCliRuntime());
+  }
+});
+var sessionDef = defineCommand3({
+  meta: { name: "session", description: "Session management" },
+  subCommands: {
+    list: sessionListDef,
+    new: sessionNewDef,
+    resume: sessionResumeDef,
+    delete: sessionDeleteDef,
+    status: sessionStatusDef,
+    log: sessionLogDef,
+    events: sessionEventsDef,
+    close: sessionCloseDef
+  }
+});
+
+// src/cli/commands/defs/model.ts
+import { defineCommand as defineCommand4 } from "citty";
+var modelListDef = defineCommand4({
+  meta: { name: "list", description: "List models available to the current backend" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { modelsCommand: modelsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await modelsCommand2(toCliRuntime());
+  }
+});
+var modelSetDef = defineCommand4({
+  meta: { name: "set", description: "Set the active model for the current session" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    rig: {
+      type: "positional",
+      description: "Model rig name",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { setModelCommand: setModelCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await setModelCommand2(toCliRuntime(), args.rig);
+  }
+});
+var modelCurrentDef = defineCommand4({
+  meta: { name: "current", description: "Show current model" },
+  args: {},
+  async run() {
+    const { currentModelCommand: currentModelCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    currentModelCommand2();
+  }
+});
+var modelDef = defineCommand4({
+  meta: { name: "model", description: "Model management" },
+  subCommands: {
+    list: modelListDef,
+    set: modelSetDef,
+    current: modelCurrentDef
+  }
+});
+
+// src/cli/commands/defs/app.ts
+import { defineCommand as defineCommand5 } from "citty";
+var appListDef = defineCommand5({
+  meta: { name: "list", description: "List available apps" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { appsCommand: appsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await appsCommand2(toCliRuntime());
+  }
+});
+var appCurrentDef = defineCommand5({
+  meta: { name: "current", description: "Show the current app" },
+  args: {},
+  async run() {
+    const { currentAppCommand: currentAppCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    currentAppCommand2();
+  }
+});
+var appDef = defineCommand5({
+  meta: { name: "app", description: "App management" },
+  subCommands: {
+    list: appListDef,
+    current: appCurrentDef
+  }
+});
+
+// src/cli/commands/defs/chain.ts
+import { defineCommand as defineCommand6 } from "citty";
+var chainListDef = defineCommand6({
+  meta: { name: "list", description: "List supported chains" },
+  args: {},
+  async run() {
+    const { chainsCommand: chainsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    chainsCommand2();
+  }
+});
+var chainDef = defineCommand6({
+  meta: { name: "chain", description: "Chain information" },
+  subCommands: {
+    list: chainListDef
+  }
+});
+
+// src/cli/commands/defs/secret.ts
+import { defineCommand as defineCommand7 } from "citty";
+var secretListDef = defineCommand7({
+  meta: { name: "list", description: "List configured secrets for the active session" },
+  args: {},
+  async run() {
+    const { listSecretsCommand: listSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
+    listSecretsCommand2();
+  }
+});
+var secretClearDef = defineCommand7({
+  meta: { name: "clear", description: "Clear all secrets for the active session" },
+  args: __spreadValues({}, globalArgs),
+  async run() {
+    const { clearSecretsCommand: clearSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
+    await clearSecretsCommand2(toCliRuntime());
+  }
+});
+var secretAddDef = defineCommand7({
+  meta: { name: "add", description: "Add a secret (NAME=value)" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    secret: {
+      type: "positional",
+      description: "Secret in NAME=value format",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { ingestSecretsCommand: ingestSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
+    const runtime = toCliRuntime();
+    const eqIdx = args.secret.indexOf("=");
+    if (eqIdx > 0) {
+      runtime.config.secrets[args.secret.slice(0, eqIdx)] = args.secret.slice(eqIdx + 1);
+    }
+    await ingestSecretsCommand2(runtime);
+  }
+});
+var secretDef = defineCommand7({
+  meta: { name: "secret", description: "Secret management" },
+  subCommands: {
+    list: secretListDef,
+    clear: secretClearDef,
+    add: secretAddDef
+  }
+});
+
+// src/cli/commands/defs/aa.ts
+import { defineCommand as defineCommand8 } from "citty";
+var aaStatusDef = defineCommand8({
+  meta: { name: "status", description: "Show AA config and chain support" },
+  args: {},
+  async run() {
+    const { aaStatusCommand: aaStatusCommand2 } = await Promise.resolve().then(() => (init_aa2(), aa_exports));
+    await aaStatusCommand2(toCliRuntime());
+  }
+});
+var aaSetDef = defineCommand8({
+  meta: { name: "set", description: "Set an AA configuration value" },
+  args: {
+    key: {
+      type: "positional",
+      description: "Config key: provider | mode | key | alchemy-key | pimlico-key | policy | fallback",
+      required: true
+    },
+    value: {
+      type: "positional",
+      description: "Config value",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { aaSetCommand: aaSetCommand2 } = await Promise.resolve().then(() => (init_aa2(), aa_exports));
+    await aaSetCommand2(args.key, args.value);
+  }
+});
+var aaTestDef = defineCommand8({
+  meta: { name: "test", description: "Validate AA setup" },
+  args: {
+    chain: {
+      type: "string",
+      description: "Chain ID to test against"
+    }
+  },
+  async run({ args }) {
+    const { aaTestCommand: aaTestCommand2 } = await Promise.resolve().then(() => (init_aa2(), aa_exports));
+    await aaTestCommand2(args.chain ? parseInt(args.chain, 10) : void 0);
+  }
+});
+var aaResetDef = defineCommand8({
+  meta: { name: "reset", description: "Clear all persisted AA config" },
+  args: {},
+  async run() {
+    const { aaResetCommand: aaResetCommand2 } = await Promise.resolve().then(() => (init_aa2(), aa_exports));
+    await aaResetCommand2();
+  }
+});
+var aaDef = defineCommand8({
+  meta: { name: "aa", description: "Account abstraction configuration" },
+  subCommands: {
+    status: aaStatusDef,
+    set: aaSetDef,
+    test: aaTestDef,
+    reset: aaResetDef
+  }
+});
+
+// package.json
+var package_default = {
+  name: "@aomi-labs/client",
+  version: "0.1.21",
+  description: "Platform-agnostic TypeScript client for the Aomi backend API",
+  type: "module",
+  main: "./dist/index.cjs",
+  module: "./dist/index.js",
+  types: "./dist/index.d.ts",
+  bin: {
+    aomi: "./dist/cli.js"
+  },
+  exports: {
+    ".": {
+      import: {
+        types: "./dist/index.d.ts",
+        default: "./dist/index.js"
+      },
+      require: {
+        types: "./dist/index.d.cts",
+        default: "./dist/index.cjs"
+      }
+    }
+  },
+  files: [
+    "dist",
+    "skills",
+    "README.md"
+  ],
+  scripts: {
+    build: "tsup",
+    "clean:dist": "rm -rf dist"
+  },
+  dependencies: {
+    "@alchemy/wallet-apis": "5.0.0-beta.22",
+    "@getpara/aa-alchemy": "2.21.0",
+    "@getpara/aa-pimlico": "2.21.0",
+    citty: "^0.2.2",
+    viem: "^2.47.11"
+  }
+};
+
+// src/cli/root.ts
+var root = defineCommand9({
+  meta: {
+    name: "aomi",
+    version: package_default.version,
+    description: "CLI client for Aomi on-chain agent"
+  },
+  args: __spreadValues({}, globalArgs),
+  subCommands: {
+    chat: chatDef,
+    tx: txDef,
+    session: sessionDef,
+    model: modelDef,
+    app: appDef,
+    chain: chainDef,
+    secret: secretDef,
+    aa: aaDef
+  }
+});
+
+// src/cli/main.ts
+init_errors();
 function isPnpmExecWrapper() {
   var _a3, _b;
   const npmCommand = (_a3 = process.env.npm_command) != null ? _a3 : "";
   const userAgent = (_b = process.env.npm_config_user_agent) != null ? _b : "";
   return npmCommand === "exec" && userAgent.includes("pnpm/");
 }
-async function runCli(argv = process.argv) {
-  const runtime = createRuntime(argv);
-  const RED = "\x1B[31m";
-  const RESET2 = "\x1B[0m";
+async function runCli(_argv = process.argv) {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
   try {
-    await main(runtime);
+    await runMain(root);
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {
@@ -4319,6 +5370,8 @@ async function runCli(argv = process.argv) {
       process.exit(err.code);
       return;
     }
+    const RED = "\x1B[31m";
+    const RESET2 = "\x1B[0m";
     const message = err instanceof Error ? err.message : String(err);
     console.error(`${RED}\u274C ${message}${RESET2}`);
     process.exit(1);

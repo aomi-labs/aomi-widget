@@ -2,19 +2,13 @@ import type { Chain } from "viem";
 
 import type {
   AAConfig,
-  AAExecutionMode,
-  AALike,
-  AAProviderQuery,
-  AAProviderState,
-  WalletExecutionCall,
-} from "./types";
-
-import { DEFAULT_AA_CONFIG } from "./types";
+  AAMode,
+  AAState,
+  SmartAccount,
+  WalletCall,
+} from "../types";
+import { DEFAULT_AA_CONFIG } from "../types";
 import { resolveAlchemyConfig } from "./resolve";
-
-// ---------------------------------------------------------------------------
-// Alchemy-Specific Types
-// ---------------------------------------------------------------------------
 
 export interface AlchemyHookParams {
   enabled: boolean;
@@ -22,20 +16,24 @@ export interface AlchemyHookParams {
   chain: Chain;
   rpcUrl: string;
   gasPolicyId?: string;
-  mode: AAExecutionMode;
+  mode: AAMode;
 }
 
-export type UseAlchemyAAHook<
-  TAA extends AALike = AALike,
-  TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>,
-> = (params?: AlchemyHookParams) => TQuery;
+type AlchemyHookState<TAccount extends SmartAccount = SmartAccount> = {
+  account?: TAccount | null;
+  pending?: boolean;
+  error?: Error | null;
+};
+
+export type UseAlchemyAAHook<TAccount extends SmartAccount = SmartAccount> = (
+  params?: AlchemyHookParams,
+) => AlchemyHookState<TAccount>;
 
 export interface CreateAlchemyAAProviderOptions<
-  TAA extends AALike = AALike,
-  TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>,
+  TAccount extends SmartAccount = SmartAccount,
 > {
   accountAbstractionConfig?: AAConfig;
-  useAlchemyAA: UseAlchemyAAHook<TAA, TQuery>;
+  useAlchemyAA: UseAlchemyAAHook<TAccount>;
   chainsById: Record<number, Chain>;
   chainSlugById: Record<number, string>;
   getPreferredRpcUrl: (chain: Chain) => string;
@@ -43,24 +41,19 @@ export interface CreateAlchemyAAProviderOptions<
   gasPolicyEnvVar?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Provider Factory
-// ---------------------------------------------------------------------------
-
 export function createAlchemyAAProvider<
-  TAA extends AALike = AALike,
-  TQuery extends AAProviderQuery<TAA> = AAProviderQuery<TAA>,
+  TAccount extends SmartAccount = SmartAccount,
 >({
   accountAbstractionConfig = DEFAULT_AA_CONFIG,
   useAlchemyAA,
   chainsById,
   chainSlugById,
   getPreferredRpcUrl,
-}: CreateAlchemyAAProviderOptions<TAA, TQuery>) {
+}: CreateAlchemyAAProviderOptions<TAccount>) {
   return function useAlchemyAAProvider(
-    calls: WalletExecutionCall[] | null,
+    calls: WalletCall[] | null,
     localPrivateKey: `0x${string}` | null,
-  ): AAProviderState<TAA> {
+  ): AAState<TAccount> {
     const resolved = resolveAlchemyConfig({
       calls,
       localPrivateKey,
@@ -82,13 +75,12 @@ export function createAlchemyAAProvider<
         } satisfies AlchemyHookParams)
       : undefined;
 
-    const query = useAlchemyAA(params) as TQuery;
+    const query = useAlchemyAA(params);
 
     return {
-      plan: resolved?.plan ?? null,
-      query,
-      AA: query.AA,
-      isPending: Boolean(resolved && query.isPending),
+      resolved: resolved ?? null,
+      account: query.account,
+      pending: Boolean(resolved && query.pending),
       error: query.error ?? null,
     };
   };

@@ -1272,6 +1272,9 @@ function parseAAConfig(value) {
   if (typeof value.provider !== "string" || !value.provider) {
     throw new Error("Invalid AA config: provider must be a non-empty string");
   }
+  if (value.provider !== "alchemy" && value.provider !== "pimlico") {
+    throw new Error('Invalid AA config: provider must be either "alchemy" or "pimlico"');
+  }
   if (typeof value.fallbackToEoa !== "boolean") {
     throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
   }
@@ -1322,7 +1325,7 @@ function buildAAExecutionPlan(config, chainConfig) {
   };
 }
 function getWalletExecutorReady(providerState) {
-  return !providerState.plan || !providerState.isPending && (Boolean(providerState.AA) || Boolean(providerState.error) || providerState.plan.fallbackToEoa);
+  return !providerState.resolved || !providerState.pending && (Boolean(providerState.account) || Boolean(providerState.error) || providerState.resolved.fallbackToEoa);
 }
 function mapCall(call) {
   return {
@@ -1391,10 +1394,10 @@ async function executeWalletCalls(params) {
     chainsById,
     getPreferredRpcUrl
   } = params;
-  if (providerState.plan && providerState.AA) {
+  if (providerState.resolved && providerState.account) {
     return executeViaAA(callList, providerState);
   }
-  if (providerState.plan && providerState.error && !providerState.plan.fallbackToEoa) {
+  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
     throw providerState.error;
   }
   return executeViaEoa({
@@ -1411,26 +1414,26 @@ async function executeWalletCalls(params) {
 }
 async function executeViaAA(callList, providerState) {
   var _a;
-  const AA = providerState.AA;
-  const plan = providerState.plan;
-  if (!AA || !plan) {
+  const account = providerState.account;
+  const resolved = providerState.resolved;
+  if (!account || !resolved) {
     throw (_a = providerState.error) != null ? _a : new Error("smart_account_unavailable");
   }
   const callsPayload = callList.map(mapCall);
-  const receipt = callList.length > 1 ? await AA.sendBatchTransaction(callsPayload) : await AA.sendTransaction(callsPayload[0]);
+  const receipt = callList.length > 1 ? await account.sendBatchTransaction(callsPayload) : await account.sendTransaction(callsPayload[0]);
   const txHash = receipt.transactionHash;
-  const providerPrefix = AA.provider.toLowerCase();
-  let delegationAddress = AA.mode === "7702" ? AA.delegationAddress : void 0;
-  if (AA.mode === "7702" && !delegationAddress) {
+  const providerPrefix = account.provider.toLowerCase();
+  let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
+  if (account.mode === "7702" && !delegationAddress) {
     delegationAddress = await resolve7702Delegation(txHash, callList);
   }
   return {
     txHash,
     txHashes: [txHash],
-    executionKind: `${providerPrefix}_${AA.mode}`,
+    executionKind: `${providerPrefix}_${account.mode}`,
     batched: callList.length > 1,
-    sponsored: plan.sponsorship !== "disabled",
-    AAAddress: AA.AAAddress,
+    sponsored: resolved.sponsorship !== "disabled",
+    AAAddress: account.AAAddress,
     delegationAddress
   };
 }
@@ -1474,7 +1477,7 @@ async function executeViaEoa({
 }) {
   var _a, _b;
   const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount2 } = await import("viem/accounts");
+  const { privateKeyToAccount: privateKeyToAccount3 } = await import("viem/accounts");
   const hashes = [];
   if (localPrivateKey) {
     for (const call of callList) {
@@ -1486,7 +1489,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount2(localPrivateKey);
+      const account = privateKeyToAccount3(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -1559,7 +1562,7 @@ async function executeViaEoa({
   };
 }
 
-// src/aa/env.ts
+// src/aa/alchemy/env.ts
 var ALCHEMY_API_KEY_ENVS = [
   "ALCHEMY_API_KEY",
   "NEXT_PUBLIC_ALCHEMY_API_KEY"
@@ -1568,10 +1571,14 @@ var ALCHEMY_GAS_POLICY_ENVS = [
   "ALCHEMY_GAS_POLICY_ID",
   "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID"
 ];
+
+// src/aa/pimlico/env.ts
 var PIMLICO_API_KEY_ENVS = [
   "PIMLICO_API_KEY",
   "NEXT_PUBLIC_PIMLICO_API_KEY"
 ];
+
+// src/aa/env.ts
 function readEnv(candidates, options = {}) {
   var _a;
   const { publicOnly = false } = options;
@@ -1606,7 +1613,7 @@ function resolveDefaultProvider(options = {}) {
   );
 }
 
-// src/aa/resolve.ts
+// src/aa/alchemy/resolve.ts
 function resolveAlchemyConfig(options) {
   const {
     calls,
@@ -1674,17 +1681,276 @@ function resolveAlchemyConfig(options) {
     return null;
   }
   const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
-  return {
-    chainConfig: resolvedChainConfig,
-    plan,
+  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
+  return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
     chain,
     rpcUrl: getPreferredRpcUrl(chain),
     gasPolicyId,
     mode: resolvedChainConfig.defaultMode
+  });
+}
+
+// src/aa/alchemy/provider.ts
+function createAlchemyAAProvider({
+  accountAbstractionConfig = DEFAULT_AA_CONFIG,
+  useAlchemyAA,
+  chainsById,
+  chainSlugById,
+  getPreferredRpcUrl
+}) {
+  return function useAlchemyAAProvider(calls, localPrivateKey) {
+    var _a;
+    const resolved = resolveAlchemyConfig({
+      calls,
+      localPrivateKey,
+      accountAbstractionConfig,
+      chainsById,
+      chainSlugById,
+      getPreferredRpcUrl,
+      publicOnly: true
+    });
+    const params = resolved ? {
+      enabled: true,
+      apiKey: resolved.apiKey,
+      chain: resolved.chain,
+      rpcUrl: resolved.rpcUrl,
+      gasPolicyId: resolved.gasPolicyId,
+      mode: resolved.mode
+    } : void 0;
+    const query = useAlchemyAA(params);
+    return {
+      resolved: resolved != null ? resolved : null,
+      account: query.account,
+      pending: Boolean(resolved && query.pending),
+      error: (_a = query.error) != null ? _a : null
+    };
   };
 }
+
+// src/aa/alchemy/create.ts
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+
+// src/aa/adapt.ts
+function adaptSmartAccount(account) {
+  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
+  return {
+    provider: account.provider,
+    mode: account.mode,
+    AAAddress: account.smartAccountAddress,
+    delegationAddress,
+    sendTransaction: async (call) => {
+      const receipt = await account.sendTransaction(call);
+      return { transactionHash: receipt.transactionHash };
+    },
+    sendBatchTransaction: async (calls) => {
+      const receipt = await account.sendBatchTransaction(calls);
+      return { transactionHash: receipt.transactionHash };
+    }
+  };
+}
+function isAlchemySponsorshipLimitError(error) {
+  const message = error instanceof Error ? error.message : String(error != null ? error : "");
+  const normalized = message.toLowerCase();
+  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
+}
+
+// src/aa/owner.ts
+import { privateKeyToAccount } from "viem/accounts";
+function getDirectOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: void 0,
+      signer: privateKeyToAccount(owner.privateKey)
+    }
+  };
+}
+function getParaSessionOwnerParams(owner) {
+  if (owner.signer) {
+    return {
+      kind: "ready",
+      ownerParams: __spreadValues({
+        para: owner.session,
+        signer: owner.signer
+      }, owner.address ? { address: owner.address } : {})
+    };
+  }
+  return {
+    kind: "ready",
+    ownerParams: __spreadValues({
+      para: owner.session
+    }, owner.address ? { address: owner.address } : {})
+  };
+}
+function getSessionOwnerParams(owner) {
+  switch (owner.adapter) {
+    case "para":
+      return getParaSessionOwnerParams(owner);
+    default:
+      return { kind: "unsupported_adapter", adapter: owner.adapter };
+  }
+}
+function getOwnerParams(owner) {
+  if (!owner) {
+    return { kind: "missing" };
+  }
+  switch (owner.kind) {
+    case "direct":
+      return getDirectOwnerParams(owner);
+    case "session":
+      return getSessionOwnerParams(owner);
+  }
+}
+function getMissingOwnerState(resolved, provider) {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(
+      `${provider} AA account creation requires a direct owner or a supported session owner.`
+    )
+  };
+}
+function getUnsupportedAdapterState(resolved, adapter) {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(`Session adapter "${adapter}" is not implemented.`)
+  };
+}
+
+// src/aa/alchemy/create.ts
+var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
+async function createAlchemyAAState(options) {
+  var _a, _b;
+  const {
+    chain,
+    owner,
+    rpcUrl,
+    callList,
+    mode,
+    sponsored = true
+  } = options;
+  const resolved = resolveAlchemyConfig({
+    calls: callList,
+    chainsById: { [chain.id]: chain },
+    modeOverride: mode,
+    throwOnMissingConfig: true,
+    getPreferredRpcUrl: () => rpcUrl,
+    apiKey: options.apiKey,
+    gasPolicyId: options.gasPolicyId
+  });
+  if (!resolved) {
+    throw new Error("Alchemy AA config resolution failed.");
+  }
+  const apiKey = (_a = options.apiKey) != null ? _a : resolved.apiKey;
+  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : readEnv(ALCHEMY_GAS_POLICY_ENVS) : void 0;
+  const execution = __spreadProps(__spreadValues({}, resolved), {
+    sponsorship: gasPolicyId ? resolved.sponsorship : "disabled",
+    fallbackToEoa: false
+  });
+  const ownerParams = getOwnerParams(owner);
+  if (ownerParams.kind === "missing") {
+    return getMissingOwnerState(execution, "alchemy");
+  }
+  if (ownerParams.kind === "unsupported_adapter") {
+    return getUnsupportedAdapterState(execution, ownerParams.adapter);
+  }
+  if (owner.kind === "direct") {
+    try {
+      return await createAlchemyWalletApisState({
+        resolved: execution,
+        chain,
+        privateKey: owner.privateKey,
+        apiKey,
+        gasPolicyId,
+        mode: execution.mode
+      });
+    } catch (error) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }
+  try {
+    const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
+    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
+      apiKey,
+      gasPolicyId,
+      chain,
+      rpcUrl,
+      mode: execution.mode
+    }));
+    if (!smartAccount) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: new Error("Alchemy AA account could not be initialized.")
+      };
+    }
+    return {
+      resolved: execution,
+      account: adaptSmartAccount(smartAccount),
+      pending: false,
+      error: null
+    };
+  } catch (error) {
+    return {
+      resolved: execution,
+      account: null,
+      pending: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+async function createAlchemyWalletApisState(params) {
+  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
+  const signer = privateKeyToAccount2(params.privateKey);
+  const walletClient = createSmartWalletClient(__spreadValues({
+    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
+    chain: params.chain,
+    signer
+  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
+  let accountAddress = signer.address;
+  if (params.mode === "4337") {
+    const account2 = await walletClient.requestAccount();
+    accountAddress = account2.address;
+  }
+  const sendCalls = async (calls) => {
+    var _a, _b;
+    const result = await walletClient.sendCalls(__spreadProps(__spreadValues({}, params.mode === "4337" ? { account: accountAddress } : {}), {
+      calls
+    }));
+    const status = await walletClient.waitForCallsStatus({ id: result.id });
+    const transactionHash = (_b = (_a = status.receipts) == null ? void 0 : _a[0]) == null ? void 0 : _b.transactionHash;
+    if (!transactionHash) {
+      throw new Error("Alchemy Wallets API did not return a transaction hash.");
+    }
+    return { transactionHash };
+  };
+  const account = {
+    provider: "alchemy",
+    mode: params.mode,
+    AAAddress: accountAddress,
+    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls)
+  };
+  return {
+    resolved: params.resolved,
+    account,
+    pending: false,
+    error: null
+  };
+}
+
+// src/aa/pimlico/resolve.ts
 function resolvePimlicoConfig(options) {
   const {
     calls,
@@ -1733,56 +1999,16 @@ function resolvePimlicoConfig(options) {
     return null;
   }
   const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const plan = buildAAExecutionPlan(config, resolvedChainConfig);
-  return {
-    chainConfig: resolvedChainConfig,
-    plan,
+  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
+  return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
     chain,
     rpcUrl,
     mode: resolvedChainConfig.defaultMode
-  };
+  });
 }
 
-// src/aa/alchemy.ts
-function createAlchemyAAProvider({
-  accountAbstractionConfig = DEFAULT_AA_CONFIG,
-  useAlchemyAA,
-  chainsById,
-  chainSlugById,
-  getPreferredRpcUrl
-}) {
-  return function useAlchemyAAProvider(calls, localPrivateKey) {
-    var _a, _b;
-    const resolved = resolveAlchemyConfig({
-      calls,
-      localPrivateKey,
-      accountAbstractionConfig,
-      chainsById,
-      chainSlugById,
-      getPreferredRpcUrl,
-      publicOnly: true
-    });
-    const params = resolved ? {
-      enabled: true,
-      apiKey: resolved.apiKey,
-      chain: resolved.chain,
-      rpcUrl: resolved.rpcUrl,
-      gasPolicyId: resolved.gasPolicyId,
-      mode: resolved.mode
-    } : void 0;
-    const query = useAlchemyAA(params);
-    return {
-      plan: (_a = resolved == null ? void 0 : resolved.plan) != null ? _a : null,
-      query,
-      AA: query.AA,
-      isPending: Boolean(resolved && query.isPending),
-      error: (_b = query.error) != null ? _b : null
-    };
-  };
-}
-
-// src/aa/pimlico.ts
+// src/aa/pimlico/provider.ts
 function createPimlicoAAProvider({
   accountAbstractionConfig = DEFAULT_AA_CONFIG,
   usePimlicoAA,
@@ -1790,7 +2016,7 @@ function createPimlicoAAProvider({
   rpcUrl
 }) {
   return function usePimlicoAAProvider(calls, localPrivateKey) {
-    var _a, _b;
+    var _a;
     const resolved = resolvePimlicoConfig({
       calls,
       localPrivateKey,
@@ -1808,254 +2034,15 @@ function createPimlicoAAProvider({
     } : void 0;
     const query = usePimlicoAA(params);
     return {
-      plan: (_a = resolved == null ? void 0 : resolved.plan) != null ? _a : null,
-      query,
-      AA: query.AA,
-      isPending: Boolean(resolved && query.isPending),
-      error: (_b = query.error) != null ? _b : null
+      resolved: resolved != null ? resolved : null,
+      account: query.account,
+      pending: Boolean(resolved && query.pending),
+      error: (_a = query.error) != null ? _a : null
     };
   };
 }
 
-// src/aa/adapt.ts
-function adaptSmartAccount(account) {
-  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
-  return {
-    provider: account.provider,
-    mode: account.mode,
-    AAAddress: account.smartAccountAddress,
-    delegationAddress,
-    sendTransaction: async (call) => {
-      const receipt = await account.sendTransaction(call);
-      return { transactionHash: receipt.transactionHash };
-    },
-    sendBatchTransaction: async (calls) => {
-      const receipt = await account.sendBatchTransaction(calls);
-      return { transactionHash: receipt.transactionHash };
-    }
-  };
-}
-function isAlchemySponsorshipLimitError(error) {
-  const message = error instanceof Error ? error.message : String(error != null ? error : "");
-  const normalized = message.toLowerCase();
-  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
-}
-
-// src/aa/create.ts
-import { createAlchemySmartAccount } from "@getpara/aa-alchemy";
-import { createPimlicoSmartAccount } from "@getpara/aa-pimlico";
-import { privateKeyToAccount } from "viem/accounts";
-var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-async function createAAProviderState(options) {
-  if (options.provider === "alchemy") {
-    return createAlchemyAAState({
-      chain: options.chain,
-      owner: options.owner,
-      rpcUrl: options.rpcUrl,
-      callList: options.callList,
-      mode: options.mode,
-      apiKey: options.apiKey,
-      gasPolicyId: options.gasPolicyId,
-      sponsored: options.sponsored
-    });
-  }
-  return createPimlicoAAState({
-    chain: options.chain,
-    owner: options.owner,
-    rpcUrl: options.rpcUrl,
-    callList: options.callList,
-    mode: options.mode,
-    apiKey: options.apiKey
-  });
-}
-function getDirectOwnerParams(owner) {
-  return {
-    kind: "ready",
-    ownerParams: {
-      para: void 0,
-      signer: privateKeyToAccount(owner.privateKey)
-    }
-  };
-}
-function getParaSessionOwnerParams(owner) {
-  if (owner.signer) {
-    return {
-      kind: "ready",
-      ownerParams: __spreadValues({
-        para: owner.session,
-        signer: owner.signer
-      }, owner.address ? { address: owner.address } : {})
-    };
-  }
-  return {
-    kind: "ready",
-    ownerParams: __spreadValues({
-      para: owner.session
-    }, owner.address ? { address: owner.address } : {})
-  };
-}
-function getSessionOwnerParams(owner) {
-  switch (owner.adapter) {
-    case "para":
-      return getParaSessionOwnerParams(owner);
-    default:
-      return { kind: "unsupported_adapter", adapter: owner.adapter };
-  }
-}
-function getOwnerParams(owner) {
-  if (!owner) {
-    return { kind: "missing" };
-  }
-  switch (owner.kind) {
-    case "direct":
-      return getDirectOwnerParams(owner);
-    case "session":
-      return getSessionOwnerParams(owner);
-  }
-}
-function getMissingOwnerState(plan, provider) {
-  return {
-    plan,
-    AA: null,
-    isPending: false,
-    error: new Error(
-      `${provider} AA account creation requires a direct owner or a supported session owner.`
-    )
-  };
-}
-function getUnsupportedAdapterState(plan, adapter) {
-  return {
-    plan,
-    AA: null,
-    isPending: false,
-    error: new Error(`Session adapter "${adapter}" is not implemented.`)
-  };
-}
-async function createAlchemyAAState(options) {
-  var _a, _b;
-  const {
-    chain,
-    owner,
-    rpcUrl,
-    callList,
-    mode,
-    sponsored = true
-  } = options;
-  const resolved = resolveAlchemyConfig({
-    calls: callList,
-    chainsById: { [chain.id]: chain },
-    modeOverride: mode,
-    throwOnMissingConfig: true,
-    getPreferredRpcUrl: () => rpcUrl,
-    apiKey: options.apiKey,
-    gasPolicyId: options.gasPolicyId
-  });
-  if (!resolved) {
-    throw new Error("Alchemy AA config resolution failed.");
-  }
-  const apiKey = (_a = options.apiKey) != null ? _a : resolved.apiKey;
-  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : readEnv(ALCHEMY_GAS_POLICY_ENVS) : void 0;
-  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
-    sponsorship: gasPolicyId ? resolved.plan.sponsorship : "disabled",
-    fallbackToEoa: false
-  });
-  const ownerParams = getOwnerParams(owner);
-  if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(plan, "alchemy");
-  }
-  if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(plan, ownerParams.adapter);
-  }
-  if (owner.kind === "direct") {
-    try {
-      return await createAlchemyWalletApisState({
-        plan,
-        chain,
-        privateKey: owner.privateKey,
-        apiKey,
-        gasPolicyId,
-        mode: plan.mode
-      });
-    } catch (error) {
-      return {
-        plan,
-        AA: null,
-        isPending: false,
-        error: error instanceof Error ? error : new Error(String(error))
-      };
-    }
-  }
-  try {
-    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey,
-      gasPolicyId,
-      chain,
-      rpcUrl,
-      mode: plan.mode
-    }));
-    if (!smartAccount) {
-      return {
-        plan,
-        AA: null,
-        isPending: false,
-        error: new Error("Alchemy AA account could not be initialized.")
-      };
-    }
-    return {
-      plan,
-      AA: adaptSmartAccount(smartAccount),
-      isPending: false,
-      error: null
-    };
-  } catch (error) {
-    return {
-      plan,
-      AA: null,
-      isPending: false,
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
-}
-async function createAlchemyWalletApisState(params) {
-  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
-  const signer = privateKeyToAccount(params.privateKey);
-  const walletClient = createSmartWalletClient(__spreadValues({
-    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
-    chain: params.chain,
-    signer
-  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
-  let accountAddress = signer.address;
-  if (params.mode === "4337") {
-    const account = await walletClient.requestAccount();
-    accountAddress = account.address;
-  }
-  const sendCalls = async (calls) => {
-    var _a, _b;
-    const result = await walletClient.sendCalls(__spreadProps(__spreadValues({}, params.mode === "4337" ? { account: accountAddress } : {}), {
-      calls
-    }));
-    const status = await walletClient.waitForCallsStatus({ id: result.id });
-    const transactionHash = (_b = (_a = status.receipts) == null ? void 0 : _a[0]) == null ? void 0 : _b.transactionHash;
-    if (!transactionHash) {
-      throw new Error("Alchemy Wallets API did not return a transaction hash.");
-    }
-    return { transactionHash };
-  };
-  const AA = {
-    provider: "alchemy",
-    mode: params.mode,
-    AAAddress: accountAddress,
-    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  };
-  return {
-    plan: params.plan,
-    AA,
-    isPending: false,
-    error: null
-  };
-}
+// src/aa/pimlico/create.ts
 async function createPimlicoAAState(options) {
   var _a;
   const {
@@ -2077,45 +2064,70 @@ async function createPimlicoAAState(options) {
     throw new Error("Pimlico AA config resolution failed.");
   }
   const apiKey = (_a = options.apiKey) != null ? _a : resolved.apiKey;
-  const plan = __spreadProps(__spreadValues({}, resolved.plan), {
+  const execution = __spreadProps(__spreadValues({}, resolved), {
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(plan, "pimlico");
+    return getMissingOwnerState(execution, "pimlico");
   }
   if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(plan, ownerParams.adapter);
+    return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
   try {
+    const { createPimlicoSmartAccount } = await import("@getpara/aa-pimlico");
     const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
       chain,
       rpcUrl,
-      mode: plan.mode
+      mode: execution.mode
     }));
     if (!smartAccount) {
       return {
-        plan,
-        AA: null,
-        isPending: false,
+        resolved: execution,
+        account: null,
+        pending: false,
         error: new Error("Pimlico AA account could not be initialized.")
       };
     }
     return {
-      plan,
-      AA: adaptSmartAccount(smartAccount),
-      isPending: false,
+      resolved: execution,
+      account: adaptSmartAccount(smartAccount),
+      pending: false,
       error: null
     };
   } catch (error) {
     return {
-      plan,
-      AA: null,
-      isPending: false,
+      resolved: execution,
+      account: null,
+      pending: false,
       error: error instanceof Error ? error : new Error(String(error))
     };
   }
+}
+
+// src/aa/create.ts
+async function createAAProviderState(options) {
+  if (options.provider === "alchemy") {
+    return createAlchemyAAState({
+      chain: options.chain,
+      owner: options.owner,
+      rpcUrl: options.rpcUrl,
+      callList: options.callList,
+      mode: options.mode,
+      apiKey: options.apiKey,
+      gasPolicyId: options.gasPolicyId,
+      sponsored: options.sponsored
+    });
+  }
+  return createPimlicoAAState({
+    chain: options.chain,
+    owner: options.owner,
+    rpcUrl: options.rpcUrl,
+    callList: options.callList,
+    mode: options.mode,
+    apiKey: options.apiKey
+  });
 }
 export {
   AomiClient,

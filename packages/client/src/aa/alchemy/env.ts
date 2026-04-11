@@ -1,0 +1,9 @@
+export const ALCHEMY_API_KEY_ENVS = [
+  "ALCHEMY_API_KEY",
+  "NEXT_PUBLIC_ALCHEMY_API_KEY",
+] as const;
+
+export const ALCHEMY_GAS_POLICY_ENVS = [
+  "ALCHEMY_GAS_POLICY_ID",
+  "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID",
+] as const;

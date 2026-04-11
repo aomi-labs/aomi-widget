@@ -36,51 +36,42 @@ export async function ingestSecretsCommand(runtime: CliRuntime): Promise<void> {
   }
 }
 
-export async function secretCommand(runtime: CliRuntime): Promise<void> {
-  const subcommand = runtime.parsed.positional[0];
-
-  if (!subcommand || subcommand === "list") {
-    const state = readState();
-    if (!state) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-
-    const secretHandles = state.secretHandles ?? {};
-    const names = Object.keys(secretHandles).sort();
-    if (names.length === 0) {
-      console.log("No secrets configured.");
-      printDataFileLocation();
-      return;
-    }
-
-    for (const name of names) {
-      console.log(`${name}  ${secretHandles[name]}`);
-    }
+export function listSecretsCommand(): void {
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
     printDataFileLocation();
     return;
   }
 
-  if (subcommand === "clear") {
-    const { session, state } = getOrCreateSession(runtime);
-
-    try {
-      if (!state.clientId) {
-        console.log("No secrets configured.");
-        printDataFileLocation();
-        return;
-      }
-      await session.client.clearSecrets(state.clientId);
-      state.secretHandles = {};
-      writeState(state);
-      console.log("Cleared all secrets for the active session.");
-      printDataFileLocation();
-    } finally {
-      session.close();
-    }
+  const secretHandles = state.secretHandles ?? {};
+  const names = Object.keys(secretHandles).sort();
+  if (names.length === 0) {
+    console.log("No secrets configured.");
+    printDataFileLocation();
     return;
   }
 
-  fatal("Usage: aomi secret list\n       aomi secret clear");
+  for (const name of names) {
+    console.log(`${name}  ${secretHandles[name]}`);
+  }
+  printDataFileLocation();
+}
+
+export async function clearSecretsCommand(runtime: CliRuntime): Promise<void> {
+  const { session, state } = getOrCreateSession(runtime);
+  try {
+    if (!state.clientId) {
+      console.log("No secrets configured.");
+      printDataFileLocation();
+      return;
+    }
+    await session.client.clearSecrets(state.clientId);
+    state.secretHandles = {};
+    writeState(state);
+    console.log("Cleared all secrets for the active session.");
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
 }

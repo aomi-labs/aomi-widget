@@ -1,8 +1,8 @@
 import type { Hex, TransactionReceipt } from "viem";
 
 import type {
-  AAExecutionMode,
-  AALike,
+  AAMode,
+  SmartAccount,
   WalletPrimitiveCall,
 } from "./types";
 
@@ -10,9 +10,9 @@ import type {
 // Smart Account Shape (from @getpara/aa-* SDKs)
 // ---------------------------------------------------------------------------
 
-export type ParaSmartAccountLike = {
+type SdkSmartAccount = {
   provider: string;
-  mode: AAExecutionMode;
+  mode: AAMode;
   smartAccountAddress: Hex;
   delegationAddress?: Hex;
   sendTransaction: (
@@ -30,12 +30,12 @@ export type ParaSmartAccountLike = {
 // ---------------------------------------------------------------------------
 
 /**
- * Bridges a `ParaSmartAccountLike` (from `@getpara/aa-*` SDKs) into
- * the library's `AALike` interface:
+ * Bridges the provider SDK smart-account shape into the library's
+ * SmartAccount interface:
  * - Maps `smartAccountAddress` → `AAAddress`
  * - Unwraps `TransactionReceipt` → `{ transactionHash }`
  */
-export function adaptSmartAccount(account: ParaSmartAccountLike): AALike {
+export function adaptSmartAccount(account: SdkSmartAccount): SmartAccount {
   // In 7702 mode the smart-account address IS the user's EOA.  If the SDK
   // returns the EOA as the delegation address it's a known bug — the real
   // delegation target should be the implementation contract (e.g. Alchemy's

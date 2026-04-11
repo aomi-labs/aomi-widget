@@ -260,6 +260,41 @@ aomi model set <rig>
 - `aomi model set <rig>` persists the selected model for the current session.
 - `aomi chat --model <rig> "<message>"` also applies a model for the session.
 
+### Currently Integrated Apps
+
+All apps share a common base toolset (`send_transaction_to_wallet`,
+`encode_and_simulate`, `get_account_info`, `get_contract_abi`, etc.).
+The tools listed below are the app-specific additions.
+
+| App | Description | Key Tools |
+|-----|-------------|-----------|
+| `default` | General-purpose on-chain agent with web search | `brave_search` |
+| `binance` | Binance CEX trading — spot orders, book depth, klines | `binance_place_order`, `binance_get_price`, `binance_get_depth`, … |
+| `bybit` | Bybit CEX trading — orders, positions, leverage | `bybit_create_order`, `bybit_get_positions`, `bybit_set_leverage`, … |
+| `cow` | CoW Protocol — MEV-protected swaps via batch auctions | `get_cow_swap_quote`, `place_cow_order`, `get_cow_order_status`, … |
+| `defillama` | DefiLlama analytics — TVL, yields, volumes, stablecoin data | `get_token_price`, `get_yield_opportunities`, `get_defi_protocols`, … |
+| `dune` | Dune Analytics — execute and fetch SQL query results | `execute_query`, `get_execution_results`, `get_query_results`, … |
+| `dydx` | dYdX perpetuals — markets, orderbook, candles, fills | `dydx_get_markets`, `dydx_get_orderbook`, `dydx_get_account`, … |
+| `gmx` | GMX perpetuals — markets, positions, orders, signed prices | `get_gmx_markets`, `get_gmx_positions`, `get_gmx_orders`, … |
+| `hyperliquid` | Hyperliquid perps — orderbook, fills, funding, clearinghouse | `get_all_mids`, `get_l2_book`, `get_clearinghouse_state`, … |
+| `kaito` | Kaito — crypto social search, trending topics, mindshare | `kaito_search`, `kaito_get_trending`, `kaito_get_mindshare` |
+| `kalshi` | Kalshi prediction markets via Simmer SDK | `search_simmer_markets`, `simmer_place_order`, `simmer_get_portfolio`, … |
+| `khalani` | Khalani cross-chain intents — quote, build, submit orders | `get_khalani_quote`, `build_khalani_order`, `submit_khalani_order`, … |
+| `lifi` | LI.FI aggregator — cross-chain swaps, bridges, routes | `get_lifi_swap_quote`, `get_lifi_bridge_quote`, `get_lifi_routes`, … |
+| `manifold` | Manifold prediction markets — search, bet, create markets | `search_markets`, `place_bet`, `create_market`, `get_market`, … |
+| `molinar` | Molinar on-chain world — move, explore, chat, create objects | `molinar_move`, `molinar_explore`, `molinar_chat`, `molinar_create_object`, … |
+| `morpho` | Morpho lending — markets, vaults, user positions | `get_markets`, `get_vaults`, `get_user_positions` |
+| `neynar` | Farcaster social — users, feeds, casts, channels | `publish_cast`, `search_casts`, `get_feed`, `get_trending_feed`, … |
+| `okx` | OKX CEX trading — orders, positions, leverage | `okx_place_order`, `okx_get_balance`, `okx_get_positions`, … |
+| `oneinch` | 1inch DEX aggregator — quotes, swaps, allowances | `get_oneinch_quote`, `get_oneinch_swap`, `get_oneinch_tokens`, … |
+| `polymarket` | Polymarket prediction markets — search, trade, CLOB orders | `search_polymarket`, `place_polymarket_order`, `build_polymarket_order_preview`, … |
+| `x` | X/Twitter — user lookup, posts, search, trends | `get_x_user`, `search_x`, `get_x_trends`, `get_x_post`, … |
+| `yearn` | Yearn Finance — vault discovery, details, blacklist | `get_all_vaults`, `get_vault_detail`, `get_blacklisted_vaults` |
+| `zerox` | 0x DEX aggregator — swaps, gasless swaps, liquidity sources | `get_zerox_swap_quote`, `submit_zerox_gasless_swap`, `get_zerox_liquidity_sources`, … |
+
+Some apps require API keys via `--secret` (e.g. CEX apps need exchange credentials).
+Use `--app <name>` or `AOMI_APP=<name>` to select an app.
+
 ### Chain Commands
 
 ```bash

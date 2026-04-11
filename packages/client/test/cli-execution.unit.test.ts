@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mainnet, polygon } from "viem/chains";
 import { CliExit } from "../src/cli/errors";
+import { writeAAConfig } from "../src/cli/aa-config";
 
 const {
   createAlchemySmartAccountMock,
@@ -69,6 +73,7 @@ const ERC20_TRANSFER_CALL_LIST = [
 ] as const;
 
 const ORIGINAL_ENV = { ...process.env };
+let configDir: string;
 
 describe("CLI execution controls", () => {
   beforeEach(() => {
@@ -96,9 +101,12 @@ describe("CLI execution controls", () => {
     delete process.env.ALCHEMY_API_KEY;
     delete process.env.PIMLICO_API_KEY;
     delete process.env.ALCHEMY_GAS_POLICY_ID;
+    configDir = mkdtempSync(join(tmpdir(), "aomi-cli-aa-"));
+    process.env.AOMI_CONFIG_DIR = configDir;
   });
 
   afterEach(() => {
+    rmSync(configDir, { recursive: true, force: true });
     process.env = { ...ORIGINAL_ENV };
   });
 
@@ -344,6 +352,35 @@ describe("CLI execution controls", () => {
     expect(decision).toEqual({ execution: "eoa" });
   });
 
+  it("uses persisted AA credentials when env vars are not set", () => {
+    writeAAConfig({
+      provider: "pimlico",
+      mode: "4337",
+      providers: {
+        pimlico: {
+          apiKey: "persisted-pimlico-key",
+        },
+      },
+    });
+
+    const decision = resolveCliExecutionDecision({
+      config: {
+        baseUrl: "https://api.aomi.dev",
+        app: "default",
+        execution: "auto",
+      },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+    });
+
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "pimlico",
+      aaMode: "4337",
+      fallbackToEoa: true,
+    });
+  });
+
   it("returns the disabled provider state when EOA is forced", async () => {
     const providerState = await createCliProviderState({
       decision: { execution: "eoa" },
@@ -353,8 +390,8 @@ describe("CLI execution controls", () => {
       callList: [...CALL_LIST],
     });
 
-    expect(providerState.plan).toBeNull();
-    expect(providerState.AA).toBeUndefined();
+    expect(providerState.resolved).toBeNull();
+    expect(providerState.account).toBeUndefined();
     expect(providerState.error).toBeNull();
   });
 
@@ -384,12 +421,48 @@ describe("CLI execution controls", () => {
     expect(alchemyWalletTransportMock).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "alchemy-key" }),
     );
-    expect(providerState.plan).toMatchObject({
+    expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
       fallbackToEoa: false,
     });
-    expect(providerState.AA).toBeTruthy();
+    expect(providerState.account).toBeTruthy();
+    expect(providerState.error).toBeNull();
+  });
+
+  it("passes persisted Alchemy credentials into CLI AA state creation", async () => {
+    writeAAConfig({
+      provider: "alchemy",
+      mode: "7702",
+      providers: {
+        alchemy: {
+          apiKey: "persisted-alchemy-key",
+          gasPolicyId: "persisted-policy",
+        },
+      },
+    });
+
+    const providerState = await createCliProviderState({
+      decision: {
+        execution: "aa",
+        provider: "alchemy",
+        aaMode: "7702",
+        fallbackToEoa: false,
+      },
+      chain: mainnet,
+      privateKey: PRIVATE_KEY,
+      rpcUrl: "https://example-rpc.invalid",
+      callList: [...CALL_LIST],
+    });
+
+    expect(alchemyWalletTransportMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "persisted-alchemy-key" }),
+    );
+    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymaster: { policyId: "persisted-policy" },
+      }),
+    );
     expect(providerState.error).toBeNull();
   });
 
@@ -413,7 +486,7 @@ describe("CLI execution controls", () => {
 
     // CLI (direct key) uses wallet-apis even for 4337
     expect(createSmartWalletClientMock).toHaveBeenCalled();
-    expect(providerState.plan).toMatchObject({
+    expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "4337",
       sponsorship: "disabled",

@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mainnet, polygon } from "viem/chains";
 
 import { resolveAlchemyConfig, resolvePimlicoConfig } from "../src/aa/resolve";
-import type { WalletExecutionCall } from "../src/aa/types";
+import type { WalletCall } from "../src/aa/types";
 
-const CALL_LIST: WalletExecutionCall[] = [
+const CALL_LIST: WalletCall[] = [
   { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 1 },
 ];
 
-const POLYGON_CALLS: WalletExecutionCall[] = [
+const POLYGON_CALLS: WalletCall[] = [
   { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 137 },
 ];
 
@@ -39,7 +39,7 @@ describe("resolveAlchemyConfig", () => {
     expect(result).not.toBeNull();
     expect(result!.apiKey).toBe("alchemy-key");
     expect(result!.gasPolicyId).toBe("policy-1");
-    expect(result!.plan.provider).toBe("alchemy");
+    expect(result!.provider).toBe("alchemy");
     expect(result!.mode).toBe("7702"); // mainnet default
     expect(result!.chain.id).toBe(1);
   });
@@ -88,7 +88,7 @@ describe("resolveAlchemyConfig", () => {
     });
 
     expect(result!.mode).toBe("4337");
-    expect(result!.plan.mode).toBe("4337");
+    expect(result!.mode).toBe("4337");
   });
 
   it("throws on unsupported modeOverride when throwOnMissingConfig", () => {
@@ -162,7 +162,7 @@ describe("resolvePimlicoConfig", () => {
 
     expect(result).not.toBeNull();
     expect(result!.apiKey).toBe("pimlico-key");
-    expect(result!.plan.provider).toBe("pimlico");
+    expect(result!.provider).toBe("pimlico");
     expect(result!.mode).toBe("4337"); // polygon default
   });
 

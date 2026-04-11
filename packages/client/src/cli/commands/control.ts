@@ -1,6 +1,5 @@
 import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../args";
 import { createControlClient, getOrCreateSession, applyModelSelection } from "../context";
-import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import { readState } from "../state";
 import type { CliRuntime } from "../types";
@@ -97,60 +96,30 @@ export async function modelsCommand(runtime: CliRuntime): Promise<void> {
   }
 }
 
-export async function appCommand(runtime: CliRuntime): Promise<void> {
-  const subcommand = runtime.parsed.positional[0];
-
-  if (!subcommand || subcommand === "current") {
-    const state = readState();
-    if (!state) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-    console.log(state.app ?? "(default)");
+export function currentAppCommand(): void {
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
     printDataFileLocation();
     return;
   }
-
-  if (subcommand === "list") {
-    await appsCommand(runtime);
-    return;
-  }
-
-  fatal("Usage: aomi app list\n       aomi app current");
+  console.log(state.app ?? "(default)");
+  printDataFileLocation();
 }
 
-export async function modelCommand(runtime: CliRuntime): Promise<void> {
-  const subcommand = runtime.parsed.positional[0];
-
-  if (!subcommand || subcommand === "current") {
-    const state = readState();
-    if (!state) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-    console.log(state.model ?? "(default backend model)");
+export function currentModelCommand(): void {
+  const state = readState();
+  if (!state) {
+    console.log("No active session");
     printDataFileLocation();
     return;
   }
+  console.log(state.model ?? "(default backend model)");
+  printDataFileLocation();
+}
 
-  if (subcommand === "list") {
-    await modelsCommand(runtime);
-    return;
-  }
-
-  if (subcommand !== "set") {
-    fatal("Usage: aomi model list\n       aomi model set <rig>\n       aomi model current");
-  }
-
-  const model = runtime.parsed.positional.slice(1).join(" ").trim();
-  if (!model) {
-    fatal("Usage: aomi model set <rig>");
-  }
-
+export async function setModelCommand(runtime: CliRuntime, model: string): Promise<void> {
   const { session, state } = getOrCreateSession(runtime);
-
   try {
     await applyModelSelection(session, state, model);
     console.log(`Model set to ${model}`);
@@ -175,13 +144,3 @@ export function chainsCommand(): void {
   }
 }
 
-export function chainCommand(runtime: CliRuntime): void {
-  const subcommand = runtime.parsed.positional[0];
-
-  if (!subcommand || subcommand === "list") {
-    chainsCommand();
-    return;
-  }
-
-  fatal("Usage: aomi chain list");
-}
