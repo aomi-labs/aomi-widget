@@ -2,8 +2,6 @@ import { AomiClient } from "../../client";
 import { fatal } from "../errors";
 import { DIM, GREEN, RESET } from "../output";
 import { readState, type CliSessionState } from "../state";
-import { formatTxLine } from "../transactions";
-import type { CliRuntime } from "../types";
 
 function requirePendingTx(state: CliSessionState, txId: string) {
   const pendingTx = (state.pendingTxs ?? []).find((tx) => tx.id === txId);
@@ -15,13 +13,12 @@ function requirePendingTx(state: CliSessionState, txId: string) {
   return pendingTx;
 }
 
-export async function simulateCommand(runtime: CliRuntime): Promise<void> {
+export async function simulateCommand(txIds: string[]): Promise<void> {
   const state = readState();
   if (!state) {
     fatal("No active session. Run `aomi chat` first.");
   }
 
-  const txIds = runtime.parsed.positional;
   if (txIds.length === 0) {
     fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
   }

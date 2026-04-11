@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import { globalArgs, toCliRuntime } from "./shared";
+import { globalArgs, buildCliConfig } from "./shared";
 
 export const chatDef = defineCommand({
   meta: { name: "chat", description: "Send a message and print the response" },
@@ -16,8 +16,8 @@ export const chatDef = defineCommand({
       required: false,
     },
   },
-  async run() {
+  async run({ args }) {
     const { chatCommand } = await import("../chat");
-    await chatCommand(toCliRuntime());
+    await chatCommand(buildCliConfig(args), args.message ?? "", args.verbose === true);
   },
 });

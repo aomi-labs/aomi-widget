@@ -1,12 +1,11 @@
 import { AomiClient } from "../client";
 import type { AomiIngestSecretsResponse } from "../types";
 import { ClientSession } from "../session";
-import type { CliRuntime } from "./types";
+import type { CliConfig } from "./types";
 import { readState, writeState, type CliSessionState } from "./state";
 import { buildCliUserState } from "./user-state";
 
-function buildSessionState(runtime: CliRuntime): CliSessionState {
-  const { config } = runtime;
+function buildSessionState(config: CliConfig): CliSessionState {
   return {
     sessionId: crypto.randomUUID(),
     baseUrl: config.baseUrl,
@@ -19,23 +18,22 @@ function buildSessionState(runtime: CliRuntime): CliSessionState {
   };
 }
 
-export function createFreshSessionState(runtime: CliRuntime): CliSessionState {
-  const state = buildSessionState(runtime);
+export function createFreshSessionState(config: CliConfig): CliSessionState {
+  const state = buildSessionState(config);
   writeState(state);
   return state;
 }
 
 export function getOrCreateSession(
-  runtime: CliRuntime,
+  config: CliConfig,
   options: { fresh?: boolean } = {},
 ): { session: ClientSession; state: CliSessionState } {
-  const { config } = runtime;
   let state =
     options.fresh || config.freshSession
-      ? createFreshSessionState(runtime)
+      ? createFreshSessionState(config)
       : readState();
   if (!state) {
-    state = createFreshSessionState(runtime);
+    state = createFreshSessionState(config);
   } else {
     let changed = false;
     if (config.baseUrl !== state.baseUrl) {
@@ -81,10 +79,10 @@ export function getOrCreateSession(
   return { session, state };
 }
 
-export function createControlClient(runtime: CliRuntime): AomiClient {
+export function createControlClient(config: CliConfig): AomiClient {
   return new AomiClient({
-    baseUrl: runtime.config.baseUrl,
-    apiKey: runtime.config.apiKey,
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
   });
 }
 
@@ -102,14 +100,13 @@ export async function applyModelSelection(
 }
 
 export async function ingestSecretsIfPresent(
-  runtime: CliRuntime,
+  config: CliConfig,
   state: CliSessionState,
   client: AomiClient,
 ): Promise<Record<string, string>> {
-  const secrets = runtime.config.secrets;
+  const secrets = config.secrets;
   if (Object.keys(secrets).length === 0) return {};
 
-  // Ensure we have a stable clientId for this session
   if (!state.clientId) {
     state.clientId = crypto.randomUUID();
     writeState(state);
@@ -127,11 +124,11 @@ export async function ingestSecretsIfPresent(
 }
 
 export async function applyRequestedModelIfPresent(
-  runtime: CliRuntime,
+  config: CliConfig,
   session: ClientSession,
   state: CliSessionState,
 ): Promise<void> {
-  const requestedModel = runtime.config.model;
+  const requestedModel = config.model;
   if (!requestedModel || requestedModel === state.model) {
     return;
   }

@@ -1,12 +1,11 @@
 import { defineCommand } from "citty";
-import { toCliRuntime } from "./shared";
 
 const aaStatusDef = defineCommand({
   meta: { name: "status", description: "Show AA config and chain support" },
   args: {},
   async run() {
     const { aaStatusCommand } = await import("../aa");
-    await aaStatusCommand(toCliRuntime());
+    await aaStatusCommand();
   },
 });
 

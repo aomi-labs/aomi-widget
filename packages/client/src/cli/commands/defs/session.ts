@@ -1,21 +1,21 @@
 import { defineCommand } from "citty";
-import { globalArgs, toCliRuntime } from "./shared";
+import { globalArgs, buildCliConfig } from "./shared";
 
 const sessionListDef = defineCommand({
   meta: { name: "list", description: "List local sessions with metadata" },
   args: {},
   async run() {
     const { sessionsCommand } = await import("../sessions");
-    await sessionsCommand(toCliRuntime());
+    await sessionsCommand(buildCliConfig({}));
   },
 });
 
 const sessionNewDef = defineCommand({
   meta: { name: "new", description: "Start a fresh session and make it active" },
   args: { ...globalArgs },
-  async run() {
+  async run({ args }) {
     const { newSessionCommand } = await import("../sessions");
-    newSessionCommand(toCliRuntime());
+    newSessionCommand(buildCliConfig(args));
   },
 });
 
@@ -52,36 +52,36 @@ const sessionDeleteDef = defineCommand({
 const sessionStatusDef = defineCommand({
   meta: { name: "status", description: "Show current session state" },
   args: { ...globalArgs },
-  async run() {
+  async run({ args }) {
     const { statusCommand } = await import("../control");
-    await statusCommand(toCliRuntime());
+    await statusCommand(buildCliConfig(args));
   },
 });
 
 const sessionLogDef = defineCommand({
   meta: { name: "log", description: "Show conversation history" },
   args: { ...globalArgs },
-  async run() {
+  async run({ args }) {
     const { logCommand } = await import("../history");
-    await logCommand(toCliRuntime());
+    await logCommand(buildCliConfig(args));
   },
 });
 
 const sessionEventsDef = defineCommand({
   meta: { name: "events", description: "List system events" },
   args: { ...globalArgs },
-  async run() {
+  async run({ args }) {
     const { eventsCommand } = await import("../control");
-    await eventsCommand(toCliRuntime());
+    await eventsCommand(buildCliConfig(args));
   },
 });
 
 const sessionCloseDef = defineCommand({
   meta: { name: "close", description: "Close the current session" },
   args: { ...globalArgs },
-  async run() {
+  async run({ args }) {
     const { closeCommand } = await import("../history");
-    closeCommand(toCliRuntime());
+    closeCommand(buildCliConfig(args));
   },
 });
 

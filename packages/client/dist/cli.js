@@ -57,132 +57,11 @@ var init_errors = __esm({
   }
 });
 
-// src/cli/args.ts
-function parseChainId(value) {
-  if (value === void 0) return void 0;
-  const n = parseInt(value, 10);
-  if (Number.isNaN(n)) return void 0;
-  if (!SUPPORTED_CHAIN_IDS.includes(n)) {
-    const list = SUPPORTED_CHAIN_IDS.map(
-      (id) => `  ${id} (${CHAIN_NAMES[id]})`
-    ).join("\n");
-    fatal(`Unsupported chain ID: ${n}
-Supported chains:
-${list}`);
-  }
-  return n;
-}
-function resolveExecutionMode(flags) {
-  const flagAA = flags["aa"] === "true";
-  const flagEoa = flags["eoa"] === "true";
-  if (flagAA && flagEoa) {
-    fatal("Choose only one of `--aa` or `--eoa`.");
-  }
-  if (flagEoa) return "eoa";
-  if (flagAA || flags["aa-provider"] !== void 0 || flags["aa-mode"] !== void 0) {
-    return "aa";
-  }
-  return void 0;
-}
-function parseAAProvider(value) {
-  if (value === void 0 || value.trim() === "") return void 0;
-  if (value === "alchemy" || value === "pimlico") {
-    return value;
-  }
-  fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
-}
-function parseAAMode(value) {
-  if (value === void 0 || value.trim() === "") return void 0;
-  if (value === "4337" || value === "7702") {
-    return value;
-  }
-  fatal("Unsupported AA mode. Use `4337` or `7702`.");
-}
-function parseSecret(value, secrets) {
-  const eqIdx = value.indexOf("=");
-  if (eqIdx > 0) {
-    secrets[value.slice(0, eqIdx)] = value.slice(eqIdx + 1);
-  }
-}
-function normalizePrivateKey(value) {
-  if (value === void 0) return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
-}
-function parseArgs(argv) {
-  const raw = argv.slice(2);
-  const command = raw[0] && !raw[0].startsWith("-") ? raw[0] : void 0;
-  const rest = command ? raw.slice(1) : raw;
-  const positional = [];
-  const flags = {};
-  const secrets = {};
-  for (let i = 0; i < rest.length; i++) {
-    const arg = rest[i];
-    if (arg.startsWith("--") && arg.includes("=")) {
-      const [key, ...val] = arg.slice(2).split("=");
-      const value = val.join("=");
-      if (key === "secret") {
-        parseSecret(value, secrets);
-      } else {
-        flags[key] = value;
-      }
-    } else if (arg.startsWith("--")) {
-      const key = arg.slice(2);
-      const next = rest[i + 1];
-      if (next && !next.startsWith("-")) {
-        if (key === "secret") {
-          parseSecret(next, secrets);
-        } else {
-          flags[key] = next;
-        }
-        i++;
-      } else {
-        flags[key] = "true";
-      }
-    } else if (arg.startsWith("-") && arg.length === 2) {
-      flags[arg.slice(1)] = "true";
-    } else {
-      positional.push(arg);
-    }
-  }
-  return { command, positional, flags, secrets };
-}
-function getConfig(parsed) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
-  const execution = resolveExecutionMode(parsed.flags);
-  const aaProvider = parseAAProvider(
-    (_a3 = parsed.flags["aa-provider"]) != null ? _a3 : process.env.AOMI_AA_PROVIDER
-  );
-  const aaMode = parseAAMode(
-    (_b = parsed.flags["aa-mode"]) != null ? _b : process.env.AOMI_AA_MODE
-  );
-  if (execution === "eoa" && (aaProvider || aaMode)) {
-    fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
-  }
-  return {
-    baseUrl: (_d = (_c = parsed.flags["backend-url"]) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev",
-    apiKey: (_e = parsed.flags["api-key"]) != null ? _e : process.env.AOMI_API_KEY,
-    app: (_g = (_f = parsed.flags["app"]) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
-    model: (_h = parsed.flags["model"]) != null ? _h : process.env.AOMI_MODEL,
-    freshSession: parsed.flags["new-session"] === "true",
-    publicKey: (_i = parsed.flags["public-key"]) != null ? _i : process.env.AOMI_PUBLIC_KEY,
-    privateKey: normalizePrivateKey(
-      (_j = parsed.flags["private-key"]) != null ? _j : process.env.PRIVATE_KEY
-    ),
-    chainRpcUrl: (_k = parsed.flags["rpc-url"]) != null ? _k : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_l = parsed.flags["chain"]) != null ? _l : process.env.AOMI_CHAIN_ID),
-    secrets: parsed.secrets,
-    execution,
-    aaProvider,
-    aaMode
-  };
-}
+// src/cli/chains.ts
 var SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
-var init_args = __esm({
-  "src/cli/args.ts"() {
+var init_chains = __esm({
+  "src/cli/chains.ts"() {
     "use strict";
-    init_errors();
     SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111];
     CHAIN_NAMES = {
       1: "Ethereum",
@@ -1877,8 +1756,7 @@ var init_user_state = __esm({
 });
 
 // src/cli/context.ts
-function buildSessionState(runtime) {
-  const { config } = runtime;
+function buildSessionState(config) {
   return {
     sessionId: crypto.randomUUID(),
     baseUrl: config.baseUrl,
@@ -1890,16 +1768,15 @@ function buildSessionState(runtime) {
     clientId: crypto.randomUUID()
   };
 }
-function createFreshSessionState(runtime) {
-  const state = buildSessionState(runtime);
+function createFreshSessionState(config) {
+  const state = buildSessionState(config);
   writeState(state);
   return state;
 }
-function getOrCreateSession(runtime, options = {}) {
-  const { config } = runtime;
-  let state = options.fresh || config.freshSession ? createFreshSessionState(runtime) : readState();
+function getOrCreateSession(config, options = {}) {
+  let state = options.fresh || config.freshSession ? createFreshSessionState(config) : readState();
   if (!state) {
-    state = createFreshSessionState(runtime);
+    state = createFreshSessionState(config);
   } else {
     let changed = false;
     if (config.baseUrl !== state.baseUrl) {
@@ -1941,10 +1818,10 @@ function getOrCreateSession(runtime, options = {}) {
   session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
   return { session, state };
 }
-function createControlClient(runtime) {
+function createControlClient(config) {
   return new AomiClient({
-    baseUrl: runtime.config.baseUrl,
-    apiKey: runtime.config.apiKey
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey
   });
 }
 async function applyModelSelection(session, state, model) {
@@ -1955,9 +1832,9 @@ async function applyModelSelection(session, state, model) {
   state.model = model;
   writeState(state);
 }
-async function ingestSecretsIfPresent(runtime, state, client) {
+async function ingestSecretsIfPresent(config, state, client) {
   var _a3;
-  const secrets = runtime.config.secrets;
+  const secrets = config.secrets;
   if (Object.keys(secrets).length === 0) return {};
   if (!state.clientId) {
     state.clientId = crypto.randomUUID();
@@ -1971,8 +1848,8 @@ async function ingestSecretsIfPresent(runtime, state, client) {
   writeState(state);
   return response.handles;
 }
-async function applyRequestedModelIfPresent(runtime, session, state) {
-  const requestedModel = runtime.config.model;
+async function applyRequestedModelIfPresent(config, session, state) {
+  const requestedModel = config.model;
   if (!requestedModel || requestedModel === state.model) {
     return;
   }
@@ -2093,18 +1970,16 @@ var chat_exports = {};
 __export(chat_exports, {
   chatCommand: () => chatCommand
 });
-async function chatCommand(runtime) {
-  const message = runtime.parsed.positional.join(" ");
+async function chatCommand(config, message, verbose) {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
-  const verbose = runtime.parsed.flags["verbose"] === "true" || runtime.parsed.flags["v"] === "true";
-  const { session, state } = getOrCreateSession(runtime, {
-    fresh: runtime.config.freshSession
+  const { session, state } = getOrCreateSession(config, {
+    fresh: config.freshSession
   });
   try {
-    await ingestSecretsIfPresent(runtime, state, session.client);
-    await applyRequestedModelIfPresent(runtime, session, state);
+    await ingestSecretsIfPresent(config, state, session.client);
+    await applyRequestedModelIfPresent(config, session, state);
     session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
     const capturedRequests = [];
     let printedAgentCount = 0;
@@ -3552,22 +3427,22 @@ function requirePendingTxs(state, txIds) {
   }
   return uniqueIds.map((txId) => requirePendingTx(state, txId));
 }
-function rewriteSessionState(runtime, state) {
+function rewriteSessionState(config, state) {
   let changed = false;
-  if (runtime.config.baseUrl !== state.baseUrl) {
-    state.baseUrl = runtime.config.baseUrl;
+  if (config.baseUrl !== state.baseUrl) {
+    state.baseUrl = config.baseUrl;
     changed = true;
   }
-  if (runtime.config.app !== state.app) {
-    state.app = runtime.config.app;
+  if (config.app !== state.app) {
+    state.app = config.app;
     changed = true;
   }
-  if (runtime.config.apiKey !== void 0 && runtime.config.apiKey !== state.apiKey) {
-    state.apiKey = runtime.config.apiKey;
+  if (config.apiKey !== void 0 && config.apiKey !== state.apiKey) {
+    state.apiKey = config.apiKey;
     changed = true;
   }
-  if (runtime.config.chain !== void 0 && runtime.config.chain !== state.chainId) {
-    state.chainId = runtime.config.chain;
+  if (config.chain !== void 0 && config.chain !== state.chainId) {
+    state.chainId = config.chain;
     changed = true;
   }
   if (changed) {
@@ -3634,15 +3509,14 @@ async function executeCliTransaction(params) {
     getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl)
   });
 }
-async function signCommand(runtime) {
+async function signCommand(config, txIds) {
   var _a3, _b, _c, _d;
-  const txIds = runtime.parsed.positional;
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs."
     );
   }
-  const privateKey = runtime.config.privateKey;
+  const privateKey = config.privateKey;
   if (!privateKey) {
     fatal(
       [
@@ -3657,7 +3531,7 @@ async function signCommand(runtime) {
   if (!state) {
     fatal("No active session. Run `aomi chat` first.");
   }
-  rewriteSessionState(runtime, state);
+  rewriteSessionState(config, state);
   const pendingTxs = requirePendingTxs(state, txIds);
   const session = createSessionFromState(state);
   try {
@@ -3668,7 +3542,7 @@ async function signCommand(runtime) {
       );
       console.log("   Updating session to match the signing key...");
     }
-    const rpcUrl = runtime.config.chainRpcUrl;
+    const rpcUrl = config.chainRpcUrl;
     const resolvedChainIds = pendingTxs.map((tx) => {
       var _a4, _b2;
       return (_b2 = (_a4 = tx.chainId) != null ? _a4 : state.chainId) != null ? _b2 : 1;
@@ -3746,7 +3620,7 @@ async function signCommand(runtime) {
         );
       }
       const decision = resolveCliExecutionDecision({
-        config: runtime.config,
+        config,
         chain,
         callList
       });
@@ -3918,13 +3792,12 @@ Run \`aomi tx\` to see available IDs.`
   }
   return pendingTx;
 }
-async function simulateCommand(runtime) {
+async function simulateCommand(txIds) {
   var _a3, _b, _c;
   const state = readState();
   if (!state) {
     fatal("No active session. Run `aomi chat` first.");
   }
-  const txIds = runtime.parsed.positional;
   if (txIds.length === 0) {
     fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
   }
@@ -4180,7 +4053,7 @@ function printSessionSummary(record, stats, isActive) {
   console.log(`${YELLOW}\u{1F4BE} Transactions metadata (JSON):${RESET}`);
   printTransactionTable(pendingTxs, signedTxs);
 }
-async function sessionsCommand(_runtime) {
+async function sessionsCommand(_config) {
   var _a3;
   const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
   if (sessions.length === 0) {
@@ -4204,8 +4077,8 @@ async function sessionsCommand(_runtime) {
   }
   printDataFileLocation();
 }
-function newSessionCommand(runtime) {
-  const state = createFreshSessionState(runtime);
+function newSessionCommand(config) {
+  const state = createFreshSessionState(config);
   console.log(`Active session set to ${state.sessionId} (new).`);
   printDataFileLocation();
 }
@@ -4255,14 +4128,14 @@ __export(control_exports, {
   setModelCommand: () => setModelCommand,
   statusCommand: () => statusCommand
 });
-async function statusCommand(runtime) {
+async function statusCommand(config) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   if (!readState()) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(config);
   try {
     const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
     console.log(
@@ -4288,12 +4161,12 @@ async function statusCommand(runtime) {
     session.close();
   }
 }
-async function eventsCommand(runtime) {
+async function eventsCommand(config) {
   if (!readState()) {
     console.log("No active session");
     return;
   }
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(config);
   try {
     const events = await session.client.getSystemEvents(state.sessionId);
     console.log(JSON.stringify(events, null, 2));
@@ -4301,32 +4174,32 @@ async function eventsCommand(runtime) {
     session.close();
   }
 }
-async function appsCommand(runtime) {
+async function appsCommand(config) {
   var _a3, _b, _c;
-  const client = createControlClient(runtime);
+  const client = createControlClient(config);
   const state = readState();
   const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: runtime.config.publicKey,
-    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+    publicKey: config.publicKey,
+    apiKey: (_b = config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
   });
   if (apps.length === 0) {
     console.log("No apps available.");
     return;
   }
-  const currentApp = (_c = state == null ? void 0 : state.app) != null ? _c : runtime.config.app;
+  const currentApp = (_c = state == null ? void 0 : state.app) != null ? _c : config.app;
   for (const app of apps) {
     const marker = currentApp === app ? "  (current)" : "";
     console.log(`${app}${marker}`);
   }
 }
-async function modelsCommand(runtime) {
+async function modelsCommand(config) {
   var _a3, _b;
-  const client = createControlClient(runtime);
+  const client = createControlClient(config);
   const state = readState();
   const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
   const models = await client.getModels(sessionId, {
-    apiKey: (_b = runtime.config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+    apiKey: (_b = config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
   });
   if (models.length === 0) {
     console.log("No models available.");
@@ -4359,8 +4232,8 @@ function currentModelCommand() {
   console.log((_a3 = state.model) != null ? _a3 : "(default backend model)");
   printDataFileLocation();
 }
-async function setModelCommand(runtime, model) {
-  const { session, state } = getOrCreateSession(runtime);
+async function setModelCommand(config, model) {
+  const { session, state } = getOrCreateSession(config);
   try {
     await applyModelSelection(session, state, model);
     console.log(`Model set to ${model}`);
@@ -4384,7 +4257,7 @@ function chainsCommand() {
 var init_control = __esm({
   "src/cli/commands/control.ts"() {
     "use strict";
-    init_args();
+    init_chains();
     init_context();
     init_output();
     init_state();
@@ -4398,14 +4271,14 @@ __export(history_exports, {
   closeCommand: () => closeCommand,
   logCommand: () => logCommand
 });
-async function logCommand(runtime) {
+async function logCommand(config) {
   var _a3, _b, _c, _d, _e;
   if (!readState()) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(config);
   try {
     const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
@@ -4474,9 +4347,9 @@ ${DIM}\u2014 ${messages.length} messages \u2014${RESET}`);
     session.close();
   }
 }
-function closeCommand(runtime) {
+function closeCommand(config) {
   if (readState()) {
-    const { session } = getOrCreateSession(runtime);
+    const { session } = getOrCreateSession(config);
     session.close();
   }
   clearState();
@@ -4499,17 +4372,17 @@ __export(secrets_exports, {
   ingestSecretsCommand: () => ingestSecretsCommand,
   listSecretsCommand: () => listSecretsCommand
 });
-async function ingestSecretsCommand(runtime) {
-  const secretEntries = Object.entries(runtime.config.secrets);
+async function ingestSecretsCommand(config) {
+  const secretEntries = Object.entries(config.secrets);
   if (secretEntries.length === 0) {
-    fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
+    fatal("Usage: aomi secret add NAME=value [NAME=value ...]");
   }
-  const { session, state } = getOrCreateSession(runtime, {
-    fresh: runtime.config.freshSession
+  const { session, state } = getOrCreateSession(config, {
+    fresh: config.freshSession
   });
   try {
     const handles = await ingestSecretsIfPresent(
-      runtime,
+      config,
       state,
       session.client
     );
@@ -4545,8 +4418,8 @@ function listSecretsCommand() {
   }
   printDataFileLocation();
 }
-async function clearSecretsCommand(runtime) {
-  const { session, state } = getOrCreateSession(runtime);
+async function clearSecretsCommand(config) {
+  const { session, state } = getOrCreateSession(config);
   try {
     if (!state.clientId) {
       console.log("No secrets configured.");
@@ -4626,7 +4499,7 @@ function normalizePrivateKey2(value) {
   }
   return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
 }
-async function aaStatusCommand(_runtime) {
+async function aaStatusCommand() {
   var _a3;
   const config = readAAConfig();
   const alchemyApiKey = getCliAAApiKey2("alchemy");
@@ -4775,7 +4648,7 @@ var init_aa2 = __esm({
     "use strict";
     init_aa();
     init_aa_config();
-    init_args();
+    init_chains();
     init_errors();
     init_output();
   }
@@ -4791,7 +4664,47 @@ import { defineCommand as defineCommand9 } from "citty";
 import { defineCommand } from "citty";
 
 // src/cli/commands/defs/shared.ts
-init_args();
+init_errors();
+
+// src/cli/validation.ts
+init_chains();
+init_errors();
+function parseChainId(value) {
+  if (value === void 0) return void 0;
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n)) return void 0;
+  if (!SUPPORTED_CHAIN_IDS.includes(n)) {
+    const list = SUPPORTED_CHAIN_IDS.map(
+      (id) => `  ${id} (${CHAIN_NAMES[id]})`
+    ).join("\n");
+    fatal(`Unsupported chain ID: ${n}
+Supported chains:
+${list}`);
+  }
+  return n;
+}
+function normalizePrivateKey(value) {
+  if (value === void 0) return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+}
+function parseAAProvider(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  if (value === "alchemy" || value === "pimlico") {
+    return value;
+  }
+  fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
+}
+function parseAAMode(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  if (value === "4337" || value === "7702") {
+    return value;
+  }
+  fatal("Unsupported AA mode. Use `4337` or `7702`.");
+}
+
+// src/cli/commands/defs/shared.ts
 var globalArgs = {
   "backend-url": {
     type: "string",
@@ -4834,12 +4747,79 @@ var globalArgs = {
     description: "Ingest a secret (NAME=value)"
   }
 };
-function toCliRuntime(argv = process.argv) {
-  const parsed = parseArgs(argv);
+function str(value) {
+  return typeof value === "string" && value.trim() ? value : void 0;
+}
+function resolveExecution(args) {
+  const flagAA = args.aa === true;
+  const flagEoa = args.eoa === true;
+  if (flagAA && flagEoa) {
+    fatal("Choose only one of `--aa` or `--eoa`.");
+  }
+  if (flagEoa) return "eoa";
+  if (flagAA || str(args["aa-provider"]) !== void 0 || str(args["aa-mode"]) !== void 0) {
+    return "aa";
+  }
+  return void 0;
+}
+function buildCliConfig(args, options = {}) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  const execution = resolveExecution(args);
+  const aaProvider = parseAAProvider(
+    (_a3 = str(args["aa-provider"])) != null ? _a3 : process.env.AOMI_AA_PROVIDER
+  );
+  const aaMode = parseAAMode(
+    (_b = str(args["aa-mode"])) != null ? _b : process.env.AOMI_AA_MODE
+  );
+  if (execution === "eoa" && (aaProvider || aaMode)) {
+    fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
+  }
   return {
-    parsed,
-    config: getConfig(parsed)
+    baseUrl: (_d = (_c = str(args["backend-url"])) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev",
+    apiKey: (_e = str(args["api-key"])) != null ? _e : process.env.AOMI_API_KEY,
+    app: (_g = (_f = str(args.app)) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
+    model: (_h = str(args.model)) != null ? _h : process.env.AOMI_MODEL,
+    freshSession: args["new-session"] === true,
+    publicKey: (_i = str(args["public-key"])) != null ? _i : process.env.AOMI_PUBLIC_KEY,
+    privateKey: normalizePrivateKey(
+      (_j = str(args["private-key"])) != null ? _j : process.env.PRIVATE_KEY
+    ),
+    chainRpcUrl: (_k = str(args["rpc-url"])) != null ? _k : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_l = str(args.chain)) != null ? _l : process.env.AOMI_CHAIN_ID),
+    secrets: extractSecrets(options.argv),
+    execution,
+    aaProvider,
+    aaMode
   };
+}
+function getPositionals(args) {
+  const positionals = args._;
+  if (!Array.isArray(positionals)) {
+    return [];
+  }
+  return positionals.filter((value) => typeof value === "string");
+}
+function extractSecrets(argv = process.argv) {
+  const raw = argv.slice(2);
+  const secrets = {};
+  for (let i = 0; i < raw.length; i++) {
+    const arg = raw[i];
+    if (arg === "--secret" && raw[i + 1]) {
+      const val = raw[i + 1];
+      const eqIdx = val.indexOf("=");
+      if (eqIdx > 0) {
+        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
+      }
+      i++;
+    } else if (arg.startsWith("--secret=")) {
+      const val = arg.slice("--secret=".length);
+      const eqIdx = val.indexOf("=");
+      if (eqIdx > 0) {
+        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
+      }
+    }
+  }
+  return secrets;
 }
 
 // src/cli/commands/defs/chat.ts
@@ -4857,9 +4837,10 @@ var chatDef = defineCommand({
       required: false
     }
   }),
-  async run() {
+  async run({ args }) {
+    var _a3;
     const { chatCommand: chatCommand2 } = await Promise.resolve().then(() => (init_chat(), chat_exports));
-    await chatCommand2(toCliRuntime());
+    await chatCommand2(buildCliConfig(args), (_a3 = args.message) != null ? _a3 : "", args.verbose === true);
   }
 });
 
@@ -4882,9 +4863,10 @@ var txSimulateDef = defineCommand2({
       required: false
     }
   },
-  async run() {
+  async run({ args }) {
     const { simulateCommand: simulateCommand2 } = await Promise.resolve().then(() => (init_simulate(), simulate_exports));
-    await simulateCommand2(toCliRuntime());
+    const txIds = getPositionals(args);
+    await simulateCommand2(txIds);
   }
 });
 var txSignDef = defineCommand2({
@@ -4912,9 +4894,10 @@ var txSignDef = defineCommand2({
       required: false
     }
   }),
-  async run() {
+  async run({ args }) {
     const { signCommand: signCommand2 } = await Promise.resolve().then(() => (init_wallet(), wallet_exports));
-    await signCommand2(toCliRuntime());
+    const txIds = getPositionals(args);
+    await signCommand2(buildCliConfig(args), txIds);
   }
 });
 var txDef = defineCommand2({
@@ -4933,15 +4916,15 @@ var sessionListDef = defineCommand3({
   args: {},
   async run() {
     const { sessionsCommand: sessionsCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
-    await sessionsCommand2(toCliRuntime());
+    await sessionsCommand2(buildCliConfig({}));
   }
 });
 var sessionNewDef = defineCommand3({
   meta: { name: "new", description: "Start a fresh session and make it active" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { newSessionCommand: newSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
-    newSessionCommand2(toCliRuntime());
+    newSessionCommand2(buildCliConfig(args));
   }
 });
 var sessionResumeDef = defineCommand3({
@@ -4975,33 +4958,33 @@ var sessionDeleteDef = defineCommand3({
 var sessionStatusDef = defineCommand3({
   meta: { name: "status", description: "Show current session state" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { statusCommand: statusCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await statusCommand2(toCliRuntime());
+    await statusCommand2(buildCliConfig(args));
   }
 });
 var sessionLogDef = defineCommand3({
   meta: { name: "log", description: "Show conversation history" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { logCommand: logCommand2 } = await Promise.resolve().then(() => (init_history(), history_exports));
-    await logCommand2(toCliRuntime());
+    await logCommand2(buildCliConfig(args));
   }
 });
 var sessionEventsDef = defineCommand3({
   meta: { name: "events", description: "List system events" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { eventsCommand: eventsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await eventsCommand2(toCliRuntime());
+    await eventsCommand2(buildCliConfig(args));
   }
 });
 var sessionCloseDef = defineCommand3({
   meta: { name: "close", description: "Close the current session" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { closeCommand: closeCommand2 } = await Promise.resolve().then(() => (init_history(), history_exports));
-    closeCommand2(toCliRuntime());
+    closeCommand2(buildCliConfig(args));
   }
 });
 var sessionDef = defineCommand3({
@@ -5023,9 +5006,9 @@ import { defineCommand as defineCommand4 } from "citty";
 var modelListDef = defineCommand4({
   meta: { name: "list", description: "List models available to the current backend" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { modelsCommand: modelsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await modelsCommand2(toCliRuntime());
+    await modelsCommand2(buildCliConfig(args));
   }
 });
 var modelSetDef = defineCommand4({
@@ -5039,7 +5022,7 @@ var modelSetDef = defineCommand4({
   }),
   async run({ args }) {
     const { setModelCommand: setModelCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await setModelCommand2(toCliRuntime(), args.rig);
+    await setModelCommand2(buildCliConfig(args), args.rig);
   }
 });
 var modelCurrentDef = defineCommand4({
@@ -5064,9 +5047,9 @@ import { defineCommand as defineCommand5 } from "citty";
 var appListDef = defineCommand5({
   meta: { name: "list", description: "List available apps" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { appsCommand: appsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await appsCommand2(toCliRuntime());
+    await appsCommand2(buildCliConfig(args));
   }
 });
 var appCurrentDef = defineCommand5({
@@ -5103,6 +5086,7 @@ var chainDef = defineCommand6({
 });
 
 // src/cli/commands/defs/secret.ts
+init_errors();
 import { defineCommand as defineCommand7 } from "citty";
 var secretListDef = defineCommand7({
   meta: { name: "list", description: "List configured secrets for the active session" },
@@ -5115,28 +5099,41 @@ var secretListDef = defineCommand7({
 var secretClearDef = defineCommand7({
   meta: { name: "clear", description: "Clear all secrets for the active session" },
   args: __spreadValues({}, globalArgs),
-  async run() {
+  async run({ args }) {
     const { clearSecretsCommand: clearSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
-    await clearSecretsCommand2(toCliRuntime());
+    await clearSecretsCommand2(buildCliConfig(args));
   }
 });
 var secretAddDef = defineCommand7({
-  meta: { name: "add", description: "Add a secret (NAME=value)" },
+  meta: { name: "add", description: "Add one or more secrets (NAME=value)" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     secret: {
       type: "positional",
       description: "Secret in NAME=value format",
-      required: true
+      required: false
     }
   }),
   async run({ args }) {
     const { ingestSecretsCommand: ingestSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
-    const runtime = toCliRuntime();
-    const eqIdx = args.secret.indexOf("=");
-    if (eqIdx > 0) {
-      runtime.config.secrets[args.secret.slice(0, eqIdx)] = args.secret.slice(eqIdx + 1);
+    const config = buildCliConfig(args);
+    if (Object.keys(config.secrets).length > 0) {
+      fatal("Use `aomi secret add NAME=value [NAME=value ...]` without `--secret`.");
     }
-    await ingestSecretsCommand2(runtime);
+    const secretArgs = getPositionals(args);
+    if (secretArgs.length === 0) {
+      fatal("Usage: aomi secret add NAME=value [NAME=value ...]");
+    }
+    for (const secret of secretArgs) {
+      const eqIdx = secret.indexOf("=");
+      if (eqIdx <= 0) {
+        fatal(
+          `Invalid secret "${secret}". Use NAME=value format.
+Usage: aomi secret add NAME=value [NAME=value ...]`
+        );
+      }
+      config.secrets[secret.slice(0, eqIdx)] = secret.slice(eqIdx + 1);
+    }
+    await ingestSecretsCommand2(config);
   }
 });
 var secretDef = defineCommand7({
@@ -5155,7 +5152,7 @@ var aaStatusDef = defineCommand8({
   args: {},
   async run() {
     const { aaStatusCommand: aaStatusCommand2 } = await Promise.resolve().then(() => (init_aa2(), aa_exports));
-    await aaStatusCommand2(toCliRuntime());
+    await aaStatusCommand2();
   }
 });
 var aaSetDef = defineCommand8({
