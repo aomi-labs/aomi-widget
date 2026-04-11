@@ -8,11 +8,11 @@ function isPnpmExecWrapper(): boolean {
   return npmCommand === "exec" && userAgent.includes("pnpm/");
 }
 
-export async function runCli(_argv: string[] = process.argv): Promise<void> {
+export async function runCli(argv: string[] = process.argv): Promise<void> {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
 
   try {
-    await runMain(root);
+    await runMain(root, { rawArgs: argv.slice(2) });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {

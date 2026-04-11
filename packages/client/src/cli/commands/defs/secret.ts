@@ -33,11 +33,6 @@ const secretAddDef = defineCommand({
   async run({ args }) {
     const { ingestSecretsCommand } = await import("../secrets");
     const config = buildCliConfig(args);
-
-    if (Object.keys(config.secrets).length > 0) {
-      fatal("Use `aomi secret add NAME=value [NAME=value ...]` without `--secret`.");
-    }
-
     const secretArgs = getPositionals(args);
     if (secretArgs.length === 0) {
       fatal("Usage: aomi secret add NAME=value [NAME=value ...]");

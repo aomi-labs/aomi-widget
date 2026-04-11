@@ -332,7 +332,7 @@ The tools listed below are the app-specific additions.
 | `yearn` | Yearn Finance — vault discovery, details | `get_all_vaults`, `get_vault_detail`, `get_blacklisted_vaults` | No |
 | `zerox` | 0x DEX aggregator — swaps, quotes, liquidity | `get_zerox_swap_quote`, `place_zerox_order`, `get_zerox_swap_chains`, `get_zerox_allowance_holder_price`, `get_zerox_liquidity_sources` | Yes (`ZEROX_API_KEY`) |
 
-Some apps require API keys via `--secret` (e.g. CEX apps need exchange credentials).
+Some apps require API keys via `aomi secret add` (e.g. CEX apps need exchange credentials).
 Use `--app <name>` or `AOMI_APP=<name>` to select an app.
 
 To build a new app or update an existing one from an API spec, SDK, or product
