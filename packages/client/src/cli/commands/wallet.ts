@@ -33,7 +33,7 @@ import {
   pendingTxToCallList,
   toSignedTransactionRecord,
 } from "../transactions";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 
 export function txCommand(): void {
   const state = readState();
@@ -93,31 +93,31 @@ function requirePendingTxs(
 }
 
 function rewriteSessionState(
-  runtime: CliRuntime,
+  config: CliConfig,
   state: CliSessionState,
 ): void {
   let changed = false;
 
-  if (runtime.config.baseUrl !== state.baseUrl) {
-    state.baseUrl = runtime.config.baseUrl;
+  if (config.baseUrl !== state.baseUrl) {
+    state.baseUrl = config.baseUrl;
     changed = true;
   }
 
-  if (runtime.config.app !== state.app) {
-    state.app = runtime.config.app;
+  if (config.app !== state.app) {
+    state.app = config.app;
     changed = true;
   }
 
   if (
-    runtime.config.apiKey !== undefined &&
-    runtime.config.apiKey !== state.apiKey
+    config.apiKey !== undefined &&
+    config.apiKey !== state.apiKey
   ) {
-    state.apiKey = runtime.config.apiKey;
+    state.apiKey = config.apiKey;
     changed = true;
   }
 
-  if (runtime.config.chain !== undefined && runtime.config.chain !== state.chainId) {
-    state.chainId = runtime.config.chain;
+  if (config.chain !== undefined && config.chain !== state.chainId) {
+    state.chainId = config.chain;
     changed = true;
   }
 
@@ -217,15 +217,14 @@ async function executeCliTransaction(params: {
 }
 
 
-export async function signCommand(runtime: CliRuntime): Promise<void> {
-  const txIds = runtime.parsed.positional;
+export async function signCommand(config: CliConfig, txIds: string[]): Promise<void> {
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs.",
     );
   }
 
-  const privateKey = runtime.config.privateKey;
+  const privateKey = config.privateKey;
   if (!privateKey) {
     fatal(
       [
@@ -242,7 +241,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
     fatal("No active session. Run `aomi chat` first.");
   }
 
-  rewriteSessionState(runtime, state);
+  rewriteSessionState(config, state);
 
   const pendingTxs = requirePendingTxs(state, txIds);
   const session = createSessionFromState(state);
@@ -260,7 +259,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       console.log("   Updating session to match the signing key...");
     }
 
-    const rpcUrl = runtime.config.chainRpcUrl;
+    const rpcUrl = config.chainRpcUrl;
     const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? state.chainId ?? 1);
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
@@ -340,7 +339,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       }
 
       const decision = resolveCliExecutionDecision({
-        config: runtime.config,
+        config,
         chain,
         callList,
       });

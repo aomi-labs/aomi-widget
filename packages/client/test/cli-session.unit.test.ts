@@ -26,31 +26,23 @@ describe("CLI session lifecycle", () => {
     );
     const { readState } = await import("../src/cli/state");
 
-    const runtime = {
-      parsed: {
-        command: "chat",
-        positional: ["hello"],
-        flags: {},
-        secrets: {},
-      },
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        execution: "eoa",
-        secrets: {},
-      },
+    const config = {
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
     };
 
-    const first = getOrCreateSession(runtime);
+    const first = getOrCreateSession(config);
     first.session.close();
 
-    const reused = getOrCreateSession(runtime);
+    const reused = getOrCreateSession(config);
     reused.session.close();
 
     expect(reused.state.sessionId).toBe(first.state.sessionId);
     expect(reused.state.clientId).toBe(first.state.clientId);
 
-    const fresh = createFreshSessionState(runtime);
+    const fresh = createFreshSessionState(config);
 
     expect(fresh.sessionId).not.toBe(first.state.sessionId);
     expect(fresh.clientId).not.toBe(first.state.clientId);
@@ -63,22 +55,14 @@ describe("CLI session lifecycle", () => {
     const { newSessionCommand } = await import("../src/cli/commands/sessions");
     const { readState } = await import("../src/cli/state");
 
-    const runtime = {
-      parsed: {
-        command: "session",
-        positional: [],
-        flags: {},
-        secrets: {},
-      },
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        execution: "eoa",
-        secrets: {},
-      },
+    const config = {
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
     };
 
-    newSessionCommand(runtime);
+    newSessionCommand(config);
 
     expect(readState()?.sessionId).toBeDefined();
     expect(logSpy).toHaveBeenCalledWith(

@@ -126,16 +126,17 @@ describe("CLI wallet sign simulation integration", () => {
   });
 
   it("passes explicit from and chainId into simulateBatch and appends the fee call", async () => {
-    await signCommand({
-      parsed: { positional: ["tx-1"] },
-      config: {
+    await signCommand(
+      {
         privateKey:
           "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
+        secrets: {},
       },
-    } as never);
+      ["tx-1"],
+    );
 
     expect(mocks.simulateBatch).toHaveBeenCalledWith(
       "session-1",

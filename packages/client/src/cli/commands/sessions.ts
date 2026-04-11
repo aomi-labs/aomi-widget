@@ -14,7 +14,7 @@ import {
   printKeyValueTable,
   printTransactionTable,
 } from "../tables";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 
 type RemoteSessionStats = {
   topic: string;
@@ -76,7 +76,7 @@ function printSessionSummary(
   printTransactionTable(pendingTxs, signedTxs);
 }
 
-export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
+export async function sessionsCommand(_config: CliConfig): Promise<void> {
   const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
   if (sessions.length === 0) {
     console.log("No local sessions.");
@@ -104,8 +104,8 @@ export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
   printDataFileLocation();
 }
 
-export function newSessionCommand(runtime: CliRuntime): void {
-  const state = createFreshSessionState(runtime);
+export function newSessionCommand(config: CliConfig): void {
+  const state = createFreshSessionState(config);
   console.log(`Active session set to ${state.sessionId} (new).`);
   printDataFileLocation();
 }

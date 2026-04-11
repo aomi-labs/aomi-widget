@@ -1,12 +1,12 @@
 import { defineCommand } from "citty";
-import { globalArgs, toCliRuntime } from "./shared";
+import { globalArgs, buildCliConfig } from "./shared";
 
 const appListDef = defineCommand({
   meta: { name: "list", description: "List available apps" },
   args: { ...globalArgs },
-  async run() {
+  async run({ args }) {
     const { appsCommand } = await import("../control");
-    await appsCommand(toCliRuntime());
+    await appsCommand(buildCliConfig(args));
   },
 });
 

@@ -2,9 +2,22 @@
 
 ## Last Updated
 
-2026-04-12 - Phase 4: Flatten AA execution + auto-detect + mode fallback
+2026-04-12 - Phase 5: Cleanup legacy code
 
 ## Recent Changes
+
+### Phase 5: Cleanup legacy code (2026-04-12)
+
+- **Deleted `src/cli/args.ts`** — hand-rolled `parseArgs()` + `getConfig()` parser fully replaced
+- **Removed `ParsedArgs` and `CliRuntime` types** from `types.ts` — `CliConfig` is the single config type
+- **`buildCliConfig(args)` in `shared.ts`** — single source of truth for CLI config, reads citty's typed args + env vars directly (no re-parsing `process.argv`)
+- **Extracted `src/cli/chains.ts`** — `SUPPORTED_CHAIN_IDS`, `CHAIN_NAMES` (from deleted `args.ts`)
+- **Extracted `src/cli/validation.ts`** — `parseChainId`, `normalizePrivateKey`, `parseAAProvider`, `parseAAMode` (from deleted `args.ts`)
+- **All handler functions** take `CliConfig` directly (no more `runtime.config` destructuring)
+- **All def files** use `buildCliConfig(args)` instead of `toCliRuntime()`
+- **Updated `commands/aa.ts`** import — `CHAIN_NAMES`/`SUPPORTED_CHAIN_IDS` from `../chains` (was `../args`)
+- **Updated test files** — `cli-execution.unit.test.ts` uses `buildCliConfig()`, `cli-session.unit.test.ts` passes `CliConfig` directly, `cli-wallet-sign.unit.test.ts` passes `(config, txIds)` signature
+- All 188 tests pass, build clean
 
 ### Phase 4: Flatten AA execution (2026-04-12)
 

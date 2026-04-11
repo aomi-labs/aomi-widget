@@ -1,12 +1,12 @@
 import { defineCommand } from "citty";
-import { globalArgs, toCliRuntime } from "./shared";
+import { globalArgs, buildCliConfig } from "./shared";
 
 const modelListDef = defineCommand({
   meta: { name: "list", description: "List models available to the current backend" },
   args: { ...globalArgs },
-  async run() {
+  async run({ args }) {
     const { modelsCommand } = await import("../control");
-    await modelsCommand(toCliRuntime());
+    await modelsCommand(buildCliConfig(args));
   },
 });
 
@@ -22,7 +22,7 @@ const modelSetDef = defineCommand({
   },
   async run({ args }) {
     const { setModelCommand } = await import("../control");
-    await setModelCommand(toCliRuntime(), args.rig);
+    await setModelCommand(buildCliConfig(args), args.rig);
   },
 });
 

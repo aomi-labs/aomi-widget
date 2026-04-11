@@ -5,21 +5,21 @@ import {
 import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import { readState, writeState } from "../state";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 
-export async function ingestSecretsCommand(runtime: CliRuntime): Promise<void> {
-  const secretEntries = Object.entries(runtime.config.secrets);
+export async function ingestSecretsCommand(config: CliConfig): Promise<void> {
+  const secretEntries = Object.entries(config.secrets);
   if (secretEntries.length === 0) {
-    fatal("Usage: aomi --secret NAME=value [NAME=value ...]");
+    fatal("Usage: aomi secret add NAME=value [NAME=value ...]");
   }
 
-  const { session, state } = getOrCreateSession(runtime, {
-    fresh: runtime.config.freshSession,
+  const { session, state } = getOrCreateSession(config, {
+    fresh: config.freshSession,
   });
 
   try {
     const handles = await ingestSecretsIfPresent(
-      runtime,
+      config,
       state,
       session.client,
     );
@@ -58,8 +58,8 @@ export function listSecretsCommand(): void {
   printDataFileLocation();
 }
 
-export async function clearSecretsCommand(runtime: CliRuntime): Promise<void> {
-  const { session, state } = getOrCreateSession(runtime);
+export async function clearSecretsCommand(config: CliConfig): Promise<void> {
+  const { session, state } = getOrCreateSession(config);
   try {
     if (!state.clientId) {
       console.log("No secrets configured.");

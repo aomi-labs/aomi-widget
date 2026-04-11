@@ -19,10 +19,10 @@ import {
   setAAConfigValue,
   writeAAConfig,
 } from "../aa-config";
-import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../args";
+import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
 import { fatal } from "../errors";
 import { DIM, GREEN, RESET, YELLOW, printDataFileLocation } from "../output";
-import type { CliAAProvider, CliRuntime } from "../types";
+import type { CliAAProvider } from "../types";
 
 function maskSecret(value: string): string {
   return value.slice(0, 6) + "..." + value.slice(-4);
@@ -83,7 +83,7 @@ function normalizePrivateKey(value: string | undefined): `0x${string}` | undefin
 // aomi aa status
 // ---------------------------------------------------------------------------
 
-export async function aaStatusCommand(_runtime: CliRuntime): Promise<void> {
+export async function aaStatusCommand(): Promise<void> {
   const config = readAAConfig();
   const alchemyApiKey = getCliAAApiKey("alchemy");
   const pimlicoApiKey = getCliAAApiKey("pimlico");

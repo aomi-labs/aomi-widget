@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import { globalArgs, toCliRuntime } from "./shared";
+import { globalArgs, buildCliConfig, getPositionals } from "./shared";
 
 const txListDef = defineCommand({
   meta: { name: "list", description: "List pending and signed transactions" },
@@ -19,9 +19,10 @@ const txSimulateDef = defineCommand({
       required: false,
     },
   },
-  async run() {
+  async run({ args }) {
     const { simulateCommand } = await import("../simulate");
-    await simulateCommand(toCliRuntime());
+    const txIds = getPositionals(args);
+    await simulateCommand(txIds);
   },
 });
 
@@ -51,9 +52,10 @@ const txSignDef = defineCommand({
       required: false,
     },
   },
-  async run() {
+  async run({ args }) {
     const { signCommand } = await import("../wallet");
-    await signCommand(toCliRuntime());
+    const txIds = getPositionals(args);
+    await signCommand(buildCliConfig(args), txIds);
   },
 });
 

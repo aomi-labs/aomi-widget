@@ -46,7 +46,7 @@ vi.mock("@alchemy/wallet-apis", () => ({
   alchemyWalletTransport: alchemyWalletTransportMock,
 }));
 
-import { getConfig, parseArgs } from "../src/cli/args";
+import { buildCliConfig, extractSecrets, getPositionals } from "../src/cli/commands/defs/shared";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -112,42 +112,21 @@ describe("CLI execution controls", () => {
   });
 
   it("defaults to undefined (auto-detect) when neither --aa nor --eoa is provided", () => {
-    const config = getConfig({
-      command: "sign",
-      positional: [],
-      flags: {},
-    });
+    const config = buildCliConfig({});
 
     expect(config.execution).toBeUndefined();
   });
 
-  it("treats -V as a short flag instead of a command", () => {
-    const parsed = parseArgs(["node", "aomi", "-V"]);
-
-    expect(parsed.command).toBeUndefined();
-    expect(parsed.flags["V"]).toBe("true");
-  });
-
   it("parses --new-session for chat flows", () => {
-    const config = getConfig({
-      command: "chat",
-      positional: [],
-      flags: { "new-session": "true" },
-      secrets: {},
-    });
+    const config = buildCliConfig({ "new-session": true });
 
     expect(config.freshSession).toBe(true);
   });
 
   it("normalizes bare private keys by adding the 0x prefix", () => {
-    const config = getConfig({
-      command: "sign",
-      positional: [],
-      flags: {
-        "private-key":
-          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      },
-      secrets: {},
+    const config = buildCliConfig({
+      "private-key":
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     });
 
     expect(config.privateKey).toBe(
@@ -158,22 +137,13 @@ describe("CLI execution controls", () => {
   it("reads the active chain from AOMI_CHAIN_ID", () => {
     process.env.AOMI_CHAIN_ID = "137";
 
-    const config = getConfig({
-      command: "chat",
-      positional: [],
-      flags: {},
-      secrets: {},
-    });
+    const config = buildCliConfig({});
 
     expect(config.chain).toBe(137);
   });
 
   it("accepts --eoa as an explicit override", () => {
-    const config = getConfig({
-      command: "sign",
-      positional: [],
-      flags: { eoa: "true" },
-    });
+    const config = buildCliConfig({ eoa: true });
 
     expect(config.execution).toBe("eoa");
   });
@@ -182,23 +152,15 @@ describe("CLI execution controls", () => {
     process.env.AOMI_AA_PROVIDER = "";
     process.env.AOMI_AA_MODE = "";
 
-    const config = getConfig({
-      command: "sign",
-      positional: [],
-      flags: { eoa: "true" },
-    });
+    const config = buildCliConfig({ eoa: true });
 
     expect(config.execution).toBe("eoa");
     expect(config.aaProvider).toBeUndefined();
     expect(config.aaMode).toBeUndefined();
   });
 
-  it("sets aa mode when --aa-provider is specified via env", () => {
-    const config = getConfig({
-      command: "sign",
-      positional: [],
-      flags: { "aa-provider": "alchemy" },
-    });
+  it("sets aa mode when --aa-provider is specified via flag", () => {
+    const config = buildCliConfig({ "aa-provider": "alchemy" });
 
     expect(config.execution).toBe("aa");
     expect(config.aaProvider).toBe("alchemy");
@@ -208,24 +170,61 @@ describe("CLI execution controls", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() =>
-      getConfig({
-        command: "sign",
-        positional: [],
-        flags: { aa: "true", eoa: "true" },
-      }),
+      buildCliConfig({ aa: true, eoa: true }),
     ).toThrow(CliExit);
 
     errorSpy.mockRestore();
   });
 
-  it("accepts --aa flag on any command (citty handles routing)", () => {
-    const config = getConfig({
-      command: "tx",
-      positional: [],
-      flags: { aa: "true" },
-    });
+  it("accepts --aa flag", () => {
+    const config = buildCliConfig({ aa: true });
 
     expect(config.execution).toBe("aa");
+  });
+
+  it("reads all parsed positionals from the current command context", () => {
+    expect(
+      getPositionals({
+        _: ["tx-1", "tx-2"],
+        aa: true,
+      }),
+    ).toEqual(["tx-1", "tx-2"]);
+  });
+
+  it("getPositionals preserves tx IDs after boolean flags", () => {
+    // Simulates citty parsing `aomi tx sign --aa tx-1 tx-2`
+    expect(
+      getPositionals({
+        _: ["tx-1", "tx-2"],
+        aa: true,
+        eoa: false,
+      }),
+    ).toEqual(["tx-1", "tx-2"]);
+  });
+
+  it("extractSecrets parses repeated --secret flags from explicit argv", () => {
+    const secrets = extractSecrets([
+      "node", "aomi",
+      "--secret", "FOO=bar",
+      "chat", "hello",
+      "--secret", "BAZ=qux",
+    ]);
+    expect(secrets).toEqual({ FOO: "bar", BAZ: "qux" });
+  });
+
+  it("extractSecrets handles --secret=NAME=value form", () => {
+    const secrets = extractSecrets([
+      "node", "aomi",
+      "--secret=API_KEY=sk_live_123",
+    ]);
+    expect(secrets).toEqual({ API_KEY: "sk_live_123" });
+  });
+
+  it("buildCliConfig uses explicit argv for secret extraction", () => {
+    const config = buildCliConfig({}, {
+      argv: ["node", "aomi", "--secret", "MY_KEY=my_value"],
+    });
+    expect(config.secrets).toEqual({ MY_KEY: "my_value" });
   });
 
   it("explicit --aa uses AA with configured provider", () => {
