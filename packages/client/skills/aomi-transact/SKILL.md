@@ -5,8 +5,8 @@ description: >
   check balances or prices, build wallet requests, confirm quotes or routes,
   sign transactions or EIP-712 payloads, switch apps or chains, or execute
   swaps, transfers, and DeFi actions on-chain. Covers Aomi chat, transaction
-  review, AA-first signing with automatic EOA fallback, session controls, and
-  per-session secret ingestion.
+  review, account-abstraction signing with automatic EOA fallback, session
+  controls, and per-session secret ingestion.
 compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Requires viem for signing (`npm install viem`). Use AOMI_APP / --app, AOMI_MODEL / --model, AOMI_CHAIN_ID / --chain, CHAIN_RPC_URL / --rpc-url, optional --secret NAME=value ingestion, and AOMI_STATE_DIR for local session storage."
 license: MIT
 allowed-tools: Bash
@@ -25,7 +25,8 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 
 - The user wants to chat with the Aomi agent from the terminal.
 - The user wants balances, prices, routes, quotes, or transaction status.
-- The user wants to build, confirm, sign, or broadcast wallet requests.
+- The user wants to build, simulate, confirm, sign, or broadcast wallet requests.
+- The user wants to simulate a batch of pending transactions before signing.
 - The user wants to inspect or switch apps, models, chains, or sessions.
 - The user wants to inject API keys or other backend secrets for the current session.
 
@@ -61,8 +62,9 @@ to build or sign a transaction, continue with the workflow below.
 1. Chat with the agent.
 2. If the agent asks whether to proceed, send a short confirmation in the same session.
 3. Review pending requests with `aomi tx`.
-4. Sign the queued request.
-5. Verify with `aomi tx`, `aomi log`, or `aomi status`.
+4. For multi-step flows (e.g. approve → swap), simulate before signing: `aomi simulate tx-1 tx-2`.
+5. Sign the queued request(s).
+6. Verify with `aomi tx`, `aomi log`, or `aomi status`.
 
 The CLI output is the source of truth. If you do not see `Wallet request queued:
 tx-N`, there is nothing to sign yet.
@@ -162,7 +164,7 @@ Run `aomi tx` to see pending transactions, `aomi sign <id>` to sign.
 Use these rules exactly:
 
 - Default command: `aomi sign <tx-id> [<tx-id> ...]`
-- Default behavior: try AA first, retry unsponsored AA when Alchemy sponsorship is unavailable, then fall back to EOA automatically if AA still fails.
+- Default behavior: try account abstraction (AA) first, retry unsponsored AA when Alchemy sponsorship is unavailable, then fall back to EOA automatically if AA still fails.
 - `--aa`: require AA with no EOA fallback.
 - `--eoa`: force direct EOA execution.
 - `--aa-provider` or `--aa-mode`: AA-specific controls. Use them only when the user explicitly wants a provider or mode.
@@ -182,6 +184,87 @@ aomi sign tx-1 --eoa --private-key 0xYourPrivateKey --rpc-url https://eth.llamar
 # Explicit AA provider and mode
 aomi sign tx-1 --aa-provider pimlico --aa-mode 4337 --private-key 0xYourPrivateKey
 ```
+
+### Batch Simulation
+
+Use `aomi simulate` to dry-run pending transactions before signing. Simulation
+runs each tx sequentially on a forked chain so state-dependent flows (approve →
+swap) are validated as a batch — the swap sees the approve's state changes.
+
+```bash
+# Simulate a single pending tx
+aomi simulate tx-1
+
+# Simulate a multi-step batch in order (approve then swap)
+aomi simulate tx-1 tx-2
+```
+
+The response includes per-step success/failure, revert reasons, and gas usage:
+
+```
+Simulation result:
+  Batch success: true
+  Stateful: true
+  Total gas: 147821
+
+  Step 1 — approve USDC
+    success: true
+    gas_used: 46000
+
+  Step 2 — swap on Uniswap
+    success: true
+    gas_used: 101821
+```
+
+When to simulate:
+
+- **Always simulate multi-step flows** (approve → swap, approve → deposit, etc.) before signing. These are state-dependent — the second tx will revert if submitted independently.
+- **Optional for single independent txs** like a simple ETH transfer or a standalone swap with no prior approval needed.
+- If simulation fails at step N, read the revert reason before retrying. Common causes: insufficient balance, expired quote/timestamp, wrong calldata. Do not blindly re-sign after a simulation failure.
+
+When not to simulate:
+
+- Read-only operations (balances, prices, quotes).
+- If there are no pending transactions (`aomi tx` shows nothing).
+
+Simulation and signing workflow:
+
+```bash
+# 1. Build the request
+aomi chat "approve and swap 100 USDC for ETH on Uniswap" \
+  --public-key 0xYourAddress --chain 1
+
+# 2. Check what got queued
+aomi tx
+
+# 3. Simulate the batch
+aomi simulate tx-1 tx-2
+
+# 4. If simulation succeeds, sign
+aomi sign tx-1 tx-2 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+
+# 5. Verify
+aomi tx
+```
+
+### Account Abstraction
+
+AA is the preferred signing path when the user wants smart-account behavior,
+gas sponsorship, or the CLI's automated fallback handling.
+
+Use AA when:
+
+- The user wants the most hands-off signing flow and is fine with the CLI trying AA before EOA.
+- The user wants sponsored or user-funded smart-account execution through Alchemy or Pimlico.
+- The user explicitly asks for `4337` or `7702` account-abstraction mode.
+
+How to choose:
+
+- `aomi sign` with no AA flags: try AA first, then fall back to EOA automatically if AA is unavailable.
+- `aomi sign --aa`: require AA only. Use this when the user does not want an EOA fallback.
+- `aomi sign --eoa`: bypass AA entirely and sign directly with the wallet key.
+- `aomi sign --aa-provider alchemy|pimlico`: force a specific AA provider.
+- `aomi sign --aa-mode 4337|7702`: force the execution mode when the user wants a specific AA path.
 
 More signing notes:
 
@@ -244,6 +327,19 @@ aomi secret clear
 - `aomi events` shows raw backend system events.
 - `aomi secret list` shows configured secret handles for the active session.
 - `aomi secret clear` removes all configured secrets for the active session.
+
+### Batch Simulation
+
+```bash
+aomi simulate <tx-id> [<tx-id> ...]
+```
+
+- Runs pending transactions sequentially on a forked chain (Anvil snapshot/revert).
+- Each tx sees state changes from previous txs — validates state-dependent flows like approve → swap.
+- Returns per-step success/failure, revert reasons, and `gas_used`.
+- Returns `total_gas` for the entire batch.
+- No on-chain state is modified — the fork is reverted after simulation.
+- Requires pending transactions to exist in the session (`aomi tx` to check).
 
 ### App And Model Commands
 
@@ -369,7 +465,7 @@ All config can be passed as flags. Flags override environment variables.
 
 | Flag            | Env Var            | Default                | Purpose                                 |
 | --------------- | ------------------ | ---------------------- | --------------------------------------- |
-| `--backend-url` | `AOMI_BACKEND_URL`    | `https://api.aomi.dev` | Backend URL                             |
+| `--backend-url` | `AOMI_BASE_URL`    | `https://api.aomi.dev` | Backend URL                             |
 | `--api-key`     | `AOMI_API_KEY`     | none                   | API key for non-default apps            |
 | `--app`         | `AOMI_APP`         | `default`              | Backend app                             |
 | `--model`       | `AOMI_MODEL`       | backend default        | Session model                           |
@@ -450,6 +546,28 @@ aomi sign tx-1 \
 # 5. Verify
 aomi tx
 aomi log
+```
+
+### Approve + Swap With Simulation
+
+```bash
+# 1. Build a multi-step request
+aomi chat "approve and swap 500 USDC for ETH on Uniswap" \
+  --public-key 0xYourAddress --chain 1
+
+# 2. Check queued requests
+aomi tx
+
+# 3. Simulate the batch — approve then swap
+aomi simulate tx-1 tx-2
+
+# 4. If simulation passes, sign the batch
+aomi sign tx-1 tx-2 \
+  --private-key 0xYourPrivateKey \
+  --rpc-url https://eth.llamarpc.com
+
+# 5. Verify
+aomi tx
 ```
 
 ### Explicit EOA Flow
@@ -539,3 +657,5 @@ aomi close
 - `401`, `429`, and generic parameter errors during `aomi sign` are often RPC problems rather than transaction-construction problems. Try a reliable RPC for the correct chain.
 - If `ALCHEMY_API_KEY` is set, construct the correct chain-specific Alchemy RPC before falling back to random public endpoints.
 - If one or two public RPCs fail for the same chain, stop rotating through random endpoints and ask the user for a proper RPC URL for that chain.
+- If `aomi simulate` fails with a revert, read the revert reason. Common causes: expired quote or timestamp (re-chat to get a fresh quote), insufficient token balance, or missing prior approval. Do not sign transactions that failed simulation without understanding why.
+- If `aomi simulate` returns `stateful: false`, the backend could not fork the chain — simulation ran each tx independently via `eth_call`, so state-dependent flows (approve → swap) may show false negatives. Retry or check that the backend's Anvil instance is running.
