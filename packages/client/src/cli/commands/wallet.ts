@@ -3,7 +3,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
   executeWalletCalls,
-  type TransactionExecutionResult,
+  type ExecutionResult,
 } from "../../aa";
 import { ClientSession } from "../../session";
 import {
@@ -14,8 +14,9 @@ import { CliExit, fatal } from "../errors";
 import {
   createCliProviderState,
   describeExecutionDecision,
-  isAlchemySponsorshipLimitError,
+  getAlternativeAAMode,
   resolveCliExecutionDecision,
+  type CliExecutionDecision,
 } from "../execution";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
 import {
@@ -32,7 +33,7 @@ import {
   pendingTxToCallList,
   toSignedTransactionRecord,
 } from "../transactions";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 
 export function txCommand(): void {
   const state = readState();
@@ -92,31 +93,31 @@ function requirePendingTxs(
 }
 
 function rewriteSessionState(
-  runtime: CliRuntime,
+  config: CliConfig,
   state: CliSessionState,
 ): void {
   let changed = false;
 
-  if (runtime.config.baseUrl !== state.baseUrl) {
-    state.baseUrl = runtime.config.baseUrl;
+  if (config.baseUrl !== state.baseUrl) {
+    state.baseUrl = config.baseUrl;
     changed = true;
   }
 
-  if (runtime.config.app !== state.app) {
-    state.app = runtime.config.app;
+  if (config.app !== state.app) {
+    state.app = config.app;
     changed = true;
   }
 
   if (
-    runtime.config.apiKey !== undefined &&
-    runtime.config.apiKey !== state.apiKey
+    config.apiKey !== undefined &&
+    config.apiKey !== state.apiKey
   ) {
-    state.apiKey = runtime.config.apiKey;
+    state.apiKey = config.apiKey;
     changed = true;
   }
 
-  if (runtime.config.chain !== undefined && runtime.config.chain !== state.chainId) {
-    state.chainId = runtime.config.chain;
+  if (config.chain !== undefined && config.chain !== state.chainId) {
+    state.chainId = config.chain;
     changed = true;
   }
 
@@ -195,7 +196,7 @@ async function executeCliTransaction(params: {
   rpcUrl?: string;
   providerState: Awaited<ReturnType<typeof createCliProviderState>>;
   callList: ReturnType<typeof pendingTxToCallList>;
-}): Promise<TransactionExecutionResult> {
+}): Promise<ExecutionResult> {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
   const unsupportedWalletMethod = async (): Promise<never> => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
@@ -215,118 +216,15 @@ async function executeCliTransaction(params: {
   });
 }
 
-async function executeTransactionWithFallback(params: {
-  decision: ReturnType<typeof resolveCliExecutionDecision>;
-  privateKey: `0x${string}`;
-  currentChainId: number;
-  chainsById: Record<number, Chain>;
-  primaryChain: Chain;
-  rpcUrl?: string;
-  callList: ReturnType<typeof pendingTxToCallList>;
-}): Promise<{
-  execution: TransactionExecutionResult;
-  finalDecision: ReturnType<typeof resolveCliExecutionDecision>;
-}> {
-  const { decision, privateKey, currentChainId, chainsById, primaryChain, rpcUrl, callList } =
-    params;
 
-  const runExecution = async (
-    providerState: Awaited<ReturnType<typeof createCliProviderState>>,
-  ) =>
-    executeCliTransaction({
-      privateKey,
-      currentChainId,
-      chainsById,
-      rpcUrl,
-      providerState,
-      callList,
-    });
-
-  if (decision.execution === "eoa") {
-    const providerState = await createCliProviderState({
-      decision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl ?? "",
-      callList,
-    });
-    return {
-      execution: await runExecution(providerState),
-      finalDecision: decision,
-    };
-  }
-
-  let providerState = await createCliProviderState({
-    decision,
-    chain: primaryChain,
-    privateKey,
-    rpcUrl: rpcUrl ?? "",
-    callList,
-    sponsored: true,
-  });
-
-  try {
-    return {
-      execution: await runExecution(providerState),
-      finalDecision: decision,
-    };
-  } catch (error) {
-    const shouldRetryUnsponsored =
-      decision.provider === "alchemy" &&
-      isAlchemySponsorshipLimitError(error);
-
-    if (shouldRetryUnsponsored) {
-      console.log("AA sponsorship unavailable. Retrying AA with user-funded gas...");
-      providerState = await createCliProviderState({
-        decision,
-        chain: primaryChain,
-        privateKey,
-        rpcUrl: rpcUrl ?? "",
-        callList,
-        sponsored: false,
-      });
-
-      try {
-        return {
-          execution: await runExecution(providerState),
-          finalDecision: decision,
-        };
-      } catch (retryError) {
-        error = retryError;
-      }
-    }
-
-    if (!decision.fallbackToEoa) {
-      throw error;
-    }
-
-    const eoaDecision = { execution: "eoa" } as const;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.log(`AA execution failed: ${errorMessage}`);
-    console.log("Retrying with EOA execution...");
-    const eoaProviderState = await createCliProviderState({
-      decision: eoaDecision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl ?? "",
-      callList,
-    });
-    return {
-      execution: await runExecution(eoaProviderState),
-      finalDecision: eoaDecision,
-    };
-  }
-}
-
-export async function signCommand(runtime: CliRuntime): Promise<void> {
-  const txIds = runtime.parsed.positional;
+export async function signCommand(config: CliConfig, txIds: string[]): Promise<void> {
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs.",
     );
   }
 
-  const privateKey = runtime.config.privateKey;
+  const privateKey = config.privateKey;
   if (!privateKey) {
     fatal(
       [
@@ -343,7 +241,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
     fatal("No active session. Run `aomi chat` first.");
   }
 
-  rewriteSessionState(runtime, state);
+  rewriteSessionState(config, state);
 
   const pendingTxs = requirePendingTxs(state, txIds);
   const session = createSessionFromState(state);
@@ -361,7 +259,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       console.log("   Updating session to match the signing key...");
     }
 
-    const rpcUrl = runtime.config.chainRpcUrl;
+    const rpcUrl = config.chainRpcUrl;
     const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? state.chainId ?? 1);
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
@@ -441,21 +339,57 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       }
 
       const decision = resolveCliExecutionDecision({
-        config: runtime.config,
+        config,
         chain,
         callList,
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      const { execution, finalDecision } = await executeTransactionWithFallback({
-        decision,
-        privateKey: privateKey as `0x${string}`,
-        currentChainId: primaryChainId,
-        chainsById,
-        primaryChain: chain,
-        rpcUrl,
-        callList,
-      });
+      // Execute with AA mode fallback (e.g. 7702 → 4337)
+      let finalDecision: CliExecutionDecision = decision;
+      let execution: ExecutionResult;
+
+      const runWithDecision = async (d: CliExecutionDecision) => {
+        const ps = await createCliProviderState({
+          decision: d,
+          chain,
+          privateKey: privateKey as `0x${string}`,
+          rpcUrl: rpcUrl ?? "",
+          callList,
+        });
+        return executeCliTransaction({
+          privateKey: privateKey as `0x${string}`,
+          currentChainId: primaryChainId,
+          chainsById,
+          rpcUrl,
+          providerState: ps,
+          callList,
+        });
+      };
+
+      try {
+        execution = await runWithDecision(decision);
+      } catch (primaryError) {
+        const alt = getAlternativeAAMode(decision);
+        if (!alt) throw primaryError;
+
+        const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+        console.log(`AA ${decision.execution === "aa" ? decision.aaMode : "execution"} failed: ${primaryMsg}`);
+        console.log(`Retrying with ${alt.execution === "aa" ? alt.aaMode : "eoa"}...`);
+
+        try {
+          execution = await runWithDecision(alt);
+          finalDecision = alt;
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          fatal(
+            `❌ AA execution failed with both modes.\n` +
+            `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
+            `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
+            `Use \`--eoa\` to sign without account abstraction.`,
+          );
+        }
+      }
 
       console.log(`✅ Sent! Hash: ${execution.txHash}`);
       if (execution.txHashes.length > 1) {

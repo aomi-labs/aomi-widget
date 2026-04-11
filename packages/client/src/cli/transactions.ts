@@ -1,6 +1,6 @@
 import type {
-  TransactionExecutionResult,
-  WalletExecutionCall,
+  ExecutionResult,
+  WalletCall,
 } from "../aa";
 import type { WalletRequest } from "../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../wallet-utils";
@@ -31,7 +31,7 @@ export function walletRequestToPendingTx(
   };
 }
 
-export function pendingTxToCallList(tx: PendingTx): WalletExecutionCall[] {
+export function pendingTxToCallList(tx: PendingTx): WalletCall[] {
   if (tx.kind !== "transaction" || !tx.to) {
     throw new Error("pending_transaction_missing_call_data");
   }
@@ -48,7 +48,7 @@ export function pendingTxToCallList(tx: PendingTx): WalletExecutionCall[] {
 
 export function toSignedTransactionRecord(
   tx: PendingTx,
-  execution: TransactionExecutionResult,
+  execution: ExecutionResult,
   from: string,
   chainId: number,
   timestamp: number,

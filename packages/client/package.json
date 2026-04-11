@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/client",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "Platform-agnostic TypeScript client for the Aomi backend API",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -34,6 +34,7 @@
     "@alchemy/wallet-apis": "5.0.0-beta.22",
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
+    "citty": "^0.2.2",
     "viem": "^2.47.11"
   }
 }

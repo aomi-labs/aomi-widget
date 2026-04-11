@@ -1,17 +1,19 @@
 import type { Chain, Hex } from "viem";
 
+import type { AAProvider } from "./env";
+
 // ---------------------------------------------------------------------------
 // Enums / Literal Types
 // ---------------------------------------------------------------------------
 
-export type AAExecutionMode = "4337" | "7702";
-export type AASponsorshipMode = "disabled" | "optional" | "required";
+export type AAMode = "4337" | "7702";
+export type AASponsorship = "disabled" | "optional" | "required";
 
 // ---------------------------------------------------------------------------
 // Call Types
 // ---------------------------------------------------------------------------
 
-export type WalletExecutionCall = {
+export type WalletCall = {
   to: string;
   value: string;
   data?: string;
@@ -37,15 +39,15 @@ export type WalletPrimitiveCall = {
 export interface AAChainConfig {
   chainId: number;
   enabled: boolean;
-  defaultMode: AAExecutionMode;
-  supportedModes: AAExecutionMode[];
+  defaultMode: AAMode;
+  supportedModes: AAMode[];
   allowBatching: boolean;
-  sponsorship: AASponsorshipMode;
+  sponsorship: AASponsorship;
 }
 
 export interface AAConfig {
   enabled: boolean;
-  provider: string;
+  provider: AAProvider;
   fallbackToEoa: boolean;
   chains: AAChainConfig[];
 }
@@ -54,12 +56,12 @@ export interface AAConfig {
 // Execution Plan
 // ---------------------------------------------------------------------------
 
-export interface AAExecutionPlan {
-  provider: string;
+export interface AAResolvedConfig {
+  provider: AAProvider;
   chainId: number;
-  mode: AAExecutionMode;
+  mode: AAMode;
   batchingEnabled: boolean;
-  sponsorship: AASponsorshipMode;
+  sponsorship: AASponsorship;
   fallbackToEoa: boolean;
 }
 
@@ -67,7 +69,7 @@ export interface AAExecutionPlan {
 // Provider Abstractions
 // ---------------------------------------------------------------------------
 
-export interface AALike {
+export interface SmartAccount {
   provider: string;
   mode: string;
   AAAddress?: Hex;
@@ -76,25 +78,18 @@ export interface AALike {
   sendBatchTransaction: (calls: WalletPrimitiveCall[]) => Promise<{ transactionHash: string }>;
 }
 
-export interface AAProviderQuery<TAA extends AALike = AALike> {
-  AA?: TAA | null;
-  isPending?: boolean;
-  error?: Error | null;
-}
-
-export interface AAProviderState<TAA extends AALike = AALike> {
-  plan: AAExecutionPlan | null;
-  AA?: TAA | null;
-  isPending: boolean;
+export interface AAState<TAccount extends SmartAccount = SmartAccount> {
+  resolved: AAResolvedConfig | null;
+  account?: TAccount | null;
+  pending: boolean;
   error: Error | null;
-  query?: AAProviderQuery<TAA>;
 }
 
 // ---------------------------------------------------------------------------
 // Execution Params / Results
 // ---------------------------------------------------------------------------
 
-export interface TransactionExecutionResult {
+export interface ExecutionResult {
   txHash: string;
   txHashes: string[];
   executionKind: string;
@@ -104,7 +99,7 @@ export interface TransactionExecutionResult {
   delegationAddress?: Hex;
 }
 
-export interface SendCallsSyncArgs {
+export interface AtomicBatchArgs {
   calls: WalletPrimitiveCall[];
   capabilities?: {
     atomic?: {
@@ -114,14 +109,14 @@ export interface SendCallsSyncArgs {
 }
 
 export interface ExecuteWalletCallsParams<
-  TAA extends AALike = AALike,
+  TAccount extends SmartAccount = SmartAccount,
 > {
-  callList: WalletExecutionCall[];
+  callList: WalletCall[];
   currentChainId: number;
   capabilities: Record<string, WalletAtomicCapability> | undefined;
   localPrivateKey: `0x${string}` | null;
-  providerState: AAProviderState<TAA>;
-  sendCallsSyncAsync: (args: SendCallsSyncArgs) => Promise<unknown>;
+  providerState: AAState<TAccount>;
+  sendCallsSyncAsync: (args: AtomicBatchArgs) => Promise<unknown>;
   sendTransactionAsync: (args: {
     chainId: number;
     to: Hex;
@@ -137,8 +132,8 @@ export interface ExecuteWalletCallsParams<
 // Validation Sets
 // ---------------------------------------------------------------------------
 
-export const MODES = new Set<AAExecutionMode>(["4337", "7702"]);
-export const SPONSORSHIP_MODES = new Set<AASponsorshipMode>([
+export const MODES = new Set<AAMode>(["4337", "7702"]);
+export const SPONSORSHIP_MODES = new Set<AASponsorship>([
   "disabled",
   "optional",
   "required",
@@ -166,13 +161,13 @@ function assertChainConfig(
   if (typeof value.enabled !== "boolean") {
     throw new Error(`Invalid AA config chain ${value.chainId}: enabled must be a boolean`);
   }
-  if (!MODES.has(value.defaultMode as AAExecutionMode)) {
+  if (!MODES.has(value.defaultMode as AAMode)) {
     throw new Error(`Invalid AA config chain ${value.chainId}: unsupported defaultMode`);
   }
   if (!Array.isArray(value.supportedModes) || value.supportedModes.length === 0) {
     throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes must be a non-empty array`);
   }
-  if (!value.supportedModes.every((mode) => MODES.has(mode as AAExecutionMode))) {
+  if (!value.supportedModes.every((mode) => MODES.has(mode as AAMode))) {
     throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes contains an unsupported mode`);
   }
   if (!value.supportedModes.includes(value.defaultMode)) {
@@ -181,7 +176,7 @@ function assertChainConfig(
   if (typeof value.allowBatching !== "boolean") {
     throw new Error(`Invalid AA config chain ${value.chainId}: allowBatching must be a boolean`);
   }
-  if (!SPONSORSHIP_MODES.has(value.sponsorship as AASponsorshipMode)) {
+  if (!SPONSORSHIP_MODES.has(value.sponsorship as AASponsorship)) {
     throw new Error(`Invalid AA config chain ${value.chainId}: unsupported sponsorship mode`);
   }
 }
@@ -203,6 +198,9 @@ export function parseAAConfig(
   if (typeof value.provider !== "string" || !value.provider) {
     throw new Error("Invalid AA config: provider must be a non-empty string");
   }
+  if (value.provider !== "alchemy" && value.provider !== "pimlico") {
+    throw new Error("Invalid AA config: provider must be either \"alchemy\" or \"pimlico\"");
+  }
   if (typeof value.fallbackToEoa !== "boolean") {
     throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
   }
@@ -214,7 +212,7 @@ export function parseAAConfig(
 
   return {
     enabled: value.enabled,
-    provider: value.provider as string,
+    provider: value.provider,
     fallbackToEoa: value.fallbackToEoa,
     chains: value.chains as AAChainConfig[],
   };
@@ -222,7 +220,7 @@ export function parseAAConfig(
 
 export function getAAChainConfig(
   config: AAConfig,
-  calls: WalletExecutionCall[],
+  calls: WalletCall[],
   chainsById: Record<number, Chain>,
 ): AAChainConfig | null {
   if (!config.enabled || calls.length === 0) {
@@ -253,7 +251,7 @@ export function getAAChainConfig(
 export function buildAAExecutionPlan(
   config: AAConfig,
   chainConfig: AAChainConfig,
-): AAExecutionPlan {
+): AAResolvedConfig {
   const mode = chainConfig.supportedModes.includes(chainConfig.defaultMode)
     ? chainConfig.defaultMode
     : chainConfig.supportedModes[0];
@@ -277,14 +275,14 @@ export function buildAAExecutionPlan(
 // ---------------------------------------------------------------------------
 
 export function getWalletExecutorReady(
-  providerState: AAProviderState,
+  providerState: AAState,
 ): boolean {
   return (
-    !providerState.plan ||
-    (!providerState.isPending &&
-      (Boolean(providerState.AA) ||
+    !providerState.resolved ||
+    (!providerState.pending &&
+      (Boolean(providerState.account) ||
         Boolean(providerState.error) ||
-        providerState.plan.fallbackToEoa))
+        providerState.resolved.fallbackToEoa))
   );
 }
 
@@ -292,7 +290,7 @@ export function getWalletExecutorReady(
 // Execution
 // ---------------------------------------------------------------------------
 
-export function mapCall(call: WalletExecutionCall): WalletPrimitiveCall {
+export function mapCall(call: WalletCall): WalletPrimitiveCall {
   return {
     to: call.to as Hex,
     value: BigInt(call.value),
@@ -348,16 +346,16 @@ export const DEFAULT_AA_CONFIG: AAConfig = {
   ],
 };
 
-export const DISABLED_PROVIDER_STATE: AAProviderState = {
-  plan: null,
-  AA: undefined,
-  isPending: false,
+export const DISABLED_PROVIDER_STATE: AAState = {
+  resolved: null,
+  account: undefined,
+  pending: false,
   error: null,
 };
 
 export async function executeWalletCalls(
   params: ExecuteWalletCallsParams,
-): Promise<TransactionExecutionResult> {
+): Promise<ExecutionResult> {
   const {
     callList,
     currentChainId,
@@ -371,11 +369,11 @@ export async function executeWalletCalls(
     getPreferredRpcUrl,
   } = params;
 
-  if (providerState.plan && providerState.AA) {
+  if (providerState.resolved && providerState.account) {
     return executeViaAA(callList, providerState);
   }
 
-  if (providerState.plan && providerState.error && !providerState.plan.fallbackToEoa) {
+  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
     throw providerState.error;
   }
 
@@ -397,41 +395,41 @@ export async function executeWalletCalls(
 // ---------------------------------------------------------------------------
 
 async function executeViaAA(
-  callList: WalletExecutionCall[],
-  providerState: AAProviderState,
-): Promise<TransactionExecutionResult> {
-  const AA = providerState.AA;
-  const plan = providerState.plan;
+  callList: WalletCall[],
+  providerState: AAState,
+): Promise<ExecutionResult> {
+  const account = providerState.account;
+  const resolved = providerState.resolved;
 
-  if (!AA || !plan) {
+  if (!account || !resolved) {
     throw providerState.error ?? new Error("smart_account_unavailable");
   }
 
   const callsPayload = callList.map(mapCall);
   const receipt =
     callList.length > 1
-      ? await AA.sendBatchTransaction(callsPayload)
-      : await AA.sendTransaction(callsPayload[0]);
+      ? await account.sendBatchTransaction(callsPayload)
+      : await account.sendTransaction(callsPayload[0]);
   const txHash = receipt.transactionHash;
-  const providerPrefix = AA.provider.toLowerCase();
+  const providerPrefix = account.provider.toLowerCase();
 
   // For 7702, the SDK may not provide the delegation address (or provide the
   // EOA which is already filtered out by adaptSmartAccount).  Fall back to
   // reading the authorization list from the on-chain transaction.
   let delegationAddress: Hex | undefined =
-    AA.mode === "7702" ? AA.delegationAddress : undefined;
+    account.mode === "7702" ? account.delegationAddress : undefined;
 
-  if (AA.mode === "7702" && !delegationAddress) {
+  if (account.mode === "7702" && !delegationAddress) {
     delegationAddress = await resolve7702Delegation(txHash, callList);
   }
 
   return {
     txHash,
     txHashes: [txHash],
-    executionKind: `${providerPrefix}_${AA.mode}`,
+    executionKind: `${providerPrefix}_${account.mode}`,
     batched: callList.length > 1,
-    sponsored: plan.sponsorship !== "disabled",
-    AAAddress: AA.AAAddress,
+    sponsored: resolved.sponsorship !== "disabled",
+    AAAddress: account.AAAddress,
     delegationAddress,
   };
 }
@@ -443,7 +441,7 @@ async function executeViaAA(
  */
 async function resolve7702Delegation(
   txHash: string,
-  callList: WalletExecutionCall[],
+  callList: WalletCall[],
 ): Promise<Hex | undefined> {
   try {
     const { createPublicClient, http } = await import("viem");
@@ -484,7 +482,7 @@ async function executeViaEoa({
   switchChainAsync,
   chainsById,
   getPreferredRpcUrl,
-}: Omit<ExecuteWalletCallsParams, "providerState">): Promise<TransactionExecutionResult> {
+}: Omit<ExecuteWalletCallsParams, "providerState">): Promise<ExecutionResult> {
   const { createPublicClient, createWalletClient, http } = await import("viem");
   const { privateKeyToAccount } = await import("viem/accounts");
 

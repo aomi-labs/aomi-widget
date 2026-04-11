@@ -97,12 +97,12 @@ describe("createAAProviderState", () => {
     );
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
 
-    expect(state.plan).toMatchObject({
+    expect(state.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
       fallbackToEoa: false,
     });
-    expect(state.AA).toMatchObject({
+    expect(state.account).toMatchObject({
       provider: "alchemy",
       mode: "7702",
       AAAddress: expect.stringMatching(/^0x[a-fA-F0-9]{40}$/),
@@ -135,10 +135,10 @@ describe("createAAProviderState", () => {
       }),
     );
     expect(requestAccountMock).toHaveBeenCalledTimes(1);
-    expect(state.plan).toMatchObject({
+    expect(state.resolved).toMatchObject({
       sponsorship: "disabled",
     });
-    expect(state.AA).toMatchObject({
+    expect(state.account).toMatchObject({
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       mode: "4337",
     });
@@ -172,11 +172,11 @@ describe("createAAProviderState", () => {
       }),
     );
 
-    expect(state.plan).toMatchObject({
+    expect(state.resolved).toMatchObject({
       provider: "pimlico",
       mode: "4337",
     });
-    expect(state.AA).toMatchObject({
+    expect(state.account).toMatchObject({
       provider: "PIMLICO",
       AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
@@ -199,10 +199,10 @@ describe("createAAProviderState", () => {
       mode: "7702",
     });
 
-    expect(state.AA).toBeNull();
+    expect(state.account).toBeNull();
     expect(state.error).toBeInstanceOf(Error);
     expect(state.error!.message).toBe("SDK init failed");
-    expect(state.plan).not.toBeNull();
+    expect(state.resolved).not.toBeNull();
   });
 
   it("returns error state when smart account is null", async () => {
@@ -223,7 +223,7 @@ describe("createAAProviderState", () => {
       mode: "7702",
     });
 
-    expect(state.AA).toMatchObject({
+    expect(state.account).toMatchObject({
       provider: "alchemy",
       mode: "7702",
     });
@@ -284,7 +284,7 @@ describe("createAAProviderState owner modes", () => {
         mode: "7702",
       }),
     );
-    expect(state.AA).toMatchObject({
+    expect(state.account).toMatchObject({
       provider: "ALCHEMY",
       mode: "7702",
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -324,7 +324,7 @@ describe("createAAProviderState owner modes", () => {
         mode: "4337",
       }),
     );
-    expect(state.AA).toMatchObject({
+    expect(state.account).toMatchObject({
       provider: "PIMLICO",
       mode: "4337",
       AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
@@ -348,7 +348,7 @@ describe("createAAProviderState owner modes", () => {
     });
 
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
-    expect(state.AA).toBeNull();
+    expect(state.account).toBeNull();
     expect(state.error).toBeInstanceOf(Error);
     expect(state.error!.message).toBe('Session adapter "privy" is not implemented.');
   });

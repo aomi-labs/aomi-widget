@@ -22,26 +22,21 @@ import {
 } from "../context";
 import { fatal } from "../errors";
 import { walletRequestToPendingTx } from "../transactions";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 
-export async function chatCommand(runtime: CliRuntime): Promise<void> {
-  const message = runtime.parsed.positional.join(" ");
+export async function chatCommand(config: CliConfig, message: string, verbose: boolean): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
 
-  const verbose =
-    runtime.parsed.flags["verbose"] === "true" ||
-    runtime.parsed.flags["v"] === "true";
-
-  const { session, state } = getOrCreateSession(runtime, {
-    fresh: runtime.config.freshSession,
+  const { session, state } = getOrCreateSession(config, {
+    fresh: config.freshSession,
   });
 
   try {
-    await ingestSecretsIfPresent(runtime, state, session.client);
-    await applyRequestedModelIfPresent(runtime, session, state);
+    await ingestSecretsIfPresent(config, state, session.client);
+    await applyRequestedModelIfPresent(config, session, state);
 
     session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
 

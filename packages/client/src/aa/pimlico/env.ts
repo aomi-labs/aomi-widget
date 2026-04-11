@@ -1,0 +1,4 @@
+export const PIMLICO_API_KEY_ENVS = [
+  "PIMLICO_API_KEY",
+  "NEXT_PUBLIC_PIMLICO_API_KEY",
+] as const;

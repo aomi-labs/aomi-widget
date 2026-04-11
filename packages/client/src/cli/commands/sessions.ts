@@ -14,7 +14,7 @@ import {
   printKeyValueTable,
   printTransactionTable,
 } from "../tables";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 
 type RemoteSessionStats = {
   topic: string;
@@ -76,7 +76,7 @@ function printSessionSummary(
   printTransactionTable(pendingTxs, signedTxs);
 }
 
-export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
+export async function sessionsCommand(_config: CliConfig): Promise<void> {
   const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
   if (sessions.length === 0) {
     console.log("No local sessions.");
@@ -104,55 +104,32 @@ export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
   printDataFileLocation();
 }
 
-export async function sessionCommand(runtime: CliRuntime): Promise<void> {
-  const subcommand = runtime.parsed.positional[0];
-  const selector = runtime.parsed.positional[1];
+export function newSessionCommand(config: CliConfig): void {
+  const state = createFreshSessionState(config);
+  console.log(`Active session set to ${state.sessionId} (new).`);
+  printDataFileLocation();
+}
 
-  if (subcommand === "new") {
-    const state = createFreshSessionState(runtime);
-    console.log(`Active session set to ${state.sessionId} (new).`);
-    printDataFileLocation();
-    return;
+export function resumeSessionCommand(selector: string): void {
+  const resumed = setActiveSession(selector);
+  if (!resumed) {
+    fatal(`No local session found for selector "${selector}".`);
   }
+  console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+  printDataFileLocation();
+}
 
-  if (subcommand === "resume") {
-    if (!selector) {
-      fatal("Usage: aomi session resume <session-id|session-N|N>");
-    }
-    const resumed = setActiveSession(selector);
-    if (!resumed) {
-      fatal(`No local session found for selector \"${selector}\".`);
-    }
-    console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
-    printDataFileLocation();
-    return;
+export function deleteSessionCommand(selector: string): void {
+  const deleted = deleteStoredSession(selector);
+  if (!deleted) {
+    fatal(`No local session found for selector "${selector}".`);
   }
-
-  if (subcommand === "delete") {
-    if (!selector) {
-      fatal("Usage: aomi session delete <session-id|session-N|N>");
-    }
-    const deleted = deleteStoredSession(selector);
-    if (!deleted) {
-      fatal(`No local session found for selector \"${selector}\".`);
-    }
-    console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
-    const active = readState();
-    if (active) {
-      console.log(`Active session: ${active.sessionId}`);
-    } else {
-      console.log("No active session");
-    }
-    printDataFileLocation();
-    return;
+  console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+  const active = readState();
+  if (active) {
+    console.log(`Active session: ${active.sessionId}`);
+  } else {
+    console.log("No active session");
   }
-
-  if (subcommand === "list") {
-    await sessionsCommand(runtime);
-    return;
-  }
-
-  fatal(
-    "Usage: aomi session list\n       aomi session new\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>",
-  );
+  printDataFileLocation();
 }
