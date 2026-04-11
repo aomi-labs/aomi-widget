@@ -36,7 +36,7 @@ describe("CLI session lifecycle", () => {
       config: {
         baseUrl: "https://api.aomi.dev",
         app: "default",
-        execution: "auto",
+        execution: "eoa",
         secrets: {},
       },
     };
@@ -58,27 +58,27 @@ describe("CLI session lifecycle", () => {
     expect(readState()?.clientId).toBe(fresh.clientId);
   });
 
-  it("supports `aomi session new` as an explicit fresh-session command", async () => {
+  it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { sessionCommand } = await import("../src/cli/commands/sessions");
+    const { newSessionCommand } = await import("../src/cli/commands/sessions");
     const { readState } = await import("../src/cli/state");
 
     const runtime = {
       parsed: {
         command: "session",
-        positional: ["new"],
+        positional: [],
         flags: {},
         secrets: {},
       },
       config: {
         baseUrl: "https://api.aomi.dev",
         app: "default",
-        execution: "auto",
+        execution: "eoa",
         secrets: {},
       },
     };
 
-    await sessionCommand(runtime);
+    newSessionCommand(runtime);
 
     expect(readState()?.sessionId).toBeDefined();
     expect(logSpy).toHaveBeenCalledWith(

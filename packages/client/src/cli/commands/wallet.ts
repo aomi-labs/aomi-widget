@@ -14,8 +14,9 @@ import { CliExit, fatal } from "../errors";
 import {
   createCliProviderState,
   describeExecutionDecision,
-  isAlchemySponsorshipLimitError,
+  getAlternativeAAMode,
   resolveCliExecutionDecision,
+  type CliExecutionDecision,
 } from "../execution";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
 import {
@@ -215,108 +216,6 @@ async function executeCliTransaction(params: {
   });
 }
 
-async function executeTransactionWithFallback(params: {
-  decision: ReturnType<typeof resolveCliExecutionDecision>;
-  privateKey: `0x${string}`;
-  currentChainId: number;
-  chainsById: Record<number, Chain>;
-  primaryChain: Chain;
-  rpcUrl?: string;
-  callList: ReturnType<typeof pendingTxToCallList>;
-}): Promise<{
-  execution: ExecutionResult;
-  finalDecision: ReturnType<typeof resolveCliExecutionDecision>;
-}> {
-  const { decision, privateKey, currentChainId, chainsById, primaryChain, rpcUrl, callList } =
-    params;
-
-  const runExecution = async (
-    providerState: Awaited<ReturnType<typeof createCliProviderState>>,
-  ) =>
-    executeCliTransaction({
-      privateKey,
-      currentChainId,
-      chainsById,
-      rpcUrl,
-      providerState,
-      callList,
-    });
-
-  if (decision.execution === "eoa") {
-    const providerState = await createCliProviderState({
-      decision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl ?? "",
-      callList,
-    });
-    return {
-      execution: await runExecution(providerState),
-      finalDecision: decision,
-    };
-  }
-
-  let providerState = await createCliProviderState({
-    decision,
-    chain: primaryChain,
-    privateKey,
-    rpcUrl: rpcUrl ?? "",
-    callList,
-    sponsored: true,
-  });
-
-  try {
-    return {
-      execution: await runExecution(providerState),
-      finalDecision: decision,
-    };
-  } catch (error) {
-    const shouldRetryUnsponsored =
-      decision.provider === "alchemy" &&
-      isAlchemySponsorshipLimitError(error);
-
-    if (shouldRetryUnsponsored) {
-      console.log("AA sponsorship unavailable. Retrying AA with user-funded gas...");
-      providerState = await createCliProviderState({
-        decision,
-        chain: primaryChain,
-        privateKey,
-        rpcUrl: rpcUrl ?? "",
-        callList,
-        sponsored: false,
-      });
-
-      try {
-        return {
-          execution: await runExecution(providerState),
-          finalDecision: decision,
-        };
-      } catch (retryError) {
-        error = retryError;
-      }
-    }
-
-    if (!decision.fallbackToEoa) {
-      throw error;
-    }
-
-    const eoaDecision = { execution: "eoa" } as const;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.log(`AA execution failed: ${errorMessage}`);
-    console.log("Retrying with EOA execution...");
-    const eoaProviderState = await createCliProviderState({
-      decision: eoaDecision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl ?? "",
-      callList,
-    });
-    return {
-      execution: await runExecution(eoaProviderState),
-      finalDecision: eoaDecision,
-    };
-  }
-}
 
 export async function signCommand(runtime: CliRuntime): Promise<void> {
   const txIds = runtime.parsed.positional;
@@ -447,15 +346,51 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      const { execution, finalDecision } = await executeTransactionWithFallback({
-        decision,
-        privateKey: privateKey as `0x${string}`,
-        currentChainId: primaryChainId,
-        chainsById,
-        primaryChain: chain,
-        rpcUrl,
-        callList,
-      });
+      // Execute with AA mode fallback (e.g. 7702 → 4337)
+      let finalDecision: CliExecutionDecision = decision;
+      let execution: ExecutionResult;
+
+      const runWithDecision = async (d: CliExecutionDecision) => {
+        const ps = await createCliProviderState({
+          decision: d,
+          chain,
+          privateKey: privateKey as `0x${string}`,
+          rpcUrl: rpcUrl ?? "",
+          callList,
+        });
+        return executeCliTransaction({
+          privateKey: privateKey as `0x${string}`,
+          currentChainId: primaryChainId,
+          chainsById,
+          rpcUrl,
+          providerState: ps,
+          callList,
+        });
+      };
+
+      try {
+        execution = await runWithDecision(decision);
+      } catch (primaryError) {
+        const alt = getAlternativeAAMode(decision);
+        if (!alt) throw primaryError;
+
+        const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+        console.log(`AA ${decision.execution === "aa" ? decision.aaMode : "execution"} failed: ${primaryMsg}`);
+        console.log(`Retrying with ${alt.execution === "aa" ? alt.aaMode : "eoa"}...`);
+
+        try {
+          execution = await runWithDecision(alt);
+          finalDecision = alt;
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          fatal(
+            `❌ AA execution failed with both modes.\n` +
+            `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
+            `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
+            `Use \`--eoa\` to sign without account abstraction.`,
+          );
+        }
+      }
 
       console.log(`✅ Sent! Hash: ${execution.txHash}`);
       if (execution.txHashes.length > 1) {
