@@ -16,16 +16,16 @@ import {
   printKeyValueTable,
   printTransactionTable,
 } from "../tables";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 
-export async function logCommand(runtime: CliRuntime): Promise<void> {
+export async function logCommand(config: CliConfig): Promise<void> {
   if (!readState()) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
 
-  const { session, state } = getOrCreateSession(runtime);
+  const { session, state } = getOrCreateSession(config);
 
   try {
     const apiState = await session.client.fetchState(state.sessionId, undefined, state.clientId);
@@ -108,9 +108,9 @@ export async function logCommand(runtime: CliRuntime): Promise<void> {
   }
 }
 
-export function closeCommand(runtime: CliRuntime): void {
+export function closeCommand(config: CliConfig): void {
   if (readState()) {
-    const { session } = getOrCreateSession(runtime);
+    const { session } = getOrCreateSession(config);
     session.close();
   }
   clearState();

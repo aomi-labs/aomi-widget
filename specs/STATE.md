@@ -2,9 +2,87 @@
 
 ## Last Updated
 
-2026-04-03 - Removed unused `apps/landing/src/mdx-provider.tsx`
+2026-04-12 - Phase 5: Cleanup legacy code
 
 ## Recent Changes
+
+### Phase 5: Cleanup legacy code (2026-04-12)
+
+- **Deleted `src/cli/args.ts`** — hand-rolled `parseArgs()` + `getConfig()` parser fully replaced
+- **Removed `ParsedArgs` and `CliRuntime` types** from `types.ts` — `CliConfig` is the single config type
+- **`buildCliConfig(args)` in `shared.ts`** — single source of truth for CLI config, reads citty's typed args + env vars directly (no re-parsing `process.argv`)
+- **Extracted `src/cli/chains.ts`** — `SUPPORTED_CHAIN_IDS`, `CHAIN_NAMES` (from deleted `args.ts`)
+- **Extracted `src/cli/validation.ts`** — `parseChainId`, `normalizePrivateKey`, `parseAAProvider`, `parseAAMode` (from deleted `args.ts`)
+- **All handler functions** take `CliConfig` directly (no more `runtime.config` destructuring)
+- **All def files** use `buildCliConfig(args)` instead of `toCliRuntime()`
+- **Updated `commands/aa.ts`** import — `CHAIN_NAMES`/`SUPPORTED_CHAIN_IDS` from `../chains` (was `../args`)
+- **Updated test files** — `cli-execution.unit.test.ts` uses `buildCliConfig()`, `cli-session.unit.test.ts` passes `CliConfig` directly, `cli-wallet-sign.unit.test.ts` passes `(config, txIds)` signature
+- All 188 tests pass, build clean
+
+### Phase 4: Flatten AA execution (2026-04-12)
+
+- **Removed `"auto"` execution mode** from `CliExecutionMode` — now `"aa" | "eoa"` only
+- **Removed `fallbackToEoa`** from `CliExecutionDecision` — AA either works or fails, no silent cascading
+- **Deleted `executeTransactionWithFallback()`** (~100 lines) from `wallet.ts` — the 3-layer sponsored→unsponsored→EOA cascade
+- **Simplified `resolveCliExecutionDecision()`** from ~80 lines to ~15 lines — just checks if provider is configured
+- **Simplified `resolveAAProvider()`** — removed `required` parameter, always throws on missing config when AA requested
+- **Removed `sponsored` parameter** from `createCliProviderState()` — no more sponsorship retry logic
+- **Removed `isAlchemySponsorshipLimitError` re-export** from `execution.ts` — no longer needed by CLI
+- **Updated `resolveExecutionMode()` in `args.ts`** — default is `"eoa"`, `--aa`/`--aa-provider`/`--aa-mode` set `"aa"`
+- **Removed sign-flag command guard** from `getConfig()` — citty handles command routing now
+- **Exported `CliExecutionDecision` type** from `execution.ts` for external use
+- **Updated `tx.ts` defs** — refreshed flag descriptions for `--aa` and `--eoa`
+- **Fixed `cli-session.unit.test.ts`** — updated to use `newSessionCommand` (pre-existing break from umbrella removal)
+- **Updated all test expectations** — removed `fallbackToEoa`, changed `"auto"` to `"aa"`/`"eoa"`, fixed `sponsored` params
+- **Updated `specs/AA-ARCH.md`** — CLI flow, decision type, single-shot sign, `fallback` field vs signing, `--aa-provider` / `--aa-mode` as AA triggers, `executeWalletCalls` + `fallbackToEoa` note for widget vs CLI
+- **Made `execution` optional in `CliConfig`** — `undefined` means auto-detect (AA if configured, else EOA)
+- **`resolveExecutionMode` returns `undefined`** when no `--aa`/`--eoa` flag (was returning `"eoa"`)
+- **`resolveCliExecutionDecision` handles `undefined`** — checks if provider configured, uses AA automatically
+- **Added `getAlternativeAAMode()`** — returns the other mode (7702↔4337) for fallback
+- **Added mode fallback in `signCommand`** — tries preferred mode, if fails tries alternative, if both fail: hard error with `--eoa` suggestion
+- All 189 tests pass, build clean
+
+#### Execution model
+| AA configured? | Flag | Result |
+|---|---|---|
+| Yes | (none) | **AA automatically** (7702 → 4337 fallback) |
+| Yes | `--aa` | AA required, same fallback |
+| Yes | `--eoa` | EOA, skip AA |
+| No | (none) | EOA |
+| No | `--aa` | Error: "configure AA first" |
+
+### Spec: AA-ARCH.md refresh (2026-04-11)
+
+- **Updated `specs/AA-ARCH.md`** to match current `packages/client/src/aa/` layout (`alchemy/` and `pimlico/` subpackages, `owner.ts`, dynamic SDK imports in provider `create.ts` files), CLI persistence (`~/.aomi/aa.json`, `aomi aa`, `aomi tx sign`), `AAState` naming, ERC-20 + 4337 mode override, and flattened CLI sign path (no sponsorship/EOA cascade).
+
+### CLI Refactor: citty + noun-verb + AA config (2026-04-11)
+
+- **Adopted citty** as CLI framework, replacing hand-rolled `switch` dispatcher
+- **New file `src/cli/root.ts`** — root `defineCommand` with noun-verb subcommands tree
+- **New directory `src/cli/commands/defs/`** — citty `defineCommand` wrappers for each noun:
+  - `chat.ts`, `tx.ts` (list/simulate/sign), `session.ts` (list/new/resume/delete/status/log/events/close), `model.ts` (list/set/current), `app.ts` (list/current), `chain.ts` (list), `secret.ts` (list/clear/add), `aa.ts` (status/set/test/reset)
+- **New file `src/cli/commands/defs/shared.ts`** — global args definition + `toCliRuntime()` bridge adapter
+- **New file `src/cli/aa-config.ts`** — persistent AA config in `~/.aomi/aa.json`
+- **New file `src/cli/commands/aa.ts`** — AA config command handlers
+- **Modified `src/cli/main.ts`** — replaced `main()` switch + `printUsage()` with `runMain(root)` from citty
+- **Removed legacy aliases** — no more `aomi sign`, `aomi log`, etc. at top level; use `aomi tx sign`, `aomi session log`
+- **Removed umbrella routing** — deleted `sessionCommand`, `modelCommand`, `appCommand`, `chainCommand`, `secretCommand`; defs call leaf handlers directly
+- **Extracted leaf handlers** — `newSessionCommand`, `resumeSessionCommand`, `deleteSessionCommand`, `currentAppCommand`, `currentModelCommand`, `setModelCommand`, `listSecretsCommand`, `clearSecretsCommand`
+- **Deleted `createRuntime`** from `args.ts`
+
+#### Command surface
+```
+aomi chat <message>                 Send a message
+aomi tx list                        List transactions
+aomi tx simulate <id>...            Simulate batch
+aomi tx sign <id>...                Sign and submit
+aomi session list|new|resume|delete|status|log|events|close
+aomi model list|set|current
+aomi app list|current
+aomi chain list
+aomi secret list|clear|add
+aomi aa status|set|test|reset
+```
 
 ### Landing `content/components` + resolve aliases (2026-04-03)
 

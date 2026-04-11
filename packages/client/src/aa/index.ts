@@ -1,18 +1,17 @@
 export {
   // Types
-  type AAExecutionMode,
-  type AASponsorshipMode,
-  type WalletExecutionCall,
+  type AAMode,
+  type AASponsorship,
+  type WalletCall,
   type AAChainConfig,
   type AAConfig,
-  type AAExecutionPlan,
+  type AAResolvedConfig,
   type WalletAtomicCapability,
   type WalletPrimitiveCall,
-  type AALike,
-  type AAProviderQuery,
-  type AAProviderState,
-  type TransactionExecutionResult,
-  type SendCallsSyncArgs,
+  type SmartAccount,
+  type AAState,
+  type ExecutionResult,
+  type AtomicBatchArgs,
   type ExecuteWalletCallsParams,
 
   // Constants
@@ -64,7 +63,6 @@ export {
 // ---------------------------------------------------------------------------
 
 export {
-  type ParaSmartAccountLike,
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
 } from "./adapt";
@@ -87,7 +85,7 @@ export {
 // ---------------------------------------------------------------------------
 
 export {
-  type CreateAAOwner,
-  type CreateAAProviderStateOptions,
+  type AAOwner,
+  type CreateAAStateOptions,
   createAAProviderState,
 } from "./create";

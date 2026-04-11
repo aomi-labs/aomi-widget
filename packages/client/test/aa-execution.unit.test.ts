@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { mainnet, polygon } from "viem/chains";
 
-import { executeWalletCalls, type AAProviderState } from "../src/aa";
+import { executeWalletCalls, type AAState } from "../src/aa";
 
 function makeProviderState(params: {
   mode: "7702" | "4337";
   sendTransaction?: ReturnType<typeof vi.fn>;
   sendBatchTransaction?: ReturnType<typeof vi.fn>;
-}): AAProviderState {
+}): AAState {
   return {
-    plan: {
+    resolved: {
       provider: "alchemy",
       chainId: params.mode === "7702" ? mainnet.id : polygon.id,
       mode: params.mode,
@@ -17,7 +17,7 @@ function makeProviderState(params: {
       sponsorship: "optional",
       fallbackToEoa: false,
     },
-    AA: {
+    account: {
       provider: "ALCHEMY",
       mode: params.mode,
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -32,7 +32,7 @@ function makeProviderState(params: {
         params.sendBatchTransaction ??
         vi.fn().mockResolvedValue({ transactionHash: "0xbatch" }),
     },
-    isPending: false,
+    pending: false,
     error: null,
   };
 }

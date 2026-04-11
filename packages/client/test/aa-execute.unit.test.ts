@@ -13,7 +13,7 @@ vi.mock("viem", async () => {
   };
 });
 
-import { executeWalletCalls, type AAProviderState } from "../src/aa";
+import { executeWalletCalls, type AAState } from "../src/aa";
 
 const TX_HASH = "0xabc123";
 const CALL_LIST = [
@@ -25,10 +25,10 @@ const CALL_LIST = [
 ] as const;
 
 function make7702ProviderState(
-  overrides: Partial<NonNullable<AAProviderState["AA"]>> = {},
-): AAProviderState {
+  overrides: Partial<NonNullable<AAState["account"]>> = {},
+): AAState {
   return {
-    plan: {
+    resolved: {
       provider: "alchemy",
       chainId: 1,
       mode: "7702",
@@ -36,7 +36,7 @@ function make7702ProviderState(
       sponsorship: "optional",
       fallbackToEoa: false,
     },
-    AA: {
+    account: {
       provider: "ALCHEMY",
       mode: "7702",
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -44,7 +44,7 @@ function make7702ProviderState(
       sendBatchTransaction: vi.fn(),
       ...overrides,
     },
-    isPending: false,
+    pending: false,
     error: null,
   };
 }
