@@ -53,7 +53,6 @@ vi.mock("../src/cli/execution", async () => {
     createCliProviderState: mocks.createCliProviderState,
     describeExecutionDecision: vi.fn(() => "EOA"),
     resolveCliExecutionDecision: vi.fn(() => ({ execution: "eoa" })),
-    isAlchemySponsorshipLimitError: vi.fn(() => false),
   };
 });
 

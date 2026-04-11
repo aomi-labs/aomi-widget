@@ -31,20 +31,22 @@ function parseChainId(value: string | undefined): number | undefined {
   return n;
 }
 
-function resolveExecutionMode(flags: Record<string, string>): CliExecutionMode {
+function resolveExecutionMode(flags: Record<string, string>): CliExecutionMode | undefined {
   const flagAA = flags["aa"] === "true";
   const flagEoa = flags["eoa"] === "true";
-  const hasAASelection =
-    flags["aa-provider"] !== undefined || flags["aa-mode"] !== undefined;
   if (flagAA && flagEoa) {
     fatal("Choose only one of `--aa` or `--eoa`.");
   }
 
-  if (flagAA) return "aa";
   if (flagEoa) return "eoa";
-  if (hasAASelection) return "aa";
 
-  return "auto";
+  // --aa, --aa-provider, or --aa-mode all force AA
+  if (flagAA || flags["aa-provider"] !== undefined || flags["aa-mode"] !== undefined) {
+    return "aa";
+  }
+
+  // No explicit flag — auto-detect at execution time (AA if configured, else EOA)
+  return undefined;
 }
 
 function parseAAProvider(value: string | undefined): CliAAProvider | undefined {
@@ -120,18 +122,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
 }
 
 export function getConfig(parsed: ParsedArgs): CliConfig {
-  const usesSignFlags =
-    parsed.flags["aa"] === "true" ||
-    parsed.flags["eoa"] === "true" ||
-    parsed.flags["aa-provider"] !== undefined ||
-    parsed.flags["aa-mode"] !== undefined;
-
-  if (usesSignFlags && parsed.command !== "sign") {
-    fatal(
-      "AA/EOA execution flags are only supported on `aomi sign <tx-id>`.",
-    );
-  }
-
   const execution = resolveExecutionMode(parsed.flags);
   const aaProvider = parseAAProvider(
     parsed.flags["aa-provider"] ?? process.env.AOMI_AA_PROVIDER,

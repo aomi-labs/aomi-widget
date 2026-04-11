@@ -31,19 +31,19 @@ const txSignDef = defineCommand({
     ...globalArgs,
     eoa: {
       type: "boolean",
-      description: "Force plain EOA execution",
+      description: "Force plain EOA execution, skip AA even if configured",
     },
     aa: {
       type: "boolean",
-      description: "Require account-abstraction execution with no EOA fallback",
+      description: "Force AA execution, error if provider not configured (default: auto-detect)",
     },
     "aa-provider": {
       type: "string",
-      description: "AA provider: alchemy | pimlico",
+      description: "AA provider override: alchemy | pimlico",
     },
     "aa-mode": {
       type: "string",
-      description: "AA mode: 4337 | 7702",
+      description: "AA mode override: 4337 | 7702",
     },
     txIds: {
       type: "positional",

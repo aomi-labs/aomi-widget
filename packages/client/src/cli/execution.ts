@@ -75,14 +75,11 @@ function maybeOverride4337ForTokenOps(params: {
   return { mode, warned: true };
 }
 
-// Re-export for wallet.ts and tests
-export { isAlchemySponsorshipLimitError } from "../aa";
-
 // ---------------------------------------------------------------------------
 // CLI Execution Decision
 // ---------------------------------------------------------------------------
 
-type CliExecutionDecision =
+export type CliExecutionDecision =
   | {
       execution: "eoa";
     }
@@ -90,7 +87,6 @@ type CliExecutionDecision =
       execution: "aa";
       provider: CliAAProvider;
       aaMode: CliAAMode;
-      fallbackToEoa: boolean;
     };
 
 function getCliAAApiKey(
@@ -117,53 +113,44 @@ function isCliProviderConfigured(
   return Boolean(getCliAAApiKey(provider, persisted));
 }
 
-function resolveAAProvider(
-  config: CliConfig,
-  options: { required: boolean },
-): CliAAProvider | null {
+/**
+ * Find which AA provider to use.
+ *
+ * Priority: explicit CLI flag → persisted preferred → first configured.
+ * Returns null when nothing is configured.
+ */
+function resolveAAProvider(config: CliConfig): CliAAProvider | null {
   const persisted = readAAConfig();
-  const selectedProvider = config.aaProvider;
-  const preferredProvider = persisted.provider;
 
-  if (selectedProvider) {
-    if (isCliProviderConfigured(selectedProvider, persisted)) {
-      return selectedProvider;
+  if (config.aaProvider) {
+    if (isCliProviderConfigured(config.aaProvider, persisted)) {
+      return config.aaProvider;
     }
-    if (options.required) {
-      const envName =
-        selectedProvider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
-      throw new Error(
-        `AA provider "${selectedProvider}" is selected but ${envName} is not configured.\nRun \`aomi aa set key <your-key>\` or set ${envName}.`,
-      );
-    }
+    const envName =
+      config.aaProvider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
+    throw new Error(
+      `AA provider "${config.aaProvider}" is selected but ${envName} is not configured.\nRun \`aomi aa set key <your-key>\` or set ${envName}.`,
+    );
   }
 
-  if (preferredProvider && isCliProviderConfigured(preferredProvider, persisted)) {
-    return preferredProvider;
-  }
-
+  const preferred = persisted.provider;
+  if (preferred && isCliProviderConfigured(preferred, persisted)) return preferred;
   if (isCliProviderConfigured("alchemy", persisted)) return "alchemy";
   if (isCliProviderConfigured("pimlico", persisted)) return "pimlico";
 
-  if (!options.required) {
-    return null;
-  }
-
-  throw new Error(
-    "AA requires provider credentials. Run `aomi aa set key <your-key>` or set ALCHEMY_API_KEY / PIMLICO_API_KEY, or use --eoa.",
-  );
+  return null;
 }
 
-function getResolvedAAMode(params: {
+/**
+ * Resolve the AA mode (4337 | 7702) for the chosen provider+chain.
+ */
+function resolveAAMode(params: {
   provider: CliAAProvider;
   config: CliConfig;
   chain: Chain;
   callList: WalletCall[];
-  fallbackToEoa: boolean;
-}): CliExecutionDecision {
-  const { provider, config, chain, callList, fallbackToEoa } = params;
-
-  // Mode: CLI flag > env var > persisted config
+}): CliAAMode {
+  const { provider, config, chain, callList } = params;
   const persisted = readAAConfig();
   const effectiveMode = config.aaMode ?? (persisted.mode as CliAAMode | undefined);
 
@@ -198,14 +185,16 @@ function getResolvedAAMode(params: {
     explicitMode: Boolean(config.aaMode),
   });
 
-  return {
-    execution: "aa",
-    provider,
-    aaMode: finalMode,
-    fallbackToEoa,
-  };
+  return finalMode;
 }
 
+/**
+ * Decide how to execute a transaction: AA or EOA.
+ *
+ * - `--eoa`  → EOA, always.
+ * - `--aa`   → AA, error if not configured.
+ * - (default, no flag) → AA if a provider is configured, else EOA.
+ */
 export function resolveCliExecutionDecision(params: {
   config: CliConfig;
   chain: Chain;
@@ -217,31 +206,35 @@ export function resolveCliExecutionDecision(params: {
     return { execution: "eoa" };
   }
 
-  const requireAA = config.execution === "aa";
-  const provider = resolveAAProvider(config, { required: requireAA });
+  const provider = resolveAAProvider(config);
+
+  // Explicit --aa but no provider configured → error
+  if (!provider && config.execution === "aa") {
+    throw new Error(
+      "AA requires provider credentials.\nRun `aomi aa set provider <name>` and `aomi aa set key <key>`, or set ALCHEMY_API_KEY / PIMLICO_API_KEY.",
+    );
+  }
+
+  // No provider configured, no explicit flag → default to EOA
   if (!provider) {
     return { execution: "eoa" };
   }
 
-  // Fallback: CLI flag > persisted config > default (eoa when auto, none when explicit)
-  const persisted = readAAConfig();
-  const persistedFallbackToEoa = persisted.fallback !== "none";
-  const fallbackToEoa = requireAA ? false : persistedFallbackToEoa;
+  // Provider configured → use AA
+  const aaMode = resolveAAMode({ provider, config, chain, callList });
 
-  try {
-    return getResolvedAAMode({
-      provider,
-      config,
-      chain,
-      callList,
-      fallbackToEoa,
-    });
-  } catch (error) {
-    if (!requireAA) {
-      return { execution: "eoa" };
-    }
-    throw error;
-  }
+  return { execution: "aa", provider, aaMode };
+}
+
+/**
+ * Return the alternative AA mode for fallback, or null if no alternative.
+ */
+export function getAlternativeAAMode(
+  decision: CliExecutionDecision,
+): CliExecutionDecision | null {
+  if (decision.execution !== "aa") return null;
+  const alt: CliAAMode = decision.aaMode === "7702" ? "4337" : "7702";
+  return { execution: "aa", provider: decision.provider, aaMode: alt };
 }
 
 // ---------------------------------------------------------------------------
@@ -254,9 +247,8 @@ export async function createCliProviderState(params: {
   privateKey: `0x${string}`;
   rpcUrl: string;
   callList: WalletCall[];
-  sponsored?: boolean;
 }): Promise<AAState> {
-  const { decision, chain, privateKey, rpcUrl, callList, sponsored } = params;
+  const { decision, chain, privateKey, rpcUrl, callList } = params;
   const persisted = readAAConfig();
 
   if (decision.execution === "eoa") {
@@ -275,7 +267,6 @@ export async function createCliProviderState(params: {
       decision.provider === "alchemy"
         ? getCliAlchemyGasPolicyId(persisted)
         : undefined,
-    sponsored,
   });
 }
 
@@ -290,7 +281,5 @@ export function describeExecutionDecision(
     return "eoa";
   }
 
-  return decision.fallbackToEoa
-    ? `aa (${decision.provider}, ${decision.aaMode}; fallback: eoa)`
-    : `aa (${decision.provider}, ${decision.aaMode})`;
+  return `aa (${decision.provider}, ${decision.aaMode})`;
 }

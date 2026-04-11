@@ -75,14 +75,14 @@ ${list}`);
 function resolveExecutionMode(flags) {
   const flagAA = flags["aa"] === "true";
   const flagEoa = flags["eoa"] === "true";
-  const hasAASelection = flags["aa-provider"] !== void 0 || flags["aa-mode"] !== void 0;
   if (flagAA && flagEoa) {
     fatal("Choose only one of `--aa` or `--eoa`.");
   }
-  if (flagAA) return "aa";
   if (flagEoa) return "eoa";
-  if (hasAASelection) return "aa";
-  return "auto";
+  if (flagAA || flags["aa-provider"] !== void 0 || flags["aa-mode"] !== void 0) {
+    return "aa";
+  }
+  return void 0;
 }
 function parseAAProvider(value) {
   if (value === void 0 || value.trim() === "") return void 0;
@@ -150,12 +150,6 @@ function parseArgs(argv) {
 }
 function getConfig(parsed) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
-  const usesSignFlags = parsed.flags["aa"] === "true" || parsed.flags["eoa"] === "true" || parsed.flags["aa-provider"] !== void 0 || parsed.flags["aa-mode"] !== void 0;
-  if (usesSignFlags && parsed.command !== "sign") {
-    fatal(
-      "AA/EOA execution flags are only supported on `aomi sign <tx-id>`."
-    );
-  }
   const execution = resolveExecutionMode(parsed.flags);
   const aaProvider = parseAAProvider(
     (_a3 = parsed.flags["aa-provider"]) != null ? _a3 : process.env.AOMI_AA_PROVIDER
@@ -2709,11 +2703,6 @@ function adaptSmartAccount(account) {
     }
   };
 }
-function isAlchemySponsorshipLimitError(error) {
-  const message = error instanceof Error ? error.message : String(error != null ? error : "");
-  const normalized = message.toLowerCase();
-  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
-}
 var init_adapt = __esm({
   "src/aa/adapt.ts"() {
     "use strict";
@@ -3398,37 +3387,27 @@ function getCliAlchemyGasPolicyId(persisted = readAAConfig()) {
 function isCliProviderConfigured(provider, persisted = readAAConfig()) {
   return Boolean(getCliAAApiKey(provider, persisted));
 }
-function resolveAAProvider(config, options) {
+function resolveAAProvider(config) {
   const persisted = readAAConfig();
-  const selectedProvider = config.aaProvider;
-  const preferredProvider = persisted.provider;
-  if (selectedProvider) {
-    if (isCliProviderConfigured(selectedProvider, persisted)) {
-      return selectedProvider;
+  if (config.aaProvider) {
+    if (isCliProviderConfigured(config.aaProvider, persisted)) {
+      return config.aaProvider;
     }
-    if (options.required) {
-      const envName = selectedProvider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
-      throw new Error(
-        `AA provider "${selectedProvider}" is selected but ${envName} is not configured.
+    const envName = config.aaProvider === "alchemy" ? "ALCHEMY_API_KEY" : "PIMLICO_API_KEY";
+    throw new Error(
+      `AA provider "${config.aaProvider}" is selected but ${envName} is not configured.
 Run \`aomi aa set key <your-key>\` or set ${envName}.`
-      );
-    }
+    );
   }
-  if (preferredProvider && isCliProviderConfigured(preferredProvider, persisted)) {
-    return preferredProvider;
-  }
+  const preferred = persisted.provider;
+  if (preferred && isCliProviderConfigured(preferred, persisted)) return preferred;
   if (isCliProviderConfigured("alchemy", persisted)) return "alchemy";
   if (isCliProviderConfigured("pimlico", persisted)) return "pimlico";
-  if (!options.required) {
-    return null;
-  }
-  throw new Error(
-    "AA requires provider credentials. Run `aomi aa set key <your-key>` or set ALCHEMY_API_KEY / PIMLICO_API_KEY, or use --eoa."
-  );
+  return null;
 }
-function getResolvedAAMode(params) {
+function resolveAAMode(params) {
   var _a3;
-  const { provider, config, chain, callList, fallbackToEoa } = params;
+  const { provider, config, chain, callList } = params;
   const persisted = readAAConfig();
   const effectiveMode = (_a3 = config.aaMode) != null ? _a3 : persisted.mode;
   const resolveOpts = {
@@ -3452,43 +3431,32 @@ function getResolvedAAMode(params) {
     chain,
     explicitMode: Boolean(config.aaMode)
   });
-  return {
-    execution: "aa",
-    provider,
-    aaMode: finalMode,
-    fallbackToEoa
-  };
+  return finalMode;
 }
 function resolveCliExecutionDecision(params) {
   const { config, chain, callList } = params;
   if (config.execution === "eoa") {
     return { execution: "eoa" };
   }
-  const requireAA = config.execution === "aa";
-  const provider = resolveAAProvider(config, { required: requireAA });
+  const provider = resolveAAProvider(config);
+  if (!provider && config.execution === "aa") {
+    throw new Error(
+      "AA requires provider credentials.\nRun `aomi aa set provider <name>` and `aomi aa set key <key>`, or set ALCHEMY_API_KEY / PIMLICO_API_KEY."
+    );
+  }
   if (!provider) {
     return { execution: "eoa" };
   }
-  const persisted = readAAConfig();
-  const persistedFallbackToEoa = persisted.fallback !== "none";
-  const fallbackToEoa = requireAA ? false : persistedFallbackToEoa;
-  try {
-    return getResolvedAAMode({
-      provider,
-      config,
-      chain,
-      callList,
-      fallbackToEoa
-    });
-  } catch (error) {
-    if (!requireAA) {
-      return { execution: "eoa" };
-    }
-    throw error;
-  }
+  const aaMode = resolveAAMode({ provider, config, chain, callList });
+  return { execution: "aa", provider, aaMode };
+}
+function getAlternativeAAMode(decision) {
+  if (decision.execution !== "aa") return null;
+  const alt = decision.aaMode === "7702" ? "4337" : "7702";
+  return { execution: "aa", provider: decision.provider, aaMode: alt };
 }
 async function createCliProviderState(params) {
-  const { decision, chain, privateKey, rpcUrl, callList, sponsored } = params;
+  const { decision, chain, privateKey, rpcUrl, callList } = params;
   const persisted = readAAConfig();
   if (decision.execution === "eoa") {
     return DISABLED_PROVIDER_STATE;
@@ -3501,15 +3469,14 @@ async function createCliProviderState(params) {
     callList,
     mode: decision.aaMode,
     apiKey: getCliAAApiKey(decision.provider, persisted),
-    gasPolicyId: decision.provider === "alchemy" ? getCliAlchemyGasPolicyId(persisted) : void 0,
-    sponsored
+    gasPolicyId: decision.provider === "alchemy" ? getCliAlchemyGasPolicyId(persisted) : void 0
   });
 }
 function describeExecutionDecision(decision) {
   if (decision.execution === "eoa") {
     return "eoa";
   }
-  return decision.fallbackToEoa ? `aa (${decision.provider}, ${decision.aaMode}; fallback: eoa)` : `aa (${decision.provider}, ${decision.aaMode})`;
+  return `aa (${decision.provider}, ${decision.aaMode})`;
 }
 var ERC20_SELECTORS;
 var init_execution = __esm({
@@ -3517,7 +3484,6 @@ var init_execution = __esm({
     "use strict";
     init_aa();
     init_aa_config();
-    init_aa();
     ERC20_SELECTORS = /* @__PURE__ */ new Set([
       "0x095ea7b3",
       // approve(address,uint256)
@@ -3668,83 +3634,6 @@ async function executeCliTransaction(params) {
     getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl)
   });
 }
-async function executeTransactionWithFallback(params) {
-  const { decision, privateKey, currentChainId, chainsById, primaryChain, rpcUrl, callList } = params;
-  const runExecution = async (providerState2) => executeCliTransaction({
-    privateKey,
-    currentChainId,
-    chainsById,
-    rpcUrl,
-    providerState: providerState2,
-    callList
-  });
-  if (decision.execution === "eoa") {
-    const providerState2 = await createCliProviderState({
-      decision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl != null ? rpcUrl : "",
-      callList
-    });
-    return {
-      execution: await runExecution(providerState2),
-      finalDecision: decision
-    };
-  }
-  let providerState = await createCliProviderState({
-    decision,
-    chain: primaryChain,
-    privateKey,
-    rpcUrl: rpcUrl != null ? rpcUrl : "",
-    callList,
-    sponsored: true
-  });
-  try {
-    return {
-      execution: await runExecution(providerState),
-      finalDecision: decision
-    };
-  } catch (error) {
-    const shouldRetryUnsponsored = decision.provider === "alchemy" && isAlchemySponsorshipLimitError(error);
-    if (shouldRetryUnsponsored) {
-      console.log("AA sponsorship unavailable. Retrying AA with user-funded gas...");
-      providerState = await createCliProviderState({
-        decision,
-        chain: primaryChain,
-        privateKey,
-        rpcUrl: rpcUrl != null ? rpcUrl : "",
-        callList,
-        sponsored: false
-      });
-      try {
-        return {
-          execution: await runExecution(providerState),
-          finalDecision: decision
-        };
-      } catch (retryError) {
-        error = retryError;
-      }
-    }
-    if (!decision.fallbackToEoa) {
-      throw error;
-    }
-    const eoaDecision = { execution: "eoa" };
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.log(`AA execution failed: ${errorMessage}`);
-    console.log("Retrying with EOA execution...");
-    const eoaProviderState = await createCliProviderState({
-      decision: eoaDecision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl != null ? rpcUrl : "",
-      callList
-    });
-    return {
-      execution: await runExecution(eoaProviderState),
-      finalDecision: eoaDecision
-    };
-  }
-}
 async function signCommand(runtime) {
   var _a3, _b, _c, _d;
   const txIds = runtime.parsed.positional;
@@ -3862,15 +3751,46 @@ async function signCommand(runtime) {
         callList
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
-      const { execution, finalDecision } = await executeTransactionWithFallback({
-        decision,
-        privateKey,
-        currentChainId: primaryChainId,
-        chainsById,
-        primaryChain: chain,
-        rpcUrl,
-        callList
-      });
+      let finalDecision = decision;
+      let execution;
+      const runWithDecision = async (d) => {
+        const ps = await createCliProviderState({
+          decision: d,
+          chain,
+          privateKey,
+          rpcUrl: rpcUrl != null ? rpcUrl : "",
+          callList
+        });
+        return executeCliTransaction({
+          privateKey,
+          currentChainId: primaryChainId,
+          chainsById,
+          rpcUrl,
+          providerState: ps,
+          callList
+        });
+      };
+      try {
+        execution = await runWithDecision(decision);
+      } catch (primaryError) {
+        const alt = getAlternativeAAMode(decision);
+        if (!alt) throw primaryError;
+        const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+        console.log(`AA ${decision.execution === "aa" ? decision.aaMode : "execution"} failed: ${primaryMsg}`);
+        console.log(`Retrying with ${alt.execution === "aa" ? alt.aaMode : "eoa"}...`);
+        try {
+          execution = await runWithDecision(alt);
+          finalDecision = alt;
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          fatal(
+            `\u274C AA execution failed with both modes.
+  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}
+  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}
+Use \`--eoa\` to sign without account abstraction.`
+          );
+        }
+      }
       console.log(`\u2705 Sent! Hash: ${execution.txHash}`);
       if (execution.txHashes.length > 1) {
         console.log(`Count:   ${execution.txHashes.length}`);
@@ -4972,19 +4892,19 @@ var txSignDef = defineCommand2({
   args: __spreadProps(__spreadValues({}, globalArgs), {
     eoa: {
       type: "boolean",
-      description: "Force plain EOA execution"
+      description: "Force plain EOA execution, skip AA even if configured"
     },
     aa: {
       type: "boolean",
-      description: "Require account-abstraction execution with no EOA fallback"
+      description: "Force AA execution, error if provider not configured (default: auto-detect)"
     },
     "aa-provider": {
       type: "string",
-      description: "AA provider: alchemy | pimlico"
+      description: "AA provider override: alchemy | pimlico"
     },
     "aa-mode": {
       type: "string",
-      description: "AA mode: 4337 | 7702"
+      description: "AA mode override: 4337 | 7702"
     },
     txIds: {
       type: "positional",

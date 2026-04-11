@@ -2,9 +2,45 @@
 
 ## Last Updated
 
-2026-04-11 - CLI refactor: citty + noun-verb + AA config persistence
+2026-04-12 - Phase 4: Flatten AA execution + auto-detect + mode fallback
 
 ## Recent Changes
+
+### Phase 4: Flatten AA execution (2026-04-12)
+
+- **Removed `"auto"` execution mode** from `CliExecutionMode` — now `"aa" | "eoa"` only
+- **Removed `fallbackToEoa`** from `CliExecutionDecision` — AA either works or fails, no silent cascading
+- **Deleted `executeTransactionWithFallback()`** (~100 lines) from `wallet.ts` — the 3-layer sponsored→unsponsored→EOA cascade
+- **Simplified `resolveCliExecutionDecision()`** from ~80 lines to ~15 lines — just checks if provider is configured
+- **Simplified `resolveAAProvider()`** — removed `required` parameter, always throws on missing config when AA requested
+- **Removed `sponsored` parameter** from `createCliProviderState()` — no more sponsorship retry logic
+- **Removed `isAlchemySponsorshipLimitError` re-export** from `execution.ts` — no longer needed by CLI
+- **Updated `resolveExecutionMode()` in `args.ts`** — default is `"eoa"`, `--aa`/`--aa-provider`/`--aa-mode` set `"aa"`
+- **Removed sign-flag command guard** from `getConfig()` — citty handles command routing now
+- **Exported `CliExecutionDecision` type** from `execution.ts` for external use
+- **Updated `tx.ts` defs** — refreshed flag descriptions for `--aa` and `--eoa`
+- **Fixed `cli-session.unit.test.ts`** — updated to use `newSessionCommand` (pre-existing break from umbrella removal)
+- **Updated all test expectations** — removed `fallbackToEoa`, changed `"auto"` to `"aa"`/`"eoa"`, fixed `sponsored` params
+- **Updated `specs/AA-ARCH.md`** — CLI flow, decision type, single-shot sign, `fallback` field vs signing, `--aa-provider` / `--aa-mode` as AA triggers, `executeWalletCalls` + `fallbackToEoa` note for widget vs CLI
+- **Made `execution` optional in `CliConfig`** — `undefined` means auto-detect (AA if configured, else EOA)
+- **`resolveExecutionMode` returns `undefined`** when no `--aa`/`--eoa` flag (was returning `"eoa"`)
+- **`resolveCliExecutionDecision` handles `undefined`** — checks if provider configured, uses AA automatically
+- **Added `getAlternativeAAMode()`** — returns the other mode (7702↔4337) for fallback
+- **Added mode fallback in `signCommand`** — tries preferred mode, if fails tries alternative, if both fail: hard error with `--eoa` suggestion
+- All 189 tests pass, build clean
+
+#### Execution model
+| AA configured? | Flag | Result |
+|---|---|---|
+| Yes | (none) | **AA automatically** (7702 → 4337 fallback) |
+| Yes | `--aa` | AA required, same fallback |
+| Yes | `--eoa` | EOA, skip AA |
+| No | (none) | EOA |
+| No | `--aa` | Error: "configure AA first" |
+
+### Spec: AA-ARCH.md refresh (2026-04-11)
+
+- **Updated `specs/AA-ARCH.md`** to match current `packages/client/src/aa/` layout (`alchemy/` and `pimlico/` subpackages, `owner.ts`, dynamic SDK imports in provider `create.ts` files), CLI persistence (`~/.aomi/aa.json`, `aomi aa`, `aomi tx sign`), `AAState` naming, ERC-20 + 4337 mode override, and flattened CLI sign path (no sponsorship/EOA cascade).
 
 ### CLI Refactor: citty + noun-verb + AA config (2026-04-11)
 

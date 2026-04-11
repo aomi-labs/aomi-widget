@@ -50,9 +50,10 @@ import { getConfig, parseArgs } from "../src/cli/args";
 import {
   createCliProviderState,
   describeExecutionDecision,
-  isAlchemySponsorshipLimitError,
+  getAlternativeAAMode,
   resolveCliExecutionDecision,
 } from "../src/cli/execution";
+import { isAlchemySponsorshipLimitError } from "../src/aa";
 
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
@@ -110,14 +111,14 @@ describe("CLI execution controls", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("defaults to auto mode when neither --aa nor --eoa is provided", () => {
+  it("defaults to undefined (auto-detect) when neither --aa nor --eoa is provided", () => {
     const config = getConfig({
       command: "sign",
       positional: [],
       flags: {},
     });
 
-    expect(config.execution).toBe("auto");
+    expect(config.execution).toBeUndefined();
   });
 
   it("treats -V as a short flag instead of a command", () => {
@@ -192,16 +193,14 @@ describe("CLI execution controls", () => {
     expect(config.aaMode).toBeUndefined();
   });
 
-  it("keeps auto mode while honoring AA provider preferences from env", () => {
-    process.env.AOMI_AA_PROVIDER = "alchemy";
-
+  it("sets aa mode when --aa-provider is specified via env", () => {
     const config = getConfig({
       command: "sign",
       positional: [],
-      flags: {},
+      flags: { "aa-provider": "alchemy" },
     });
 
-    expect(config.execution).toBe("auto");
+    expect(config.execution).toBe("aa");
     expect(config.aaProvider).toBe("alchemy");
   });
 
@@ -219,21 +218,17 @@ describe("CLI execution controls", () => {
     errorSpy.mockRestore();
   });
 
-  it("errors when AA flags are used outside `aomi sign`", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("accepts --aa flag on any command (citty handles routing)", () => {
+    const config = getConfig({
+      command: "tx",
+      positional: [],
+      flags: { aa: "true" },
+    });
 
-    expect(() =>
-      getConfig({
-        command: "tx",
-        positional: [],
-        flags: { aa: "true" },
-      }),
-    ).toThrow(CliExit);
-
-    errorSpy.mockRestore();
+    expect(config.execution).toBe("aa");
   });
 
-  it("auto mode prefers AA and preserves an EOA fallback", () => {
+  it("explicit --aa uses AA with configured provider", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.PIMLICO_API_KEY = "pimlico-key";
 
@@ -241,7 +236,7 @@ describe("CLI execution controls", () => {
       config: {
         baseUrl: "https://api.aomi.dev",
         app: "default",
-        execution: "auto",
+        execution: "aa",
       },
       chain: mainnet,
       callList: [...CALL_LIST],
@@ -251,10 +246,9 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
-      fallbackToEoa: true,
     });
     expect(describeExecutionDecision(decision)).toBe(
-      "aa (alchemy, 7702; fallback: eoa)",
+      "aa (alchemy, 7702)",
     );
   });
 
@@ -277,7 +271,6 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "pimlico",
       aaMode: "4337",
-      fallbackToEoa: false,
     });
   });
 
@@ -300,7 +293,6 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
-      fallbackToEoa: false,
     });
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Switching to 7702"),
@@ -329,7 +321,6 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "4337",
-      fallbackToEoa: false,
     });
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Tokens must be in the smart account"),
@@ -338,18 +329,68 @@ describe("CLI execution controls", () => {
     logSpy.mockRestore();
   });
 
-  it("auto mode falls back to direct EOA when no AA provider is configured", () => {
+  it("auto-detect uses AA when provider is configured (no flag)", () => {
+    process.env.ALCHEMY_API_KEY = "alchemy-key";
+
     const decision = resolveCliExecutionDecision({
       config: {
         baseUrl: "https://api.aomi.dev",
         app: "default",
-        execution: "auto",
+        // execution: undefined — no --aa or --eoa flag
+      },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+    });
+
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+    });
+  });
+
+  it("auto-detect falls back to EOA when no provider configured", () => {
+    const decision = resolveCliExecutionDecision({
+      config: {
+        baseUrl: "https://api.aomi.dev",
+        app: "default",
+        // execution: undefined, no providers
       },
       chain: mainnet,
       callList: [...CALL_LIST],
     });
 
     expect(decision).toEqual({ execution: "eoa" });
+  });
+
+  it("eoa mode returns EOA decision regardless of provider config", () => {
+    process.env.ALCHEMY_API_KEY = "alchemy-key";
+
+    const decision = resolveCliExecutionDecision({
+      config: {
+        baseUrl: "https://api.aomi.dev",
+        app: "default",
+        execution: "eoa",
+      },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+    });
+
+    expect(decision).toEqual({ execution: "eoa" });
+  });
+
+  it("aa mode throws when no AA provider is configured", () => {
+    expect(() =>
+      resolveCliExecutionDecision({
+        config: {
+          baseUrl: "https://api.aomi.dev",
+          app: "default",
+          execution: "aa",
+        },
+        chain: mainnet,
+        callList: [...CALL_LIST],
+      }),
+    ).toThrow("AA requires provider credentials");
   });
 
   it("uses persisted AA credentials when env vars are not set", () => {
@@ -367,7 +408,7 @@ describe("CLI execution controls", () => {
       config: {
         baseUrl: "https://api.aomi.dev",
         app: "default",
-        execution: "auto",
+        execution: "aa",
       },
       chain: mainnet,
       callList: [...CALL_LIST],
@@ -377,7 +418,6 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "pimlico",
       aaMode: "4337",
-      fallbackToEoa: true,
     });
   });
 
@@ -404,7 +444,6 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "7702",
-        fallbackToEoa: false,
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
@@ -447,7 +486,6 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "7702",
-        fallbackToEoa: false,
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
@@ -466,7 +504,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("can build an unsponsored Alchemy AA provider state", async () => {
+  it("creates Alchemy AA provider state for 4337 mode", async () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
@@ -475,13 +513,11 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "4337",
-        fallbackToEoa: false,
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
-      sponsored: false,
     });
 
     // CLI (direct key) uses wallet-apis even for 4337
@@ -489,7 +525,6 @@ describe("CLI execution controls", () => {
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "4337",
-      sponsorship: "disabled",
     });
   });
 
@@ -505,5 +540,35 @@ describe("CLI execution controls", () => {
     expect(isAlchemySponsorshipLimitError(new Error("validation reverted"))).toBe(
       false,
     );
+  });
+
+  it("getAlternativeAAMode returns the opposite mode", () => {
+    expect(
+      getAlternativeAAMode({
+        execution: "aa",
+        provider: "alchemy",
+        aaMode: "7702",
+      }),
+    ).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "4337",
+    });
+
+    expect(
+      getAlternativeAAMode({
+        execution: "aa",
+        provider: "pimlico",
+        aaMode: "4337",
+      }),
+    ).toEqual({
+      execution: "aa",
+      provider: "pimlico",
+      aaMode: "7702",
+    });
+  });
+
+  it("getAlternativeAAMode returns null for EOA decisions", () => {
+    expect(getAlternativeAAMode({ execution: "eoa" })).toBeNull();
   });
 });
