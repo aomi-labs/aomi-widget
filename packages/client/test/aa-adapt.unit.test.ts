@@ -4,7 +4,6 @@ import type { TransactionReceipt } from "viem";
 import {
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
-  type ParaSmartAccountLike,
 } from "../src/aa/adapt";
 
 describe("adaptSmartAccount", () => {
@@ -12,7 +11,9 @@ describe("adaptSmartAccount", () => {
     transactionHash: "0xabc123",
   } as TransactionReceipt;
 
-  function makeMockAccount(): ParaSmartAccountLike {
+  type MockAccount = Parameters<typeof adaptSmartAccount>[0];
+
+  function makeMockAccount(): MockAccount {
     return {
       provider: "ALCHEMY",
       mode: "7702",
@@ -38,7 +39,7 @@ describe("adaptSmartAccount", () => {
       ...makeMockAccount(),
       smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       delegationAddress: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    } satisfies ParaSmartAccountLike;
+    } satisfies MockAccount;
 
     const adapted = adaptSmartAccount(account);
 
@@ -52,7 +53,7 @@ describe("adaptSmartAccount", () => {
       mode: "4337",
       smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       delegationAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    } satisfies ParaSmartAccountLike;
+    } satisfies MockAccount;
 
     const adapted = adaptSmartAccount(account);
 

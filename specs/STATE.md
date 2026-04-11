@@ -2,9 +2,38 @@
 
 ## Last Updated
 
-2026-04-03 - Removed unused `apps/landing/src/mdx-provider.tsx`
+2026-04-11 - CLI refactor: citty + noun-verb + AA config persistence
 
 ## Recent Changes
+
+### CLI Refactor: citty + noun-verb + AA config (2026-04-11)
+
+- **Adopted citty** as CLI framework, replacing hand-rolled `switch` dispatcher
+- **New file `src/cli/root.ts`** — root `defineCommand` with noun-verb subcommands tree
+- **New directory `src/cli/commands/defs/`** — citty `defineCommand` wrappers for each noun:
+  - `chat.ts`, `tx.ts` (list/simulate/sign), `session.ts` (list/new/resume/delete/status/log/events/close), `model.ts` (list/set/current), `app.ts` (list/current), `chain.ts` (list), `secret.ts` (list/clear/add), `aa.ts` (status/set/test/reset)
+- **New file `src/cli/commands/defs/shared.ts`** — global args definition + `toCliRuntime()` bridge adapter
+- **New file `src/cli/aa-config.ts`** — persistent AA config in `~/.aomi/aa.json`
+- **New file `src/cli/commands/aa.ts`** — AA config command handlers
+- **Modified `src/cli/main.ts`** — replaced `main()` switch + `printUsage()` with `runMain(root)` from citty
+- **Removed legacy aliases** — no more `aomi sign`, `aomi log`, etc. at top level; use `aomi tx sign`, `aomi session log`
+- **Removed umbrella routing** — deleted `sessionCommand`, `modelCommand`, `appCommand`, `chainCommand`, `secretCommand`; defs call leaf handlers directly
+- **Extracted leaf handlers** — `newSessionCommand`, `resumeSessionCommand`, `deleteSessionCommand`, `currentAppCommand`, `currentModelCommand`, `setModelCommand`, `listSecretsCommand`, `clearSecretsCommand`
+- **Deleted `createRuntime`** from `args.ts`
+
+#### Command surface
+```
+aomi chat <message>                 Send a message
+aomi tx list                        List transactions
+aomi tx simulate <id>...            Simulate batch
+aomi tx sign <id>...                Sign and submit
+aomi session list|new|resume|delete|status|log|events|close
+aomi model list|set|current
+aomi app list|current
+aomi chain list
+aomi secret list|clear|add
+aomi aa status|set|test|reset
+```
 
 ### Landing `content/components` + resolve aliases (2026-04-03)
 

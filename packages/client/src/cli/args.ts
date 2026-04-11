@@ -3,7 +3,6 @@ import type {
   CliAAMode,
   CliConfig,
   CliExecutionMode,
-  CliRuntime,
   ParsedArgs,
 } from "./types";
 import { fatal } from "./errors";
@@ -180,10 +179,3 @@ export function getConfig(parsed: ParsedArgs): CliConfig {
   };
 }
 
-export function createRuntime(argv: string[]): CliRuntime {
-  const parsed = parseArgs(argv);
-  return {
-    parsed,
-    config: getConfig(parsed),
-  };
-}
