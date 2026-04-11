@@ -44,10 +44,6 @@ export const globalArgs = {
     type: "string",
     description: "RPC URL for transaction submission",
   },
-  secret: {
-    type: "string",
-    description: "Ingest a secret (NAME=value)",
-  },
 } satisfies ArgsDef;
 
 // ---------------------------------------------------------------------------
@@ -81,10 +77,7 @@ function resolveExecution(args: Record<string, unknown>): CliExecutionMode | und
  * This is the single source of truth for CLI configuration.
  * No re-parsing of process.argv.
  */
-export function buildCliConfig(
-  args: Record<string, unknown>,
-  options: { argv?: string[] } = {},
-): CliConfig {
+export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const execution = resolveExecution(args);
   const aaProvider = parseAAProvider(
     str(args["aa-provider"]) ?? process.env.AOMI_AA_PROVIDER,
@@ -123,7 +116,7 @@ export function buildCliConfig(
       str(args["rpc-url"]) ??
       process.env.CHAIN_RPC_URL,
     chain: parseChainId(str(args.chain) ?? process.env.AOMI_CHAIN_ID),
-    secrets: extractSecrets(options.argv),
+    secrets: {},
     execution,
     aaProvider,
     aaMode,
@@ -131,7 +124,7 @@ export function buildCliConfig(
 }
 
 // ---------------------------------------------------------------------------
-// Positional & secret extraction
+// Positional extraction
 // ---------------------------------------------------------------------------
 
 /**
@@ -144,32 +137,4 @@ export function getPositionals(args: Record<string, unknown>): string[] {
     return [];
   }
   return positionals.filter((value): value is string => typeof value === "string");
-}
-
-/**
- * Extract repeated --secret NAME=value flags from raw argv.
- *
- * citty doesn't support repeated flags, so we parse these directly.
- */
-export function extractSecrets(argv: string[] = process.argv): Record<string, string> {
-  const raw = argv.slice(2);
-  const secrets: Record<string, string> = {};
-  for (let i = 0; i < raw.length; i++) {
-    const arg = raw[i];
-    if (arg === "--secret" && raw[i + 1]) {
-      const val = raw[i + 1];
-      const eqIdx = val.indexOf("=");
-      if (eqIdx > 0) {
-        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
-      }
-      i++;
-    } else if (arg.startsWith("--secret=")) {
-      const val = arg.slice("--secret=".length);
-      const eqIdx = val.indexOf("=");
-      if (eqIdx > 0) {
-        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
-      }
-    }
-  }
-  return secrets;
 }

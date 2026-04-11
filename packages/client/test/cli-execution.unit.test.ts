@@ -46,7 +46,7 @@ vi.mock("@alchemy/wallet-apis", () => ({
   alchemyWalletTransport: alchemyWalletTransportMock,
 }));
 
-import { buildCliConfig, extractSecrets, getPositionals } from "../src/cli/commands/defs/shared";
+import { buildCliConfig, getPositionals } from "../src/cli/commands/defs/shared";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -200,31 +200,6 @@ describe("CLI execution controls", () => {
         eoa: false,
       }),
     ).toEqual(["tx-1", "tx-2"]);
-  });
-
-  it("extractSecrets parses repeated --secret flags from explicit argv", () => {
-    const secrets = extractSecrets([
-      "node", "aomi",
-      "--secret", "FOO=bar",
-      "chat", "hello",
-      "--secret", "BAZ=qux",
-    ]);
-    expect(secrets).toEqual({ FOO: "bar", BAZ: "qux" });
-  });
-
-  it("extractSecrets handles --secret=NAME=value form", () => {
-    const secrets = extractSecrets([
-      "node", "aomi",
-      "--secret=API_KEY=sk_live_123",
-    ]);
-    expect(secrets).toEqual({ API_KEY: "sk_live_123" });
-  });
-
-  it("buildCliConfig uses explicit argv for secret extraction", () => {
-    const config = buildCliConfig({}, {
-      argv: ["node", "aomi", "--secret", "MY_KEY=my_value"],
-    });
-    expect(config.secrets).toEqual({ MY_KEY: "my_value" });
   });
 
   it("explicit --aa uses AA with configured provider", () => {
