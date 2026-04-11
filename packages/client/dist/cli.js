@@ -4741,10 +4741,6 @@ var globalArgs = {
   "rpc-url": {
     type: "string",
     description: "RPC URL for transaction submission"
-  },
-  secret: {
-    type: "string",
-    description: "Ingest a secret (NAME=value)"
   }
 };
 function str(value) {
@@ -4762,7 +4758,7 @@ function resolveExecution(args) {
   }
   return void 0;
 }
-function buildCliConfig(args, options = {}) {
+function buildCliConfig(args) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const execution = resolveExecution(args);
   const aaProvider = parseAAProvider(
@@ -4786,7 +4782,7 @@ function buildCliConfig(args, options = {}) {
     ),
     chainRpcUrl: (_k = str(args["rpc-url"])) != null ? _k : process.env.CHAIN_RPC_URL,
     chain: parseChainId((_l = str(args.chain)) != null ? _l : process.env.AOMI_CHAIN_ID),
-    secrets: extractSecrets(options.argv),
+    secrets: {},
     execution,
     aaProvider,
     aaMode
@@ -4798,28 +4794,6 @@ function getPositionals(args) {
     return [];
   }
   return positionals.filter((value) => typeof value === "string");
-}
-function extractSecrets(argv = process.argv) {
-  const raw = argv.slice(2);
-  const secrets = {};
-  for (let i = 0; i < raw.length; i++) {
-    const arg = raw[i];
-    if (arg === "--secret" && raw[i + 1]) {
-      const val = raw[i + 1];
-      const eqIdx = val.indexOf("=");
-      if (eqIdx > 0) {
-        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
-      }
-      i++;
-    } else if (arg.startsWith("--secret=")) {
-      const val = arg.slice("--secret=".length);
-      const eqIdx = val.indexOf("=");
-      if (eqIdx > 0) {
-        secrets[val.slice(0, eqIdx)] = val.slice(eqIdx + 1);
-      }
-    }
-  }
-  return secrets;
 }
 
 // src/cli/commands/defs/chat.ts
@@ -5116,9 +5090,6 @@ var secretAddDef = defineCommand7({
   async run({ args }) {
     const { ingestSecretsCommand: ingestSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
     const config = buildCliConfig(args);
-    if (Object.keys(config.secrets).length > 0) {
-      fatal("Use `aomi secret add NAME=value [NAME=value ...]` without `--secret`.");
-    }
     const secretArgs = getPositionals(args);
     if (secretArgs.length === 0) {
       fatal("Usage: aomi secret add NAME=value [NAME=value ...]");
@@ -5208,7 +5179,7 @@ var aaDef = defineCommand8({
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.21",
+  version: "0.1.22",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -5275,10 +5246,10 @@ function isPnpmExecWrapper() {
   const userAgent = (_b = process.env.npm_config_user_agent) != null ? _b : "";
   return npmCommand === "exec" && userAgent.includes("pnpm/");
 }
-async function runCli(_argv = process.argv) {
+async function runCli(argv = process.argv) {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
   try {
-    await runMain(root);
+    await runMain(root, { rawArgs: argv.slice(2) });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {
