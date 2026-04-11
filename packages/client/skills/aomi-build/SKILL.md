@@ -1,5 +1,5 @@
 ---
-name: aomi-app-builder
+name: aomi-build
 description: >
   Use when the user wants to build, scaffold, or update an Aomi app/plugin from
   API docs, OpenAPI or Swagger specs, SDK docs, repository examples, endpoint
@@ -15,7 +15,7 @@ metadata:
   version: "0.1"
 ---
 
-# Aomi App Builder
+# Aomi Build
 
 Use this skill for tasks like:
 

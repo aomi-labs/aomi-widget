@@ -1,0 +1,21 @@
+name: Notify Widget Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - aomi-transact/SKILL.md
+
+jobs:
+  dispatch-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify widget repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.AOMI_WIDGET_DISPATCH_TOKEN }}
+          repository: aomi-labs/aomi-widget
+          event-type: sync-aomi-transact
+          client-payload: |
+            {"source":"aomi-labs/skills","path":"aomi-transact/SKILL.md","sha":"${{ github.sha }}"}
