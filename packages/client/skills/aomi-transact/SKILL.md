@@ -465,7 +465,7 @@ All config can be passed as flags. Flags override environment variables.
 
 | Flag            | Env Var            | Default                | Purpose                                 |
 | --------------- | ------------------ | ---------------------- | --------------------------------------- |
-| `--backend-url` | `AOMI_BASE_URL`    | `https://api.aomi.dev` | Backend URL                             |
+| `--backend-url` | `AOMI_BACKEND_URL` | `https://api.aomi.dev` | Backend URL                             |
 | `--api-key`     | `AOMI_API_KEY`     | none                   | API key for non-default apps            |
 | `--app`         | `AOMI_APP`         | `default`              | Backend app                             |
 | `--model`       | `AOMI_MODEL`       | backend default        | Session model                           |
