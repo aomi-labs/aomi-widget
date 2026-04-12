@@ -1,8 +1,7 @@
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import type { AAState } from "./types";
-import type { AAProvider } from "./env";
+import type { AAState, AAProvider } from "./types";
 
 export type AAOwner =
   | {

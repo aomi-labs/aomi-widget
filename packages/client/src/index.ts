@@ -87,24 +87,20 @@ export type {
 
 export {
   DEFAULT_AA_CONFIG,
-  parseAAConfig,
   getAAChainConfig,
   buildAAExecutionPlan,
   getWalletExecutorReady,
   executeWalletCalls,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
-  readEnv,
-  isProviderConfigured,
-  resolveDefaultProvider,
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
-  resolveAlchemyConfig,
   resolvePimlicoConfig,
   createAAProviderState,
 } from "./aa";
 
 export type {
+  AAProvider,
   AAMode,
   AASponsorship,
   WalletCall,
@@ -124,9 +120,6 @@ export type {
   PimlicoHookParams,
   UsePimlicoAAHook,
   CreatePimlicoAAProviderOptions,
-  AAProvider,
-  AlchemyResolveOptions,
-  AlchemyResolvedConfig,
   PimlicoResolveOptions,
   PimlicoResolvedConfig,
   AAOwner,

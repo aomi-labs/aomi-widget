@@ -1,5 +1,6 @@
 export {
   // Types
+  type AAProvider,
   type AAMode,
   type AASponsorship,
   type WalletCall,
@@ -21,7 +22,6 @@ export {
   SPONSORSHIP_MODES,
 
   // Functions
-  parseAAConfig,
   getAAChainConfig,
   buildAAExecutionPlan,
   getWalletExecutorReady,
@@ -41,22 +41,10 @@ export {
   type UsePimlicoAAHook,
   type CreatePimlicoAAProviderOptions,
   createPimlicoAAProvider,
+  type PimlicoResolveOptions,
+  type PimlicoResolvedConfig,
+  resolvePimlicoConfig,
 } from "./pimlico";
-
-// ---------------------------------------------------------------------------
-// Env
-// ---------------------------------------------------------------------------
-
-export {
-  type AAProvider,
-  ALCHEMY_API_KEY_ENVS,
-  ALCHEMY_GAS_POLICY_ENVS,
-  PIMLICO_API_KEY_ENVS,
-  readEnv,
-  readGasPolicyEnv,
-  isProviderConfigured,
-  resolveDefaultProvider,
-} from "./env";
 
 // ---------------------------------------------------------------------------
 // Adapt
@@ -66,19 +54,6 @@ export {
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
 } from "./adapt";
-
-// ---------------------------------------------------------------------------
-// Resolve
-// ---------------------------------------------------------------------------
-
-export {
-  type AlchemyResolveOptions,
-  type AlchemyResolvedConfig,
-  type PimlicoResolveOptions,
-  type PimlicoResolvedConfig,
-  resolveAlchemyConfig,
-  resolvePimlicoConfig,
-} from "./resolve";
 
 // ---------------------------------------------------------------------------
 // Create (async smart account creation)

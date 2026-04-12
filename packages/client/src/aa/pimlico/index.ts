@@ -1,5 +1,3 @@
-export { PIMLICO_API_KEY_ENVS } from "./env";
-
 export {
   type PimlicoResolveOptions,
   type PimlicoResolvedConfig,

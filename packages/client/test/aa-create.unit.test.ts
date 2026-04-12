@@ -73,7 +73,6 @@ describe("createAAProviderState", () => {
   });
 
   it("creates an Alchemy provider state", async () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     const state = await createAAProviderState({
@@ -83,6 +82,7 @@ describe("createAAProviderState", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
+      apiKey: "alchemy-key",
     });
 
     expect(alchemyWalletTransportMock).toHaveBeenCalledWith({
@@ -111,7 +111,6 @@ describe("createAAProviderState", () => {
   });
 
   it("creates an unsponsored Alchemy provider state", async () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     requestAccountMock.mockResolvedValue({
@@ -126,6 +125,7 @@ describe("createAAProviderState", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "4337",
+      apiKey: "alchemy-key",
       sponsored: false,
     });
 
@@ -184,8 +184,6 @@ describe("createAAProviderState", () => {
   });
 
   it("captures errors without throwing", async () => {
-    process.env.ALCHEMY_API_KEY = "key";
-
     createSmartWalletClientMock.mockImplementation(() => {
       throw new Error("SDK init failed");
     });
@@ -197,6 +195,7 @@ describe("createAAProviderState", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
+      apiKey: "key",
     });
 
     expect(state.account).toBeNull();
@@ -206,8 +205,6 @@ describe("createAAProviderState", () => {
   });
 
   it("returns error state when smart account is null", async () => {
-    process.env.ALCHEMY_API_KEY = "key";
-
     createSmartWalletClientMock.mockReturnValue({
       requestAccount: requestAccountMock,
       sendCalls: sendCallsMock,
@@ -221,6 +218,7 @@ describe("createAAProviderState", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
+      apiKey: "key",
     });
 
     expect(state.account).toMatchObject({

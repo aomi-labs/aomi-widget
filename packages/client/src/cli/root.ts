@@ -6,7 +6,6 @@ import { modelDef } from "./commands/defs/model";
 import { appDef } from "./commands/defs/app";
 import { chainDef } from "./commands/defs/chain";
 import { secretDef } from "./commands/defs/secret";
-import { aaDef } from "./commands/defs/aa";
 import { globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
 
@@ -25,6 +24,5 @@ export const root = defineCommand({
     app: appDef,
     chain: chainDef,
     secret: secretDef,
-    aa: aaDef,
   },
 });
