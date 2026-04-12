@@ -1,10 +1,6 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mainnet, polygon } from "viem/chains";
 import { CliExit } from "../src/cli/errors";
-import { writeAAConfig } from "../src/cli/aa-config";
 
 const {
   createAlchemySmartAccountMock,
@@ -74,7 +70,6 @@ const ERC20_TRANSFER_CALL_LIST = [
 ] as const;
 
 const ORIGINAL_ENV = { ...process.env };
-let configDir: string;
 
 describe("CLI execution controls", () => {
   beforeEach(() => {
@@ -102,24 +97,23 @@ describe("CLI execution controls", () => {
     delete process.env.ALCHEMY_API_KEY;
     delete process.env.PIMLICO_API_KEY;
     delete process.env.ALCHEMY_GAS_POLICY_ID;
-    configDir = mkdtempSync(join(tmpdir(), "aomi-cli-aa-"));
-    process.env.AOMI_CONFIG_DIR = configDir;
   });
 
   afterEach(() => {
-    rmSync(configDir, { recursive: true, force: true });
     process.env = { ...ORIGINAL_ENV };
   });
 
+  // -------------------------------------------------------------------------
+  // buildCliConfig parsing
+  // -------------------------------------------------------------------------
+
   it("defaults to undefined (auto-detect) when neither --aa nor --eoa is provided", () => {
     const config = buildCliConfig({});
-
     expect(config.execution).toBeUndefined();
   });
 
   it("parses --new-session for chat flows", () => {
     const config = buildCliConfig({ "new-session": true });
-
     expect(config.freshSession).toBe(true);
   });
 
@@ -128,7 +122,6 @@ describe("CLI execution controls", () => {
       "private-key":
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     });
-
     expect(config.privateKey).toBe(
       "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     );
@@ -136,24 +129,19 @@ describe("CLI execution controls", () => {
 
   it("reads the active chain from AOMI_CHAIN_ID", () => {
     process.env.AOMI_CHAIN_ID = "137";
-
     const config = buildCliConfig({});
-
     expect(config.chain).toBe(137);
   });
 
   it("accepts --eoa as an explicit override", () => {
     const config = buildCliConfig({ eoa: true });
-
     expect(config.execution).toBe("eoa");
   });
 
   it("treats empty AA env vars as unset for forced EOA execution", () => {
     process.env.AOMI_AA_PROVIDER = "";
     process.env.AOMI_AA_MODE = "";
-
     const config = buildCliConfig({ eoa: true });
-
     expect(config.execution).toBe("eoa");
     expect(config.aaProvider).toBeUndefined();
     expect(config.aaMode).toBeUndefined();
@@ -161,57 +149,45 @@ describe("CLI execution controls", () => {
 
   it("sets aa mode when --aa-provider is specified via flag", () => {
     const config = buildCliConfig({ "aa-provider": "alchemy" });
-
     expect(config.execution).toBe("aa");
     expect(config.aaProvider).toBe("alchemy");
   });
 
   it("errors when --aa and --eoa are both provided", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    expect(() =>
-      buildCliConfig({ aa: true, eoa: true }),
-    ).toThrow(CliExit);
-
+    expect(() => buildCliConfig({ aa: true, eoa: true })).toThrow(CliExit);
     errorSpy.mockRestore();
   });
 
   it("accepts --aa flag", () => {
     const config = buildCliConfig({ aa: true });
-
     expect(config.execution).toBe("aa");
   });
 
+  // -------------------------------------------------------------------------
+  // getPositionals
+  // -------------------------------------------------------------------------
+
   it("reads all parsed positionals from the current command context", () => {
-    expect(
-      getPositionals({
-        _: ["tx-1", "tx-2"],
-        aa: true,
-      }),
-    ).toEqual(["tx-1", "tx-2"]);
+    expect(getPositionals({ _: ["tx-1", "tx-2"], aa: true })).toEqual([
+      "tx-1",
+      "tx-2",
+    ]);
   });
 
   it("getPositionals preserves tx IDs after boolean flags", () => {
-    // Simulates citty parsing `aomi tx sign --aa tx-1 tx-2`
     expect(
-      getPositionals({
-        _: ["tx-1", "tx-2"],
-        aa: true,
-        eoa: false,
-      }),
+      getPositionals({ _: ["tx-1", "tx-2"], aa: true, eoa: false }),
     ).toEqual(["tx-1", "tx-2"]);
   });
 
-  it("explicit --aa uses AA with configured provider", () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
-    process.env.PIMLICO_API_KEY = "pimlico-key";
+  // -------------------------------------------------------------------------
+  // resolveCliExecutionDecision — proxy default
+  // -------------------------------------------------------------------------
 
+  it("defaults to proxy AA when no env vars are set (zero-config)", () => {
     const decision = resolveCliExecutionDecision({
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        execution: "aa",
-      },
+      config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
       callList: [...CALL_LIST],
     });
@@ -220,13 +196,36 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      proxy: true,
     });
     expect(describeExecutionDecision(decision)).toBe(
-      "aa (alchemy, 7702)",
+      "aa (alchemy, 7702, proxy)",
     );
   });
 
-  it("resolves explicit provider and mode selections", () => {
+  // -------------------------------------------------------------------------
+  // resolveCliExecutionDecision — BYOK
+  // -------------------------------------------------------------------------
+
+  it("uses Alchemy BYOK when ALCHEMY_API_KEY is set", () => {
+    process.env.ALCHEMY_API_KEY = "alchemy-key";
+
+    const decision = resolveCliExecutionDecision({
+      config: { baseUrl: "https://api.aomi.dev", app: "default" },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+    });
+
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+      apiKey: "alchemy-key",
+    });
+    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
+  });
+
+  it("uses Pimlico BYOK when PIMLICO_API_KEY is set and provider is pimlico", () => {
     process.env.PIMLICO_API_KEY = "pimlico-key";
 
     const decision = resolveCliExecutionDecision({
@@ -245,8 +244,33 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "pimlico",
       aaMode: "4337",
+      apiKey: "pimlico-key",
     });
   });
+
+  // -------------------------------------------------------------------------
+  // resolveCliExecutionDecision — explicit flags
+  // -------------------------------------------------------------------------
+
+  it("eoa mode returns EOA decision regardless of provider config", () => {
+    process.env.ALCHEMY_API_KEY = "alchemy-key";
+
+    const decision = resolveCliExecutionDecision({
+      config: {
+        baseUrl: "https://api.aomi.dev",
+        app: "default",
+        execution: "eoa",
+      },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+    });
+
+    expect(decision).toEqual({ execution: "eoa" });
+  });
+
+  // -------------------------------------------------------------------------
+  // ERC-20 auto-switch
+  // -------------------------------------------------------------------------
 
   it("auto-switches default 4337 ERC-20 calls to 7702 when supported", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
@@ -263,7 +287,7 @@ describe("CLI execution controls", () => {
       callList: [...ERC20_TRANSFER_CALL_LIST],
     });
 
-    expect(decision).toEqual({
+    expect(decision).toMatchObject({
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
@@ -271,7 +295,6 @@ describe("CLI execution controls", () => {
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Switching to 7702"),
     );
-
     logSpy.mockRestore();
   });
 
@@ -291,7 +314,7 @@ describe("CLI execution controls", () => {
       callList: [...ERC20_TRANSFER_CALL_LIST],
     });
 
-    expect(decision).toEqual({
+    expect(decision).toMatchObject({
       execution: "aa",
       provider: "alchemy",
       aaMode: "4337",
@@ -299,101 +322,12 @@ describe("CLI execution controls", () => {
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Tokens must be in the smart account"),
     );
-
     logSpy.mockRestore();
   });
 
-  it("auto-detect uses AA when provider is configured (no flag)", () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
-
-    const decision = resolveCliExecutionDecision({
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        // execution: undefined — no --aa or --eoa flag
-      },
-      chain: mainnet,
-      callList: [...CALL_LIST],
-    });
-
-    expect(decision).toEqual({
-      execution: "aa",
-      provider: "alchemy",
-      aaMode: "7702",
-    });
-  });
-
-  it("auto-detect falls back to EOA when no provider configured", () => {
-    const decision = resolveCliExecutionDecision({
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        // execution: undefined, no providers
-      },
-      chain: mainnet,
-      callList: [...CALL_LIST],
-    });
-
-    expect(decision).toEqual({ execution: "eoa" });
-  });
-
-  it("eoa mode returns EOA decision regardless of provider config", () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
-
-    const decision = resolveCliExecutionDecision({
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        execution: "eoa",
-      },
-      chain: mainnet,
-      callList: [...CALL_LIST],
-    });
-
-    expect(decision).toEqual({ execution: "eoa" });
-  });
-
-  it("aa mode throws when no AA provider is configured", () => {
-    expect(() =>
-      resolveCliExecutionDecision({
-        config: {
-          baseUrl: "https://api.aomi.dev",
-          app: "default",
-          execution: "aa",
-        },
-        chain: mainnet,
-        callList: [...CALL_LIST],
-      }),
-    ).toThrow("AA requires provider credentials");
-  });
-
-  it("uses persisted AA credentials when env vars are not set", () => {
-    writeAAConfig({
-      provider: "pimlico",
-      mode: "4337",
-      providers: {
-        pimlico: {
-          apiKey: "persisted-pimlico-key",
-        },
-      },
-    });
-
-    const decision = resolveCliExecutionDecision({
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        execution: "aa",
-      },
-      chain: mainnet,
-      callList: [...CALL_LIST],
-    });
-
-    expect(decision).toEqual({
-      execution: "aa",
-      provider: "pimlico",
-      aaMode: "4337",
-    });
-  });
+  // -------------------------------------------------------------------------
+  // createCliProviderState
+  // -------------------------------------------------------------------------
 
   it("returns the disabled provider state when EOA is forced", async () => {
     const providerState = await createCliProviderState({
@@ -402,6 +336,7 @@ describe("CLI execution controls", () => {
       privateKey: PRIVATE_KEY,
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
+      baseUrl: "https://api.aomi.dev",
     });
 
     expect(providerState.resolved).toBeNull();
@@ -409,8 +344,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates an Alchemy AA provider state for CLI signing", async () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
+  it("creates Alchemy AA provider state for BYOK CLI signing", async () => {
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     const providerState = await createCliProviderState({
@@ -418,18 +352,17 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "7702",
+        apiKey: "alchemy-key",
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
+      baseUrl: "https://api.aomi.dev",
     });
 
-    // CLI (direct key) now goes through @alchemy/wallet-apis
     expect(createSmartWalletClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chain: mainnet,
-      }),
+      expect.objectContaining({ chain: mainnet }),
     );
     expect(alchemyWalletTransportMock).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "alchemy-key" }),
@@ -443,43 +376,35 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("passes persisted Alchemy credentials into CLI AA state creation", async () => {
-    writeAAConfig({
-      provider: "alchemy",
-      mode: "7702",
-      providers: {
-        alchemy: {
-          apiKey: "persisted-alchemy-key",
-          gasPolicyId: "persisted-policy",
-        },
-      },
-    });
-
+  it("creates Alchemy AA provider state via proxy", async () => {
     const providerState = await createCliProviderState({
       decision: {
         execution: "aa",
         provider: "alchemy",
         aaMode: "7702",
+        proxy: true,
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
+      baseUrl: "https://api.aomi.dev",
     });
 
     expect(alchemyWalletTransportMock).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: "persisted-alchemy-key" }),
-    );
-    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        paymaster: { policyId: "persisted-policy" },
+        url: "https://api.aomi.dev/aa/v1/eth-mainnet",
       }),
     );
+    expect(providerState.resolved).toMatchObject({
+      provider: "alchemy",
+      mode: "7702",
+    });
+    expect(providerState.account).toBeTruthy();
     expect(providerState.error).toBeNull();
   });
 
   it("creates Alchemy AA provider state for 4337 mode", async () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     const providerState = await createCliProviderState({
@@ -487,14 +412,15 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "4337",
+        apiKey: "alchemy-key",
       },
       chain: mainnet,
       privateKey: PRIVATE_KEY,
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
+      baseUrl: "https://api.aomi.dev",
     });
 
-    // CLI (direct key) uses wallet-apis even for 4337
     expect(createSmartWalletClientMock).toHaveBeenCalled();
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
@@ -502,18 +428,21 @@ describe("CLI execution controls", () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // Utilities
+  // -------------------------------------------------------------------------
+
   it("detects Alchemy sponsorship limit errors", () => {
     expect(
       isAlchemySponsorshipLimitError(
         new Error(
-          "This transaction’s USD cost will put your team over your gas sponsorship Limit.",
+          "This transaction's USD cost will put your team over your gas sponsorship Limit.",
         ),
       ),
     ).toBe(true);
-
-    expect(isAlchemySponsorshipLimitError(new Error("validation reverted"))).toBe(
-      false,
-    );
+    expect(
+      isAlchemySponsorshipLimitError(new Error("validation reverted")),
+    ).toBe(false);
   });
 
   it("getAlternativeAAMode returns the opposite mode", () => {
@@ -523,11 +452,7 @@ describe("CLI execution controls", () => {
         provider: "alchemy",
         aaMode: "7702",
       }),
-    ).toEqual({
-      execution: "aa",
-      provider: "alchemy",
-      aaMode: "4337",
-    });
+    ).toMatchObject({ aaMode: "4337" });
 
     expect(
       getAlternativeAAMode({
@@ -535,14 +460,11 @@ describe("CLI execution controls", () => {
         provider: "pimlico",
         aaMode: "4337",
       }),
-    ).toEqual({
-      execution: "aa",
-      provider: "pimlico",
-      aaMode: "7702",
-    });
+    ).toMatchObject({ aaMode: "7702" });
   });
 
   it("getAlternativeAAMode returns null for EOA decisions", () => {
     expect(getAlternativeAAMode({ execution: "eoa" })).toBeNull();
   });
+
 });

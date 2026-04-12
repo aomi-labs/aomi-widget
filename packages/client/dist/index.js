@@ -1224,71 +1224,6 @@ var ClientSession = class extends TypedEventEmitter {
 };
 
 // src/aa/types.ts
-var MODES = /* @__PURE__ */ new Set(["4337", "7702"]);
-var SPONSORSHIP_MODES = /* @__PURE__ */ new Set([
-  "disabled",
-  "optional",
-  "required"
-]);
-function isObject(value) {
-  return typeof value === "object" && value !== null;
-}
-function assertChainConfig(value, index) {
-  if (!isObject(value)) {
-    throw new Error(`Invalid AA config chain at index ${index}: expected object`);
-  }
-  if (typeof value.chainId !== "number") {
-    throw new Error(`Invalid AA config chain at index ${index}: chainId must be a number`);
-  }
-  if (typeof value.enabled !== "boolean") {
-    throw new Error(`Invalid AA config chain ${value.chainId}: enabled must be a boolean`);
-  }
-  if (!MODES.has(value.defaultMode)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported defaultMode`);
-  }
-  if (!Array.isArray(value.supportedModes) || value.supportedModes.length === 0) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes must be a non-empty array`);
-  }
-  if (!value.supportedModes.every((mode) => MODES.has(mode))) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes contains an unsupported mode`);
-  }
-  if (!value.supportedModes.includes(value.defaultMode)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: defaultMode must be in supportedModes`);
-  }
-  if (typeof value.allowBatching !== "boolean") {
-    throw new Error(`Invalid AA config chain ${value.chainId}: allowBatching must be a boolean`);
-  }
-  if (!SPONSORSHIP_MODES.has(value.sponsorship)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported sponsorship mode`);
-  }
-}
-function parseAAConfig(value) {
-  if (!isObject(value)) {
-    throw new Error("Invalid AA config: expected object");
-  }
-  if (typeof value.enabled !== "boolean") {
-    throw new Error("Invalid AA config: enabled must be a boolean");
-  }
-  if (typeof value.provider !== "string" || !value.provider) {
-    throw new Error("Invalid AA config: provider must be a non-empty string");
-  }
-  if (value.provider !== "alchemy" && value.provider !== "pimlico") {
-    throw new Error('Invalid AA config: provider must be either "alchemy" or "pimlico"');
-  }
-  if (typeof value.fallbackToEoa !== "boolean") {
-    throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
-  }
-  if (!Array.isArray(value.chains)) {
-    throw new Error("Invalid AA config: chains must be an array");
-  }
-  value.chains.forEach((chain, index) => assertChainConfig(chain, index));
-  return {
-    enabled: value.enabled,
-    provider: value.provider,
-    fallbackToEoa: value.fallbackToEoa,
-    chains: value.chains
-  };
-}
 function getAAChainConfig(config, calls, chainsById) {
   if (!config.enabled || calls.length === 0) {
     return null;
@@ -1562,136 +1497,28 @@ async function executeViaEoa({
   };
 }
 
-// src/aa/alchemy/env.ts
-var ALCHEMY_API_KEY_ENVS = [
-  "ALCHEMY_API_KEY",
-  "NEXT_PUBLIC_ALCHEMY_API_KEY"
-];
-var ALCHEMY_GAS_POLICY_ENVS = [
-  "ALCHEMY_GAS_POLICY_ID",
-  "NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID"
-];
-
-// src/aa/pimlico/env.ts
-var PIMLICO_API_KEY_ENVS = [
-  "PIMLICO_API_KEY",
-  "NEXT_PUBLIC_PIMLICO_API_KEY"
-];
-
-// src/aa/env.ts
-function readEnv(candidates, options = {}) {
-  var _a;
-  const { publicOnly = false } = options;
-  for (const name of candidates) {
-    if (publicOnly && !name.startsWith("NEXT_PUBLIC_")) {
-      continue;
-    }
-    const value = (_a = process.env[name]) == null ? void 0 : _a.trim();
-    if (value) return value;
-  }
-  return void 0;
-}
-function readGasPolicyEnv(chainId, chainSlugById, baseCandidates, options = {}) {
-  const slug = chainSlugById[chainId];
-  if (slug) {
-    const chainSpecific = baseCandidates.map(
-      (base) => `${base}_${slug.toUpperCase()}`
-    );
-    const found = readEnv(chainSpecific, options);
-    if (found) return found;
-  }
-  return readEnv(baseCandidates, options);
-}
-function isProviderConfigured(provider, options = {}) {
-  return provider === "alchemy" ? Boolean(readEnv(ALCHEMY_API_KEY_ENVS, options)) : Boolean(readEnv(PIMLICO_API_KEY_ENVS, options));
-}
-function resolveDefaultProvider(options = {}) {
-  if (isProviderConfigured("alchemy", options)) return "alchemy";
-  if (isProviderConfigured("pimlico", options)) return "pimlico";
-  throw new Error(
-    "AA requires provider credentials. Set ALCHEMY_API_KEY or PIMLICO_API_KEY, or use --eoa."
-  );
-}
-
-// src/aa/alchemy/resolve.ts
-function resolveAlchemyConfig(options) {
-  const {
-    calls,
-    localPrivateKey,
-    accountAbstractionConfig = DEFAULT_AA_CONFIG,
-    chainsById,
-    chainSlugById = {},
-    getPreferredRpcUrl = (chain2) => {
-      var _a;
-      return (_a = chain2.rpcUrls.default.http[0]) != null ? _a : "";
-    },
-    modeOverride,
-    publicOnly = false,
-    throwOnMissingConfig = false,
-    apiKey: preResolvedApiKey,
-    gasPolicyId: preResolvedGasPolicyId
-  } = options;
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
-    provider: "alchemy"
-  });
+// src/aa/alchemy/provider.ts
+function resolveForHook(params) {
+  var _a, _b;
+  const { calls, localPrivateKey, accountAbstractionConfig, chainsById, getPreferredRpcUrl } = params;
+  if (!calls || localPrivateKey) return null;
+  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), { provider: "alchemy" });
   const chainConfig = getAAChainConfig(config, calls, chainsById);
-  if (!chainConfig) {
-    if (throwOnMissingConfig) {
-      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
-      throw new Error(
-        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
-      );
-    }
-    return null;
-  }
-  const apiKey = preResolvedApiKey != null ? preResolvedApiKey : readEnv(ALCHEMY_API_KEY_ENVS, { publicOnly });
-  if (!apiKey) {
-    if (throwOnMissingConfig) {
-      throw new Error("Alchemy AA requires ALCHEMY_API_KEY.");
-    }
-    return null;
-  }
+  if (!chainConfig) return null;
+  const apiKey = (_a = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY) == null ? void 0 : _a.trim();
+  if (!apiKey) return null;
   const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
-  const gasPolicyId = preResolvedGasPolicyId != null ? preResolvedGasPolicyId : readGasPolicyEnv(
-    chainConfig.chainId,
-    chainSlugById,
-    ALCHEMY_GAS_POLICY_ENVS,
-    { publicOnly }
-  );
-  if (chainConfig.sponsorship === "required" && !gasPolicyId) {
-    if (throwOnMissingConfig) {
-      throw new Error(
-        `Alchemy gas policy required for chain ${chainConfig.chainId} but not configured.`
-      );
-    }
-    return null;
-  }
-  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
-    if (throwOnMissingConfig) {
-      throw new Error(
-        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
-      );
-    }
-    return null;
-  }
-  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
+  if (!chain) return null;
+  const gasPolicyId = (_b = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _b.trim();
+  const resolved = buildAAExecutionPlan(config, chainConfig);
   return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
     chain,
     rpcUrl: getPreferredRpcUrl(chain),
     gasPolicyId,
-    mode: resolvedChainConfig.defaultMode
+    mode: chainConfig.defaultMode
   });
 }
-
-// src/aa/alchemy/provider.ts
 function createAlchemyAAProvider({
   accountAbstractionConfig = DEFAULT_AA_CONFIG,
   useAlchemyAA,
@@ -1701,14 +1528,13 @@ function createAlchemyAAProvider({
 }) {
   return function useAlchemyAAProvider(calls, localPrivateKey) {
     var _a;
-    const resolved = resolveAlchemyConfig({
+    const resolved = resolveForHook({
       calls,
       localPrivateKey,
       accountAbstractionConfig,
       chainsById,
       chainSlugById,
-      getPreferredRpcUrl,
-      publicOnly: true
+      getPreferredRpcUrl
     });
     const params = resolved ? {
       enabled: true,
@@ -1828,27 +1654,25 @@ async function createAlchemyAAState(options) {
   const {
     chain,
     owner,
-    rpcUrl,
     callList,
     mode,
     sponsored = true
   } = options;
-  const resolved = resolveAlchemyConfig({
-    calls: callList,
-    chainsById: { [chain.id]: chain },
-    modeOverride: mode,
-    throwOnMissingConfig: true,
-    getPreferredRpcUrl: () => rpcUrl,
-    apiKey: options.apiKey,
-    gasPolicyId: options.gasPolicyId
+  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
+    [chain.id]: chain
   });
-  if (!resolved) {
-    throw new Error("Alchemy AA config resolution failed.");
+  if (!chainConfig) {
+    throw new Error(`AA is not configured for chain ${chain.id}.`);
   }
-  const apiKey = (_a = options.apiKey) != null ? _a : resolved.apiKey;
-  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : readEnv(ALCHEMY_GAS_POLICY_ENVS) : void 0;
-  const execution = __spreadProps(__spreadValues({}, resolved), {
-    sponsorship: gasPolicyId ? resolved.sponsorship : "disabled",
+  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
+  const plan = buildAAExecutionPlan(
+    __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
+    __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
+  );
+  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : (_a = process.env.ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _a.trim() : void 0;
+  const execution = __spreadProps(__spreadValues({}, plan), {
+    mode: effectiveMode,
+    sponsorship: gasPolicyId ? plan.sponsorship : "disabled",
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
@@ -1864,7 +1688,8 @@ async function createAlchemyAAState(options) {
         resolved: execution,
         chain,
         privateKey: owner.privateKey,
-        apiKey,
+        apiKey: options.apiKey,
+        proxyBaseUrl: options.proxyBaseUrl,
         gasPolicyId,
         mode: execution.mode
       });
@@ -1877,13 +1702,23 @@ async function createAlchemyAAState(options) {
       };
     }
   }
+  if (!options.apiKey) {
+    return {
+      resolved: execution,
+      account: null,
+      pending: false,
+      error: new Error(
+        "Alchemy AA with session/adapter owner requires ALCHEMY_API_KEY."
+      )
+    };
+  }
   try {
     const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
     const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey,
+      apiKey: options.apiKey,
       gasPolicyId,
       chain,
-      rpcUrl,
+      rpcUrl: options.rpcUrl,
       mode: execution.mode
     }));
     if (!smartAccount) {
@@ -1911,9 +1746,10 @@ async function createAlchemyAAState(options) {
 }
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
+  const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
   const signer = privateKeyToAccount2(params.privateKey);
   const walletClient = createSmartWalletClient(__spreadValues({
-    transport: alchemyWalletTransport({ apiKey: params.apiKey }),
+    transport,
     chain: params.chain,
     signer
   }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
@@ -1952,6 +1788,7 @@ async function createAlchemyWalletApisState(params) {
 
 // src/aa/pimlico/resolve.ts
 function resolvePimlicoConfig(options) {
+  var _a, _b, _c;
   const {
     calls,
     localPrivateKey,
@@ -1979,7 +1816,7 @@ function resolvePimlicoConfig(options) {
     }
     return null;
   }
-  const apiKey = preResolvedApiKey != null ? preResolvedApiKey : readEnv(PIMLICO_API_KEY_ENVS, { publicOnly });
+  const apiKey = (_c = preResolvedApiKey != null ? preResolvedApiKey : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim()) != null ? _c : publicOnly ? (_b = process.env.NEXT_PUBLIC_PIMLICO_API_KEY) == null ? void 0 : _b.trim() : void 0;
   if (!apiKey) {
     if (throwOnMissingConfig) {
       throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
@@ -2117,7 +1954,8 @@ async function createAAProviderState(options) {
       mode: options.mode,
       apiKey: options.apiKey,
       gasPolicyId: options.gasPolicyId,
-      sponsored: options.sponsored
+      sponsored: options.sponsored,
+      proxyBaseUrl: options.proxyBaseUrl
     });
   }
   return createPimlicoAAState({
@@ -2148,15 +1986,10 @@ export {
   isAlchemySponsorshipLimitError,
   isAsyncCallback,
   isInlineCall,
-  isProviderConfigured,
   isSystemError,
   isSystemNotice,
   normalizeEip712Payload,
   normalizeTxPayload,
-  parseAAConfig,
-  readEnv,
-  resolveAlchemyConfig,
-  resolveDefaultProvider,
   resolvePimlicoConfig,
   toViemSignTypedDataArgs,
   unwrapSystemEvent

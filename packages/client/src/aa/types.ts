@@ -1,11 +1,10 @@
 import type { Chain, Hex } from "viem";
 
-import type { AAProvider } from "./env";
-
 // ---------------------------------------------------------------------------
 // Enums / Literal Types
 // ---------------------------------------------------------------------------
 
+export type AAProvider = "alchemy" | "pimlico";
 export type AAMode = "4337" | "7702";
 export type AASponsorship = "disabled" | "optional" | "required";
 
@@ -143,80 +142,9 @@ export const SPONSORSHIP_MODES = new Set<AASponsorship>([
 // Helpers
 // ---------------------------------------------------------------------------
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function assertChainConfig(
-  value: unknown,
-  index: number,
-): asserts value is AAChainConfig {
-  if (!isObject(value)) {
-    throw new Error(`Invalid AA config chain at index ${index}: expected object`);
-  }
-
-  if (typeof value.chainId !== "number") {
-    throw new Error(`Invalid AA config chain at index ${index}: chainId must be a number`);
-  }
-  if (typeof value.enabled !== "boolean") {
-    throw new Error(`Invalid AA config chain ${value.chainId}: enabled must be a boolean`);
-  }
-  if (!MODES.has(value.defaultMode as AAMode)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported defaultMode`);
-  }
-  if (!Array.isArray(value.supportedModes) || value.supportedModes.length === 0) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes must be a non-empty array`);
-  }
-  if (!value.supportedModes.every((mode) => MODES.has(mode as AAMode))) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes contains an unsupported mode`);
-  }
-  if (!value.supportedModes.includes(value.defaultMode)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: defaultMode must be in supportedModes`);
-  }
-  if (typeof value.allowBatching !== "boolean") {
-    throw new Error(`Invalid AA config chain ${value.chainId}: allowBatching must be a boolean`);
-  }
-  if (!SPONSORSHIP_MODES.has(value.sponsorship as AASponsorship)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported sponsorship mode`);
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Config Parsing & Planning
+// Config Planning
 // ---------------------------------------------------------------------------
-
-export function parseAAConfig(
-  value: unknown,
-): AAConfig {
-  if (!isObject(value)) {
-    throw new Error("Invalid AA config: expected object");
-  }
-
-  if (typeof value.enabled !== "boolean") {
-    throw new Error("Invalid AA config: enabled must be a boolean");
-  }
-  if (typeof value.provider !== "string" || !value.provider) {
-    throw new Error("Invalid AA config: provider must be a non-empty string");
-  }
-  if (value.provider !== "alchemy" && value.provider !== "pimlico") {
-    throw new Error("Invalid AA config: provider must be either \"alchemy\" or \"pimlico\"");
-  }
-  if (typeof value.fallbackToEoa !== "boolean") {
-    throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
-  }
-  if (!Array.isArray(value.chains)) {
-    throw new Error("Invalid AA config: chains must be an array");
-  }
-
-  value.chains.forEach((chain, index) => assertChainConfig(chain, index));
-
-  return {
-    enabled: value.enabled,
-    provider: value.provider,
-    fallbackToEoa: value.fallbackToEoa,
-    chains: value.chains as AAChainConfig[],
-  };
-}
 
 export function getAAChainConfig(
   config: AAConfig,
