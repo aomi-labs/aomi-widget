@@ -2518,6 +2518,11 @@ var init_owner = __esm({
 
 // src/aa/alchemy/create.ts
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+function alchemyRpcUrl(chainId, apiKey) {
+  var _a3;
+  const slug = (_a3 = ALCHEMY_CHAIN_SLUGS2[chainId]) != null ? _a3 : "eth-mainnet";
+  return `https://${slug}.g.alchemy.com/v2/${apiKey}`;
+}
 function aaDebug(message, fields) {
   if (!AA_DEBUG_ENABLED) return;
   if (fields) {
@@ -2754,7 +2759,7 @@ async function createAlchemy7702State(params) {
   if (params.proxyBaseUrl) {
     rpcUrl = params.proxyBaseUrl;
   } else if (params.apiKey) {
-    rpcUrl = `https://eth-mainnet.g.alchemy.com/v2/${params.apiKey}`;
+    rpcUrl = alchemyRpcUrl(params.chain.id, params.apiKey);
   }
   const walletClient = createWalletClient2({
     account: signer,
@@ -2796,9 +2801,23 @@ async function createAlchemy7702State(params) {
       })
     });
     aaDebug("7702:calldata-encoded", { dataLength: data.length });
+    const gasEstimate = await publicClient.estimateGas({
+      account: signer,
+      to: signerAddress,
+      data,
+      authorizationList: [authorization]
+    });
+    const authOverhead = BigInt(25e3) * BigInt(authorization ? 1 : 0);
+    const gas = gasEstimate + authOverhead;
+    aaDebug("7702:gas-estimated", {
+      estimate: gasEstimate.toString(),
+      authOverhead: authOverhead.toString(),
+      total: gas.toString()
+    });
     const hash = await walletClient.sendTransaction({
       to: signerAddress,
       data,
+      gas,
       authorizationList: [authorization]
     });
     aaDebug("7702:tx-sent", { hash });
@@ -2834,7 +2853,7 @@ async function createAlchemyWalletApisState(params) {
   }
   return createAlchemy4337State(params);
 }
-var ALCHEMY_7702_DELEGATION_ADDRESS, AA_DEBUG_ENABLED;
+var ALCHEMY_7702_DELEGATION_ADDRESS, AA_DEBUG_ENABLED, ALCHEMY_CHAIN_SLUGS2;
 var init_create = __esm({
   "src/aa/alchemy/create.ts"() {
     "use strict";
@@ -2843,6 +2862,13 @@ var init_create = __esm({
     init_owner();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
     AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+    ALCHEMY_CHAIN_SLUGS2 = {
+      1: "eth-mainnet",
+      137: "polygon-mainnet",
+      42161: "arb-mainnet",
+      10: "opt-mainnet",
+      8453: "base-mainnet"
+    };
   }
 });
 
