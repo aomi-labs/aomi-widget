@@ -1,41 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-
 export function Solution() {
-  useEffect(() => {
-    let cancelled = false;
-
-    if (typeof (window as any).UnicornStudio?.init === "function") {
-      (window as any).UnicornStudio.init();
-      return;
-    }
-
-    (window as any).UnicornStudio = { isInitialized: false };
-    const script = document.createElement("script");
-    script.src =
-      "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.29/dist/unicornStudio.umd.js";
-    script.onload = () => {
-      if (
-        !cancelled &&
-        (window as any).UnicornStudio &&
-        !(window as any).UnicornStudio.isInitialized
-      ) {
-        (window as any).UnicornStudio.init();
-        (window as any).UnicornStudio.isInitialized = true;
-      }
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      cancelled = true;
-      script.onload = null;
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-  }, []);
-
   return (
     <>
       <div className="w-full bg-stone-100">

@@ -1,20 +1,20 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import ParaWeb, {
+import { createPortal } from "react-dom";
+import {
   Environment,
-  ParaEvent,
   ParaProviderMin,
+  ParaEvent,
   type TExternalWallet,
   type TOAuthMethod,
 } from "@getpara/react-sdk";
-// @ts-expect-error — internal SDK store via turbopack alias (see next.config.ts)
+// @ts-expect-error internal SDK store via turbopack alias (see next.config.ts)
 import { store as paraLiteStore } from "@para-internal/store";
 import "@getpara/react-sdk/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -35,9 +35,6 @@ import { ParaWalletBridge } from "@aomi-labs/widget-lib";
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY;
-const walletConnectProjectId =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
-  process.env.NEXT_PUBLIC_PROJECT_ID;
 const paraEnvironment =
   (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
   Environment.BETA;
@@ -82,19 +79,15 @@ const transports = Object.fromEntries(
   networks.map((network) => [network.id, http(network.rpcUrls.default.http[0])]),
 ) as Record<number, Transport>;
 
-const externalWallets: TExternalWallet[] = [
-  "WALLETCONNECT",
-  "METAMASK",
-  "COINBASE",
-  "RAINBOW",
-  "RABBY",
+const oAuthMethods: TOAuthMethod[] = [
+  "GOOGLE",
+  "APPLE",
+  "DISCORD",
+  "TWITTER",
+  "FACEBOOK",
+  "TELEGRAM",
 ];
-
-const adapterWallets = walletConnectProjectId
-  ? externalWallets
-  : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT");
-
-const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
+const disabledExternalWallets: TExternalWallet[] = [];
 
 const wagmiConfig = createConfig({
   chains: networks,
@@ -102,42 +95,28 @@ const wagmiConfig = createConfig({
   ssr: true,
 });
 
-// ---------------------------------------------------------------------------
-// ParaProviderMin wrapper
-//
-// ParaProviderMin gates its children + embedded modal behind `isReady`,
-// which may never fire in pnpm monorepos due to Zustand store version
-// mismatch between @getpara/react-sdk-lite and @getpara/react-core.
-//
-// Workaround: after the Para client initialises, force isReady = true in
-// the lite store so the embedded modal renders with full ExternalWallet
-// context (WalletConnect, MetaMask, Coinbase, etc.).
-// ---------------------------------------------------------------------------
-
-/** Force the lite store's isReady flag so ParaProviderMin unblocks. */
 function useForceParaReady() {
   useEffect(() => {
-    // Poll briefly — the client is created async inside ParaProviderCore.
     const id = setInterval(() => {
-      const s = paraLiteStore.getState() as any;
-      if (s.client && !s.paraState?.isReady) {
+      const state = paraLiteStore.getState() as {
+        client?: unknown;
+        paraState?: { isReady?: boolean };
+      };
+
+      if (state.client && !state.paraState?.isReady) {
         paraLiteStore.setState({
-          paraState: { ...s.paraState, isReady: true },
+          paraState: { ...state.paraState, isReady: true },
         });
         clearInterval(id);
-      } else if (s.paraState?.isReady) {
+      } else if (state.paraState?.isReady) {
         clearInterval(id);
       }
     }, 100);
+
     return () => clearInterval(id);
   }, []);
 }
 
-/**
- * Invisible child of ParaProviderMin that:
- * 1. Forces isReady so the embedded modal can render
- * 2. Renders nothing itself — the widget lives outside ParaProviderMin
- */
 function ParaReadyForcer() {
   useForceParaReady();
   return null;
@@ -145,32 +124,15 @@ function ParaReadyForcer() {
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
+  const [portalReady, setPortalReady] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const openModal = useCallback(() => {
-    const state = paraLiteStore.getState() as any;
-    const client = state.client as ParaWeb | null;
-    const corePhase = state.paraState?.corePhase;
-
-    if (client && corePhase === "auth_flow") {
-      client
-        .isFullyLoggedIn()
-        .then((loggedIn: boolean) => {
-          if (loggedIn) {
-            paraLiteStore.setState({
-              paraState: { ...state.paraState, corePhase: "authenticated" },
-            });
-          }
-        })
-        .catch(() => {})
-        .finally(() => setModalOpen(true));
-      return;
-    }
-
-    setModalOpen(true);
+  useEffect(() => {
+    setPortalReady(true);
+    return () => setPortalReady(false);
   }, []);
 
-  const closeModal = useCallback(() => {
+  const closeModal = () => {
     setModalOpen(false);
     setTimeout(() => {
       window.dispatchEvent(
@@ -179,24 +141,11 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
         }),
       );
     }, 200);
-  }, []);
-
-  const paraModalConfig = useMemo(
-    () => ({
-      isOpen: modalOpen,
-      onClose: closeModal,
-      disableEmailLogin: true,
-      oAuthMethods,
-    }),
-    [modalOpen, closeModal],
-  );
+  };
 
   const externalWalletConfig = useMemo(
     () => ({
-      wallets: adapterWallets,
-      ...(walletConnectProjectId
-        ? { walletConnect: { projectId: walletConnectProjectId } }
-        : {}),
+      wallets: disabledExternalWallets,
     }),
     [],
   );
@@ -207,26 +156,35 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* ParaProviderMin sets up the full provider chain including
-          ExternalWalletWrapper so the modal shows wallet buttons.
-          We force isReady via ParaReadyForcer so the embedded modal
-          renders despite the Zustand version mismatch. */}
-      <ParaProviderMin
-        paraClientConfig={{
-          apiKey: paraApiKey,
-          env: paraEnvironment,
-        }}
-        config={{ appName: "Aomi Labs" }}
-        paraModalConfig={paraModalConfig}
-        externalWalletConfig={externalWalletConfig}
-      >
-        <ParaReadyForcer />
-      </ParaProviderMin>
+      {portalReady
+        ? createPortal(
+            <ParaProviderMin
+              paraClientConfig={{
+                apiKey: paraApiKey,
+                env: paraEnvironment,
+              }}
+              config={{ appName: "Aomi Labs" }}
+              paraModalConfig={{
+                isOpen: modalOpen,
+                onClose: closeModal,
+                disableEmailLogin: false,
+                disablePhoneLogin: false,
+                oAuthMethods,
+              }}
+              externalWalletConfig={externalWalletConfig}
+            >
+              <ParaReadyForcer />
+            </ParaProviderMin>,
+            document.body,
+          )
+        : null}
 
-      {/* Widget renders immediately outside ParaProviderMin.
-          Bridge polls the shared lite store for auth state. */}
       <WagmiProvider config={wagmiConfig}>
-        <ParaWalletBridge onOpenModal={openModal}>
+        <ParaWalletBridge
+          onOpenModal={(_step) => {
+            setModalOpen(true);
+          }}
+        >
           {children}
         </ParaWalletBridge>
       </WagmiProvider>

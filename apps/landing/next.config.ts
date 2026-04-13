@@ -36,20 +36,11 @@ const turbopackAliases: Record<string, string> = {
   "@getpara/react-sdk": "./node_modules/@getpara/react-sdk",
   "@getpara/react-sdk-lite": "./node_modules/@getpara/react-sdk-lite",
   "@tanstack/react-query": "./node_modules/@tanstack/react-query",
-  // Force a single Zustand version — react-sdk-lite uses Zustand 4, react-core
-  // uses Zustand 5. Without this alias, the store created by react-sdk-lite
-  // (Zustand 4) can't be properly read by react-core's useStore (Zustand 5),
-  // which prevents ParaProviderMin's isReady gate from ever becoming true.
+  "@para-internal/store":
+    "./node_modules/@getpara/react-sdk-lite/dist/provider/stores/useStore.js",
   zustand: "./node_modules/zustand",
   viem: "./node_modules/viem",
   wagmi: "./node_modules/wagmi",
-  // Internal SDK modules accessed directly because ParaProviderMin's isReady
-  // gate never opens (Zustand 4/5 subscription mismatch in pnpm). We build
-  // our own provider chain from the SDK's primitives instead.
-  "@para-internal/auth-provider":
-    "./node_modules/@getpara/react-sdk-lite/dist/provider/providers/AuthProvider/AuthProvider.js",
-  "@para-internal/store":
-    "./node_modules/@getpara/react-sdk-lite/dist/provider/stores/useStore.js",
 };
 
 const nextConfig: NextConfig = {
@@ -62,10 +53,10 @@ const nextConfig: NextConfig = {
     "@aomi-labs/widget-lib",
     "@getpara/react-core",
     "@getpara/react-sdk",
+    "@getpara/react-sdk-lite",
   ],
   // Turbopack aliases (Next.js 16 default bundler) — ensures registry code
-  // resolves @getpara/*, wagmi, viem to the same physical copies as the
-  // landing app, preventing duplicate Zustand store singletons in pnpm.
+  // resolves Para + wagmi dependencies to the same physical copies as landing.
   turbopack: {
     resolveAlias: turbopackAliases,
   },
@@ -97,17 +88,13 @@ const nextConfig: NextConfig = {
         landingNodeModules,
         "@tanstack/react-query",
       ),
-      zustand: path.join(landingNodeModules, "zustand"),
-      viem: path.join(landingNodeModules, "viem"),
-      wagmi: path.join(landingNodeModules, "wagmi"),
-      "@para-internal/auth-provider": path.join(
-        landingNodeModules,
-        "@getpara/react-sdk-lite/dist/provider/providers/AuthProvider/AuthProvider.js",
-      ),
       "@para-internal/store": path.join(
         landingNodeModules,
         "@getpara/react-sdk-lite/dist/provider/stores/useStore.js",
       ),
+      zustand: path.join(landingNodeModules, "zustand"),
+      viem: path.join(landingNodeModules, "viem"),
+      wagmi: path.join(landingNodeModules, "wagmi"),
     };
     return config;
   },

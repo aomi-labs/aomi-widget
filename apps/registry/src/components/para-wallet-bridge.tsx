@@ -34,10 +34,6 @@ import {
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
 const LOCALHOST_CHAIN_ID = 31337;
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
 function parseChainId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
@@ -49,10 +45,6 @@ function parseChainId(value: unknown): number | undefined {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
-
-// =============================================================================
-// LocalhostNetworkEnforcer
-// =============================================================================
 
 function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
   const { isConnected, chainId, connector } = useAccount();
@@ -100,10 +92,6 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-// =============================================================================
-// Para Auth State Hook
-// =============================================================================
-
 function useParaAuthState(paraClient: ParaWeb | null) {
   const [paraAddress, setParaAddress] = useState<string | undefined>();
   const [paraEmail, setParaEmail] = useState<string | undefined>();
@@ -117,7 +105,7 @@ function useParaAuthState(paraClient: ParaWeb | null) {
       if (loggedIn) {
         const wallets = paraClient.getWallets();
         const firstWallet = Object.values(wallets).find(
-          (w) => w.address && w.type === "EVM",
+          (wallet) => wallet.address && wallet.type === "EVM",
         );
         setParaAddress(firstWallet?.address ?? undefined);
         setParaEmail(paraClient.getEmail() ?? undefined);
@@ -126,7 +114,7 @@ function useParaAuthState(paraClient: ParaWeb | null) {
         setParaEmail(undefined);
       }
     } catch {
-      // Session check may fail if no session exists
+      // Session check may fail if no session exists.
     }
   }, [paraClient]);
 
@@ -152,6 +140,7 @@ function useParaAuthState(paraClient: ParaWeb | null) {
     for (const event of events) {
       window.addEventListener(event, handler);
     }
+
     return () => {
       for (const event of events) {
         window.removeEventListener(event, handler);
@@ -159,12 +148,8 @@ function useParaAuthState(paraClient: ParaWeb | null) {
     };
   }, [paraClient, syncState]);
 
-  return { paraAddress, paraEmail, paraLoggedIn, refreshAuthState: syncState };
+  return { paraAddress, paraEmail, paraLoggedIn };
 }
-
-// =============================================================================
-// Para Client Hook
-// =============================================================================
 
 function useParaClient(): ParaWeb | null {
   const [client, setClient] = useState<ParaWeb | null>(() => {
@@ -181,13 +166,13 @@ function useParaClient(): ParaWeb | null {
     let cancelled = false;
     const interval = setInterval(() => {
       try {
-        const c = getClient() as ParaWeb | null;
-        if (c && !cancelled) {
-          setClient(c);
+        const nextClient = getClient() as ParaWeb | null;
+        if (nextClient && !cancelled) {
+          setClient(nextClient);
           clearInterval(interval);
         }
       } catch {
-        // Store not ready yet
+        // Store not ready yet.
       }
     }, 150);
 
@@ -200,36 +185,12 @@ function useParaClient(): ParaWeb | null {
   return client;
 }
 
-// =============================================================================
-// ParaWalletBridge
-// =============================================================================
-
-/**
- * Thin bridge that runs **inside** a `ParaProviderMin` tree.
- *
- * Reads Para + wagmi hooks and writes `WalletAdapterContext` so that
- * `AomiFrame` (and any descendant) can consume wallet state without
- * caring which provider is in use.
- *
- * Usage:
- * ```tsx
- * <ParaProviderMin ...config>
- *   <ParaWalletBridge>
- *     <AomiFrame ... />
- *   </ParaWalletBridge>
- * </ParaProviderMin>
- * ```
- */
 export function ParaWalletBridge({
   children,
   onOpenModal,
 }: {
   children: ReactNode;
-  /** Override for opening the wallet modal. When provided, this is used
-   *  instead of the SDK's `setIsOpen` — avoids Zustand store duplication
-   *  issues in pnpm monorepos where the bridge and ParaProviderMin resolve
-   *  to different module copies. */
-  onOpenModal?: () => void;
+  onOpenModal?: (step: "AUTH_MAIN" | "ACCOUNT_MAIN") => void;
 }) {
   const paraClient = useParaClient();
   const { address: wagmiAddress, chainId, isConnected: wagmiConnected } = useAccount();
@@ -246,7 +207,7 @@ export function ParaWalletBridge({
     if (effectiveConnected && effectiveAddress) {
       if (isParaAuth && paraEmail) {
         return {
-          kind: "social" as const,
+          kind: "social",
           isConnected: true,
           address: effectiveAddress,
           chainId: chainId ?? undefined,
@@ -255,8 +216,9 @@ export function ParaWalletBridge({
           secondaryLabel: "Google",
         };
       }
+
       return {
-        kind: "wallet" as const,
+        kind: "wallet",
         isConnected: true,
         address: effectiveAddress,
         chainId: chainId ?? undefined,
@@ -269,7 +231,7 @@ export function ParaWalletBridge({
       ...DISCONNECTED_ADAPTER.identity,
       chainId: chainId ?? undefined,
     };
-  }, [effectiveAddress, effectiveConnected, isParaAuth, paraEmail, chainId]);
+  }, [chainId, effectiveAddress, effectiveConnected, isParaAuth, paraEmail]);
 
   const adapter = useMemo<WalletAdapter>(() => {
     return {
@@ -279,10 +241,18 @@ export function ParaWalletBridge({
       canConnect: Boolean(paraClient),
       canManageAccount: effectiveConnected,
       connect: async () => {
-        (onOpenModal ?? (() => setIsOpen(true)))();
+        if (onOpenModal) {
+          onOpenModal("AUTH_MAIN");
+          return;
+        }
+        setIsOpen(true);
       },
       manageAccount: async () => {
-        (onOpenModal ?? (() => setIsOpen(true)))();
+        if (onOpenModal) {
+          onOpenModal("ACCOUNT_MAIN");
+          return;
+        }
+        setIsOpen(true);
       },
       switchChain: switchChainAsync
         ? async (nextChainId: number) => {
