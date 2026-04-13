@@ -2518,6 +2518,38 @@ var init_owner = __esm({
 
 // src/aa/alchemy/create.ts
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+function aaDebug(message, fields) {
+  if (!AA_DEBUG_ENABLED) return;
+  if (fields) {
+    console.debug(`[aomi][aa][alchemy] ${message}`, fields);
+    return;
+  }
+  console.debug(`[aomi][aa][alchemy] ${message}`);
+}
+function extractExistingAccountAddress(error) {
+  var _a3;
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/Account with address (0x[a-fA-F0-9]{40}) already exists/);
+  return (_a3 = match == null ? void 0 : match[1]) != null ? _a3 : null;
+}
+function deriveAlchemy4337AccountId(address) {
+  var _a3;
+  const hex = address.toLowerCase().slice(2).padEnd(32, "0").slice(0, 32).split("");
+  const namespace = ["4", "3", "3", "7", "5", "a", "a", "b"];
+  for (let i = 0; i < namespace.length; i += 1) {
+    hex[i] = namespace[i];
+  }
+  hex[12] = "4";
+  const variant = Number.parseInt((_a3 = hex[16]) != null ? _a3 : "0", 16);
+  hex[16] = (variant & 3 | 8).toString(16);
+  return [
+    hex.slice(0, 8).join(""),
+    hex.slice(8, 12).join(""),
+    hex.slice(12, 16).join(""),
+    hex.slice(16, 20).join(""),
+    hex.slice(20, 32).join("")
+  ].join("-");
+}
 async function createAlchemyAAState(options) {
   var _a3, _b;
   const {
@@ -2613,48 +2645,196 @@ async function createAlchemyAAState(options) {
     };
   }
 }
-async function createAlchemyWalletApisState(params) {
+async function createAlchemy4337State(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
   const signer = privateKeyToAccount2(params.privateKey);
-  const walletClient = createSmartWalletClient(__spreadValues({
+  const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
     signer
   }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
-  let accountAddress = signer.address;
-  if (params.mode === "4337") {
-    const account2 = await walletClient.requestAccount();
-    accountAddress = account2.address;
-  }
-  const sendCalls = async (calls) => {
-    var _a3, _b;
-    const result = await walletClient.sendCalls(__spreadProps(__spreadValues({}, params.mode === "4337" ? { account: accountAddress } : {}), {
-      calls
-    }));
-    const status = await walletClient.waitForCallsStatus({ id: result.id });
-    const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
-    if (!transactionHash) {
-      throw new Error("Alchemy Wallets API did not return a transaction hash.");
+  const signerAddress = signer.address;
+  const accountId = deriveAlchemy4337AccountId(signerAddress);
+  aaDebug("4337:requestAccount:start", {
+    signerAddress,
+    chainId: params.chain.id,
+    accountId,
+    hasGasPolicyId: Boolean(params.gasPolicyId)
+  });
+  let account;
+  try {
+    account = await alchemyClient.requestAccount({
+      signerAddress,
+      id: accountId,
+      creationHint: {
+        accountType: "sma-b",
+        createAdditional: true
+      }
+    });
+  } catch (error) {
+    const existingAccountAddress = extractExistingAccountAddress(error);
+    if (!existingAccountAddress) {
+      throw error;
     }
-    return { transactionHash };
+    aaDebug("4337:requestAccount:existing-account", {
+      existingAccountAddress
+    });
+    account = await alchemyClient.requestAccount({
+      accountAddress: existingAccountAddress
+    });
+  }
+  const accountAddress = account.address;
+  aaDebug("4337:requestAccount:done", { signerAddress, accountAddress });
+  const sendCalls = async (calls) => {
+    var _a3, _b, _c, _d;
+    aaDebug("4337:sendCalls:start", {
+      signerAddress,
+      accountAddress,
+      chainId: params.chain.id,
+      callCount: calls.length,
+      hasGasPolicyId: Boolean(params.gasPolicyId)
+    });
+    try {
+      const result = await alchemyClient.sendCalls({
+        account: accountAddress,
+        calls
+      });
+      aaDebug("4337:sendCalls:submitted", { callId: result.id });
+      const status = await alchemyClient.waitForCallsStatus({ id: result.id });
+      const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
+      aaDebug("4337:sendCalls:receipt", {
+        callId: result.id,
+        hasTransactionHash: Boolean(transactionHash),
+        receipts: (_d = (_c = status.receipts) == null ? void 0 : _c.length) != null ? _d : 0
+      });
+      if (!transactionHash) {
+        throw new Error("Alchemy Wallets API did not return a transaction hash.");
+      }
+      return { transactionHash };
+    } catch (error) {
+      aaDebug("4337:sendCalls:error", {
+        signerAddress,
+        accountAddress,
+        chainId: params.chain.id,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
   };
-  const account = {
+  const smartAccount = {
     provider: "alchemy",
-    mode: params.mode,
+    mode: "4337",
     AAAddress: accountAddress,
-    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls)
   };
   return {
     resolved: params.resolved,
-    account,
+    account: smartAccount,
     pending: false,
     error: null
   };
 }
-var ALCHEMY_7702_DELEGATION_ADDRESS;
+async function createAlchemy7702State(params) {
+  const { createWalletClient: createWalletClient2, createPublicClient, http: http2 } = await import("viem");
+  const { encodeExecuteData } = await import("viem/experimental/erc7821");
+  if (params.gasPolicyId) {
+    aaDebug(
+      "7702:gas-policy-ignored",
+      { gasPolicyId: params.gasPolicyId }
+    );
+    console.warn(
+      "\u26A0\uFE0F  Gas policy is not supported for raw EIP-7702 transactions. The signer's EOA pays gas directly."
+    );
+  }
+  const signer = privateKeyToAccount2(params.privateKey);
+  const signerAddress = signer.address;
+  let rpcUrl;
+  if (params.proxyBaseUrl) {
+    rpcUrl = params.proxyBaseUrl;
+  } else if (params.apiKey) {
+    rpcUrl = `https://eth-mainnet.g.alchemy.com/v2/${params.apiKey}`;
+  }
+  const walletClient = createWalletClient2({
+    account: signer,
+    chain: params.chain,
+    transport: http2(rpcUrl)
+  });
+  const publicClient = createPublicClient({
+    chain: params.chain,
+    transport: http2(rpcUrl)
+  });
+  const send7702 = async (calls) => {
+    aaDebug("7702:send:start", {
+      signerAddress,
+      chainId: params.chain.id,
+      callCount: calls.length,
+      calls: calls.map((call) => {
+        var _a3;
+        return {
+          to: call.to,
+          value: call.value.toString(),
+          data: (_a3 = call.data) != null ? _a3 : "0x"
+        };
+      })
+    });
+    const authorization = await walletClient.signAuthorization({
+      contractAddress: ALCHEMY_7702_DELEGATION_ADDRESS
+    });
+    aaDebug("7702:authorization-signed", {
+      contractAddress: ALCHEMY_7702_DELEGATION_ADDRESS
+    });
+    const data = encodeExecuteData({
+      calls: calls.map((call) => {
+        var _a3;
+        return {
+          to: call.to,
+          value: call.value,
+          data: (_a3 = call.data) != null ? _a3 : "0x"
+        };
+      })
+    });
+    aaDebug("7702:calldata-encoded", { dataLength: data.length });
+    const hash = await walletClient.sendTransaction({
+      to: signerAddress,
+      data,
+      authorizationList: [authorization]
+    });
+    aaDebug("7702:tx-sent", { hash });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    aaDebug("7702:tx-confirmed", {
+      hash,
+      status: receipt.status,
+      gasUsed: receipt.gasUsed.toString()
+    });
+    if (receipt.status === "reverted") {
+      throw new Error(`EIP-7702 transaction reverted: ${hash}`);
+    }
+    return { transactionHash: hash };
+  };
+  const smartAccount = {
+    provider: "alchemy",
+    mode: "7702",
+    AAAddress: signerAddress,
+    delegationAddress: ALCHEMY_7702_DELEGATION_ADDRESS,
+    sendTransaction: async (call) => send7702([call]),
+    sendBatchTransaction: async (calls) => send7702(calls)
+  };
+  return {
+    resolved: params.resolved,
+    account: smartAccount,
+    pending: false,
+    error: null
+  };
+}
+async function createAlchemyWalletApisState(params) {
+  if (params.mode === "7702") {
+    return createAlchemy7702State(params);
+  }
+  return createAlchemy4337State(params);
+}
+var ALCHEMY_7702_DELEGATION_ADDRESS, AA_DEBUG_ENABLED;
 var init_create = __esm({
   "src/aa/alchemy/create.ts"() {
     "use strict";
@@ -2662,6 +2842,7 @@ var init_create = __esm({
     init_types2();
     init_owner();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
+    AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
   }
 });
 

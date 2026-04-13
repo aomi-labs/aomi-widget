@@ -124,7 +124,7 @@ export async function createAlchemyAAState(
     } catch (error) {
       return {
         resolved: execution,
-        smartAccount: null,
+        account: null,
         pending: false,
         error: error instanceof Error ? error : new Error(String(error)),
       };
@@ -135,7 +135,7 @@ export async function createAlchemyAAState(
   if (!options.apiKey) {
     return {
       resolved: execution,
-      smartAccount: null,
+      account: null,
       pending: false,
       error: new Error(
         "Alchemy AA with session/adapter owner requires ALCHEMY_API_KEY.",
@@ -157,7 +157,7 @@ export async function createAlchemyAAState(
     if (!smartAccount) {
       return {
         resolved: execution,
-        smartAccount: null,
+        account: null,
         pending: false,
         error: new Error("Alchemy AA account could not be initialized."),
       };
@@ -165,14 +165,14 @@ export async function createAlchemyAAState(
 
     return {
       resolved: execution,
-      smartAccount: adaptSmartAccount(smartAccount),
+      account: adaptSmartAccount(smartAccount),
       pending: false,
       error: null,
     };
   } catch (error) {
     return {
       resolved: execution,
-      smartAccount: null,
+      account: null,
       pending: false,
       error: error instanceof Error ? error : new Error(String(error)),
     };
@@ -180,23 +180,26 @@ export async function createAlchemyAAState(
 }
 
 // ---------------------------------------------------------------------------
-// Alchemy Wallet APIs (direct owner, supports proxy transport)
+// Alchemy Wallet APIs — 4337 (bundled UserOperation via @alchemy/wallet-apis)
 // ---------------------------------------------------------------------------
+// Alchemy's bundler enforces full signature validation during
+// eth_estimateUserOperationGas, making client-side userOp construction
+// impossible (chicken-and-egg: can't sign without gas values, can't
+// estimate without valid signature). The wallet_prepareCalls RPC
+// handles estimation + paymaster + signing server-side.
 
-async function createAlchemyWalletApisState(params: {
+async function createAlchemy4337State(params: {
   resolved: NonNullable<AAState["resolved"]>;
   chain: Chain;
   privateKey: `0x${string}`;
   apiKey?: string;
   proxyBaseUrl?: string;
   gasPolicyId?: string;
-  mode: AAMode;
 }): Promise<AAState> {
   const { createSmartWalletClient, alchemyWalletTransport } = await import(
     "@alchemy/wallet-apis"
   );
 
-  // Proxy: point transport at backend. BYOK: use API key directly.
   const transport = params.proxyBaseUrl
     ? alchemyWalletTransport({ url: params.proxyBaseUrl })
     : alchemyWalletTransport({ apiKey: params.apiKey! });
@@ -210,89 +213,69 @@ async function createAlchemyWalletApisState(params: {
   });
 
   const signerAddress = signer.address as Hex;
-  let accountAddress = signerAddress;
-  if (params.mode === "4337") {
-    const accountId = deriveAlchemy4337AccountId(signerAddress);
-    aaDebug("requestAccount:start", {
-      signerAddress,
-      chainId: params.chain.id,
-      accountId,
-      proxyBaseUrl: params.proxyBaseUrl,
-      hasGasPolicyId: Boolean(params.gasPolicyId),
-    });
-    let account;
-    try {
-      account = await alchemyClient.requestAccount({
-        signerAddress,
-        id: accountId,
-        creationHint: {
-          accountType: "sma-b",
-          createAdditional: true,
-        },
-      });
-    } catch (error) {
-      const existingAccountAddress = extractExistingAccountAddress(error);
-      if (!existingAccountAddress) {
-        throw error;
-      }
+  const accountId = deriveAlchemy4337AccountId(signerAddress);
+  aaDebug("4337:requestAccount:start", {
+    signerAddress,
+    chainId: params.chain.id,
+    accountId,
+    hasGasPolicyId: Boolean(params.gasPolicyId),
+  });
 
-      aaDebug("requestAccount:existing-account", {
-        signerAddress,
-        accountId,
-        existingAccountAddress,
-      });
-      account = await alchemyClient.requestAccount({
-        accountAddress: existingAccountAddress,
-      });
-    }
-    accountAddress = account.address as Hex;
-    aaDebug("requestAccount:done", {
+  let account;
+  try {
+    account = await alchemyClient.requestAccount({
       signerAddress,
-      accountAddress,
-      accountId,
-      sameAsSigner:
-        accountAddress.toLowerCase() === signerAddress.toLowerCase(),
+      id: accountId,
+      creationHint: {
+        accountType: "sma-b",
+        createAdditional: true,
+      },
+    });
+  } catch (error) {
+    const existingAccountAddress = extractExistingAccountAddress(error);
+    if (!existingAccountAddress) {
+      throw error;
+    }
+    aaDebug("4337:requestAccount:existing-account", {
+      existingAccountAddress,
+    });
+    account = await alchemyClient.requestAccount({
+      accountAddress: existingAccountAddress,
     });
   }
+  const accountAddress = account.address as Hex;
+  aaDebug("4337:requestAccount:done", { signerAddress, accountAddress });
 
   const sendCalls = async (
     calls: Array<{ to: Hex; value: bigint; data?: Hex }>,
   ): Promise<{ transactionHash: string }> => {
-    aaDebug("sendCalls:start", {
-      mode: params.mode,
+    aaDebug("4337:sendCalls:start", {
       signerAddress,
       accountAddress,
       chainId: params.chain.id,
-      calls: calls.map((call) => ({
-        to: call.to,
-        value: call.value.toString(),
-        data: call.data ?? "0x",
-      })),
-      proxyBaseUrl: params.proxyBaseUrl,
+      callCount: calls.length,
       hasGasPolicyId: Boolean(params.gasPolicyId),
     });
     try {
       const result = await alchemyClient.sendCalls({
-        ...(params.mode === "4337" ? { account: accountAddress } : {}),
+        account: accountAddress,
         calls,
       });
-      aaDebug("sendCalls:submitted", { callId: result.id });
+      aaDebug("4337:sendCalls:submitted", { callId: result.id });
 
       const status = await alchemyClient.waitForCallsStatus({ id: result.id });
       const transactionHash = status.receipts?.[0]?.transactionHash;
-      aaDebug("sendCalls:status", {
+      aaDebug("4337:sendCalls:receipt", {
         callId: result.id,
         hasTransactionHash: Boolean(transactionHash),
         receipts: status.receipts?.length ?? 0,
-        status,
       });
       if (!transactionHash) {
         throw new Error("Alchemy Wallets API did not return a transaction hash.");
       }
       return { transactionHash };
     } catch (error) {
-      aaDebug("sendCalls:error", {
-        mode: params.mode,
+      aaDebug("4337:sendCalls:error", {
         signerAddress,
         accountAddress,
         chainId: params.chain.id,
@@ -304,17 +287,157 @@ async function createAlchemyWalletApisState(params: {
 
   const smartAccount: SmartAccount = {
     provider: "alchemy",
-    mode: params.mode,
+    mode: "4337",
     AAAddress: accountAddress,
-    delegationAddress: params.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : undefined,
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls),
   };
 
   return {
     resolved: params.resolved,
-    smartAccount: smartAccount,
+    account: smartAccount,
     pending: false,
     error: null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Raw EIP-7702 (native type-4 transaction via viem)
+// ---------------------------------------------------------------------------
+
+async function createAlchemy7702State(params: {
+  resolved: NonNullable<AAState["resolved"]>;
+  chain: Chain;
+  privateKey: `0x${string}`;
+  apiKey?: string;
+  proxyBaseUrl?: string;
+  gasPolicyId?: string;
+}): Promise<AAState> {
+  const { createWalletClient, createPublicClient, http } = await import("viem");
+  const { encodeExecuteData } = await import(
+    "viem/experimental/erc7821"
+  );
+
+  if (params.gasPolicyId) {
+    aaDebug(
+      "7702:gas-policy-ignored",
+      { gasPolicyId: params.gasPolicyId },
+    );
+    console.warn(
+      "⚠️  Gas policy is not supported for raw EIP-7702 transactions. " +
+        "The signer's EOA pays gas directly.",
+    );
+  }
+
+  const signer = privateKeyToAccount(params.privateKey);
+  const signerAddress = signer.address as Hex;
+
+  // Build RPC URL: prefer proxyBaseUrl, then Alchemy BYOK, then fallback.
+  let rpcUrl: string | undefined;
+  if (params.proxyBaseUrl) {
+    rpcUrl = params.proxyBaseUrl;
+  } else if (params.apiKey) {
+    rpcUrl = `https://eth-mainnet.g.alchemy.com/v2/${params.apiKey}`;
+  }
+
+  const walletClient = createWalletClient({
+    account: signer,
+    chain: params.chain,
+    transport: http(rpcUrl),
+  });
+
+  const publicClient = createPublicClient({
+    chain: params.chain,
+    transport: http(rpcUrl),
+  });
+
+  const send7702 = async (
+    calls: Array<{ to: Hex; value: bigint; data?: Hex }>,
+  ): Promise<{ transactionHash: string }> => {
+    aaDebug("7702:send:start", {
+      signerAddress,
+      chainId: params.chain.id,
+      callCount: calls.length,
+      calls: calls.map((call) => ({
+        to: call.to,
+        value: call.value.toString(),
+        data: call.data ?? "0x",
+      })),
+    });
+
+    // 1. Sign EIP-7702 authorization delegating to SMA7702
+    const authorization = await walletClient.signAuthorization({
+      contractAddress: ALCHEMY_7702_DELEGATION_ADDRESS,
+    });
+    aaDebug("7702:authorization-signed", {
+      contractAddress: ALCHEMY_7702_DELEGATION_ADDRESS,
+    });
+
+    // 2. Encode calls via ERC-7821 execute(bytes32 mode, bytes calldata)
+    const data = encodeExecuteData({
+      calls: calls.map((call) => ({
+        to: call.to,
+        value: call.value,
+        data: call.data ?? ("0x" as Hex),
+      })),
+    });
+    aaDebug("7702:calldata-encoded", { dataLength: data.length });
+
+    // 3. Send native type-4 transaction to self (delegation target)
+    const hash = await walletClient.sendTransaction({
+      to: signerAddress,
+      data,
+      authorizationList: [authorization],
+    });
+    aaDebug("7702:tx-sent", { hash });
+
+    // 4. Wait for confirmation
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    aaDebug("7702:tx-confirmed", {
+      hash,
+      status: receipt.status,
+      gasUsed: receipt.gasUsed.toString(),
+    });
+
+    if (receipt.status === "reverted") {
+      throw new Error(`EIP-7702 transaction reverted: ${hash}`);
+    }
+
+    return { transactionHash: hash };
+  };
+
+  const smartAccount: SmartAccount = {
+    provider: "alchemy",
+    mode: "7702",
+    AAAddress: signerAddress,
+    delegationAddress: ALCHEMY_7702_DELEGATION_ADDRESS,
+    sendTransaction: async (call) => send7702([call]),
+    sendBatchTransaction: async (calls) => send7702(calls),
+  };
+
+  return {
+    resolved: params.resolved,
+    account: smartAccount,
+    pending: false,
+    error: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Alchemy Wallet APIs (direct owner — dispatcher)
+// ---------------------------------------------------------------------------
+
+async function createAlchemyWalletApisState(params: {
+  resolved: NonNullable<AAState["resolved"]>;
+  chain: Chain;
+  privateKey: `0x${string}`;
+  apiKey?: string;
+  proxyBaseUrl?: string;
+  gasPolicyId?: string;
+  mode: AAMode;
+}): Promise<AAState> {
+  if (params.mode === "7702") {
+    return createAlchemy7702State(params);
+  }
+  return createAlchemy4337State(params);
 }
