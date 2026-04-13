@@ -1704,16 +1704,20 @@ function getUnsupportedAdapterState(resolved, adapter) {
   };
 }
 
-// src/aa/alchemy/create.ts
-var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-var AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+// src/cli/chains.ts
 var ALCHEMY_CHAIN_SLUGS = {
   1: "eth-mainnet",
   137: "polygon-mainnet",
   42161: "arb-mainnet",
+  8453: "base-mainnet",
   10: "opt-mainnet",
-  8453: "base-mainnet"
+  11155111: "eth-sepolia"
 };
+
+// src/aa/alchemy/create.ts
+var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
+var AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+var EIP_7702_AUTH_GAS_OVERHEAD = BigInt(25e3);
 function alchemyRpcUrl(chainId, apiKey) {
   var _a;
   const slug = (_a = ALCHEMY_CHAIN_SLUGS[chainId]) != null ? _a : "eth-mainnet";
@@ -1785,16 +1789,16 @@ async function createAlchemyAAState(options) {
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
   if (owner.kind === "direct") {
+    const directParams = {
+      resolved: execution,
+      chain,
+      privateKey: owner.privateKey,
+      apiKey: options.apiKey,
+      proxyBaseUrl: options.proxyBaseUrl,
+      gasPolicyId
+    };
     try {
-      return await createAlchemyWalletApisState({
-        resolved: execution,
-        chain,
-        privateKey: owner.privateKey,
-        apiKey: options.apiKey,
-        proxyBaseUrl: options.proxyBaseUrl,
-        gasPolicyId,
-        mode: execution.mode
-      });
+      return await (execution.mode === "7702" ? createAlchemy7702State(directParams) : createAlchemy4337State(directParams));
     } catch (error) {
       return {
         resolved: execution,
@@ -2003,11 +2007,9 @@ async function createAlchemy7702State(params) {
       data,
       authorizationList: [authorization]
     });
-    const authOverhead = BigInt(25e3) * BigInt(authorization ? 1 : 0);
-    const gas = gasEstimate + authOverhead;
+    const gas = gasEstimate + EIP_7702_AUTH_GAS_OVERHEAD;
     aaDebug("7702:gas-estimated", {
       estimate: gasEstimate.toString(),
-      authOverhead: authOverhead.toString(),
       total: gas.toString()
     });
     const hash = await walletClient.sendTransaction({
@@ -2042,12 +2044,6 @@ async function createAlchemy7702State(params) {
     pending: false,
     error: null
   };
-}
-async function createAlchemyWalletApisState(params) {
-  if (params.mode === "7702") {
-    return createAlchemy7702State(params);
-  }
-  return createAlchemy4337State(params);
 }
 
 // src/aa/pimlico/resolve.ts

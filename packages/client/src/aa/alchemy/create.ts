@@ -14,18 +14,14 @@ import {
   getUnsupportedAdapterState,
   type AAOwner,
 } from "../owner";
+import { ALCHEMY_CHAIN_SLUGS } from "../../cli/chains";
 
 const ALCHEMY_7702_DELEGATION_ADDRESS =
   "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
 const AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
 
-const ALCHEMY_CHAIN_SLUGS: Record<number, string> = {
-  1: "eth-mainnet",
-  137: "polygon-mainnet",
-  42161: "arb-mainnet",
-  10: "opt-mainnet",
-  8453: "base-mainnet",
-};
+/** EIP-7702 intrinsic gas per authorization entry. */
+const EIP_7702_AUTH_GAS_OVERHEAD = BigInt(25000);
 
 function alchemyRpcUrl(chainId: number, apiKey: string): string {
   const slug = ALCHEMY_CHAIN_SLUGS[chainId] ?? "eth-mainnet";
@@ -64,6 +60,16 @@ function deriveAlchemy4337AccountId(address: Hex): string {
     hex.slice(16, 20).join(""),
     hex.slice(20, 32).join(""),
   ].join("-");
+}
+
+/** Shared params for the direct-owner 4337/7702 paths. */
+interface AlchemyDirectOwnerParams {
+  resolved: NonNullable<AAState["resolved"]>;
+  chain: Chain;
+  privateKey: `0x${string}`;
+  apiKey?: string;
+  proxyBaseUrl?: string;
+  gasPolicyId?: string;
 }
 
 export interface CreateAlchemyAAStateOptions {
@@ -124,16 +130,18 @@ export async function createAlchemyAAState(
   }
 
   if (owner.kind === "direct") {
+    const directParams: AlchemyDirectOwnerParams = {
+      resolved: execution!,
+      chain,
+      privateKey: owner.privateKey,
+      apiKey: options.apiKey,
+      proxyBaseUrl: options.proxyBaseUrl,
+      gasPolicyId,
+    };
     try {
-      return await createAlchemyWalletApisState({
-        resolved: execution!,
-        chain,
-        privateKey: owner.privateKey,
-        apiKey: options.apiKey,
-        proxyBaseUrl: options.proxyBaseUrl,
-        gasPolicyId,
-        mode: execution!.mode,
-      });
+      return await (execution!.mode === "7702"
+        ? createAlchemy7702State(directParams)
+        : createAlchemy4337State(directParams));
     } catch (error) {
       return {
         resolved: execution,
@@ -201,14 +209,9 @@ export async function createAlchemyAAState(
 // estimate without valid signature). The wallet_prepareCalls RPC
 // handles estimation + paymaster + signing server-side.
 
-async function createAlchemy4337State(params: {
-  resolved: NonNullable<AAState["resolved"]>;
-  chain: Chain;
-  privateKey: `0x${string}`;
-  apiKey?: string;
-  proxyBaseUrl?: string;
-  gasPolicyId?: string;
-}): Promise<AAState> {
+async function createAlchemy4337State(
+  params: AlchemyDirectOwnerParams,
+): Promise<AAState> {
   const { createSmartWalletClient, alchemyWalletTransport } = await import(
     "@alchemy/wallet-apis"
   );
@@ -318,14 +321,9 @@ async function createAlchemy4337State(params: {
 // Raw EIP-7702 (native type-4 transaction via viem)
 // ---------------------------------------------------------------------------
 
-async function createAlchemy7702State(params: {
-  resolved: NonNullable<AAState["resolved"]>;
-  chain: Chain;
-  privateKey: `0x${string}`;
-  apiKey?: string;
-  proxyBaseUrl?: string;
-  gasPolicyId?: string;
-}): Promise<AAState> {
+async function createAlchemy7702State(
+  params: AlchemyDirectOwnerParams,
+): Promise<AAState> {
   const { createWalletClient, createPublicClient, http } = await import("viem");
   const { encodeExecuteData } = await import(
     "viem/experimental/erc7821"
@@ -378,7 +376,6 @@ async function createAlchemy7702State(params: {
       })),
     });
 
-    // 1. Sign EIP-7702 authorization delegating to SMA7702
     const authorization = await walletClient.signAuthorization({
       contractAddress: ALCHEMY_7702_DELEGATION_ADDRESS,
     });
@@ -386,7 +383,6 @@ async function createAlchemy7702State(params: {
       contractAddress: ALCHEMY_7702_DELEGATION_ADDRESS,
     });
 
-    // 2. Encode calls via ERC-7821 execute(bytes32 mode, bytes calldata)
     const data = encodeExecuteData({
       calls: calls.map((call) => ({
         to: call.to,
@@ -396,24 +392,19 @@ async function createAlchemy7702State(params: {
     });
     aaDebug("7702:calldata-encoded", { dataLength: data.length });
 
-    // 3. Estimate gas with EIP-7702 authorization intrinsic overhead.
-    //    PER_EMPTY_ACCOUNT_COST = 25000 per authorization entry.
-    //    viem's estimateGas may not account for this.
+    // viem's estimateGas doesn't include EIP-7702 authorization intrinsic cost
     const gasEstimate = await publicClient.estimateGas({
       account: signer,
       to: signerAddress,
       data,
       authorizationList: [authorization],
     });
-    const authOverhead = BigInt(25000) * BigInt(authorization ? 1 : 0);
-    const gas = gasEstimate + authOverhead;
+    const gas = gasEstimate + EIP_7702_AUTH_GAS_OVERHEAD;
     aaDebug("7702:gas-estimated", {
       estimate: gasEstimate.toString(),
-      authOverhead: authOverhead.toString(),
       total: gas.toString(),
     });
 
-    // 4. Send native type-4 transaction to self (delegation target)
     const hash = await walletClient.sendTransaction({
       to: signerAddress,
       data,
@@ -422,7 +413,6 @@ async function createAlchemy7702State(params: {
     });
     aaDebug("7702:tx-sent", { hash });
 
-    // 4. Wait for confirmation
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     aaDebug("7702:tx-confirmed", {
       hash,
@@ -454,21 +444,3 @@ async function createAlchemy7702State(params: {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Alchemy Wallet APIs (direct owner — dispatcher)
-// ---------------------------------------------------------------------------
-
-async function createAlchemyWalletApisState(params: {
-  resolved: NonNullable<AAState["resolved"]>;
-  chain: Chain;
-  privateKey: `0x${string}`;
-  apiKey?: string;
-  proxyBaseUrl?: string;
-  gasPolicyId?: string;
-  mode: AAMode;
-}): Promise<AAState> {
-  if (params.mode === "7702") {
-    return createAlchemy7702State(params);
-  }
-  return createAlchemy4337State(params);
-}
