@@ -2520,7 +2520,7 @@ var init_owner = __esm({
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 function alchemyRpcUrl(chainId, apiKey) {
   var _a3;
-  const slug = (_a3 = ALCHEMY_CHAIN_SLUGS2[chainId]) != null ? _a3 : "eth-mainnet";
+  const slug = (_a3 = ALCHEMY_CHAIN_SLUGS[chainId]) != null ? _a3 : "eth-mainnet";
   return `https://${slug}.g.alchemy.com/v2/${apiKey}`;
 }
 function aaDebug(message, fields) {
@@ -2589,16 +2589,16 @@ async function createAlchemyAAState(options) {
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
   if (owner.kind === "direct") {
+    const directParams = {
+      resolved: execution,
+      chain,
+      privateKey: owner.privateKey,
+      apiKey: options.apiKey,
+      proxyBaseUrl: options.proxyBaseUrl,
+      gasPolicyId
+    };
     try {
-      return await createAlchemyWalletApisState({
-        resolved: execution,
-        chain,
-        privateKey: owner.privateKey,
-        apiKey: options.apiKey,
-        proxyBaseUrl: options.proxyBaseUrl,
-        gasPolicyId,
-        mode: execution.mode
-      });
+      return await (execution.mode === "7702" ? createAlchemy7702State(directParams) : createAlchemy4337State(directParams));
     } catch (error) {
       return {
         resolved: execution,
@@ -2807,11 +2807,9 @@ async function createAlchemy7702State(params) {
       data,
       authorizationList: [authorization]
     });
-    const authOverhead = BigInt(25e3) * BigInt(authorization ? 1 : 0);
-    const gas = gasEstimate + authOverhead;
+    const gas = gasEstimate + EIP_7702_AUTH_GAS_OVERHEAD;
     aaDebug("7702:gas-estimated", {
       estimate: gasEstimate.toString(),
-      authOverhead: authOverhead.toString(),
       total: gas.toString()
     });
     const hash = await walletClient.sendTransaction({
@@ -2847,28 +2845,17 @@ async function createAlchemy7702State(params) {
     error: null
   };
 }
-async function createAlchemyWalletApisState(params) {
-  if (params.mode === "7702") {
-    return createAlchemy7702State(params);
-  }
-  return createAlchemy4337State(params);
-}
-var ALCHEMY_7702_DELEGATION_ADDRESS, AA_DEBUG_ENABLED, ALCHEMY_CHAIN_SLUGS2;
+var ALCHEMY_7702_DELEGATION_ADDRESS, AA_DEBUG_ENABLED, EIP_7702_AUTH_GAS_OVERHEAD;
 var init_create = __esm({
   "src/aa/alchemy/create.ts"() {
     "use strict";
     init_adapt();
     init_types2();
     init_owner();
+    init_chains();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
     AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
-    ALCHEMY_CHAIN_SLUGS2 = {
-      1: "eth-mainnet",
-      137: "polygon-mainnet",
-      42161: "arb-mainnet",
-      10: "opt-mainnet",
-      8453: "base-mainnet"
-    };
+    EIP_7702_AUTH_GAS_OVERHEAD = BigInt(25e3);
   }
 });
 
