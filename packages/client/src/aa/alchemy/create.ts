@@ -19,6 +19,19 @@ const ALCHEMY_7702_DELEGATION_ADDRESS =
   "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
 const AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
 
+const ALCHEMY_CHAIN_SLUGS: Record<number, string> = {
+  1: "eth-mainnet",
+  137: "polygon-mainnet",
+  42161: "arb-mainnet",
+  10: "opt-mainnet",
+  8453: "base-mainnet",
+};
+
+function alchemyRpcUrl(chainId: number, apiKey: string): string {
+  const slug = ALCHEMY_CHAIN_SLUGS[chainId] ?? "eth-mainnet";
+  return `https://${slug}.g.alchemy.com/v2/${apiKey}`;
+}
+
 function aaDebug(message: string, fields?: Record<string, unknown>): void {
   if (!AA_DEBUG_ENABLED) return;
   if (fields) {
@@ -337,7 +350,7 @@ async function createAlchemy7702State(params: {
   if (params.proxyBaseUrl) {
     rpcUrl = params.proxyBaseUrl;
   } else if (params.apiKey) {
-    rpcUrl = `https://eth-mainnet.g.alchemy.com/v2/${params.apiKey}`;
+    rpcUrl = alchemyRpcUrl(params.chain.id, params.apiKey);
   }
 
   const walletClient = createWalletClient({
@@ -383,10 +396,28 @@ async function createAlchemy7702State(params: {
     });
     aaDebug("7702:calldata-encoded", { dataLength: data.length });
 
-    // 3. Send native type-4 transaction to self (delegation target)
+    // 3. Estimate gas with EIP-7702 authorization intrinsic overhead.
+    //    PER_EMPTY_ACCOUNT_COST = 25000 per authorization entry.
+    //    viem's estimateGas may not account for this.
+    const gasEstimate = await publicClient.estimateGas({
+      account: signer,
+      to: signerAddress,
+      data,
+      authorizationList: [authorization],
+    });
+    const authOverhead = BigInt(25000) * BigInt(authorization ? 1 : 0);
+    const gas = gasEstimate + authOverhead;
+    aaDebug("7702:gas-estimated", {
+      estimate: gasEstimate.toString(),
+      authOverhead: authOverhead.toString(),
+      total: gas.toString(),
+    });
+
+    // 4. Send native type-4 transaction to self (delegation target)
     const hash = await walletClient.sendTransaction({
       to: signerAddress,
       data,
+      gas,
       authorizationList: [authorization],
     });
     aaDebug("7702:tx-sent", { hash });
