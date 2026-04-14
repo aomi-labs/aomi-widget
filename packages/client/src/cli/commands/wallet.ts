@@ -1,16 +1,17 @@
-import { type Chain, createWalletClient, http } from "viem";
+import { type Chain, createWalletClient, getAddress, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
-import { toAAWalletCall } from "../../wallet-utils";
 import { ClientSession } from "../../session";
 import {
+  toAAWalletCall,
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
+import type { AomiSimulateFee } from "../../types";
 import { CliExit, fatal } from "../errors";
 import {
   createCliProviderState,
@@ -35,6 +36,52 @@ import {
   toSignedTransactionRecord,
 } from "../transactions";
 import type { CliConfig } from "../types";
+import type { AAWalletCall } from "../../aa";
+
+// ---------------------------------------------------------------------------
+// Fee Validation
+// ---------------------------------------------------------------------------
+
+/** Max fee the CLI will auto-inject without aborting (0.05 ETH). */
+const MAX_AUTO_FEE_WEI = BigInt("50000000000000000"); // 0.05 ETH
+
+function validateAndBuildFeeCall(
+  fee: AomiSimulateFee,
+  chainId: number,
+): AAWalletCall {
+  // Validate recipient is a real address
+  let recipient: string;
+  try {
+    recipient = getAddress(fee.recipient);
+  } catch {
+    throw new Error(
+      `Invalid fee recipient address from backend: ${fee.recipient}`,
+    );
+  }
+
+  // Validate amount is a parseable positive integer
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei <= 0n) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+
+  // Guard against unreasonable fees
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    const feeEth = (Number(amountWei) / 1e18).toFixed(6);
+    throw new Error(
+      `Fee of ${feeEth} ETH exceeds safety limit of ${Number(MAX_AUTO_FEE_WEI) / 1e18} ETH. Aborting.`,
+    );
+  }
+
+  const feeEth = (Number(amountWei) / 1e18).toFixed(6);
+  console.log(`Fee:     ${feeEth} ETH → ${recipient}`);
+
+  return toAAWalletCall({
+    to: recipient,
+    value: fee.amount_wei,
+    chainId,
+  });
+}
 
 export function txCommand(): void {
   const state = readState();
@@ -301,6 +348,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       }
 
       // Simulate batch to validate and compute service fee.
+      let simFee: AomiSimulateFee | undefined;
       try {
         const simResponse = await session.client.simulateBatch(
           state.sessionId,
@@ -318,27 +366,23 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         const { result: sim } = simResponse;
         if (!sim.batch_success) {
           const failed = sim.steps.find((s) => !s.success);
-          fatal(
-            `Simulation failed at step ${failed?.step ?? "?"}: ${failed?.revert_reason ?? "unknown"}`,
-          );
-        }
-        if (sim.fee) {
-          const feeEth = (Number(sim.fee.amount_wei) / 1e18).toFixed(6);
           console.log(
-            `Fee:     ${feeEth} ETH → ${sim.fee.recipient.slice(0, 10)}...`,
-          );
-          callList.push(
-            toAAWalletCall({
-              to: sim.fee.recipient,
-              value: sim.fee.amount_wei,
-              chainId: primaryChainId,
-            }),
+            `\x1b[31m❌ Simulation failed at step ${failed?.step ?? "?"}: ${failed?.revert_reason ?? "unknown"}${RESET}`,
           );
         }
+        simFee = sim.fee;
       } catch (e) {
+        if (e instanceof CliExit) throw e;
         console.log(
           `${DIM}Simulation unavailable, skipping fee injection.${RESET}`,
         );
+      }
+
+      // Fee validation is outside the try/catch so failures abort instead
+      // of being silently swallowed.
+      if (simFee) {
+        const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
+        callList.push(feeCall);
       }
 
       const decision = resolveCliExecutionDecision({

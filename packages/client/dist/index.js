@@ -1410,7 +1410,7 @@ async function executeViaEoa({
 }) {
   var _a, _b;
   const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount3 } = await import("viem/accounts");
+  const { privateKeyToAccount: privateKeyToAccount4 } = await import("viem/accounts");
   const hashes = [];
   if (localPrivateKey) {
     for (const call of callList) {
@@ -1422,7 +1422,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount3(localPrivateKey);
+      const account = privateKeyToAccount4(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -2071,28 +2071,36 @@ function createPimlicoAAProvider({
 }
 
 // src/aa/pimlico/create.ts
-async function createPimlicoAAState(options) {
-  var _a;
-  const {
-    chain,
-    owner,
-    rpcUrl,
-    callList,
-    mode
-  } = options;
-  const resolved = resolvePimlicoConfig({
-    calls: callList,
-    chainsById: { [chain.id]: chain },
-    rpcUrl,
-    modeOverride: mode,
-    throwOnMissingConfig: true,
-    apiKey: options.apiKey
-  });
-  if (!resolved) {
-    throw new Error("Pimlico AA config resolution failed.");
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+var AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
+function pimDebug(message, fields) {
+  if (!AA_DEBUG_ENABLED2) return;
+  if (fields) {
+    console.debug(`[aomi][aa][pimlico] ${message}`, fields);
+    return;
   }
-  const apiKey = (_a = options.apiKey) != null ? _a : resolved.apiKey;
-  const execution = __spreadProps(__spreadValues({}, resolved), {
+  console.debug(`[aomi][aa][pimlico] ${message}`);
+}
+async function createPimlicoAAState(options) {
+  var _a, _b;
+  const { chain, owner, callList, mode } = options;
+  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
+    [chain.id]: chain
+  });
+  if (!chainConfig) {
+    throw new Error(`AA is not configured for chain ${chain.id}.`);
+  }
+  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
+  const plan = buildAAExecutionPlan(
+    __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
+    __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
+  );
+  const apiKey = (_b = options.apiKey) != null ? _b : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim();
+  if (!apiKey) {
+    throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
+  }
+  const execution = __spreadProps(__spreadValues({}, plan), {
+    mode: effectiveMode,
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
@@ -2102,12 +2110,31 @@ async function createPimlicoAAState(options) {
   if (ownerParams.kind === "unsupported_adapter") {
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
+  if (owner.kind === "direct") {
+    try {
+      return await createPimlicoDirectState({
+        resolved: execution,
+        chain,
+        privateKey: owner.privateKey,
+        rpcUrl: options.rpcUrl,
+        apiKey,
+        mode: effectiveMode
+      });
+    } catch (error) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }
   try {
     const { createPimlicoSmartAccount } = await import("@getpara/aa-pimlico");
     const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
       chain,
-      rpcUrl,
+      rpcUrl: options.rpcUrl,
       mode: execution.mode
     }));
     if (!smartAccount) {
@@ -2132,6 +2159,95 @@ async function createPimlicoAAState(options) {
       error: error instanceof Error ? error : new Error(String(error))
     };
   }
+}
+function buildPimlicoRpcUrl(chain, apiKey) {
+  const slug = chain.name.toLowerCase().replace(/\s+/g, "-");
+  return `https://api.pimlico.io/v2/${slug}/rpc?apikey=${apiKey}`;
+}
+async function createPimlicoDirectState(params) {
+  const { createSmartAccountClient } = await import("permissionless");
+  const { toSimpleSmartAccount } = await import("permissionless/accounts");
+  const { createPimlicoClient } = await import("permissionless/clients/pimlico");
+  const { createPublicClient, http } = await import("viem");
+  const { entryPoint07Address } = await import("viem/account-abstraction");
+  const signer = privateKeyToAccount3(params.privateKey);
+  const signerAddress = signer.address;
+  const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
+  pimDebug("4337:start", {
+    signerAddress,
+    chainId: params.chain.id,
+    pimlicoRpcUrl: pimlicoRpcUrl.replace(params.apiKey, "***")
+  });
+  const publicClient = createPublicClient({
+    chain: params.chain,
+    transport: http(params.rpcUrl)
+  });
+  const paymasterClient = createPimlicoClient({
+    entryPoint: { address: entryPoint07Address, version: "0.7" },
+    transport: http(pimlicoRpcUrl)
+  });
+  const smartAccount = await toSimpleSmartAccount({
+    client: publicClient,
+    owner: signer,
+    entryPoint: { address: entryPoint07Address, version: "0.7" }
+  });
+  const accountAddress = smartAccount.address;
+  pimDebug("4337:account-created", {
+    signerAddress,
+    accountAddress
+  });
+  const smartAccountClient = createSmartAccountClient({
+    account: smartAccount,
+    chain: params.chain,
+    paymaster: paymasterClient,
+    bundlerTransport: http(pimlicoRpcUrl),
+    userOperation: {
+      estimateFeesPerGas: async () => {
+        const gasPrice = await paymasterClient.getUserOperationGasPrice();
+        return gasPrice.fast;
+      }
+    }
+  });
+  const sendCalls = async (calls) => {
+    pimDebug("4337:send:start", {
+      accountAddress,
+      chainId: params.chain.id,
+      callCount: calls.length
+    });
+    const hash = await smartAccountClient.sendTransaction({
+      account: smartAccount,
+      calls: calls.map((c) => {
+        var _a;
+        return {
+          to: c.to,
+          value: c.value,
+          data: (_a = c.data) != null ? _a : "0x"
+        };
+      })
+    });
+    pimDebug("4337:send:userOpHash", { hash });
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash
+    });
+    pimDebug("4337:send:confirmed", {
+      transactionHash: receipt.transactionHash,
+      status: receipt.status
+    });
+    return { transactionHash: receipt.transactionHash };
+  };
+  const account = {
+    provider: "pimlico",
+    mode: "4337",
+    AAAddress: accountAddress,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls)
+  };
+  return {
+    resolved: params.resolved,
+    account,
+    pending: false,
+    error: null
+  };
 }
 
 // src/aa/create.ts
