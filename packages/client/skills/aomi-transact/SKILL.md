@@ -498,8 +498,8 @@ Priority chain for AA resolution: **flag > env var > `~/.aomi/aa.json` > default
 
 | Provider | Flag                    | Env Var           | Persistent Config         | Notes                            |
 | -------- | ----------------------- | ----------------- | ------------------------- | -------------------------------- |
-| Alchemy  | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | `aomi aa set provider alchemy` | Supports sponsorship, 4337, 7702 |
-| Pimlico  | `--aa-provider pimlico` | `PIMLICO_API_KEY` | `aomi aa set provider pimlico` | Supports 4337 and 7702           |
+| Alchemy  | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | `aomi aa set provider alchemy` | 4337 (sponsored via gas policy), 7702 (EOA pays gas) |
+| Pimlico  | `--aa-provider pimlico` | `PIMLICO_API_KEY` | `aomi aa set provider pimlico` | 4337 (sponsored via dashboard policy). Direct private key supported. |
 
 Provider selection rules:
 
@@ -509,10 +509,12 @@ Provider selection rules:
 
 ### AA Modes
 
-| Mode   | Flag             | Meaning                          |
-| ------ | ---------------- | -------------------------------- |
-| `4337` | `--aa-mode 4337` | Bundler-based smart account flow |
-| `7702` | `--aa-mode 7702` | Delegated execution flow         |
+| Mode   | Flag             | Meaning                          | Gas |
+| ------ | ---------------- | -------------------------------- | --- |
+| `4337` | `--aa-mode 4337` | Bundler + paymaster UserOperation via smart account. Gas sponsored by paymaster. | Paymaster pays |
+| `7702` | `--aa-mode 7702` | Native EIP-7702 type-4 transaction with delegation. EOA signs authorization + sends tx to self. | EOA pays |
+
+Important: **7702 requires the signing EOA to have native gas tokens** (ETH, MATIC, etc.). There is no paymaster/sponsorship for 7702. Use 4337 for gasless execution.
 
 ### Default Chain Modes
 
@@ -526,7 +528,9 @@ Provider selection rules:
 
 ### Sponsorship
 
-Alchemy sponsorship is optional.
+Sponsorship is available for **4337 mode only**. 7702 does not support sponsorship.
+
+**Alchemy** (optional gas policy):
 
 ```bash
 export ALCHEMY_API_KEY=your-key
@@ -542,6 +546,15 @@ aomi aa set key your-key
 aomi aa set policy your-policy-id
 aomi tx sign tx-1
 ```
+
+**Pimlico** (sponsorship via dashboard policy):
+
+```bash
+export PIMLICO_API_KEY=your-key
+aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337
+```
+
+Pimlico sponsorship is configured on the Pimlico dashboard (sponsorship policies). The API key automatically picks up the active policy — no separate policy ID env var needed.
 
 ### Supported Chains
 
@@ -595,9 +608,9 @@ Environment variables override persistent config (`~/.aomi/aa.json`).
 
 | Env Var                  | Purpose                             |
 | ------------------------ | ----------------------------------- |
-| `ALCHEMY_API_KEY`        | Enables Alchemy AA                  |
-| `ALCHEMY_GAS_POLICY_ID`  | Optional Alchemy sponsorship policy |
-| `PIMLICO_API_KEY`        | Enables Pimlico AA                  |
+| `ALCHEMY_API_KEY`        | Enables Alchemy AA (4337 + 7702)    |
+| `ALCHEMY_GAS_POLICY_ID`  | Optional Alchemy sponsorship policy (4337 only) |
+| `PIMLICO_API_KEY`        | Enables Pimlico AA (4337 sponsored) |
 
 `ALCHEMY_API_KEY` can also be used to construct chain-specific signing RPCs:
 
