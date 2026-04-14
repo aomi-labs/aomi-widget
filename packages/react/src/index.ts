@@ -131,4 +131,5 @@ export {
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
+  type StoredProviderKey,
 } from "./contexts/control-context";
