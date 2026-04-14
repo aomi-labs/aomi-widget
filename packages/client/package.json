@@ -35,6 +35,7 @@
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
     "citty": "^0.2.2",
+    "permissionless": "^0.3.5",
     "viem": "^2.47.11"
   }
 }

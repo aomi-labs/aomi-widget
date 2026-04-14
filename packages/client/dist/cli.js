@@ -2311,7 +2311,7 @@ async function executeViaEoa({
 }) {
   var _a3, _b;
   const { createPublicClient, createWalletClient: createWalletClient2, http: http2 } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount4 } = await import("viem/accounts");
+  const { privateKeyToAccount: privateKeyToAccount5 } = await import("viem/accounts");
   const hashes = [];
   if (localPrivateKey) {
     for (const call of callList) {
@@ -2323,7 +2323,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount4(localPrivateKey);
+      const account = privateKeyToAccount5(localPrivateKey);
       const walletClient = createWalletClient2({
         account,
         chain,
@@ -2858,63 +2858,6 @@ var init_alchemy = __esm({
 });
 
 // src/aa/pimlico/resolve.ts
-function resolvePimlicoConfig(options) {
-  var _a3, _b, _c;
-  const {
-    calls,
-    localPrivateKey,
-    accountAbstractionConfig = DEFAULT_AA_CONFIG,
-    chainsById,
-    rpcUrl,
-    modeOverride,
-    publicOnly = false,
-    throwOnMissingConfig = false,
-    apiKey: preResolvedApiKey
-  } = options;
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
-    provider: "pimlico"
-  });
-  const chainConfig = getAAChainConfig(config, calls, chainsById);
-  if (!chainConfig) {
-    if (throwOnMissingConfig) {
-      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
-      throw new Error(
-        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
-      );
-    }
-    return null;
-  }
-  const apiKey = (_c = preResolvedApiKey != null ? preResolvedApiKey : (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim()) != null ? _c : publicOnly ? (_b = process.env.NEXT_PUBLIC_PIMLICO_API_KEY) == null ? void 0 : _b.trim() : void 0;
-  if (!apiKey) {
-    if (throwOnMissingConfig) {
-      throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
-    }
-    return null;
-  }
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
-  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
-    if (throwOnMissingConfig) {
-      throw new Error(
-        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
-      );
-    }
-    return null;
-  }
-  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
-  return __spreadProps(__spreadValues({}, resolved), {
-    apiKey,
-    chain,
-    rpcUrl,
-    mode: resolvedChainConfig.defaultMode
-  });
-}
 var init_resolve = __esm({
   "src/aa/pimlico/resolve.ts"() {
     "use strict";
@@ -2932,28 +2875,35 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-async function createPimlicoAAState(options) {
-  var _a3;
-  const {
-    chain,
-    owner,
-    rpcUrl,
-    callList,
-    mode
-  } = options;
-  const resolved = resolvePimlicoConfig({
-    calls: callList,
-    chainsById: { [chain.id]: chain },
-    rpcUrl,
-    modeOverride: mode,
-    throwOnMissingConfig: true,
-    apiKey: options.apiKey
-  });
-  if (!resolved) {
-    throw new Error("Pimlico AA config resolution failed.");
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+function pimDebug(message, fields) {
+  if (!AA_DEBUG_ENABLED2) return;
+  if (fields) {
+    console.debug(`[aomi][aa][pimlico] ${message}`, fields);
+    return;
   }
-  const apiKey = (_a3 = options.apiKey) != null ? _a3 : resolved.apiKey;
-  const execution = __spreadProps(__spreadValues({}, resolved), {
+  console.debug(`[aomi][aa][pimlico] ${message}`);
+}
+async function createPimlicoAAState(options) {
+  var _a3, _b;
+  const { chain, owner, callList, mode } = options;
+  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
+    [chain.id]: chain
+  });
+  if (!chainConfig) {
+    throw new Error(`AA is not configured for chain ${chain.id}.`);
+  }
+  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
+  const plan = buildAAExecutionPlan(
+    __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
+    __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
+  );
+  const apiKey = (_b = options.apiKey) != null ? _b : (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim();
+  if (!apiKey) {
+    throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
+  }
+  const execution = __spreadProps(__spreadValues({}, plan), {
+    mode: effectiveMode,
     fallbackToEoa: false
   });
   const ownerParams = getOwnerParams(owner);
@@ -2963,12 +2913,31 @@ async function createPimlicoAAState(options) {
   if (ownerParams.kind === "unsupported_adapter") {
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
+  if (owner.kind === "direct") {
+    try {
+      return await createPimlicoDirectState({
+        resolved: execution,
+        chain,
+        privateKey: owner.privateKey,
+        rpcUrl: options.rpcUrl,
+        apiKey,
+        mode: effectiveMode
+      });
+    } catch (error) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }
   try {
     const { createPimlicoSmartAccount } = await import("@getpara/aa-pimlico");
     const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
       apiKey,
       chain,
-      rpcUrl,
+      rpcUrl: options.rpcUrl,
       mode: execution.mode
     }));
     if (!smartAccount) {
@@ -2994,12 +2963,103 @@ async function createPimlicoAAState(options) {
     };
   }
 }
+function buildPimlicoRpcUrl(chain, apiKey) {
+  const slug = chain.name.toLowerCase().replace(/\s+/g, "-");
+  return `https://api.pimlico.io/v2/${slug}/rpc?apikey=${apiKey}`;
+}
+async function createPimlicoDirectState(params) {
+  const { createSmartAccountClient } = await import("permissionless");
+  const { toSimpleSmartAccount } = await import("permissionless/accounts");
+  const { createPimlicoClient } = await import("permissionless/clients/pimlico");
+  const { createPublicClient, http: http2 } = await import("viem");
+  const { entryPoint07Address } = await import("viem/account-abstraction");
+  const signer = privateKeyToAccount3(params.privateKey);
+  const signerAddress = signer.address;
+  const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
+  pimDebug("4337:start", {
+    signerAddress,
+    chainId: params.chain.id,
+    pimlicoRpcUrl: pimlicoRpcUrl.replace(params.apiKey, "***")
+  });
+  const publicClient = createPublicClient({
+    chain: params.chain,
+    transport: http2(params.rpcUrl)
+  });
+  const paymasterClient = createPimlicoClient({
+    entryPoint: { address: entryPoint07Address, version: "0.7" },
+    transport: http2(pimlicoRpcUrl)
+  });
+  const smartAccount = await toSimpleSmartAccount({
+    client: publicClient,
+    owner: signer,
+    entryPoint: { address: entryPoint07Address, version: "0.7" }
+  });
+  const accountAddress = smartAccount.address;
+  pimDebug("4337:account-created", {
+    signerAddress,
+    accountAddress
+  });
+  const smartAccountClient = createSmartAccountClient({
+    account: smartAccount,
+    chain: params.chain,
+    paymaster: paymasterClient,
+    bundlerTransport: http2(pimlicoRpcUrl),
+    userOperation: {
+      estimateFeesPerGas: async () => {
+        const gasPrice = await paymasterClient.getUserOperationGasPrice();
+        return gasPrice.fast;
+      }
+    }
+  });
+  const sendCalls = async (calls) => {
+    pimDebug("4337:send:start", {
+      accountAddress,
+      chainId: params.chain.id,
+      callCount: calls.length
+    });
+    const hash = await smartAccountClient.sendTransaction({
+      account: smartAccount,
+      calls: calls.map((c) => {
+        var _a3;
+        return {
+          to: c.to,
+          value: c.value,
+          data: (_a3 = c.data) != null ? _a3 : "0x"
+        };
+      })
+    });
+    pimDebug("4337:send:userOpHash", { hash });
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash
+    });
+    pimDebug("4337:send:confirmed", {
+      transactionHash: receipt.transactionHash,
+      status: receipt.status
+    });
+    return { transactionHash: receipt.transactionHash };
+  };
+  const account = {
+    provider: "pimlico",
+    mode: "4337",
+    AAAddress: accountAddress,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls)
+  };
+  return {
+    resolved: params.resolved,
+    account,
+    pending: false,
+    error: null
+  };
+}
+var AA_DEBUG_ENABLED2;
 var init_create2 = __esm({
   "src/aa/pimlico/create.ts"() {
     "use strict";
     init_adapt();
+    init_types2();
     init_owner();
-    init_resolve();
+    AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
   }
 });
 
@@ -3173,9 +3233,36 @@ __export(wallet_exports, {
   signCommand: () => signCommand,
   txCommand: () => txCommand
 });
-import { createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { createWalletClient, getAddress as getAddress2, http } from "viem";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 import * as viemChains from "viem/chains";
+function validateAndBuildFeeCall(fee, chainId) {
+  let recipient;
+  try {
+    recipient = getAddress2(fee.recipient);
+  } catch (e) {
+    throw new Error(
+      `Invalid fee recipient address from backend: ${fee.recipient}`
+    );
+  }
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei <= /* @__PURE__ */ BigInt("0")) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    const feeEth2 = (Number(amountWei) / 1e18).toFixed(6);
+    throw new Error(
+      `Fee of ${feeEth2} ETH exceeds safety limit of ${Number(MAX_AUTO_FEE_WEI) / 1e18} ETH. Aborting.`
+    );
+  }
+  const feeEth = (Number(amountWei) / 1e18).toFixed(6);
+  console.log(`Fee:     ${feeEth} ETH \u2192 ${recipient}`);
+  return toAAWalletCall({
+    to: recipient,
+    value: fee.amount_wei,
+    chainId
+  });
+}
 function txCommand() {
   var _a3, _b;
   const state = readState();
@@ -3332,7 +3419,7 @@ async function signCommand(config, txIds) {
   const pendingTxs = requirePendingTxs(state, txIds);
   const session = createSessionFromState(state);
   try {
-    const account = privateKeyToAccount3(privateKey);
+    const account = privateKeyToAccount4(privateKey);
     if (state.publicKey && account.address.toLowerCase() !== state.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${state.publicKey}`
@@ -3376,6 +3463,7 @@ async function signCommand(config, txIds) {
       if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
       }
+      let simFee;
       try {
         const simResponse = await session.client.simulateBatch(
           state.sessionId,
@@ -3396,27 +3484,20 @@ async function signCommand(config, txIds) {
         const { result: sim } = simResponse;
         if (!sim.batch_success) {
           const failed = sim.steps.find((s) => !s.success);
-          fatal(
-            `Simulation failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}: ${(_d = failed == null ? void 0 : failed.revert_reason) != null ? _d : "unknown"}`
-          );
-        }
-        if (sim.fee) {
-          const feeEth = (Number(sim.fee.amount_wei) / 1e18).toFixed(6);
           console.log(
-            `Fee:     ${feeEth} ETH \u2192 ${sim.fee.recipient.slice(0, 10)}...`
-          );
-          callList.push(
-            toAAWalletCall({
-              to: sim.fee.recipient,
-              value: sim.fee.amount_wei,
-              chainId: primaryChainId
-            })
+            `\x1B[31m\u274C Simulation failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}: ${(_d = failed == null ? void 0 : failed.revert_reason) != null ? _d : "unknown"}${RESET}`
           );
         }
+        simFee = sim.fee;
       } catch (e) {
+        if (e instanceof CliExit) throw e;
         console.log(
           `${DIM}Simulation unavailable, skipping fee injection.${RESET}`
         );
+      }
+      if (simFee) {
+        const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
+        callList.push(feeCall);
       }
       const decision = resolveCliExecutionDecision({
         config,
@@ -3560,11 +3641,11 @@ Use \`--eoa\` to sign without account abstraction.`
     session.close();
   }
 }
+var MAX_AUTO_FEE_WEI;
 var init_wallet = __esm({
   "src/cli/commands/wallet.ts"() {
     "use strict";
     init_aa();
-    init_wallet_utils();
     init_session();
     init_wallet_utils();
     init_errors();
@@ -3573,6 +3654,7 @@ var init_wallet = __esm({
     init_state();
     init_user_state();
     init_transactions();
+    MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
   }
 });
 
@@ -4745,6 +4827,7 @@ var package_default = {
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
     citty: "^0.2.2",
+    permissionless: "^0.3.5",
     viem: "^2.47.11"
   }
 };
