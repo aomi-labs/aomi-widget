@@ -5,6 +5,10 @@ const {
   createAlchemySmartAccountMock,
   createPimlicoSmartAccountMock,
   createSmartWalletClientMock,
+  createPermissionlessSmartAccountClientMock,
+  createPimlicoClientMock,
+  getUserOperationGasPriceMock,
+  toSimpleSmartAccountMock,
   alchemyWalletTransportMock,
   requestAccountMock,
   sendCallsMock,
@@ -17,6 +21,12 @@ const {
   createAlchemySmartAccountMock: vi.fn(),
   createPimlicoSmartAccountMock: vi.fn(),
   createSmartWalletClientMock: vi.fn(),
+  createPermissionlessSmartAccountClientMock: vi.fn(),
+  createPimlicoClientMock: vi.fn(),
+  getUserOperationGasPriceMock: vi.fn().mockResolvedValue({
+    fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
+  }),
+  toSimpleSmartAccountMock: vi.fn(),
   alchemyWalletTransportMock: vi.fn(() => ({ transport: "alchemy-wallet" })),
   requestAccountMock: vi.fn(),
   sendCallsMock: vi.fn(),
@@ -38,6 +48,18 @@ vi.mock("@getpara/aa-pimlico", () => ({
 vi.mock("@alchemy/wallet-apis", () => ({
   createSmartWalletClient: createSmartWalletClientMock,
   alchemyWalletTransport: alchemyWalletTransportMock,
+}));
+
+vi.mock("permissionless", () => ({
+  createSmartAccountClient: createPermissionlessSmartAccountClientMock,
+}));
+
+vi.mock("permissionless/accounts", () => ({
+  toSimpleSmartAccount: toSimpleSmartAccountMock,
+}));
+
+vi.mock("permissionless/clients/pimlico", () => ({
+  createPimlicoClient: createPimlicoClientMock,
 }));
 
 vi.mock("viem", async (importOriginal) => {
@@ -81,6 +103,10 @@ describe("createAAProviderState", () => {
     createAlchemySmartAccountMock.mockReset();
     createPimlicoSmartAccountMock.mockReset();
     createSmartWalletClientMock.mockReset();
+    createPermissionlessSmartAccountClientMock.mockReset();
+    createPimlicoClientMock.mockReset();
+    getUserOperationGasPriceMock.mockReset();
+    toSimpleSmartAccountMock.mockReset();
     alchemyWalletTransportMock.mockClear();
     requestAccountMock.mockReset();
     sendCallsMock.mockReset();
@@ -93,6 +119,18 @@ describe("createAAProviderState", () => {
       requestAccount: requestAccountMock,
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
+    });
+    createPermissionlessSmartAccountClientMock.mockReturnValue({
+      sendTransaction: vi.fn().mockResolvedValue("0xmockuserophash"),
+    });
+    createPimlicoClientMock.mockReturnValue({
+      getUserOperationGasPrice: getUserOperationGasPriceMock,
+    });
+    getUserOperationGasPriceMock.mockResolvedValue({
+      fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
+    });
+    toSimpleSmartAccountMock.mockResolvedValue({
+      address: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
   });
 
@@ -166,14 +204,6 @@ describe("createAAProviderState", () => {
   it("creates a Pimlico provider state", async () => {
     process.env.PIMLICO_API_KEY = "pimlico-key";
 
-    createPimlicoSmartAccountMock.mockResolvedValue({
-      provider: "PIMLICO",
-      mode: "4337",
-      smartAccountAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
-      sendTransaction: vi.fn(),
-      sendBatchTransaction: vi.fn(),
-    });
-
     const state = await createAAProviderState({
       provider: "pimlico",
       chain: polygon,
@@ -183,20 +213,22 @@ describe("createAAProviderState", () => {
       mode: "4337",
     });
 
-    expect(createPimlicoSmartAccountMock).toHaveBeenCalledWith(
+    expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
+    expect(createPimlicoClientMock).toHaveBeenCalledTimes(1);
+    expect(createPermissionlessSmartAccountClientMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        apiKey: "pimlico-key",
         chain: polygon,
-        mode: "4337",
+        paymaster: expect.any(Object),
       }),
     );
+    expect(toSimpleSmartAccountMock).toHaveBeenCalledTimes(1);
 
     expect(state.resolved).toMatchObject({
       provider: "pimlico",
       mode: "4337",
     });
     expect(state.account).toMatchObject({
-      provider: "PIMLICO",
+      provider: "pimlico",
       AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
     expect(state.error).toBeNull();
@@ -249,6 +281,10 @@ describe("createAAProviderState owner modes", () => {
     createAlchemySmartAccountMock.mockReset();
     createPimlicoSmartAccountMock.mockReset();
     createSmartWalletClientMock.mockReset();
+    createPermissionlessSmartAccountClientMock.mockReset();
+    createPimlicoClientMock.mockReset();
+    getUserOperationGasPriceMock.mockReset();
+    toSimpleSmartAccountMock.mockReset();
     alchemyWalletTransportMock.mockClear();
     requestAccountMock.mockReset();
     sendCallsMock.mockReset();
@@ -257,6 +293,18 @@ describe("createAAProviderState owner modes", () => {
       requestAccount: requestAccountMock,
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
+    });
+    createPermissionlessSmartAccountClientMock.mockReturnValue({
+      sendTransaction: vi.fn().mockResolvedValue("0xmockuserophash"),
+    });
+    createPimlicoClientMock.mockReturnValue({
+      getUserOperationGasPrice: getUserOperationGasPriceMock,
+    });
+    getUserOperationGasPriceMock.mockResolvedValue({
+      fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
+    });
+    toSimpleSmartAccountMock.mockResolvedValue({
+      address: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
   });
 
