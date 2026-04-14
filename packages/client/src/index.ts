@@ -15,6 +15,7 @@ export type {
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiSimulateFee,

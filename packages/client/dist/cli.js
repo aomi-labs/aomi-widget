@@ -830,6 +830,23 @@ var init_client = __esm({
         }
         return await response.json();
       }
+      /**
+       * Remove a single secret for a client.
+       */
+      async deleteSecret(clientId, name) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/secrets/${encodeURIComponent(name)}`,
+          {
+            client_id: clientId
+          }
+        );
+        const response = await fetch(url, { method: "DELETE" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
+      }
       // ===========================================================================
       // SSE (Real-time Updates)
       // ===========================================================================

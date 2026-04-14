@@ -387,33 +387,20 @@ export function ControlContextProvider({
 
   const removeProviderKey = useCallback(
     async (provider: string): Promise<void> => {
+      const clientId = stateRef.current.clientId;
+      if (clientId) {
+        await aomiClientRef.current.deleteSecret(
+          clientId,
+          `${PROVIDER_KEY_SECRET_PREFIX}${provider}`,
+        );
+      }
+
       setStateInternal((prev) => {
         const { [provider]: _, ...rest } = prev.providerKeys;
         const next = { ...prev, providerKeys: rest };
         callbacks.current.forEach((cb) => cb(next));
         return next;
       });
-
-      // Re-ingest remaining keys (clears the removed one from vault)
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        try {
-          // Clear all provider keys from vault, then re-ingest remaining
-          const remaining = stateRef.current.providerKeys;
-          const secrets: Record<string, string> = {};
-          for (const [p, entry] of Object.entries(remaining)) {
-            if (p !== provider) {
-              secrets[`${PROVIDER_KEY_SECRET_PREFIX}${p}`] = entry.apiKey;
-            }
-          }
-          // Ingest remaining (if any) to keep vault in sync
-          if (Object.keys(secrets).length > 0) {
-            await aomiClientRef.current.ingestSecrets(clientId, secrets);
-          }
-        } catch (err) {
-          console.error("Failed to sync provider key removal:", err);
-        }
-      }
     },
     [],
   );
