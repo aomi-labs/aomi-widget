@@ -1,11 +1,10 @@
 import { AomiClient } from "../../client";
-import { createFreshSessionState } from "../context";
+import { CliSession } from "../cli-session";
 import { fatal } from "../errors";
 import { RESET, YELLOW, printDataFileLocation } from "../output";
 import {
   deleteStoredSession,
   listStoredSessions,
-  readState,
   setActiveSession,
   type StoredSessionRecord,
 } from "../state";
@@ -84,7 +83,7 @@ export async function sessionsCommand(_config: CliConfig): Promise<void> {
     return;
   }
 
-  const activeSessionId = readState()?.sessionId;
+  const activeSessionId = CliSession.load()?.sessionId;
 
   const statsResults = await Promise.all(
     sessions.map((record) => fetchRemoteSessionStats(record)),
@@ -105,8 +104,8 @@ export async function sessionsCommand(_config: CliConfig): Promise<void> {
 }
 
 export function newSessionCommand(config: CliConfig): void {
-  const state = createFreshSessionState(config);
-  console.log(`Active session set to ${state.sessionId} (new).`);
+  const cli = CliSession.create(config);
+  console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
 
@@ -125,7 +124,7 @@ export function deleteSessionCommand(selector: string): void {
     fatal(`No local session found for selector "${selector}".`);
   }
   console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
-  const active = readState();
+  const active = CliSession.load();
   if (active) {
     console.log(`Active session: ${active.sessionId}`);
   } else {

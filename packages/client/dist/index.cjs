@@ -1136,8 +1136,37 @@ var ClientSession = class extends TypedEventEmitter {
     return state;
   }
   // ===========================================================================
-  // Internal — Polling (ported from PollingController)
+  // Public API — Polling Control
   // ===========================================================================
+  /** Whether the session is currently polling for state updates. */
+  getIsPolling() {
+    return this.pollTimer !== null;
+  }
+  /**
+   * Fetch the current state from the backend (one-shot).
+   * Automatically starts polling if the backend is processing.
+   */
+  async fetchCurrentState() {
+    this.assertOpen();
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId
+    );
+    this.assertUserStateAligned(state.user_state);
+    this.applyState(state);
+    if (state.is_processing && !this.pollTimer) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+      this.startPolling();
+    } else if (!state.is_processing) {
+      this._isProcessing = false;
+    }
+  }
+  /**
+   * Start polling for state updates. Idempotent — no-op if already polling.
+   * Useful for resuming polling after resolving a wallet request.
+   */
   startPolling() {
     var _a;
     if (this.pollTimer || this.closed) return;
@@ -1147,6 +1176,7 @@ var ClientSession = class extends TypedEventEmitter {
       void this.pollTick();
     }, this.pollIntervalMs);
   }
+  /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling() {
     var _a;
     if (this.pollTimer) {

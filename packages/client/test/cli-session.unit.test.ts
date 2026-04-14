@@ -21,9 +21,7 @@ describe("CLI session lifecycle", () => {
   });
 
   it("creates a fresh active session instead of reusing the current one", async () => {
-    const { createFreshSessionState, getOrCreateSession } = await import(
-      "../src/cli/context"
-    );
+    const { CliSession } = await import("../src/cli/cli-session");
     const { readState } = await import("../src/cli/state");
 
     const config = {
@@ -33,19 +31,21 @@ describe("CLI session lifecycle", () => {
       secrets: {},
     };
 
-    const first = getOrCreateSession(config);
-    first.session.close();
+    const first = CliSession.loadOrCreate(config);
+    const firstSession = first.createClientSession();
+    firstSession.close();
 
-    const reused = getOrCreateSession(config);
-    reused.session.close();
+    const reused = CliSession.loadOrCreate(config);
+    const reusedSession = reused.createClientSession();
+    reusedSession.close();
 
-    expect(reused.state.sessionId).toBe(first.state.sessionId);
-    expect(reused.state.clientId).toBe(first.state.clientId);
+    expect(reused.sessionId).toBe(first.sessionId);
+    expect(reused.clientId).toBe(first.clientId);
 
-    const fresh = createFreshSessionState(config);
+    const fresh = CliSession.create(config);
 
-    expect(fresh.sessionId).not.toBe(first.state.sessionId);
-    expect(fresh.clientId).not.toBe(first.state.clientId);
+    expect(fresh.sessionId).not.toBe(first.sessionId);
+    expect(fresh.clientId).not.toBe(first.clientId);
     expect(readState()?.sessionId).toBe(fresh.sessionId);
     expect(readState()?.clientId).toBe(fresh.clientId);
   });
