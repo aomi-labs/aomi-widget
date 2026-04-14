@@ -1,30 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  normalizeEip712Payload,
-  normalizeTxPayload,
-  type WalletEip712Payload,
-  type WalletTxPayload,
+import { useCallback, useRef, useState } from "react";
+import type {
+  WalletEip712Payload,
+  WalletTxPayload,
+  WalletRequest,
 } from "@aomi-labs/client";
-import { useEventContext } from "../contexts/event-context";
-import type { InboundEvent } from "../state/event-buffer";
-import {
-  createWalletBuffer,
-  enqueue,
-  dequeue,
-  markProcessing,
-  getAll,
-  type WalletBuffer,
-  type WalletRequest,
-} from "../state/wallet-buffer";
+import type { Session as ClientSession } from "@aomi-labs/client";
 
 // Re-export types consumers need
 export type { WalletRequest, WalletTxPayload, WalletEip712Payload };
-export type {
-  WalletRequestKind,
-  WalletRequestStatus,
-} from "../state/wallet-buffer";
+
+export type WalletRequestKind = "transaction" | "eip712_sign";
+export type WalletRequestStatus = "pending" | "processing";
 
 export type WalletRequestResult = {
   txHash?: string;
@@ -33,162 +21,71 @@ export type WalletRequestResult = {
 };
 
 export type WalletHandlerConfig = {
-  sessionId: string;
-  /** Called after a wallet request is resolved/rejected and the outbound event is sent.
-   *  Used by core.tsx to start polling for the AI's response. */
-  onRequestComplete?: () => void;
+  /** Get the ClientSession for the current thread. */
+  getSession: () => ClientSession | undefined;
 };
 
 export type WalletHandlerApi = {
   /** All queued wallet requests (tx + eip712) */
   pendingRequests: WalletRequest[];
-  /** Mark a request as being processed */
-  startProcessing: (id: string) => void;
-  /** Complete a request successfully — dequeues + sends response to backend */
-  resolveRequest: (
-    id: string,
-    result: WalletRequestResult,
-  ) => void;
-  /** Fail a request — dequeues + sends error to backend */
+  /** Enqueue a wallet request (called by orchestrator on ClientSession events) */
+  enqueueRequest: (request: WalletRequest) => void;
+  /** Complete a request successfully — sends response to backend via ClientSession */
+  resolveRequest: (id: string, result: WalletRequestResult) => void;
+  /** Fail a request — sends error to backend via ClientSession */
   rejectRequest: (id: string, error?: string) => void;
 };
 
 export function useWalletHandler({
-  sessionId,
-  onRequestComplete,
+  getSession,
 }: WalletHandlerConfig): WalletHandlerApi {
-  const { subscribe, sendOutboundSystem: sendOutbound } = useEventContext();
-  const bufferRef = useRef<WalletBuffer>(createWalletBuffer());
   const [pendingRequests, setPendingRequests] = useState<WalletRequest[]>([]);
+  const requestsRef = useRef<WalletRequest[]>([]);
 
-  // Sync React state from buffer
-  const syncState = useCallback(() => {
-    setPendingRequests(getAll(bufferRef.current));
+  const enqueueRequest = useCallback((request: WalletRequest) => {
+    requestsRef.current = [...requestsRef.current, request];
+    setPendingRequests(requestsRef.current);
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Subscribe to wallet_tx_request events
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const unsubscribe = subscribe(
-      "wallet_tx_request",
-      (event: InboundEvent) => {
-        const payload = normalizeTxPayload(event.payload);
-        if (!payload) {
-          console.warn("[aomi][wallet] Ignoring tx request with invalid payload", event.payload);
-          return;
-        }
-        enqueue(bufferRef.current, "transaction", payload);
-        syncState();
-      },
-    );
-    return unsubscribe;
-  }, [subscribe, syncState]);
-
-  // ---------------------------------------------------------------------------
-  // Subscribe to EIP-712 signing requests
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const unsubscribe = subscribe(
-      "wallet_eip712_request",
-      (event: InboundEvent) => {
-        const payload = normalizeEip712Payload(event.payload ?? {});
-        enqueue(bufferRef.current, "eip712_sign", payload);
-        syncState();
-      },
-    );
-    return unsubscribe;
-  }, [subscribe, syncState]);
-
-  // ---------------------------------------------------------------------------
-  // Mark a request as processing
-  // ---------------------------------------------------------------------------
-  const startProcessingCb = useCallback(
-    (id: string) => {
-      markProcessing(bufferRef.current, id);
-      syncState();
-    },
-    [syncState],
-  );
-
-  // ---------------------------------------------------------------------------
-  // Resolve a request — dequeues + sends appropriate backend response
-  // ---------------------------------------------------------------------------
   const resolveRequest = useCallback(
     (id: string, result: WalletRequestResult) => {
-      const removed = dequeue(bufferRef.current, id);
-      if (!removed) return;
-
-      let outbound: Promise<void>;
-      if (removed.kind === "transaction") {
-        outbound = sendOutbound({
-          type: "wallet:tx_complete",
-          sessionId,
-          payload: {
-            txHash: result.txHash ?? "",
-            status: "success",
-            amount: result.amount,
-          },
-        });
-      } else {
-        const eip712Payload = removed.payload as WalletEip712Payload;
-        outbound = sendOutbound({
-          type: "wallet_eip712_response",
-          sessionId,
-          payload: {
-            status: "success",
-            signature: result.signature,
-            description: eip712Payload.description,
-          },
-        });
+      const session = getSession();
+      if (!session) {
+        console.error("[wallet-handler] No session available to resolve request");
+        return;
       }
 
-      outbound.then(() => onRequestComplete?.());
-      syncState();
+      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
+      setPendingRequests(requestsRef.current);
+
+      void session.resolve(id, result).catch((err) => {
+        console.error("[wallet-handler] Failed to resolve request:", err);
+      });
     },
-    [sendOutbound, sessionId, syncState, onRequestComplete],
+    [getSession],
   );
 
-  // ---------------------------------------------------------------------------
-  // Reject a request — dequeues + sends error to backend
-  // ---------------------------------------------------------------------------
   const rejectRequest = useCallback(
     (id: string, error?: string) => {
-      const removed = dequeue(bufferRef.current, id);
-      if (!removed) return;
-
-      let outbound: Promise<void>;
-      if (removed.kind === "transaction") {
-        outbound = sendOutbound({
-          type: "wallet:tx_complete",
-          sessionId,
-          payload: {
-            txHash: "",
-            status: "failed",
-          },
-        });
-      } else {
-        const eip712Payload = removed.payload as WalletEip712Payload;
-        outbound = sendOutbound({
-          type: "wallet_eip712_response",
-          sessionId,
-          payload: {
-            status: "failed",
-            error: error ?? "EIP-712 signing failed",
-            description: eip712Payload.description,
-          },
-        });
+      const session = getSession();
+      if (!session) {
+        console.error("[wallet-handler] No session available to reject request");
+        return;
       }
 
-      outbound.then(() => onRequestComplete?.());
-      syncState();
+      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
+      setPendingRequests(requestsRef.current);
+
+      void session.reject(id, error).catch((err) => {
+        console.error("[wallet-handler] Failed to reject request:", err);
+      });
     },
-    [sendOutbound, sessionId, syncState, onRequestComplete],
+    [getSession],
   );
 
   return {
     pendingRequests,
-    startProcessing: startProcessingCb,
+    enqueueRequest,
     resolveRequest,
     rejectRequest,
   };

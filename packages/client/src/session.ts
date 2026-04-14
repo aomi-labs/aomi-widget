@@ -680,8 +680,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (!isSubsetMatch(this.userState, actualUserState)) {
       const expected = JSON.stringify(sortJson(this.userState));
       const actual = JSON.stringify(sortJson(actualUserState));
-      throw new Error(
-        `Backend user_state mismatch. expected subset=${expected} actual=${actual}`,
+      console.warn(
+        `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`,
       );
     }
   }
