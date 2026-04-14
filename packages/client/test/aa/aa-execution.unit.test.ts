@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mainnet, polygon } from "viem/chains";
 
-import { executeWalletCalls, type AAState } from "../src/aa";
+import { executeWalletCalls, type AAState } from "../../src/aa";
 
 function makeProviderState(params: {
   mode: "7702" | "4337";
@@ -50,15 +50,15 @@ describe("executeWalletCalls via AA", () => {
     const result = await executeWalletCalls({
       callList: [
         {
-          to: "0x0000000000000000000000000000000000000000",
-          value: "0",
-          data: "0x",
+          to: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          value: 0n,
+          data: "0x" as `0x${string}`,
           chainId: 1,
         },
         {
-          to: "0x0000000000000000000000000000000000000000",
-          value: "0",
-          data: "0x",
+          to: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          value: 0n,
+          data: "0x" as `0x${string}`,
           chainId: 1,
         },
       ],
@@ -112,8 +112,8 @@ describe("executeWalletCalls via AA", () => {
     const result = await executeWalletCalls({
       callList: [
         {
-          to: "0x1111111111111111111111111111111111111111",
-          value: "1",
+          to: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+          value: 1n,
           chainId: 137,
         },
       ],

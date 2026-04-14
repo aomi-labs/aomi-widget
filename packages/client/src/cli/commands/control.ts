@@ -1,4 +1,4 @@
-import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
+import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../../chains";
 import { createControlClient, getOrCreateSession, applyModelSelection } from "../context";
 import { printDataFileLocation } from "../output";
 import { readState } from "../state";
@@ -143,4 +143,3 @@ export function chainsCommand(): void {
     console.log(`${id}  ${name}${aaInfo}${marker}`);
   }
 }
-

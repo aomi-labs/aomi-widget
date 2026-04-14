@@ -26,7 +26,7 @@ vi.mock("viem/accounts", async () => {
   };
 });
 
-vi.mock("../src/session", () => ({
+vi.mock("../../src/session", () => ({
   ClientSession: class MockClientSession {
     client = {
       simulateBatch: mocks.simulateBatch,
@@ -40,13 +40,13 @@ vi.mock("../src/session", () => ({
   },
 }));
 
-vi.mock("../src/aa", () => ({
+vi.mock("../../src/aa", () => ({
   executeWalletCalls: mocks.executeWalletCalls,
 }));
 
-vi.mock("../src/cli/execution", async () => {
-  const actual = await vi.importActual<typeof import("../src/cli/execution")>(
-    "../src/cli/execution",
+vi.mock("../../src/cli/execution", async () => {
+  const actual = await vi.importActual<typeof import("../../src/cli/execution")>(
+    "../../src/cli/execution",
   );
   return {
     ...actual,
@@ -56,9 +56,9 @@ vi.mock("../src/cli/execution", async () => {
   };
 });
 
-vi.mock("../src/cli/state", async () => {
-  const actual = await vi.importActual<typeof import("../src/cli/state")>(
-    "../src/cli/state",
+vi.mock("../../src/cli/state", async () => {
+  const actual = await vi.importActual<typeof import("../../src/cli/state")>(
+    "../../src/cli/state",
   );
   return {
     ...actual,
@@ -69,7 +69,7 @@ vi.mock("../src/cli/state", async () => {
   };
 });
 
-import { signCommand } from "../src/cli/commands/wallet";
+import { signCommand } from "../../src/cli/commands/wallet";
 
 describe("CLI wallet sign simulation integration", () => {
   beforeEach(() => {
@@ -159,13 +159,13 @@ describe("CLI wallet sign simulation integration", () => {
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",
-            value: "0",
+            value: 0n,
             data: "0x",
             chainId: 1,
           },
           {
             to: "0x9C7a99480c59955a635123EDa064456393e519f5",
-            value: "1000000000000",
+            value: 1000000000000n,
             chainId: 1,
           },
         ],

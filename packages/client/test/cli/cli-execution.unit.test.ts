@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mainnet, polygon } from "viem/chains";
-import { CliExit } from "../src/cli/errors";
+import { CliExit } from "../../src/cli/errors";
 
 const {
   createAlchemySmartAccountMock,
@@ -62,14 +62,14 @@ vi.mock("viem/experimental/erc7821", () => ({
   encodeExecuteData: vi.fn(() => "0xmockexecutedata"),
 }));
 
-import { buildCliConfig, getPositionals } from "../src/cli/commands/defs/shared";
+import { buildCliConfig, getPositionals } from "../../src/cli/commands/defs/shared";
 import {
   createCliProviderState,
   describeExecutionDecision,
   getAlternativeAAMode,
   resolveCliExecutionDecision,
-} from "../src/cli/execution";
-import { isAlchemySponsorshipLimitError } from "../src/aa";
+} from "../../src/cli/execution";
+import { isAlchemySponsorshipLimitError } from "../../src/aa";
 
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;

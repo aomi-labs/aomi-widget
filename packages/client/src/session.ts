@@ -26,8 +26,8 @@ import type {
   UserState,
 } from "./types";
 import { addUserStateExt } from "./types";
-import { TypedEventEmitter } from "./event-emitter";
-import { unwrapSystemEvent } from "./event-unwrap";
+import { TypedEventEmitter } from "./event";
+import { unwrapSystemEvent } from "./event";
 import {
   normalizeTxPayload,
   normalizeEip712Payload,

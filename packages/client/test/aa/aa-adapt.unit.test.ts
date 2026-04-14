@@ -4,7 +4,7 @@ import type { TransactionReceipt } from "viem";
 import {
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
-} from "../src/aa/adapt";
+} from "../../src/aa/adapt";
 
 describe("adaptSmartAccount", () => {
   const mockReceipt = {

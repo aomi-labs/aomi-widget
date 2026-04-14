@@ -70,6 +70,7 @@ __export(index_exports, {
   normalizeEip712Payload: () => normalizeEip712Payload,
   normalizeTxPayload: () => normalizeTxPayload,
   resolvePimlicoConfig: () => resolvePimlicoConfig,
+  toAAWalletCall: () => toAAWalletCall,
   toViemSignTypedDataArgs: () => toViemSignTypedDataArgs,
   unwrapSystemEvent: () => unwrapSystemEvent
 });
@@ -670,14 +671,11 @@ function isAsyncCallback(event) {
   return "AsyncCallback" in event;
 }
 
-// src/event-emitter.ts
+// src/event.ts
 var TypedEventEmitter = class {
   constructor() {
     this.listeners = /* @__PURE__ */ new Map();
   }
-  /**
-   * Subscribe to an event type. Returns an unsubscribe function.
-   */
   on(type, handler) {
     let set = this.listeners.get(type);
     if (!set) {
@@ -692,9 +690,6 @@ var TypedEventEmitter = class {
       }
     };
   }
-  /**
-   * Subscribe to an event type for a single emission, then auto-unsubscribe.
-   */
   once(type, handler) {
     const wrapper = ((payload) => {
       unsub();
@@ -703,9 +698,6 @@ var TypedEventEmitter = class {
     const unsub = this.on(type, wrapper);
     return unsub;
   }
-  /**
-   * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
-   */
   emit(type, payload) {
     const typeSet = this.listeners.get(type);
     if (typeSet) {
@@ -722,9 +714,6 @@ var TypedEventEmitter = class {
       }
     }
   }
-  /**
-   * Remove a specific handler from an event type.
-   */
   off(type, handler) {
     const set = this.listeners.get(type);
     if (set) {
@@ -734,15 +723,10 @@ var TypedEventEmitter = class {
       }
     }
   }
-  /**
-   * Remove all listeners for all event types.
-   */
   removeAllListeners() {
     this.listeners.clear();
   }
 };
-
-// src/event-unwrap.ts
 function unwrapSystemEvent(event) {
   var _a;
   if (isInlineCall(event)) {
@@ -842,6 +826,15 @@ function normalizeEip712Payload(payload) {
   }
   const description = typeof args.description === "string" ? args.description : void 0;
   return { typed_data: typedData, description };
+}
+function toAAWalletCall(payload, defaultChainId = 1) {
+  var _a, _b;
+  return {
+    to: payload.to,
+    value: BigInt((_a = payload.value) != null ? _a : "0"),
+    data: payload.data ? payload.data : void 0,
+    chainId: (_b = payload.chainId) != null ? _b : defaultChainId
+  };
 }
 function toViemSignTypedDataArgs(payload) {
   var _a;
@@ -1319,13 +1312,6 @@ function buildAAExecutionPlan(config, chainConfig) {
 function getWalletExecutorReady(providerState) {
   return !providerState.resolved || !providerState.pending && (Boolean(providerState.account) || Boolean(providerState.error) || providerState.resolved.fallbackToEoa);
 }
-function mapCall(call) {
-  return {
-    to: call.to,
-    value: BigInt(call.value),
-    data: call.data ? call.data : void 0
-  };
-}
 var DEFAULT_AA_CONFIG = {
   enabled: true,
   provider: "alchemy",
@@ -1373,6 +1359,27 @@ var DEFAULT_AA_CONFIG = {
     }
   ]
 };
+
+// src/chains.ts
+var import_chains = require("viem/chains");
+var ALCHEMY_CHAIN_SLUGS = {
+  1: "eth-mainnet",
+  137: "polygon-mainnet",
+  42161: "arb-mainnet",
+  8453: "base-mainnet",
+  10: "opt-mainnet",
+  11155111: "eth-sepolia"
+};
+var CHAINS_BY_ID = {
+  1: import_chains.mainnet,
+  137: import_chains.polygon,
+  42161: import_chains.arbitrum,
+  10: import_chains.optimism,
+  8453: import_chains.base,
+  11155111: import_chains.sepolia
+};
+
+// src/aa/execute.ts
 async function executeWalletCalls(params) {
   const {
     callList,
@@ -1411,7 +1418,7 @@ async function executeViaAA(callList, providerState) {
   if (!account || !resolved) {
     throw (_a = providerState.error) != null ? _a : new Error("smart_account_unavailable");
   }
-  const callsPayload = callList.map(mapCall);
+  const callsPayload = callList.map(({ to, value, data }) => ({ to, value, data }));
   const receipt = callList.length > 1 ? await account.sendBatchTransaction(callsPayload) : await account.sendTransaction(callsPayload[0]);
   const txHash = receipt.transactionHash;
   const providerPrefix = account.provider.toLowerCase();
@@ -1435,15 +1442,7 @@ async function resolve7702Delegation(txHash, callList) {
     const { createPublicClient, http } = await import("viem");
     const chainId = (_a = callList[0]) == null ? void 0 : _a.chainId;
     if (!chainId) return void 0;
-    const { mainnet, polygon, arbitrum, optimism, base } = await import("viem/chains");
-    const knownChains = {
-      1: mainnet,
-      137: polygon,
-      42161: arbitrum,
-      10: optimism,
-      8453: base
-    };
-    const chain = knownChains[chainId];
+    const chain = CHAINS_BY_ID[chainId];
     if (!chain) return void 0;
     const client = createPublicClient({ chain, transport: http() });
     const tx = await client.getTransaction({ hash: txHash });
@@ -1490,8 +1489,8 @@ async function executeViaEoa({
       const hash = await walletClient.sendTransaction({
         account,
         to: call.to,
-        value: BigInt(call.value),
-        data: call.data ? call.data : void 0
+        value: call.value,
+        data: call.data
       });
       const publicClient = createPublicClient({
         chain,
@@ -1521,7 +1520,7 @@ async function executeViaEoa({
   const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
   if (canUseSendCalls) {
     const batchResult = await sendCallsSyncAsync({
-      calls: callList.map(mapCall),
+      calls: callList.map(({ to, value, data }) => ({ to, value, data })),
       capabilities: {
         atomic: {
           required: true
@@ -1539,8 +1538,8 @@ async function executeViaEoa({
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
         to: call.to,
-        value: BigInt(call.value),
-        data: call.data ? call.data : void 0
+        value: call.value,
+        data: call.data
       });
       hashes.push(hash);
     }
@@ -1703,16 +1702,6 @@ function getUnsupportedAdapterState(resolved, adapter) {
     error: new Error(`Session adapter "${adapter}" is not implemented.`)
   };
 }
-
-// src/cli/chains.ts
-var ALCHEMY_CHAIN_SLUGS = {
-  1: "eth-mainnet",
-  137: "polygon-mainnet",
-  42161: "arb-mainnet",
-  8453: "base-mainnet",
-  10: "opt-mainnet",
-  11155111: "eth-sepolia"
-};
 
 // src/aa/alchemy/create.ts
 var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
@@ -2252,6 +2241,7 @@ async function createAAProviderState(options) {
   normalizeEip712Payload,
   normalizeTxPayload,
   resolvePimlicoConfig,
+  toAAWalletCall,
   toViemSignTypedDataArgs,
   unwrapSystemEvent
 });

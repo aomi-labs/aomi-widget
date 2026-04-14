@@ -19,9 +19,6 @@ export class TypedEventEmitter<
 > {
   private listeners = new Map<string, Set<Listener<never>>>();
 
-  /**
-   * Subscribe to an event type. Returns an unsubscribe function.
-   */
   on<K extends keyof EventMap & string>(
     type: K,
     handler: Listener<EventMap[K]>,
@@ -41,9 +38,6 @@ export class TypedEventEmitter<
     };
   }
 
-  /**
-   * Subscribe to an event type for a single emission, then auto-unsubscribe.
-   */
   once<K extends keyof EventMap & string>(
     type: K,
     handler: Listener<EventMap[K]>,
@@ -57,14 +51,10 @@ export class TypedEventEmitter<
     return unsub;
   }
 
-  /**
-   * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
-   */
   emit<K extends keyof EventMap & string>(
     type: K,
     payload: EventMap[K],
   ): void {
-    // Type-specific listeners
     const typeSet = this.listeners.get(type);
     if (typeSet) {
       for (const handler of typeSet) {
@@ -72,7 +62,6 @@ export class TypedEventEmitter<
       }
     }
 
-    // Wildcard listeners
     if (type !== "*") {
       const wildcardSet = this.listeners.get("*");
       if (wildcardSet) {
@@ -83,9 +72,6 @@ export class TypedEventEmitter<
     }
   }
 
-  /**
-   * Remove a specific handler from an event type.
-   */
   off<K extends keyof EventMap & string>(
     type: K,
     handler: Listener<EventMap[K]>,
@@ -99,10 +85,58 @@ export class TypedEventEmitter<
     }
   }
 
-  /**
-   * Remove all listeners for all event types.
-   */
   removeAllListeners(): void {
     this.listeners.clear();
   }
+}
+
+// =============================================================================
+// System Event Unwrap
+// =============================================================================
+
+import type { AomiSystemEvent } from "./types";
+import {
+  isInlineCall,
+  isSystemNotice,
+  isSystemError,
+  isAsyncCallback,
+} from "./types";
+
+export type UnwrappedEvent = {
+  type: string;
+  payload: unknown;
+};
+
+export function unwrapSystemEvent(
+  event: AomiSystemEvent,
+): UnwrappedEvent | null {
+  if (isInlineCall(event)) {
+    return {
+      type: event.InlineCall.type,
+      payload: event.InlineCall.payload ?? event.InlineCall,
+    };
+  }
+
+  if (isSystemNotice(event)) {
+    return {
+      type: "system_notice",
+      payload: { message: event.SystemNotice },
+    };
+  }
+
+  if (isSystemError(event)) {
+    return {
+      type: "system_error",
+      payload: { message: event.SystemError },
+    };
+  }
+
+  if (isAsyncCallback(event)) {
+    return {
+      type: "async_callback",
+      payload: event.AsyncCallback,
+    };
+  }
+
+  return null;
 }

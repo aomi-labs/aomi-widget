@@ -1,7 +1,7 @@
 import type { Chain } from "viem";
 
 import { adaptSmartAccount } from "../adapt";
-import type { AAState, AAMode, WalletCall } from "../types";
+import type { AAState, AAMode, AAWalletCall } from "../types";
 import {
   getMissingOwnerState,
   getOwnerParams,
@@ -14,7 +14,7 @@ export interface CreatePimlicoAAStateOptions {
   chain: Chain;
   owner: AAOwner;
   rpcUrl: string;
-  callList: WalletCall[];
+  callList: AAWalletCall[];
   mode?: AAMode;
   apiKey?: string;
 }

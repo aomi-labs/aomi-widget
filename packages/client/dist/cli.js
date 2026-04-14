@@ -57,10 +57,11 @@ var init_errors = __esm({
   }
 });
 
-// src/cli/chains.ts
-var SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS;
+// src/chains.ts
+import { mainnet, polygon, arbitrum, optimism, base, sepolia } from "viem/chains";
+var SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
 var init_chains = __esm({
-  "src/cli/chains.ts"() {
+  "src/chains.ts"() {
     "use strict";
     SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111];
     CHAIN_NAMES = {
@@ -78,6 +79,14 @@ var init_chains = __esm({
       8453: "base-mainnet",
       10: "opt-mainnet",
       11155111: "eth-sepolia"
+    };
+    CHAINS_BY_ID = {
+      1: mainnet,
+      137: polygon,
+      42161: arbitrum,
+      10: optimism,
+      8453: base,
+      11155111: sepolia
     };
   }
 });
@@ -1106,85 +1115,7 @@ var init_types = __esm({
   }
 });
 
-// src/event-emitter.ts
-var TypedEventEmitter;
-var init_event_emitter = __esm({
-  "src/event-emitter.ts"() {
-    "use strict";
-    TypedEventEmitter = class {
-      constructor() {
-        this.listeners = /* @__PURE__ */ new Map();
-      }
-      /**
-       * Subscribe to an event type. Returns an unsubscribe function.
-       */
-      on(type, handler) {
-        let set = this.listeners.get(type);
-        if (!set) {
-          set = /* @__PURE__ */ new Set();
-          this.listeners.set(type, set);
-        }
-        set.add(handler);
-        return () => {
-          set.delete(handler);
-          if (set.size === 0) {
-            this.listeners.delete(type);
-          }
-        };
-      }
-      /**
-       * Subscribe to an event type for a single emission, then auto-unsubscribe.
-       */
-      once(type, handler) {
-        const wrapper = ((payload) => {
-          unsub();
-          handler(payload);
-        });
-        const unsub = this.on(type, wrapper);
-        return unsub;
-      }
-      /**
-       * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
-       */
-      emit(type, payload) {
-        const typeSet = this.listeners.get(type);
-        if (typeSet) {
-          for (const handler of typeSet) {
-            handler(payload);
-          }
-        }
-        if (type !== "*") {
-          const wildcardSet = this.listeners.get("*");
-          if (wildcardSet) {
-            for (const handler of wildcardSet) {
-              handler({ type, payload });
-            }
-          }
-        }
-      }
-      /**
-       * Remove a specific handler from an event type.
-       */
-      off(type, handler) {
-        const set = this.listeners.get(type);
-        if (set) {
-          set.delete(handler);
-          if (set.size === 0) {
-            this.listeners.delete(type);
-          }
-        }
-      }
-      /**
-       * Remove all listeners for all event types.
-       */
-      removeAllListeners() {
-        this.listeners.clear();
-      }
-    };
-  }
-});
-
-// src/event-unwrap.ts
+// src/event.ts
 function unwrapSystemEvent(event) {
   var _a3;
   if (isInlineCall(event)) {
@@ -1213,10 +1144,66 @@ function unwrapSystemEvent(event) {
   }
   return null;
 }
-var init_event_unwrap = __esm({
-  "src/event-unwrap.ts"() {
+var TypedEventEmitter;
+var init_event = __esm({
+  "src/event.ts"() {
     "use strict";
     init_types();
+    TypedEventEmitter = class {
+      constructor() {
+        this.listeners = /* @__PURE__ */ new Map();
+      }
+      on(type, handler) {
+        let set = this.listeners.get(type);
+        if (!set) {
+          set = /* @__PURE__ */ new Set();
+          this.listeners.set(type, set);
+        }
+        set.add(handler);
+        return () => {
+          set.delete(handler);
+          if (set.size === 0) {
+            this.listeners.delete(type);
+          }
+        };
+      }
+      once(type, handler) {
+        const wrapper = ((payload) => {
+          unsub();
+          handler(payload);
+        });
+        const unsub = this.on(type, wrapper);
+        return unsub;
+      }
+      emit(type, payload) {
+        const typeSet = this.listeners.get(type);
+        if (typeSet) {
+          for (const handler of typeSet) {
+            handler(payload);
+          }
+        }
+        if (type !== "*") {
+          const wildcardSet = this.listeners.get("*");
+          if (wildcardSet) {
+            for (const handler of wildcardSet) {
+              handler({ type, payload });
+            }
+          }
+        }
+      }
+      off(type, handler) {
+        const set = this.listeners.get(type);
+        if (set) {
+          set.delete(handler);
+          if (set.size === 0) {
+            this.listeners.delete(type);
+          }
+        }
+      }
+      removeAllListeners() {
+        this.listeners.clear();
+      }
+    };
   }
 });
 
@@ -1291,6 +1278,15 @@ function normalizeEip712Payload(payload) {
   const description = typeof args.description === "string" ? args.description : void 0;
   return { typed_data: typedData, description };
 }
+function toAAWalletCall(payload, defaultChainId = 1) {
+  var _a3, _b;
+  return {
+    to: payload.to,
+    value: BigInt((_a3 = payload.value) != null ? _a3 : "0"),
+    data: payload.data ? payload.data : void 0,
+    chainId: (_b = payload.chainId) != null ? _b : defaultChainId
+  };
+}
 function toViemSignTypedDataArgs(payload) {
   var _a3;
   const typedData = payload.typed_data;
@@ -1356,8 +1352,8 @@ var init_session = __esm({
     "use strict";
     init_client();
     init_types();
-    init_event_emitter();
-    init_event_unwrap();
+    init_event();
+    init_event();
     init_wallet_utils();
     ClientSession = class extends TypedEventEmitter {
       constructor(clientOrOptions, sessionOptions) {
@@ -1896,17 +1892,16 @@ function walletRequestToPendingTx(request) {
   };
 }
 function pendingTxToCallList(tx) {
-  var _a3, _b;
   if (tx.kind !== "transaction" || !tx.to) {
     throw new Error("pending_transaction_missing_call_data");
   }
   return [
-    {
+    toAAWalletCall({
       to: tx.to,
-      value: (_a3 = tx.value) != null ? _a3 : "0",
+      value: tx.value,
       data: tx.data,
-      chainId: (_b = tx.chainId) != null ? _b : 1
-    }
+      chainId: tx.chainId
+    })
   ];
 }
 function toSignedTransactionRecord(tx, execution, from, chainId, timestamp, aaProvider, aaMode) {
@@ -1970,6 +1965,7 @@ function formatSignedTxLine(tx, prefix) {
 var init_transactions = __esm({
   "src/cli/transactions.ts"() {
     "use strict";
+    init_wallet_utils();
   }
 });
 
@@ -2166,193 +2162,6 @@ function buildAAExecutionPlan(config, chainConfig) {
     fallbackToEoa: config.fallbackToEoa
   };
 }
-function mapCall(call) {
-  return {
-    to: call.to,
-    value: BigInt(call.value),
-    data: call.data ? call.data : void 0
-  };
-}
-async function executeWalletCalls(params) {
-  const {
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    providerState,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl: getPreferredRpcUrl2
-  } = params;
-  if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState);
-  }
-  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
-    throw providerState.error;
-  }
-  return executeViaEoa({
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl: getPreferredRpcUrl2
-  });
-}
-async function executeViaAA(callList, providerState) {
-  var _a3;
-  const account = providerState.account;
-  const resolved = providerState.resolved;
-  if (!account || !resolved) {
-    throw (_a3 = providerState.error) != null ? _a3 : new Error("smart_account_unavailable");
-  }
-  const callsPayload = callList.map(mapCall);
-  const receipt = callList.length > 1 ? await account.sendBatchTransaction(callsPayload) : await account.sendTransaction(callsPayload[0]);
-  const txHash = receipt.transactionHash;
-  const providerPrefix = account.provider.toLowerCase();
-  let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
-  if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(txHash, callList);
-  }
-  return {
-    txHash,
-    txHashes: [txHash],
-    executionKind: `${providerPrefix}_${account.mode}`,
-    batched: callList.length > 1,
-    sponsored: resolved.sponsorship !== "disabled",
-    AAAddress: account.AAAddress,
-    delegationAddress
-  };
-}
-async function resolve7702Delegation(txHash, callList) {
-  var _a3, _b, _c, _d;
-  try {
-    const { createPublicClient, http: http2 } = await import("viem");
-    const chainId = (_a3 = callList[0]) == null ? void 0 : _a3.chainId;
-    if (!chainId) return void 0;
-    const { mainnet, polygon, arbitrum, optimism, base } = await import("viem/chains");
-    const knownChains = {
-      1: mainnet,
-      137: polygon,
-      42161: arbitrum,
-      10: optimism,
-      8453: base
-    };
-    const chain = knownChains[chainId];
-    if (!chain) return void 0;
-    const client = createPublicClient({ chain, transport: http2() });
-    const tx = await client.getTransaction({ hash: txHash });
-    const authList = tx.authorizationList;
-    const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
-    if (target) {
-      return target;
-    }
-  } catch (e) {
-  }
-  return void 0;
-}
-async function executeViaEoa({
-  callList,
-  currentChainId,
-  capabilities,
-  localPrivateKey,
-  sendCallsSyncAsync,
-  sendTransactionAsync,
-  switchChainAsync,
-  chainsById,
-  getPreferredRpcUrl: getPreferredRpcUrl2
-}) {
-  var _a3, _b;
-  const { createPublicClient, createWalletClient: createWalletClient2, http: http2 } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount4 } = await import("viem/accounts");
-  const hashes = [];
-  if (localPrivateKey) {
-    for (const call of callList) {
-      const chain = chainsById[call.chainId];
-      if (!chain) {
-        throw new Error(`Unsupported chain ${call.chainId}`);
-      }
-      const rpcUrl = getPreferredRpcUrl2(chain);
-      if (!rpcUrl) {
-        throw new Error(`No RPC for chain ${call.chainId}`);
-      }
-      const account = privateKeyToAccount4(localPrivateKey);
-      const walletClient = createWalletClient2({
-        account,
-        chain,
-        transport: http2(rpcUrl)
-      });
-      const hash = await walletClient.sendTransaction({
-        account,
-        to: call.to,
-        value: BigInt(call.value),
-        data: call.data ? call.data : void 0
-      });
-      const publicClient = createPublicClient({
-        chain,
-        transport: http2(rpcUrl)
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      hashes.push(hash);
-    }
-    return {
-      txHash: hashes[hashes.length - 1],
-      txHashes: hashes,
-      executionKind: "eoa",
-      batched: hashes.length > 1,
-      sponsored: false
-    };
-  }
-  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
-  if (chainIds.length > 1) {
-    throw new Error("mixed_chain_bundle_not_supported");
-  }
-  const chainId = chainIds[0];
-  if (currentChainId !== chainId) {
-    await switchChainAsync({ chainId });
-  }
-  const chainCaps = capabilities == null ? void 0 : capabilities[`eip155:${chainId}`];
-  const atomicStatus = (_a3 = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a3.status;
-  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
-  if (canUseSendCalls) {
-    const batchResult = await sendCallsSyncAsync({
-      calls: callList.map(mapCall),
-      capabilities: {
-        atomic: {
-          required: true
-        }
-      }
-    });
-    const receipts = (_b = batchResult.receipts) != null ? _b : [];
-    for (const receipt of receipts) {
-      if (receipt.transactionHash) {
-        hashes.push(receipt.transactionHash);
-      }
-    }
-  } else {
-    for (const call of callList) {
-      const hash = await sendTransactionAsync({
-        chainId: call.chainId,
-        to: call.to,
-        value: BigInt(call.value),
-        data: call.data ? call.data : void 0
-      });
-      hashes.push(hash);
-    }
-  }
-  return {
-    txHash: hashes[hashes.length - 1],
-    txHashes: hashes,
-    executionKind: "eoa",
-    batched: hashes.length > 1,
-    sponsored: false
-  };
-}
 var DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE;
 var init_types2 = __esm({
   "src/aa/types.ts"() {
@@ -2410,6 +2219,186 @@ var init_types2 = __esm({
       pending: false,
       error: null
     };
+  }
+});
+
+// src/aa/execute.ts
+async function executeWalletCalls(params) {
+  const {
+    callList,
+    currentChainId,
+    capabilities,
+    localPrivateKey,
+    providerState,
+    sendCallsSyncAsync,
+    sendTransactionAsync,
+    switchChainAsync,
+    chainsById,
+    getPreferredRpcUrl: getPreferredRpcUrl2
+  } = params;
+  if (providerState.resolved && providerState.account) {
+    return executeViaAA(callList, providerState);
+  }
+  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
+    throw providerState.error;
+  }
+  return executeViaEoa({
+    callList,
+    currentChainId,
+    capabilities,
+    localPrivateKey,
+    sendCallsSyncAsync,
+    sendTransactionAsync,
+    switchChainAsync,
+    chainsById,
+    getPreferredRpcUrl: getPreferredRpcUrl2
+  });
+}
+async function executeViaAA(callList, providerState) {
+  var _a3;
+  const account = providerState.account;
+  const resolved = providerState.resolved;
+  if (!account || !resolved) {
+    throw (_a3 = providerState.error) != null ? _a3 : new Error("smart_account_unavailable");
+  }
+  const callsPayload = callList.map(({ to, value, data }) => ({ to, value, data }));
+  const receipt = callList.length > 1 ? await account.sendBatchTransaction(callsPayload) : await account.sendTransaction(callsPayload[0]);
+  const txHash = receipt.transactionHash;
+  const providerPrefix = account.provider.toLowerCase();
+  let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
+  if (account.mode === "7702" && !delegationAddress) {
+    delegationAddress = await resolve7702Delegation(txHash, callList);
+  }
+  return {
+    txHash,
+    txHashes: [txHash],
+    executionKind: `${providerPrefix}_${account.mode}`,
+    batched: callList.length > 1,
+    sponsored: resolved.sponsorship !== "disabled",
+    AAAddress: account.AAAddress,
+    delegationAddress
+  };
+}
+async function resolve7702Delegation(txHash, callList) {
+  var _a3, _b, _c, _d;
+  try {
+    const { createPublicClient, http: http2 } = await import("viem");
+    const chainId = (_a3 = callList[0]) == null ? void 0 : _a3.chainId;
+    if (!chainId) return void 0;
+    const chain = CHAINS_BY_ID[chainId];
+    if (!chain) return void 0;
+    const client = createPublicClient({ chain, transport: http2() });
+    const tx = await client.getTransaction({ hash: txHash });
+    const authList = tx.authorizationList;
+    const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
+    if (target) {
+      return target;
+    }
+  } catch (e) {
+  }
+  return void 0;
+}
+async function executeViaEoa({
+  callList,
+  currentChainId,
+  capabilities,
+  localPrivateKey,
+  sendCallsSyncAsync,
+  sendTransactionAsync,
+  switchChainAsync,
+  chainsById,
+  getPreferredRpcUrl: getPreferredRpcUrl2
+}) {
+  var _a3, _b;
+  const { createPublicClient, createWalletClient: createWalletClient2, http: http2 } = await import("viem");
+  const { privateKeyToAccount: privateKeyToAccount4 } = await import("viem/accounts");
+  const hashes = [];
+  if (localPrivateKey) {
+    for (const call of callList) {
+      const chain = chainsById[call.chainId];
+      if (!chain) {
+        throw new Error(`Unsupported chain ${call.chainId}`);
+      }
+      const rpcUrl = getPreferredRpcUrl2(chain);
+      if (!rpcUrl) {
+        throw new Error(`No RPC for chain ${call.chainId}`);
+      }
+      const account = privateKeyToAccount4(localPrivateKey);
+      const walletClient = createWalletClient2({
+        account,
+        chain,
+        transport: http2(rpcUrl)
+      });
+      const hash = await walletClient.sendTransaction({
+        account,
+        to: call.to,
+        value: call.value,
+        data: call.data
+      });
+      const publicClient = createPublicClient({
+        chain,
+        transport: http2(rpcUrl)
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      hashes.push(hash);
+    }
+    return {
+      txHash: hashes[hashes.length - 1],
+      txHashes: hashes,
+      executionKind: "eoa",
+      batched: hashes.length > 1,
+      sponsored: false
+    };
+  }
+  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
+  if (chainIds.length > 1) {
+    throw new Error("mixed_chain_bundle_not_supported");
+  }
+  const chainId = chainIds[0];
+  if (currentChainId !== chainId) {
+    await switchChainAsync({ chainId });
+  }
+  const chainCaps = capabilities == null ? void 0 : capabilities[`eip155:${chainId}`];
+  const atomicStatus = (_a3 = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a3.status;
+  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  if (canUseSendCalls) {
+    const batchResult = await sendCallsSyncAsync({
+      calls: callList.map(({ to, value, data }) => ({ to, value, data })),
+      capabilities: {
+        atomic: {
+          required: true
+        }
+      }
+    });
+    const receipts = (_b = batchResult.receipts) != null ? _b : [];
+    for (const receipt of receipts) {
+      if (receipt.transactionHash) {
+        hashes.push(receipt.transactionHash);
+      }
+    }
+  } else {
+    for (const call of callList) {
+      const hash = await sendTransactionAsync({
+        chainId: call.chainId,
+        to: call.to,
+        value: call.value,
+        data: call.data
+      });
+      hashes.push(hash);
+    }
+  }
+  return {
+    txHash: hashes[hashes.length - 1],
+    txHashes: hashes,
+    executionKind: "eoa",
+    batched: hashes.length > 1,
+    sponsored: false
+  };
+}
+var init_execute = __esm({
+  "src/aa/execute.ts"() {
+    "use strict";
+    init_chains();
   }
 });
 
@@ -3061,6 +3050,7 @@ var init_aa = __esm({
   "src/aa/index.ts"() {
     "use strict";
     init_types2();
+    init_execute();
     init_alchemy();
     init_pimlico();
     init_adapt();
@@ -3415,11 +3405,13 @@ async function signCommand(config, txIds) {
           console.log(
             `Fee:     ${feeEth} ETH \u2192 ${sim.fee.recipient.slice(0, 10)}...`
           );
-          callList.push({
-            to: sim.fee.recipient,
-            value: sim.fee.amount_wei,
-            chainId: primaryChainId
-          });
+          callList.push(
+            toAAWalletCall({
+              to: sim.fee.recipient,
+              value: sim.fee.amount_wei,
+              chainId: primaryChainId
+            })
+          );
         }
       } catch (e) {
         console.log(
@@ -3572,6 +3564,7 @@ var init_wallet = __esm({
   "src/cli/commands/wallet.ts"() {
     "use strict";
     init_aa();
+    init_wallet_utils();
     init_session();
     init_wallet_utils();
     init_errors();
@@ -4717,7 +4710,7 @@ var secretDef = defineCommand7({
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.22",
+  version: "0.1.23",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

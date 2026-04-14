@@ -5,6 +5,7 @@ import {
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
+import { toAAWalletCall } from "../../wallet-utils";
 import { ClientSession } from "../../session";
 import {
   toViemSignTypedDataArgs,
@@ -326,11 +327,13 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           console.log(
             `Fee:     ${feeEth} ETH → ${sim.fee.recipient.slice(0, 10)}...`,
           );
-          callList.push({
-            to: sim.fee.recipient,
-            value: sim.fee.amount_wei,
-            chainId: primaryChainId,
-          });
+          callList.push(
+            toAAWalletCall({
+              to: sim.fee.recipient,
+              value: sim.fee.amount_wei,
+              chainId: primaryChainId,
+            }),
+          );
         }
       } catch (e) {
         console.log(
