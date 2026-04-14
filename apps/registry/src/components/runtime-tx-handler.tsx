@@ -26,8 +26,8 @@ export function RuntimeTxHandler() {
   const processingRef = useRef(false);
 
   useEffect(() => {
-    if (!pendingWalletRequests) return;
-    const next = pendingWalletRequests.find((r) => r.status === "pending");
+    if (!pendingWalletRequests.length) return;
+    const next = pendingWalletRequests[0];
     if (!next || processingRef.current) return;
 
     processingRef.current = true;
