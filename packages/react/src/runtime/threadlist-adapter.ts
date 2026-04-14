@@ -6,8 +6,6 @@ import type { AomiClient } from "@aomi-labs/client";
 import type { ThreadContext } from "../contexts/thread-context";
 import type { UserState } from "../contexts/user-context";
 import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
-import type { BackendState } from "../state/backend-state";
-import type { PollingController } from "./polling-controller";
 import { isPlaceholderTitle, parseTimestamp } from "./utils";
 
 // =============================================================================
@@ -58,16 +56,9 @@ function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
 // =============================================================================
 
 export type ThreadListAdapterConfig = {
-  backendStateRef: MutableRefObject<BackendState>;
   aomiClientRef: MutableRefObject<AomiClient>;
   threadContext: ThreadContext;
-  currentThreadIdRef: MutableRefObject<string>;
-  polling: PollingController;
-  userAddress?: string;
   setIsRunning: (running: boolean) => void;
-  getApp: () => string;
-  getApiKey?: () => string | null;
-  getUserState?: () => UserState;
 };
 
 export function buildThreadListAdapter({
