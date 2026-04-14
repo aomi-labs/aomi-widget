@@ -6,7 +6,7 @@ import type {
   AAResolvedConfig,
   AAState,
   SmartAccount,
-  WalletCall,
+  AAWalletCall,
 } from "../types";
 import { DEFAULT_AA_CONFIG, getAAChainConfig, buildAAExecutionPlan } from "../types";
 
@@ -45,7 +45,7 @@ export interface CreateAlchemyAAProviderOptions<
  * Resolve Alchemy config for the React hook path (public env vars only).
  */
 function resolveForHook(params: {
-  calls: WalletCall[] | null;
+  calls: AAWalletCall[] | null;
   localPrivateKey: `0x${string}` | null;
   accountAbstractionConfig: AAConfig;
   chainsById: Record<number, Chain>;
@@ -89,7 +89,7 @@ export function createAlchemyAAProvider<
   getPreferredRpcUrl,
 }: CreateAlchemyAAProviderOptions<TAccount>) {
   return function useAlchemyAAProvider(
-    calls: WalletCall[] | null,
+    calls: AAWalletCall[] | null,
     localPrivateKey: `0x${string}` | null,
   ): AAState<TAccount> {
     const resolved = resolveForHook({

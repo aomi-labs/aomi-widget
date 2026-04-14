@@ -3,12 +3,12 @@ export {
   type AAProvider,
   type AAMode,
   type AASponsorship,
-  type WalletCall,
+  type AAWalletCall,
+  type AACallPayload,
   type AAChainConfig,
   type AAConfig,
   type AAResolvedConfig,
   type WalletAtomicCapability,
-  type WalletPrimitiveCall,
   type SmartAccount,
   type AAState,
   type ExecutionResult,
@@ -25,9 +25,9 @@ export {
   getAAChainConfig,
   buildAAExecutionPlan,
   getWalletExecutorReady,
-  executeWalletCalls,
-  mapCall,
 } from "./types";
+
+export { executeWalletCalls } from "./execute";
 
 export {
   type AlchemyHookParams,

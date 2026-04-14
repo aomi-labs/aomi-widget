@@ -2,7 +2,7 @@ import type { Chain, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { adaptSmartAccount } from "../adapt";
-import type { AAState, SmartAccount, AAMode, WalletCall } from "../types";
+import type { AAState, SmartAccount, AAMode, AAWalletCall } from "../types";
 import {
   DEFAULT_AA_CONFIG,
   getAAChainConfig,
@@ -14,7 +14,7 @@ import {
   getUnsupportedAdapterState,
   type AAOwner,
 } from "../owner";
-import { ALCHEMY_CHAIN_SLUGS } from "../../cli/chains";
+import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
 
 const ALCHEMY_7702_DELEGATION_ADDRESS =
   "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
@@ -76,7 +76,7 @@ export interface CreateAlchemyAAStateOptions {
   chain: Chain;
   owner: AAOwner;
   rpcUrl: string;
-  callList: WalletCall[];
+  callList: AAWalletCall[];
   mode?: AAMode;
   /** Alchemy API key for BYOK. Omit to use proxy. */
   apiKey?: string;

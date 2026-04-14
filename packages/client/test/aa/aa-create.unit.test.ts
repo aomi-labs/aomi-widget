@@ -60,7 +60,7 @@ vi.mock("viem/experimental/erc7821", () => ({
   encodeExecuteData: vi.fn(() => "0xmockexecutedata"),
 }));
 
-import { createAAProviderState } from "../src/aa/create";
+import { createAAProviderState } from "../../src/aa/create";
 
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;

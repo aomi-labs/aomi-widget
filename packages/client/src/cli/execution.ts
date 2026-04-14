@@ -3,13 +3,13 @@ import type { Chain } from "viem";
 import {
   DISABLED_PROVIDER_STATE,
   type AAState,
-  type WalletCall,
+  type AAWalletCall,
   DEFAULT_AA_CONFIG,
   getAAChainConfig,
   createAAProviderState,
 } from "../aa";
+import { ALCHEMY_CHAIN_SLUGS } from "../chains";
 import type { CliAAProvider, CliAAMode, CliConfig } from "./types";
-import { ALCHEMY_CHAIN_SLUGS } from "./chains";
 
 // ---------------------------------------------------------------------------
 // ERC-20 Call Detection
@@ -21,7 +21,7 @@ const ERC20_SELECTORS = new Set([
   "0x23b872dd", // transferFrom(address,address,uint256)
 ]);
 
-function callsContainTokenOperations(calls: WalletCall[]): boolean {
+function callsContainTokenOperations(calls: AAWalletCall[]): boolean {
   return calls.some(
     (call) => call.data && ERC20_SELECTORS.has(call.data.slice(0, 10).toLowerCase()),
   );
@@ -34,7 +34,7 @@ function callsContainTokenOperations(calls: WalletCall[]): boolean {
  */
 function maybeOverride4337ForTokenOps(params: {
   mode: CliAAMode;
-  callList: WalletCall[];
+  callList: AAWalletCall[];
   chain: Chain;
   explicitMode: boolean;
 }): { mode: CliAAMode; warned: boolean } {
@@ -83,7 +83,7 @@ export type CliExecutionDecision =
 /**
  * Resolve the AA mode for a given chain from DEFAULT_AA_CONFIG.
  */
-function resolveMode(chain: Chain, callList: WalletCall[], explicitMode?: CliAAMode): CliAAMode {
+function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliAAMode): CliAAMode {
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
   });
@@ -110,7 +110,7 @@ function resolveMode(chain: Chain, callList: WalletCall[], explicitMode?: CliAAM
 export function resolveCliExecutionDecision(params: {
   config: CliConfig;
   chain: Chain;
-  callList: WalletCall[];
+  callList: AAWalletCall[];
 }): CliExecutionDecision {
   const { config, chain, callList } = params;
 
@@ -159,7 +159,7 @@ export async function createCliProviderState(params: {
   chain: Chain;
   privateKey: `0x${string}`;
   rpcUrl: string;
-  callList: WalletCall[];
+  callList: AAWalletCall[];
   baseUrl: string;
 }): Promise<AAState> {
   const { decision, chain, privateKey, rpcUrl, callList, baseUrl } = params;

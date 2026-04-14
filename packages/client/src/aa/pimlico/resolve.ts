@@ -4,7 +4,7 @@ import type {
   AAConfig,
   AAResolvedConfig,
   AAMode,
-  WalletCall,
+  AAWalletCall,
 } from "../types";
 import {
   DEFAULT_AA_CONFIG,
@@ -13,7 +13,7 @@ import {
 } from "../types";
 
 export interface PimlicoResolveOptions {
-  calls: WalletCall[] | null;
+  calls: AAWalletCall[] | null;
   localPrivateKey?: `0x${string}` | null;
   accountAbstractionConfig?: AAConfig;
   chainsById: Record<number, Chain>;

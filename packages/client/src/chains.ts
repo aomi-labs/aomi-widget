@@ -1,3 +1,6 @@
+import type { Chain } from "viem";
+import { mainnet, polygon, arbitrum, optimism, base, sepolia } from "viem/chains";
+
 export const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111] as const;
 
 export const CHAIN_NAMES: Record<number, string> = {
@@ -17,4 +20,13 @@ export const ALCHEMY_CHAIN_SLUGS: Record<number, string> = {
   8453: "base-mainnet",
   10: "opt-mainnet",
   11155111: "eth-sepolia",
+};
+
+export const CHAINS_BY_ID: Record<number, Chain> = {
+  1: mainnet,
+  137: polygon,
+  42161: arbitrum,
+  10: optimism,
+  8453: base,
+  11155111: sepolia,
 };

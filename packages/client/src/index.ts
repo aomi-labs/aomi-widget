@@ -62,8 +62,8 @@ export type {
 // Event Utilities
 // =============================================================================
 
-export { TypedEventEmitter } from "./event-emitter";
-export { unwrapSystemEvent, type UnwrappedEvent } from "./event-unwrap";
+export { TypedEventEmitter } from "./event";
+export { unwrapSystemEvent, type UnwrappedEvent } from "./event";
 
 // =============================================================================
 // Wallet Utilities
@@ -73,6 +73,7 @@ export {
   normalizeTxPayload,
   normalizeEip712Payload,
   toViemSignTypedDataArgs,
+  toAAWalletCall,
 } from "./wallet-utils";
 
 export type {
@@ -103,12 +104,12 @@ export type {
   AAProvider,
   AAMode,
   AASponsorship,
-  WalletCall,
+  AAWalletCall,
+  AACallPayload,
   AAChainConfig,
   AAConfig,
   AAResolvedConfig,
   WalletAtomicCapability,
-  WalletPrimitiveCall,
   SmartAccount,
   AAState,
   ExecutionResult,
