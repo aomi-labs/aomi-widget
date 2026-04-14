@@ -42,6 +42,26 @@ vi.mock("@alchemy/wallet-apis", () => ({
   alchemyWalletTransport: alchemyWalletTransportMock,
 }));
 
+vi.mock("viem", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("viem")>();
+  return {
+    ...actual,
+    createWalletClient: vi.fn(() => ({
+      signAuthorization: vi.fn().mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
+      sendTransaction: vi.fn().mockResolvedValue("0xmock7702hash"),
+    })),
+    createPublicClient: vi.fn(() => ({
+      estimateGas: vi.fn().mockResolvedValue(50000n),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success", gasUsed: 47000n }),
+      getCode: vi.fn().mockResolvedValue("0x"),
+    })),
+  };
+});
+
+vi.mock("viem/experimental/erc7821", () => ({
+  encodeExecuteData: vi.fn(() => "0xmockexecutedata"),
+}));
+
 import { buildCliConfig, getPositionals } from "../src/cli/commands/defs/shared";
 import {
   createCliProviderState,
@@ -344,9 +364,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA provider state for BYOK CLI signing", async () => {
-    process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
-
+  it("creates Alchemy AA 7702 provider state via raw viem", async () => {
     const providerState = await createCliProviderState({
       decision: {
         execution: "aa",
@@ -361,12 +379,8 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({ chain: mainnet }),
-    );
-    expect(alchemyWalletTransportMock).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: "alchemy-key" }),
-    );
+    // 7702 bypasses wallet-apis
+    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
@@ -376,7 +390,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA provider state via proxy", async () => {
+  it("creates Alchemy AA 7702 provider state via proxy", async () => {
     const providerState = await createCliProviderState({
       decision: {
         execution: "aa",
@@ -391,11 +405,8 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    expect(alchemyWalletTransportMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        url: "https://api.aomi.dev/aa/v1/eth-mainnet",
-      }),
-    );
+    // 7702 bypasses wallet-apis, uses raw viem
+    expect(alchemyWalletTransportMock).not.toHaveBeenCalled();
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",

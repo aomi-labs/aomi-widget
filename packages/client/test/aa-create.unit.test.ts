@@ -9,6 +9,10 @@ const {
   requestAccountMock,
   sendCallsMock,
   waitForCallsStatusMock,
+  signAuthorizationMock,
+  sendTransactionMock,
+  estimateGasMock,
+  waitForTransactionReceiptMock,
 } = vi.hoisted(() => ({
   createAlchemySmartAccountMock: vi.fn(),
   createPimlicoSmartAccountMock: vi.fn(),
@@ -17,6 +21,10 @@ const {
   requestAccountMock: vi.fn(),
   sendCallsMock: vi.fn(),
   waitForCallsStatusMock: vi.fn(),
+  signAuthorizationMock: vi.fn().mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
+  sendTransactionMock: vi.fn().mockResolvedValue("0xmock7702hash"),
+  estimateGasMock: vi.fn().mockResolvedValue(50000n),
+  waitForTransactionReceiptMock: vi.fn().mockResolvedValue({ status: "success", gasUsed: 47000n }),
 }));
 
 vi.mock("@getpara/aa-alchemy", () => ({
@@ -30,6 +38,26 @@ vi.mock("@getpara/aa-pimlico", () => ({
 vi.mock("@alchemy/wallet-apis", () => ({
   createSmartWalletClient: createSmartWalletClientMock,
   alchemyWalletTransport: alchemyWalletTransportMock,
+}));
+
+vi.mock("viem", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("viem")>();
+  return {
+    ...actual,
+    createWalletClient: vi.fn(() => ({
+      signAuthorization: signAuthorizationMock,
+      sendTransaction: sendTransactionMock,
+    })),
+    createPublicClient: vi.fn(() => ({
+      estimateGas: estimateGasMock,
+      waitForTransactionReceipt: waitForTransactionReceiptMock,
+      getCode: vi.fn().mockResolvedValue("0x"),
+    })),
+  };
+});
+
+vi.mock("viem/experimental/erc7821", () => ({
+  encodeExecuteData: vi.fn(() => "0xmockexecutedata"),
 }));
 
 import { createAAProviderState } from "../src/aa/create";
@@ -72,9 +100,7 @@ describe("createAAProviderState", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("creates an Alchemy provider state", async () => {
-    process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
-
+  it("creates an Alchemy 7702 provider state via raw viem", async () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -85,16 +111,8 @@ describe("createAAProviderState", () => {
       apiKey: "alchemy-key",
     });
 
-    expect(alchemyWalletTransportMock).toHaveBeenCalledWith({
-      apiKey: "alchemy-key",
-    });
-    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        transport: { transport: "alchemy-wallet" },
-        chain: mainnet,
-        paymaster: { policyId: "policy-1" },
-      }),
-    );
+    // 7702 bypasses @alchemy/wallet-apis entirely
+    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
 
     expect(state.resolved).toMatchObject({
@@ -106,6 +124,7 @@ describe("createAAProviderState", () => {
       provider: "alchemy",
       mode: "7702",
       AAAddress: expect.stringMatching(/^0x[a-fA-F0-9]{40}$/),
+      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
     });
     expect(state.error).toBeNull();
   });
@@ -194,7 +213,7 @@ describe("createAAProviderState", () => {
       owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
-      mode: "7702",
+      mode: "4337",
       apiKey: "key",
     });
 
@@ -204,13 +223,8 @@ describe("createAAProviderState", () => {
     expect(state.resolved).not.toBeNull();
   });
 
-  it("returns error state when smart account is null", async () => {
-    createSmartWalletClientMock.mockReturnValue({
-      requestAccount: requestAccountMock,
-      sendCalls: sendCallsMock,
-      waitForCallsStatus: waitForCallsStatusMock,
-    });
-
+  it("creates 7702 state even without wallet-apis", async () => {
+    // 7702 uses raw viem, so wallet-apis mock state doesn't matter
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
