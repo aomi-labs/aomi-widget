@@ -74,418 +74,6 @@ var init_chains = __esm({
   }
 });
 
-// src/cli/state.ts
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync
-} from "fs";
-import { basename, join } from "path";
-import { homedir, tmpdir } from "os";
-function ensureStorageDirs() {
-  mkdirSync(SESSIONS_DIR, { recursive: true });
-}
-function parseSessionFileLocalId(filename) {
-  const match = filename.match(/^session-(\d+)\.json$/);
-  if (!match) return null;
-  const localId = parseInt(match[1], 10);
-  return Number.isNaN(localId) ? null : localId;
-}
-function toSessionFilePath(localId) {
-  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
-}
-function toCliSessionState(stored) {
-  return {
-    sessionId: stored.sessionId,
-    clientId: stored.clientId,
-    baseUrl: stored.baseUrl,
-    app: stored.app,
-    model: stored.model,
-    apiKey: stored.apiKey,
-    publicKey: stored.publicKey,
-    chainId: stored.chainId,
-    pendingTxs: stored.pendingTxs,
-    signedTxs: stored.signedTxs,
-    secretHandles: stored.secretHandles
-  };
-}
-function readStoredSession(path) {
-  var _a3;
-  try {
-    const raw = readFileSync(path, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
-      return null;
-    }
-    const fallbackLocalId = (_a3 = parseSessionFileLocalId(basename(path))) != null ? _a3 : 0;
-    return {
-      sessionId: parsed.sessionId,
-      clientId: parsed.clientId,
-      baseUrl: parsed.baseUrl,
-      app: parsed.app,
-      model: parsed.model,
-      apiKey: parsed.apiKey,
-      publicKey: parsed.publicKey,
-      chainId: parsed.chainId,
-      pendingTxs: parsed.pendingTxs,
-      signedTxs: parsed.signedTxs,
-      secretHandles: parsed.secretHandles,
-      localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
-      createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
-      updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
-    };
-  } catch (e) {
-    return null;
-  }
-}
-function readActiveLocalId() {
-  try {
-    if (!existsSync(ACTIVE_SESSION_FILE)) return null;
-    const raw = readFileSync(ACTIVE_SESSION_FILE, "utf-8").trim();
-    if (!raw) return null;
-    const parsed = parseInt(raw, 10);
-    return Number.isNaN(parsed) ? null : parsed;
-  } catch (e) {
-    return null;
-  }
-}
-function writeActiveLocalId(localId) {
-  try {
-    if (localId === null) {
-      if (existsSync(ACTIVE_SESSION_FILE)) {
-        rmSync(ACTIVE_SESSION_FILE);
-      }
-      return;
-    }
-    ensureStorageDirs();
-    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
-  } catch (e) {
-  }
-}
-function readAllStoredSessions() {
-  try {
-    ensureStorageDirs();
-    const filenames = readdirSync(SESSIONS_DIR).map((name) => ({ name, localId: parseSessionFileLocalId(name) })).filter(
-      (entry) => entry.localId !== null
-    ).sort((a, b) => a.localId - b.localId);
-    const sessions = [];
-    for (const entry of filenames) {
-      const path = join(SESSIONS_DIR, entry.name);
-      const stored = readStoredSession(path);
-      if (stored) {
-        sessions.push(stored);
-      }
-    }
-    return sessions;
-  } catch (e) {
-    return [];
-  }
-}
-function getNextLocalId(sessions) {
-  const maxLocalId = sessions.reduce((max, session) => {
-    return session.localId > max ? session.localId : max;
-  }, 0);
-  return maxLocalId + 1;
-}
-function migrateLegacyStateIfNeeded() {
-  if (_migrationDone) return;
-  _migrationDone = true;
-  if (!existsSync(LEGACY_STATE_FILE)) return;
-  const existing = readAllStoredSessions();
-  if (existing.length > 0) {
-    return;
-  }
-  try {
-    const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
-    const legacy = JSON.parse(raw);
-    if (!legacy.sessionId || !legacy.baseUrl) {
-      return;
-    }
-    const now = Date.now();
-    const migrated = __spreadProps(__spreadValues({}, legacy), {
-      localId: 1,
-      createdAt: now,
-      updatedAt: now
-    });
-    ensureStorageDirs();
-    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
-    writeActiveLocalId(1);
-    rmSync(LEGACY_STATE_FILE);
-  } catch (e) {
-  }
-}
-function resolveStoredSession(selector, sessions) {
-  var _a3, _b;
-  const trimmed = selector.trim();
-  if (!trimmed) return null;
-  const localMatch = trimmed.match(/^(?:session-)?(\d+)$/);
-  if (localMatch) {
-    const localId = parseInt(localMatch[1], 10);
-    if (!Number.isNaN(localId)) {
-      return (_a3 = sessions.find((session) => session.localId === localId)) != null ? _a3 : null;
-    }
-  }
-  return (_b = sessions.find((session) => session.sessionId === trimmed)) != null ? _b : null;
-}
-function toStoredSessionRecord(stored) {
-  return {
-    localId: stored.localId,
-    sessionId: stored.sessionId,
-    path: toSessionFilePath(stored.localId),
-    createdAt: stored.createdAt,
-    updatedAt: stored.updatedAt,
-    state: toCliSessionState(stored)
-  };
-}
-function getActiveStateFilePath() {
-  migrateLegacyStateIfNeeded();
-  const sessions = readAllStoredSessions();
-  const activeLocalId = readActiveLocalId();
-  if (activeLocalId === null) return null;
-  const active = sessions.find((session) => session.localId === activeLocalId);
-  return active ? toSessionFilePath(active.localId) : null;
-}
-function listStoredSessions() {
-  migrateLegacyStateIfNeeded();
-  return readAllStoredSessions().map(toStoredSessionRecord);
-}
-function setActiveSession(selector) {
-  migrateLegacyStateIfNeeded();
-  const sessions = readAllStoredSessions();
-  const target = resolveStoredSession(selector, sessions);
-  if (!target) return null;
-  writeActiveLocalId(target.localId);
-  return toStoredSessionRecord(target);
-}
-function deleteStoredSession(selector) {
-  var _a3, _b;
-  migrateLegacyStateIfNeeded();
-  const sessions = readAllStoredSessions();
-  const target = resolveStoredSession(selector, sessions);
-  if (!target) return null;
-  const targetPath = toSessionFilePath(target.localId);
-  try {
-    if (existsSync(targetPath)) {
-      rmSync(targetPath);
-    }
-  } catch (e) {
-    return null;
-  }
-  const activeLocalId = readActiveLocalId();
-  if (activeLocalId === target.localId) {
-    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
-    writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
-  }
-  return toStoredSessionRecord(target);
-}
-function readState() {
-  var _a3;
-  migrateLegacyStateIfNeeded();
-  const sessions = readAllStoredSessions();
-  if (sessions.length === 0) return null;
-  const activeLocalId = readActiveLocalId();
-  if (activeLocalId === null) {
-    return null;
-  }
-  const active = (_a3 = sessions.find((session) => session.localId === activeLocalId)) != null ? _a3 : null;
-  if (!active) {
-    writeActiveLocalId(null);
-    return null;
-  }
-  return toCliSessionState(active);
-}
-function writeState(state) {
-  var _a3, _b;
-  migrateLegacyStateIfNeeded();
-  ensureStorageDirs();
-  const sessions = readAllStoredSessions();
-  const activeLocalId = readActiveLocalId();
-  const existingBySessionId = sessions.find(
-    (session) => session.sessionId === state.sessionId
-  );
-  const existingByActive = activeLocalId !== null ? sessions.find((session) => session.localId === activeLocalId) : void 0;
-  const existing = existingBySessionId != null ? existingBySessionId : existingByActive;
-  const now = Date.now();
-  const localId = (_a3 = existing == null ? void 0 : existing.localId) != null ? _a3 : getNextLocalId(sessions);
-  const createdAt = (_b = existing == null ? void 0 : existing.createdAt) != null ? _b : now;
-  const payload = __spreadProps(__spreadValues({}, state), {
-    localId,
-    createdAt,
-    updatedAt: now
-  });
-  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
-  writeActiveLocalId(localId);
-}
-function clearState() {
-  migrateLegacyStateIfNeeded();
-  writeActiveLocalId(null);
-}
-function getNextTxId(state) {
-  var _a3, _b;
-  const allIds = [...(_a3 = state.pendingTxs) != null ? _a3 : [], ...(_b = state.signedTxs) != null ? _b : []].map((tx) => {
-    const match = tx.id.match(/^tx-(\d+)$/);
-    return match ? parseInt(match[1], 10) : 0;
-  });
-  const max = allIds.length > 0 ? Math.max(...allIds) : 0;
-  return `tx-${max + 1}`;
-}
-function addPendingTx(state, tx) {
-  if (!state.pendingTxs) state.pendingTxs = [];
-  const isDuplicate = state.pendingTxs.some(
-    (existing) => existing.kind === tx.kind && existing.to === tx.to && existing.data === tx.data && existing.value === tx.value && existing.chainId === tx.chainId
-  );
-  if (isDuplicate) {
-    return null;
-  }
-  const pending = __spreadProps(__spreadValues({}, tx), {
-    id: getNextTxId(state)
-  });
-  state.pendingTxs.push(pending);
-  writeState(state);
-  return pending;
-}
-function removePendingTx(state, id) {
-  if (!state.pendingTxs) return null;
-  const idx = state.pendingTxs.findIndex((tx) => tx.id === id);
-  if (idx === -1) return null;
-  const [removed] = state.pendingTxs.splice(idx, 1);
-  writeState(state);
-  return removed;
-}
-function addSignedTx(state, tx) {
-  if (!state.signedTxs) state.signedTxs = [];
-  state.signedTxs.push(tx);
-  writeState(state);
-}
-var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
-var init_state = __esm({
-  "src/cli/state.ts"() {
-    "use strict";
-    SESSION_FILE_PREFIX = "session-";
-    SESSION_FILE_SUFFIX = ".json";
-    LEGACY_STATE_FILE = join(
-      (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
-      "aomi-session.json"
-    );
-    STATE_ROOT_DIR = (_a2 = process.env.AOMI_STATE_DIR) != null ? _a2 : join(homedir(), ".aomi");
-    SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
-    ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
-    _migrationDone = false;
-  }
-});
-
-// src/cli/output.ts
-function printDataFileLocation() {
-  const activeFile = getActiveStateFilePath();
-  if (activeFile) {
-    console.log(`Data stored at ${activeFile} \u{1F4DD}`);
-    return;
-  }
-  console.log(`Data stored under ${STATE_ROOT_DIR} \u{1F4DD}`);
-}
-function printToolUpdate(event) {
-  var _a3;
-  const name = getToolNameFromEvent(event);
-  const status = (_a3 = event.status) != null ? _a3 : "running";
-  console.log(`${DIM}\u{1F527} [tool] ${name}: ${status}${RESET}`);
-}
-function printToolComplete(event) {
-  const name = getToolNameFromEvent(event);
-  const result = getToolResultFromEvent(event);
-  const line = formatToolResultLine(name, result);
-  console.log(line);
-}
-function printToolResultLine(name, result) {
-  console.log(formatToolResultLine(name, result));
-}
-function getToolNameFromEvent(event) {
-  var _a3, _b;
-  return (_b = (_a3 = event.tool_name) != null ? _a3 : event.name) != null ? _b : "unknown";
-}
-function getToolResultFromEvent(event) {
-  var _a3;
-  return (_a3 = event.result) != null ? _a3 : event.output;
-}
-function toToolResultKey(name, result) {
-  return `${name}
-${result != null ? result : ""}`;
-}
-function getMessageToolResults(messages, startAt = 0) {
-  const results = [];
-  for (let i = startAt; i < messages.length; i++) {
-    const toolResult = messages[i].tool_result;
-    if (!toolResult) {
-      continue;
-    }
-    const [name, result] = toolResult;
-    if (!name || typeof result !== "string") {
-      continue;
-    }
-    results.push({ name, result });
-  }
-  return results;
-}
-function isAlwaysVisibleTool(name) {
-  const normalized = name.toLowerCase();
-  if (normalized.includes("encode_and_simulate") || normalized.includes("encode-and-simulate") || normalized.includes("encode_and_view") || normalized.includes("encode-and-view")) {
-    return true;
-  }
-  if (normalized.startsWith("simulate ")) {
-    return true;
-  }
-  return false;
-}
-function printNewAgentMessages(messages, lastPrintedCount) {
-  const agentMessages = messages.filter(
-    (message) => message.sender === "agent" || message.sender === "assistant"
-  );
-  let handled = lastPrintedCount;
-  for (let i = lastPrintedCount; i < agentMessages.length; i++) {
-    const message = agentMessages[i];
-    if (message.is_streaming) {
-      break;
-    }
-    if (message.content) {
-      console.log(`${CYAN}\u{1F916} ${message.content}${RESET}`);
-    }
-    handled = i + 1;
-  }
-  return handled;
-}
-function formatLogContent(content) {
-  if (!content) return null;
-  const trimmed = content.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-function formatToolResultPreview(result, maxLength = 200) {
-  const normalized = result.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-  return `${normalized.slice(0, maxLength)}\u2026`;
-}
-function formatToolResultLine(name, result) {
-  if (!result) {
-    return `${GREEN}\u2714 [tool] ${name} done${RESET}`;
-  }
-  return `${GREEN}\u2714 [tool] ${name} \u2192 ${formatToolResultPreview(result, 120)}${RESET}`;
-}
-var DIM, CYAN, YELLOW, GREEN, RESET;
-var init_output = __esm({
-  "src/cli/output.ts"() {
-    "use strict";
-    init_state();
-    DIM = "\x1B[2m";
-    CYAN = "\x1B[36m";
-    YELLOW = "\x1B[33m";
-    GREEN = "\x1B[32m";
-    RESET = "\x1B[0m";
-  }
-});
-
 // src/sse.ts
 function extractSseData(rawEvent) {
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
@@ -1585,8 +1173,37 @@ var init_session = __esm({
         return state;
       }
       // ===========================================================================
-      // Internal — Polling (ported from PollingController)
+      // Public API — Polling Control
       // ===========================================================================
+      /** Whether the session is currently polling for state updates. */
+      getIsPolling() {
+        return this.pollTimer !== null;
+      }
+      /**
+       * Fetch the current state from the backend (one-shot).
+       * Automatically starts polling if the backend is processing.
+       */
+      async fetchCurrentState() {
+        this.assertOpen();
+        const state = await this.client.fetchState(
+          this.sessionId,
+          this.userState,
+          this.clientId
+        );
+        this.assertUserStateAligned(state.user_state);
+        this.applyState(state);
+        if (state.is_processing && !this.pollTimer) {
+          this._isProcessing = true;
+          this.emit("processing_start", void 0);
+          this.startPolling();
+        } else if (!state.is_processing) {
+          this._isProcessing = false;
+        }
+      }
+      /**
+       * Start polling for state updates. Idempotent — no-op if already polling.
+       * Useful for resuming polling after resolving a wallet request.
+       */
       startPolling() {
         var _a3;
         if (this.pollTimer || this.closed) return;
@@ -1596,6 +1213,7 @@ var init_session = __esm({
           void this.pollTick();
         }, this.pollIntervalMs);
       }
+      /** Stop polling for state updates. Idempotent — no-op if not polling. */
       stopPolling() {
         var _a3;
         if (this.pollTimer) {
@@ -1736,6 +1354,272 @@ var init_session = __esm({
   }
 });
 
+// src/cli/state.ts
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from "fs";
+import { basename, join } from "path";
+import { homedir, tmpdir } from "os";
+function ensureStorageDirs() {
+  mkdirSync(SESSIONS_DIR, { recursive: true });
+}
+function parseSessionFileLocalId(filename) {
+  const match = filename.match(/^session-(\d+)\.json$/);
+  if (!match) return null;
+  const localId = parseInt(match[1], 10);
+  return Number.isNaN(localId) ? null : localId;
+}
+function toSessionFilePath(localId) {
+  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+}
+function toCliSessionState(stored) {
+  return {
+    sessionId: stored.sessionId,
+    clientId: stored.clientId,
+    baseUrl: stored.baseUrl,
+    app: stored.app,
+    model: stored.model,
+    apiKey: stored.apiKey,
+    publicKey: stored.publicKey,
+    chainId: stored.chainId,
+    pendingTxs: stored.pendingTxs,
+    signedTxs: stored.signedTxs,
+    secretHandles: stored.secretHandles
+  };
+}
+function readStoredSession(path) {
+  var _a3;
+  try {
+    const raw = readFileSync(path, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
+      return null;
+    }
+    const fallbackLocalId = (_a3 = parseSessionFileLocalId(basename(path))) != null ? _a3 : 0;
+    return {
+      sessionId: parsed.sessionId,
+      clientId: parsed.clientId,
+      baseUrl: parsed.baseUrl,
+      app: parsed.app,
+      model: parsed.model,
+      apiKey: parsed.apiKey,
+      publicKey: parsed.publicKey,
+      chainId: parsed.chainId,
+      pendingTxs: parsed.pendingTxs,
+      signedTxs: parsed.signedTxs,
+      secretHandles: parsed.secretHandles,
+      localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
+      createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
+      updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function readActiveLocalId() {
+  try {
+    if (!existsSync(ACTIVE_SESSION_FILE)) return null;
+    const raw = readFileSync(ACTIVE_SESSION_FILE, "utf-8").trim();
+    if (!raw) return null;
+    const parsed = parseInt(raw, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  } catch (e) {
+    return null;
+  }
+}
+function writeActiveLocalId(localId) {
+  try {
+    if (localId === null) {
+      if (existsSync(ACTIVE_SESSION_FILE)) {
+        rmSync(ACTIVE_SESSION_FILE);
+      }
+      return;
+    }
+    ensureStorageDirs();
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
+  } catch (e) {
+  }
+}
+function readAllStoredSessions() {
+  try {
+    ensureStorageDirs();
+    const filenames = readdirSync(SESSIONS_DIR).map((name) => ({ name, localId: parseSessionFileLocalId(name) })).filter(
+      (entry) => entry.localId !== null
+    ).sort((a, b) => a.localId - b.localId);
+    const sessions = [];
+    for (const entry of filenames) {
+      const path = join(SESSIONS_DIR, entry.name);
+      const stored = readStoredSession(path);
+      if (stored) {
+        sessions.push(stored);
+      }
+    }
+    return sessions;
+  } catch (e) {
+    return [];
+  }
+}
+function getNextLocalId(sessions) {
+  const maxLocalId = sessions.reduce((max, session) => {
+    return session.localId > max ? session.localId : max;
+  }, 0);
+  return maxLocalId + 1;
+}
+function migrateLegacyStateIfNeeded() {
+  if (_migrationDone) return;
+  _migrationDone = true;
+  if (!existsSync(LEGACY_STATE_FILE)) return;
+  const existing = readAllStoredSessions();
+  if (existing.length > 0) {
+    return;
+  }
+  try {
+    const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
+    const legacy = JSON.parse(raw);
+    if (!legacy.sessionId || !legacy.baseUrl) {
+      return;
+    }
+    const now = Date.now();
+    const migrated = __spreadProps(__spreadValues({}, legacy), {
+      localId: 1,
+      createdAt: now,
+      updatedAt: now
+    });
+    ensureStorageDirs();
+    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    writeActiveLocalId(1);
+    rmSync(LEGACY_STATE_FILE);
+  } catch (e) {
+  }
+}
+function resolveStoredSession(selector, sessions) {
+  var _a3, _b;
+  const trimmed = selector.trim();
+  if (!trimmed) return null;
+  const localMatch = trimmed.match(/^(?:session-)?(\d+)$/);
+  if (localMatch) {
+    const localId = parseInt(localMatch[1], 10);
+    if (!Number.isNaN(localId)) {
+      return (_a3 = sessions.find((session) => session.localId === localId)) != null ? _a3 : null;
+    }
+  }
+  return (_b = sessions.find((session) => session.sessionId === trimmed)) != null ? _b : null;
+}
+function toStoredSessionRecord(stored) {
+  return {
+    localId: stored.localId,
+    sessionId: stored.sessionId,
+    path: toSessionFilePath(stored.localId),
+    createdAt: stored.createdAt,
+    updatedAt: stored.updatedAt,
+    state: toCliSessionState(stored)
+  };
+}
+function getActiveStateFilePath() {
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === null) return null;
+  const active = sessions.find((session) => session.localId === activeLocalId);
+  return active ? toSessionFilePath(active.localId) : null;
+}
+function listStoredSessions() {
+  migrateLegacyStateIfNeeded();
+  return readAllStoredSessions().map(toStoredSessionRecord);
+}
+function setActiveSession(selector) {
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const target = resolveStoredSession(selector, sessions);
+  if (!target) return null;
+  writeActiveLocalId(target.localId);
+  return toStoredSessionRecord(target);
+}
+function deleteStoredSession(selector) {
+  var _a3, _b;
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  const target = resolveStoredSession(selector, sessions);
+  if (!target) return null;
+  const targetPath = toSessionFilePath(target.localId);
+  try {
+    if (existsSync(targetPath)) {
+      rmSync(targetPath);
+    }
+  } catch (e) {
+    return null;
+  }
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === target.localId) {
+    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
+  }
+  return toStoredSessionRecord(target);
+}
+function readState() {
+  var _a3;
+  migrateLegacyStateIfNeeded();
+  const sessions = readAllStoredSessions();
+  if (sessions.length === 0) return null;
+  const activeLocalId = readActiveLocalId();
+  if (activeLocalId === null) {
+    return null;
+  }
+  const active = (_a3 = sessions.find((session) => session.localId === activeLocalId)) != null ? _a3 : null;
+  if (!active) {
+    writeActiveLocalId(null);
+    return null;
+  }
+  return toCliSessionState(active);
+}
+function writeState(state) {
+  var _a3, _b;
+  migrateLegacyStateIfNeeded();
+  ensureStorageDirs();
+  const sessions = readAllStoredSessions();
+  const activeLocalId = readActiveLocalId();
+  const existingBySessionId = sessions.find(
+    (session) => session.sessionId === state.sessionId
+  );
+  const existingByActive = activeLocalId !== null ? sessions.find((session) => session.localId === activeLocalId) : void 0;
+  const existing = existingBySessionId != null ? existingBySessionId : existingByActive;
+  const now = Date.now();
+  const localId = (_a3 = existing == null ? void 0 : existing.localId) != null ? _a3 : getNextLocalId(sessions);
+  const createdAt = (_b = existing == null ? void 0 : existing.createdAt) != null ? _b : now;
+  const payload = __spreadProps(__spreadValues({}, state), {
+    localId,
+    createdAt,
+    updatedAt: now
+  });
+  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  writeActiveLocalId(localId);
+}
+function clearState() {
+  migrateLegacyStateIfNeeded();
+  writeActiveLocalId(null);
+}
+var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
+var init_state = __esm({
+  "src/cli/state.ts"() {
+    "use strict";
+    SESSION_FILE_PREFIX = "session-";
+    SESSION_FILE_SUFFIX = ".json";
+    LEGACY_STATE_FILE = join(
+      (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
+      "aomi-session.json"
+    );
+    STATE_ROOT_DIR = (_a2 = process.env.AOMI_STATE_DIR) != null ? _a2 : join(homedir(), ".aomi");
+    SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
+    ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
+    _migrationDone = false;
+  }
+});
+
 // src/cli/user-state.ts
 function buildCliUserState(publicKey, chainId) {
   const userState = {};
@@ -1755,113 +1639,398 @@ var init_user_state = __esm({
   }
 });
 
-// src/cli/context.ts
-function buildSessionState(config) {
-  return {
-    sessionId: crypto.randomUUID(),
-    baseUrl: config.baseUrl,
-    app: config.app,
-    model: config.model,
-    apiKey: config.apiKey,
-    publicKey: config.publicKey,
-    chainId: config.chain,
-    clientId: crypto.randomUUID()
-  };
-}
-function createFreshSessionState(config) {
-  const state = buildSessionState(config);
-  writeState(state);
-  return state;
-}
-function getOrCreateSession(config, options = {}) {
-  let state = options.fresh || config.freshSession ? createFreshSessionState(config) : readState();
-  if (!state) {
-    state = createFreshSessionState(config);
-  } else {
-    let changed = false;
-    if (config.baseUrl !== state.baseUrl) {
-      state.baseUrl = config.baseUrl;
-      changed = true;
-    }
-    if (config.app !== state.app) {
-      state.app = config.app;
-      changed = true;
-    }
-    if (config.apiKey !== void 0 && config.apiKey !== state.apiKey) {
-      state.apiKey = config.apiKey;
-      changed = true;
-    }
-    if (config.publicKey !== void 0 && config.publicKey !== state.publicKey) {
-      state.publicKey = config.publicKey;
-      changed = true;
-    }
-    if (config.chain !== void 0 && config.chain !== state.chainId) {
-      state.chainId = config.chain;
-      changed = true;
-    }
-    if (!state.clientId) {
-      state.clientId = crypto.randomUUID();
-      changed = true;
-    }
-    if (changed) writeState(state);
+// src/cli/cli-session.ts
+var CliSession;
+var init_cli_session = __esm({
+  "src/cli/cli-session.ts"() {
+    "use strict";
+    init_session();
+    init_state();
+    init_user_state();
+    init_errors();
+    CliSession = class _CliSession {
+      constructor(state) {
+        this.state = state;
+      }
+      // ---------------------------------------------------------------------------
+      // Static factories
+      // ---------------------------------------------------------------------------
+      /** Load the active session from disk. Returns null if none exists. */
+      static load() {
+        const state = readState();
+        return state ? new _CliSession(state) : null;
+      }
+      /** Load existing session or create a fresh one from config. */
+      static loadOrCreate(config) {
+        if (config.freshSession) {
+          return _CliSession.create(config);
+        }
+        const existing = _CliSession.load();
+        if (existing) {
+          existing.mergeConfig(config);
+          return existing;
+        }
+        return _CliSession.create(config);
+      }
+      /** Create a fresh session and persist it. */
+      static create(config) {
+        const state = {
+          sessionId: crypto.randomUUID(),
+          clientId: crypto.randomUUID(),
+          baseUrl: config.baseUrl,
+          app: config.app,
+          model: config.model,
+          apiKey: config.apiKey,
+          publicKey: config.publicKey,
+          chainId: config.chain
+        };
+        const cli = new _CliSession(state);
+        cli.save();
+        return cli;
+      }
+      // ---------------------------------------------------------------------------
+      // Read-only accessors
+      // ---------------------------------------------------------------------------
+      get sessionId() {
+        return this.state.sessionId;
+      }
+      get baseUrl() {
+        return this.state.baseUrl;
+      }
+      get app() {
+        return this.state.app;
+      }
+      get model() {
+        return this.state.model;
+      }
+      get apiKey() {
+        return this.state.apiKey;
+      }
+      get publicKey() {
+        return this.state.publicKey;
+      }
+      get chainId() {
+        return this.state.chainId;
+      }
+      get clientId() {
+        return this.state.clientId;
+      }
+      get pendingTxs() {
+        var _a3;
+        return (_a3 = this.state.pendingTxs) != null ? _a3 : [];
+      }
+      get signedTxs() {
+        var _a3;
+        return (_a3 = this.state.signedTxs) != null ? _a3 : [];
+      }
+      get secretHandles() {
+        var _a3;
+        return (_a3 = this.state.secretHandles) != null ? _a3 : {};
+      }
+      // ---------------------------------------------------------------------------
+      // Mutators (auto-persist)
+      // ---------------------------------------------------------------------------
+      /** Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only persists if something changed. */
+      mergeConfig(config) {
+        let changed = false;
+        if (config.baseUrl !== this.state.baseUrl) {
+          this.state.baseUrl = config.baseUrl;
+          changed = true;
+        }
+        if (config.app !== this.state.app) {
+          this.state.app = config.app;
+          changed = true;
+        }
+        if (config.apiKey !== void 0 && config.apiKey !== this.state.apiKey) {
+          this.state.apiKey = config.apiKey;
+          changed = true;
+        }
+        if (config.publicKey !== void 0 && config.publicKey !== this.state.publicKey) {
+          this.state.publicKey = config.publicKey;
+          changed = true;
+        }
+        if (config.chain !== void 0 && config.chain !== this.state.chainId) {
+          this.state.chainId = config.chain;
+          changed = true;
+        }
+        if (!this.state.clientId) {
+          this.state.clientId = crypto.randomUUID();
+          changed = true;
+        }
+        if (changed) this.save();
+      }
+      setModel(model) {
+        this.state.model = model;
+        this.save();
+      }
+      setPublicKey(key) {
+        this.state.publicKey = key;
+        this.save();
+      }
+      setChainId(id) {
+        this.state.chainId = id;
+        this.save();
+      }
+      addSecretHandles(handles) {
+        var _a3;
+        this.state.secretHandles = __spreadValues(__spreadValues({}, (_a3 = this.state.secretHandles) != null ? _a3 : {}), handles);
+        this.save();
+      }
+      clearSecretHandles() {
+        this.state.secretHandles = {};
+        this.save();
+      }
+      /** Ensure clientId exists, generate if absent. Returns the clientId. */
+      ensureClientId() {
+        if (!this.state.clientId) {
+          this.state.clientId = crypto.randomUUID();
+          this.save();
+        }
+        return this.state.clientId;
+      }
+      // ---------------------------------------------------------------------------
+      // Transaction methods (auto-persist)
+      // ---------------------------------------------------------------------------
+      /** Add a pending tx with dedup. Returns null if duplicate. */
+      addPendingTx(tx) {
+        if (!this.state.pendingTxs) this.state.pendingTxs = [];
+        const isDuplicate = this.state.pendingTxs.some(
+          (existing) => existing.kind === tx.kind && existing.to === tx.to && existing.data === tx.data && existing.value === tx.value && existing.chainId === tx.chainId
+        );
+        if (isDuplicate) return null;
+        const pending = __spreadProps(__spreadValues({}, tx), {
+          id: this.getNextTxId()
+        });
+        this.state.pendingTxs.push(pending);
+        this.save();
+        return pending;
+      }
+      removePendingTx(id) {
+        if (!this.state.pendingTxs) return null;
+        const idx = this.state.pendingTxs.findIndex((tx) => tx.id === id);
+        if (idx === -1) return null;
+        const [removed] = this.state.pendingTxs.splice(idx, 1);
+        this.save();
+        return removed;
+      }
+      addSignedTx(tx) {
+        if (!this.state.signedTxs) this.state.signedTxs = [];
+        this.state.signedTxs.push(tx);
+        this.save();
+      }
+      /** Get a pending tx by ID, or fatal() if not found. */
+      requirePendingTx(txId) {
+        var _a3;
+        const pending = (_a3 = this.state.pendingTxs) != null ? _a3 : [];
+        const tx = pending.find((t) => t.id === txId);
+        if (!tx) {
+          const available = pending.map((t) => t.id).join(", ") || "(none)";
+          fatal(`Transaction "${txId}" not found.
+Available: ${available}`);
+        }
+        return tx;
+      }
+      /** Get multiple pending txs by ID, or fatal() if any missing or duplicates. */
+      requirePendingTxs(txIds) {
+        const uniqueIds = Array.from(new Set(txIds));
+        if (uniqueIds.length !== txIds.length) {
+          fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
+        }
+        return uniqueIds.map((txId) => this.requirePendingTx(txId));
+      }
+      // ---------------------------------------------------------------------------
+      // Bridge to ClientSession
+      // ---------------------------------------------------------------------------
+      /** Build a ClientSession from the current state. */
+      createClientSession() {
+        const session = new ClientSession(
+          { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
+          {
+            sessionId: this.state.sessionId,
+            clientId: this.state.clientId,
+            app: this.state.app,
+            apiKey: this.state.apiKey,
+            publicKey: this.state.publicKey
+          }
+        );
+        session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId));
+        return session;
+      }
+      /** Snapshot of the raw state (for backward compat or serialization). */
+      toState() {
+        return __spreadValues({}, this.state);
+      }
+      /** Re-read state from disk (e.g. after another process may have written). */
+      reload() {
+        const fresh = readState();
+        if (fresh) {
+          this.state = fresh;
+        }
+      }
+      // ---------------------------------------------------------------------------
+      // Internal
+      // ---------------------------------------------------------------------------
+      save() {
+        writeState(this.state);
+      }
+      getNextTxId() {
+        var _a3, _b;
+        const allIds = [
+          ...(_a3 = this.state.pendingTxs) != null ? _a3 : [],
+          ...(_b = this.state.signedTxs) != null ? _b : []
+        ].map((tx) => {
+          const match = tx.id.match(/^tx-(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+        const max = allIds.length > 0 ? Math.max(...allIds) : 0;
+        return `tx-${max + 1}`;
+      }
+    };
   }
-  const session = new ClientSession(
-    { baseUrl: state.baseUrl, apiKey: state.apiKey },
-    {
-      sessionId: state.sessionId,
-      clientId: state.clientId,
-      app: state.app,
-      apiKey: state.apiKey,
-      publicKey: state.publicKey
-    }
-  );
-  session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
-  return { session, state };
+});
+
+// src/cli/output.ts
+function printDataFileLocation() {
+  const activeFile = getActiveStateFilePath();
+  if (activeFile) {
+    console.log(`Data stored at ${activeFile} \u{1F4DD}`);
+    return;
+  }
+  console.log(`Data stored under ${STATE_ROOT_DIR} \u{1F4DD}`);
 }
+function printToolUpdate(event) {
+  var _a3;
+  const name = getToolNameFromEvent(event);
+  const status = (_a3 = event.status) != null ? _a3 : "running";
+  console.log(`${DIM}\u{1F527} [tool] ${name}: ${status}${RESET}`);
+}
+function printToolComplete(event) {
+  const name = getToolNameFromEvent(event);
+  const result = getToolResultFromEvent(event);
+  const line = formatToolResultLine(name, result);
+  console.log(line);
+}
+function printToolResultLine(name, result) {
+  console.log(formatToolResultLine(name, result));
+}
+function getToolNameFromEvent(event) {
+  var _a3, _b;
+  return (_b = (_a3 = event.tool_name) != null ? _a3 : event.name) != null ? _b : "unknown";
+}
+function getToolResultFromEvent(event) {
+  var _a3;
+  return (_a3 = event.result) != null ? _a3 : event.output;
+}
+function toToolResultKey(name, result) {
+  return `${name}
+${result != null ? result : ""}`;
+}
+function getMessageToolResults(messages, startAt = 0) {
+  const results = [];
+  for (let i = startAt; i < messages.length; i++) {
+    const toolResult = messages[i].tool_result;
+    if (!toolResult) {
+      continue;
+    }
+    const [name, result] = toolResult;
+    if (!name || typeof result !== "string") {
+      continue;
+    }
+    results.push({ name, result });
+  }
+  return results;
+}
+function isAlwaysVisibleTool(name) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("encode_and_simulate") || normalized.includes("encode-and-simulate") || normalized.includes("encode_and_view") || normalized.includes("encode-and-view")) {
+    return true;
+  }
+  if (normalized.startsWith("simulate ")) {
+    return true;
+  }
+  return false;
+}
+function printNewAgentMessages(messages, lastPrintedCount) {
+  const agentMessages = messages.filter(
+    (message) => message.sender === "agent" || message.sender === "assistant"
+  );
+  let handled = lastPrintedCount;
+  for (let i = lastPrintedCount; i < agentMessages.length; i++) {
+    const message = agentMessages[i];
+    if (message.is_streaming) {
+      break;
+    }
+    if (message.content) {
+      console.log(`${CYAN}\u{1F916} ${message.content}${RESET}`);
+    }
+    handled = i + 1;
+  }
+  return handled;
+}
+function formatLogContent(content) {
+  if (!content) return null;
+  const trimmed = content.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+function formatToolResultPreview(result, maxLength = 200) {
+  const normalized = result.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}\u2026`;
+}
+function formatToolResultLine(name, result) {
+  if (!result) {
+    return `${GREEN}\u2714 [tool] ${name} done${RESET}`;
+  }
+  return `${GREEN}\u2714 [tool] ${name} \u2192 ${formatToolResultPreview(result, 120)}${RESET}`;
+}
+var DIM, CYAN, YELLOW, GREEN, RESET;
+var init_output = __esm({
+  "src/cli/output.ts"() {
+    "use strict";
+    init_state();
+    DIM = "\x1B[2m";
+    CYAN = "\x1B[36m";
+    YELLOW = "\x1B[33m";
+    GREEN = "\x1B[32m";
+    RESET = "\x1B[0m";
+  }
+});
+
+// src/cli/context.ts
 function createControlClient(config) {
   return new AomiClient({
     baseUrl: config.baseUrl,
     apiKey: config.apiKey
   });
 }
-async function applyModelSelection(session, state, model) {
-  await session.client.setModel(state.sessionId, model, {
-    app: state.app,
-    apiKey: state.apiKey
-  });
-  state.model = model;
-  writeState(state);
-}
-async function ingestSecretsIfPresent(config, state, client) {
-  var _a3;
+async function ingestSecretsForSession(config, cli, client) {
   const secrets = config.secrets;
   if (Object.keys(secrets).length === 0) return {};
-  if (!state.clientId) {
-    state.clientId = crypto.randomUUID();
-    writeState(state);
-  }
+  const clientId = cli.ensureClientId();
   const response = await client.ingestSecrets(
-    state.clientId,
+    clientId,
     secrets
   );
-  state.secretHandles = __spreadValues(__spreadValues({}, (_a3 = state.secretHandles) != null ? _a3 : {}), response.handles);
-  writeState(state);
+  cli.addSecretHandles(response.handles);
   return response.handles;
 }
-async function applyRequestedModelIfPresent(config, session, state) {
+async function applyRequestedModelIfPresent(config, cli, session) {
   const requestedModel = config.model;
-  if (!requestedModel || requestedModel === state.model) {
+  if (!requestedModel || requestedModel === cli.model) {
     return;
   }
-  await applyModelSelection(session, state, requestedModel);
+  await session.client.setModel(cli.sessionId, requestedModel, {
+    app: cli.app,
+    apiKey: cli.apiKey
+  });
+  cli.setModel(requestedModel);
 }
 var init_context = __esm({
   "src/cli/context.ts"() {
     "use strict";
     init_client();
-    init_session();
-    init_state();
-    init_user_state();
   }
 });
 
@@ -1974,13 +2143,11 @@ async function chatCommand(config, message, verbose) {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
-  const { session, state } = getOrCreateSession(config, {
-    fresh: config.freshSession
-  });
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
   try {
-    await ingestSecretsIfPresent(config, state, session.client);
-    await applyRequestedModelIfPresent(config, session, state);
-    session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
+    await ingestSecretsForSession(config, cli, session.client);
+    await applyRequestedModelIfPresent(config, cli, session);
     const capturedRequests = [];
     let printedAgentCount = 0;
     const seenToolResults = /* @__PURE__ */ new Set();
@@ -2072,7 +2239,7 @@ async function chatCommand(config, message, verbose) {
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
     for (const request of capturedRequests) {
-      const pending = addPendingTx(state, walletRequestToPendingTx(request));
+      const pending = cli.addPendingTx(walletRequestToPendingTx(request));
       if (!pending) {
         console.log("\u26A0\uFE0F  Duplicate wallet request skipped");
         continue;
@@ -2113,12 +2280,11 @@ async function chatCommand(config, message, verbose) {
 var init_chat = __esm({
   "src/cli/commands/chat.ts"() {
     "use strict";
-    init_state();
+    init_cli_session();
     init_output();
     init_context();
     init_errors();
     init_transactions();
-    init_user_state();
   }
 });
 
@@ -3380,15 +3546,14 @@ import { createWalletClient, http } from "viem";
 import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 function txCommand() {
-  var _a3, _b;
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  const pending = (_a3 = state.pendingTxs) != null ? _a3 : [];
-  const signed = (_b = state.signedTxs) != null ? _b : [];
+  const pending = [...cli.pendingTxs];
+  const signed = [...cli.signedTxs];
   if (pending.length === 0 && signed.length === 0) {
     console.log("No transactions.");
     printDataFileLocation();
@@ -3408,65 +3573,6 @@ function txCommand() {
     }
   }
   printDataFileLocation();
-}
-function requirePendingTx(state, txId) {
-  var _a3;
-  const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
-  if (!pendingTx) {
-    fatal(
-      `No pending transaction with id "${txId}".
-Run \`aomi tx\` to see available IDs.`
-    );
-  }
-  return pendingTx;
-}
-function requirePendingTxs(state, txIds) {
-  const uniqueIds = Array.from(new Set(txIds));
-  if (uniqueIds.length !== txIds.length) {
-    fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
-  }
-  return uniqueIds.map((txId) => requirePendingTx(state, txId));
-}
-function rewriteSessionState(config, state) {
-  let changed = false;
-  if (config.baseUrl !== state.baseUrl) {
-    state.baseUrl = config.baseUrl;
-    changed = true;
-  }
-  if (config.app !== state.app) {
-    state.app = config.app;
-    changed = true;
-  }
-  if (config.apiKey !== void 0 && config.apiKey !== state.apiKey) {
-    state.apiKey = config.apiKey;
-    changed = true;
-  }
-  if (config.chain !== void 0 && config.chain !== state.chainId) {
-    state.chainId = config.chain;
-    changed = true;
-  }
-  if (changed) {
-    writeState(state);
-  }
-}
-function createSessionFromState(state) {
-  const session = new ClientSession(
-    { baseUrl: state.baseUrl, apiKey: state.apiKey },
-    {
-      sessionId: state.sessionId,
-      app: state.app,
-      apiKey: state.apiKey,
-      publicKey: state.publicKey
-    }
-  );
-  session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
-  return session;
-}
-async function persistResolvedSignerState(session, state, address, chainId) {
-  state.publicKey = address;
-  writeState(state);
-  session.resolveWallet(address, chainId);
-  await session.syncUserState();
 }
 function resolveChain(targetChainId, rpcUrl) {
   var _a3;
@@ -3527,25 +3633,25 @@ async function signCommand(config, txIds) {
       ].join("\n")
     );
   }
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
   }
-  rewriteSessionState(config, state);
-  const pendingTxs = requirePendingTxs(state, txIds);
-  const session = createSessionFromState(state);
+  cli.mergeConfig(config);
+  const pendingTxs = cli.requirePendingTxs(txIds);
+  const session = cli.createClientSession();
   try {
     const account = privateKeyToAccount3(privateKey);
-    if (state.publicKey && account.address.toLowerCase() !== state.publicKey.toLowerCase()) {
+    if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
-        `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${state.publicKey}`
+        `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
       );
       console.log("   Updating session to match the signing key...");
     }
     const rpcUrl = config.chainRpcUrl;
     const resolvedChainIds = pendingTxs.map((tx) => {
       var _a4, _b2;
-      return (_b2 = (_a4 = tx.chainId) != null ? _a4 : state.chainId) != null ? _b2 : 1;
+      return (_b2 = (_a4 = tx.chainId) != null ? _a4 : cli.chainId) != null ? _b2 : 1;
     });
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
@@ -3565,7 +3671,7 @@ async function signCommand(config, txIds) {
       for (const tx of pendingTxs) {
         console.log(`Tx:      ${tx.id} -> ${tx.to}`);
         if (tx.value) console.log(`Value:   ${tx.value}`);
-        if ((_a3 = tx.chainId) != null ? _a3 : state.chainId) console.log(`Chain:   ${(_b = tx.chainId) != null ? _b : state.chainId}`);
+        if ((_a3 = tx.chainId) != null ? _a3 : cli.chainId) console.log(`Chain:   ${(_b = tx.chainId) != null ? _b : cli.chainId}`);
         if (tx.data) {
           console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
@@ -3581,14 +3687,14 @@ async function signCommand(config, txIds) {
       }
       try {
         const simResponse = await session.client.simulateBatch(
-          state.sessionId,
+          cli.sessionId,
           pendingTxs.map((tx) => {
-            var _a4;
+            var _a4, _b2;
             return {
-              to: tx.to,
+              to: (_a4 = tx.to) != null ? _a4 : "",
               value: tx.value,
               data: tx.data,
-              label: (_a4 = tx.description) != null ? _a4 : tx.id
+              label: (_b2 = tx.description) != null ? _b2 : tx.id
             };
           }),
           {
@@ -3733,22 +3839,18 @@ Use \`--eoa\` to sign without account abstraction.`
         }
       }];
     }
-    await persistResolvedSignerState(
-      session,
-      state,
-      account.address,
-      primaryChainId
-    );
+    cli.setPublicKey(account.address);
+    session.resolveWallet(account.address, primaryChainId);
+    await session.syncUserState();
     for (const txId of txIds) {
-      removePendingTx(state, txId);
+      cli.removePendingTx(txId);
     }
-    const freshState = readState();
     for (const signedRecord of signedRecords) {
-      addSignedTx(freshState, signedRecord);
+      cli.addSignedTx(signedRecord);
     }
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
-        state.sessionId,
+        cli.sessionId,
         JSON.stringify(backendNotification)
       );
     }
@@ -3765,13 +3867,11 @@ var init_wallet = __esm({
   "src/cli/commands/wallet.ts"() {
     "use strict";
     init_aa();
-    init_session();
     init_wallet_utils();
+    init_cli_session();
     init_errors();
     init_execution();
     init_output();
-    init_state();
-    init_user_state();
     init_transactions();
   }
 });
@@ -3781,49 +3881,38 @@ var simulate_exports = {};
 __export(simulate_exports, {
   simulateCommand: () => simulateCommand
 });
-function requirePendingTx2(state, txId) {
-  var _a3;
-  const pendingTx = ((_a3 = state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
-  if (!pendingTx) {
-    fatal(
-      `No pending transaction with id "${txId}".
-Run \`aomi tx\` to see available IDs.`
-    );
-  }
-  return pendingTx;
-}
 async function simulateCommand(txIds) {
   var _a3, _b, _c;
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
   }
   if (txIds.length === 0) {
     fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
   }
-  const pendingTxs = txIds.map((txId) => requirePendingTx2(state, txId));
+  const pendingTxs = txIds.map((txId) => cli.requirePendingTx(txId));
   console.log(
     `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`
   );
   const client = new AomiClient({
-    baseUrl: state.baseUrl,
-    apiKey: state.apiKey
+    baseUrl: cli.baseUrl,
+    apiKey: cli.apiKey
   });
   const transactions = pendingTxs.map((tx) => {
-    var _a4;
+    var _a4, _b2;
     return {
-      to: tx.to,
+      to: (_a4 = tx.to) != null ? _a4 : "",
       value: tx.value,
       data: tx.data,
-      label: (_a4 = tx.description) != null ? _a4 : tx.id
+      label: (_b2 = tx.description) != null ? _b2 : tx.id
     };
   });
   const response = await client.simulateBatch(
-    state.sessionId,
+    cli.sessionId,
     transactions,
     {
-      from: (_a3 = state.publicKey) != null ? _a3 : void 0,
-      chainId: (_b = state.chainId) != null ? _b : void 0
+      from: (_a3 = cli.publicKey) != null ? _a3 : void 0,
+      chainId: (_b = cli.chainId) != null ? _b : void 0
     }
   );
   const { result } = response;
@@ -3868,9 +3957,9 @@ var init_simulate = __esm({
   "src/cli/commands/simulate.ts"() {
     "use strict";
     init_client();
+    init_cli_session();
     init_errors();
     init_output();
-    init_state();
   }
 });
 
@@ -4061,7 +4150,7 @@ async function sessionsCommand(_config) {
     printDataFileLocation();
     return;
   }
-  const activeSessionId = (_a3 = readState()) == null ? void 0 : _a3.sessionId;
+  const activeSessionId = (_a3 = CliSession.load()) == null ? void 0 : _a3.sessionId;
   const statsResults = await Promise.all(
     sessions.map((record) => fetchRemoteSessionStats(record))
   );
@@ -4078,8 +4167,8 @@ async function sessionsCommand(_config) {
   printDataFileLocation();
 }
 function newSessionCommand(config) {
-  const state = createFreshSessionState(config);
-  console.log(`Active session set to ${state.sessionId} (new).`);
+  const cli = CliSession.create(config);
+  console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
 function resumeSessionCommand(selector) {
@@ -4096,7 +4185,7 @@ function deleteSessionCommand(selector) {
     fatal(`No local session found for selector "${selector}".`);
   }
   console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
-  const active = readState();
+  const active = CliSession.load();
   if (active) {
     console.log(`Active session: ${active.sessionId}`);
   } else {
@@ -4108,7 +4197,7 @@ var init_sessions = __esm({
   "src/cli/commands/sessions.ts"() {
     "use strict";
     init_client();
-    init_context();
+    init_cli_session();
     init_errors();
     init_output();
     init_state();
@@ -4129,28 +4218,30 @@ __export(control_exports, {
   statusCommand: () => statusCommand
 });
 async function statusCommand(config) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-  if (!readState()) {
+  var _a3, _b, _c, _d, _e, _f;
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  const { session, state } = getOrCreateSession(config);
+  cli.mergeConfig(config);
+  const session = cli.createClientSession();
   try {
-    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
+    const apiState = await session.client.fetchState(cli.sessionId, void 0, cli.clientId);
     console.log(
       JSON.stringify(
         {
-          sessionId: state.sessionId,
-          baseUrl: state.baseUrl,
-          app: state.app,
-          model: (_a3 = state.model) != null ? _a3 : null,
-          chainId: (_b = state.chainId) != null ? _b : null,
+          sessionId: cli.sessionId,
+          baseUrl: cli.baseUrl,
+          app: cli.app,
+          model: (_a3 = cli.model) != null ? _a3 : null,
+          chainId: (_b = cli.chainId) != null ? _b : null,
           isProcessing: (_c = apiState.is_processing) != null ? _c : false,
           messageCount: (_e = (_d = apiState.messages) == null ? void 0 : _d.length) != null ? _e : 0,
           title: (_f = apiState.title) != null ? _f : null,
-          pendingTxs: (_h = (_g = state.pendingTxs) == null ? void 0 : _g.length) != null ? _h : 0,
-          signedTxs: (_j = (_i = state.signedTxs) == null ? void 0 : _i.length) != null ? _j : 0
+          pendingTxs: cli.pendingTxs.length,
+          signedTxs: cli.signedTxs.length
         },
         null,
         2
@@ -4162,13 +4253,15 @@ async function statusCommand(config) {
   }
 }
 async function eventsCommand(config) {
-  if (!readState()) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     return;
   }
-  const { session, state } = getOrCreateSession(config);
+  cli.mergeConfig(config);
+  const session = cli.createClientSession();
   try {
-    const events = await session.client.getSystemEvents(state.sessionId);
+    const events = await session.client.getSystemEvents(cli.sessionId);
     console.log(JSON.stringify(events, null, 2));
   } finally {
     session.close();
@@ -4177,17 +4270,17 @@ async function eventsCommand(config) {
 async function appsCommand(config) {
   var _a3, _b, _c;
   const client = createControlClient(config);
-  const state = readState();
-  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
+  const cli = CliSession.load();
+  const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
     publicKey: config.publicKey,
-    apiKey: (_b = config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+    apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
   if (apps.length === 0) {
     console.log("No apps available.");
     return;
   }
-  const currentApp = (_c = state == null ? void 0 : state.app) != null ? _c : config.app;
+  const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
   for (const app of apps) {
     const marker = currentApp === app ? "  (current)" : "";
     console.log(`${app}${marker}`);
@@ -4196,46 +4289,51 @@ async function appsCommand(config) {
 async function modelsCommand(config) {
   var _a3, _b;
   const client = createControlClient(config);
-  const state = readState();
-  const sessionId = (_a3 = state == null ? void 0 : state.sessionId) != null ? _a3 : crypto.randomUUID();
+  const cli = CliSession.load();
+  const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
   const models = await client.getModels(sessionId, {
-    apiKey: (_b = config.apiKey) != null ? _b : state == null ? void 0 : state.apiKey
+    apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
   if (models.length === 0) {
     console.log("No models available.");
     return;
   }
   for (const model of models) {
-    const marker = (state == null ? void 0 : state.model) === model ? "  (current)" : "";
+    const marker = (cli == null ? void 0 : cli.model) === model ? "  (current)" : "";
     console.log(`${model}${marker}`);
   }
 }
 function currentAppCommand() {
   var _a3;
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  console.log((_a3 = state.app) != null ? _a3 : "(default)");
+  console.log((_a3 = cli.app) != null ? _a3 : "(default)");
   printDataFileLocation();
 }
 function currentModelCommand() {
   var _a3;
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  console.log((_a3 = state.model) != null ? _a3 : "(default backend model)");
+  console.log((_a3 = cli.model) != null ? _a3 : "(default backend model)");
   printDataFileLocation();
 }
 async function setModelCommand(config, model) {
-  const { session, state } = getOrCreateSession(config);
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
   try {
-    await applyModelSelection(session, state, model);
+    await session.client.setModel(cli.sessionId, model, {
+      app: cli.app,
+      apiKey: cli.apiKey
+    });
+    cli.setModel(model);
     console.log(`Model set to ${model}`);
     printDataFileLocation();
   } finally {
@@ -4244,8 +4342,8 @@ async function setModelCommand(config, model) {
 }
 function chainsCommand() {
   var _a3;
-  const state = readState();
-  const currentChainId = state == null ? void 0 : state.chainId;
+  const cli = CliSession.load();
+  const currentChainId = cli == null ? void 0 : cli.chainId;
   for (const id of SUPPORTED_CHAIN_IDS) {
     const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
     const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
@@ -4258,9 +4356,9 @@ var init_control = __esm({
   "src/cli/commands/control.ts"() {
     "use strict";
     init_chains();
+    init_cli_session();
     init_context();
     init_output();
-    init_state();
     init_types2();
   }
 });
@@ -4272,27 +4370,29 @@ __export(history_exports, {
   logCommand: () => logCommand
 });
 async function logCommand(config) {
-  var _a3, _b, _c, _d, _e;
-  if (!readState()) {
+  var _a3, _b, _c;
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  const { session, state } = getOrCreateSession(config);
+  cli.mergeConfig(config);
+  const session = cli.createClientSession();
   try {
-    const apiState = await session.client.fetchState(state.sessionId, void 0, state.clientId);
+    const apiState = await session.client.fetchState(cli.sessionId, void 0, cli.clientId);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
-    const pendingTxs = (_b = state.pendingTxs) != null ? _b : [];
-    const signedTxs = (_c = state.signedTxs) != null ? _c : [];
+    const pendingTxs = [...cli.pendingTxs];
+    const signedTxs = [...cli.signedTxs];
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = (_d = apiState.title) != null ? _d : "Untitled Session";
+    const topic = (_b = apiState.title) != null ? _b : "Untitled Session";
     if (messages.length === 0) {
       console.log("No messages in this session.");
       printDataFileLocation();
       return;
     }
-    console.log(`------ Session id: ${state.sessionId} ------`);
+    console.log(`------ Session id: ${cli.sessionId} ------`);
     printKeyValueTable([
       ["topic", topic],
       ["msg count", String(messages.length)],
@@ -4315,7 +4415,7 @@ async function logCommand(config) {
         const date = !Number.isNaN(numeric) ? new Date(numeric < 1e12 ? numeric * 1e3 : numeric) : new Date(raw);
         time = Number.isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
       }
-      const sender = (_e = msg.sender) != null ? _e : "unknown";
+      const sender = (_c = msg.sender) != null ? _c : "unknown";
       if (sender === "user") {
         if (content) {
           console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${content}`);
@@ -4348,8 +4448,10 @@ ${DIM}\u2014 ${messages.length} messages \u2014${RESET}`);
   }
 }
 function closeCommand(config) {
-  if (readState()) {
-    const { session } = getOrCreateSession(config);
+  const cli = CliSession.load();
+  if (cli) {
+    cli.mergeConfig(config);
+    const session = cli.createClientSession();
     session.close();
   }
   clearState();
@@ -4358,7 +4460,7 @@ function closeCommand(config) {
 var init_history = __esm({
   "src/cli/commands/history.ts"() {
     "use strict";
-    init_context();
+    init_cli_session();
     init_output();
     init_state();
     init_tables();
@@ -4377,18 +4479,13 @@ async function ingestSecretsCommand(config) {
   if (secretEntries.length === 0) {
     fatal("Usage: aomi secret add NAME=value [NAME=value ...]");
   }
-  const { session, state } = getOrCreateSession(config, {
-    fresh: config.freshSession
-  });
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
   try {
-    const handles = await ingestSecretsIfPresent(
-      config,
-      state,
-      session.client
-    );
+    const handles = await ingestSecretsForSession(config, cli, session.client);
     const names = Object.keys(handles).sort();
     console.log(
-      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${state.sessionId}.`
+      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${cli.sessionId}.`
     );
     for (const name of names) {
       console.log(`${name}  ${handles[name]}`);
@@ -4399,36 +4496,36 @@ async function ingestSecretsCommand(config) {
   }
 }
 function listSecretsCommand() {
-  var _a3;
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  const secretHandles = (_a3 = state.secretHandles) != null ? _a3 : {};
-  const names = Object.keys(secretHandles).sort();
+  const handles = cli.secretHandles;
+  const names = Object.keys(handles).sort();
   if (names.length === 0) {
     console.log("No secrets configured.");
     printDataFileLocation();
     return;
   }
   for (const name of names) {
-    console.log(`${name}  ${secretHandles[name]}`);
+    console.log(`${name}  ${handles[name]}`);
   }
   printDataFileLocation();
 }
 async function clearSecretsCommand(config) {
-  const { session, state } = getOrCreateSession(config);
+  const cli = CliSession.loadOrCreate(config);
+  const clientId = cli.clientId;
+  if (!clientId) {
+    console.log("No secrets configured.");
+    printDataFileLocation();
+    return;
+  }
+  const session = cli.createClientSession();
   try {
-    if (!state.clientId) {
-      console.log("No secrets configured.");
-      printDataFileLocation();
-      return;
-    }
-    await session.client.clearSecrets(state.clientId);
-    state.secretHandles = {};
-    writeState(state);
+    await session.client.clearSecrets(clientId);
+    cli.clearSecretHandles();
     console.log("Cleared all secrets for the active session.");
     printDataFileLocation();
   } finally {
@@ -4438,10 +4535,10 @@ async function clearSecretsCommand(config) {
 var init_secrets = __esm({
   "src/cli/commands/secrets.ts"() {
     "use strict";
+    init_cli_session();
     init_context();
     init_errors();
     init_output();
-    init_state();
   }
 });
 
