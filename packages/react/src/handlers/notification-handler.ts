@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useEventContext } from "../contexts/event-context";
-import type { InboundEvent } from "../state/event-buffer";
+import type { InboundEvent } from "../contexts/event-context";
 
 export type Notification = {
   id: string;
@@ -52,7 +52,7 @@ export function useNotificationHandler({
         title: (payload.title as string) ?? "Notification",
         body: payload.body,
         handled: false,
-        timestamp: event.timestamp,
+        timestamp: Date.now(),
         sessionId: event.sessionId,
       };
 

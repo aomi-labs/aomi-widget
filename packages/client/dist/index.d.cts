@@ -629,8 +629,20 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     removeExtValue(key: string): void;
     resolveWallet(address: string, chainId?: number): void;
     syncUserState(): Promise<AomiStateResponse>;
-    private startPolling;
-    private stopPolling;
+    /** Whether the session is currently polling for state updates. */
+    getIsPolling(): boolean;
+    /**
+     * Fetch the current state from the backend (one-shot).
+     * Automatically starts polling if the backend is processing.
+     */
+    fetchCurrentState(): Promise<void>;
+    /**
+     * Start polling for state updates. Idempotent — no-op if already polling.
+     * Useful for resuming polling after resolving a wallet request.
+     */
+    startPolling(): void;
+    /** Stop polling for state updates. Idempotent — no-op if not polling. */
+    stopPolling(): void;
     private pollTick;
     private applyState;
     private dispatchSystemEvents;

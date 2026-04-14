@@ -15,10 +15,6 @@ import { useUser } from "../contexts/user-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useNotification } from "../contexts/notification-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
-import {
-  isThreadRunning,
-  resolveThreadId,
-} from "../state/backend-state";
 import { isPlaceholderTitle } from "./utils";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
@@ -45,27 +41,45 @@ export function AomiRuntimeCore({
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
   const notificationContext = useNotification();
-  const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
   const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
 
+  // ---------------------------------------------------------------------------
+  // Wallet handler (receives requests from orchestrator)
+  // ---------------------------------------------------------------------------
+  const sessionManagerRef = useRef<ReturnType<typeof useRuntimeOrchestrator>["sessionManager"] | null>(null);
+
+  const walletHandler = useWalletHandler({
+    getSession: () => sessionManagerRef.current?.get(threadContext.currentThreadId),
+  });
+
+  // ---------------------------------------------------------------------------
+  // Orchestrator (manages ClientSession per thread)
+  // ---------------------------------------------------------------------------
   const {
-    backendStateRef,
-    polling,
-    messageController,
+    sessionManager,
+    getSession,
     isRunning,
     setIsRunning,
     ensureInitialState,
+    sendMessage: orchestratorSendMessage,
+    cancelGeneration: orchestratorCancel,
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
-    onSyncEvents: dispatchSystemEvents,
     getPublicKey: () => getUserState().address,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
+    onWalletRequest: (request) => walletHandler.enqueueRequest(request),
+    onEvent: (event) => eventContext.dispatch(event),
   });
 
+  sessionManagerRef.current = sessionManager;
+
+  // ---------------------------------------------------------------------------
+  // Send wallet state changes to backend
+  // ---------------------------------------------------------------------------
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
       address: nextUser.address,
@@ -78,9 +92,6 @@ export function AomiRuntimeCore({
 
   const lastWalletStateRef = useRef(walletSnapshot(getUserState()));
 
-  // ---------------------------------------------------------------------------
-  // Send wallet state changes to backend
-  // ---------------------------------------------------------------------------
   useEffect(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
 
@@ -126,18 +137,6 @@ export function AomiRuntimeCore({
   }, [threadContext.currentThreadId]);
 
   // ---------------------------------------------------------------------------
-  // Wallet handler (queue management for tx + eip712 requests)
-  // ---------------------------------------------------------------------------
-  const onWalletRequestComplete = useCallback(() => {
-    polling.start(currentThreadIdRef.current);
-  }, [polling]);
-
-  const walletHandler = useWalletHandler({
-    sessionId: threadContext.currentThreadId,
-    onRequestComplete: onWalletRequestComplete,
-  });
-
-  // ---------------------------------------------------------------------------
   // Respond to user_state_request from backend
   // ---------------------------------------------------------------------------
   useEffect(() => {
@@ -160,11 +159,6 @@ export function AomiRuntimeCore({
   useEffect(() => {
     void ensureInitialState(threadContext.currentThreadId);
   }, [ensureInitialState, threadContext.currentThreadId]);
-
-  useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    setIsRunning(isThreadRunning(backendStateRef.current, threadId));
-  }, [backendStateRef, setIsRunning, threadContext.currentThreadId]);
 
   // Sync isRunning to thread metadata for control context
   useEffect(() => {
@@ -240,77 +234,21 @@ export function AomiRuntimeCore({
   const threadListAdapter = useMemo(
     () =>
       buildThreadListAdapter({
-        backendStateRef,
         aomiClientRef,
         threadContext,
-        currentThreadIdRef,
-        polling,
-        userAddress: user.address,
         setIsRunning,
-        getApp: getCurrentThreadApp,
-        getApiKey: () => getControlState().apiKey,
-        getUserState,
       }),
     [
       aomiClientRef,
-      polling,
-      user.address,
-      backendStateRef,
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
-      getControlState,
-      getCurrentThreadApp,
-      getUserState,
     ],
   );
 
   // ---------------------------------------------------------------------------
-  // Listen for title changes via EventContext (shares the single SSE connection)
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const backendState = backendStateRef.current;
-
-    const unsubscribe = eventContext.subscribe("title_changed", (event) => {
-      const sessionId = event.sessionId;
-      const payload = event.payload as { new_title?: string } | undefined;
-      const newTitle = payload?.new_title;
-      if (typeof newTitle !== "string") return;
-
-      const targetThreadId = resolveThreadId(backendState, sessionId);
-      const normalizedTitle = isPlaceholderTitle(newTitle) ? "" : newTitle;
-
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[aomi][sse] title_changed", {
-          sessionId,
-          newTitle,
-          normalizedTitle,
-          currentThreadId: threadContextRef.current.currentThreadId,
-          targetThreadId,
-        });
-      }
-
-      threadContextRef.current.setThreadMetadata((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(targetThreadId);
-        const nextStatus =
-          existing?.status === "archived" ? "archived" : "regular";
-        next.set(targetThreadId, {
-          title: normalizedTitle,
-          status: nextStatus,
-          lastActiveAt: existing?.lastActiveAt ?? new Date().toISOString(),
-          control: existing?.control ?? initThreadControl(),
-        });
-        return next;
-      });
-    });
-
-    return unsubscribe;
-  }, [eventContext, backendStateRef]);
-
-  // ---------------------------------------------------------------------------
-  // Show notifications for tool updates/completions (SSE events)
+  // Show notifications for tool updates/completions
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const showToolNotification =
@@ -356,19 +294,11 @@ export function AomiRuntimeCore({
   }, [eventContext, notificationContext]);
 
   // ---------------------------------------------------------------------------
-  // Show notifications for system notices (SSE events)
+  // Show notifications for system notices
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const unsubscribe = eventContext.subscribe("system_notice", (event) => {
-      const payload = event.payload as { message?: string } | undefined;
-      const message = payload?.message;
-
+    const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
       // TODO: Disable it for now, we don't need async execution
-      // notificationContext.showNotification({
-      //   type: "notice",
-      //   title: "System notice",
-      //   message,
-      // });
     });
 
     return unsubscribe;
@@ -382,22 +312,34 @@ export function AomiRuntimeCore({
     setMessages: (msgs) =>
       threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
-    onNew: (message: AppendMessage) =>
-      messageController.outbound(message, threadContext.currentThreadId),
-    onCancel: () => messageController.cancel(threadContext.currentThreadId),
+    onNew: async (message: AppendMessage) => {
+      const text = message.content
+        .filter(
+          (part): part is Extract<typeof part, { type: "text" }> =>
+            part.type === "text",
+        )
+        .map((part) => part.text)
+        .join("\n");
+      if (text) {
+        await orchestratorSendMessage(text, threadContext.currentThreadId);
+      }
+    },
+    onCancel: async () => {
+      await orchestratorCancel(threadContext.currentThreadId);
+    },
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter },
   });
 
   // ---------------------------------------------------------------------------
-  // Cleanup polling and secrets on unmount
+  // Cleanup on unmount
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return () => {
-      polling.stopAll();
+      sessionManager.closeAll();
       void clearSecrets();
     };
-  }, [polling, clearSecrets]);
+  }, [sessionManager, clearSecrets]);
 
   // ---------------------------------------------------------------------------
   // Build AomiRuntimeApi
@@ -406,23 +348,14 @@ export function AomiRuntimeCore({
 
   const sendMessage = useCallback(
     async (text: string) => {
-      // Build a minimal AppendMessage - the message controller only extracts text from content
-      // Using unknown cast because AppendMessage has complex metadata requirements we don't need
-      const appendMessage = {
-        role: "user",
-        content: [{ type: "text", text }],
-      } as unknown as AppendMessage;
-      await messageController.outbound(
-        appendMessage,
-        threadContext.currentThreadId,
-      );
+      await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
-    [messageController, threadContext.currentThreadId],
+    [orchestratorSendMessage, threadContext.currentThreadId],
   );
 
   const cancelGeneration = useCallback(() => {
-    messageController.cancel(threadContext.currentThreadId);
-  }, [messageController, threadContext.currentThreadId]);
+    void orchestratorCancel(threadContext.currentThreadId);
+  }, [orchestratorCancel, threadContext.currentThreadId]);
 
   const getMessages = useCallback(
     (threadId?: string) => {
@@ -439,9 +372,10 @@ export function AomiRuntimeCore({
 
   const deleteThread = useCallback(
     async (threadId: string) => {
+      sessionManager.close(threadId);
       await threadListAdapter.onDelete(threadId);
     },
-    [threadListAdapter],
+    [threadListAdapter, sessionManager],
   );
 
   const renameThread = useCallback(
@@ -460,11 +394,9 @@ export function AomiRuntimeCore({
 
   const selectThread = useCallback(
     (threadId: string) => {
-      // Check if thread exists
       if (threadContext.allThreadsMetadata.has(threadId)) {
         threadListAdapter.onSwitchToThread(threadId);
       } else {
-        // Thread doesn't exist, create a new one
         void threadListAdapter.onSwitchToNewThread();
       }
     },
@@ -506,7 +438,7 @@ export function AomiRuntimeCore({
 
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
-      startWalletRequest: walletHandler.startProcessing,
+      startWalletRequest: () => {}, // No-op: ClientSession manages processing state
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
 

@@ -1,17 +1,19 @@
-import { type Chain, createWalletClient, getAddress, http } from "viem";
+import { type Chain, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
-import { ClientSession } from "../../session";
 import {
   toAAWalletCall,
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
 import type { AomiSimulateFee } from "../../types";
+import type { AAWalletCall } from "../../aa";
+import { getAddress } from "viem";
+import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import {
   createCliProviderState,
@@ -21,14 +23,7 @@ import {
   type CliExecutionDecision,
 } from "../execution";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
-import {
-  addSignedTx,
-  readState,
-  removePendingTx,
-  writeState,
-  type CliSessionState,
-} from "../state";
-import { buildCliUserState } from "../user-state";
+import type { SignedTx } from "../state";
 import {
   formatSignedTxLine,
   formatTxLine,
@@ -36,7 +31,6 @@ import {
   toSignedTransactionRecord,
 } from "../transactions";
 import type { CliConfig } from "../types";
-import type { AAWalletCall } from "../../aa";
 
 // ---------------------------------------------------------------------------
 // Fee Validation
@@ -49,7 +43,6 @@ function validateAndBuildFeeCall(
   fee: AomiSimulateFee,
   chainId: number,
 ): AAWalletCall {
-  // Validate recipient is a real address
   let recipient: string;
   try {
     recipient = getAddress(fee.recipient);
@@ -59,13 +52,11 @@ function validateAndBuildFeeCall(
     );
   }
 
-  // Validate amount is a parseable positive integer
   const amountWei = BigInt(fee.amount_wei);
   if (amountWei <= 0n) {
     throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
   }
 
-  // Guard against unreasonable fees
   if (amountWei > MAX_AUTO_FEE_WEI) {
     const feeEth = (Number(amountWei) / 1e18).toFixed(6);
     throw new Error(
@@ -84,15 +75,15 @@ function validateAndBuildFeeCall(
 }
 
 export function txCommand(): void {
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
 
-  const pending = state.pendingTxs ?? [];
-  const signed = state.signedTxs ?? [];
+  const pending = [...cli.pendingTxs];
+  const signed = [...cli.signedTxs];
 
   if (pending.length === 0 && signed.length === 0) {
     console.log("No transactions.");
@@ -116,91 +107,6 @@ export function txCommand(): void {
   }
 
   printDataFileLocation();
-}
-
-function requirePendingTx(state: CliSessionState, txId: string) {
-  const pendingTx = (state.pendingTxs ?? []).find((tx) => tx.id === txId);
-  if (!pendingTx) {
-    fatal(
-      `No pending transaction with id "${txId}".\nRun \`aomi tx\` to see available IDs.`,
-    );
-  }
-  return pendingTx;
-}
-
-function requirePendingTxs(
-  state: CliSessionState,
-  txIds: string[],
-): ReturnType<typeof requirePendingTx>[] {
-  const uniqueIds = Array.from(new Set(txIds));
-  if (uniqueIds.length !== txIds.length) {
-    fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
-  }
-
-  return uniqueIds.map((txId) => requirePendingTx(state, txId));
-}
-
-function rewriteSessionState(
-  config: CliConfig,
-  state: CliSessionState,
-): void {
-  let changed = false;
-
-  if (config.baseUrl !== state.baseUrl) {
-    state.baseUrl = config.baseUrl;
-    changed = true;
-  }
-
-  if (config.app !== state.app) {
-    state.app = config.app;
-    changed = true;
-  }
-
-  if (
-    config.apiKey !== undefined &&
-    config.apiKey !== state.apiKey
-  ) {
-    state.apiKey = config.apiKey;
-    changed = true;
-  }
-
-  if (config.chain !== undefined && config.chain !== state.chainId) {
-    state.chainId = config.chain;
-    changed = true;
-  }
-
-  if (changed) {
-    writeState(state);
-  }
-}
-
-function createSessionFromState(state: CliSessionState): ClientSession {
-  const session = new ClientSession(
-    { baseUrl: state.baseUrl, apiKey: state.apiKey },
-    {
-      sessionId: state.sessionId,
-      app: state.app,
-      apiKey: state.apiKey,
-      publicKey: state.publicKey,
-    },
-  );
-
-  session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
-
-  return session;
-}
-
-async function persistResolvedSignerState(
-  session: ClientSession,
-  state: CliSessionState,
-  address: string,
-  chainId?: number,
-): Promise<void> {
-  state.publicKey = address;
-  writeState(state);
-
-  session.resolveWallet(address, chainId);
-  await session.syncUserState();
 }
 
 function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
@@ -284,31 +190,31 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     );
   }
 
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
   }
 
-  rewriteSessionState(config, state);
+  cli.mergeConfig(config);
 
-  const pendingTxs = requirePendingTxs(state, txIds);
-  const session = createSessionFromState(state);
+  const pendingTxs = cli.requirePendingTxs(txIds);
+  const session = cli.createClientSession();
 
   try {
     const account = privateKeyToAccount(privateKey as `0x${string}`);
 
     if (
-      state.publicKey &&
-      account.address.toLowerCase() !== state.publicKey.toLowerCase()
+      cli.publicKey &&
+      account.address.toLowerCase() !== cli.publicKey.toLowerCase()
     ) {
       console.log(
-        `⚠️  Signer ${account.address} differs from session public key ${state.publicKey}`,
+        `⚠️  Signer ${account.address} differs from session public key ${cli.publicKey}`,
       );
       console.log("   Updating session to match the signing key...");
     }
 
     const rpcUrl = config.chainRpcUrl;
-    const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? state.chainId ?? 1);
+    const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? cli.chainId ?? 1);
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
     const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
@@ -322,7 +228,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     console.log(`Signer:  ${account.address}`);
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
 
-    let signedRecords: Parameters<typeof addSignedTx>[1][] = [];
+    let signedRecords: SignedTx[] = [];
     let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
@@ -330,7 +236,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       for (const tx of pendingTxs) {
         console.log(`Tx:      ${tx.id} -> ${tx.to}`);
         if (tx.value) console.log(`Value:   ${tx.value}`);
-        if (tx.chainId ?? state.chainId) console.log(`Chain:   ${tx.chainId ?? state.chainId}`);
+        if (tx.chainId ?? cli.chainId) console.log(`Chain:   ${tx.chainId ?? cli.chainId}`);
         if (tx.data) {
           console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
@@ -351,9 +257,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       let simFee: AomiSimulateFee | undefined;
       try {
         const simResponse = await session.client.simulateBatch(
-          state.sessionId,
+          cli.sessionId,
           pendingTxs.map((tx) => ({
-            to: tx.to,
+            to: tx.to ?? "",
             value: tx.value,
             data: tx.data,
             label: tx.description ?? tx.id,
@@ -514,24 +420,21 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       }];
     }
 
-    await persistResolvedSignerState(
-      session,
-      state,
-      account.address,
-      primaryChainId,
-    );
+    // Persist signer state
+    cli.setPublicKey(account.address);
+    session.resolveWallet(account.address, primaryChainId);
+    await session.syncUserState();
 
     for (const txId of txIds) {
-      removePendingTx(state, txId);
+      cli.removePendingTx(txId);
     }
-    const freshState = readState()!;
     for (const signedRecord of signedRecords) {
-      addSignedTx(freshState, signedRecord);
+      cli.addSignedTx(signedRecord);
     }
 
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
-        state.sessionId,
+        cli.sessionId,
         JSON.stringify(backendNotification),
       );
     }

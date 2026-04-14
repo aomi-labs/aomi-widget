@@ -1,4 +1,4 @@
-import { getOrCreateSession } from "../context";
+import { CliSession } from "../cli-session";
 import type { AomiMessage } from "../../types";
 import {
   CYAN,
@@ -10,7 +10,7 @@ import {
   formatToolResultPreview,
   printDataFileLocation,
 } from "../output";
-import { clearState, readState } from "../state";
+import { clearState } from "../state";
 import {
   estimateTokenCount,
   printKeyValueTable,
@@ -19,19 +19,20 @@ import {
 import type { CliConfig } from "../types";
 
 export async function logCommand(config: CliConfig): Promise<void> {
-  if (!readState()) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
+  cli.mergeConfig(config);
 
-  const { session, state } = getOrCreateSession(config);
-
+  const session = cli.createClientSession();
   try {
-    const apiState = await session.client.fetchState(state.sessionId, undefined, state.clientId);
+    const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
     const messages = apiState.messages ?? [];
-    const pendingTxs = state.pendingTxs ?? [];
-    const signedTxs = state.signedTxs ?? [];
+    const pendingTxs = [...cli.pendingTxs];
+    const signedTxs = [...cli.signedTxs];
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
     const topic = apiState.title ?? "Untitled Session";
@@ -42,7 +43,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
       return;
     }
 
-    console.log(`------ Session id: ${state.sessionId} ------`);
+    console.log(`------ Session id: ${cli.sessionId} ------`);
     printKeyValueTable([
       ["topic", topic],
       ["msg count", String(messages.length)],
@@ -109,8 +110,10 @@ export async function logCommand(config: CliConfig): Promise<void> {
 }
 
 export function closeCommand(config: CliConfig): void {
-  if (readState()) {
-    const { session } = getOrCreateSession(config);
+  const cli = CliSession.load();
+  if (cli) {
+    cli.mergeConfig(config);
+    const session = cli.createClientSession();
     session.close();
   }
   clearState();
