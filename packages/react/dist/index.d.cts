@@ -321,6 +321,12 @@ declare const SUPPORTED_CHAINS: ChainInfo[];
 /** Look up ChainInfo by chain ID. Returns undefined for unknown chains. */
 declare const getChainInfo: (chainId: number | undefined) => ChainInfo | undefined;
 
+/** A stored provider API key (BYOK) */
+type StoredProviderKey = {
+    apiKey: string;
+    keyPrefix: string;
+    label?: string;
+};
 /** Global control state (shared across all threads) */
 type ControlState = {
     /** API key for authenticated requests */
@@ -335,6 +341,8 @@ type ControlState = {
     defaultModel: string | null;
     /** Default app (from authorizedApps) */
     defaultApp: string | null;
+    /** Provider API keys stored locally (BYOK) — keyed by provider name */
+    providerKeys: Record<string, StoredProviderKey>;
 };
 type ControlContextApi = {
     /** Global state (apiKey, clientId, available models/apps) */
@@ -345,6 +353,14 @@ type ControlContextApi = {
     ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
     /** Clear all secrets from the backend vault */
     clearSecrets: () => Promise<void>;
+    /** Store a provider API key (BYOK) in localStorage and ingest into backend vault */
+    setProviderKey: (provider: string, apiKey: string, label?: string) => Promise<void>;
+    /** Remove a provider API key from localStorage and backend vault */
+    removeProviderKey: (provider: string) => Promise<void>;
+    /** Get all stored provider keys (metadata only — keys are in state.providerKeys) */
+    getProviderKeys: () => Record<string, StoredProviderKey>;
+    /** Check if a provider key is stored */
+    hasProviderKey: (provider?: string) => boolean;
     /** Fetch available models from backend */
     getAvailableModels: () => Promise<string[]>;
     /** Fetch authorized apps from backend */
@@ -384,4 +400,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletBuffer, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredProviderKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletBuffer, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
