@@ -166,8 +166,9 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("throws when backend user_state ext mismatches expected subset", async () => {
+  it("warns when backend user_state ext mismatches expected subset", async () => {
     const { client, fetchState } = createMockClient();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const session = new Session(client, {
       sessionId: "session-unit-6",
       userState: {
@@ -187,8 +188,11 @@ describe("ClientSession ext helpers", () => {
       },
     } satisfies AomiStateResponse);
 
-    await expect(session.syncUserState()).rejects.toThrow(
-      "Backend user_state mismatch",
+    await expect(session.syncUserState()).resolves.toMatchObject({
+      is_processing: false,
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Backend user_state mismatch (non-fatal)"),
     );
 
     session.close();

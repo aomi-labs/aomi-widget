@@ -21,8 +21,8 @@ describe("CLI session lifecycle", () => {
   });
 
   it("creates a fresh active session instead of reusing the current one", async () => {
-    const { CliSession } = await import("../src/cli/cli-session");
-    const { readState } = await import("../src/cli/state");
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
 
     const config = {
       baseUrl: "https://api.aomi.dev",
@@ -52,8 +52,8 @@ describe("CLI session lifecycle", () => {
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { newSessionCommand } = await import("../src/cli/commands/sessions");
-    const { readState } = await import("../src/cli/state");
+    const { newSessionCommand } = await import("../../src/cli/commands/sessions");
+    const { readState } = await import("../../src/cli/state");
 
     const config = {
       baseUrl: "https://api.aomi.dev",
