@@ -147,6 +147,13 @@ interface AomiIngestSecretsResponse {
 interface AomiClearSecretsResponse {
     cleared: boolean;
 }
+/**
+ * DELETE /api/secrets/:name
+ * Removes a single secret for a client
+ */
+interface AomiDeleteSecretResponse {
+    deleted: boolean;
+}
 type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";
 /**
  * Backend SystemEvent enum serializes as tagged JSON:
@@ -223,6 +230,10 @@ declare class AomiClient {
      * Clear all secrets for a client (e.g. on page unload or logout).
      */
     clearSecrets(clientId: string): Promise<AomiClearSecretsResponse>;
+    /**
+     * Remove a single secret for a client.
+     */
+    deleteSecret(clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
     /**
      * Subscribe to real-time SSE updates for a session.
      * Automatically reconnects with exponential backoff on disconnects.
@@ -822,4 +833,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AlchemyHookParams, type AlchemyResolveOptions, type AlchemyResolvedConfig, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCall, type WalletEip712Payload, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isProviderConfigured, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, readEnv, resolveAlchemyConfig, resolveDefaultProvider, resolvePimlicoConfig, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AlchemyHookParams, type AlchemyResolveOptions, type AlchemyResolvedConfig, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCall, type WalletEip712Payload, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isProviderConfigured, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, readEnv, resolveAlchemyConfig, resolveDefaultProvider, resolvePimlicoConfig, toViemSignTypedDataArgs, unwrapSystemEvent };

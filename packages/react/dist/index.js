@@ -441,29 +441,19 @@ function ControlContextProvider({
   );
   const removeProviderKey = useCallback(
     async (provider) => {
+      const clientId = stateRef.current.clientId;
+      if (clientId) {
+        await aomiClientRef.current.deleteSecret(
+          clientId,
+          `${PROVIDER_KEY_SECRET_PREFIX}${provider}`
+        );
+      }
       setStateInternal((prev) => {
         const _a2 = prev.providerKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
         const next = __spreadProps(__spreadValues({}, prev), { providerKeys: rest });
         callbacks.current.forEach((cb) => cb(next));
         return next;
       });
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        try {
-          const remaining = stateRef.current.providerKeys;
-          const secrets = {};
-          for (const [p, entry] of Object.entries(remaining)) {
-            if (p !== provider) {
-              secrets[`${PROVIDER_KEY_SECRET_PREFIX}${p}`] = entry.apiKey;
-            }
-          }
-          if (Object.keys(secrets).length > 0) {
-            await aomiClientRef.current.ingestSecrets(clientId, secrets);
-          }
-        } catch (err) {
-          console.error("Failed to sync provider key removal:", err);
-        }
-      }
     },
     []
   );
