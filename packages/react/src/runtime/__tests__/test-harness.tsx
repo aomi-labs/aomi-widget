@@ -251,9 +251,144 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     }
   }
 
+  // Mock Session (ClientSession) that delegates to a MockAomiClient
+  class MockSession {
+    readonly client: InstanceType<typeof MockAomiClient>;
+    readonly sessionId: string;
+    private _isProcessing = false;
+    private _messages: unknown[] = [];
+    private _title?: string;
+    private listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+    private _pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    private _app?: string;
+    private _publicKey?: string;
+    private _apiKey?: string;
+    private _userState?: Record<string, unknown>;
+    private _clientId?: string;
+
+    constructor(
+      clientOrOptions: unknown,
+      opts?: { sessionId?: string; app?: string; publicKey?: string; apiKey?: string; clientId?: string; userState?: Record<string, unknown>; [key: string]: unknown },
+    ) {
+      // If passed a MockAomiClient, use it directly
+      if (clientOrOptions && typeof (clientOrOptions as Record<string, unknown>).sendMessage === "function") {
+        this.client = clientOrOptions as InstanceType<typeof MockAomiClient>;
+      } else {
+        this.client = new MockAomiClient(clientOrOptions as { baseUrl: string });
+      }
+      this.sessionId = opts?.sessionId ?? "mock-session";
+      this._app = opts?.app;
+      this._publicKey = opts?.publicKey;
+      this._apiKey = opts?.apiKey;
+      this._clientId = opts?.clientId;
+
+      // SSE subscription
+      this.client.subscribeSSE(this.sessionId, (event: AomiSSEEvent) => {
+        this.emit(event.type, event);
+      });
+    }
+
+    on(type: string, handler: (...args: unknown[]) => void) {
+      if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+      this.listeners.get(type)!.add(handler);
+      return () => { this.listeners.get(type)?.delete(handler); };
+    }
+
+    private emit(type: string, ...args: unknown[]) {
+      const handlers = this.listeners.get(type);
+      if (handlers) {
+        for (const h of handlers) h(...args);
+      }
+    }
+
+    async sendAsync(message: string) {
+      const response = await this.client.sendMessage(this.sessionId, message, {
+        app: this._app,
+        publicKey: this._publicKey ?? (this._userState?.address as string | undefined),
+        apiKey: this._apiKey,
+        userState: this._userState,
+        clientId: this._clientId,
+      });
+      if (response?.messages) {
+        this._messages = response.messages;
+        this.emit("messages", response.messages);
+      }
+      if (response?.is_processing) {
+        this._isProcessing = true;
+        this.emit("processing_start", undefined);
+        this.startPolling();
+      }
+      return response;
+    }
+
+    async interrupt() {
+      const response = await this.client.interrupt(this.sessionId);
+      this._isProcessing = false;
+      this.emit("processing_end", undefined);
+      return response;
+    }
+
+    async fetchCurrentState() {
+      const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
+      if (state?.messages) {
+        this._messages = state.messages;
+        this.emit("messages", state.messages);
+      }
+      this._isProcessing = !!state?.is_processing;
+    }
+
+    async resolve(_id: string, _result: unknown) {}
+    async reject(_id: string, _reason?: string) {}
+
+    resolveUserState(userState: unknown) {
+      if (userState && typeof userState === "object") {
+        this._userState = userState as Record<string, unknown>;
+        const addr = (userState as Record<string, unknown>).address;
+        if (typeof addr === "string" && addr.length > 0) {
+          this._publicKey = addr;
+        }
+      }
+    }
+    resolveWallet(_address: string, _chainId?: number) {}
+    startPolling() {
+      if (this._pollTimer) return;
+      this._pollTimer = setInterval(async () => {
+        try {
+          const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
+          if (state?.messages) {
+            this._messages = state.messages;
+            this.emit("messages", state.messages);
+          }
+          if (!state?.is_processing) {
+            this.stopPolling();
+            this._isProcessing = false;
+            this.emit("processing_end", undefined);
+          }
+        } catch {
+          this.stopPolling();
+        }
+      }, 100);
+    }
+    stopPolling() {
+      if (this._pollTimer) {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
+      }
+    }
+    getIsProcessing() { return this._isProcessing; }
+    getIsPolling() { return this._pollTimer !== null; }
+    getMessages() { return this._messages; }
+    getTitle() { return this._title; }
+    getPendingRequests() { return []; }
+    close() { this.stopPolling(); this.listeners.clear(); }
+    removeAllListeners() { this.listeners.clear(); }
+  }
+
   return {
     ...actual,
     AomiClient: MockAomiClient,
+    Session: MockSession,
   };
 });
 
