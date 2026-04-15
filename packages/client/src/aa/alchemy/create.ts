@@ -316,7 +316,6 @@ async function createAlchemy4337State(
     error: null,
   };
 }
-
 // ---------------------------------------------------------------------------
 // Raw EIP-7702 (native type-4 transaction via viem)
 // ---------------------------------------------------------------------------
@@ -443,4 +442,3 @@ async function createAlchemy7702State(
     error: null,
   };
 }
-
