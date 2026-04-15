@@ -425,7 +425,7 @@ function ControlContextProvider({
     },
     []
   );
-  const clearSecrets2 = useCallback(async () => {
+  const clearSecrets = useCallback(async () => {
     var _a2, _b2;
     const clientId = stateRef.current.clientId;
     if (!clientId) return;
@@ -675,7 +675,7 @@ function ControlContextProvider({
         state,
         setApiKey,
         ingestSecrets,
-        clearSecrets: clearSecrets2,
+        clearSecrets,
         setProviderKey,
         removeProviderKey,
         getProviderKeys,
@@ -1490,7 +1490,7 @@ function AomiRuntimeCore({
   const eventContext = useEventContext();
   const notificationContext = useNotification();
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
   const sessionManagerRef = useRef7(null);
   const walletHandler = useWalletHandler({
     getSession: () => {
