@@ -1,0 +1,52 @@
+{
+  "name": "aomi-transact",
+  "target": {
+    "surface": "cli",
+    "repoPath": "..",
+    "skill": "../SKILL.md",
+    "discovery": {
+      "mode": "manifest"
+    },
+    "cli": {
+      "commands": "./cli-commands.json"
+    }
+  },
+  "benchmark": {
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "format": "pi",
+    "timeout": 240000,
+    "taskGeneration": {
+      "enabled": true,
+      "maxTasks": 20,
+      "outputDir": "."
+    },
+    "models": [
+      {
+        "id": "openrouter/anthropic/claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "tier": "flagship"
+      },
+      {
+        "id": "openrouter/openai/gpt-4o",
+        "name": "Gpt 4o",
+        "tier": "mid"
+      }
+    ],
+    "output": {
+      "dir": "../benchmark-results"
+    },
+    "verdict": {
+      "perModelFloor": 0.6000000000000001,
+      "targetWeightedAverage": 0.8
+    }
+  },
+  "optimize": {
+    "model": "openrouter/anthropic/claude-sonnet-4-6",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "allowedPaths": [
+      "SKILL.md"
+    ],
+    "validation": [],
+    "maxIterations": 5
+  }
+}
