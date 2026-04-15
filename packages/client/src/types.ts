@@ -205,6 +205,14 @@ export interface AomiClearSecretsResponse {
   cleared: boolean;
 }
 
+/**
+ * DELETE /api/secrets/:name
+ * Removes a single secret for a client
+ */
+export interface AomiDeleteSecretResponse {
+  deleted: boolean;
+}
+
 export type AomiSSEEventType =
   | "title_changed"
   | "tool_update"
