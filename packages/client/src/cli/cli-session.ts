@@ -232,7 +232,7 @@ export class CliSession {
   requirePendingTxs(txIds: string[]): PendingTx[] {
     const uniqueIds = Array.from(new Set(txIds));
     if (uniqueIds.length !== txIds.length) {
-      fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
+      fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
     }
     return uniqueIds.map((txId) => this.requirePendingTx(txId));
   }

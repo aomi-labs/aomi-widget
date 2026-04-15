@@ -179,7 +179,7 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
 
     if (capturedRequests.length > 0) {
       console.log(
-        "\nRun `aomi tx` to see pending transactions, `aomi sign <id>` to sign.",
+        "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign.",
       );
     }
   } finally {
