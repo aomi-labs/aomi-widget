@@ -76,6 +76,29 @@ afterEach(() => {
 });
 
 describe("ControlContextProvider", () => {
+  it("initializes client id synchronously on first render", () => {
+    const { getControl } = renderControlContext();
+    expect(getControl().state.clientId).toBeTruthy();
+  });
+
+  it("reuses the stored client id across remounts", async () => {
+    const first = renderControlContext();
+
+    await waitFor(() => {
+      expect(first.getControl().state.clientId).toBeTruthy();
+    });
+
+    const firstClientId = first.getControl().state.clientId!;
+    expect(globalThis.localStorage.getItem("aomi_client_id")).toBe(firstClientId);
+
+    first.unmount();
+
+    const second = renderControlContext();
+    await waitFor(() => {
+      expect(second.getControl().state.clientId).toBe(firstClientId);
+    });
+  });
+
   it("sends a targeted backend removal when a provider key is deleted", async () => {
     const deleteSecret = vi.fn(async () => ({ deleted: true }));
     const { aomiClient, getControl } = renderControlContext({ deleteSecret });
@@ -108,6 +131,29 @@ describe("ControlContextProvider", () => {
     expect(getControl().state.providerKeys.openai).toBeUndefined();
     expect(aomiClient.ingestSecrets).toHaveBeenCalledWith(clientId, {
       "PROVIDER_KEY:openai": "sk-openai-123",
+    });
+  });
+
+  it("auto-ingests provider keys loaded from localStorage on mount", async () => {
+    globalThis.localStorage.setItem("aomi_client_id", "client-stored");
+    globalThis.localStorage.setItem(
+      "aomi_provider_keys",
+      JSON.stringify({
+        openai: {
+          apiKey: "sk-openai-abc",
+          keyPrefix: "sk-open",
+          label: "Primary",
+        },
+      }),
+    );
+
+    const ingestSecrets = vi.fn(async () => ({ handles: {} }));
+    renderControlContext({ ingestSecrets });
+
+    await waitFor(() => {
+      expect(ingestSecrets).toHaveBeenCalledWith("client-stored", {
+        "PROVIDER_KEY:openai": "sk-openai-abc",
+      });
     });
   });
 });

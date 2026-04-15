@@ -28,7 +28,7 @@ export type StoredProviderKey = {
 export type ControlState = {
   /** API key for authenticated requests */
   apiKey: string | null;
-  /** Stable client identifier for this browser tab (associates sessions with secrets) */
+  /** Stable client identifier for this browser profile (associates sessions with secrets) */
   clientId: string | null;
   /** Available models fetched from backend */
   availableModels: string[];
@@ -92,8 +92,28 @@ export type ControlContextApi = {
 // =============================================================================
 
 const API_KEY_STORAGE_KEY = "aomi_api_key";
+const CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 const PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
 const PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
+
+function getOrCreateClientId(): string {
+  try {
+    const storedClientId = globalThis.localStorage?.getItem(CLIENT_ID_STORAGE_KEY);
+    if (storedClientId && storedClientId.trim().length > 0) {
+      return storedClientId;
+    }
+  } catch {
+    // localStorage not available
+  }
+
+  const clientId = globalThis.crypto?.randomUUID?.() ?? `client-${Date.now()}`;
+  try {
+    globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+  } catch {
+    // localStorage not available
+  }
+  return clientId;
+}
 
 function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
@@ -156,7 +176,7 @@ export function ControlContextProvider({
 }: ControlContextProviderProps) {
   const [state, setStateInternal] = useState<ControlState>(() => ({
     apiKey: null,
-    clientId: null,
+    clientId: getOrCreateClientId(),
     availableModels: [],
     authorizedApps: [],
     defaultModel: null,
@@ -188,11 +208,17 @@ export function ControlContextProvider({
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = currentThreadMetadata?.control?.isProcessing ?? false;
 
-  // Generate a stable client_id for this browser tab on mount
+  // Persist client id to localStorage so the settings page and chat runtime
+  // share the same backend vault namespace.
   useEffect(() => {
-    const clientId = globalThis.crypto?.randomUUID?.() ?? `client-${Date.now()}`;
-    setStateInternal((prev) => ({ ...prev, clientId }));
-  }, []);
+    try {
+      if (state.clientId) {
+        globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, state.clientId);
+      }
+    } catch {
+      // localStorage not available
+    }
+  }, [state.clientId]);
 
   // Load API key from localStorage on mount
   useEffect(() => {
@@ -250,7 +276,7 @@ export function ControlContextProvider({
     }
   }, [state.providerKeys]);
 
-  // Auto-ingest provider keys into backend vault when clientId becomes available
+  // Auto-ingest provider keys into backend vault when the client id or stored key set changes.
   useEffect(() => {
     if (!state.clientId) return;
     const keys = stateRef.current.providerKeys;
@@ -264,7 +290,7 @@ export function ControlContextProvider({
     void aomiClientRef.current.ingestSecrets(state.clientId, secrets).catch((err: unknown) => {
       console.error("Failed to auto-ingest provider keys:", err);
     });
-  }, [state.clientId]);
+  }, [state.clientId, state.providerKeys]);
 
   // Fetch apps whenever the auth context changes
   useEffect(() => {
@@ -539,7 +565,11 @@ export function ControlContextProvider({
       const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        { app, apiKey: stateRef.current.apiKey ?? undefined },
+        {
+          app,
+          apiKey: stateRef.current.apiKey ?? undefined,
+          clientId: stateRef.current.clientId ?? undefined,
+        },
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
