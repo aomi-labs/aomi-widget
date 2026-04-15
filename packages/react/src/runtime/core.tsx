@@ -47,7 +47,7 @@ export function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { dispatchInboundSystem: dispatchSystemEvents } = eventContext;
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
 
   const {
     backendStateRef,
@@ -390,14 +390,14 @@ export function AomiRuntimeCore({
   });
 
   // ---------------------------------------------------------------------------
-  // Cleanup polling and secrets on unmount
+  // Cleanup polling on unmount.
+  // Keep vault secrets across view transitions (e.g. opening Settings).
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return () => {
       polling.stopAll();
-      void clearSecrets();
     };
-  }, [polling, clearSecrets]);
+  }, [polling]);
 
   // ---------------------------------------------------------------------------
   // Build AomiRuntimeApi

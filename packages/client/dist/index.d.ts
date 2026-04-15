@@ -291,6 +291,7 @@ declare class AomiClient {
     setModel(sessionId: string, rig: string, options?: {
         app?: string;
         apiKey?: string;
+        clientId?: string;
     }): Promise<{
         success: boolean;
         rig: string;

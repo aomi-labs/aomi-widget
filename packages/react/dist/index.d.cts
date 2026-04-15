@@ -331,7 +331,7 @@ type StoredProviderKey = {
 type ControlState = {
     /** API key for authenticated requests */
     apiKey: string | null;
-    /** Stable client identifier for this browser tab (associates sessions with secrets) */
+    /** Stable client identifier for this browser profile (associates sessions with secrets) */
     clientId: string | null;
     /** Available models fetched from backend */
     availableModels: string[];

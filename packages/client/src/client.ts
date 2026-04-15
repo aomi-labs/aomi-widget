@@ -522,7 +522,7 @@ export class AomiClient {
   async setModel(
     sessionId: string,
     rig: string,
-    options?: { app?: string; apiKey?: string },
+    options?: { app?: string; apiKey?: string; clientId?: string },
   ): Promise<{
     success: boolean;
     rig: string;
@@ -533,6 +533,9 @@ export class AomiClient {
     const payload: Record<string, unknown> = { rig };
     if (options?.app) {
       payload.app = options.app;
+    }
+    if (options?.clientId) {
+      payload.client_id = options.clientId;
     }
 
     return postState<{

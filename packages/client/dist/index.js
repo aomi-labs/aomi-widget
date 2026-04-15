@@ -568,6 +568,9 @@ var AomiClient = class {
     if (options == null ? void 0 : options.app) {
       payload.app = options.app;
     }
+    if (options == null ? void 0 : options.clientId) {
+      payload.client_id = options.clientId;
+    }
     return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
   }
   // ===========================================================================
