@@ -4,42 +4,37 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useRef,
-  useState,
 } from "react";
 import type { ReactNode } from "react";
 
-import type { AomiClient, AomiSSEEvent, AomiSystemEvent } from "@aomi-labs/client";
-import {
-  isInlineCall,
-  isSystemNotice,
-  isSystemError,
-  isAsyncCallback,
-} from "@aomi-labs/client";
-import {
-  createEventBuffer,
-  dispatch,
-  enqueueInbound,
-  setSSEStatus,
-  subscribe as subscribeToBuffer,
-  type EventBuffer,
-  type EventSubscriber,
-  type InboundEvent,
-  type OutboundEvent,
-  type SSEStatus,
-} from "../state/event-buffer";
+import type { AomiClient } from "@aomi-labs/client";
+
+// =============================================================================
+// Lightweight event subscriber types (replaces event-buffer.ts)
+// =============================================================================
+
+export type InboundEvent = {
+  type: string;
+  sessionId: string;
+  payload?: unknown;
+};
+
+export type SSEStatus = "connected" | "connecting" | "disconnected";
+
+export type EventSubscriber = (event: InboundEvent) => void;
+
 // =============================================================================
 // Context Type
 // =============================================================================
 
 export type EventContext = {
-  /** Subscribe to inbound events by type. Returns unsubscribe function. */
+  /** Subscribe to events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
-  /** Send an outbound event to backend immediately */
-  sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
-  /** Dispatch system events from HTTP polling into the event buffer */
-  dispatchInboundSystem: (sessionId: string, events: AomiSystemEvent[]) => void;
+  /** Dispatch an event to all matching subscribers (used by orchestrator) */
+  dispatch: (event: InboundEvent) => void;
+  /** Send an outbound system message to backend */
+  sendOutboundSystem: (event: { type: string; sessionId: string; payload: unknown }) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -75,73 +70,52 @@ export type EventContextProviderProps = {
 // Provider
 // =============================================================================
 
+/**
+ * Simplified EventContext — a pure pub/sub relay.
+ *
+ * SSE subscription and system event unwrapping are now handled by ClientSession
+ * in the orchestrator. This provider just maintains the subscriber registry
+ * and sendOutboundSystem for direct system messages.
+ */
 export function EventContextProvider({
   children,
   aomiClient,
   sessionId,
 }: EventContextProviderProps) {
-  const bufferRef = useRef<EventBuffer | null>(null);
-  if (!bufferRef.current) {
-    bufferRef.current = createEventBuffer();
-  }
-  const buffer = bufferRef.current!;
+  const subscribersRef = useRef<Map<string, Set<EventSubscriber>>>(new Map());
 
-  const [sseStatus, setSseStatus] = useState<SSEStatus>("disconnected");
-
-  // ---------------------------------------------------------------------------
-  // SSE Subscription (reconnects when sessionId changes)
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    setSSEStatus(buffer, "connecting");
-    setSseStatus("connecting");
-
-    const unsubscribe = aomiClient.subscribeSSE(
-      sessionId,
-      (event: AomiSSEEvent) => {
-        enqueueInbound(buffer, {
-          type: event.type,
-          sessionId: event.session_id,
-          payload: event,
-        });
-
-        const inboundEvent: InboundEvent = {
-          type: event.type,
-          sessionId: event.session_id,
-          payload: event,
-          status: "fetched",
-          timestamp: Date.now(),
-        };
-        dispatch(buffer, inboundEvent);
-      },
-      (error) => {
-        console.error("SSE error:", error);
-        setSSEStatus(buffer, "disconnected");
-        setSseStatus("disconnected");
-      },
-    );
-
-    setSSEStatus(buffer, "connected");
-    setSseStatus("connected");
-
-    return () => {
-      unsubscribe();
-      setSSEStatus(buffer, "disconnected");
-      setSseStatus("disconnected");
-    };
-  }, [aomiClient, sessionId, buffer]);
-
-  // ---------------------------------------------------------------------------
-  // Context Value
-  // ---------------------------------------------------------------------------
-  const subscribeCallback = useCallback(
+  const subscribe = useCallback(
     (type: string, callback: EventSubscriber) => {
-      return subscribeToBuffer(buffer, type, callback);
+      const subs = subscribersRef.current;
+      if (!subs.has(type)) {
+        subs.set(type, new Set());
+      }
+      subs.get(type)!.add(callback);
+      return () => {
+        subs.get(type)?.delete(callback);
+      };
     },
-    [buffer],
+    [],
   );
 
+  const dispatchEvent = useCallback((event: InboundEvent) => {
+    const subs = subscribersRef.current;
+
+    // Type-specific subscribers
+    const typeSubs = subs.get(event.type);
+    if (typeSubs) {
+      for (const cb of typeSubs) cb(event);
+    }
+
+    // Wildcard subscribers
+    const wildcardSubs = subs.get("*");
+    if (wildcardSubs) {
+      for (const cb of wildcardSubs) cb(event);
+    }
+  }, []);
+
   const sendOutbound = useCallback(
-    async (event: Omit<OutboundEvent, "timestamp">) => {
+    async (event: { type: string; sessionId: string; payload: unknown }) => {
       try {
         const message = JSON.stringify({
           type: event.type,
@@ -155,54 +129,14 @@ export function EventContextProvider({
     [aomiClient],
   );
 
-  const dispatchSystemEvents = useCallback(
-    (sessionId: string, events: AomiSystemEvent[]) => {
-      for (const event of events) {
-        let eventType: string;
-        let payload: unknown;
-
-        // Unwrap the tagged enum from backend serialization
-        if (isInlineCall(event)) {
-          // InlineCall has inner type like "wallet_tx_request"
-          eventType = event.InlineCall.type;
-          payload = event.InlineCall.payload ?? event.InlineCall;
-        } else if (isSystemNotice(event)) {
-          eventType = "system_notice";
-          payload = { message: event.SystemNotice };
-        } else if (isSystemError(event)) {
-          eventType = "system_error";
-          payload = { message: event.SystemError };
-        } else if (isAsyncCallback(event)) {
-          eventType = "async_callback";
-          payload = event.AsyncCallback;
-        } else {
-          console.warn("Unknown system event type:", event);
-          continue;
-        }
-
-        const inboundEvent: InboundEvent = {
-          type: eventType,
-          sessionId,
-          payload,
-          status: "fetched",
-          timestamp: Date.now(),
-        };
-        enqueueInbound(buffer, {
-          type: eventType,
-          sessionId,
-          payload,
-        });
-        dispatch(buffer, inboundEvent);
-      }
-    },
-    [buffer],
-  );
-
   const contextValue: EventContext = {
-    subscribe: subscribeCallback,
+    subscribe,
+    dispatch: dispatchEvent,
     sendOutboundSystem: sendOutbound,
-    dispatchInboundSystem: dispatchSystemEvents,
-    sseStatus,
+    // SSE is managed by ClientSession now — status is always "connected"
+    // when sessions are active. Individual session status can be queried
+    // from the session manager if needed.
+    sseStatus: "connected",
   };
 
   return (

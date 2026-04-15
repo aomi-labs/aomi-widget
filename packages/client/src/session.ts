@@ -26,8 +26,8 @@ import type {
   UserState,
 } from "./types";
 import { addUserStateExt } from "./types";
-import { TypedEventEmitter } from "./event-emitter";
-import { unwrapSystemEvent } from "./event-unwrap";
+import { TypedEventEmitter } from "./event";
+import { unwrapSystemEvent } from "./event";
 import {
   normalizeTxPayload,
   normalizeEip712Payload,
@@ -462,10 +462,44 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   // ===========================================================================
-  // Internal — Polling (ported from PollingController)
+  // Public API — Polling Control
   // ===========================================================================
 
-  private startPolling(): void {
+  /** Whether the session is currently polling for state updates. */
+  getIsPolling(): boolean {
+    return this.pollTimer !== null;
+  }
+
+  /**
+   * Fetch the current state from the backend (one-shot).
+   * Automatically starts polling if the backend is processing.
+   */
+  async fetchCurrentState(): Promise<void> {
+    this.assertOpen();
+
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId,
+    );
+
+    this.assertUserStateAligned(state.user_state);
+    this.applyState(state);
+
+    if (state.is_processing && !this.pollTimer) {
+      this._isProcessing = true;
+      this.emit("processing_start", undefined);
+      this.startPolling();
+    } else if (!state.is_processing) {
+      this._isProcessing = false;
+    }
+  }
+
+  /**
+   * Start polling for state updates. Idempotent — no-op if already polling.
+   * Useful for resuming polling after resolving a wallet request.
+   */
+  startPolling(): void {
     if (this.pollTimer || this.closed) return;
 
     this._backendWasProcessing = true;
@@ -475,7 +509,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }, this.pollIntervalMs);
   }
 
-  private stopPolling(): void {
+  /** Stop polling for state updates. Idempotent — no-op if not polling. */
+  stopPolling(): void {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
@@ -645,8 +680,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (!isSubsetMatch(this.userState, actualUserState)) {
       const expected = JSON.stringify(sortJson(this.userState));
       const actual = JSON.stringify(sortJson(actualUserState));
-      throw new Error(
-        `Backend user_state mismatch. expected subset=${expected} actual=${actual}`,
+      console.warn(
+        `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`,
       );
     }
   }

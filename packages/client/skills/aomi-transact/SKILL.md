@@ -8,6 +8,7 @@ description: >
   review, AA-first signing with mode fallback, persistent AA configuration,
   session controls, and per-session secret ingestion.
 compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Requires viem for signing (`npm install viem`). Use AOMI_APP / --app, AOMI_MODEL / --model, AOMI_CHAIN_ID / --chain, CHAIN_RPC_URL / --rpc-url, `aomi secret add` for session secret ingestion, and AOMI_STATE_DIR for local session storage."
+
 license: MIT
 allowed-tools: Bash
 metadata:
@@ -25,7 +26,8 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 
 - The user wants to chat with the Aomi agent from the terminal.
 - The user wants balances, prices, routes, quotes, or transaction status.
-- The user wants to build, confirm, sign, or broadcast wallet requests.
+- The user wants to build, simulate, confirm, sign, or broadcast wallet requests.
+- The user wants to simulate a batch of pending transactions before signing.
 - The user wants to inspect or switch apps, models, chains, or sessions.
 - The user wants to inject API keys or other backend secrets for the current session.
 - The user wants to configure or inspect Account Abstraction settings.
@@ -198,6 +200,87 @@ aomi tx sign tx-1 --eoa --private-key 0xYourPrivateKey --rpc-url https://eth.lla
 aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337 --private-key 0xYourPrivateKey
 ```
 
+### Batch Simulation
+
+Use `aomi simulate` to dry-run pending transactions before signing. Simulation
+runs each tx sequentially on a forked chain so state-dependent flows (approve →
+swap) are validated as a batch — the swap sees the approve's state changes.
+
+```bash
+# Simulate a single pending tx
+aomi simulate tx-1
+
+# Simulate a multi-step batch in order (approve then swap)
+aomi simulate tx-1 tx-2
+```
+
+The response includes per-step success/failure, revert reasons, and gas usage:
+
+```
+Simulation result:
+  Batch success: true
+  Stateful: true
+  Total gas: 147821
+
+  Step 1 — approve USDC
+    success: true
+    gas_used: 46000
+
+  Step 2 — swap on Uniswap
+    success: true
+    gas_used: 101821
+```
+
+When to simulate:
+
+- **Always simulate multi-step flows** (approve → swap, approve → deposit, etc.) before signing. These are state-dependent — the second tx will revert if submitted independently.
+- **Optional for single independent txs** like a simple ETH transfer or a standalone swap with no prior approval needed.
+- If simulation fails at step N, read the revert reason before retrying. Common causes: insufficient balance, expired quote/timestamp, wrong calldata. Do not blindly re-sign after a simulation failure.
+
+When not to simulate:
+
+- Read-only operations (balances, prices, quotes).
+- If there are no pending transactions (`aomi tx` shows nothing).
+
+Simulation and signing workflow:
+
+```bash
+# 1. Build the request
+aomi chat "approve and swap 100 USDC for ETH on Uniswap" \
+  --public-key 0xYourAddress --chain 1
+
+# 2. Check what got queued
+aomi tx
+
+# 3. Simulate the batch
+aomi simulate tx-1 tx-2
+
+# 4. If simulation succeeds, sign
+aomi sign tx-1 tx-2 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+
+# 5. Verify
+aomi tx
+```
+
+### Account Abstraction
+
+AA is the preferred signing path when the user wants smart-account behavior,
+gas sponsorship, or the CLI's automated fallback handling.
+
+Use AA when:
+
+- The user wants the most hands-off signing flow and is fine with the CLI trying AA before EOA.
+- The user wants sponsored or user-funded smart-account execution through Alchemy or Pimlico.
+- The user explicitly asks for `4337` or `7702` account-abstraction mode.
+
+How to choose:
+
+- `aomi sign` with no AA flags: try AA first, then fall back to EOA automatically if AA is unavailable.
+- `aomi sign --aa`: require AA only. Use this when the user does not want an EOA fallback.
+- `aomi sign --eoa`: bypass AA entirely and sign directly with the wallet key.
+- `aomi sign --aa-provider alchemy|pimlico`: force a specific AA provider.
+- `aomi sign --aa-mode 4337|7702`: force the execution mode when the user wants a specific AA path.
+
 More signing notes:
 
 - `aomi tx sign` handles both transaction requests and EIP-712 typed data signatures.
@@ -284,6 +367,19 @@ aomi secret add NAME=value [NAME=value ...]
 - `aomi secret list` shows configured secret handles for the active session.
 - `aomi secret clear` removes all configured secrets for the active session.
 - `aomi secret add` ingests one or more NAME=value secrets.
+
+### Batch Simulation
+
+```bash
+aomi simulate <tx-id> [<tx-id> ...]
+```
+
+- Runs pending transactions sequentially on a forked chain (Anvil snapshot/revert).
+- Each tx sees state changes from previous txs — validates state-dependent flows like approve → swap.
+- Returns per-step success/failure, revert reasons, and `gas_used`.
+- Returns `total_gas` for the entire batch.
+- No on-chain state is modified — the fork is reverted after simulation.
+- Requires pending transactions to exist in the session (`aomi tx` to check).
 
 ### App And Model Commands
 
@@ -402,8 +498,8 @@ Priority chain for AA resolution: **flag > env var > `~/.aomi/aa.json` > default
 
 | Provider | Flag                    | Env Var           | Persistent Config         | Notes                            |
 | -------- | ----------------------- | ----------------- | ------------------------- | -------------------------------- |
-| Alchemy  | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | `aomi aa set provider alchemy` | Supports sponsorship, 4337, 7702 |
-| Pimlico  | `--aa-provider pimlico` | `PIMLICO_API_KEY` | `aomi aa set provider pimlico` | Supports 4337 and 7702           |
+| Alchemy  | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | `aomi aa set provider alchemy` | 4337 (sponsored via gas policy), 7702 (EOA pays gas) |
+| Pimlico  | `--aa-provider pimlico` | `PIMLICO_API_KEY` | `aomi aa set provider pimlico` | 4337 (sponsored via dashboard policy). Direct private key supported. |
 
 Provider selection rules:
 
@@ -413,10 +509,12 @@ Provider selection rules:
 
 ### AA Modes
 
-| Mode   | Flag             | Meaning                          |
-| ------ | ---------------- | -------------------------------- |
-| `4337` | `--aa-mode 4337` | Bundler-based smart account flow |
-| `7702` | `--aa-mode 7702` | Delegated execution flow         |
+| Mode   | Flag             | Meaning                          | Gas |
+| ------ | ---------------- | -------------------------------- | --- |
+| `4337` | `--aa-mode 4337` | Bundler + paymaster UserOperation via smart account. Gas sponsored by paymaster. | Paymaster pays |
+| `7702` | `--aa-mode 7702` | Native EIP-7702 type-4 transaction with delegation. EOA signs authorization + sends tx to self. | EOA pays |
+
+Important: **7702 requires the signing EOA to have native gas tokens** (ETH, MATIC, etc.). There is no paymaster/sponsorship for 7702. Use 4337 for gasless execution.
 
 ### Default Chain Modes
 
@@ -430,7 +528,9 @@ Provider selection rules:
 
 ### Sponsorship
 
-Alchemy sponsorship is optional.
+Sponsorship is available for **4337 mode only**. 7702 does not support sponsorship.
+
+**Alchemy** (optional gas policy):
 
 ```bash
 export ALCHEMY_API_KEY=your-key
@@ -446,6 +546,15 @@ aomi aa set key your-key
 aomi aa set policy your-policy-id
 aomi tx sign tx-1
 ```
+
+**Pimlico** (sponsorship via dashboard policy):
+
+```bash
+export PIMLICO_API_KEY=your-key
+aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337
+```
+
+Pimlico sponsorship is configured on the Pimlico dashboard (sponsorship policies). The API key automatically picks up the active policy — no separate policy ID env var needed.
 
 ### Supported Chains
 
@@ -499,9 +608,9 @@ Environment variables override persistent config (`~/.aomi/aa.json`).
 
 | Env Var                  | Purpose                             |
 | ------------------------ | ----------------------------------- |
-| `ALCHEMY_API_KEY`        | Enables Alchemy AA                  |
-| `ALCHEMY_GAS_POLICY_ID`  | Optional Alchemy sponsorship policy |
-| `PIMLICO_API_KEY`        | Enables Pimlico AA                  |
+| `ALCHEMY_API_KEY`        | Enables Alchemy AA (4337 + 7702)    |
+| `ALCHEMY_GAS_POLICY_ID`  | Optional Alchemy sponsorship policy (4337 only) |
+| `PIMLICO_API_KEY`        | Enables Pimlico AA (4337 sponsored) |
 
 `ALCHEMY_API_KEY` can also be used to construct chain-specific signing RPCs:
 
@@ -567,6 +676,28 @@ aomi tx sign tx-1 \
 # 5. Verify
 aomi tx list
 aomi session log
+```
+
+### Approve + Swap With Simulation
+
+```bash
+# 1. Build a multi-step request
+aomi chat "approve and swap 500 USDC for ETH on Uniswap" \
+  --public-key 0xYourAddress --chain 1
+
+# 2. Check queued requests
+aomi tx
+
+# 3. Simulate the batch — approve then swap
+aomi simulate tx-1 tx-2
+
+# 4. If simulation passes, sign the batch
+aomi sign tx-1 tx-2 \
+  --private-key 0xYourPrivateKey \
+  --rpc-url https://eth.llamarpc.com
+
+# 5. Verify
+aomi tx
 ```
 
 ### Explicit EOA Flow
@@ -669,3 +800,5 @@ aomi session close
 - If `ALCHEMY_API_KEY` is set, construct the correct chain-specific Alchemy RPC before falling back to random public endpoints.
 - If one or two public RPCs fail for the same chain, stop rotating through random endpoints and ask the user for a proper RPC URL for that chain.
 - Use `aomi aa test --chain <id>` to validate AA setup for a specific chain before signing.
+- If `aomi simulate` fails with a revert, read the revert reason. Common causes: expired quote or timestamp (re-chat to get a fresh quote), insufficient token balance, or missing prior approval. Do not sign transactions that failed simulation without understanding why.
+- If `aomi simulate` returns `stateful: false`, the backend could not fork the chain — simulation ran each tx independently via `eth_call`, so state-dependent flows (approve → swap) may show false negatives. Retry or check that the backend's Anvil instance is running.

@@ -1,34 +1,35 @@
-import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
-import { createControlClient, getOrCreateSession, applyModelSelection } from "../context";
+import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../../chains";
+import { CliSession } from "../cli-session";
+import { createControlClient } from "../context";
 import { printDataFileLocation } from "../output";
-import { readState } from "../state";
 import type { CliConfig } from "../types";
 import { DEFAULT_AA_CONFIG } from "../../aa/types";
 
 export async function statusCommand(config: CliConfig): Promise<void> {
-  if (!readState()) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
+  cli.mergeConfig(config);
 
-  const { session, state } = getOrCreateSession(config);
-
+  const session = cli.createClientSession();
   try {
-    const apiState = await session.client.fetchState(state.sessionId, undefined, state.clientId);
+    const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
     console.log(
       JSON.stringify(
         {
-          sessionId: state.sessionId,
-          baseUrl: state.baseUrl,
-          app: state.app,
-          model: state.model ?? null,
-          chainId: state.chainId ?? null,
+          sessionId: cli.sessionId,
+          baseUrl: cli.baseUrl,
+          app: cli.app,
+          model: cli.model ?? null,
+          chainId: cli.chainId ?? null,
           isProcessing: apiState.is_processing ?? false,
           messageCount: apiState.messages?.length ?? 0,
           title: apiState.title ?? null,
-          pendingTxs: state.pendingTxs?.length ?? 0,
-          signedTxs: state.signedTxs?.length ?? 0,
+          pendingTxs: cli.pendingTxs.length,
+          signedTxs: cli.signedTxs.length,
         },
         null,
         2,
@@ -41,15 +42,16 @@ export async function statusCommand(config: CliConfig): Promise<void> {
 }
 
 export async function eventsCommand(config: CliConfig): Promise<void> {
-  if (!readState()) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     return;
   }
+  cli.mergeConfig(config);
 
-  const { session, state } = getOrCreateSession(config);
-
+  const session = cli.createClientSession();
   try {
-    const events = await session.client.getSystemEvents(state.sessionId);
+    const events = await session.client.getSystemEvents(cli.sessionId);
     console.log(JSON.stringify(events, null, 2));
   } finally {
     session.close();
@@ -58,11 +60,11 @@ export async function eventsCommand(config: CliConfig): Promise<void> {
 
 export async function appsCommand(config: CliConfig): Promise<void> {
   const client = createControlClient(config);
-  const state = readState();
-  const sessionId = state?.sessionId ?? crypto.randomUUID();
+  const cli = CliSession.load();
+  const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
     publicKey: config.publicKey,
-    apiKey: config.apiKey ?? state?.apiKey,
+    apiKey: config.apiKey ?? cli?.apiKey,
   });
 
   if (apps.length === 0) {
@@ -70,7 +72,7 @@ export async function appsCommand(config: CliConfig): Promise<void> {
     return;
   }
 
-  const currentApp = state?.app ?? config.app;
+  const currentApp = cli?.app ?? config.app;
   for (const app of apps) {
     const marker = currentApp === app ? "  (current)" : "";
     console.log(`${app}${marker}`);
@@ -79,10 +81,10 @@ export async function appsCommand(config: CliConfig): Promise<void> {
 
 export async function modelsCommand(config: CliConfig): Promise<void> {
   const client = createControlClient(config);
-  const state = readState();
-  const sessionId = state?.sessionId ?? crypto.randomUUID();
+  const cli = CliSession.load();
+  const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const models = await client.getModels(sessionId, {
-    apiKey: config.apiKey ?? state?.apiKey,
+    apiKey: config.apiKey ?? cli?.apiKey,
   });
 
   if (models.length === 0) {
@@ -91,37 +93,42 @@ export async function modelsCommand(config: CliConfig): Promise<void> {
   }
 
   for (const model of models) {
-    const marker = state?.model === model ? "  (current)" : "";
+    const marker = cli?.model === model ? "  (current)" : "";
     console.log(`${model}${marker}`);
   }
 }
 
 export function currentAppCommand(): void {
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  console.log(state.app ?? "(default)");
+  console.log(cli.app ?? "(default)");
   printDataFileLocation();
 }
 
 export function currentModelCommand(): void {
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  console.log(state.model ?? "(default backend model)");
+  console.log(cli.model ?? "(default backend model)");
   printDataFileLocation();
 }
 
 export async function setModelCommand(config: CliConfig, model: string): Promise<void> {
-  const { session, state } = getOrCreateSession(config);
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
   try {
-    await applyModelSelection(session, state, model);
+    await session.client.setModel(cli.sessionId, model, {
+      app: cli.app,
+      apiKey: cli.apiKey,
+    });
+    cli.setModel(model);
     console.log(`Model set to ${model}`);
     printDataFileLocation();
   } finally {
@@ -130,8 +137,8 @@ export async function setModelCommand(config: CliConfig, model: string): Promise
 }
 
 export function chainsCommand(): void {
-  const state = readState();
-  const currentChainId = state?.chainId;
+  const cli = CliSession.load();
+  const currentChainId = cli?.chainId;
 
   for (const id of SUPPORTED_CHAIN_IDS) {
     const name = CHAIN_NAMES[id] ?? `Chain ${id}`;
