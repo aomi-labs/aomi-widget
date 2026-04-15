@@ -2,8 +2,8 @@ import type { Hex, TransactionReceipt } from "viem";
 
 import type {
   AAMode,
+  AACallPayload,
   SmartAccount,
-  WalletPrimitiveCall,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -16,11 +16,11 @@ type SdkSmartAccount = {
   smartAccountAddress: Hex;
   delegationAddress?: Hex;
   sendTransaction: (
-    call: WalletPrimitiveCall,
+    call: AACallPayload,
     options?: unknown,
   ) => Promise<TransactionReceipt>;
   sendBatchTransaction: (
-    calls: WalletPrimitiveCall[],
+    calls: AACallPayload[],
     options?: unknown,
   ) => Promise<TransactionReceipt>;
 };

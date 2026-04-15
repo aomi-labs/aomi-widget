@@ -1,4 +1,4 @@
-import { Chain, Hex, TransactionReceipt } from 'viem';
+import { Hex, Chain, TransactionReceipt } from 'viem';
 
 /**
  * Client-side user state synced with the backend.
@@ -315,27 +315,115 @@ type Listener<T = unknown> = (payload: T) => void;
  */
 declare class TypedEventEmitter<EventMap extends Record<string, unknown> = Record<string, unknown>> {
     private listeners;
-    /**
-     * Subscribe to an event type. Returns an unsubscribe function.
-     */
     on<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
-    /**
-     * Subscribe to an event type for a single emission, then auto-unsubscribe.
-     */
     once<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
-    /**
-     * Emit an event to all listeners of `type` and wildcard `"*"` listeners.
-     */
     emit<K extends keyof EventMap & string>(type: K, payload: EventMap[K]): void;
-    /**
-     * Remove a specific handler from an event type.
-     */
     off<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): void;
-    /**
-     * Remove all listeners for all event types.
-     */
     removeAllListeners(): void;
 }
+
+type UnwrappedEvent = {
+    type: string;
+    payload: unknown;
+};
+declare function unwrapSystemEvent(event: AomiSystemEvent): UnwrappedEvent | null;
+
+type AAProvider = "alchemy" | "pimlico";
+type AAMode = "4337" | "7702";
+type AASponsorship = "disabled" | "optional" | "required";
+type AAWalletCall = {
+    to: Hex;
+    value: bigint;
+    data?: Hex;
+    chainId: number;
+};
+type WalletAtomicCapability = {
+    atomic?: {
+        status?: string;
+    };
+};
+interface AAChainConfig {
+    chainId: number;
+    enabled: boolean;
+    defaultMode: AAMode;
+    supportedModes: AAMode[];
+    allowBatching: boolean;
+    sponsorship: AASponsorship;
+}
+interface AAConfig {
+    enabled: boolean;
+    provider: AAProvider;
+    fallbackToEoa: boolean;
+    chains: AAChainConfig[];
+}
+interface AAResolvedConfig {
+    provider: AAProvider;
+    chainId: number;
+    mode: AAMode;
+    batchingEnabled: boolean;
+    sponsorship: AASponsorship;
+    fallbackToEoa: boolean;
+}
+/** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
+type AACallPayload = Omit<AAWalletCall, "chainId">;
+interface SmartAccount {
+    provider: string;
+    mode: string;
+    AAAddress?: Hex;
+    delegationAddress?: Hex;
+    sendTransaction: (call: AACallPayload) => Promise<{
+        transactionHash: string;
+    }>;
+    sendBatchTransaction: (calls: AACallPayload[]) => Promise<{
+        transactionHash: string;
+    }>;
+}
+interface AAState<TAccount extends SmartAccount = SmartAccount> {
+    resolved: AAResolvedConfig | null;
+    account?: TAccount | null;
+    pending: boolean;
+    error: Error | null;
+}
+interface ExecutionResult {
+    txHash: string;
+    txHashes: string[];
+    executionKind: string;
+    batched: boolean;
+    sponsored: boolean;
+    AAAddress?: Hex;
+    delegationAddress?: Hex;
+}
+interface AtomicBatchArgs {
+    calls: AACallPayload[];
+    capabilities?: {
+        atomic?: {
+            required?: boolean;
+        };
+    };
+}
+interface ExecuteWalletCallsParams<TAccount extends SmartAccount = SmartAccount> {
+    callList: AAWalletCall[];
+    currentChainId: number;
+    capabilities: Record<string, WalletAtomicCapability> | undefined;
+    localPrivateKey: `0x${string}` | null;
+    providerState: AAState<TAccount>;
+    sendCallsSyncAsync: (args: AtomicBatchArgs) => Promise<unknown>;
+    sendTransactionAsync: (args: {
+        chainId: number;
+        to: Hex;
+        value: bigint;
+        data?: Hex;
+    }) => Promise<string>;
+    switchChainAsync: (params: {
+        chainId: number;
+    }) => Promise<unknown>;
+    chainsById: Record<number, Chain>;
+    getPreferredRpcUrl: (chain: Chain) => string;
+}
+declare function getAAChainConfig(config: AAConfig, calls: AAWalletCall[], chainsById: Record<number, Chain>): AAChainConfig | null;
+declare function buildAAExecutionPlan(config: AAConfig, chainConfig: AAChainConfig): AAResolvedConfig;
+declare function getWalletExecutorReady(providerState: AAState): boolean;
+declare const DEFAULT_AA_CONFIG: AAConfig;
 
 type WalletTxPayload = {
     to: string;
@@ -375,6 +463,11 @@ declare function normalizeTxPayload(payload: unknown): WalletTxPayload | null;
  * Normalize an EIP-712 signing request payload.
  */
 declare function normalizeEip712Payload(payload: unknown): WalletEip712Payload;
+/**
+ * Convert a normalized WalletTxPayload into an AAWalletCall.
+ * This is the single boundary conversion point from backend payloads to AA-ready calls.
+ */
+declare function toAAWalletCall(payload: WalletTxPayload, defaultChainId?: number): AAWalletCall;
 /**
  * Convert normalized EIP-712 payloads into the viem signing shape used by both
  * the CLI and widget component layers.
@@ -536,8 +629,20 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     removeExtValue(key: string): void;
     resolveWallet(address: string, chainId?: number): void;
     syncUserState(): Promise<AomiStateResponse>;
-    private startPolling;
-    private stopPolling;
+    /** Whether the session is currently polling for state updates. */
+    getIsPolling(): boolean;
+    /**
+     * Fetch the current state from the backend (one-shot).
+     * Automatically starts polling if the backend is processing.
+     */
+    fetchCurrentState(): Promise<void>;
+    /**
+     * Start polling for state updates. Idempotent — no-op if already polling.
+     * Useful for resuming polling after resolving a wallet request.
+     */
+    startPolling(): void;
+    /** Stop polling for state updates. Idempotent — no-op if not polling. */
+    stopPolling(): void;
     private pollTick;
     private applyState;
     private dispatchSystemEvents;
@@ -550,164 +655,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private assertUserStateAligned;
 }
 
-type UnwrappedEvent = {
-    type: string;
-    payload: unknown;
-};
-/**
- * Unwrap a tagged-enum AomiSystemEvent from the backend into a flat event.
- *
- * ```ts
- * const event: AomiSystemEvent = { InlineCall: { type: "wallet_tx_request", payload: { to: "0x..." } } };
- * const unwrapped = unwrapSystemEvent(event);
- * // => { type: "wallet_tx_request", payload: { to: "0x..." } }
- * ```
- */
-declare function unwrapSystemEvent(event: AomiSystemEvent): UnwrappedEvent | null;
-
-/**
- * Reads the first non-empty env var from `candidates`.
- * When `publicOnly` is true, only `NEXT_PUBLIC_*` names are considered.
- */
-declare function readEnv(candidates: readonly string[], options?: {
-    publicOnly?: boolean;
-}): string | undefined;
-type AAProvider = "alchemy" | "pimlico";
-/**
- * Returns true if the given provider has a configured API key.
- */
-declare function isProviderConfigured(provider: AAProvider, options?: {
-    publicOnly?: boolean;
-}): boolean;
-/**
- * Picks the first configured provider (alchemy > pimlico).
- * Throws if neither is configured.
- */
-declare function resolveDefaultProvider(options?: {
-    publicOnly?: boolean;
-}): AAProvider;
-
-type AAMode = "4337" | "7702";
-type AASponsorship = "disabled" | "optional" | "required";
-type WalletCall = {
-    to: string;
-    value: string;
-    data?: string;
-    chainId: number;
-};
-type WalletAtomicCapability = {
-    atomic?: {
-        status?: string;
-    };
-};
-type WalletPrimitiveCall = {
-    to: Hex;
-    value: bigint;
-    data?: Hex;
-};
-interface AAChainConfig {
-    chainId: number;
-    enabled: boolean;
-    defaultMode: AAMode;
-    supportedModes: AAMode[];
-    allowBatching: boolean;
-    sponsorship: AASponsorship;
-}
-interface AAConfig {
-    enabled: boolean;
-    provider: AAProvider;
-    fallbackToEoa: boolean;
-    chains: AAChainConfig[];
-}
-interface AAResolvedConfig {
-    provider: AAProvider;
-    chainId: number;
-    mode: AAMode;
-    batchingEnabled: boolean;
-    sponsorship: AASponsorship;
-    fallbackToEoa: boolean;
-}
-interface SmartAccount {
-    provider: string;
-    mode: string;
-    AAAddress?: Hex;
-    delegationAddress?: Hex;
-    sendTransaction: (call: WalletPrimitiveCall) => Promise<{
-        transactionHash: string;
-    }>;
-    sendBatchTransaction: (calls: WalletPrimitiveCall[]) => Promise<{
-        transactionHash: string;
-    }>;
-}
-interface AAState<TAccount extends SmartAccount = SmartAccount> {
-    resolved: AAResolvedConfig | null;
-    account?: TAccount | null;
-    pending: boolean;
-    error: Error | null;
-}
-interface ExecutionResult {
-    txHash: string;
-    txHashes: string[];
-    executionKind: string;
-    batched: boolean;
-    sponsored: boolean;
-    AAAddress?: Hex;
-    delegationAddress?: Hex;
-}
-interface AtomicBatchArgs {
-    calls: WalletPrimitiveCall[];
-    capabilities?: {
-        atomic?: {
-            required?: boolean;
-        };
-    };
-}
-interface ExecuteWalletCallsParams<TAccount extends SmartAccount = SmartAccount> {
-    callList: WalletCall[];
-    currentChainId: number;
-    capabilities: Record<string, WalletAtomicCapability> | undefined;
-    localPrivateKey: `0x${string}` | null;
-    providerState: AAState<TAccount>;
-    sendCallsSyncAsync: (args: AtomicBatchArgs) => Promise<unknown>;
-    sendTransactionAsync: (args: {
-        chainId: number;
-        to: Hex;
-        value: bigint;
-        data?: Hex;
-    }) => Promise<string>;
-    switchChainAsync: (params: {
-        chainId: number;
-    }) => Promise<unknown>;
-    chainsById: Record<number, Chain>;
-    getPreferredRpcUrl: (chain: Chain) => string;
-}
-declare function parseAAConfig(value: unknown): AAConfig;
-declare function getAAChainConfig(config: AAConfig, calls: WalletCall[], chainsById: Record<number, Chain>): AAChainConfig | null;
-declare function buildAAExecutionPlan(config: AAConfig, chainConfig: AAChainConfig): AAResolvedConfig;
-declare function getWalletExecutorReady(providerState: AAState): boolean;
-declare const DEFAULT_AA_CONFIG: AAConfig;
 declare function executeWalletCalls(params: ExecuteWalletCallsParams): Promise<ExecutionResult>;
-
-interface AlchemyResolveOptions {
-    calls: WalletCall[] | null;
-    localPrivateKey?: `0x${string}` | null;
-    accountAbstractionConfig?: AAConfig;
-    chainsById: Record<number, Chain>;
-    chainSlugById?: Record<number, string>;
-    getPreferredRpcUrl?: (chain: Chain) => string;
-    modeOverride?: AAMode;
-    publicOnly?: boolean;
-    throwOnMissingConfig?: boolean;
-    apiKey?: string;
-    gasPolicyId?: string;
-}
-interface AlchemyResolvedConfig extends AAResolvedConfig {
-    apiKey: string;
-    chain: Chain;
-    rpcUrl: string;
-    gasPolicyId?: string;
-}
-declare function resolveAlchemyConfig(options: AlchemyResolveOptions): AlchemyResolvedConfig | null;
 
 interface AlchemyHookParams {
     enabled: boolean;
@@ -732,7 +680,7 @@ interface CreateAlchemyAAProviderOptions<TAccount extends SmartAccount = SmartAc
     apiKeyEnvVar?: string;
     gasPolicyEnvVar?: string;
 }
-declare function createAlchemyAAProvider<TAccount extends SmartAccount = SmartAccount>({ accountAbstractionConfig, useAlchemyAA, chainsById, chainSlugById, getPreferredRpcUrl, }: CreateAlchemyAAProviderOptions<TAccount>): (calls: WalletCall[] | null, localPrivateKey: `0x${string}` | null) => AAState<TAccount>;
+declare function createAlchemyAAProvider<TAccount extends SmartAccount = SmartAccount>({ accountAbstractionConfig, useAlchemyAA, chainsById, chainSlugById, getPreferredRpcUrl, }: CreateAlchemyAAProviderOptions<TAccount>): (calls: AAWalletCall[] | null, localPrivateKey: `0x${string}` | null) => AAState<TAccount>;
 
 type AAOwner = {
     kind: "direct";
@@ -746,7 +694,7 @@ type AAOwner = {
 };
 
 interface PimlicoResolveOptions {
-    calls: WalletCall[] | null;
+    calls: AAWalletCall[] | null;
     localPrivateKey?: `0x${string}` | null;
     accountAbstractionConfig?: AAConfig;
     chainsById: Record<number, Chain>;
@@ -783,15 +731,15 @@ interface CreatePimlicoAAProviderOptions<TAccount extends SmartAccount = SmartAc
     apiKeyEnvVar?: string;
     rpcUrl?: string;
 }
-declare function createPimlicoAAProvider<TAccount extends SmartAccount = SmartAccount>({ accountAbstractionConfig, usePimlicoAA, chainsById, rpcUrl, }: CreatePimlicoAAProviderOptions<TAccount>): (calls: WalletCall[] | null, localPrivateKey: `0x${string}` | null) => AAState<TAccount>;
+declare function createPimlicoAAProvider<TAccount extends SmartAccount = SmartAccount>({ accountAbstractionConfig, usePimlicoAA, chainsById, rpcUrl, }: CreatePimlicoAAProviderOptions<TAccount>): (calls: AAWalletCall[] | null, localPrivateKey: `0x${string}` | null) => AAState<TAccount>;
 
 type SdkSmartAccount = {
     provider: string;
     mode: AAMode;
     smartAccountAddress: Hex;
     delegationAddress?: Hex;
-    sendTransaction: (call: WalletPrimitiveCall, options?: unknown) => Promise<TransactionReceipt>;
-    sendBatchTransaction: (calls: WalletPrimitiveCall[], options?: unknown) => Promise<TransactionReceipt>;
+    sendTransaction: (call: AACallPayload, options?: unknown) => Promise<TransactionReceipt>;
+    sendBatchTransaction: (calls: AACallPayload[], options?: unknown) => Promise<TransactionReceipt>;
 };
 /**
  * Bridges the provider SDK smart-account shape into the library's
@@ -810,11 +758,13 @@ interface CreateAAStateOptions {
     chain: Chain;
     owner: AAOwner;
     rpcUrl: string;
-    callList: WalletCall[];
+    callList: AAWalletCall[];
     mode?: AAMode;
     apiKey?: string;
     gasPolicyId?: string;
     sponsored?: boolean;
+    /** Backend proxy base URL for Alchemy. Used when apiKey is omitted. */
+    proxyBaseUrl?: string;
 }
 /**
  * Creates an AA state by instantiating the appropriate smart account via
@@ -822,4 +772,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AlchemyHookParams, type AlchemyResolveOptions, type AlchemyResolvedConfig, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCall, type WalletEip712Payload, type WalletPrimitiveCall, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isProviderConfigured, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, parseAAConfig, readEnv, resolveAlchemyConfig, resolveDefaultProvider, resolvePimlicoConfig, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, resolvePimlicoConfig, toAAWalletCall, toViemSignTypedDataArgs, unwrapSystemEvent };

@@ -1,8 +1,31 @@
 # Account Abstraction Architecture
 
-This document describes the AA (Account Abstraction) module structure, how configuration flows through the system, and the execution paths for both the React library and the CLI.
+This document describes the current AA architecture in this repository.
+It is based on the live code under `packages/client/src/aa` and
+`packages/client/src/cli`.
+
+The older persisted-config model is gone. There is no `aa/env.ts`,
+`aa/alchemy/resolve.ts`, `aa/resolve.ts`, `cli/aa-config.ts`, or `aomi aa`
+subcommand in the current codebase.
 
 **Layout:** All paths below are under `packages/client/src/` unless noted.
+
+---
+
+## Current Model
+
+- `aa/types.ts` owns the shared AA config model, default chain matrix,
+  execution planning, and the generic `executeWalletCalls()` router.
+- `aa/create.ts` is the provider-neutral async facade that dispatches to
+  Alchemy or Pimlico.
+- Alchemy has two different direct-owner execution implementations:
+  - `4337` uses `@alchemy/wallet-apis`.
+  - `7702` uses raw `viem` plus `viem/experimental/erc7821`.
+- Pimlico still uses a classic `resolve -> create` split.
+- React hook factories only resolve browser-safe config and forward it to
+  caller-provided hooks such as `useAlchemyAA` / `usePimlicoAA`.
+- The CLI now defaults to AA. With no BYOK credentials it uses the backend
+  Alchemy proxy; `--eoa` is the only way to force plain EOA execution.
 
 ---
 
@@ -12,370 +35,795 @@ This document describes the AA (Account Abstraction) module structure, how confi
 %%{init: {'theme': 'neutral'}}%%
 graph TB
     subgraph "AA core (aa/)"
-        TYPES[types.ts<br/>AAConfig, AAState, executeWalletCalls]
+        TYPES[types.ts<br/>AAConfig, DEFAULT_AA_CONFIG,<br/>executeWalletCalls]
         OWNER[owner.ts<br/>AAOwner, getOwnerParams]
-        ENV_AGG[env.ts<br/>readEnv, readGasPolicyEnv<br/>isProviderConfigured<br/>resolveDefaultProvider]
-        ADAPT[adapt.ts<br/>adaptSmartAccount<br/>isAlchemySponsorshipLimitError]
-        RESOLVE_BARREL[resolve.ts<br/>re-exports]
-        CREATE_FACADE[create.ts<br/>createAAProviderState]
+        ADAPT[adapt.ts<br/>adaptSmartAccount]
+        CREATE[create.ts<br/>createAAProviderState]
     end
 
     subgraph "aa/alchemy/"
-        ALCH_ENV[env.ts<br/>key/policy env lists]
-        ALCH_RES[resolve.ts<br/>resolveAlchemyConfig]
-        ALCH_PROV[provider.ts<br/>createAlchemyAAProvider]
+        ALCH_PROV[provider.ts<br/>resolveForHook + createAlchemyAAProvider]
         ALCH_CREATE[create.ts<br/>createAlchemyAAState]
     end
 
-    subgraph "External SDK (dynamic import)"
-        AA_ALCH["@getpara/aa-alchemy"]
+    subgraph "aa/pimlico/"
+        PIM_RESOLVE[resolve.ts<br/>resolvePimlicoConfig]
+        PIM_PROV[provider.ts<br/>createPimlicoAAProvider]
+        PIM_CREATE[create.ts<br/>createPimlicoAAState]
     end
 
-    subgraph "Consumers"
-        EXEC[cli/execution.ts<br/>resolveCliExecutionDecision<br/>createCliProviderState]
-        AA_CFG[cli/aa-config.ts<br/>~/.aomi/aa.json]
-        WALLET[cli/commands/wallet.ts<br/>signCommand, fallbacks]
-        TX_DEF[cli/commands/defs/tx.ts<br/>aomi tx sign]
-        REACT[React<br/>useAlchemyAAProvider]
+    subgraph "External libs"
+        WALLET_APIS["@alchemy/wallet-apis"]
+        PARA_ALCH["@getpara/aa-alchemy"]
+        PARA_PIM["@getpara/aa-pimlico"]
+        VIEM_RAW[viem + viem/experimental/erc7821]
     end
 
-    ALCH_ENV --> ENV_AGG
-    RESOLVE_BARREL --> ALCH_RES
-    TYPES --> ALCH_RES
-    TYPES --> ADAPT
-    TYPES --> CREATE_FACADE
+    subgraph "CLI"
+        CLI_DEF[cli/commands/defs/shared.ts<br/>buildCliConfig]
+        CLI_EXEC[cli/execution.ts<br/>resolveCliExecutionDecision<br/>createCliProviderState]
+        CLI_WALLET[cli/commands/wallet.ts<br/>signCommand]
+        CLI_CHAINS[chains.ts<br/>ALCHEMY_CHAIN_SLUGS]
+    end
+
+    TYPES --> ALCH_PROV
+    TYPES --> ALCH_CREATE
+    TYPES --> PIM_RESOLVE
+    TYPES --> CREATE
+    TYPES --> CLI_EXEC
     OWNER --> ALCH_CREATE
+    OWNER --> PIM_CREATE
     ADAPT --> ALCH_CREATE
-    ALCH_RES --> ALCH_PROV
-    ALCH_RES --> ALCH_CREATE
-    CREATE_FACADE --> ALCH_CREATE
+    ADAPT --> PIM_CREATE
+    CREATE --> ALCH_CREATE
+    CREATE --> PIM_CREATE
+    PIM_RESOLVE --> PIM_PROV
+    PIM_RESOLVE --> PIM_CREATE
+    CLI_DEF --> CLI_EXEC
+    CLI_CHAINS --> CLI_EXEC
+    CLI_EXEC --> CLI_WALLET
 
-    AA_ALCH -.-> ALCH_CREATE
-
-    ENV_AGG --> EXEC
-    RESOLVE_BARREL --> EXEC
-    CREATE_FACADE --> EXEC
-    AA_CFG --> EXEC
-    EXEC --> WALLET
-    TX_DEF --> WALLET
-    ALCH_PROV --> REACT
+    TYPES -.dynamic import.-> VIEM_RAW
+    ALCH_CREATE -.dynamic import.-> WALLET_APIS
+    ALCH_CREATE -.dynamic import.-> PARA_ALCH
+    ALCH_CREATE -.dynamic import.-> VIEM_RAW
+    PIM_CREATE -.dynamic import.-> PARA_PIM
 ```
 
-Pimlico uses the same folder pattern under `aa/pimlico/` (`@getpara/aa-pimlico`); it is omitted here to keep the diagram small.
+**Provider SDK boundary:** provider-specific SDK imports only happen in the
+async creator files:
 
-**SDK boundary:** `@getpara/aa-alchemy` and `@getpara/aa-pimlico` are loaded only inside `aa/alchemy/create.ts` and `aa/pimlico/create.ts` (dynamic `import()`). Other modules depend on the abstract `AALike` shape and `AAOwner` resolution from `owner.ts`.
+- `aa/alchemy/create.ts`
+- `aa/pimlico/create.ts`
 
----
+The hook factories do not import SDKs themselves. They only resolve config and
+hand it to the caller's hook.
 
-## Owner model (`AAOwner`)
+`aa/types.ts` also uses lazy `viem` imports at execution time for:
 
-Smart-account creation takes an **`AAOwner`**, not a bare private key:
-
-- **`{ kind: "direct", privateKey }`** — CLI path; viem `privateKeyToAccount` feeds the Para SDK.
-- **`{ kind: "session", adapter: "para", session, signer?, address? }`** — session-backed signing (extensible; unsupported adapters yield a clear error state).
-
-`getOwnerParams()` maps `AAOwner` into the shape expected by `createAlchemySmartAccount` / `createPimlicoSmartAccount`. The CLI wrapper `createCliProviderState` in `cli/execution.ts` always passes `owner: { kind: "direct", privateKey }`.
-
----
-
-## CLI persistence
-
-Config file: **`~/.aomi/aa.json`**. `cli/aa-config.ts` stores optional defaults: preferred `provider`, `mode` (4337 | 7702), `fallback` (`eoa` | `none`), and per-provider `apiKey` / `gasPolicyId` (Alchemy).
-
-**Credential resolution (CLI):** For each provider, `readEnv(...)` is tried first; if missing, persisted keys from `aa.json` are used (`getPersistedAAApiKey`, `getPersistedAlchemyGasPolicyId`).
-
-**Provider selection (CLI, `resolveAAProvider` in `execution.ts`):** when the user has forced AA mode (`--aa`, or `--aa-provider`, or `--aa-mode`, or env `AOMI_AA_PROVIDER` / `AOMI_AA_MODE` via `getConfig`): explicit `aaProvider` from flag/env (must have a key or an error is thrown) → else persisted `provider` (if that provider has a key) → else first env/persisted match for alchemy → pimlico. If nothing is configured, `resolveCliExecutionDecision` throws with a “configure AA” message.
-
-**Persisted `fallback` (`eoa` | `none`):** Still read/written by `aa-config` and shown in **`aomi aa status`**. Signing does **not** read it anymore — there is no automatic EOA retry after AA failure.
-
-Users manage this file via **`aomi aa status | set | test | reset`**.
+- EOA submission with a local private key
+- best-effort 7702 delegation lookup from the on-chain transaction
 
 ---
 
-## The `publicOnly` Flag
+## Shared Types And Defaults
 
-The single knob that separates browser-safe from CLI usage:
+### Core types
 
-```mermaid
-graph LR
-    subgraph "Library path (React hooks)"
-        LH[createAlchemyAAProvider<br/>createPimlicoAAProvider]
-        LR[resolveAlchemyConfig<br/>resolvePimlicoConfig]
-        LE[readEnv]
-        LH -->|"publicOnly: true"| LR
-        LR -->|"publicOnly: true"| LE
-        LE -->|"skips ALCHEMY_API_KEY<br/>reads NEXT_PUBLIC_ALCHEMY_API_KEY"| ENV_PUB[Browser-safe env vars]
-    end
+`aa/types.ts` defines the shared model:
 
-    subgraph "CLI path"
-        CE[resolveCliExecutionDecision<br/>createCliProviderState]
-        CR[resolveAlchemyConfig<br/>resolvePimlicoConfig]
-        CRE[readEnv + persisted keys]
-        CE -->|"publicOnly: false (default)"| CR
-        CR -->|"publicOnly: false"| CRE
-        CRE -->|"env first, then ~/.aomi/aa.json"| ENV_ALL[Keys + gas policy]
-    end
+- `AAProvider = "alchemy" | "pimlico"`
+- `AAMode = "4337" | "7702"`
+- `AASponsorship = "disabled" | "optional" | "required"`
+- `AAConfig`
+- `AAChainConfig`
+- `AAResolvedConfig`
+- `AAState`
+- `SmartAccount`
+- `ExecutionResult`
+
+`AAConfig` is still the generic contract used by hook factories and planning:
+
+```ts
+type AAConfig = {
+  enabled: boolean;
+  provider: "alchemy" | "pimlico";
+  fallbackToEoa: boolean;
+  chains: AAChainConfig[];
+};
 ```
 
----
+### Default chain matrix
 
-## Config resolution flow
+`DEFAULT_AA_CONFIG` currently enables AA on five chains:
+
+| Chain | ID | defaultMode | supportedModes | allowBatching | sponsorship |
+| --- | --- | --- | --- | --- | --- |
+| Ethereum | `1` | `7702` | `4337`, `7702` | `true` | `optional` |
+| Polygon | `137` | `4337` | `4337`, `7702` | `true` | `optional` |
+| Arbitrum One | `42161` | `4337` | `4337`, `7702` | `true` | `optional` |
+| Optimism | `10` | `4337` | `4337`, `7702` | `true` | `optional` |
+| Base | `8453` | `4337` | `4337`, `7702` | `true` | `optional` |
+
+Two important details:
+
+- `DEFAULT_AA_CONFIG.fallbackToEoa` is still `true`.
+- The CLI chain registry also includes Sepolia (`11155111`), but Sepolia is
+  not present in `DEFAULT_AA_CONFIG`, so AA resolution fails there.
+
+### Planning helpers
+
+`getAAChainConfig(config, calls, chainsById)` returns `null` unless all of the
+following are true:
+
+- AA is enabled.
+- The call list is non-empty.
+- All calls target the same chain.
+- The target chain exists in `chainsById`.
+- The chain is enabled in `config.chains`.
+- Batching is allowed when `calls.length > 1`.
+
+`buildAAExecutionPlan(config, chainConfig)` chooses:
+
+- `chainConfig.defaultMode` when it appears in `supportedModes`
+- otherwise the first supported mode
+
+and returns:
+
+```ts
+type AAResolvedConfig = {
+  provider: "alchemy" | "pimlico";
+  chainId: number;
+  mode: "4337" | "7702";
+  batchingEnabled: boolean;
+  sponsorship: "disabled" | "optional" | "required";
+  fallbackToEoa: boolean;
+};
+```
+
+`getWalletExecutorReady(providerState)` treats AA as "ready enough" when:
+
+- no AA plan is active, or
+- the provider has finished loading and now has either:
+  - an account,
+  - an error, or
+  - `fallbackToEoa === true`
 
 ```mermaid
 flowchart TD
-    START([calls + chainsById + options]) --> NULL_CHECK{calls is null<br/>or localPrivateKey?}
-    NULL_CHECK -->|yes| RET_NULL([return null])
-    NULL_CHECK -->|no| CHAIN_CFG[getAAChainConfig<br/>find matching chain in AAConfig]
-
-    CHAIN_CFG --> CHAIN_OK{chain config<br/>found?}
-    CHAIN_OK -->|no + throwOnMissingConfig| THROW1([throw Error])
-    CHAIN_OK -->|no| RET_NULL
-    CHAIN_OK -->|yes| READ_KEY[readEnv API key candidates<br/>respecting publicOnly<br/>+ optional apiKey override]
-
-    READ_KEY --> KEY_OK{API key<br/>found?}
-    KEY_OK -->|no + throwOnMissingConfig| THROW2([throw Error])
-    KEY_OK -->|no| RET_NULL
-    KEY_OK -->|yes| CHAIN_LOOKUP{chain in<br/>chainsById?}
-
-    CHAIN_LOOKUP -->|no| RET_NULL
-    CHAIN_LOOKUP -->|yes| GAS{Alchemy?}
-
-    GAS -->|yes| GAS_POL[readGasPolicyEnv<br/>chain-specific then base]
-    GAS -->|no / pimlico| MODE_CHECK
-
-    GAS_POL --> SPONSOR_CHECK{sponsorship required<br/>and no policy?}
-    SPONSOR_CHECK -->|yes + throw| THROW3([throw Error])
-    SPONSOR_CHECK -->|yes| RET_NULL
-    SPONSOR_CHECK -->|no| MODE_CHECK
-
-    MODE_CHECK{modeOverride<br/>provided?}
-    MODE_CHECK -->|yes| VALIDATE_MODE{mode in<br/>supportedModes?}
-    VALIDATE_MODE -->|no + throw| THROW4([throw Error])
-    VALIDATE_MODE -->|no| RET_NULL
-    VALIDATE_MODE -->|yes| BUILD_PLAN
-    MODE_CHECK -->|no| BUILD_PLAN
-
-    BUILD_PLAN[buildAAExecutionPlan<br/>→ AAExecutionPlan] --> RETURN([return ResolvedConfig])
+    START([AAConfig + calls + chainsById]) --> ENABLED{config.enabled?}
+    ENABLED -->|no| RET_NULL([return null])
+    ENABLED -->|yes| CALLS{calls.length > 0?}
+    CALLS -->|no| RET_NULL
+    CALLS -->|yes| ONE_CHAIN{exactly one chainId?}
+    ONE_CHAIN -->|no| RET_NULL
+    ONE_CHAIN -->|yes| KNOWN_CHAIN{chain exists in chainsById?}
+    KNOWN_CHAIN -->|no| RET_NULL
+    KNOWN_CHAIN -->|yes| CHAIN_CFG[find AAChainConfig by chainId]
+    CHAIN_CFG --> CHAIN_ENABLED{chain enabled?}
+    CHAIN_ENABLED -->|no| RET_NULL
+    CHAIN_ENABLED -->|yes| BATCH_OK{single call or allowBatching?}
+    BATCH_OK -->|no| RET_NULL
+    BATCH_OK -->|yes| PLAN[buildAAExecutionPlan]
+    PLAN --> MODE{defaultMode valid?}
+    MODE -->|yes| RESOLVED([AAResolvedConfig])
+    MODE -->|no| FIRST_SUPPORTED[use first supported mode]
+    FIRST_SUPPORTED --> RESOLVED
 ```
 
 ---
 
-## Library AA flow (React hooks)
+## Owner Model
+
+Smart-account creation takes an `AAOwner`, not a bare key:
+
+- `{ kind: "direct", privateKey }`
+- `{ kind: "session", adapter: "para", session, signer?, address? }`
+
+`owner.ts` resolves this into the SDK owner shape:
+
+- direct owner -> `privateKeyToAccount(privateKey)` signer
+- Para session owner -> `{ para: session, signer?, address? }`
+
+Current adapter support is narrow by design:
+
+- `para` is implemented
+- any other `adapter` returns an `unsupported_adapter` result
+
+The owner helpers also produce consistent error states:
+
+- `getMissingOwnerState(...)`
+- `getUnsupportedAdapterState(...)`
+
+These return an `AAState` with `account: null`, `pending: false`, and a clear
+error message instead of throwing synchronously.
+
+```mermaid
+flowchart TD
+    START([getOwnerParams]) --> EXISTS{owner provided?}
+    EXISTS -->|no| MISSING([kind: missing])
+    EXISTS -->|yes| KIND{owner.kind}
+
+    KIND -->|direct| DIRECT[privateKeyToAccount]
+    DIRECT --> READY_DIRECT([kind: ready<br/>ownerParams.signer])
+
+    KIND -->|session| ADAPTER{owner.adapter}
+    ADAPTER -->|para| PARA{signer provided?}
+    ADAPTER -->|other| UNSUP([kind: unsupported_adapter])
+
+    PARA -->|yes| PARA_SIGNER([kind: ready<br/>para + signer + optional address])
+    PARA -->|no| PARA_ONLY([kind: ready<br/>para + optional address])
+```
+
+---
+
+## Alchemy Implementation
+
+### Hook path: `aa/alchemy/provider.ts`
+
+`createAlchemyAAProvider()` is the browser-facing factory. It does not know how
+to build a smart account by itself; it only resolves config and passes
+`AlchemyHookParams` into a caller-provided `useAlchemyAA` hook.
+
+The internal `resolveForHook()` behavior is:
+
+- returns `null` when `calls` is `null`
+- returns `null` when `localPrivateKey` is present
+- builds a chain plan from `AAConfig`
+- reads only:
+  - `NEXT_PUBLIC_ALCHEMY_API_KEY`
+  - `NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID`
+- returns `null` when the public API key is missing
+
+The hook resolver is intentionally simpler than the old architecture:
+
+- there is no shared `resolveAlchemyConfig()`
+- there is no `publicOnly` flag for Alchemy anymore
+- there is no proxy mode in the React hook path
+
+`CreateAlchemyAAProviderOptions` still includes `chainSlugById`,
+`apiKeyEnvVar`, and `gasPolicyEnvVar`, but the current resolver reads the fixed
+`NEXT_PUBLIC_*` env vars directly.
 
 ```mermaid
 sequenceDiagram
-    participant App as App component
+    participant App as App
     participant Hook as useAlchemyAAProvider
-    participant Resolve as resolveAlchemyConfig
-    participant Env as readEnv
-    participant Types as getAAChainConfig
+    participant Resolve as resolveForHook
+    participant Types as getAAChainConfig / buildAAExecutionPlan
+    participant Env as NEXT_PUBLIC_ALCHEMY_*
     participant UserHook as useAlchemyAA
 
     App->>Hook: calls, localPrivateKey
-
-    Hook->>Resolve: resolve config (publicOnly: true)
-    Resolve->>Env: readEnv(ALCHEMY_API_KEY_ENVS, publicOnly: true)
-    Env-->>Resolve: apiKey or undefined
+    Hook->>Resolve: resolveForHook(...)
+    Resolve->>Resolve: reject null calls / localPrivateKey
     Resolve->>Types: getAAChainConfig(config, calls, chainsById)
     Types-->>Resolve: AAChainConfig or null
-    Resolve->>Types: buildAAExecutionPlan(config, chainConfig)
-    Types-->>Resolve: AAExecutionPlan
+    Resolve->>Env: read NEXT_PUBLIC_ALCHEMY_API_KEY
+    Env-->>Resolve: apiKey or undefined
+    Resolve->>Env: read NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID
+    Env-->>Resolve: gasPolicyId or undefined
+    Resolve->>Types: buildAAExecutionPlan(...)
+    Types-->>Resolve: AAResolvedConfig
 
     alt Config resolved
-        Resolve-->>Hook: AlchemyResolvedConfig
-        Hook->>UserHook: AlchemyHookParams (enabled, apiKey, chain, rpcUrl, gasPolicyId, mode)
+        Resolve-->>Hook: resolved + apiKey + chain + rpcUrl
+        Hook->>UserHook: useAlchemyAA({ enabled, apiKey, chain, rpcUrl, gasPolicyId, mode })
         UserHook-->>Hook: account, pending, error
         Hook-->>App: AAState { resolved, account, pending, error }
     else Config not resolved
         Resolve-->>Hook: null
-        Hook->>UserHook: undefined (disabled)
-        UserHook-->>Hook: empty query
-        Hook-->>App: AAState (resolved: null, …)
+        Hook->>UserHook: useAlchemyAA(undefined)
+        UserHook-->>Hook: idle / empty state
+        Hook-->>App: AAState { resolved: null, ... }
     end
 ```
 
----
+### Async create path: `aa/alchemy/create.ts`
 
-## CLI AA flow (`aomi tx sign`)
+`createAlchemyAAState()` is the real Alchemy constructor. It:
 
-```mermaid
-sequenceDiagram
-    participant User as User (terminal)
-    participant Tx as tx sign → signCommand
-    participant Exec as resolveCliExecutionDecision
-    participant Resolve as resolveAlchemyConfig / resolvePimlicoConfig
-    participant Persist as readAAConfig (~/.aomi/aa.json)
-    participant CliCreate as createCliProviderState
-    participant AACreate as createAAProviderState
-    participant SDK as AA SDK (dynamic)
-    participant Adapt as adaptSmartAccount
-    participant Execute as executeWalletCalls
-    participant Chain as Chain
-
-    User->>Tx: aomi tx sign tx-1 ...
-    Tx->>Exec: config, chain, callList
-    Exec->>Persist: provider + keys + mode (when resolving AA)
-    Exec->>Resolve: calls, chainsById, modeOverride, throwOnMissingConfig: true
-    Resolve-->>Exec: resolved plan + mode (4337 may be overridden for ERC-20 + 4337)
-    Exec-->>Tx: CliExecutionDecision { execution: aa|eoa, provider?, aaMode? }
-
-    Tx->>CliCreate: decision, chain, privateKey, rpcUrl, callList
-    CliCreate->>AACreate: owner: direct privateKey, apiKey/gasPolicy from env + persist
-    AACreate->>SDK: createAlchemySmartAccount / createPimlicoSmartAccount
-    SDK-->>AACreate: ParaSmartAccountLike
-    AACreate->>Adapt: adaptSmartAccount
-    Adapt-->>AACreate: AALike
-    AACreate-->>Tx: AAState { resolved, account, … }
-
-    Tx->>Execute: executeCliTransaction → executeWalletCalls once
-    Execute->>Execute: plan + account → executeViaAA (or EOA if decision was eoa)
-
-    alt Single call
-        Execute->>Execute: AA.sendTransaction(call)
-    else Batch
-        Execute->>Execute: AA.sendBatchTransaction(calls)
-    end
-
-    Execute->>Chain: UserOperation / 7702 delegation
-    Chain-->>Execute: receipt
-    Execute-->>Tx: ExecutionResult { txHash, executionKind, sponsored, … }
-
-    Tx-->>User: Sent! Hash: 0x…
-```
-
-**4337 + ERC-20:** If the planned mode is **4337** and calldata looks like ERC-20 `approve` / `transfer` / `transferFrom`, `execution.ts` may **auto-switch to 7702** when that mode is supported on the chain (tokens stay on the EOA). Otherwise it logs a warning and keeps 4337.
-
-**Alchemy gas sponsorship (CLI):** `createCliProviderState` does not pass `sponsored`; `createAlchemyAAState` defaults to **`sponsored: true`**, so a gas policy is applied when configured. Failures surface to the user; there is no unsponsored retry or EOA fallback in `signCommand`.
-
----
-
-## AA execution routing
-
-`executeWalletCalls` (in `aa/types.ts`) still branches on **`resolved.fallbackToEoa`** when the hook/provider left an error on `AAState` without a usable account. That flag comes from **`AAConfig`** in app/widget usage. The CLI Alchemy creator sets **`fallbackToEoa: false`** on the resolved plan, so the CLI private-key path normally goes AA or EOA based on `CliExecutionDecision`, not this branch.
+1. Resolves the chain from `DEFAULT_AA_CONFIG`.
+2. Applies an explicit `mode` override when one is passed.
+3. Resolves `gasPolicyId` from:
+   - `options.gasPolicyId`, else
+   - `process.env.ALCHEMY_GAS_POLICY_ID`
+4. Builds a resolved plan and forces `fallbackToEoa: false`.
+5. Splits by owner type and AA mode.
 
 ```mermaid
 flowchart TD
-    START([executeWalletCalls]) --> HAS_AA{providerState.resolved<br/>+ providerState.account?}
+    START([createAlchemyAAState]) --> CHAIN_CFG[getAAChainConfig]
+    CHAIN_CFG --> FOUND{chain configured?}
+    FOUND -->|no| THROW_CFG([throw AA is not configured])
+    FOUND -->|yes| PLAN[buildAAExecutionPlan + force fallbackToEoa false]
+    PLAN --> GAS[resolve gasPolicyId if sponsored]
+    GAS --> OWNER[getOwnerParams]
 
-    HAS_AA -->|yes| VIA_AA[executeViaAA]
+    OWNER --> OWNER_KIND{owner result}
+    OWNER_KIND -->|missing| ERR_MISSING([return missing-owner AAState])
+    OWNER_KIND -->|unsupported_adapter| ERR_ADAPTER([return unsupported-adapter AAState])
+    OWNER_KIND -->|ready| OWNER_TYPE{owner.kind}
 
-    VIA_AA --> BATCH{calls.length > 1?}
-    BATCH -->|yes| BATCH_TX[AA.sendBatchTransaction]
-    BATCH -->|no| SINGLE_TX[AA.sendTransaction]
-    BATCH_TX --> AA_RESULT([ExecutionResult<br/>executionKind: provider_mode<br/>sponsored: from plan])
-    SINGLE_TX --> AA_RESULT
+    OWNER_TYPE -->|direct| MODE{mode 7702 or 4337?}
+    MODE -->|7702| RAW_7702[createAlchemy7702State<br/>raw viem + erc7821]
+    MODE -->|4337| WALLET_4337["createAlchemy4337State<br/>@alchemy/wallet-apis"]
 
-    HAS_AA -->|no| HAS_ERROR{resolved + error<br/>+ !resolved.fallbackToEoa?}
-    HAS_ERROR -->|yes| THROW([throw error])
+    OWNER_TYPE -->|session| NEED_KEY{apiKey provided?}
+    NEED_KEY -->|no| ERR_KEY([return session-owner error AAState])
+    NEED_KEY -->|yes| SDK_ALCH["@getpara/aa-alchemy"]
+    SDK_ALCH --> ADAPT_ALCH[adaptSmartAccount]
 
-    HAS_ERROR -->|no| VIA_EOA[executeViaEoa]
+    RAW_7702 --> RETURN_7702([AAState])
+    WALLET_4337 --> RETURN_4337([AAState])
+    ADAPT_ALCH --> RETURN_SESSION([AAState])
+```
 
-    VIA_EOA --> HAS_PK{localPrivateKey?}
-    HAS_PK -->|yes| PK_PATH[viem WalletClient<br/>per-call sendTransaction<br/>+ waitForReceipt]
-    HAS_PK -->|no| WALLET_PATH{wallet capabilities<br/>atomic supported?}
+#### Direct owner, `4337`
 
-    WALLET_PATH -->|yes| SEND_CALLS[sendCallsSyncAsync<br/>atomic batch]
-    WALLET_PATH -->|no| SEND_INDIVIDUAL[sendTransactionAsync<br/>per-call]
+Direct-owner `4337` uses `@alchemy/wallet-apis`, not `@getpara/aa-alchemy`.
 
-    PK_PATH --> EOA_RESULT([ExecutionResult<br/>executionKind: eoa<br/>sponsored: false])
-    SEND_CALLS --> EOA_RESULT
-    SEND_INDIVIDUAL --> EOA_RESULT
+Key behaviors:
+
+- transport is:
+  - `alchemyWalletTransport({ url: proxyBaseUrl })` when proxy mode is active
+  - otherwise `alchemyWalletTransport({ apiKey })`
+- signer is created from `privateKeyToAccount(...)`
+- paymaster config is included only when `gasPolicyId` exists
+- the account ID is derived deterministically from the signer address by
+  `deriveAlchemy4337AccountId()`
+- account creation uses:
+  - `requestAccount({ signerAddress, id, creationHint: { accountType: "sma-b", createAdditional: true } })`
+- if Alchemy reports `Account with address 0x... already exists`, the code
+  retries with `requestAccount({ accountAddress })`
+- sends happen through `alchemyClient.sendCalls(...)` +
+  `waitForCallsStatus(...)`
+- the returned transaction hash comes from `status.receipts?.[0]?.transactionHash`
+
+This path produces a `SmartAccount` whose `AAAddress` is the 4337 account
+address returned by Wallet APIs.
+
+#### Direct owner, `7702`
+
+Direct-owner `7702` bypasses Wallet APIs and uses raw `viem`.
+
+Key behaviors:
+
+- fixed delegation target:
+  - `0x69007702764179f14F51cdce752f4f775d74E139`
+- RPC selection prefers:
+  - `proxyBaseUrl`, then
+  - `alchemyRpcUrl(chainId, apiKey)`, then
+  - default transport fallback
+- authorization is signed with `walletClient.signAuthorization(...)`
+- call bundles are encoded with `encodeExecuteData(...)`
+- gas is estimated with `authorizationList` included
+- the code adds a hard-coded `25000` gas overhead for the 7702 authorization
+- the raw transaction is sent to the signer's own EOA
+- receipt status is checked and a reverted receipt throws
+
+This path returns a `SmartAccount` with:
+
+- `provider: "alchemy"`
+- `mode: "7702"`
+- `AAAddress = signer.address`
+- `delegationAddress = 0x6900...E139`
+
+If a gas policy is configured, the 7702 path prints a warning that raw 7702 is
+not paymaster-sponsored and the EOA pays gas directly.
+
+#### Session owner
+
+Alchemy session-owner creation still uses `@getpara/aa-alchemy`.
+
+Current rule:
+
+- session owners require a real `apiKey`
+- proxy mode is not supported for session owners
+
+If `options.apiKey` is missing for a session owner, `createAlchemyAAState()`
+returns an `AAState` with an error:
+
+```text
+Alchemy AA with session/adapter owner requires ALCHEMY_API_KEY.
 ```
 
 ---
 
-## CLI execution model
+## Pimlico Implementation
 
-No silent fallbacks and no AA↔EOA retry chain. `signCommand` in `wallet.ts`:
+`aa/pimlico/resolve.ts` is the only remaining provider-specific resolve module.
 
-1. `resolveCliExecutionDecision()` → `CliExecutionDecision`: `{ execution: "eoa" }` or `{ execution: "aa", provider, aaMode }` (no `fallbackToEoa` field).
-2. `createCliProviderState()` builds `AAState` or `DISABLED_PROVIDER_STATE` for EOA.
-3. `executeCliTransaction()` → `executeWalletCalls()` **once**. Errors propagate.
+`resolvePimlicoConfig()` does all of the following:
 
-**Execution mode (`args.ts` → `CliConfig.execution`):**
+- disables AA when `calls` is `null`
+- disables AA when `localPrivateKey` is present
+- builds a chain plan from `AAConfig`
+- validates `modeOverride` against `supportedModes`
+- resolves the API key from:
+  - `options.apiKey`, else
+  - `PIMLICO_API_KEY`, else
+  - `NEXT_PUBLIC_PIMLICO_API_KEY` when `publicOnly === true`
 
-- `--eoa` → always EOA.
-- `--aa`, or **`--aa-provider`**, or **`--aa-mode`** (or `AOMI_AA_PROVIDER` / `AOMI_AA_MODE`) → AA; throws if no provider credentials.
-- Otherwise → **EOA**, even when AA keys exist — users must pass one of the AA triggers above to use AA.
+When `throwOnMissingConfig` is true, Pimlico resolution throws on:
 
-| Keys in env / `aa.json`? | Flags / env forcing AA | Result |
-|---|---|---|
-| Yes | `--aa` (or `--aa-provider` / `--aa-mode` / env equivalents) | AA; fail on error |
-| Yes | `--eoa` | EOA |
-| Yes | (none) | EOA |
-| No | AA forced | Error: configure provider + key |
-| No | (none) or `--eoa` | EOA |
+- unsupported / disabled chain
+- missing API key
+- unsupported mode override
 
-Users typically run `aomi aa set provider <name>` and `aomi aa set key <key>`, then pass **`--aa`** (or set provider/mode flags) on `aomi tx sign`.
+`createPimlicoAAProvider()` is the React-facing factory:
 
----
+- it calls `resolvePimlicoConfig(... publicOnly: true)`
+- it forwards `PimlicoHookParams` into a caller-provided `usePimlicoAA` hook
 
-## Smart account adapter
+`createPimlicoAAState()` is the async creator:
 
-The `adaptSmartAccount` function bridges the SDK-specific `ParaSmartAccountLike` shape into the library's abstract `AALike` interface:
+- it calls `resolvePimlicoConfig(... throwOnMissingConfig: true)`
+- it forces `fallbackToEoa: false`
+- it dynamically imports `@getpara/aa-pimlico`
+- it uses the shared owner-resolution path from `owner.ts`
+- it adapts the SDK smart account through `adaptSmartAccount(...)`
+
+Unlike Alchemy, Pimlico does not have a proxy transport path in the current
+code.
 
 ```mermaid
-graph LR
-    subgraph "SDK shape (ParaSmartAccountLike)"
-        SA_ADDR[smartAccountAddress: Hex]
-        SA_SEND["sendTransaction() → TransactionReceipt"]
-        SA_BATCH["sendBatchTransaction() → TransactionReceipt"]
-    end
+flowchart TD
+    START([resolvePimlicoConfig]) --> CALLS{calls present?}
+    CALLS -->|no| RET_NULL([return null])
+    CALLS -->|yes| LOCAL_PK{localPrivateKey present?}
+    LOCAL_PK -->|yes| RET_NULL
+    LOCAL_PK -->|no| CHAIN_CFG[getAAChainConfig]
+    CHAIN_CFG --> FOUND{chain configured?}
+    FOUND -->|no| THROW_OR_NULL{throwOnMissingConfig?}
+    THROW_OR_NULL -->|yes| THROW_CHAIN([throw chain/batching error])
+    THROW_OR_NULL -->|no| RET_NULL
+    FOUND -->|yes| API_KEY[resolve apiKey from option or env]
+    API_KEY --> HAS_KEY{apiKey found?}
+    HAS_KEY -->|no| THROW_KEY{throwOnMissingConfig?}
+    THROW_KEY -->|yes| THROW_API([throw missing api key])
+    THROW_KEY -->|no| RET_NULL
+    HAS_KEY -->|yes| MODE_OK{modeOverride supported?}
+    MODE_OK -->|no| THROW_MODE{throwOnMissingConfig?}
+    THROW_MODE -->|yes| THROW_MODE_ERR([throw unsupported mode])
+    THROW_MODE -->|no| RET_NULL
+    MODE_OK -->|yes| PLAN[buildAAExecutionPlan]
+    PLAN --> RESOLVED([PimlicoResolvedConfig])
 
-    subgraph "adaptSmartAccount()"
-        ADAPT[Bridge layer]
-    end
-
-    subgraph "Library shape (AALike)"
-        AA_ADDR[AAAddress: Hex]
-        AA_SEND["sendTransaction() → { transactionHash }"]
-        AA_BATCH["sendBatchTransaction() → { transactionHash }"]
-    end
-
-    SA_ADDR -->|rename| ADAPT
-    SA_SEND -->|"unwrap receipt.transactionHash"| ADAPT
-    SA_BATCH -->|"unwrap receipt.transactionHash"| ADAPT
-    ADAPT --> AA_ADDR
-    ADAPT --> AA_SEND
-    ADAPT --> AA_BATCH
+    RESOLVED --> CREATE_PIM[createPimlicoAAState]
+    CREATE_PIM --> OWNER_PIM[getOwnerParams]
+    OWNER_PIM --> SDK_PIM["@getpara/aa-pimlico"]
+    SDK_PIM --> ADAPT_PIM[adaptSmartAccount]
+    ADAPT_PIM --> RETURN_PIM([AAState])
 ```
 
 ---
 
-## Env var resolution order
+## Smart Account Adapter
 
-| Provider | Env var (private-first) | Env var (`publicOnly`) |
-|----------|-------------------------|-------------------------|
-| **Alchemy API key** | `ALCHEMY_API_KEY` → `NEXT_PUBLIC_ALCHEMY_API_KEY` | `NEXT_PUBLIC_ALCHEMY_API_KEY` |
-| **Alchemy gas policy** | `ALCHEMY_GAS_POLICY_ID_{CHAIN}` → `ALCHEMY_GAS_POLICY_ID` → `NEXT_PUBLIC_*` variants | `NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID_{CHAIN}` → `NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID` |
-| **Pimlico API key** | `PIMLICO_API_KEY` → `NEXT_PUBLIC_PIMLICO_API_KEY` | `NEXT_PUBLIC_PIMLICO_API_KEY` |
+`adaptSmartAccount()` is the bridge from provider SDK return values into the
+library-level `SmartAccount` interface consumed by `executeWalletCalls()`.
 
-**Default provider (`resolveDefaultProvider` in `env.ts`, env only):** alchemy (if configured) → pimlico (if configured) → throw.
+The important normalization is the 7702 guard:
 
-**CLI** additionally uses `~/.aomi/aa.json` and flags; see [CLI persistence](#cli-persistence) above.
+- if the SDK reports the same value for `smartAccountAddress` and
+  `delegationAddress`, the adapter drops that delegation address as bogus
 
 ---
 
-## Key files
+## Generic Execution Routing
 
-| File | Purpose | Imports SDK? |
-|------|---------|----------------|
-| `aa/types.ts` | Core types, `executeWalletCalls`, plans | No |
-| `aa/owner.ts` | `AAOwner`, `getOwnerParams` for creators | No |
-| `aa/env.ts` | `readEnv`, gas policy helpers, provider detection; re-exports env name lists | No |
-| `aa/alchemy/env.ts` | Alchemy env name constants | No |
-| `aa/pimlico/env.ts` | Pimlico env name constants | No |
-| `aa/adapt.ts` | Adapter + sponsorship error helper | No |
-| `aa/resolve.ts` | Re-exports `resolveAlchemyConfig`, `resolvePimlicoConfig` | No |
-| `aa/alchemy/resolve.ts` | Alchemy config resolution | No |
-| `aa/pimlico/resolve.ts` | Pimlico config resolution | No |
-| `aa/create.ts` | `createAAProviderState` facade | No |
-| `aa/alchemy/create.ts` | `createAlchemyAAState` | **Yes** (dynamic `@getpara/aa-alchemy`) |
-| `aa/pimlico/create.ts` | `createPimlicoAAState` | **Yes** (dynamic `@getpara/aa-pimlico`) |
-| `aa/alchemy/provider.ts` | `createAlchemyAAProvider` hook factory | No |
-| `aa/pimlico/provider.ts` | `createPimlicoAAProvider` | No |
-| `cli/execution.ts` | `resolveCliExecutionDecision`, `createCliProviderState`, ERC-20 mode guard | No |
-| `cli/args.ts` | `getConfig`, `resolveExecutionMode` (`--aa` / `--eoa` / implied AA) | No |
-| `cli/aa-config.ts` | Persistent AA JSON config | No |
-| `cli/commands/wallet.ts` | `signCommand`, single-shot `executeCliTransaction` | No |
-| `cli/commands/aa.ts` | `aomi aa` handlers (incl. test path to `createAAProviderState`) | No |
+`executeWalletCalls()` in `aa/types.ts` is still the single runtime router for
+both the React/widget path and the CLI private-key path.
+
+```mermaid
+flowchart TD
+    START([executeWalletCalls]) --> HAS_AA{providerState.resolved<br/>and providerState.account?}
+
+    HAS_AA -->|yes| VIA_AA[executeViaAA]
+    HAS_AA -->|no| HARD_FAIL{resolved + error<br/>and fallbackToEoa is false?}
+
+    HARD_FAIL -->|yes| THROW_ERR([throw providerState.error])
+    HARD_FAIL -->|no| VIA_EOA[executeViaEoa]
+
+    VIA_AA --> BATCH{callList.length > 1?}
+    BATCH -->|yes| AA_BATCH[account.sendBatchTransaction]
+    BATCH -->|no| AA_SINGLE[account.sendTransaction]
+    AA_BATCH --> AA_POST[build ExecutionResult]
+    AA_SINGLE --> AA_POST
+
+    AA_POST --> DELEG{mode === 7702<br/>and no delegationAddress?}
+    DELEG -->|yes| FETCH_TX[resolve7702Delegation<br/>via authorizationList]
+    DELEG -->|no| RETURN_AA([return AA result])
+    FETCH_TX --> RETURN_AA
+
+    VIA_EOA --> LOCAL_PK{localPrivateKey?}
+    LOCAL_PK -->|yes| EOA_PK[per-call viem sendTransaction<br/>+ waitForTransactionReceipt]
+    LOCAL_PK -->|no| WALLET_PATH[mixed-chain guard -> switchChain -><br/>sendCallsSyncAsync or sendTransactionAsync]
+    EOA_PK --> RETURN_EOA([return eoa result])
+    WALLET_PATH --> RETURN_EOA
+```
+
+### AA path
+
+When `providerState.resolved` and `providerState.account` are both present:
+
+- single call -> `account.sendTransaction(...)`
+- multi-call -> `account.sendBatchTransaction(...)`
+
+The returned `ExecutionResult` contains:
+
+- `txHash`
+- `txHashes`
+- `executionKind = "${provider.toLowerCase()}_${mode}"`
+- `batched`
+- `sponsored = resolved.sponsorship !== "disabled"`
+- `AAAddress`
+- `delegationAddress`
+
+For `7702`, delegation metadata is best-effort:
+
+- first use `account.delegationAddress`
+- if it is missing, fetch the on-chain transaction and read
+  `authorizationList[0].address` or `authorizationList[0].contractAddress`
+
+That fallback only knows these chains:
+
+- Ethereum `1`
+- Polygon `137`
+- Arbitrum `42161`
+- Optimism `10`
+- Base `8453`
+
+### EOA path
+
+When AA is unavailable, or when `fallbackToEoa` remains enabled, the router
+falls back to plain EOA execution.
+
+There are two sub-paths:
+
+#### Local private key path
+
+When `localPrivateKey` is present:
+
+- each call is sent with a chain-specific `viem` wallet client
+- the code waits for every transaction receipt
+- mixed-chain batches are supported because each call is executed separately
+
+#### External wallet path
+
+When `localPrivateKey` is absent:
+
+- mixed-chain bundles are rejected
+- the wallet is switched to the call chain when needed
+- if wallet capabilities expose atomic batching as `supported` or `ready`,
+  the code uses `sendCallsSyncAsync({ capabilities: { atomic: { required: true }}})`
+- otherwise it sends each call individually with `sendTransactionAsync(...)`
+
+### `fallbackToEoa` in current code
+
+The generic router still honors `AAResolvedConfig.fallbackToEoa`.
+
+That matters for app/widget usage where callers may want:
+
+- "try AA if available"
+- "drop to EOA if AA resolves with an error"
+
+It does **not** drive the CLI's behavior. CLI-created AA states explicitly set
+`fallbackToEoa: false`.
+
+---
+
+## CLI Execution Model
+
+The relevant CLI files are:
+
+- `cli/commands/defs/shared.ts`
+- `cli/execution.ts`
+- `cli/commands/wallet.ts`
+
+The active command surface is `aomi tx sign`, not the old top-level `aomi sign`
+alias described by older docs.
+
+### Config parsing
+
+`buildCliConfig(args)` creates a `CliConfig` directly from citty args + env:
+
+- `execution` is:
+  - `"eoa"` when `--eoa` is passed
+  - `"aa"` when `--aa`, `--aa-provider`, or `--aa-mode` is passed
+  - `undefined` otherwise
+- `aaProvider` comes from:
+  - `--aa-provider`, else
+  - `AOMI_AA_PROVIDER`
+- `aaMode` comes from:
+  - `--aa-mode`, else
+  - `AOMI_AA_MODE`
+
+`--eoa` cannot be combined with `--aa-provider` or `--aa-mode`.
+
+### Provider decision tree
+
+`resolveCliExecutionDecision()` currently uses this order:
+
+| Condition | Result |
+| --- | --- |
+| `config.execution === "eoa"` | plain EOA |
+| `PIMLICO_API_KEY` is set and `config.aaProvider === "pimlico"` | Pimlico BYOK |
+| `ALCHEMY_API_KEY` is set | Alchemy BYOK |
+| otherwise | Alchemy proxy |
+
+So the zero-config default is now:
+
+```ts
+{ execution: "aa", provider: "alchemy", aaMode, proxy: true }
+```
+
+There is no persisted AA JSON config anymore.
+
+```mermaid
+flowchart TD
+    START([resolveCliExecutionDecision]) --> FORCE_EOA{config.execution === eoa?}
+    FORCE_EOA -->|yes| EOA([execution: eoa])
+    FORCE_EOA -->|no| PIM_KEY{PIMLICO_API_KEY set<br/>and aaProvider === pimlico?}
+    PIM_KEY -->|yes| PIM_MODE[Pick mode]
+    PIM_MODE --> PIM_DECISION([aa: pimlico BYOK])
+    PIM_KEY -->|no| ALCH_KEY{ALCHEMY_API_KEY set?}
+    ALCH_KEY -->|yes| ALCH_MODE[Pick mode]
+    ALCH_MODE --> ALCH_DECISION([aa: alchemy BYOK])
+    ALCH_KEY -->|no| PROXY_MODE[Pick mode]
+    PROXY_MODE --> PROXY_DECISION([aa: alchemy proxy])
+```
+
+### Mode selection and ERC-20 guardrail
+
+`resolveMode()` uses `DEFAULT_AA_CONFIG` for the chain's default mode, then
+passes the result through `maybeOverride4337ForTokenOps(...)`.
+
+That helper inspects calldata selectors for:
+
+- `approve(address,uint256)` -> `0x095ea7b3`
+- `transfer(address,uint256)` -> `0xa9059cbb`
+- `transferFrom(address,address,uint256)` -> `0x23b872dd`
+
+Behavior:
+
+- if the chosen mode is `4337`
+- and the call list contains ERC-20 operations
+- and the chain supports `7702`
+- and the user did **not** explicitly force `--aa-mode 4337`
+
+then the CLI logs a warning and auto-switches to `7702`.
+
+If the user explicitly requested `4337`, the CLI keeps `4337` and warns that
+tokens must already be in the smart account.
+
+```mermaid
+flowchart TD
+    START([resolveMode]) --> BASE[use explicit aaMode or chain defaultMode]
+    BASE --> TOKENS{mode === 4337<br/>and ERC20 selector detected?}
+    TOKENS -->|no| KEEP_BASE([keep chosen mode])
+    TOKENS -->|yes| SUPPORTED{chain supports 7702?}
+    SUPPORTED -->|no| WARN_KEEP([warn and keep 4337])
+    SUPPORTED -->|yes| EXPLICIT{explicit aaMode?}
+    EXPLICIT -->|yes| WARN_KEEP
+    EXPLICIT -->|no| SWITCH_7702([warn and switch to 7702])
+```
+
+### Provider state creation
+
+`createCliProviderState()` turns the decision into a concrete `AAState`:
+
+- `eoa` -> `DISABLED_PROVIDER_STATE`
+- `aa` -> `createAAProviderState(...)`
+
+For Alchemy proxy mode it derives:
+
+```text
+${baseUrl}/aa/v1/${ALCHEMY_CHAIN_SLUGS[chain.id]}
+```
+
+and passes that as `proxyBaseUrl`.
+
+CLI AA always uses a direct owner:
+
+```ts
+owner: { kind: "direct", privateKey }
+```
+
+### `signCommand()` flow
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Sign as signCommand
+    participant Sim as session.client.simulateBatch
+    participant Exec as resolveCliExecutionDecision
+    participant Create as createCliProviderState
+    participant AA as createAAProviderState
+    participant Router as executeWalletCalls
+    participant Backend as session.client.sendSystemMessage
+
+    User->>Sign: aomi tx sign <tx-id>...
+    Sign->>Sim: simulate pending tx batch
+    Sim-->>Sign: batch_success + optional fee
+    Sign->>Sign: append fee transfer when present
+    Sign->>Exec: resolve provider + mode
+    Exec-->>Sign: CliExecutionDecision
+
+    Sign->>Create: build provider state
+    Create->>AA: create Alchemy/Pimlico AA state
+    AA-->>Create: AAState
+    Create-->>Sign: providerState
+    Sign->>Router: executeWalletCalls(...)
+
+    alt primary mode succeeds
+        Router-->>Sign: ExecutionResult
+    else primary mode fails
+        Sign->>Sign: getAlternativeAAMode()
+        Sign->>Create: rebuild provider state with opposite mode
+        Sign->>Router: retry once
+        Router-->>Sign: ExecutionResult or error
+    end
+
+    Sign->>Backend: wallet:tx_complete
+    Sign-->>User: tx hash + AA metadata
+```
+
+Important runtime details:
+
+- transaction batches are simulated first with `session.client.simulateBatch(...)`
+- when simulation returns a fee, the CLI appends one extra native transfer call
+- AA execution is attempted with the resolved mode
+- if that AA attempt fails, the CLI retries once with the opposite mode:
+  - `7702 -> 4337`
+  - `4337 -> 7702`
+- if both AA modes fail, the command exits with an error and suggests `--eoa`
+
+There is **no** automatic AA -> EOA fallback in `signCommand()`.
+
+Typed-data signing is separate:
+
+- `kind === "eip712_sign"` bypasses the AA pipeline completely
+- the CLI signs via `walletClient.signTypedData(...)`
+
+---
+
+## Public Surface
+
+`packages/client/src/index.ts` re-exports the current AA API:
+
+- `DEFAULT_AA_CONFIG`
+- `getAAChainConfig`
+- `buildAAExecutionPlan`
+- `getWalletExecutorReady`
+- `executeWalletCalls`
+- `createAlchemyAAProvider`
+- `createPimlicoAAProvider`
+- `adaptSmartAccount`
+- `isAlchemySponsorshipLimitError`
+- `resolvePimlicoConfig`
+- `createAAProviderState`
+
+The generic AA facade is intentionally small now:
+
+- planning lives in `aa/types.ts`
+- provider-specific behavior lives in `aa/alchemy/*` and `aa/pimlico/*`
+- CLI selection logic lives in `cli/execution.ts`
+
+---
+
+## Current Differences From Older Specs
+
+These are the main corrections relative to stale documentation:
+
+- No persisted `~/.aomi/aa.json` config remains.
+- No `aomi aa status|set|test|reset` commands remain.
+- No shared env-resolution layer remains for Alchemy.
+- React Alchemy AA is driven by an inlined `resolveForHook()` that reads
+  `NEXT_PUBLIC_*` env vars directly.
+- CLI default execution is AA, not EOA.
+- CLI zero-config AA uses the backend Alchemy proxy.
+- CLI failure fallback is AA-mode-to-AA-mode, not AA-to-EOA.
+- `fallbackToEoa` still exists in the generic AA config model, but CLI-created
+  AA states force it to `false`.

@@ -13,7 +13,7 @@ vi.mock("viem", async () => {
   };
 });
 
-import { executeWalletCalls, type AAState } from "../src/aa";
+import { executeWalletCalls, type AAState } from "../../src/aa";
 
 const TX_HASH = "0xabc123";
 const CALL_LIST = [
