@@ -6,10 +6,17 @@ const MOCK_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
 
-const sendTransactionMock = vi.fn();
-const waitForReceiptMock = vi.fn();
-const createWalletClientMock = vi.fn();
-const createPublicClientMock = vi.fn();
+const {
+  sendTransactionMock,
+  waitForReceiptMock,
+  createWalletClientMock,
+  createPublicClientMock,
+} = vi.hoisted(() => ({
+  sendTransactionMock: vi.fn(),
+  waitForReceiptMock: vi.fn(),
+  createWalletClientMock: vi.fn(),
+  createPublicClientMock: vi.fn(),
+}));
 
 vi.mock("viem", async () => {
   const actual = await vi.importActual<typeof import("viem")>("viem");
@@ -34,14 +41,14 @@ vi.mock("viem/accounts", async () => {
 import {
   DISABLED_PROVIDER_STATE,
   executeWalletCalls,
-} from "../src/aa";
-import { toSignedTxMetadata } from "../src/cli/tables";
-import type { PendingTx } from "../src/cli/state";
+} from "../../src/aa";
+import { toSignedTxMetadata } from "../../src/cli/tables";
+import type { PendingTx } from "../../src/cli/state";
 import {
   formatSignedTxLine,
   pendingTxToCallList,
   toSignedTransactionRecord,
-} from "../src/cli/transactions";
+} from "../../src/cli/transactions";
 
 describe("CLI wallet generic AA execution", () => {
   beforeEach(() => {
@@ -75,7 +82,7 @@ describe("CLI wallet generic AA execution", () => {
     expect(pendingTxToCallList(pendingTx)).toEqual([
       {
         to: pendingTx.to,
-        value: pendingTx.value,
+        value: 42n,
         data: pendingTx.data,
         chainId: pendingTx.chainId,
       },
@@ -86,8 +93,8 @@ describe("CLI wallet generic AA execution", () => {
     const result = await executeWalletCalls({
       callList: [
         {
-          to: "0x1111111111111111111111111111111111111111",
-          value: "5",
+          to: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+          value: 5n,
           chainId: 1,
         },
       ],
@@ -126,13 +133,13 @@ describe("CLI wallet generic AA execution", () => {
     const result = await executeWalletCalls({
       callList: [
         {
-          to: "0x1111111111111111111111111111111111111111",
-          value: "5",
+          to: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+          value: 5n,
           chainId: 1,
         },
         {
-          to: "0x2222222222222222222222222222222222222222",
-          value: "7",
+          to: "0x2222222222222222222222222222222222222222" as `0x${string}`,
+          value: 7n,
           chainId: 1,
         },
       ],

@@ -1,5 +1,5 @@
-import { WalletTxPayload, WalletEip712Payload, AomiSystemEvent, AomiClient } from '@aomi-labs/client';
-export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, WalletEip712Payload, WalletTxPayload, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiClient, Session, WalletRequest } from '@aomi-labs/client';
+export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, WalletEip712Payload, WalletRequest, WalletTxPayload, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -80,24 +80,37 @@ type InboundEvent = {
     type: string;
     sessionId: string;
     payload?: unknown;
-    status: "pending" | "fetched";
-    timestamp: number;
-};
-type OutboundEvent = {
-    type: string;
-    sessionId: string;
-    payload: unknown;
-    timestamp: number;
 };
 type SSEStatus = "connected" | "connecting" | "disconnected";
 type EventSubscriber = (event: InboundEvent) => void;
-type EventBuffer = {
-    inboundQueue: InboundEvent[];
-    outboundQueue: OutboundEvent[];
+type EventContext = {
+    /** Subscribe to events by type. Returns unsubscribe function. */
+    subscribe: (type: string, callback: EventSubscriber) => () => void;
+    /** Dispatch an event to all matching subscribers (used by orchestrator) */
+    dispatch: (event: InboundEvent) => void;
+    /** Send an outbound system message to backend */
+    sendOutboundSystem: (event: {
+        type: string;
+        sessionId: string;
+        payload: unknown;
+    }) => Promise<void>;
+    /** Current SSE connection status */
     sseStatus: SSEStatus;
-    lastEventId: string | null;
-    subscribers: Map<string, Set<EventSubscriber>>;
 };
+declare function useEventContext(): EventContext;
+type EventContextProviderProps = {
+    children: ReactNode;
+    aomiClient: AomiClient;
+    sessionId: string;
+};
+/**
+ * Simplified EventContext — a pure pub/sub relay.
+ *
+ * SSE subscription and system event unwrapping are now handled by ClientSession
+ * in the orchestrator. This provider just maintains the subscriber registry
+ * and sendOutboundSystem for direct system messages.
+ */
+declare function EventContextProvider({ children, aomiClient, sessionId, }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
 
 type NotificationType = "notice" | "success" | "error" | "wallet";
 type Notification$1 = {
@@ -127,40 +140,26 @@ declare function NotificationContextProvider({ children, }: NotificationContextP
 
 type WalletRequestKind = "transaction" | "eip712_sign";
 type WalletRequestStatus = "pending" | "processing";
-type WalletRequest = {
-    id: string;
-    kind: WalletRequestKind;
-    payload: WalletTxPayload | WalletEip712Payload;
-    status: WalletRequestStatus;
-    timestamp: number;
-};
-type WalletBuffer = {
-    queue: WalletRequest[];
-    nextId: number;
-};
-
 type WalletRequestResult = {
     txHash?: string;
     signature?: string;
     amount?: string;
 };
 type WalletHandlerConfig = {
-    sessionId: string;
-    /** Called after a wallet request is resolved/rejected and the outbound event is sent.
-     *  Used by core.tsx to start polling for the AI's response. */
-    onRequestComplete?: () => void;
+    /** Get the ClientSession for the current thread. */
+    getSession: () => Session | undefined;
 };
 type WalletHandlerApi = {
     /** All queued wallet requests (tx + eip712) */
     pendingRequests: WalletRequest[];
-    /** Mark a request as being processed */
-    startProcessing: (id: string) => void;
-    /** Complete a request successfully — dequeues + sends response to backend */
+    /** Enqueue a wallet request (called by orchestrator on ClientSession events) */
+    enqueueRequest: (request: WalletRequest) => void;
+    /** Complete a request successfully — sends response to backend via ClientSession */
     resolveRequest: (id: string, result: WalletRequestResult) => void;
-    /** Fail a request — dequeues + sends error to backend */
+    /** Fail a request — sends error to backend via ClientSession */
     rejectRequest: (id: string, error?: string) => void;
 };
-declare function useWalletHandler({ sessionId, onRequestComplete, }: WalletHandlerConfig): WalletHandlerApi;
+declare function useWalletHandler({ getSession, }: WalletHandlerConfig): WalletHandlerApi;
 
 type AomiRuntimeApi = {
     /** Current user state (wallet connection, address, chain, etc.) */
@@ -220,7 +219,11 @@ type AomiRuntimeApi = {
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
     subscribe: (type: string, callback: EventSubscriber) => () => void;
     /** Send a system command to the backend */
-    sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
+    sendSystemCommand: (event: {
+        type: string;
+        sessionId: string;
+        payload: unknown;
+    }) => Promise<void>;
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };
@@ -253,24 +256,6 @@ type AomiRuntimeApi = {
  * ```
  */
 declare function useAomiRuntime(): AomiRuntimeApi;
-
-type EventContext = {
-    /** Subscribe to inbound events by type. Returns unsubscribe function. */
-    subscribe: (type: string, callback: EventSubscriber) => () => void;
-    /** Send an outbound event to backend immediately */
-    sendOutboundSystem: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
-    /** Dispatch system events from HTTP polling into the event buffer */
-    dispatchInboundSystem: (sessionId: string, events: AomiSystemEvent[]) => void;
-    /** Current SSE connection status */
-    sseStatus: SSEStatus;
-};
-declare function useEventContext(): EventContext;
-type EventContextProviderProps = {
-    children: ReactNode;
-    aomiClient: AomiClient;
-    sessionId: string;
-};
-declare function EventContextProvider({ children, aomiClient, sessionId, }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
 
 type Notification = {
     id: string;
@@ -400,4 +385,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventBuffer, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type OutboundEvent, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredProviderKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletBuffer, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredProviderKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type UserState, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestKind, type WalletRequestResult, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };

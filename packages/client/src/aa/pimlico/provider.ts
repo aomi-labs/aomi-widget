@@ -5,7 +5,7 @@ import type {
   AAMode,
   AAState,
   SmartAccount,
-  WalletCall,
+  AAWalletCall,
 } from "../types";
 import { DEFAULT_AA_CONFIG } from "../types";
 import { resolvePimlicoConfig } from "./resolve";
@@ -47,7 +47,7 @@ export function createPimlicoAAProvider<
   rpcUrl,
 }: CreatePimlicoAAProviderOptions<TAccount>) {
   return function usePimlicoAAProvider(
-    calls: WalletCall[] | null,
+    calls: AAWalletCall[] | null,
     localPrivateKey: `0x${string}` | null,
   ): AAState<TAccount> {
     const resolved = resolvePimlicoConfig({

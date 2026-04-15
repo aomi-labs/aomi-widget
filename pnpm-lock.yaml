@@ -401,6 +401,9 @@ importers:
       citty:
         specifier: ^0.2.2
         version: 0.2.2
+      permissionless:
+        specifier: ^0.3.5
+        version: 0.3.5(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       viem:
         specifier: ^2.47.11
         version: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -5671,9 +5674,6 @@ packages:
   citty@0.1.6:
     resolution: {integrity: sha512-tskPPKEs8D2KPafUypv2gxwJP8h/OaJmC82QQGGDQcHvXX43xF2VDACcJVmZ0EuSxkpO9Kc4MlrA3q0+FG58AQ==}
 
-  citty@0.2.1:
-    resolution: {integrity: sha512-kEV95lFBhQgtogAPlQfJJ0WGVSokvLr/UEoFPiKKOXF7pl98HfUVUD0ejsuTCld/9xH9vogSywZ5KqHzXrZpqg==}
-
   citty@0.2.2:
     resolution: {integrity: sha512-+6vJA3L98yv+IdfKGZHBNiGW5KHn22e/JwID0Strsz8h4S/csAu/OuICwxrg44k5MRiZHWIo8XXuJgQTriRP4w==}
 
@@ -8659,6 +8659,15 @@ packages:
     peerDependencies:
       ox: ^0.8.0
       viem: ^2.28.1
+    peerDependenciesMeta:
+      ox:
+        optional: true
+
+  permissionless@0.3.5:
+    resolution: {integrity: sha512-hYc9ALMMQVc3kETuDss60Xs3mb2wHhNu4kTwR9DLNu9+BwrPhzt0ZtPJyLAaeYMuw3BtPiRte+reumFpAfYChQ==}
+    peerDependencies:
+      ox: ^0.11.3
+      viem: ^2.44.4
     peerDependenciesMeta:
       ox:
         optional: true
@@ -23472,8 +23481,6 @@ snapshots:
     dependencies:
       consola: 3.4.2
 
-  citty@0.2.1: {}
-
   citty@0.2.2: {}
 
   class-variance-authority@0.7.1:
@@ -26963,7 +26970,7 @@ snapshots:
 
   nypm@0.6.5:
     dependencies:
-      citty: 0.2.1
+      citty: 0.2.2
       pathe: 2.0.3
       tinyexec: 1.0.2
 
@@ -27516,6 +27523,10 @@ snapshots:
   permissionless@0.2.57(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)):
     dependencies:
       viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)
+
+  permissionless@0.3.5(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)):
+    dependencies:
+      viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
 
   picocolors@1.1.1: {}
 

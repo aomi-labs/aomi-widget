@@ -3,12 +3,12 @@ import type { Chain } from "viem";
 import type {
   AAConfig,
   AAMode,
+  AAResolvedConfig,
   AAState,
   SmartAccount,
-  WalletCall,
+  AAWalletCall,
 } from "../types";
-import { DEFAULT_AA_CONFIG } from "../types";
-import { resolveAlchemyConfig } from "./resolve";
+import { DEFAULT_AA_CONFIG, getAAChainConfig, buildAAExecutionPlan } from "../types";
 
 export interface AlchemyHookParams {
   enabled: boolean;
@@ -41,6 +41,44 @@ export interface CreateAlchemyAAProviderOptions<
   gasPolicyEnvVar?: string;
 }
 
+/**
+ * Resolve Alchemy config for the React hook path (public env vars only).
+ */
+function resolveForHook(params: {
+  calls: AAWalletCall[] | null;
+  localPrivateKey: `0x${string}` | null;
+  accountAbstractionConfig: AAConfig;
+  chainsById: Record<number, Chain>;
+  chainSlugById: Record<number, string>;
+  getPreferredRpcUrl: (chain: Chain) => string;
+}): (AAResolvedConfig & { apiKey: string; chain: Chain; rpcUrl: string; gasPolicyId?: string }) | null {
+  const { calls, localPrivateKey, accountAbstractionConfig, chainsById, getPreferredRpcUrl } = params;
+
+  if (!calls || localPrivateKey) return null;
+
+  const config = { ...accountAbstractionConfig, provider: "alchemy" as const };
+  const chainConfig = getAAChainConfig(config, calls, chainsById);
+  if (!chainConfig) return null;
+
+  const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const chain = chainsById[chainConfig.chainId];
+  if (!chain) return null;
+
+  const gasPolicyId = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
+  const resolved = buildAAExecutionPlan(config, chainConfig);
+
+  return {
+    ...resolved,
+    apiKey,
+    chain,
+    rpcUrl: getPreferredRpcUrl(chain),
+    gasPolicyId,
+    mode: chainConfig.defaultMode,
+  };
+}
+
 export function createAlchemyAAProvider<
   TAccount extends SmartAccount = SmartAccount,
 >({
@@ -51,17 +89,16 @@ export function createAlchemyAAProvider<
   getPreferredRpcUrl,
 }: CreateAlchemyAAProviderOptions<TAccount>) {
   return function useAlchemyAAProvider(
-    calls: WalletCall[] | null,
+    calls: AAWalletCall[] | null,
     localPrivateKey: `0x${string}` | null,
   ): AAState<TAccount> {
-    const resolved = resolveAlchemyConfig({
+    const resolved = resolveForHook({
       calls,
       localPrivateKey,
       accountAbstractionConfig,
       chainsById,
       chainSlugById,
       getPreferredRpcUrl,
-      publicOnly: true,
     });
 
     const params = resolved

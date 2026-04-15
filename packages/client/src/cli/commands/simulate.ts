@@ -1,53 +1,43 @@
 import { AomiClient } from "../../client";
+import { CliSession } from "../cli-session";
 import { fatal } from "../errors";
 import { DIM, GREEN, RESET } from "../output";
-import { readState, type CliSessionState } from "../state";
-
-function requirePendingTx(state: CliSessionState, txId: string) {
-  const pendingTx = (state.pendingTxs ?? []).find((tx) => tx.id === txId);
-  if (!pendingTx) {
-    fatal(
-      `No pending transaction with id "${txId}".\nRun \`aomi tx\` to see available IDs.`,
-    );
-  }
-  return pendingTx;
-}
 
 export async function simulateCommand(txIds: string[]): Promise<void> {
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
   }
 
   if (txIds.length === 0) {
-    fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
+    fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
   }
 
   // Resolve tx IDs to local pending tx payloads.
-  const pendingTxs = txIds.map((txId) => requirePendingTx(state, txId));
+  const pendingTxs = txIds.map((txId) => cli.requirePendingTx(txId));
 
   console.log(
     `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`,
   );
 
   const client = new AomiClient({
-    baseUrl: state.baseUrl,
-    apiKey: state.apiKey,
+    baseUrl: cli.baseUrl,
+    apiKey: cli.apiKey,
   });
 
   const transactions = pendingTxs.map((tx) => ({
-    to: tx.to,
+    to: tx.to ?? "",
     value: tx.value,
     data: tx.data,
     label: tx.description ?? tx.id,
   }));
 
   const response = await client.simulateBatch(
-    state.sessionId,
+    cli.sessionId,
     transactions,
     {
-      from: state.publicKey ?? undefined,
-      chainId: state.chainId ?? undefined,
+      from: cli.publicKey ?? undefined,
+      chainId: cli.chainId ?? undefined,
     },
   );
   const { result } = response;
@@ -84,12 +74,12 @@ export async function simulateCommand(txIds: string[]): Promise<void> {
   console.log();
   if (result.batch_success) {
     console.log(
-      `${GREEN}All steps passed.${RESET} Run \`aomi sign ${txIds.join(" ")}\` to execute.`,
+      `${GREEN}All steps passed.${RESET} Run \`aomi tx sign ${txIds.join(" ")}\` to execute.`,
     );
   } else {
     const failed = result.steps.find((s) => !s.success);
     console.log(
-      `\x1b[31mBatch failed at step ${failed?.step ?? "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`,
+      `\x1b[31mBatch failed at step ${failed?.step ?? "?"}.${RESET} Fix the issue and re-queue, or run \`aomi tx sign\` on the successful prefix.`,
     );
   }
 }
