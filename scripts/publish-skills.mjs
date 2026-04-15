@@ -6,6 +6,16 @@ import process from "node:process";
 
 const ROOT = process.cwd();
 
+// Directory/file names that exist inside skill folders for local tooling only
+// and must never be vendored into the public skills repo.
+const LOCAL_ONLY_ENTRIES = new Set([
+  ".git",
+  ".skill-optimizer",
+  "benchmark-results",
+  "skill-optimizer",
+  "node_modules",
+]);
+
 function parseArg(flag, fallback) {
   const index = process.argv.indexOf(flag);
   if (index !== -1 && process.argv[index + 1]) {
@@ -38,11 +48,15 @@ async function clearDestination(destination) {
   }
 }
 
+function shouldSkipEntry(name) {
+  return LOCAL_ONLY_ENTRIES.has(name);
+}
+
 async function copySourceContents(source, destination) {
   const entries = await readdir(source, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (entry.name === ".git") {
+    if (shouldSkipEntry(entry.name)) {
       continue;
     }
 
@@ -52,7 +66,10 @@ async function copySourceContents(source, destination) {
     await cp(sourcePath, destinationPath, {
       recursive: true,
       force: true,
-      filter: (candidate) => !candidate.split(path.sep).includes(".git"),
+      filter: (candidate) => {
+        // Exclude any local-only directory encountered anywhere in the tree.
+        return !candidate.split(path.sep).some((segment) => shouldSkipEntry(segment));
+      },
     });
   }
 }
