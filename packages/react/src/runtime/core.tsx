@@ -42,7 +42,7 @@ export function AomiRuntimeCore({
   const eventContext = useEventContext();
   const notificationContext = useNotification();
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
 
   // ---------------------------------------------------------------------------
   // Wallet handler (receives requests from orchestrator)
