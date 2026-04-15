@@ -3,7 +3,7 @@
 import { useEffect, type FC } from "react";
 import { cn, getChainInfo, useUser } from "@aomi-labs/react";
 import { useWalletAdapter } from "../../lib/aomi-wallet-adapter";
-import { useAccountIdentity } from "../../lib/account-identity";
+import { useAccountIdentity } from "../../lib/use-account-identity";
 
 export type ConnectButtonProps = {
   className?: string;

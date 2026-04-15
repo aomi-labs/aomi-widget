@@ -41,5 +41,5 @@ export { formatAddress, getNetworkName } from "@aomi-labs/react";
 export type {
   AccountIdentity,
   AccountIdentityKind,
-} from "./lib/account-identity";
-export { useAomiAccountIdentity } from "./lib/account-identity";
+} from "./lib/use-account-identity";
+export { useAomiAccountIdentity } from "./lib/use-account-identity";

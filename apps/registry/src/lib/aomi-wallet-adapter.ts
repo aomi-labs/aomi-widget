@@ -5,7 +5,7 @@ import type {
   WalletEip712Payload,
   WalletTxPayload,
 } from "@aomi-labs/react";
-import type { AccountIdentity } from "./account-identity";
+import type { AccountIdentity } from "./use-account-identity";
 
 // =============================================================================
 // WalletAdapter type

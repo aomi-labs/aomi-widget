@@ -6,7 +6,7 @@ import { NetworkSelect } from "./network-select";
 import { ModelSelect } from "./model-select";
 import { AppSelect } from "./app-select";
 import { ApiKeyInput } from "./api-key-input";
-import { ConnectButton } from "./connect-button";
+import { ConnectButton } from "./wallet-connect";
 import { SecretInput } from "./secret-input";
 
 // =============================================================================
@@ -70,6 +70,6 @@ export {
   type ConnectButtonProps,
   WalletConnect,
   type WalletConnectProps,
-} from "./connect-button";
+} from "./wallet-connect";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
 export { SecretInput, type SecretInputProps } from "./secret-input";

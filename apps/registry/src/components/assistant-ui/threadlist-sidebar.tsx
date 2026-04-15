@@ -10,7 +10,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
-import { ConnectButton } from "@/components/control-bar/connect-button";
+import { ConnectButton } from "@/components/control-bar/wallet-connect";
 
 const AomiLogo = ({ className }: { className?: string }) => (
   <svg

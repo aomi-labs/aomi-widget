@@ -37,7 +37,7 @@ import { ModelSelect } from "@/components/control-bar/model-select";
 import { AppSelect } from "@/components/control-bar/app-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
-import { ConnectButton } from "@/components/control-bar/connect-button";
+import { ConnectButton } from "@/components/control-bar/wallet-connect";
 import { useAssistantApi, useMessage } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
