@@ -174,7 +174,7 @@ async function executeCliTransaction(params: {
 export async function signCommand(config: CliConfig, txIds: string[]): Promise<void> {
   if (txIds.length === 0) {
     fatal(
-      "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs.",
+      "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs.",
     );
   }
 
@@ -182,10 +182,10 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
   if (!privateKey) {
     fatal(
       [
-        "Private key required for `aomi sign`.",
+        "Private key required for `aomi tx sign`.",
         "Pass one of:",
         "  --private-key <hex-key>",
-        "  PRIVATE_KEY=<hex-key> aomi sign <tx-id>",
+        "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>",
       ].join("\n"),
     );
   }

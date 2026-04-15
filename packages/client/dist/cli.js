@@ -1838,7 +1838,7 @@ Available: ${available}`);
       requirePendingTxs(txIds) {
         const uniqueIds = Array.from(new Set(txIds));
         if (uniqueIds.length !== txIds.length) {
-          fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
+          fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
         }
         return uniqueIds.map((txId) => this.requirePendingTx(txId));
       }
@@ -2274,7 +2274,7 @@ async function chatCommand(config, message, verbose) {
     }
     if (capturedRequests.length > 0) {
       console.log(
-        "\nRun `aomi tx` to see pending transactions, `aomi sign <id>` to sign."
+        "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign."
       );
     }
   } finally {
@@ -3504,17 +3504,17 @@ async function signCommand(config, txIds) {
   var _a3, _b, _c, _d;
   if (txIds.length === 0) {
     fatal(
-      "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs."
+      "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
     );
   }
   const privateKey = config.privateKey;
   if (!privateKey) {
     fatal(
       [
-        "Private key required for `aomi sign`.",
+        "Private key required for `aomi tx sign`.",
         "Pass one of:",
         "  --private-key <hex-key>",
-        "  PRIVATE_KEY=<hex-key> aomi sign <tx-id>"
+        "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>"
       ].join("\n")
     );
   }
@@ -3771,7 +3771,7 @@ async function simulateCommand(txIds) {
     fatal("No active session. Run `aomi chat` first.");
   }
   if (txIds.length === 0) {
-    fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
+    fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
   }
   const pendingTxs = txIds.map((txId) => cli.requirePendingTx(txId));
   console.log(
@@ -3827,12 +3827,12 @@ ${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`);
   console.log();
   if (result.batch_success) {
     console.log(
-      `${GREEN}All steps passed.${RESET} Run \`aomi sign ${txIds.join(" ")}\` to execute.`
+      `${GREEN}All steps passed.${RESET} Run \`aomi tx sign ${txIds.join(" ")}\` to execute.`
     );
   } else {
     const failed = result.steps.find((s) => !s.success);
     console.log(
-      `\x1B[31mBatch failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`
+      `\x1B[31mBatch failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi tx sign\` on the successful prefix.`
     );
   }
 }
@@ -4890,7 +4890,7 @@ var secretDef = defineCommand7({
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.23",
+  version: "0.1.24",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
