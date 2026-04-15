@@ -269,4 +269,3 @@ export const DISABLED_PROVIDER_STATE: AAState = {
   pending: false,
   error: null,
 };
-
