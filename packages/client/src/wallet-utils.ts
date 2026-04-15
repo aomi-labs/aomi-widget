@@ -10,7 +10,8 @@
 // Types
 // =============================================================================
 
-import { getAddress } from "viem";
+import { type Hex, getAddress } from "viem";
+import type { AAWalletCall } from "./aa/types";
 
 export type WalletTxPayload = {
   to: string;
@@ -150,6 +151,22 @@ export function normalizeEip712Payload(
     typeof args.description === "string" ? args.description : undefined;
 
   return { typed_data: typedData, description };
+}
+
+/**
+ * Convert a normalized WalletTxPayload into an AAWalletCall.
+ * This is the single boundary conversion point from backend payloads to AA-ready calls.
+ */
+export function toAAWalletCall(
+  payload: WalletTxPayload,
+  defaultChainId = 1,
+): AAWalletCall {
+  return {
+    to: payload.to as Hex,
+    value: BigInt(payload.value ?? "0"),
+    data: payload.data ? (payload.data as Hex) : undefined,
+    chainId: payload.chainId ?? defaultChainId,
+  };
 }
 
 /**

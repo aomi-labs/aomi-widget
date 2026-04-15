@@ -26,7 +26,7 @@ vi.mock("viem/accounts", async () => {
   };
 });
 
-vi.mock("../src/session", () => ({
+vi.mock("../../src/session", () => ({
   ClientSession: class MockClientSession {
     client = {
       simulateBatch: mocks.simulateBatch,
@@ -40,13 +40,13 @@ vi.mock("../src/session", () => ({
   },
 }));
 
-vi.mock("../src/aa", () => ({
+vi.mock("../../src/aa", () => ({
   executeWalletCalls: mocks.executeWalletCalls,
 }));
 
-vi.mock("../src/cli/execution", async () => {
-  const actual = await vi.importActual<typeof import("../src/cli/execution")>(
-    "../src/cli/execution",
+vi.mock("../../src/cli/execution", async () => {
+  const actual = await vi.importActual<typeof import("../../src/cli/execution")>(
+    "../../src/cli/execution",
   );
   return {
     ...actual,
@@ -56,9 +56,9 @@ vi.mock("../src/cli/execution", async () => {
   };
 });
 
-vi.mock("../src/cli/state", async () => {
-  const actual = await vi.importActual<typeof import("../src/cli/state")>(
-    "../src/cli/state",
+vi.mock("../../src/cli/state", async () => {
+  const actual = await vi.importActual<typeof import("../../src/cli/state")>(
+    "../../src/cli/state",
   );
   return {
     ...actual,
@@ -69,7 +69,7 @@ vi.mock("../src/cli/state", async () => {
   };
 });
 
-import { signCommand } from "../src/cli/commands/wallet";
+import { signCommand } from "../../src/cli/commands/wallet";
 
 describe("CLI wallet sign simulation integration", () => {
   beforeEach(() => {
@@ -125,6 +125,76 @@ describe("CLI wallet sign simulation integration", () => {
     });
   });
 
+  it("aborts when fee recipient is an invalid address", async () => {
+    mocks.simulateBatch.mockResolvedValue({
+      result: {
+        batch_success: true,
+        stateful: true,
+        from: MOCK_ADDRESS,
+        network: "mainnet",
+        total_gas: 21_000,
+        fee: {
+          recipient: "not-an-address",
+          amount_wei: "1000000000000",
+          token: "native",
+        },
+        steps: [],
+      },
+    });
+
+    // Fee validation error propagates → fatal() → CliExit
+    await expect(
+      signCommand(
+        {
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          baseUrl: "http://127.0.0.1:8080",
+          app: "default",
+          apiKey: "test-key",
+          secrets: {},
+        },
+        ["tx-1"],
+      ),
+    ).rejects.toThrow();
+
+    // Must not have attempted execution
+    expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
+  });
+
+  it("aborts when fee exceeds the safety limit", async () => {
+    mocks.simulateBatch.mockResolvedValue({
+      result: {
+        batch_success: true,
+        stateful: true,
+        from: MOCK_ADDRESS,
+        network: "mainnet",
+        total_gas: 21_000,
+        fee: {
+          recipient: "0x9C7a99480c59955a635123EDa064456393e519f5",
+          amount_wei: "999000000000000000000", // 999 ETH
+          token: "native",
+        },
+        steps: [],
+      },
+    });
+
+    await expect(
+      signCommand(
+        {
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          baseUrl: "http://127.0.0.1:8080",
+          app: "default",
+          apiKey: "test-key",
+          secrets: {},
+        },
+        ["tx-1"],
+      ),
+    ).rejects.toThrow();
+
+    expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
+  });
+
   it("passes explicit from and chainId into simulateBatch and appends the fee call", async () => {
     await signCommand(
       {
@@ -159,13 +229,13 @@ describe("CLI wallet sign simulation integration", () => {
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",
-            value: "0",
+            value: 0n,
             data: "0x",
             chainId: 1,
           },
           {
             to: "0x9C7a99480c59955a635123EDa064456393e519f5",
-            value: "1000000000000",
+            value: 1000000000000n,
             chainId: 1,
           },
         ],

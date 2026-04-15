@@ -1,10 +1,7 @@
-import {
-  ingestSecretsIfPresent,
-  getOrCreateSession,
-} from "../context";
+import { CliSession } from "../cli-session";
+import { ingestSecretsForSession } from "../context";
 import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
-import { readState, writeState } from "../state";
 import type { CliConfig } from "../types";
 
 export async function ingestSecretsCommand(config: CliConfig): Promise<void> {
@@ -13,19 +10,14 @@ export async function ingestSecretsCommand(config: CliConfig): Promise<void> {
     fatal("Usage: aomi secret add NAME=value [NAME=value ...]");
   }
 
-  const { session, state } = getOrCreateSession(config, {
-    fresh: config.freshSession,
-  });
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
 
   try {
-    const handles = await ingestSecretsIfPresent(
-      config,
-      state,
-      session.client,
-    );
+    const handles = await ingestSecretsForSession(config, cli, session.client);
     const names = Object.keys(handles).sort();
     console.log(
-      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${state.sessionId}.`,
+      `Configured ${names.length} secret${names.length === 1 ? "" : "s"} for session ${cli.sessionId}.`,
     );
     for (const name of names) {
       console.log(`${name}  ${handles[name]}`);
@@ -37,15 +29,15 @@ export async function ingestSecretsCommand(config: CliConfig): Promise<void> {
 }
 
 export function listSecretsCommand(): void {
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
 
-  const secretHandles = state.secretHandles ?? {};
-  const names = Object.keys(secretHandles).sort();
+  const handles = cli.secretHandles;
+  const names = Object.keys(handles).sort();
   if (names.length === 0) {
     console.log("No secrets configured.");
     printDataFileLocation();
@@ -53,22 +45,24 @@ export function listSecretsCommand(): void {
   }
 
   for (const name of names) {
-    console.log(`${name}  ${secretHandles[name]}`);
+    console.log(`${name}  ${handles[name]}`);
   }
   printDataFileLocation();
 }
 
 export async function clearSecretsCommand(config: CliConfig): Promise<void> {
-  const { session, state } = getOrCreateSession(config);
+  const cli = CliSession.loadOrCreate(config);
+  const clientId = cli.clientId;
+  if (!clientId) {
+    console.log("No secrets configured.");
+    printDataFileLocation();
+    return;
+  }
+
+  const session = cli.createClientSession();
   try {
-    if (!state.clientId) {
-      console.log("No secrets configured.");
-      printDataFileLocation();
-      return;
-    }
-    await session.client.clearSecrets(state.clientId);
-    state.secretHandles = {};
-    writeState(state);
+    await session.client.clearSecrets(clientId);
+    cli.clearSecretHandles();
     console.log("Cleared all secrets for the active session.");
     printDataFileLocation();
   } finally {

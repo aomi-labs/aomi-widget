@@ -5,18 +5,36 @@ const {
   createAlchemySmartAccountMock,
   createPimlicoSmartAccountMock,
   createSmartWalletClientMock,
+  createPermissionlessSmartAccountClientMock,
+  createPimlicoClientMock,
+  getUserOperationGasPriceMock,
+  toSimpleSmartAccountMock,
   alchemyWalletTransportMock,
   requestAccountMock,
   sendCallsMock,
   waitForCallsStatusMock,
+  signAuthorizationMock,
+  sendTransactionMock,
+  estimateGasMock,
+  waitForTransactionReceiptMock,
 } = vi.hoisted(() => ({
   createAlchemySmartAccountMock: vi.fn(),
   createPimlicoSmartAccountMock: vi.fn(),
   createSmartWalletClientMock: vi.fn(),
+  createPermissionlessSmartAccountClientMock: vi.fn(),
+  createPimlicoClientMock: vi.fn(),
+  getUserOperationGasPriceMock: vi.fn().mockResolvedValue({
+    fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
+  }),
+  toSimpleSmartAccountMock: vi.fn(),
   alchemyWalletTransportMock: vi.fn(() => ({ transport: "alchemy-wallet" })),
   requestAccountMock: vi.fn(),
   sendCallsMock: vi.fn(),
   waitForCallsStatusMock: vi.fn(),
+  signAuthorizationMock: vi.fn().mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
+  sendTransactionMock: vi.fn().mockResolvedValue("0xmock7702hash"),
+  estimateGasMock: vi.fn().mockResolvedValue(50000n),
+  waitForTransactionReceiptMock: vi.fn().mockResolvedValue({ status: "success", gasUsed: 47000n }),
 }));
 
 vi.mock("@getpara/aa-alchemy", () => ({
@@ -32,7 +50,39 @@ vi.mock("@alchemy/wallet-apis", () => ({
   alchemyWalletTransport: alchemyWalletTransportMock,
 }));
 
-import { createAAProviderState } from "../src/aa/create";
+vi.mock("permissionless", () => ({
+  createSmartAccountClient: createPermissionlessSmartAccountClientMock,
+}));
+
+vi.mock("permissionless/accounts", () => ({
+  toSimpleSmartAccount: toSimpleSmartAccountMock,
+}));
+
+vi.mock("permissionless/clients/pimlico", () => ({
+  createPimlicoClient: createPimlicoClientMock,
+}));
+
+vi.mock("viem", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("viem")>();
+  return {
+    ...actual,
+    createWalletClient: vi.fn(() => ({
+      signAuthorization: signAuthorizationMock,
+      sendTransaction: sendTransactionMock,
+    })),
+    createPublicClient: vi.fn(() => ({
+      estimateGas: estimateGasMock,
+      waitForTransactionReceipt: waitForTransactionReceiptMock,
+      getCode: vi.fn().mockResolvedValue("0x"),
+    })),
+  };
+});
+
+vi.mock("viem/experimental/erc7821", () => ({
+  encodeExecuteData: vi.fn(() => "0xmockexecutedata"),
+}));
+
+import { createAAProviderState } from "../../src/aa/create";
 
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
@@ -53,6 +103,10 @@ describe("createAAProviderState", () => {
     createAlchemySmartAccountMock.mockReset();
     createPimlicoSmartAccountMock.mockReset();
     createSmartWalletClientMock.mockReset();
+    createPermissionlessSmartAccountClientMock.mockReset();
+    createPimlicoClientMock.mockReset();
+    getUserOperationGasPriceMock.mockReset();
+    toSimpleSmartAccountMock.mockReset();
     alchemyWalletTransportMock.mockClear();
     requestAccountMock.mockReset();
     sendCallsMock.mockReset();
@@ -66,16 +120,25 @@ describe("createAAProviderState", () => {
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
     });
+    createPermissionlessSmartAccountClientMock.mockReturnValue({
+      sendTransaction: vi.fn().mockResolvedValue("0xmockuserophash"),
+    });
+    createPimlicoClientMock.mockReturnValue({
+      getUserOperationGasPrice: getUserOperationGasPriceMock,
+    });
+    getUserOperationGasPriceMock.mockResolvedValue({
+      fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
+    });
+    toSimpleSmartAccountMock.mockResolvedValue({
+      address: "0xcccccccccccccccccccccccccccccccccccccccc",
+    });
   });
 
   afterEach(() => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("creates an Alchemy provider state", async () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
-    process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
-
+  it("creates an Alchemy 7702 provider state via raw viem", async () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -83,18 +146,11 @@ describe("createAAProviderState", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
-    });
-
-    expect(alchemyWalletTransportMock).toHaveBeenCalledWith({
       apiKey: "alchemy-key",
     });
-    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        transport: { transport: "alchemy-wallet" },
-        chain: mainnet,
-        paymaster: { policyId: "policy-1" },
-      }),
-    );
+
+    // 7702 bypasses @alchemy/wallet-apis entirely
+    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
 
     expect(state.resolved).toMatchObject({
@@ -106,12 +162,12 @@ describe("createAAProviderState", () => {
       provider: "alchemy",
       mode: "7702",
       AAAddress: expect.stringMatching(/^0x[a-fA-F0-9]{40}$/),
+      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
     });
     expect(state.error).toBeNull();
   });
 
   it("creates an unsponsored Alchemy provider state", async () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     requestAccountMock.mockResolvedValue({
@@ -126,6 +182,7 @@ describe("createAAProviderState", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "4337",
+      apiKey: "alchemy-key",
       sponsored: false,
     });
 
@@ -147,14 +204,6 @@ describe("createAAProviderState", () => {
   it("creates a Pimlico provider state", async () => {
     process.env.PIMLICO_API_KEY = "pimlico-key";
 
-    createPimlicoSmartAccountMock.mockResolvedValue({
-      provider: "PIMLICO",
-      mode: "4337",
-      smartAccountAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
-      sendTransaction: vi.fn(),
-      sendBatchTransaction: vi.fn(),
-    });
-
     const state = await createAAProviderState({
       provider: "pimlico",
       chain: polygon,
@@ -164,28 +213,28 @@ describe("createAAProviderState", () => {
       mode: "4337",
     });
 
-    expect(createPimlicoSmartAccountMock).toHaveBeenCalledWith(
+    expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
+    expect(createPimlicoClientMock).toHaveBeenCalledTimes(1);
+    expect(createPermissionlessSmartAccountClientMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        apiKey: "pimlico-key",
         chain: polygon,
-        mode: "4337",
+        paymaster: expect.any(Object),
       }),
     );
+    expect(toSimpleSmartAccountMock).toHaveBeenCalledTimes(1);
 
     expect(state.resolved).toMatchObject({
       provider: "pimlico",
       mode: "4337",
     });
     expect(state.account).toMatchObject({
-      provider: "PIMLICO",
+      provider: "pimlico",
       AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
     expect(state.error).toBeNull();
   });
 
   it("captures errors without throwing", async () => {
-    process.env.ALCHEMY_API_KEY = "key";
-
     createSmartWalletClientMock.mockImplementation(() => {
       throw new Error("SDK init failed");
     });
@@ -196,7 +245,8 @@ describe("createAAProviderState", () => {
       owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
-      mode: "7702",
+      mode: "4337",
+      apiKey: "key",
     });
 
     expect(state.account).toBeNull();
@@ -205,15 +255,8 @@ describe("createAAProviderState", () => {
     expect(state.resolved).not.toBeNull();
   });
 
-  it("returns error state when smart account is null", async () => {
-    process.env.ALCHEMY_API_KEY = "key";
-
-    createSmartWalletClientMock.mockReturnValue({
-      requestAccount: requestAccountMock,
-      sendCalls: sendCallsMock,
-      waitForCallsStatus: waitForCallsStatusMock,
-    });
-
+  it("creates 7702 state even without wallet-apis", async () => {
+    // 7702 uses raw viem, so wallet-apis mock state doesn't matter
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -221,6 +264,7 @@ describe("createAAProviderState", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       mode: "7702",
+      apiKey: "key",
     });
 
     expect(state.account).toMatchObject({
@@ -237,6 +281,10 @@ describe("createAAProviderState owner modes", () => {
     createAlchemySmartAccountMock.mockReset();
     createPimlicoSmartAccountMock.mockReset();
     createSmartWalletClientMock.mockReset();
+    createPermissionlessSmartAccountClientMock.mockReset();
+    createPimlicoClientMock.mockReset();
+    getUserOperationGasPriceMock.mockReset();
+    toSimpleSmartAccountMock.mockReset();
     alchemyWalletTransportMock.mockClear();
     requestAccountMock.mockReset();
     sendCallsMock.mockReset();
@@ -245,6 +293,18 @@ describe("createAAProviderState owner modes", () => {
       requestAccount: requestAccountMock,
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
+    });
+    createPermissionlessSmartAccountClientMock.mockReturnValue({
+      sendTransaction: vi.fn().mockResolvedValue("0xmockuserophash"),
+    });
+    createPimlicoClientMock.mockReturnValue({
+      getUserOperationGasPrice: getUserOperationGasPriceMock,
+    });
+    getUserOperationGasPriceMock.mockResolvedValue({
+      fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
+    });
+    toSimpleSmartAccountMock.mockResolvedValue({
+      address: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
   });
 

@@ -1,9 +1,10 @@
 import type {
   ExecutionResult,
-  WalletCall,
+  AAWalletCall,
 } from "../aa";
 import type { WalletRequest } from "../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../wallet-utils";
+import { toAAWalletCall } from "../wallet-utils";
 import type { PendingTx, SignedTx } from "./state";
 
 export function walletRequestToPendingTx(
@@ -31,18 +32,18 @@ export function walletRequestToPendingTx(
   };
 }
 
-export function pendingTxToCallList(tx: PendingTx): WalletCall[] {
+export function pendingTxToCallList(tx: PendingTx): AAWalletCall[] {
   if (tx.kind !== "transaction" || !tx.to) {
     throw new Error("pending_transaction_missing_call_data");
   }
 
   return [
-    {
+    toAAWalletCall({
       to: tx.to,
-      value: tx.value ?? "0",
+      value: tx.value,
       data: tx.data,
-      chainId: tx.chainId ?? 1,
-    },
+      chainId: tx.chainId,
+    }),
   ];
 }
 

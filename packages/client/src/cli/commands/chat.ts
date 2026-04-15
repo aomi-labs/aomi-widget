@@ -1,6 +1,6 @@
 import type { WalletRequest } from "../../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
-import { addPendingTx } from "../state";
+import { CliSession } from "../cli-session";
 import {
   DIM,
   RESET,
@@ -17,28 +17,23 @@ import {
 } from "../output";
 import {
   applyRequestedModelIfPresent,
-  getOrCreateSession,
-  ingestSecretsIfPresent,
+  ingestSecretsForSession,
 } from "../context";
 import { fatal } from "../errors";
 import { walletRequestToPendingTx } from "../transactions";
 import type { CliConfig } from "../types";
-import { buildCliUserState } from "../user-state";
 
 export async function chatCommand(config: CliConfig, message: string, verbose: boolean): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
 
-  const { session, state } = getOrCreateSession(config, {
-    fresh: config.freshSession,
-  });
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
 
   try {
-    await ingestSecretsIfPresent(config, state, session.client);
-    await applyRequestedModelIfPresent(config, session, state);
-
-    session.resolveUserState(buildCliUserState(state.publicKey, state.chainId));
+    await ingestSecretsForSession(config, cli, session.client);
+    await applyRequestedModelIfPresent(config, cli, session);
 
     const capturedRequests: WalletRequest[] = [];
     let printedAgentCount = 0;
@@ -150,7 +145,7 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
     }
 
     for (const request of capturedRequests) {
-      const pending = addPendingTx(state, walletRequestToPendingTx(request));
+      const pending = cli.addPendingTx(walletRequestToPendingTx(request));
       if (!pending) {
         console.log("⚠️  Duplicate wallet request skipped");
         continue;
@@ -184,7 +179,7 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
 
     if (capturedRequests.length > 0) {
       console.log(
-        "\nRun `aomi tx` to see pending transactions, `aomi sign <id>` to sign.",
+        "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign.",
       );
     }
   } finally {

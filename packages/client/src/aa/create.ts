@@ -1,10 +1,10 @@
 import type { Chain } from "viem";
 
-import type { AAProvider } from "./env";
+import type { AAProvider } from "./types";
 import { createAlchemyAAState } from "./alchemy/create";
 import { createPimlicoAAState } from "./pimlico/create";
 import type { AAOwner } from "./owner";
-import type { AAMode, AAState, WalletCall } from "./types";
+import type { AAMode, AAState, AAWalletCall } from "./types";
 
 export type { AAOwner } from "./owner";
 
@@ -13,11 +13,13 @@ export interface CreateAAStateOptions {
   chain: Chain;
   owner: AAOwner;
   rpcUrl: string;
-  callList: WalletCall[];
+  callList: AAWalletCall[];
   mode?: AAMode;
   apiKey?: string;
   gasPolicyId?: string;
   sponsored?: boolean;
+  /** Backend proxy base URL for Alchemy. Used when apiKey is omitted. */
+  proxyBaseUrl?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,6 +43,7 @@ export async function createAAProviderState(
       apiKey: options.apiKey,
       gasPolicyId: options.gasPolicyId,
       sponsored: options.sponsored,
+      proxyBaseUrl: options.proxyBaseUrl,
     });
   }
 

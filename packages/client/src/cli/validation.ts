@@ -1,5 +1,5 @@
+import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
 import type { CliAAMode, CliAAProvider } from "./types";
-import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "./chains";
 import { fatal } from "./errors";
 
 export function parseChainId(value: string | undefined): number | undefined {

@@ -7,9 +7,8 @@ import type { UserState } from "./contexts/user-context";
 import type { ThreadMetadata } from "./state/thread-store";
 import type {
   EventSubscriber,
-  OutboundEvent,
   SSEStatus,
-} from "./state/event-buffer";
+} from "./contexts/event-context";
 import type {
   Notification,
   NotificationData,
@@ -104,7 +103,7 @@ export type AomiRuntimeApi = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send a system command to the backend */
-  sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
+  sendSystemCommand: (event: { type: string; sessionId: string; payload: unknown }) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
