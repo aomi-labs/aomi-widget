@@ -48,7 +48,7 @@ export const registry: RegistryComponent[] = [
     name: "aomi-wallet-adapter",
     file: [
       "lib/aomi-wallet-adapter.ts",
-      "lib/account-identity.ts",
+      "lib/use-account-identity.ts",
     ],
     dependencies: [
       "@aomi-labs/react",
@@ -76,7 +76,7 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/model-select.tsx",
       "components/control-bar/app-select.tsx",
       "components/control-bar/api-key-input.tsx",
-      "components/control-bar/connect-button.tsx",
+      "components/control-bar/wallet-connect.tsx",
       "components/control-bar/network-select.tsx",
       "components/control-bar/secret-input.tsx",
     ],

@@ -23,8 +23,8 @@ import {
   type WalletEip712Payload,
   type WalletTxPayload,
 } from "@aomi-labs/react";
-import type { AccountIdentity } from "../lib/account-identity";
-import { formatAddress } from "../lib/account-identity";
+import type { AccountIdentity } from "../lib/use-account-identity";
+import { formatAddress } from "../lib/use-account-identity";
 import {
   WalletAdapterContext,
   DISCONNECTED_ADAPTER,
