@@ -10,7 +10,7 @@ export async function simulateCommand(txIds: string[]): Promise<void> {
   }
 
   if (txIds.length === 0) {
-    fatal("Usage: aomi simulate <tx-id> [<tx-id> ...]\nRun `aomi tx` to see available IDs.");
+    fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
   }
 
   // Resolve tx IDs to local pending tx payloads.
@@ -74,12 +74,12 @@ export async function simulateCommand(txIds: string[]): Promise<void> {
   console.log();
   if (result.batch_success) {
     console.log(
-      `${GREEN}All steps passed.${RESET} Run \`aomi sign ${txIds.join(" ")}\` to execute.`,
+      `${GREEN}All steps passed.${RESET} Run \`aomi tx sign ${txIds.join(" ")}\` to execute.`,
     );
   } else {
     const failed = result.steps.find((s) => !s.success);
     console.log(
-      `\x1b[31mBatch failed at step ${failed?.step ?? "?"}.${RESET} Fix the issue and re-queue, or run \`aomi sign\` on the successful prefix.`,
+      `\x1b[31mBatch failed at step ${failed?.step ?? "?"}.${RESET} Fix the issue and re-queue, or run \`aomi tx sign\` on the successful prefix.`,
     );
   }
 }
