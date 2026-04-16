@@ -4,6 +4,7 @@ import type {
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiSSEEvent,
@@ -252,6 +253,29 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiClearSecretsResponse;
+  }
+
+  /**
+   * Remove a single secret for a client.
+   */
+  async deleteSecret(
+    clientId: string,
+    name: string,
+  ): Promise<AomiDeleteSecretResponse> {
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/secrets/${encodeURIComponent(name)}`,
+      {
+        client_id: clientId,
+      },
+    );
+    const response = await fetch(url, { method: "DELETE" });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiDeleteSecretResponse;
   }
 
   // ===========================================================================
