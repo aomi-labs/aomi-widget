@@ -208,8 +208,7 @@ export function ControlContextProvider({
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = currentThreadMetadata?.control?.isProcessing ?? false;
 
-  // Persist client id to localStorage so the settings page and chat runtime
-  // share the same backend vault namespace.
+  // Persist client id so settings page and chat runtime share one vault namespace.
   useEffect(() => {
     try {
       if (state.clientId) {
