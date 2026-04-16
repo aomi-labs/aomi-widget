@@ -75,6 +75,26 @@ export type ControlContextApi = {
 // =============================================================================
 
 const API_KEY_STORAGE_KEY = "aomi_api_key";
+const CLIENT_ID_STORAGE_KEY = "aomi_client_id";
+
+function getOrCreateClientId(): string {
+  try {
+    const storedClientId = globalThis.localStorage?.getItem(CLIENT_ID_STORAGE_KEY);
+    if (storedClientId && storedClientId.trim().length > 0) {
+      return storedClientId;
+    }
+  } catch {
+    // localStorage not available
+  }
+
+  const clientId = globalThis.crypto?.randomUUID?.() ?? `client-${Date.now()}`;
+  try {
+    globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+  } catch {
+    // localStorage not available
+  }
+  return clientId;
+}
 
 function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
@@ -137,7 +157,7 @@ export function ControlContextProvider({
 }: ControlContextProviderProps) {
   const [state, setStateInternal] = useState<ControlState>(() => ({
     apiKey: null,
-    clientId: null,
+    clientId: getOrCreateClientId(),
     availableModels: [],
     authorizedApps: [],
     defaultModel: null,
@@ -168,11 +188,16 @@ export function ControlContextProvider({
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = currentThreadMetadata?.control?.isProcessing ?? false;
 
-  // Generate a stable client_id for this browser tab on mount
+  // Persist client id so settings page and chat runtime share one vault namespace.
   useEffect(() => {
-    const clientId = globalThis.crypto?.randomUUID?.() ?? `client-${Date.now()}`;
-    setStateInternal((prev) => ({ ...prev, clientId }));
-  }, []);
+    try {
+      if (state.clientId) {
+        globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, state.clientId);
+      }
+    } catch {
+      // localStorage not available
+    }
+  }, [state.clientId]);
 
   // Load API key from localStorage on mount
   useEffect(() => {
@@ -401,7 +426,11 @@ export function ControlContextProvider({
       const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        { app, apiKey: stateRef.current.apiKey ?? undefined },
+        {
+          app,
+          apiKey: stateRef.current.apiKey ?? undefined,
+          clientId: stateRef.current.clientId ?? undefined,
+        },
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
