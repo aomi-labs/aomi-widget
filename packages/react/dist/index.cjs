@@ -20,6 +20,19 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __restKey = (key) => typeof key === "symbol" ? key : key + "";
+var __objRest = (source, exclude) => {
+  var target = {};
+  for (var prop in source)
+    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && __getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(source)) {
+      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+        target[prop] = source[prop];
+    }
+  return target;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -248,6 +261,8 @@ var ThreadStore = class {
 var import_jsx_runtime = require("react/jsx-runtime");
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
+var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
+var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
 function getOrCreateClientId() {
   var _a, _b, _c, _d, _e;
   try {
@@ -297,7 +312,8 @@ function ControlContextProvider({
     availableModels: [],
     authorizedApps: [],
     defaultModel: null,
-    defaultApp: null
+    defaultApp: null,
+    providerKeys: {}
   }));
   const stateRef = (0, import_react.useRef)(state);
   stateRef.current = state;
@@ -334,6 +350,17 @@ function ControlContextProvider({
     }
   }, []);
   (0, import_react.useEffect)(() => {
+    var _a2;
+    try {
+      const raw = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(PROVIDER_KEYS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { providerKeys: parsed }));
+      }
+    } catch (e) {
+    }
+  }, []);
+  (0, import_react.useEffect)(() => {
     var _a2, _b2;
     try {
       if (state.apiKey) {
@@ -344,6 +371,33 @@ function ControlContextProvider({
     } catch (e) {
     }
   }, [state.apiKey]);
+  (0, import_react.useEffect)(() => {
+    var _a2, _b2;
+    try {
+      const keys = state.providerKeys;
+      if (Object.keys(keys).length > 0) {
+        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(
+          PROVIDER_KEYS_STORAGE_KEY,
+          JSON.stringify(keys)
+        );
+      } else {
+        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(PROVIDER_KEYS_STORAGE_KEY);
+      }
+    } catch (e) {
+    }
+  }, [state.providerKeys]);
+  (0, import_react.useEffect)(() => {
+    if (!state.clientId) return;
+    const keys = stateRef.current.providerKeys;
+    if (Object.keys(keys).length === 0) return;
+    const secrets = {};
+    for (const [provider, entry] of Object.entries(keys)) {
+      secrets[`${PROVIDER_KEY_SECRET_PREFIX}${provider}`] = entry.apiKey;
+    }
+    void aomiClientRef.current.ingestSecrets(state.clientId, secrets).catch((err) => {
+      console.error("Failed to auto-ingest provider keys:", err);
+    });
+  }, [state.clientId, state.providerKeys]);
   (0, import_react.useEffect)(() => {
     const fetchApps = async () => {
       var _a2;
@@ -414,6 +468,65 @@ function ControlContextProvider({
     if (!clientId) return;
     await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(_a2, clientId));
   }, []);
+  const setProviderKey = (0, import_react.useCallback)(
+    async (provider, apiKey, label) => {
+      const trimmed = apiKey.trim();
+      if (!trimmed) return;
+      const entry = {
+        apiKey: trimmed,
+        keyPrefix: trimmed.slice(0, 7),
+        label
+      };
+      setStateInternal((prev) => {
+        const next = __spreadProps(__spreadValues({}, prev), {
+          providerKeys: __spreadProps(__spreadValues({}, prev.providerKeys), { [provider]: entry })
+        });
+        callbacks.current.forEach((cb) => cb(next));
+        return next;
+      });
+      const clientId = stateRef.current.clientId;
+      if (clientId) {
+        try {
+          await aomiClientRef.current.ingestSecrets(clientId, {
+            [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed
+          });
+        } catch (err) {
+          console.error("Failed to ingest provider key:", err);
+        }
+      }
+    },
+    []
+  );
+  const removeProviderKey = (0, import_react.useCallback)(
+    async (provider) => {
+      const clientId = stateRef.current.clientId;
+      if (clientId) {
+        await aomiClientRef.current.deleteSecret(
+          clientId,
+          `${PROVIDER_KEY_SECRET_PREFIX}${provider}`
+        );
+      }
+      setStateInternal((prev) => {
+        const _a2 = prev.providerKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
+        const next = __spreadProps(__spreadValues({}, prev), { providerKeys: rest });
+        callbacks.current.forEach((cb) => cb(next));
+        return next;
+      });
+    },
+    []
+  );
+  const getProviderKeys = (0, import_react.useCallback)(
+    () => stateRef.current.providerKeys,
+    []
+  );
+  const hasProviderKey = (0, import_react.useCallback)(
+    (provider) => {
+      const keys = stateRef.current.providerKeys;
+      if (provider) return provider in keys;
+      return Object.keys(keys).length > 0;
+    },
+    []
+  );
   const getAvailableModels = (0, import_react.useCallback)(async () => {
     try {
       const models = await aomiClientRef.current.getModels(
@@ -600,6 +713,10 @@ function ControlContextProvider({
         setApiKey,
         ingestSecrets,
         clearSecrets,
+        setProviderKey,
+        removeProviderKey,
+        getProviderKeys,
+        hasProviderKey,
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,
