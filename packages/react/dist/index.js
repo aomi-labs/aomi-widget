@@ -210,6 +210,23 @@ var ThreadStore = class {
 // packages/react/src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_api_key";
+var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
+function getOrCreateClientId() {
+  var _a, _b, _c, _d, _e;
+  try {
+    const storedClientId = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(CLIENT_ID_STORAGE_KEY);
+    if (storedClientId && storedClientId.trim().length > 0) {
+      return storedClientId;
+    }
+  } catch (e) {
+  }
+  const clientId = (_d = (_c = (_b = globalThis.crypto) == null ? void 0 : _b.randomUUID) == null ? void 0 : _c.call(_b)) != null ? _d : `client-${Date.now()}`;
+  try {
+    (_e = globalThis.localStorage) == null ? void 0 : _e.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+  } catch (e) {
+  }
+  return clientId;
+}
 function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
@@ -239,7 +256,7 @@ function ControlContextProvider({
   var _a, _b;
   const [state, setStateInternal] = useState(() => ({
     apiKey: null,
-    clientId: null,
+    clientId: getOrCreateClientId(),
     availableModels: [],
     authorizedApps: [],
     defaultModel: null,
@@ -261,10 +278,14 @@ function ControlContextProvider({
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = (_b = (_a = currentThreadMetadata == null ? void 0 : currentThreadMetadata.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
   useEffect(() => {
-    var _a2, _b2, _c;
-    const clientId = (_c = (_b2 = (_a2 = globalThis.crypto) == null ? void 0 : _a2.randomUUID) == null ? void 0 : _b2.call(_a2)) != null ? _c : `client-${Date.now()}`;
-    setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { clientId }));
-  }, []);
+    var _a2;
+    try {
+      if (state.clientId) {
+        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(CLIENT_ID_STORAGE_KEY, state.clientId);
+      }
+    } catch (e) {
+    }
+  }, [state.clientId]);
   useEffect(() => {
     var _a2, _b2;
     try {
@@ -414,7 +435,7 @@ function ControlContextProvider({
     )) != null ? _c : "default";
   }, []);
   const onModelSelect = useCallback(async (model) => {
-    var _a2, _b2, _c, _d;
+    var _a2, _b2, _c, _d, _e;
     const threadId = sessionIdRef.current;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     const isProcessing2 = currentControl.isProcessing;
@@ -455,7 +476,11 @@ function ControlContextProvider({
       const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        { app, apiKey: (_d = stateRef.current.apiKey) != null ? _d : void 0 }
+        {
+          app,
+          apiKey: (_d = stateRef.current.apiKey) != null ? _d : void 0,
+          clientId: (_e = stateRef.current.clientId) != null ? _e : void 0
+        }
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
@@ -1348,7 +1373,7 @@ function AomiRuntimeCore({
   const eventContext = useEventContext();
   const notificationContext = useNotification();
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
   const sessionManagerRef = useRef7(null);
   const walletHandler = useWalletHandler({
     getSession: () => {
@@ -1552,9 +1577,8 @@ function AomiRuntimeCore({
   useEffect3(() => {
     return () => {
       sessionManager.closeAll();
-      void clearSecrets();
     };
-  }, [sessionManager, clearSecrets]);
+  }, [sessionManager]);
   const userContext = useUser();
   const sendMessage = useCallback7(
     async (text) => {
