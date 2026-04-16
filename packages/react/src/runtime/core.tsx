@@ -42,7 +42,7 @@ export function AomiRuntimeCore({
   const eventContext = useEventContext();
   const notificationContext = useNotification();
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp, clearSecrets } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
 
   // ---------------------------------------------------------------------------
   // Wallet handler (receives requests from orchestrator)
@@ -337,9 +337,8 @@ export function AomiRuntimeCore({
   useEffect(() => {
     return () => {
       sessionManager.closeAll();
-      void clearSecrets();
     };
-  }, [sessionManager, clearSecrets]);
+  }, [sessionManager]);
 
   // ---------------------------------------------------------------------------
   // Build AomiRuntimeApi
