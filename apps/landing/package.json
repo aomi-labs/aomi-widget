@@ -29,6 +29,8 @@
     "@farcaster/miniapp-sdk": "^0.1.10",
     "@farcaster/miniapp-wagmi-connector": "^1.1.1",
     "@getpara/evm-wallet-connectors": "2.19.0",
+    "@getpara/react-common": "2.19.0",
+    "@getpara/react-components": "2.19.0",
     "@getpara/react-core": "2.19.0",
     "@getpara/react-sdk": "2.19.0",
     "@mdx-js/react": "^3.1.1",
