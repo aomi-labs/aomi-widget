@@ -12,6 +12,7 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
 import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
+import { WalletSyncBridge } from "@/components/wallet-sync-bridge";
 import {
   SidebarInset,
   SidebarProvider,
@@ -24,6 +25,7 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+import { WalletAdapterProvider } from "../lib/aomi-wallet-adapter";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -104,26 +106,29 @@ const Root: FC<RootProps> = ({
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
-      <SidebarProvider className="h-full min-h-0!">
-        <div
-          className={cn(
-            "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
-            className,
-          )}
-          style={frameStyle}
-        >
-          {showSidebar && (
-            <ThreadListSidebar walletPosition={walletPosition} />
-          )}
-          <SidebarInset className="relative flex flex-col">
-            {children}
-          </SidebarInset>
-          <NotificationToaster />
-          <RuntimeTxHandler />
-        </div>
-      </SidebarProvider>
-    </AomiRuntimeProvider>
+    <WalletAdapterProvider>
+      <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
+        <SidebarProvider className="h-full min-h-0!">
+          <div
+            className={cn(
+              "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
+              className,
+            )}
+            style={frameStyle}
+          >
+            {showSidebar && (
+              <ThreadListSidebar walletPosition={walletPosition} />
+            )}
+            <SidebarInset className="relative flex flex-col">
+              {children}
+            </SidebarInset>
+            <WalletSyncBridge />
+            <NotificationToaster />
+            <RuntimeTxHandler />
+          </div>
+        </SidebarProvider>
+      </AomiRuntimeProvider>
+    </WalletAdapterProvider>
   );
 };
 

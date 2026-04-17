@@ -187,7 +187,7 @@ export function Hero() {
           </div>
         </div>
       </div>
-      <div className="animate-fade-in mr-auto mb-30 ml-auto flex w-full max-w-7xl flex-col items-center pt-36 pr-4 pl-4 text-center">
+      <div className="mr-auto mb-30 ml-auto flex w-full max-w-7xl flex-col items-center pt-36 pr-4 pl-4 text-center">
         <div className="mb-8 flex cursor-default items-center rounded-full border-0 bg-black/20 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg ring-1 ring-white/10 backdrop-blur-[80px] transition-colors">
           <div className="flex -space-x-2">
             <div className="h-6 w-6 overflow-hidden rounded-full border border-white/20 bg-neutral-200">
@@ -265,7 +265,7 @@ export function Hero() {
         <div className="flex w-full max-w-[1500px] flex-col items-center justify-start pt-10 pb-10">
           <div
             id="terminal-container"
-            className="h-[680px] w-full max-w-[900px] origin-bottom-left transform transition-all duration-300"
+            className="h-[680px] w-full max-w-[900px] origin-bottom-left transition-all duration-300"
           >
             <LandingParaProvider>
               <AomiFrame.Root

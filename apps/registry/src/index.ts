@@ -7,14 +7,15 @@ export {
   type WalletAdapter,
   type AomiAdapter,
   WalletAdapterContext,
+  WalletAdapterProvider,
   AomiAdapterContext,
   DISCONNECTED_ADAPTER,
   useWalletAdapter,
   useAomiAdapter,
 } from "./lib/aomi-wallet-adapter";
 
-// Para wallet bridge (runs inside ParaProviderMin)
-export { ParaWalletBridge } from "./components/para-wallet-bridge";
+// Wallet runtime bridge
+export { WalletSyncBridge } from "./components/wallet-sync-bridge";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
