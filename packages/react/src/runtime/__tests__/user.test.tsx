@@ -298,6 +298,28 @@ describe("User API", () => {
       expect(getApi().user.address).toBeUndefined();
     });
 
+    it("clears wallet identity on partial disconnect updates", async () => {
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xWALLET",
+          chainId: 1,
+          isConnected: true,
+          ensName: "wallet.eth",
+        });
+      });
+
+      await act(async () => {
+        api.setUser({ isConnected: false });
+      });
+
+      expect(getApi().user.isConnected).toBe(false);
+      expect(getApi().user.address).toBeUndefined();
+      expect(getApi().user.chainId).toBeUndefined();
+      expect(getApi().user.ensName).toBeUndefined();
+    });
+
     it("handles chain switching", async () => {
       const { api, getApi } = renderRuntime();
 

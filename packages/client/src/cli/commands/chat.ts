@@ -22,18 +22,95 @@ import {
 import { fatal } from "../errors";
 import { walletRequestToPendingTx } from "../transactions";
 import type { CliConfig } from "../types";
+import { buildCliUserState } from "../user-state";
+
+type WalletSnapshot = {
+  publicKey?: string;
+  chainId?: number;
+};
+
+function normalizeAddress(address: string | undefined): string | undefined {
+  return address?.toLowerCase();
+}
+
+export function shouldBroadcastWalletStateChange(
+  config: CliConfig,
+  previous: WalletSnapshot | null,
+  next: WalletSnapshot,
+): boolean {
+  if (!config.privateKey || !next.publicKey) {
+    return false;
+  }
+
+  return (
+    normalizeAddress(previous?.publicKey) !== normalizeAddress(next.publicKey) ||
+    previous?.chainId !== next.chainId
+  );
+}
+
+export async function syncWalletStateForChat(
+  config: CliConfig,
+  previous: WalletSnapshot | null,
+  next: WalletSnapshot,
+  cli: CliSession,
+  session: {
+    resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
+    syncUserState: () => Promise<unknown>;
+    client: { sendSystemMessage: (sessionId: string, message: string) => Promise<unknown> };
+  },
+): Promise<void> {
+  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+    return;
+  }
+
+  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId));
+  await session.syncUserState();
+
+  const payload: Record<string, unknown> = {
+    address: next.publicKey,
+    isConnected: true,
+  };
+  if (next.chainId !== undefined) {
+    payload.chainId = next.chainId;
+  }
+
+  await session.client.sendSystemMessage(
+    cli.sessionId,
+    JSON.stringify({
+      type: "wallet:state_changed",
+      payload,
+    }),
+  );
+}
 
 export async function chatCommand(config: CliConfig, message: string, verbose: boolean): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
 
+  const previousCli = config.freshSession ? null : CliSession.load();
+  const previousWallet = previousCli
+    ? {
+        publicKey: previousCli.publicKey,
+        chainId: previousCli.chainId,
+      }
+    : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
 
   try {
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
+    await syncWalletStateForChat(
+      config,
+      previousWallet,
+      {
+        publicKey: cli.publicKey,
+        chainId: cli.chainId,
+      },
+      cli,
+      session,
+    );
 
     const capturedRequests: WalletRequest[] = [];
     let printedAgentCount = 0;

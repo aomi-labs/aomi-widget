@@ -6,8 +6,14 @@ import {
   type FC,
   createContext,
   useContext,
+  useEffect,
 } from "react";
-import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
+import {
+  AomiRuntimeProvider,
+  cn,
+  useAomiRuntime,
+  useUser,
+} from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
@@ -24,6 +30,7 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+import { useWalletAdapter } from "@/lib/aomi-wallet-adapter";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -39,6 +46,21 @@ const ComposerControlContext = createContext<ComposerControlContextValue>({
 });
 
 export const useComposerControl = () => useContext(ComposerControlContext);
+
+const WalletUserStateSync: FC = () => {
+  const { identity } = useWalletAdapter();
+  const { setUser } = useUser();
+
+  useEffect(() => {
+    setUser({
+      address: identity.isConnected ? (identity.address ?? undefined) : undefined,
+      chainId: identity.isConnected ? (identity.chainId ?? undefined) : undefined,
+      isConnected: identity.isConnected,
+    });
+  }, [identity.address, identity.chainId, identity.isConnected, setUser]);
+
+  return null;
+};
 
 // =============================================================================
 // Types
@@ -105,6 +127,7 @@ const Root: FC<RootProps> = ({
 
   return (
     <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
+      <WalletUserStateSync />
       <SidebarProvider className="h-full min-h-0!">
         <div
           className={cn(

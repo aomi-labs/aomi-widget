@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type FC } from "react";
-import { cn, getChainInfo, useUser } from "@aomi-labs/react";
+import { cn, getChainInfo } from "@aomi-labs/react";
 import { useWalletAdapter } from "../../lib/aomi-wallet-adapter";
 import { useAccountIdentity } from "../../lib/account-identity";
 
@@ -17,23 +17,11 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   onConnectionChange,
 }) => {
   const adapter = useWalletAdapter();
-  const { setUser } = useUser();
   const identity = useAccountIdentity();
 
   useEffect(() => {
-    setUser({
-      address: identity.address ?? undefined,
-      chainId: identity.chainId ?? undefined,
-      isConnected: identity.isConnected,
-    });
     onConnectionChange?.(identity.isConnected);
-  }, [
-    identity.address,
-    identity.chainId,
-    identity.isConnected,
-    setUser,
-    onConnectionChange,
-  ]);
+  }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
     const action = identity.isConnected ? adapter.manageAccount : adapter.connect;

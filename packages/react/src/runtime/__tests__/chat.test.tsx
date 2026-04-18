@@ -114,6 +114,50 @@ describe("Chat API", () => {
         ).toBe(true);
       });
     });
+
+    it("does not send a stale public key after disconnect", async () => {
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xabc",
+          chainId: 1,
+          isConnected: true,
+        });
+      });
+
+      await act(async () => {
+        api.setUser({ isConnected: false });
+      });
+
+      await act(async () => {
+        await api.sendMessage("after disconnect");
+      });
+
+      const call = postChatMessage.mock.calls[0] as unknown as [
+        string,
+        string,
+        {
+          publicKey?: string;
+          userState?: Record<string, unknown>;
+        } | undefined,
+      ];
+
+      expect(call[2]?.publicKey).toBeUndefined();
+      expect(call[2]?.userState).toMatchObject({
+        isConnected: false,
+        address: undefined,
+        chainId: undefined,
+      });
+    });
   });
 
   describe("getMessages", () => {

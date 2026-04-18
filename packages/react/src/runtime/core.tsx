@@ -66,7 +66,10 @@ export function AomiRuntimeCore({
     cancelGeneration: orchestratorCancel,
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => getUserState().address,
+    getPublicKey: () => {
+      const userState = getUserState();
+      return userState.isConnected ? (userState.address ?? undefined) : undefined;
+    },
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -182,7 +185,7 @@ export function AomiRuntimeCore({
   // Fetch thread list when user connects
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const userAddress = user.address;
+    const userAddress = user.isConnected ? user.address : undefined;
     if (!userAddress) return;
 
     const fetchThreadList = async () => {
@@ -226,7 +229,7 @@ export function AomiRuntimeCore({
     };
 
     void fetchThreadList();
-  }, [user.address, aomiClientRef]);
+  }, [user.address, user.isConnected, aomiClientRef]);
 
   // ---------------------------------------------------------------------------
   // Thread list adapter
