@@ -107,6 +107,8 @@ describe("CLI wallet sign simulation integration", () => {
       app: "default",
       apiKey: "test-key",
       publicKey: "0x9999999999999999999999999999999999999999",
+      privateKey:
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       chainId: 1,
       pendingTxs: [
         {
@@ -241,5 +243,63 @@ describe("CLI wallet sign simulation integration", () => {
         ],
       }),
     );
+  });
+
+  it("ignores a zero-valued fee and still signs the transaction", async () => {
+    mocks.simulateBatch.mockResolvedValue({
+      result: {
+        batch_success: true,
+        stateful: true,
+        from: MOCK_ADDRESS,
+        network: "mainnet",
+        total_gas: 21_000,
+        fee: {
+          recipient: "0x9C7a99480c59955a635123EDa064456393e519f5",
+          amount_wei: "0",
+          token: "native",
+        },
+        steps: [],
+      },
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    expect(mocks.createCliProviderState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callList: [
+          {
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            data: "0x",
+            chainId: 1,
+          },
+        ],
+      }),
+    );
+    expect(mocks.executeWalletCalls).toHaveBeenCalled();
+  });
+
+  it("uses the saved private key when no override is passed", async () => {
+    await signCommand(
+      {
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    expect(mocks.executeWalletCalls).toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import type { ArgsDef } from "citty";
+import { privateKeyToAccount } from "viem/accounts";
 import type { CliConfig, CliExecutionMode } from "../../types";
 import { fatal } from "../../errors";
 import { parseChainId, normalizePrivateKey, parseAAProvider, parseAAMode } from "../../validation";
@@ -54,6 +55,16 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function derivePublicKeyFromPrivateKey(privateKey: string | undefined): string | undefined {
+  if (!privateKey) return undefined;
+
+  try {
+    return privateKeyToAccount(privateKey as `0x${string}`).address;
+  } catch {
+    fatal("Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.");
+  }
+}
+
 function resolveExecution(args: Record<string, unknown>): CliExecutionMode | undefined {
   const flagAA = args.aa === true;
   const flagEoa = args.eoa === true;
@@ -79,6 +90,22 @@ function resolveExecution(args: Record<string, unknown>): CliExecutionMode | und
  */
 export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const execution = resolveExecution(args);
+  const privateKey = normalizePrivateKey(
+    str(args["private-key"]) ?? process.env.PRIVATE_KEY,
+  );
+  const configuredPublicKey =
+    str(args["public-key"]) ??
+    process.env.AOMI_PUBLIC_KEY;
+  const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
+
+  if (
+    configuredPublicKey &&
+    derivedPublicKey &&
+    configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()
+  ) {
+    fatal("`--public-key` does not match the address derived from `--private-key`.");
+  }
+
   const aaProvider = parseAAProvider(
     str(args["aa-provider"]) ?? process.env.AOMI_AA_PROVIDER,
   );
@@ -106,12 +133,8 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
       str(args.model) ??
       process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
-    publicKey:
-      str(args["public-key"]) ??
-      process.env.AOMI_PUBLIC_KEY,
-    privateKey: normalizePrivateKey(
-      str(args["private-key"]) ?? process.env.PRIVATE_KEY,
-    ),
+    publicKey: configuredPublicKey ?? derivedPublicKey,
+    privateKey,
     chainRpcUrl:
       str(args["rpc-url"]) ??
       process.env.CHAIN_RPC_URL,

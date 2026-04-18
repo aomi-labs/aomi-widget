@@ -345,8 +345,15 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (userState && typeof userState === "object") {
         this._userState = userState as Record<string, unknown>;
         const addr = (userState as Record<string, unknown>).address;
-        if (typeof addr === "string" && addr.length > 0) {
+        const isConnected = (userState as Record<string, unknown>).isConnected;
+        if (
+          typeof addr === "string" &&
+          addr.length > 0 &&
+          isConnected !== false
+        ) {
           this._publicKey = addr;
+        } else {
+          this._publicKey = undefined;
         }
       }
     }

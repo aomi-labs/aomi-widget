@@ -5,6 +5,8 @@ import { sessionDef } from "./commands/defs/session";
 import { modelDef } from "./commands/defs/model";
 import { appDef } from "./commands/defs/app";
 import { chainDef } from "./commands/defs/chain";
+import { walletDef } from "./commands/defs/wallet";
+import { configDef } from "./commands/defs/config";
 import { secretDef } from "./commands/defs/secret";
 import { globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
@@ -23,6 +25,8 @@ export const root = defineCommand({
     model: modelDef,
     app: appDef,
     chain: chainDef,
+    wallet: walletDef,
+    config: configDef,
     secret: secretDef,
   },
 });

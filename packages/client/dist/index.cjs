@@ -1101,8 +1101,11 @@ var ClientSession = class extends TypedEventEmitter {
   resolveUserState(userState) {
     this.userState = userState;
     const address = userState["address"];
-    if (typeof address === "string" && address.length > 0) {
+    const isConnected = userState["isConnected"];
+    if (typeof address === "string" && address.length > 0 && isConnected !== false) {
       this.publicKey = address;
+    } else {
+      this.publicKey = void 0;
     }
   }
   setClientType(clientType) {

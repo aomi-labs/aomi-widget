@@ -63,7 +63,7 @@ export async function appsCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: config.publicKey,
+    publicKey: config.publicKey ?? cli?.publicKey,
     apiKey: config.apiKey ?? cli?.apiKey,
   });
 
@@ -109,6 +109,49 @@ export function currentAppCommand(): void {
   printDataFileLocation();
 }
 
+export function currentChainCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  if (cli.chainId === undefined) {
+    console.log("No active chain");
+  } else {
+    console.log(String(cli.chainId));
+  }
+  printDataFileLocation();
+}
+
+export function currentBackendCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  console.log(cli.baseUrl);
+  printDataFileLocation();
+}
+
+export function currentWalletCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  if (!cli.publicKey) {
+    console.log("No wallet configured");
+    printDataFileLocation();
+    return;
+  }
+  const signerStatus = cli.privateKey ? "saved signer" : "address only";
+  console.log(`${cli.publicKey} (${signerStatus})`);
+  printDataFileLocation();
+}
+
 export function currentModelCommand(): void {
   const cli = CliSession.load();
   if (!cli) {
@@ -150,4 +193,3 @@ export function chainsCommand(): void {
     console.log(`${id}  ${name}${aaInfo}${marker}`);
   }
 }
-
