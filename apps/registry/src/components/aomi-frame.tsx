@@ -30,7 +30,7 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
-import { useWalletAdapter } from "@/lib/aomi-wallet-adapter";
+import { useWalletAdapter } from "../lib/aomi-wallet-adapter";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
