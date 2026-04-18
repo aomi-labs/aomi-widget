@@ -10,15 +10,16 @@ npm install @aomi-labs/react @assistant-ui/react react react-dom
 pnpm add @aomi-labs/react @assistant-ui/react react react-dom
 ```
 
-Optional dependencies for advanced custom wallet adapters:
+Optional dependencies when building custom wallet adapters or host-side wallet
+bridges:
 
 ```bash
 pnpm add wagmi viem
 ```
 
-If you use the registry-installed `AomiFrame`, the default Para-backed
-`AomiAdapterProvider` is already wired for you. Add `wagmi` only when you want
-to bring your own adapter implementation.
+If you use the registry-installed `AomiFrame` from `@aomi-labs/widget-lib`,
+wallet behavior comes from a host-supplied `WalletAdapterProvider` bridge.
+`@aomi-labs/react` does not ship a built-in Para adapter.
 
 ## Quick Start
 

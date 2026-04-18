@@ -32,7 +32,7 @@
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
         "https://aomi.dev/r/aomi-wallet-adapter.json",
-        "https://aomi.dev/r/para-wallet-bridge.json",
+        "https://aomi.dev/r/wallet-sync-bridge.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
@@ -49,11 +49,11 @@
       "description": "Provider-agnostic wallet adapter context, types, and hook.",
       "files": [
         {
-          "type": "registry:component",
+          "type": "registry:lib",
           "path": "lib/aomi-wallet-adapter.ts"
         },
         {
-          "type": "registry:component",
+          "type": "registry:lib",
           "path": "lib/account-identity.ts"
         }
       ],
@@ -63,20 +63,17 @@
       "registryDependencies": []
     },
     {
-      "name": "para-wallet-bridge",
+      "name": "wallet-sync-bridge",
       "type": "registry:component",
-      "description": "Para wallet bridge — runs inside ParaProviderMin, writes WalletAdapterContext.",
+      "description": "Syncs wallet adapter identity into the Aomi runtime user state.",
       "files": [
         {
           "type": "registry:component",
-          "path": "components/para-wallet-bridge.tsx"
+          "path": "components/wallet-sync-bridge.tsx"
         }
       ],
       "dependencies": [
-        "@aomi-labs/react",
-        "@getpara/react-sdk",
-        "viem",
-        "wagmi"
+        "@aomi-labs/react"
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-wallet-adapter.json"

@@ -30,7 +30,7 @@ export const registry: RegistryComponent[] = [
       // Theme (CSS variables required by all components)
       aomi("aomi-theme"),
       aomi("aomi-wallet-adapter"),
-      aomi("para-wallet-bridge"),
+      aomi("wallet-sync-bridge"),
       // Internal aomi components (customized)
       aomi("assistant-thread"),
       aomi("assistant-threadlist-sidebar"),
@@ -57,17 +57,12 @@ export const registry: RegistryComponent[] = [
       "Provider-agnostic wallet adapter context, types, and hook.",
   },
   {
-    name: "para-wallet-bridge",
-    file: "components/para-wallet-bridge.tsx",
-    dependencies: [
-      "@aomi-labs/react",
-      "@getpara/react-sdk",
-      "viem",
-      "wagmi",
-    ],
+    name: "wallet-sync-bridge",
+    file: "components/wallet-sync-bridge.tsx",
+    dependencies: ["@aomi-labs/react"],
     registryDependencies: [aomi("aomi-wallet-adapter")],
     description:
-      "Para wallet bridge — runs inside ParaProviderMin, writes WalletAdapterContext.",
+      "Syncs wallet adapter identity into the Aomi runtime user state.",
   },
   {
     name: "control-bar",

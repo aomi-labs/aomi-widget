@@ -99,7 +99,7 @@ Create or update `.env.local`:
 NEXT_PUBLIC_BACKEND_URL=https://api.aomi.dev
 ```
 
-For the default Para-backed wallet flow, also add:
+If you want the Para-based wallet flow shown in the landing example, also add:
 
 ```bash
 # Required for wallet connect / social auth
@@ -109,9 +109,8 @@ NEXT_PUBLIC_PARA_API_KEY=your_para_api_key
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 ```
 
-Advanced consumers can replace the default wallet implementation with their own
-adapter by wrapping the widget in `AomiAdapterProvider` or passing an `adapter`
-prop to `AomiFrame`.
+Advanced consumers can supply their own wallet adapter by wrapping the widget
+in `WalletAdapterProvider` and providing a host-side wallet bridge.
 
 ## Add AomiFrame to a Page
 

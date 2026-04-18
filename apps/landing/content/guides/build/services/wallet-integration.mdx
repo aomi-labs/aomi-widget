@@ -5,19 +5,18 @@ description: Connect wallets, sign transactions, and switch networks.
 
 # Wallet Integration
 
-Aomi widgets now expose wallet behavior through `AomiAdapterProvider`. The
-default registry install ships with a Para-backed adapter for connection,
-account management, transaction execution, typed-data signing, and chain
-switching. Advanced consumers can still replace that adapter with their own
-wallet stack.
+Aomi widgets expose wallet behavior through a provider-agnostic adapter
+boundary. The registry install gives you `WalletAdapterProvider`,
+`WalletSyncBridge`, and `RuntimeTxHandler`; you provide the wallet-specific
+bridge in your host app. Para is one possible implementation.
 
 ## Setup
 
 ### Install Dependencies
 
 If you installed the widget through `npx shadcn add https://aomi.dev/r/aomi-frame.json`,
-the default adapter files and their dependencies are already included. Use the
-setup below only when you are customizing the wallet provider layer directly.
+the adapter primitives are already included. Use the setup below when you want
+to wire a Para-based wallet bridge in your host app.
 
 ```bash
 npm install @getpara/react-sdk @getpara/evm-wallet-connectors wagmi viem @tanstack/react-query

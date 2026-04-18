@@ -1,6 +1,11 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import {
+  createContext,
+  createElement,
+  useContext,
+  type ReactNode,
+} from "react";
 import type {
   WalletEip712Payload,
   WalletTxPayload,
@@ -58,17 +63,35 @@ export const DISCONNECTED_ADAPTER: WalletAdapter = {
 // =============================================================================
 
 export const WalletAdapterContext =
-  createContext<WalletAdapter>(DISCONNECTED_ADAPTER);
+  createContext<WalletAdapter | undefined>(undefined);
 
 /** @deprecated Use `WalletAdapterContext` instead. */
 export const AomiAdapterContext = WalletAdapterContext;
+
+export function WalletAdapterProvider({
+  children,
+  value,
+}: {
+  children: ReactNode;
+  value?: WalletAdapter;
+}) {
+  const inheritedAdapter = useContext(WalletAdapterContext);
+
+  return createElement(
+    WalletAdapterContext.Provider,
+    { value: value ?? inheritedAdapter },
+    children,
+  );
+}
 
 // =============================================================================
 // Hook
 // =============================================================================
 
 export function useWalletAdapter(): WalletAdapter {
-  return useContext(WalletAdapterContext);
+  const contextAdapter = useContext(WalletAdapterContext);
+
+  return contextAdapter ?? DISCONNECTED_ADAPTER;
 }
 
 /** @deprecated Use `useWalletAdapter()` instead. */
