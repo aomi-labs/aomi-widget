@@ -2,8 +2,8 @@
 
 import { useEffect, type FC } from "react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import { useWalletAdapter } from "../../lib/aomi-wallet-adapter";
-import { useAccountIdentity } from "../../lib/account-identity";
+import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
+import { useAomiAuthIdentity } from "../../lib/auth-identity";
 
 export type ConnectButtonProps = {
   className?: string;
@@ -16,8 +16,8 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   connectLabel = "Connect Account",
   onConnectionChange,
 }) => {
-  const adapter = useWalletAdapter();
-  const identity = useAccountIdentity();
+  const adapter = useAomiAuthAdapter();
+  const identity = useAomiAuthIdentity();
 
   useEffect(() => {
     onConnectionChange?.(identity.isConnected);
@@ -34,9 +34,9 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     ? getChainInfo(identity.chainId)?.ticker
     : undefined;
   const secondaryLabel =
-    identity.kind === "social" ? identity.secondaryLabel : ticker;
+    identity.status === "social" ? identity.secondaryLabel : ticker;
   const primaryLabel =
-    identity.kind === "disconnected" ? connectLabel : identity.primaryLabel;
+    identity.status === "disconnected" ? connectLabel : identity.primaryLabel;
   const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
 
   return (
@@ -65,8 +65,3 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     </button>
   );
 };
-
-/** @deprecated Use {@link ConnectButton} */
-export const WalletConnect = ConnectButton;
-/** @deprecated Use {@link ConnectButtonProps} */
-export type WalletConnectProps = ConnectButtonProps;

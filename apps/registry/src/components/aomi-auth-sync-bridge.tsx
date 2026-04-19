@@ -2,16 +2,16 @@
 
 import { useEffect } from "react";
 import { useUser } from "@aomi-labs/react";
-import { useWalletAdapter } from "../lib/aomi-wallet-adapter";
+import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
 
 /**
- * Keeps the Aomi runtime's user state in sync with the active wallet adapter.
+ * Keeps the Aomi runtime's user state in sync with the active Aomi auth adapter.
  *
  * This makes wallet identity flow through a single bridge instead of being
  * coupled to individual UI components like the connect button.
  */
-export function WalletSyncBridge() {
-  const adapter = useWalletAdapter();
+export function AomiAuthSyncBridge() {
+  const adapter = useAomiAuthAdapter();
   const { user, setUser } = useUser();
   const { address, chainId, isConnected } = adapter.identity;
 

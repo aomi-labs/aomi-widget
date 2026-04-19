@@ -10,14 +10,14 @@ import type {
   WalletEip712Payload,
   WalletTxPayload,
 } from "@aomi-labs/react";
-import type { AccountIdentity } from "./account-identity";
+import type { AomiAuthIdentity } from "./auth-identity";
 
 // =============================================================================
 // WalletAdapter type
 // =============================================================================
 
-export type WalletAdapter = {
-  identity: AccountIdentity;
+export type AomiAuthAdapter = {
+  identity: AomiAuthIdentity;
   isReady: boolean;
   isSwitchingChain: boolean;
   canConnect: boolean;
@@ -33,16 +33,14 @@ export type WalletAdapter = {
   ) => Promise<{ signature: string }>;
 };
 
-/** @deprecated Use `WalletAdapter` instead. */
-export type AomiAdapter = WalletAdapter;
 
 // =============================================================================
 // Disconnected default
 // =============================================================================
 
-export const DISCONNECTED_ADAPTER: WalletAdapter = {
+export const AOMI_AUTH_DISCONNECTED_ADAPTER: AomiAuthAdapter = {
   identity: {
-    kind: "disconnected",
+    status: "disconnected",
     isConnected: false,
     address: undefined,
     chainId: undefined,
@@ -62,23 +60,20 @@ export const DISCONNECTED_ADAPTER: WalletAdapter = {
 // Context
 // =============================================================================
 
-export const WalletAdapterContext =
-  createContext<WalletAdapter | undefined>(undefined);
+export const AomiAuthAdapterContext =
+  createContext<AomiAuthAdapter | undefined>(undefined);
 
-/** @deprecated Use `WalletAdapterContext` instead. */
-export const AomiAdapterContext = WalletAdapterContext;
-
-export function WalletAdapterProvider({
+export function AomiAuthAdapterProvider({
   children,
   value,
 }: {
   children: ReactNode;
-  value?: WalletAdapter;
+  value?: AomiAuthAdapter;
 }) {
-  const inheritedAdapter = useContext(WalletAdapterContext);
+  const inheritedAdapter = useContext(AomiAuthAdapterContext);
 
   return createElement(
-    WalletAdapterContext.Provider,
+    AomiAuthAdapterContext.Provider,
     { value: value ?? inheritedAdapter },
     children,
   );
@@ -88,11 +83,8 @@ export function WalletAdapterProvider({
 // Hook
 // =============================================================================
 
-export function useWalletAdapter(): WalletAdapter {
-  const contextAdapter = useContext(WalletAdapterContext);
+export function useAomiAuthAdapter(): AomiAuthAdapter {
+  const contextAdapter = useContext(AomiAuthAdapterContext);
 
-  return contextAdapter ?? DISCONNECTED_ADAPTER;
+  return contextAdapter ?? AOMI_AUTH_DISCONNECTED_ADAPTER;
 }
-
-/** @deprecated Use `useWalletAdapter()` instead. */
-export const useAomiAdapter = useWalletAdapter;

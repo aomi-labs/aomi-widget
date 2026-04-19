@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo } from "react";
 import { useAccount as useParaAccount, useModal } from "@getpara/react-sdk";
 import {
-  WalletAdapterContext,
-  type WalletAdapter,
+  AOMI_AUTH_DISCONNECTED_ADAPTER,
+  type AomiAuthAdapter,
+  type AomiAuthIdentity,
   formatAddress,
 } from "@aomi-labs/widget-lib";
 import type {
@@ -19,19 +20,7 @@ import {
 } from "wagmi";
 
 type Props = {
-  children: ReactNode;
-};
-
-type AccountIdentityKind = "disconnected" | "social" | "wallet";
-
-type AccountIdentity = {
-  kind: AccountIdentityKind;
-  isConnected: boolean;
-  address?: string;
-  chainId?: number;
-  authProvider?: string;
-  primaryLabel: string;
-  secondaryLabel?: string;
+  onAdapterChange: (adapter: AomiAuthAdapter) => void;
 };
 
 function formatAuthProvider(provider?: string): string | undefined {
@@ -93,7 +82,7 @@ function parseChainId(value: number | string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function useAccountIdentity(): AccountIdentity {
+function useLandingAomiAuthIdentity(): AomiAuthIdentity {
   const paraAccount = useParaAccount();
   const { address: wagmiAddress, chainId, isConnected: wagmiConnected } = useAccount();
 
@@ -117,7 +106,7 @@ function useAccountIdentity(): AccountIdentity {
 
     if (isConnected && embeddedPrimary) {
       return {
-        kind: "social" as const,
+        status: "social" as const,
         isConnected,
         address,
         chainId: chainId ?? undefined,
@@ -129,7 +118,7 @@ function useAccountIdentity(): AccountIdentity {
 
     if (isConnected && address) {
       return {
-        kind: "wallet" as const,
+        status: "wallet" as const,
         isConnected,
         address,
         chainId: chainId ?? undefined,
@@ -139,7 +128,7 @@ function useAccountIdentity(): AccountIdentity {
     }
 
     return {
-      kind: "disconnected" as const,
+      status: "disconnected" as const,
       isConnected: false,
       address: undefined,
       chainId: chainId ?? undefined,
@@ -157,15 +146,15 @@ function useAccountIdentity(): AccountIdentity {
   ]);
 }
 
-export function LandingWalletBridge({ children }: Props) {
+export function LandingAomiAuthBridge({ onAdapterChange }: Props) {
   const { openModal } = useModal();
-  const identity = useAccountIdentity();
+  const identity = useLandingAomiAuthIdentity();
   const { sendTransactionAsync } = useSendTransaction();
   const { signTypedDataAsync } = useSignTypedData();
   const { chainId: currentChainId } = useAccount();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
 
-  const adapter = useMemo<WalletAdapter>(() => {
+  const adapter = useMemo<AomiAuthAdapter>(() => {
     return {
       identity,
       isReady: true,
@@ -245,9 +234,13 @@ export function LandingWalletBridge({ children }: Props) {
     switchChainAsync,
   ]);
 
-  return (
-    <WalletAdapterContext.Provider value={adapter}>
-      {children}
-    </WalletAdapterContext.Provider>
-  );
+  useEffect(() => {
+    onAdapterChange(adapter);
+
+    return () => {
+      onAdapterChange(AOMI_AUTH_DISCONNECTED_ADAPTER);
+    };
+  }, [adapter, onAdapterChange]);
+
+  return null;
 }

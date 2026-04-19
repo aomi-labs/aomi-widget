@@ -4,6 +4,7 @@ import { createControlClient } from "../context";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
 import { DEFAULT_AA_CONFIG } from "../../aa/types";
+import { fatal } from "../errors";
 
 export async function statusCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
@@ -163,7 +164,36 @@ export function currentModelCommand(): void {
   printDataFileLocation();
 }
 
-export async function setModelCommand(config: CliConfig, model: string): Promise<void> {
+export function setAppCommand(
+  config: CliConfig,
+  app: string,
+  options?: { printLocation?: boolean },
+): void {
+  const trimmed = app.trim();
+  if (!trimmed) {
+    fatal("Usage: aomi app set <app-name>");
+  }
+
+  const cli = CliSession.loadOrCreate({
+    ...config,
+    app: trimmed,
+  });
+  cli.mergeConfig({
+    ...config,
+    app: trimmed,
+  });
+
+  console.log(`App set to ${trimmed}`);
+  if (options?.printLocation !== false) {
+    printDataFileLocation();
+  }
+}
+
+export async function setModelCommand(
+  config: CliConfig,
+  model: string,
+  options?: { printLocation?: boolean },
+): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
   try {
@@ -173,7 +203,9 @@ export async function setModelCommand(config: CliConfig, model: string): Promise
     });
     cli.setModel(model);
     console.log(`Model set to ${model}`);
-    printDataFileLocation();
+    if (options?.printLocation !== false) {
+      printDataFileLocation();
+    }
   } finally {
     session.close();
   }

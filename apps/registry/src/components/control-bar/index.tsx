@@ -68,8 +68,6 @@ export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
 export {
   ConnectButton,
   type ConnectButtonProps,
-  WalletConnect,
-  type WalletConnectProps,
 } from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
 export { SecretInput, type SecretInputProps } from "./secret-input";

@@ -31,8 +31,8 @@
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
-        "https://aomi.dev/r/aomi-wallet-adapter.json",
-        "https://aomi.dev/r/wallet-sync-bridge.json",
+        "https://aomi.dev/r/aomi-auth-adapter.json",
+        "https://aomi.dev/r/aomi-auth-sync-bridge.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
@@ -44,17 +44,17 @@
       ]
     },
     {
-      "name": "aomi-wallet-adapter",
+      "name": "aomi-auth-adapter",
       "type": "registry:component",
-      "description": "Provider-agnostic wallet adapter context, types, and hook.",
+      "description": "Provider-agnostic Aomi auth adapter context, types, and hook.",
       "files": [
         {
-          "type": "registry:lib",
-          "path": "lib/aomi-wallet-adapter.ts"
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
         },
         {
-          "type": "registry:lib",
-          "path": "lib/account-identity.ts"
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
@@ -63,20 +63,20 @@
       "registryDependencies": []
     },
     {
-      "name": "wallet-sync-bridge",
+      "name": "aomi-auth-sync-bridge",
       "type": "registry:component",
-      "description": "Syncs wallet adapter identity into the Aomi runtime user state.",
+      "description": "Syncs Aomi auth adapter identity into the Aomi runtime user state.",
       "files": [
         {
           "type": "registry:component",
-          "path": "components/wallet-sync-bridge.tsx"
+          "path": "components/aomi-auth-sync-bridge.tsx"
         }
       ],
       "dependencies": [
         "@aomi-labs/react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-wallet-adapter.json"
+        "https://aomi.dev/r/aomi-auth-adapter.json"
       ]
     },
     {
@@ -118,7 +118,7 @@
         "lucide-react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-wallet-adapter.json",
+        "https://aomi.dev/r/aomi-auth-adapter.json",
         "button",
         "popover",
         "dialog",
@@ -278,7 +278,7 @@
         "@aomi-labs/react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-wallet-adapter.json"
+        "https://aomi.dev/r/aomi-auth-adapter.json"
       ]
     },
     {

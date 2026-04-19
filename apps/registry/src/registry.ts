@@ -29,8 +29,8 @@ export const registry: RegistryComponent[] = [
     registryDependencies: [
       // Theme (CSS variables required by all components)
       aomi("aomi-theme"),
-      aomi("aomi-wallet-adapter"),
-      aomi("wallet-sync-bridge"),
+      aomi("aomi-auth-adapter"),
+      aomi("aomi-auth-sync-bridge"),
       // Internal aomi components (customized)
       aomi("assistant-thread"),
       aomi("assistant-threadlist-sidebar"),
@@ -45,24 +45,24 @@ export const registry: RegistryComponent[] = [
     description: "Full assistant shell with thread list and runtime wiring.",
   },
   {
-    name: "aomi-wallet-adapter",
+    name: "aomi-auth-adapter",
     file: [
-      "lib/aomi-wallet-adapter.ts",
-      "lib/account-identity.ts",
+      "lib/aomi-auth-adapter.ts",
+      "lib/auth-identity.ts",
     ],
     dependencies: [
       "@aomi-labs/react",
     ],
     description:
-      "Provider-agnostic wallet adapter context, types, and hook.",
+      "Provider-agnostic Aomi auth adapter context, types, and hook.",
   },
   {
-    name: "wallet-sync-bridge",
-    file: "components/wallet-sync-bridge.tsx",
+    name: "aomi-auth-sync-bridge",
+    file: "components/aomi-auth-sync-bridge.tsx",
     dependencies: ["@aomi-labs/react"],
-    registryDependencies: [aomi("aomi-wallet-adapter")],
+    registryDependencies: [aomi("aomi-auth-adapter")],
     description:
-      "Syncs wallet adapter identity into the Aomi runtime user state.",
+      "Syncs Aomi auth adapter identity into the Aomi runtime user state.",
   },
   {
     name: "control-bar",
@@ -77,7 +77,7 @@ export const registry: RegistryComponent[] = [
     ],
     dependencies: ["@aomi-labs/react", "lucide-react"],
     registryDependencies: [
-      aomi("aomi-wallet-adapter"),
+      aomi("aomi-auth-adapter"),
       "button",
       "popover",
       "dialog",
@@ -173,7 +173,7 @@ export const registry: RegistryComponent[] = [
     name: "runtime-tx-handler",
     file: "components/runtime-tx-handler.tsx",
     dependencies: ["@aomi-labs/react"],
-    registryDependencies: [aomi("aomi-wallet-adapter")],
+    registryDependencies: [aomi("aomi-auth-adapter")],
     description:
       "Bridges wallet transaction and EIP-712 signing requests from the AI backend to the active Aomi adapter.",
   },

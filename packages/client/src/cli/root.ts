@@ -17,7 +17,26 @@ export const root = defineCommand({
     version: packageJson.version,
     description: "CLI client for Aomi on-chain agent",
   },
-  args: { ...globalArgs },
+  args: {
+    ...globalArgs,
+    prompt: {
+      type: "string",
+      alias: "p",
+      description: "Send a single prompt and exit",
+    },
+    "show-tool": {
+      type: "boolean",
+      description: "Show tool output while chatting from root mode",
+    },
+    "provider-key": {
+      type: "string",
+      description: "Use your own provider API key. Format: PROVIDER:KEY",
+    },
+  },
+  async run({ args }) {
+    const { runRootCli } = await import("./repl");
+    await runRootCli(args);
+  },
   subCommands: {
     chat: chatDef,
     tx: txDef,

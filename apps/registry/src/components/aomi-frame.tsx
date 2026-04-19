@@ -12,7 +12,7 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
 import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
-import { WalletSyncBridge } from "@/components/wallet-sync-bridge";
+import { AomiAuthSyncBridge } from "@/components/aomi-auth-sync-bridge";
 import {
   SidebarInset,
   SidebarProvider,
@@ -25,7 +25,7 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
-import { WalletAdapterProvider } from "../lib/aomi-wallet-adapter";
+import { AomiAuthAdapterProvider } from "../lib/aomi-auth-adapter";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -41,7 +41,6 @@ const ComposerControlContext = createContext<ComposerControlContextValue>({
 });
 
 export const useComposerControl = () => useContext(ComposerControlContext);
-
 // =============================================================================
 // Types
 // =============================================================================
@@ -106,7 +105,7 @@ const Root: FC<RootProps> = ({
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <WalletAdapterProvider>
+    <AomiAuthAdapterProvider>
       <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
         <SidebarProvider className="h-full min-h-0!">
           <div
@@ -122,13 +121,13 @@ const Root: FC<RootProps> = ({
             <SidebarInset className="relative flex flex-col">
               {children}
             </SidebarInset>
-            <WalletSyncBridge />
+            <AomiAuthSyncBridge />
             <NotificationToaster />
             <RuntimeTxHandler />
           </div>
         </SidebarProvider>
       </AomiRuntimeProvider>
-    </WalletAdapterProvider>
+    </AomiAuthAdapterProvider>
   );
 };
 
