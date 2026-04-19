@@ -125,6 +125,16 @@ interface AomiCreateThreadResponse {
     title?: string;
 }
 /**
+ * GET/POST /api/control/provider-keys
+ * Lists or saves BYOK provider keys for the bound client.
+ */
+interface AomiProviderKeyEntry {
+    provider: string;
+    key_prefix: string;
+    label?: string | null;
+    is_active: boolean;
+}
+/**
  * Base SSE event - all events have session_id and type
  */
 type AomiSSEEvent = {
@@ -298,6 +308,18 @@ declare class AomiClient {
         baml: string;
         created: boolean;
     }>;
+    /**
+     * List BYOK provider keys bound to the current session's client.
+     */
+    listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]>;
+    /**
+     * Save or replace a BYOK provider key for the client bound to this session.
+     */
+    saveProviderKey(sessionId: string, provider: string, apiKey: string, label?: string): Promise<AomiProviderKeyEntry>;
+    /**
+     * Delete a BYOK provider key for the client bound to this session.
+     */
+    deleteProviderKey(sessionId: string, provider: string): Promise<boolean>;
     /**
      * Simulate transactions as an atomic batch.
      * Each tx sees state changes from previous txs (e.g., approve → swap).

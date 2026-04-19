@@ -1,11 +1,11 @@
 "use client";
 
-import { useWalletAdapter } from "./aomi-wallet-adapter";
+import { useAomiAuthAdapter } from "./aomi-auth-adapter";
 
-export type AccountIdentityKind = "disconnected" | "social" | "wallet";
+export type AomiAuthStatus = "disconnected" | "social" | "wallet";
 
-export type AccountIdentity = {
-  kind: AccountIdentityKind;
+export type AomiAuthIdentity = {
+  status: AomiAuthStatus;
   isConnected: boolean;
   address?: string;
   chainId?: number;
@@ -14,8 +14,8 @@ export type AccountIdentity = {
   secondaryLabel?: string;
 };
 
-export const DISCONNECTED_ACCOUNT_IDENTITY: AccountIdentity = {
-  kind: "disconnected",
+export const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {
+  status: "disconnected",
   isConnected: false,
   address: undefined,
   chainId: undefined,
@@ -75,8 +75,6 @@ export function inferAuthProvider(authMethods: unknown): string | undefined {
   return typeof first === "string" ? first.toLowerCase() : undefined;
 }
 
-export function useAomiAccountIdentity(): AccountIdentity {
-  return useWalletAdapter().identity;
+export function useAomiAuthIdentity(): AomiAuthIdentity {
+  return useAomiAuthAdapter().identity;
 }
-
-export const useAccountIdentity = useAomiAccountIdentity;

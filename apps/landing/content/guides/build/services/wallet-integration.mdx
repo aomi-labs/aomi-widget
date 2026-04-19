@@ -6,8 +6,8 @@ description: Connect wallets, sign transactions, and switch networks.
 # Wallet Integration
 
 Aomi widgets expose wallet behavior through a provider-agnostic adapter
-boundary. The registry install gives you `WalletAdapterProvider`,
-`WalletSyncBridge`, and `RuntimeTxHandler`; you provide the wallet-specific
+boundary. The registry install gives you `AomiAuthAdapterProvider`,
+`AomiAuthSyncBridge`, and `RuntimeTxHandler`; you provide the wallet-specific
 bridge in your host app. Para is one possible implementation.
 
 ## Setup
@@ -145,7 +145,7 @@ When the AI assistant determines a transaction is needed, the following flow occ
 
 ### In the Widget
 
-The widget includes `WalletTxHandler` automatically. When a transaction request arrives, it prompts the user to sign.
+The widget includes `RuntimeTxHandler` automatically. When a transaction request arrives, it prompts the user to sign.
 
 ### In the Headless Library
 
@@ -225,15 +225,15 @@ function NetworkSwitcher() {
 
   const handleSwitch = async (chainId: number) => {
     await switchChain({ chainId });
-    // WalletConnect component auto-syncs, but you can also set manually:
+    // The widget auth bridge auto-syncs, but you can also set manually:
     setUser({ chainId });
   };
 }
 ```
 
-## WalletConnect Component (Widget)
+## ConnectButton Component (Widget)
 
-The widget's `WalletConnect` component handles the full lifecycle:
+The widget's `ConnectButton` component handles the full lifecycle:
 
 1. Renders a connect/manage account button
 2. On connect: opens the Para auth modal
@@ -241,9 +241,9 @@ The widget's `WalletConnect` component handles the full lifecycle:
 4. When already connected: opens the Para account modal
 
 ```tsx
-import { WalletConnect } from "@/components/control-bar";
+import { ConnectButton } from "@/components/control-bar";
 
-<WalletConnect
+<ConnectButton
   connectLabel="Connect Wallet"
   onConnectionChange={(isConnected) => {
     console.log("Wallet connected:", isConnected);

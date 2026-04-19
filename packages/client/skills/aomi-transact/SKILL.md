@@ -49,10 +49,18 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 
 ## Command Structure
 
-All commands follow a **noun-verb** pattern: `aomi <resource> <action>`.
-There are no top-level aliases — use the full noun-verb form.
+The CLI now has two entry shapes:
+
+- **Root chat mode** aligned with the Rust backend CLI:
+  - `aomi` starts the interactive REPL.
+  - `aomi --prompt "<message>"` sends one prompt and exits.
+  - The REPL supports `/heap`, `/app <name>`, `/model <rig>|list|show`, `/key <provider:key>|show|clear`, and `:exit`.
+- **Operator subcommands** for durable session and wallet workflows:
+  - `aomi <resource> <action>`
 
 ```
+aomi --prompt "<message>"          Send one prompt and exit
+aomi                               Start the interactive REPL
 aomi chat <message>                 Send a message
 aomi tx list                        List pending/signed transactions
 aomi tx simulate <id>...            Simulate a batch
@@ -70,6 +78,7 @@ Run this once at the start of the session:
 
 ```bash
 aomi --version
+aomi --prompt "hello" --new-session
 aomi session status 2>/dev/null || echo "no session"
 ```
 
@@ -94,6 +103,8 @@ tx-N`, there is nothing to sign yet.
 Use these when the user does not need signing:
 
 ```bash
+aomi --prompt "<message>" --new-session
+aomi
 aomi chat "<message>" --new-session
 aomi chat "<message>" --verbose
 aomi tx list
@@ -112,6 +123,8 @@ aomi session resume <id>
 
 Notes:
 
+- `aomi --prompt "<message>"` is the shortest one-shot path and mirrors the Rust CLI.
+- `aomi` enters a REPL that reuses the active session and exposes `/app`, `/model`, and `/key`.
 - Quote the chat message.
 - On the first command in a new Codex or assistant thread, prefer `--new-session` so old local/backend state does not bleed into the new task.
 - Use `--verbose` when debugging tool calls or streaming behavior.

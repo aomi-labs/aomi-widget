@@ -2,20 +2,17 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 
-// Aomi wallet adapter (provider-agnostic context + types)
+// Aomi auth adapter (provider-agnostic context + types)
 export {
-  type WalletAdapter,
-  type AomiAdapter,
-  WalletAdapterContext,
-  WalletAdapterProvider,
-  AomiAdapterContext,
-  DISCONNECTED_ADAPTER,
-  useWalletAdapter,
-  useAomiAdapter,
-} from "./lib/aomi-wallet-adapter";
+  type AomiAuthAdapter,
+  AomiAuthAdapterContext,
+  AomiAuthAdapterProvider,
+  AOMI_AUTH_DISCONNECTED_ADAPTER,
+  useAomiAuthAdapter,
+} from "./lib/aomi-auth-adapter";
 
-// Wallet runtime bridge
-export { WalletSyncBridge } from "./components/wallet-sync-bridge";
+// Auth runtime bridge
+export { AomiAuthSyncBridge } from "./components/aomi-auth-sync-bridge";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
@@ -40,7 +37,10 @@ export {
 export type { UserConfig } from "@aomi-labs/react";
 export { formatAddress, getNetworkName } from "@aomi-labs/react";
 export type {
-  AccountIdentity,
-  AccountIdentityKind,
-} from "./lib/account-identity";
-export { useAomiAccountIdentity } from "./lib/account-identity";
+  AomiAuthIdentity,
+  AomiAuthStatus,
+} from "./lib/auth-identity";
+export {
+  AOMI_AUTH_DISCONNECTED_IDENTITY,
+  useAomiAuthIdentity,
+} from "./lib/auth-identity";

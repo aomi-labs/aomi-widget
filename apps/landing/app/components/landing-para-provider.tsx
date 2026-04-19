@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Environment,
   ParaProvider,
   type TExternalWallet,
   type TOAuthMethod,
 } from "@getpara/react-sdk";
+import {
+  AomiAuthAdapterProvider,
+  AOMI_AUTH_DISCONNECTED_ADAPTER,
+  type AomiAuthAdapter,
+} from "@aomi-labs/widget-lib";
 import "@getpara/react-sdk/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { defineChain, http, type Chain, type Transport } from "viem";
@@ -20,7 +25,7 @@ import {
   linea,
   lineaSepolia,
 } from "wagmi/chains";
-import { LandingWalletBridge } from "./landing-wallet-bridge";
+import { LandingAomiAuthBridge } from "./landing-aomi-auth-bridge";
 
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
 
@@ -88,6 +93,9 @@ const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
+  const [adapter, setAdapter] = useState<AomiAuthAdapter>(
+    AOMI_AUTH_DISCONNECTED_ADAPTER,
+  );
 
   const paraModalConfig = useMemo(
     () => ({
@@ -119,25 +127,30 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  if (!paraApiKey) {
-    return null;
-  }
+  const handleAdapterChange = useCallback((nextAdapter: AomiAuthAdapter) => {
+    setAdapter((currentAdapter) =>
+      currentAdapter === nextAdapter ? currentAdapter : nextAdapter,
+    );
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Match the working product-mono pattern: Para owns the provider tree,
-          and the widget consumes wallet state from inside that tree. */}
-      <ParaProvider
-        paraClientConfig={{
-          apiKey: paraApiKey,
-          env: paraEnvironment,
-        }}
-        config={{ appName: "Aomi Labs" }}
-        paraModalConfig={paraModalConfig}
-        externalWalletConfig={externalWalletConfig}
-      >
-        <LandingWalletBridge>{children}</LandingWalletBridge>
-      </ParaProvider>
+      {paraApiKey && (
+        <ParaProvider
+          paraClientConfig={{
+            apiKey: paraApiKey,
+            env: paraEnvironment,
+          }}
+          config={{ appName: "Aomi Labs" }}
+          paraModalConfig={paraModalConfig}
+          externalWalletConfig={externalWalletConfig}
+        >
+          <LandingAomiAuthBridge onAdapterChange={handleAdapterChange} />
+        </ParaProvider>
+      )}
+      <AomiAuthAdapterProvider value={adapter}>
+        {children}
+      </AomiAuthAdapterProvider>
     </QueryClientProvider>
   );
 }

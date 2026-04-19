@@ -1,0 +1,28 @@
+[     176ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[     245ms] [LOG] [HMR] connected @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   12581ms] [LOG] [HMR] connected @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   14480ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   14496ms] [LOG] [HMR] connected @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   14664ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   14665ms] [LOG] [Fast Refresh] done in 125ms @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   30583ms] [ERROR] Failed to load resource: net::ERR_TIMED_OUT @ https://www.googletagmanager.com/gtag/js?id=G-X7YX5FRE2F:0
+[ 2604768ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 2608624ms] [WARNING] [Fast Refresh] performing full reload
+
+Fast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.
+You might have a file which exports a React component but also exports a value that is imported by a non-React component file.
+Consider migrating the non-React component export to a separate file and importing it into both files.
+
+It is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.
+Fast Refresh requires at least one parent function component in your React tree. @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 2608625ms] [LOG] [Fast Refresh] done in 3373ms @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 2608860ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 2608891ms] [LOG] [HMR] connected @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 2609156ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 2609236ms] [LOG] [Fast Refresh] done in 191ms @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 4088133ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 4088263ms] [LOG] [Fast Refresh] done in 215ms @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 4101207ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 4101362ms] [LOG] [Fast Refresh] done in 185ms @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 4176749ms] [LOG] [Fast Refresh] rebuilding @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[ 4176801ms] [LOG] [Fast Refresh] done in 152ms @ http://127.0.0.1:3000/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297

@@ -14,13 +14,13 @@ Or install via shadcn registry:
 npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
-The registry install includes provider-agnostic wallet adapter primitives.
-To enable wallet UX, supply a host-level adapter bridge, for example with
+The registry install includes provider-agnostic Aomi auth adapter primitives.
+To enable wallet UX, supply a host-level auth bridge, for example with
 Para, wagmi, or your own wallet implementation.
 
 ## Quick Start
 
-Drop the frame into your app with zero configuration. Without a wallet adapter,
+Drop the frame into your app with zero configuration. Without an auth adapter,
 the chat UI still works and wallet actions remain disabled.
 
 ```tsx
@@ -31,18 +31,18 @@ export function Assistant() {
 }
 ```
 
-Bring your own wallet adapter when needed:
+Bring your own Aomi auth adapter when needed:
 
 ```tsx
 import {
   AomiFrame,
-  WalletAdapterProvider,
-  type WalletAdapter,
+  AomiAuthAdapterProvider,
+  type AomiAuthAdapter,
 } from "@aomi-labs/widget-lib";
 
-const adapter: WalletAdapter = {
+const adapter: AomiAuthAdapter = {
   identity: {
-    kind: "disconnected",
+    status: "disconnected",
     isConnected: false,
     primaryLabel: "Not connected",
   },
@@ -58,9 +58,9 @@ const adapter: WalletAdapter = {
 
 export function Assistant() {
   return (
-    <WalletAdapterProvider value={adapter}>
+    <AomiAuthAdapterProvider value={adapter}>
       <AomiFrame height="640px" width="100%" />
-    </WalletAdapterProvider>
+    </AomiAuthAdapterProvider>
   );
 }
 ```
@@ -101,7 +101,7 @@ import { AomiFrame } from "@aomi-labs/react";
 | `walletPosition` | `"header" \| "footer" \| null` | `"footer"`                                    | Where to show wallet connect button |
 | `backendUrl`     | `string`                       | `NEXT_PUBLIC_BACKEND_URL` or `localhost:8080` | Backend API URL                     |
 
-Wallet behavior comes from the surrounding `WalletAdapterProvider` context. If
+Wallet behavior comes from the surrounding `AomiAuthAdapterProvider` context. If
 you do not provide one, the frame renders with a disconnected adapter and the
 wallet UI stays disabled.
 
@@ -129,7 +129,7 @@ export function CustomAssistant() {
 
 The root container that provides the widget layout, runtime providers, wallet
 sync bridge, and transaction bridge. Wallet behavior is read from the nearest
-`WalletAdapterProvider` context.
+`AomiAuthAdapterProvider` context.
 
 | Prop             | Type                           | Default                 | Description                       |
 | ---------------- | ------------------------------ | ----------------------- | --------------------------------- |
@@ -213,8 +213,6 @@ import {
   <ConnectButton connectLabel="Connect" />
 </div>;
 ```
-
-`WalletConnect` remains available as a deprecated alias for `ConnectButton`.
 
 #### ModelSelect Props
 

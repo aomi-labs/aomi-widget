@@ -32,6 +32,7 @@ const turbopackAliases: Record<string, string> = {
   "@/content": "./content",
   "@/hooks": "./src/hooks",
   "@aomi-labs/react": "../../packages/react/src/index.ts",
+  "@getpara/react-sdk": "./node_modules/@getpara/react-sdk",
   "@tanstack/react-query": "./node_modules/@tanstack/react-query",
   // Force a single Zustand version so Para's SDK packages share the same store
   // implementation when registry code is compiled through externalDir.
@@ -68,6 +69,10 @@ const nextConfig: NextConfig = {
       "@/content": contentDir,
       "@/hooks": path.join(landingSrc, "hooks"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
+      "@getpara/react-sdk": path.join(
+        landingNodeModules,
+        "@getpara/react-sdk",
+      ),
       "@tanstack/react-query": path.join(
         landingNodeModules,
         "@tanstack/react-query",
