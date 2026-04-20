@@ -17,6 +17,7 @@ import {
   formatAddress,
   inferAuthProvider,
 } from "@aomi-labs/widget-lib";
+import { useAccount as useWagmiAccount, useDisconnect } from "wagmi";
 
 type Props = {
   onAdapterChange: (adapter: AomiAuthAdapter) => void;
@@ -44,13 +45,22 @@ function useLandingAomiAuthState(): {
 } {
   const paraStatus = useParaStatus();
   const paraAccount = useParaAccount();
+  const {
+    address: wagmiAddress,
+    chainId: wagmiChainId,
+    isConnected: wagmiConnected,
+  } = useWagmiAccount();
   const { selectedWallet, updateSelectedWallet } = useWalletState();
+  const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
+  const isBooting =
+    !paraStatus.isReady
+    || (paraAccount.isLoading && !isConnected);
 
   useEffect(() => {
-    if (!paraStatus.isReady || !paraAccount.isConnected) return;
+    if (!paraStatus.isReady || !isConnected) return;
     void updateSelectedWallet();
   }, [
-    paraAccount.isConnected,
+    isConnected,
     paraStatus.isReady,
     updateSelectedWallet,
   ]);
@@ -67,14 +77,16 @@ function useLandingAomiAuthState(): {
     const embeddedAddress = embeddedWallet?.address;
     const externalAddress = paraAccount.external.evm?.address;
     const address =
-      selectedWallet.address
+      wagmiAddress
+      ?? selectedWallet.address
       ?? externalAddress
       ?? embeddedAddress
       ?? undefined;
     const authProvider = inferAuthProvider(paraAccount.embedded.authMethods);
     const providerLabel = formatAuthProvider(authProvider);
     const chainId =
-      parseChainId(
+      wagmiChainId
+      ?? parseChainId(
         (
           paraAccount as typeof paraAccount & {
             external?: { evm?: { chainId?: number | string } };
@@ -82,9 +94,8 @@ function useLandingAomiAuthState(): {
         ).external?.evm?.chainId,
       )
       ?? undefined;
-    const isConnected = Boolean(paraAccount.isConnected);
 
-    if (!paraStatus.isReady || paraAccount.isLoading) {
+    if (isBooting) {
       return {
         identity: {
           ...AOMI_AUTH_BOOTING_ADAPTER.identity,
@@ -94,7 +105,7 @@ function useLandingAomiAuthState(): {
       };
     }
 
-    if (isConnected && embeddedPrimary) {
+    if (paraAccount.isConnected && embeddedPrimary) {
       return {
         identity: {
           status: "connected",
@@ -133,15 +144,19 @@ function useLandingAomiAuthState(): {
       isReady: true,
     };
   }, [
+    isBooting,
+    isConnected,
     paraAccount,
-    paraStatus.isReady,
     selectedWallet.address,
+    wagmiAddress,
+    wagmiChainId,
   ]);
 }
 
 export function LandingAomiAuthBridge({ onAdapterChange }: Props) {
   const { openModal } = useModal();
   const { logoutAsync } = useLogout();
+  const { disconnectAsync: disconnectWalletAsync } = useDisconnect();
   const { identity, isReady } = useLandingAomiAuthState();
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
@@ -156,13 +171,25 @@ export function LandingAomiAuthBridge({ onAdapterChange }: Props) {
         openModal({ step: "AUTH_MAIN" });
       },
       disconnect: async () => {
-        await logoutAsync();
+        const results = await Promise.allSettled([
+          logoutAsync(),
+          disconnectWalletAsync(),
+        ]);
+        const rejectedResults = results.filter(
+          (result): result is PromiseRejectedResult =>
+            result.status === "rejected",
+        );
+
+        if (rejectedResults.length === results.length) {
+          throw rejectedResults[0]?.reason;
+        }
       },
       manageAccount: async () => {
         openModal({ step: "ACCOUNT_MAIN" });
       },
     };
   }, [
+    disconnectWalletAsync,
     identity,
     isReady,
     logoutAsync,

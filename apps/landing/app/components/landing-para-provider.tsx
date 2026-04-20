@@ -162,21 +162,23 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {paraApiKey && (
-        <ParaProvider
-          paraClientConfig={{
-            apiKey: paraApiKey,
-            env: paraEnvironment,
-          }}
-          config={{ appName: "Aomi Labs" }}
-          paraModalConfig={paraModalConfig}
-          externalWalletConfig={externalWalletConfig}
-        >
-          <LandingAomiAuthBridge onAdapterChange={handleAdapterChange} />
-        </ParaProvider>
-      )}
       <AomiAuthAdapterProvider value={adapter}>
-        {children}
+        {paraApiKey ? (
+          <ParaProvider
+            paraClientConfig={{
+              apiKey: paraApiKey,
+              env: paraEnvironment,
+            }}
+            config={{ appName: "Aomi Labs" }}
+            paraModalConfig={paraModalConfig}
+            externalWalletConfig={externalWalletConfig}
+          >
+            <LandingAomiAuthBridge onAdapterChange={handleAdapterChange} />
+            {children}
+          </ParaProvider>
+        ) : (
+          children
+        )}
       </AomiAuthAdapterProvider>
     </QueryClientProvider>
   );
