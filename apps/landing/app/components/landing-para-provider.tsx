@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Environment,
   ParaProvider,
@@ -9,6 +14,7 @@ import {
 } from "@getpara/react-sdk";
 import {
   AomiAuthAdapterProvider,
+  AOMI_AUTH_BOOTING_ADAPTER,
   AOMI_AUTH_DISCONNECTED_ADAPTER,
   type AomiAuthAdapter,
 } from "@aomi-labs/widget-lib";
@@ -16,14 +22,14 @@ import "@getpara/react-sdk/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { defineChain, http, type Chain, type Transport } from "viem";
 import {
-  mainnet,
   arbitrum,
-  optimism,
   base,
-  polygon,
-  sepolia,
   linea,
   lineaSepolia,
+  mainnet,
+  optimism,
+  polygon,
+  sepolia,
 } from "wagmi/chains";
 import { LandingAomiAuthBridge } from "./landing-aomi-auth-bridge";
 
@@ -91,10 +97,29 @@ const adapterWallets = walletConnectProjectId
 
 const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
 
+function isSameAdapterState(
+  currentAdapter: AomiAuthAdapter,
+  nextAdapter: AomiAuthAdapter,
+): boolean {
+  return (
+    currentAdapter.isReady === nextAdapter.isReady
+    && currentAdapter.isSwitchingChain === nextAdapter.isSwitchingChain
+    && currentAdapter.canConnect === nextAdapter.canConnect
+    && currentAdapter.canManageAccount === nextAdapter.canManageAccount
+    && currentAdapter.identity.status === nextAdapter.identity.status
+    && currentAdapter.identity.isConnected === nextAdapter.identity.isConnected
+    && currentAdapter.identity.address === nextAdapter.identity.address
+    && currentAdapter.identity.chainId === nextAdapter.identity.chainId
+    && currentAdapter.identity.authProvider === nextAdapter.identity.authProvider
+    && currentAdapter.identity.primaryLabel === nextAdapter.identity.primaryLabel
+    && currentAdapter.identity.secondaryLabel === nextAdapter.identity.secondaryLabel
+  );
+}
+
 export function LandingParaProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const [adapter, setAdapter] = useState<AomiAuthAdapter>(
-    AOMI_AUTH_DISCONNECTED_ADAPTER,
+    paraApiKey ? AOMI_AUTH_BOOTING_ADAPTER : AOMI_AUTH_DISCONNECTED_ADAPTER,
   );
 
   const paraModalConfig = useMemo(
@@ -129,7 +154,9 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
 
   const handleAdapterChange = useCallback((nextAdapter: AomiAuthAdapter) => {
     setAdapter((currentAdapter) =>
-      currentAdapter === nextAdapter ? currentAdapter : nextAdapter,
+      isSameAdapterState(currentAdapter, nextAdapter)
+        ? currentAdapter
+        : nextAdapter,
     );
   }, []);
 

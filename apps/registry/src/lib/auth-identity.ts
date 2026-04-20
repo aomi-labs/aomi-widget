@@ -2,7 +2,7 @@
 
 import { useAomiAuthAdapter } from "./aomi-auth-adapter";
 
-export type AomiAuthStatus = "disconnected" | "social" | "wallet";
+export type AomiAuthStatus = "booting" | "disconnected" | "connected";
 
 export type AomiAuthIdentity = {
   status: AomiAuthStatus;
@@ -21,6 +21,16 @@ export const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {
   chainId: undefined,
   authProvider: undefined,
   primaryLabel: "Not connected",
+  secondaryLabel: undefined,
+};
+
+export const AOMI_AUTH_BOOTING_IDENTITY: AomiAuthIdentity = {
+  status: "booting",
+  isConnected: false,
+  address: undefined,
+  chainId: undefined,
+  authProvider: undefined,
+  primaryLabel: "Loading Wallet...",
   secondaryLabel: undefined,
 };
 

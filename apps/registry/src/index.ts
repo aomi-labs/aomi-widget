@@ -5,6 +5,7 @@ export { AomiFrame } from "./components/aomi-frame";
 // Aomi auth adapter (provider-agnostic context + types)
 export {
   type AomiAuthAdapter,
+  AOMI_AUTH_BOOTING_ADAPTER,
   AomiAuthAdapterContext,
   AomiAuthAdapterProvider,
   AOMI_AUTH_DISCONNECTED_ADAPTER,
@@ -41,6 +42,9 @@ export type {
   AomiAuthStatus,
 } from "./lib/auth-identity";
 export {
+  AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
+  formatAuthProvider,
+  inferAuthProvider,
   useAomiAuthIdentity,
 } from "./lib/auth-identity";
