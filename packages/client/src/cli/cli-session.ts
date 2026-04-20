@@ -40,7 +40,8 @@ export class CliSession {
   /** Load existing session or create a fresh one from config. */
   static loadOrCreate(config: CliConfig): CliSession {
     if (config.freshSession) {
-      return CliSession.create(config);
+      const existing = CliSession.load();
+      return CliSession.create(config, existing?.toState());
     }
     const existing = CliSession.load();
     if (existing) {
@@ -51,16 +52,18 @@ export class CliSession {
   }
 
   /** Create a fresh session and persist it. */
-  static create(config: CliConfig): CliSession {
+  static create(config: CliConfig, seed?: CliSessionState): CliSession {
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl,
-      app: config.app,
-      model: config.model,
-      apiKey: config.apiKey,
-      publicKey: config.publicKey,
-      chainId: config.chain,
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
+      app: config.app ?? seed?.app,
+      model: config.model ?? seed?.model,
+      apiKey: config.apiKey ?? seed?.apiKey,
+      publicKey: config.publicKey ?? seed?.publicKey,
+      privateKey: config.privateKey ?? seed?.privateKey,
+      chainId: config.chain ?? seed?.chainId,
+      secretHandles: seed?.secretHandles,
     };
     const cli = new CliSession(state);
     cli.save();
@@ -88,6 +91,9 @@ export class CliSession {
   }
   get publicKey(): string | undefined {
     return this.state.publicKey;
+  }
+  get privateKey(): string | undefined {
+    return this.state.privateKey;
   }
   get chainId(): number | undefined {
     return this.state.chainId;
@@ -148,6 +154,22 @@ export class CliSession {
 
   setPublicKey(key: string): void {
     this.state.publicKey = key;
+    this.save();
+  }
+
+  setBaseUrl(url: string): void {
+    this.state.baseUrl = url;
+    this.save();
+  }
+
+  setPrivateKey(key: string): void {
+    this.state.privateKey = key;
+    this.save();
+  }
+
+  setWallet(privateKey: string, publicKey: string): void {
+    this.state.privateKey = privateKey;
+    this.state.publicKey = publicKey;
     this.save();
   }
 

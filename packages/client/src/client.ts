@@ -4,9 +4,13 @@ import type {
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiDeleteProviderKeyResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiListProviderKeysResponse,
+  AomiProviderKeyEntry,
+  AomiSaveProviderKeyResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
   AomiStateResponse,
@@ -544,6 +548,77 @@ export class AomiClient {
       baml: string;
       created: boolean;
     }>(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+  }
+
+  /**
+   * List BYOK provider keys bound to the current session's client.
+   */
+  async listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]> {
+    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+    const response = await fetch(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiListProviderKeysResponse;
+    return data.provider_keys ?? [];
+  }
+
+  /**
+   * Save or replace a BYOK provider key for the client bound to this session.
+   */
+  async saveProviderKey(
+    sessionId: string,
+    provider: string,
+    apiKey: string,
+    label?: string,
+  ): Promise<AomiProviderKeyEntry> {
+    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        provider,
+        api_key: apiKey,
+        label,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiSaveProviderKeyResponse;
+    return data.key;
+  }
+
+  /**
+   * Delete a BYOK provider key for the client bound to this session.
+   */
+  async deleteProviderKey(
+    sessionId: string,
+    provider: string,
+  ): Promise<boolean> {
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/control/provider-keys/${encodeURIComponent(provider)}`,
+    );
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiDeleteProviderKeyResponse;
+    return data.deleted;
   }
 
   // ===========================================================================

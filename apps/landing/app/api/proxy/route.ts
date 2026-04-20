@@ -48,8 +48,8 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Forward headers (skip host/origin/cookie — those are ours, not the target's)
   const forwardHeaders = new Headers();
+  // Forward headers for generic hosts (skip host/origin/cookie — those are ours).
   const skipHeaders = new Set([
     "host",
     "origin",
@@ -64,11 +64,19 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
     }
   });
 
+  let requestBody: string | undefined;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    requestBody = await req.text();
+    if (requestBody && !forwardHeaders.has("content-type")) {
+      forwardHeaders.set("content-type", "application/json");
+    }
+  }
+
   try {
     const upstream = await fetch(targetUrl, {
       method: req.method,
       headers: forwardHeaders,
-      body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : undefined,
+      body: requestBody,
     });
 
     const body = await upstream.text();

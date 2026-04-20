@@ -573,6 +573,61 @@ var AomiClient = class {
     }
     return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
   }
+  /**
+   * List BYOK provider keys bound to the current session's client.
+   */
+  async listProviderKeys(sessionId) {
+    var _a;
+    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+    const response = await fetch(url, {
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return (_a = data.provider_keys) != null ? _a : [];
+  }
+  /**
+   * Save or replace a BYOK provider key for the client bound to this session.
+   */
+  async saveProviderKey(sessionId, provider, apiKey, label) {
+    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        provider,
+        api_key: apiKey,
+        label
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data.key;
+  }
+  /**
+   * Delete a BYOK provider key for the client bound to this session.
+   */
+  async deleteProviderKey(sessionId, provider) {
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/control/provider-keys/${encodeURIComponent(provider)}`
+    );
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data.deleted;
+  }
   // ===========================================================================
   // Batch Simulation
   // ===========================================================================
@@ -1043,8 +1098,11 @@ var ClientSession = class extends TypedEventEmitter {
   resolveUserState(userState) {
     this.userState = userState;
     const address = userState["address"];
-    if (typeof address === "string" && address.length > 0) {
+    const isConnected = userState["isConnected"];
+    if (typeof address === "string" && address.length > 0 && isConnected !== false) {
       this.publicKey = address;
+    } else {
+      this.publicKey = void 0;
     }
   }
   setClientType(clientType) {

@@ -4,6 +4,7 @@ import { createControlClient } from "../context";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
 import { DEFAULT_AA_CONFIG } from "../../aa/types";
+import { fatal } from "../errors";
 
 export async function statusCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
@@ -63,7 +64,7 @@ export async function appsCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: config.publicKey,
+    publicKey: config.publicKey ?? cli?.publicKey,
     apiKey: config.apiKey ?? cli?.apiKey,
   });
 
@@ -109,6 +110,49 @@ export function currentAppCommand(): void {
   printDataFileLocation();
 }
 
+export function currentChainCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  if (cli.chainId === undefined) {
+    console.log("No active chain");
+  } else {
+    console.log(String(cli.chainId));
+  }
+  printDataFileLocation();
+}
+
+export function currentBackendCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  console.log(cli.baseUrl);
+  printDataFileLocation();
+}
+
+export function currentWalletCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  if (!cli.publicKey) {
+    console.log("No wallet configured");
+    printDataFileLocation();
+    return;
+  }
+  const signerStatus = cli.privateKey ? "saved signer" : "address only";
+  console.log(`${cli.publicKey} (${signerStatus})`);
+  printDataFileLocation();
+}
+
 export function currentModelCommand(): void {
   const cli = CliSession.load();
   if (!cli) {
@@ -120,7 +164,36 @@ export function currentModelCommand(): void {
   printDataFileLocation();
 }
 
-export async function setModelCommand(config: CliConfig, model: string): Promise<void> {
+export function setAppCommand(
+  config: CliConfig,
+  app: string,
+  options?: { printLocation?: boolean },
+): void {
+  const trimmed = app.trim();
+  if (!trimmed) {
+    fatal("Usage: aomi app set <app-name>");
+  }
+
+  const cli = CliSession.loadOrCreate({
+    ...config,
+    app: trimmed,
+  });
+  cli.mergeConfig({
+    ...config,
+    app: trimmed,
+  });
+
+  console.log(`App set to ${trimmed}`);
+  if (options?.printLocation !== false) {
+    printDataFileLocation();
+  }
+}
+
+export async function setModelCommand(
+  config: CliConfig,
+  model: string,
+  options?: { printLocation?: boolean },
+): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
   try {
@@ -130,7 +203,9 @@ export async function setModelCommand(config: CliConfig, model: string): Promise
     });
     cli.setModel(model);
     console.log(`Model set to ${model}`);
-    printDataFileLocation();
+    if (options?.printLocation !== false) {
+      printDataFileLocation();
+    }
   } finally {
     session.close();
   }
@@ -150,4 +225,3 @@ export function chainsCommand(): void {
     console.log(`${id}  ${name}${aaInfo}${marker}`);
   }
 }
-

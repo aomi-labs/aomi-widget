@@ -882,6 +882,16 @@ import {
 } from "react";
 import { jsx as jsx5 } from "react/jsx-runtime";
 var UserContext = createContext5(void 0);
+function normalizeUserState(next, data) {
+  if (data.isConnected === false) {
+    return __spreadProps(__spreadValues({}, next), {
+      address: void 0,
+      chainId: void 0,
+      ensName: void 0
+    });
+  }
+  return next;
+}
 function useUser() {
   const context = useContext5(UserContext);
   if (!context) {
@@ -911,7 +921,7 @@ function UserContextProvider({ children }) {
   );
   const setUser = useCallback4((data) => {
     setUserState((prev) => {
-      const next = __spreadValues(__spreadValues({}, prev), data);
+      const next = normalizeUserState(__spreadValues(__spreadValues({}, prev), data), data);
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
@@ -1508,7 +1518,11 @@ function AomiRuntimeCore({
     cancelGeneration: orchestratorCancel,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => getUserState().address,
+    getPublicKey: () => {
+      var _a;
+      const userState = getUserState();
+      return userState.isConnected ? (_a = userState.address) != null ? _a : void 0 : void 0;
+    },
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -1591,7 +1605,7 @@ function AomiRuntimeCore({
     threadContext.currentThreadId
   );
   useEffect3(() => {
-    const userAddress = user.address;
+    const userAddress = user.isConnected ? user.address : void 0;
     if (!userAddress) return;
     const fetchThreadList = async () => {
       var _a, _b, _c;
@@ -1628,7 +1642,7 @@ function AomiRuntimeCore({
       }
     };
     void fetchThreadList();
-  }, [user.address, aomiClientRef]);
+  }, [user.address, user.isConnected, aomiClientRef]);
   const threadListAdapter = useMemo2(
     () => buildThreadListAdapter({
       aomiClientRef,
@@ -1831,7 +1845,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: (_a = user.address) != null ? _a : void 0,
+      publicKey: user.isConnected ? (_a = user.address) != null ? _a : void 0 : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ jsx7(

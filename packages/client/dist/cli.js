@@ -91,6 +91,164 @@ var init_chains = __esm({
   }
 });
 
+// src/cli/validation.ts
+function parseChainId(value) {
+  if (value === void 0) return void 0;
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n)) return void 0;
+  if (!SUPPORTED_CHAIN_IDS.includes(n)) {
+    const list = SUPPORTED_CHAIN_IDS.map(
+      (id) => `  ${id} (${CHAIN_NAMES[id]})`
+    ).join("\n");
+    fatal(`Unsupported chain ID: ${n}
+Supported chains:
+${list}`);
+  }
+  return n;
+}
+function normalizePrivateKey(value) {
+  if (value === void 0) return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+}
+function parseAAProvider(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  if (value === "alchemy" || value === "pimlico") {
+    return value;
+  }
+  fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
+}
+function parseAAMode(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  if (value === "4337" || value === "7702") {
+    return value;
+  }
+  fatal("Unsupported AA mode. Use `4337` or `7702`.");
+}
+var init_validation = __esm({
+  "src/cli/validation.ts"() {
+    "use strict";
+    init_chains();
+    init_errors();
+  }
+});
+
+// src/cli/commands/defs/shared.ts
+import { privateKeyToAccount } from "viem/accounts";
+function str(value) {
+  return typeof value === "string" && value.trim() ? value : void 0;
+}
+function derivePublicKeyFromPrivateKey(privateKey) {
+  if (!privateKey) return void 0;
+  try {
+    return privateKeyToAccount(privateKey).address;
+  } catch (e) {
+    fatal("Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.");
+  }
+}
+function resolveExecution(args) {
+  const flagAA = args.aa === true;
+  const flagEoa = args.eoa === true;
+  if (flagAA && flagEoa) {
+    fatal("Choose only one of `--aa` or `--eoa`.");
+  }
+  if (flagEoa) return "eoa";
+  if (flagAA || str(args["aa-provider"]) !== void 0 || str(args["aa-mode"]) !== void 0) {
+    return "aa";
+  }
+  return void 0;
+}
+function buildCliConfig(args) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  const execution = resolveExecution(args);
+  const privateKey = normalizePrivateKey(
+    (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
+  );
+  const configuredPublicKey = (_b = str(args["public-key"])) != null ? _b : process.env.AOMI_PUBLIC_KEY;
+  const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
+  if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
+    fatal("`--public-key` does not match the address derived from `--private-key`.");
+  }
+  const aaProvider = parseAAProvider(
+    (_c = str(args["aa-provider"])) != null ? _c : process.env.AOMI_AA_PROVIDER
+  );
+  const aaMode = parseAAMode(
+    (_d = str(args["aa-mode"])) != null ? _d : process.env.AOMI_AA_MODE
+  );
+  if (execution === "eoa" && (aaProvider || aaMode)) {
+    fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
+  }
+  return {
+    baseUrl: (_f = (_e = str(args["backend-url"])) != null ? _e : process.env.AOMI_BACKEND_URL) != null ? _f : "https://api.aomi.dev",
+    apiKey: (_g = str(args["api-key"])) != null ? _g : process.env.AOMI_API_KEY,
+    app: (_i = (_h = str(args.app)) != null ? _h : process.env.AOMI_APP) != null ? _i : "default",
+    model: (_j = str(args.model)) != null ? _j : process.env.AOMI_MODEL,
+    freshSession: args["new-session"] === true,
+    publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
+    privateKey,
+    chainRpcUrl: (_k = str(args["rpc-url"])) != null ? _k : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_l = str(args.chain)) != null ? _l : process.env.AOMI_CHAIN_ID),
+    secrets: {},
+    execution,
+    aaProvider,
+    aaMode
+  };
+}
+function getPositionals(args) {
+  const positionals = args._;
+  if (!Array.isArray(positionals)) {
+    return [];
+  }
+  return positionals.filter((value) => typeof value === "string");
+}
+var globalArgs;
+var init_shared = __esm({
+  "src/cli/commands/defs/shared.ts"() {
+    "use strict";
+    init_errors();
+    init_validation();
+    globalArgs = {
+      "backend-url": {
+        type: "string",
+        description: "Backend URL (default: https://api.aomi.dev)"
+      },
+      "api-key": {
+        type: "string",
+        description: "API key for non-default apps"
+      },
+      app: {
+        type: "string",
+        description: 'App (default: "default")'
+      },
+      model: {
+        type: "string",
+        description: "Set the active model for this session"
+      },
+      "new-session": {
+        type: "boolean",
+        description: "Create a fresh active session for this command"
+      },
+      chain: {
+        type: "string",
+        description: "Active chain for chat/session context"
+      },
+      "public-key": {
+        type: "string",
+        description: "Wallet address (so the agent knows your wallet)"
+      },
+      "private-key": {
+        type: "string",
+        description: "Hex private key for signing"
+      },
+      "rpc-url": {
+        type: "string",
+        description: "RPC URL for transaction submission"
+      }
+    };
+  }
+});
+
 // src/sse.ts
 function extractSseData(rawEvent) {
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
@@ -656,6 +814,61 @@ var init_client = __esm({
         }
         return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
       }
+      /**
+       * List BYOK provider keys bound to the current session's client.
+       */
+      async listProviderKeys(sessionId) {
+        var _a3;
+        const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+        const response = await fetch(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return (_a3 = data.provider_keys) != null ? _a3 : [];
+      }
+      /**
+       * Save or replace a BYOK provider key for the client bound to this session.
+       */
+      async saveProviderKey(sessionId, provider, apiKey, label) {
+        const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+        const response = await fetch(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId, {
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({
+            provider,
+            api_key: apiKey,
+            label
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return data.key;
+      }
+      /**
+       * Delete a BYOK provider key for the client bound to this session.
+       */
+      async deleteProviderKey(sessionId, provider) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/control/provider-keys/${encodeURIComponent(provider)}`
+        );
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return data.deleted;
+      }
       // ===========================================================================
       // Batch Simulation
       // ===========================================================================
@@ -1154,8 +1367,11 @@ var init_session = __esm({
       resolveUserState(userState) {
         this.userState = userState;
         const address = userState["address"];
-        if (typeof address === "string" && address.length > 0) {
+        const isConnected = userState["isConnected"];
+        if (typeof address === "string" && address.length > 0 && isConnected !== false) {
           this.publicKey = address;
+        } else {
+          this.publicKey = void 0;
         }
       }
       setClientType(clientType) {
@@ -1410,6 +1626,7 @@ function toCliSessionState(stored) {
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
+    privateKey: stored.privateKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs,
@@ -1433,6 +1650,7 @@ function readStoredSession(path) {
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
+      privateKey: parsed.privateKey,
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
@@ -1687,7 +1905,8 @@ var init_cli_session = __esm({
       /** Load existing session or create a fresh one from config. */
       static loadOrCreate(config) {
         if (config.freshSession) {
-          return _CliSession.create(config);
+          const existing2 = _CliSession.load();
+          return _CliSession.create(config, existing2 == null ? void 0 : existing2.toState());
         }
         const existing = _CliSession.load();
         if (existing) {
@@ -1697,16 +1916,19 @@ var init_cli_session = __esm({
         return _CliSession.create(config);
       }
       /** Create a fresh session and persist it. */
-      static create(config) {
+      static create(config, seed) {
+        var _a3, _b, _c, _d, _e, _f, _g, _h;
         const state = {
           sessionId: crypto.randomUUID(),
           clientId: crypto.randomUUID(),
-          baseUrl: config.baseUrl,
-          app: config.app,
-          model: config.model,
-          apiKey: config.apiKey,
-          publicKey: config.publicKey,
-          chainId: config.chain
+          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : "https://api.aomi.dev",
+          app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
+          model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
+          apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
+          publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
+          privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
+          chainId: (_h = config.chain) != null ? _h : seed == null ? void 0 : seed.chainId,
+          secretHandles: seed == null ? void 0 : seed.secretHandles
         };
         const cli = new _CliSession(state);
         cli.save();
@@ -1732,6 +1954,9 @@ var init_cli_session = __esm({
       }
       get publicKey() {
         return this.state.publicKey;
+      }
+      get privateKey() {
+        return this.state.privateKey;
       }
       get chainId() {
         return this.state.chainId;
@@ -1789,6 +2014,19 @@ var init_cli_session = __esm({
       }
       setPublicKey(key) {
         this.state.publicKey = key;
+        this.save();
+      }
+      setBaseUrl(url) {
+        this.state.baseUrl = url;
+        this.save();
+      }
+      setPrivateKey(key) {
+        this.state.privateKey = key;
+        this.save();
+      }
+      setWallet(privateKey, publicKey) {
+        this.state.privateKey = privateKey;
+        this.state.publicKey = publicKey;
         this.save();
       }
       setChainId(id) {
@@ -2161,17 +2399,64 @@ var init_transactions = __esm({
 // src/cli/commands/chat.ts
 var chat_exports = {};
 __export(chat_exports, {
-  chatCommand: () => chatCommand
+  chatCommand: () => chatCommand,
+  shouldBroadcastWalletStateChange: () => shouldBroadcastWalletStateChange,
+  syncWalletStateForChat: () => syncWalletStateForChat
 });
+function normalizeAddress2(address) {
+  return address == null ? void 0 : address.toLowerCase();
+}
+function shouldBroadcastWalletStateChange(config, previous, next) {
+  if (!config.privateKey || !next.publicKey) {
+    return false;
+  }
+  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId;
+}
+async function syncWalletStateForChat(config, previous, next, cli, session) {
+  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+    return;
+  }
+  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId));
+  await session.syncUserState();
+  const payload = {
+    address: next.publicKey,
+    isConnected: true
+  };
+  if (next.chainId !== void 0) {
+    payload.chainId = next.chainId;
+  }
+  await session.client.sendSystemMessage(
+    cli.sessionId,
+    JSON.stringify({
+      type: "wallet:state_changed",
+      payload
+    })
+  );
+}
 async function chatCommand(config, message, verbose) {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
+  const previousCli = config.freshSession ? null : CliSession.load();
+  const previousWallet = previousCli ? {
+    publicKey: previousCli.publicKey,
+    chainId: previousCli.chainId
+  } : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
   try {
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
+    await syncWalletStateForChat(
+      config,
+      previousWallet,
+      {
+        publicKey: cli.publicKey,
+        chainId: cli.chainId
+      },
+      cli,
+      session
+    );
     const capturedRequests = [];
     let printedAgentCount = 0;
     const seenToolResults = /* @__PURE__ */ new Set();
@@ -2309,6 +2594,7 @@ var init_chat = __esm({
     init_context();
     init_errors();
     init_transactions();
+    init_user_state();
   }
 });
 
@@ -2497,7 +2783,7 @@ async function executeViaEoa({
 }) {
   var _a3, _b;
   const { createPublicClient, createWalletClient: createWalletClient2, http: http2 } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount5 } = await import("viem/accounts");
+  const { privateKeyToAccount: privateKeyToAccount7 } = await import("viem/accounts");
   const hashes = [];
   if (localPrivateKey) {
     for (const call of callList) {
@@ -2509,7 +2795,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount5(localPrivateKey);
+      const account = privateKeyToAccount7(localPrivateKey);
       const walletClient = createWalletClient2({
         account,
         chain,
@@ -2621,13 +2907,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount(owner.privateKey)
+      signer: privateKeyToAccount2(owner.privateKey)
     }
   };
 }
@@ -2692,7 +2978,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 function alchemyRpcUrl(chainId, apiKey) {
   var _a3;
   const slug = (_a3 = ALCHEMY_CHAIN_SLUGS[chainId]) != null ? _a3 : "eth-mainnet";
@@ -2828,7 +3114,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemy4337State(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount2(params.privateKey);
+  const signer = privateKeyToAccount3(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -2928,7 +3214,7 @@ async function createAlchemy7702State(params) {
       "\u26A0\uFE0F  Gas policy is not supported for raw EIP-7702 transactions. The signer's EOA pays gas directly."
     );
   }
-  const signer = privateKeyToAccount2(params.privateKey);
+  const signer = privateKeyToAccount3(params.privateKey);
   const signerAddress = signer.address;
   let rpcUrl;
   if (params.proxyBaseUrl) {
@@ -3061,7 +3347,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -3159,7 +3445,7 @@ async function createPimlicoDirectState(params) {
   const { createPimlicoClient } = await import("permissionless/clients/pimlico");
   const { createPublicClient, http: http2 } = await import("viem");
   const { entryPoint07Address } = await import("viem/account-abstraction");
-  const signer = privateKeyToAccount3(params.privateKey);
+  const signer = privateKeyToAccount4(params.privateKey);
   const signerAddress = signer.address;
   const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
   pimDebug("4337:start", {
@@ -3420,10 +3706,17 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import { getAddress as getAddress2 } from "viem";
 function validateAndBuildFeeCall(fee, chainId) {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === /* @__PURE__ */ BigInt("0")) {
+    return null;
+  }
+  if (amountWei < /* @__PURE__ */ BigInt("0")) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
   let recipient;
   try {
     recipient = getAddress2(fee.recipient);
@@ -3431,10 +3724,6 @@ function validateAndBuildFeeCall(fee, chainId) {
     throw new Error(
       `Invalid fee recipient address from backend: ${fee.recipient}`
     );
-  }
-  const amountWei = BigInt(fee.amount_wei);
-  if (amountWei <= /* @__PURE__ */ BigInt("0")) {
-    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
   }
   if (amountWei > MAX_AUTO_FEE_WEI) {
     const feeEth2 = (Number(amountWei) / 1e18).toFixed(6);
@@ -3521,32 +3810,33 @@ async function executeCliTransaction(params) {
   });
 }
 async function signCommand(config, txIds) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e;
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
-    );
-  }
-  const privateKey = config.privateKey;
-  if (!privateKey) {
-    fatal(
-      [
-        "Private key required for `aomi tx sign`.",
-        "Pass one of:",
-        "  --private-key <hex-key>",
-        "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>"
-      ].join("\n")
     );
   }
   const cli = CliSession.load();
   if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
   }
+  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  if (!privateKey) {
+    fatal(
+      [
+        "Private key required for `aomi tx sign`.",
+        "Pass one of:",
+        "  aomi wallet set <hex-key>",
+        "  aomi tx sign --private-key <hex-key> <tx-id>",
+        "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>"
+      ].join("\n")
+    );
+  }
   cli.mergeConfig(config);
   const pendingTxs = cli.requirePendingTxs(txIds);
   const session = cli.createClientSession();
   try {
-    const account = privateKeyToAccount4(privateKey);
+    const account = privateKeyToAccount5(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -3576,7 +3866,7 @@ async function signCommand(config, txIds) {
       for (const tx of pendingTxs) {
         console.log(`Tx:      ${tx.id} -> ${tx.to}`);
         if (tx.value) console.log(`Value:   ${tx.value}`);
-        if ((_a3 = tx.chainId) != null ? _a3 : cli.chainId) console.log(`Chain:   ${(_b = tx.chainId) != null ? _b : cli.chainId}`);
+        if ((_b = tx.chainId) != null ? _b : cli.chainId) console.log(`Chain:   ${(_c = tx.chainId) != null ? _c : cli.chainId}`);
         if (tx.data) {
           console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
@@ -3612,7 +3902,7 @@ async function signCommand(config, txIds) {
         if (!sim.batch_success) {
           const failed = sim.steps.find((s) => !s.success);
           console.log(
-            `\x1B[31m\u274C Simulation failed at step ${(_c = failed == null ? void 0 : failed.step) != null ? _c : "?"}: ${(_d = failed == null ? void 0 : failed.revert_reason) != null ? _d : "unknown"}${RESET}`
+            `\x1B[31m\u274C Simulation failed at step ${(_d = failed == null ? void 0 : failed.step) != null ? _d : "?"}: ${(_e = failed == null ? void 0 : failed.revert_reason) != null ? _e : "unknown"}${RESET}`
           );
         }
         simFee = sim.fee;
@@ -3624,7 +3914,9 @@ async function signCommand(config, txIds) {
       }
       if (simFee) {
         const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
-        callList.push(feeCall);
+        if (feeCall) {
+          callList.push(feeCall);
+        }
       }
       const decision = resolveCliExecutionDecision({
         config,
@@ -4114,9 +4406,13 @@ __export(control_exports, {
   appsCommand: () => appsCommand,
   chainsCommand: () => chainsCommand,
   currentAppCommand: () => currentAppCommand,
+  currentBackendCommand: () => currentBackendCommand,
+  currentChainCommand: () => currentChainCommand,
   currentModelCommand: () => currentModelCommand,
+  currentWalletCommand: () => currentWalletCommand,
   eventsCommand: () => eventsCommand,
   modelsCommand: () => modelsCommand,
+  setAppCommand: () => setAppCommand,
   setModelCommand: () => setModelCommand,
   statusCommand: () => statusCommand
 });
@@ -4171,19 +4467,19 @@ async function eventsCommand(config) {
   }
 }
 async function appsCommand(config) {
-  var _a3, _b, _c;
+  var _a3, _b, _c, _d;
   const client = createControlClient(config);
   const cli = CliSession.load();
   const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: config.publicKey,
-    apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
+    publicKey: (_b = config.publicKey) != null ? _b : cli == null ? void 0 : cli.publicKey,
+    apiKey: (_c = config.apiKey) != null ? _c : cli == null ? void 0 : cli.apiKey
   });
   if (apps.length === 0) {
     console.log("No apps available.");
     return;
   }
-  const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
+  const currentApp = (_d = cli == null ? void 0 : cli.app) != null ? _d : config.app;
   for (const app of apps) {
     const marker = currentApp === app ? "  (current)" : "";
     console.log(`${app}${marker}`);
@@ -4217,6 +4513,46 @@ function currentAppCommand() {
   console.log((_a3 = cli.app) != null ? _a3 : "(default)");
   printDataFileLocation();
 }
+function currentChainCommand() {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  if (cli.chainId === void 0) {
+    console.log("No active chain");
+  } else {
+    console.log(String(cli.chainId));
+  }
+  printDataFileLocation();
+}
+function currentBackendCommand() {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  console.log(cli.baseUrl);
+  printDataFileLocation();
+}
+function currentWalletCommand() {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  if (!cli.publicKey) {
+    console.log("No wallet configured");
+    printDataFileLocation();
+    return;
+  }
+  const signerStatus = cli.privateKey ? "saved signer" : "address only";
+  console.log(`${cli.publicKey} (${signerStatus})`);
+  printDataFileLocation();
+}
 function currentModelCommand() {
   var _a3;
   const cli = CliSession.load();
@@ -4228,7 +4564,23 @@ function currentModelCommand() {
   console.log((_a3 = cli.model) != null ? _a3 : "(default backend model)");
   printDataFileLocation();
 }
-async function setModelCommand(config, model) {
+function setAppCommand(config, app, options) {
+  const trimmed = app.trim();
+  if (!trimmed) {
+    fatal("Usage: aomi app set <app-name>");
+  }
+  const cli = CliSession.loadOrCreate(__spreadProps(__spreadValues({}, config), {
+    app: trimmed
+  }));
+  cli.mergeConfig(__spreadProps(__spreadValues({}, config), {
+    app: trimmed
+  }));
+  console.log(`App set to ${trimmed}`);
+  if ((options == null ? void 0 : options.printLocation) !== false) {
+    printDataFileLocation();
+  }
+}
+async function setModelCommand(config, model, options) {
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
   try {
@@ -4238,7 +4590,9 @@ async function setModelCommand(config, model) {
     });
     cli.setModel(model);
     console.log(`Model set to ${model}`);
-    printDataFileLocation();
+    if ((options == null ? void 0 : options.printLocation) !== false) {
+      printDataFileLocation();
+    }
   } finally {
     session.close();
   }
@@ -4263,6 +4617,7 @@ var init_control = __esm({
     init_context();
     init_output();
     init_types2();
+    init_errors();
   }
 });
 
@@ -4370,6 +4725,73 @@ var init_history = __esm({
   }
 });
 
+// src/cli/commands/preferences.ts
+var preferences_exports = {};
+__export(preferences_exports, {
+  setBackendCommand: () => setBackendCommand,
+  setChainCommand: () => setChainCommand,
+  setWalletCommand: () => setWalletCommand
+});
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+function loadOrCreateForSettings(config) {
+  var _a3, _b;
+  return CliSession.loadOrCreate({
+    baseUrl: (_a3 = config == null ? void 0 : config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
+    apiKey: config == null ? void 0 : config.apiKey,
+    app: (_b = config == null ? void 0 : config.app) != null ? _b : "default",
+    model: config == null ? void 0 : config.model,
+    freshSession: false,
+    publicKey: config == null ? void 0 : config.publicKey,
+    privateKey: config == null ? void 0 : config.privateKey,
+    chainRpcUrl: config == null ? void 0 : config.chainRpcUrl,
+    chain: config == null ? void 0 : config.chain,
+    secrets: {},
+    execution: config == null ? void 0 : config.execution,
+    aaProvider: config == null ? void 0 : config.aaProvider,
+    aaMode: config == null ? void 0 : config.aaMode
+  });
+}
+function setWalletCommand(privateKeyInput) {
+  const privateKey = normalizePrivateKey(privateKeyInput);
+  if (!privateKey) {
+    fatal("Usage: aomi wallet set <private-key>");
+  }
+  const account = privateKeyToAccount6(privateKey);
+  const cli = loadOrCreateForSettings();
+  cli.setWallet(privateKey, account.address);
+  console.log(`Wallet set to ${account.address}`);
+  printDataFileLocation();
+}
+function setChainCommand(chainIdInput) {
+  const chainId = parseChainId(chainIdInput);
+  if (chainId === void 0) {
+    fatal("Usage: aomi chain set <chain-id>");
+  }
+  const cli = loadOrCreateForSettings();
+  cli.setChainId(chainId);
+  console.log(`Chain set to ${chainId}`);
+  printDataFileLocation();
+}
+function setBackendCommand(url) {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    fatal("Usage: aomi config set-backend <url>");
+  }
+  const cli = loadOrCreateForSettings({ baseUrl: trimmed });
+  cli.setBaseUrl(trimmed);
+  console.log(`Backend set to ${trimmed}`);
+  printDataFileLocation();
+}
+var init_preferences = __esm({
+  "src/cli/commands/preferences.ts"() {
+    "use strict";
+    init_cli_session();
+    init_output();
+    init_validation();
+    init_errors();
+  }
+});
+
 // src/cli/commands/secrets.ts
 var secrets_exports = {};
 __export(secrets_exports, {
@@ -4445,149 +4867,247 @@ var init_secrets = __esm({
   }
 });
 
+// src/cli/commands/provider-keys.ts
+function parseProviderKeyArg(input2) {
+  const [providerPart, apiKeyPart] = input2.split(/:(.+)/, 2);
+  const provider = providerPart == null ? void 0 : providerPart.trim().toLowerCase();
+  const apiKey = apiKeyPart == null ? void 0 : apiKeyPart.trim();
+  if (!provider || !apiKey) {
+    fatal(
+      "Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)"
+    );
+  }
+  if (!SUPPORTED_PROVIDERS.has(provider)) {
+    fatal(
+      `Unknown provider "${provider}". Supported: anthropic, openai, openrouter`
+    );
+  }
+  return { provider, apiKey };
+}
+async function createProviderKeyClient(config) {
+  const cli = CliSession.loadOrCreate(config);
+  const client = new AomiClient({
+    baseUrl: cli.baseUrl,
+    apiKey: cli.apiKey
+  });
+  await client.fetchState(cli.sessionId, void 0, cli.ensureClientId());
+  return { cli, client };
+}
+async function saveProviderKeyCommand(config, providerKey, options) {
+  const { provider, apiKey } = parseProviderKeyArg(providerKey);
+  const { cli, client } = await createProviderKeyClient(config);
+  const saved = await client.saveProviderKey(cli.sessionId, provider, apiKey);
+  console.log(`BYOK key set for ${saved.provider}: ${saved.key_prefix}...`);
+  if ((options == null ? void 0 : options.printLocation) !== false) {
+    printDataFileLocation();
+  }
+}
+async function showProviderKeysCommand(config, options) {
+  const { cli, client } = await createProviderKeyClient(config);
+  const providerKeys = await client.listProviderKeys(cli.sessionId);
+  if (providerKeys.length === 0) {
+    console.log("No BYOK provider keys set. Using system keys.");
+  } else {
+    for (const key of providerKeys) {
+      console.log(`  ${key.provider}: ${key.key_prefix}...`);
+    }
+  }
+  if ((options == null ? void 0 : options.printLocation) !== false) {
+    printDataFileLocation();
+  }
+}
+async function clearProviderKeysCommand(config, options) {
+  const { cli, client } = await createProviderKeyClient(config);
+  const providerKeys = await client.listProviderKeys(cli.sessionId);
+  if (providerKeys.length === 0) {
+    console.log("No BYOK provider keys set. Using system keys.");
+    if ((options == null ? void 0 : options.printLocation) !== false) {
+      printDataFileLocation();
+    }
+    return;
+  }
+  for (const key of providerKeys) {
+    await client.deleteProviderKey(cli.sessionId, key.provider);
+  }
+  console.log("BYOK provider keys cleared. Using system keys.");
+  if ((options == null ? void 0 : options.printLocation) !== false) {
+    printDataFileLocation();
+  }
+}
+var SUPPORTED_PROVIDERS;
+var init_provider_keys = __esm({
+  "src/cli/commands/provider-keys.ts"() {
+    "use strict";
+    init_client();
+    init_cli_session();
+    init_errors();
+    init_output();
+    SUPPORTED_PROVIDERS = /* @__PURE__ */ new Set(["openai", "anthropic", "openrouter"]);
+  }
+});
+
+// src/cli/repl.ts
+var repl_exports = {};
+__export(repl_exports, {
+  handleReplLine: () => handleReplLine,
+  runInteractiveCli: () => runInteractiveCli,
+  runRootCli: () => runRootCli
+});
+import { createInterface } from "readline/promises";
+import { stdin as input, stdout as output } from "process";
+function str2(value) {
+  return typeof value === "string" && value.trim() ? value : void 0;
+}
+function printReplHelp() {
+  console.log("Commands:");
+  console.log("  /heap                  Show this message");
+  console.log("  /app <name>            Switch app by loaded app name");
+  console.log("  /model <rig>           Set the active backend model");
+  console.log("  /model list            Show available models");
+  console.log("  /model show            Show the current model");
+  console.log("  /key <provider:key>    Set a BYOK provider key");
+  console.log("  /key show              Show current BYOK provider key status");
+  console.log("  /key clear             Clear all BYOK provider keys");
+  console.log("  :exit                  Quit the CLI");
+}
+function currentModelLabel(config) {
+  var _a3;
+  const cli = CliSession.loadOrCreate(config);
+  return (_a3 = cli.model) != null ? _a3 : "(default backend model)";
+}
+async function handleModelCommand(config, command) {
+  if (!command) {
+    fatal("Usage: /model <rig> | /model list | /model show");
+  }
+  if (command === "list") {
+    await modelsCommand(config);
+    return;
+  }
+  if (command === "show") {
+    console.log(`Model: ${currentModelLabel(config)}`);
+    return;
+  }
+  const [action, maybeModel] = command.split(/\s+/, 2);
+  if ((action === "main" || action === "small") && !maybeModel) {
+    fatal(`Usage: /model ${action} <rig>`);
+  }
+  const nextModel = action === "main" || action === "small" ? maybeModel : command;
+  if (!nextModel) {
+    fatal("Usage: /model <rig>");
+  }
+  await setModelCommand(config, nextModel, { printLocation: false });
+  config.model = nextModel;
+}
+async function handleKeyCommand(config, command) {
+  if (!command) {
+    fatal("Usage: /key <provider:key> | /key show | /key clear");
+  }
+  if (command === "show") {
+    await showProviderKeysCommand(config, { printLocation: false });
+    return;
+  }
+  if (command === "clear") {
+    await clearProviderKeysCommand(config, { printLocation: false });
+    return;
+  }
+  await saveProviderKeyCommand(config, command, { printLocation: false });
+}
+async function handleReplLine(config, line, showTool) {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return "continue";
+  }
+  if (trimmed === ":exit" || trimmed === ":quit") {
+    return "exit";
+  }
+  if (trimmed === "/heap") {
+    printReplHelp();
+    return "continue";
+  }
+  if (trimmed.startsWith("/app")) {
+    const app = trimmed.slice("/app".length).trim();
+    if (!app) {
+      fatal("Usage: /app <app-name>");
+    }
+    setAppCommand(config, app, { printLocation: false });
+    config.app = app;
+    return "continue";
+  }
+  if (trimmed.startsWith("/model")) {
+    const command = trimmed.slice("/model".length).trim();
+    await handleModelCommand(config, command);
+    return "continue";
+  }
+  if (trimmed.startsWith("/key")) {
+    const command = trimmed.slice("/key".length).trim();
+    await handleKeyCommand(config, command);
+    return "continue";
+  }
+  await chatCommand(config, trimmed, showTool);
+  return "continue";
+}
+async function runInteractiveCli(config, options) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    fatal("Interactive mode requires a TTY. Use `--prompt` for non-interactive usage.");
+  }
+  CliSession.loadOrCreate(config);
+  console.log("Interactive Aomi CLI ready.");
+  console.log("Commands: /heap, /app <name>, /model <rig>|list|show, /key, :exit");
+  const rl = createInterface({ input, output });
+  try {
+    while (true) {
+      const line = await rl.question("> ");
+      try {
+        const next = await handleReplLine(config, line, (options == null ? void 0 : options.showTool) === true);
+        if (next === "exit") {
+          break;
+        }
+      } catch (err) {
+        if (err instanceof CliExit) {
+          continue;
+        }
+        throw err;
+      }
+    }
+  } finally {
+    rl.close();
+  }
+}
+async function runRootCli(args) {
+  const config = buildCliConfig(args);
+  const prompt = str2(args.prompt);
+  const showTool = args["show-tool"] === true;
+  const providerKey = str2(args["provider-key"]);
+  if (providerKey) {
+    await saveProviderKeyCommand(config, providerKey, { printLocation: false });
+  }
+  if (prompt) {
+    await chatCommand(config, prompt, showTool);
+    return;
+  }
+  await runInteractiveCli(config, { showTool });
+}
+var init_repl = __esm({
+  "src/cli/repl.ts"() {
+    "use strict";
+    init_chat();
+    init_control();
+    init_provider_keys();
+    init_shared();
+    init_cli_session();
+    init_errors();
+  }
+});
+
 // src/cli/main.ts
 import { runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand8 } from "citty";
+import { defineCommand as defineCommand10 } from "citty";
 
 // src/cli/commands/defs/chat.ts
+init_shared();
 import { defineCommand } from "citty";
-
-// src/cli/commands/defs/shared.ts
-init_errors();
-
-// src/cli/validation.ts
-init_chains();
-init_errors();
-function parseChainId(value) {
-  if (value === void 0) return void 0;
-  const n = parseInt(value, 10);
-  if (Number.isNaN(n)) return void 0;
-  if (!SUPPORTED_CHAIN_IDS.includes(n)) {
-    const list = SUPPORTED_CHAIN_IDS.map(
-      (id) => `  ${id} (${CHAIN_NAMES[id]})`
-    ).join("\n");
-    fatal(`Unsupported chain ID: ${n}
-Supported chains:
-${list}`);
-  }
-  return n;
-}
-function normalizePrivateKey(value) {
-  if (value === void 0) return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
-}
-function parseAAProvider(value) {
-  if (value === void 0 || value.trim() === "") return void 0;
-  if (value === "alchemy" || value === "pimlico") {
-    return value;
-  }
-  fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
-}
-function parseAAMode(value) {
-  if (value === void 0 || value.trim() === "") return void 0;
-  if (value === "4337" || value === "7702") {
-    return value;
-  }
-  fatal("Unsupported AA mode. Use `4337` or `7702`.");
-}
-
-// src/cli/commands/defs/shared.ts
-var globalArgs = {
-  "backend-url": {
-    type: "string",
-    description: "Backend URL (default: https://api.aomi.dev)"
-  },
-  "api-key": {
-    type: "string",
-    description: "API key for non-default apps"
-  },
-  app: {
-    type: "string",
-    description: 'App (default: "default")'
-  },
-  model: {
-    type: "string",
-    description: "Set the active model for this session"
-  },
-  "new-session": {
-    type: "boolean",
-    description: "Create a fresh active session for this command"
-  },
-  chain: {
-    type: "string",
-    description: "Active chain for chat/session context"
-  },
-  "public-key": {
-    type: "string",
-    description: "Wallet address (so the agent knows your wallet)"
-  },
-  "private-key": {
-    type: "string",
-    description: "Hex private key for signing"
-  },
-  "rpc-url": {
-    type: "string",
-    description: "RPC URL for transaction submission"
-  }
-};
-function str(value) {
-  return typeof value === "string" && value.trim() ? value : void 0;
-}
-function resolveExecution(args) {
-  const flagAA = args.aa === true;
-  const flagEoa = args.eoa === true;
-  if (flagAA && flagEoa) {
-    fatal("Choose only one of `--aa` or `--eoa`.");
-  }
-  if (flagEoa) return "eoa";
-  if (flagAA || str(args["aa-provider"]) !== void 0 || str(args["aa-mode"]) !== void 0) {
-    return "aa";
-  }
-  return void 0;
-}
-function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
-  const execution = resolveExecution(args);
-  const aaProvider = parseAAProvider(
-    (_a3 = str(args["aa-provider"])) != null ? _a3 : process.env.AOMI_AA_PROVIDER
-  );
-  const aaMode = parseAAMode(
-    (_b = str(args["aa-mode"])) != null ? _b : process.env.AOMI_AA_MODE
-  );
-  if (execution === "eoa" && (aaProvider || aaMode)) {
-    fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
-  }
-  return {
-    baseUrl: (_d = (_c = str(args["backend-url"])) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev",
-    apiKey: (_e = str(args["api-key"])) != null ? _e : process.env.AOMI_API_KEY,
-    app: (_g = (_f = str(args.app)) != null ? _f : process.env.AOMI_APP) != null ? _g : "default",
-    model: (_h = str(args.model)) != null ? _h : process.env.AOMI_MODEL,
-    freshSession: args["new-session"] === true,
-    publicKey: (_i = str(args["public-key"])) != null ? _i : process.env.AOMI_PUBLIC_KEY,
-    privateKey: normalizePrivateKey(
-      (_j = str(args["private-key"])) != null ? _j : process.env.PRIVATE_KEY
-    ),
-    chainRpcUrl: (_k = str(args["rpc-url"])) != null ? _k : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_l = str(args.chain)) != null ? _l : process.env.AOMI_CHAIN_ID),
-    secrets: {},
-    execution,
-    aaProvider,
-    aaMode
-  };
-}
-function getPositionals(args) {
-  const positionals = args._;
-  if (!Array.isArray(positionals)) {
-    return [];
-  }
-  return positionals.filter((value) => typeof value === "string");
-}
-
-// src/cli/commands/defs/chat.ts
 var chatDef = defineCommand({
   meta: { name: "chat", description: "Send a message and print the response" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
@@ -4610,6 +5130,7 @@ var chatDef = defineCommand({
 });
 
 // src/cli/commands/defs/tx.ts
+init_shared();
 import { defineCommand as defineCommand2 } from "citty";
 var txListDef = defineCommand2({
   meta: { name: "list", description: "List pending and signed transactions" },
@@ -4675,6 +5196,7 @@ var txDef = defineCommand2({
 });
 
 // src/cli/commands/defs/session.ts
+init_shared();
 import { defineCommand as defineCommand3 } from "citty";
 var sessionListDef = defineCommand3({
   meta: { name: "list", description: "List local sessions with metadata" },
@@ -4767,6 +5289,7 @@ var sessionDef = defineCommand3({
 });
 
 // src/cli/commands/defs/model.ts
+init_shared();
 import { defineCommand as defineCommand4 } from "citty";
 var modelListDef = defineCommand4({
   meta: { name: "list", description: "List models available to the current backend" },
@@ -4808,6 +5331,7 @@ var modelDef = defineCommand4({
 });
 
 // src/cli/commands/defs/app.ts
+init_shared();
 import { defineCommand as defineCommand5 } from "citty";
 var appListDef = defineCommand5({
   meta: { name: "list", description: "List available apps" },
@@ -4843,17 +5367,106 @@ var chainListDef = defineCommand6({
     chainsCommand2();
   }
 });
+var chainSetDef = defineCommand6({
+  meta: { name: "set", description: "Persist the active chain ID" },
+  args: {
+    id: {
+      type: "positional",
+      description: "Chain ID",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { setChainCommand: setChainCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
+    setChainCommand2(args.id);
+  }
+});
+var chainCurrentDef = defineCommand6({
+  meta: { name: "current", description: "Show the active chain ID" },
+  args: {},
+  async run() {
+    const { currentChainCommand: currentChainCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    currentChainCommand2();
+  }
+});
 var chainDef = defineCommand6({
   meta: { name: "chain", description: "Chain information" },
   subCommands: {
-    list: chainListDef
+    list: chainListDef,
+    set: chainSetDef,
+    current: chainCurrentDef
+  }
+});
+
+// src/cli/commands/defs/wallet.ts
+import { defineCommand as defineCommand7 } from "citty";
+var walletSetDef = defineCommand7({
+  meta: { name: "set", description: "Persist a signing key and derived wallet address" },
+  args: {
+    privateKey: {
+      type: "positional",
+      description: "Hex private key",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { setWalletCommand: setWalletCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
+    setWalletCommand2(args.privateKey);
+  }
+});
+var walletCurrentDef = defineCommand7({
+  meta: { name: "current", description: "Show the configured wallet address" },
+  args: {},
+  async run() {
+    const { currentWalletCommand: currentWalletCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    currentWalletCommand2();
+  }
+});
+var walletDef = defineCommand7({
+  meta: { name: "wallet", description: "Wallet configuration" },
+  subCommands: {
+    set: walletSetDef,
+    current: walletCurrentDef
+  }
+});
+
+// src/cli/commands/defs/config.ts
+import { defineCommand as defineCommand8 } from "citty";
+var configSetBackendDef = defineCommand8({
+  meta: { name: "set-backend", description: "Persist the backend base URL" },
+  args: {
+    url: {
+      type: "positional",
+      description: "Backend URL",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { setBackendCommand: setBackendCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
+    setBackendCommand2(args.url);
+  }
+});
+var configCurrentDef = defineCommand8({
+  meta: { name: "current", description: "Show the configured backend URL" },
+  args: {},
+  async run() {
+    const { currentBackendCommand: currentBackendCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    currentBackendCommand2();
+  }
+});
+var configDef = defineCommand8({
+  meta: { name: "config", description: "CLI configuration" },
+  subCommands: {
+    "set-backend": configSetBackendDef,
+    current: configCurrentDef
   }
 });
 
 // src/cli/commands/defs/secret.ts
 init_errors();
-import { defineCommand as defineCommand7 } from "citty";
-var secretListDef = defineCommand7({
+init_shared();
+import { defineCommand as defineCommand9 } from "citty";
+var secretListDef = defineCommand9({
   meta: { name: "list", description: "List configured secrets for the active session" },
   args: {},
   async run() {
@@ -4861,7 +5474,7 @@ var secretListDef = defineCommand7({
     listSecretsCommand2();
   }
 });
-var secretClearDef = defineCommand7({
+var secretClearDef = defineCommand9({
   meta: { name: "clear", description: "Clear all secrets for the active session" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
@@ -4869,7 +5482,7 @@ var secretClearDef = defineCommand7({
     await clearSecretsCommand2(buildCliConfig(args));
   }
 });
-var secretAddDef = defineCommand7({
+var secretAddDef = defineCommand9({
   meta: { name: "add", description: "Add one or more secrets (NAME=value)" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     secret: {
@@ -4898,7 +5511,7 @@ Usage: aomi secret add NAME=value [NAME=value ...]`
     await ingestSecretsCommand2(config);
   }
 });
-var secretDef = defineCommand7({
+var secretDef = defineCommand9({
   meta: { name: "secret", description: "Secret management" },
   subCommands: {
     list: secretListDef,
@@ -4906,6 +5519,9 @@ var secretDef = defineCommand7({
     add: secretAddDef
   }
 });
+
+// src/cli/root.ts
+init_shared();
 
 // package.json
 var package_default = {
@@ -4951,13 +5567,31 @@ var package_default = {
 };
 
 // src/cli/root.ts
-var root = defineCommand8({
+var root = defineCommand10({
   meta: {
     name: "aomi",
     version: package_default.version,
     description: "CLI client for Aomi on-chain agent"
   },
-  args: __spreadValues({}, globalArgs),
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    prompt: {
+      type: "string",
+      alias: "p",
+      description: "Send a single prompt and exit"
+    },
+    "show-tool": {
+      type: "boolean",
+      description: "Show tool output while chatting from root mode"
+    },
+    "provider-key": {
+      type: "string",
+      description: "Use your own provider API key. Format: PROVIDER:KEY"
+    }
+  }),
+  async run({ args }) {
+    const { runRootCli: runRootCli2 } = await Promise.resolve().then(() => (init_repl(), repl_exports));
+    await runRootCli2(args);
+  },
   subCommands: {
     chat: chatDef,
     tx: txDef,
@@ -4965,22 +5599,100 @@ var root = defineCommand8({
     model: modelDef,
     app: appDef,
     chain: chainDef,
+    wallet: walletDef,
+    config: configDef,
     secret: secretDef
   }
 });
 
 // src/cli/main.ts
 init_errors();
+var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
+  "chat",
+  "tx",
+  "session",
+  "model",
+  "app",
+  "chain",
+  "wallet",
+  "config",
+  "secret"
+]);
 function isPnpmExecWrapper() {
   var _a3, _b;
   const npmCommand = (_a3 = process.env.npm_command) != null ? _a3 : "";
   const userAgent = (_b = process.env.npm_config_user_agent) != null ? _b : "";
   return npmCommand === "exec" && userAgent.includes("pnpm/");
 }
+function shouldPrintRootHelp(rawArgs) {
+  if (!rawArgs.includes("--help") && !rawArgs.includes("-h")) {
+    return false;
+  }
+  const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+  return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
+}
+function printRootHelp() {
+  console.log(`CLI client for Aomi on-chain agent (aomi v${package_default.version})`);
+  console.log("");
+  console.log("USAGE");
+  console.log("");
+  console.log("  aomi");
+  console.log("  aomi --prompt <prompt> [OPTIONS]");
+  console.log("  aomi [OPTIONS] <command>");
+  console.log("");
+  console.log("ROOT MODES");
+  console.log("");
+  console.log("  aomi                         Start the interactive REPL");
+  console.log('  aomi --prompt "hello"        Send one prompt and exit');
+  console.log("");
+  console.log("REPL COMMANDS");
+  console.log("");
+  console.log("  /heap                        Show REPL help");
+  console.log("  /app <name>                  Switch the active app");
+  console.log("  /model <rig>|list|show       Manage the active model");
+  console.log("  /key <provider:key>|show|clear");
+  console.log("                               Manage BYOK provider keys");
+  console.log("  :exit                        Quit the CLI");
+  console.log("");
+  console.log("OPTIONS");
+  console.log("");
+  console.log("  --backend-url <url>          Backend URL");
+  console.log("  --api-key <key>              API key for non-default apps");
+  console.log("  --app <name>                 Active app");
+  console.log("  --model <rig>                Active model");
+  console.log("  --new-session                Create a fresh active session");
+  console.log("  --chain <id>                 Active chain for chat/session context");
+  console.log("  --public-key <address>       Wallet address for chat context");
+  console.log("  --private-key <hex>          Signing key for tx sign");
+  console.log("  --rpc-url <url>              RPC URL for signing");
+  console.log("  -p, --prompt <prompt>        Send a single prompt and exit");
+  console.log("  --show-tool                  Show tool output in root prompt/REPL mode");
+  console.log("  --provider-key <provider:key>");
+  console.log("                               Save a BYOK provider key before running");
+  console.log("");
+  console.log("COMMANDS");
+  console.log("");
+  console.log("  chat                         Explicit one-shot chat command");
+  console.log("  tx                           Transaction management");
+  console.log("  session                      Session management");
+  console.log("  model                        Model management");
+  console.log("  app                          App management");
+  console.log("  chain                        Chain information");
+  console.log("  wallet                       Wallet configuration");
+  console.log("  config                       CLI configuration");
+  console.log("  secret                       Secret management");
+  console.log("");
+  console.log("Use aomi <command> --help for command-specific details.");
+}
 async function runCli(argv = process.argv) {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
+  const rawArgs = argv.slice(2);
   try {
-    await runMain(root, { rawArgs: argv.slice(2) });
+    if (shouldPrintRootHelp(rawArgs)) {
+      printRootHelp();
+      return;
+    }
+    await runMain(root, { rawArgs });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {

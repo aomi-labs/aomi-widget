@@ -897,6 +897,16 @@ function useCurrentThreadMetadata() {
 var import_react5 = require("react");
 var import_jsx_runtime5 = require("react/jsx-runtime");
 var UserContext = (0, import_react5.createContext)(void 0);
+function normalizeUserState(next, data) {
+  if (data.isConnected === false) {
+    return __spreadProps(__spreadValues({}, next), {
+      address: void 0,
+      chainId: void 0,
+      ensName: void 0
+    });
+  }
+  return next;
+}
 function useUser() {
   const context = (0, import_react5.useContext)(UserContext);
   if (!context) {
@@ -926,7 +936,7 @@ function UserContextProvider({ children }) {
   );
   const setUser = (0, import_react5.useCallback)((data) => {
     setUserState((prev) => {
-      const next = __spreadValues(__spreadValues({}, prev), data);
+      const next = normalizeUserState(__spreadValues(__spreadValues({}, prev), data), data);
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
@@ -1520,7 +1530,11 @@ function AomiRuntimeCore({
     cancelGeneration: orchestratorCancel,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => getUserState().address,
+    getPublicKey: () => {
+      var _a;
+      const userState = getUserState();
+      return userState.isConnected ? (_a = userState.address) != null ? _a : void 0 : void 0;
+    },
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -1603,7 +1617,7 @@ function AomiRuntimeCore({
     threadContext.currentThreadId
   );
   (0, import_react9.useEffect)(() => {
-    const userAddress = user.address;
+    const userAddress = user.isConnected ? user.address : void 0;
     if (!userAddress) return;
     const fetchThreadList = async () => {
       var _a, _b, _c;
@@ -1640,7 +1654,7 @@ function AomiRuntimeCore({
       }
     };
     void fetchThreadList();
-  }, [user.address, aomiClientRef]);
+  }, [user.address, user.isConnected, aomiClientRef]);
   const threadListAdapter = (0, import_react9.useMemo)(
     () => buildThreadListAdapter({
       aomiClientRef,
@@ -1843,7 +1857,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: (_a = user.address) != null ? _a : void 0,
+      publicKey: user.isConnected ? (_a = user.address) != null ? _a : void 0 : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(

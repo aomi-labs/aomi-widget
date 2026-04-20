@@ -2,8 +2,7 @@
 
 import { useEffect, type FC } from "react";
 import { cn, getChainInfo, useUser } from "@aomi-labs/react";
-import { useWalletAdapter } from "../../lib/aomi-wallet-adapter";
-import { useAccountIdentity } from "../../lib/account-identity";
+import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export type ConnectButtonProps = {
   className?: string;
@@ -16,9 +15,9 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   connectLabel = "Connect Account",
   onConnectionChange,
 }) => {
-  const adapter = useWalletAdapter();
+  const adapter = useAomiAuthAdapter();
   const { setUser } = useUser();
-  const identity = useAccountIdentity();
+  const identity = adapter.identity;
 
   useEffect(() => {
     setUser({
@@ -36,19 +35,22 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   ]);
 
   const handleClick = () => {
-    const action = identity.isConnected ? adapter.manageAccount : adapter.connect;
-    void action().catch((error) => {
-      console.error("[ConnectButton] Wallet action failed:", error);
-    });
+    if (identity.isConnected) {
+      void adapter.manageAccount();
+      return;
+    }
+    void adapter.connect();
   };
 
   const ticker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
     : undefined;
-  const secondaryLabel =
-    identity.kind === "social" ? identity.secondaryLabel : ticker;
-  const primaryLabel =
-    identity.kind === "disconnected" ? connectLabel : identity.primaryLabel;
+  const secondaryLabel = identity.isConnected
+    ? (identity.secondaryLabel ?? ticker)
+    : undefined;
+  const primaryLabel = identity.status === "disconnected"
+    ? connectLabel
+    : identity.primaryLabel;
   const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
 
   return (
@@ -66,9 +68,7 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
         className,
       )}
       aria-label={ariaLabel}
-      disabled={
-        identity.isConnected ? !adapter.canManageAccount : !adapter.canConnect
-      }
+      disabled={!adapter.canManageAccount && !adapter.canConnect}
     >
       <span className="max-w-[180px] truncate">{primaryLabel}</span>
       {identity.isConnected && secondaryLabel && (
@@ -77,8 +77,3 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     </button>
   );
 };
-
-/** @deprecated Use {@link ConnectButton} */
-export const WalletConnect = ConnectButton;
-/** @deprecated Use {@link ConnectButtonProps} */
-export type WalletConnectProps = ConnectButtonProps;
