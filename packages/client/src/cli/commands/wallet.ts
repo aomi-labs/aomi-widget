@@ -380,7 +380,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         payload: {
           txHash: execution.txHash,
           status: "success",
-          ...(tx.txId !== undefined ? { txId: tx.txId } : {}),
+          ...(tx.txId !== undefined ? { pending_tx_id: tx.txId } : {}),
         },
       }));
     } else {
@@ -427,7 +427,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           signature,
           description: pendingTx.description,
           ...(pendingTx.eip712Id !== undefined
-            ? { eip712Id: pendingTx.eip712Id }
+            ? { pending_eip712_id: pendingTx.eip712Id }
             : {}),
         },
       }];

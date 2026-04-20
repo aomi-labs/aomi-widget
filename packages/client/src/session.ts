@@ -317,7 +317,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         txHash: result.txHash ?? "",
         status: "success",
         amount: result.amount,
-        ...(txPayload.txId !== undefined ? { txId: txPayload.txId } : {}),
+        ...(txPayload.txId !== undefined
+          ? { pending_tx_id: txPayload.txId }
+          : {}),
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -326,7 +328,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         signature: result.signature,
         description: eip712Payload.description,
         ...(eip712Payload.eip712Id !== undefined
-          ? { eip712Id: eip712Payload.eip712Id }
+          ? { pending_eip712_id: eip712Payload.eip712Id }
           : {}),
       });
     }
@@ -353,7 +355,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         txHash: "",
         status: "failed",
         error: reason ?? "Request rejected",
-        ...(txPayload.txId !== undefined ? { txId: txPayload.txId } : {}),
+        ...(txPayload.txId !== undefined
+          ? { pending_tx_id: txPayload.txId }
+          : {}),
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -362,7 +366,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         error: reason ?? "Request rejected",
         description: eip712Payload.description,
         ...(eip712Payload.eip712Id !== undefined
-          ? { eip712Id: eip712Payload.eip712Id }
+          ? { pending_eip712_id: eip712Payload.eip712Id }
           : {}),
       });
     }
