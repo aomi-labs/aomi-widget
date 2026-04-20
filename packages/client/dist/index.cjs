@@ -1086,14 +1086,14 @@ var ClientSession = class extends TypedEventEmitter {
         txHash: (_a = result.txHash) != null ? _a : "",
         status: "success",
         amount: result.amount
-      }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
+      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "success",
         signature: result.signature,
         description: eip712Payload.description
-      }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
+      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1114,14 +1114,14 @@ var ClientSession = class extends TypedEventEmitter {
         txHash: "",
         status: "failed",
         error: reason != null ? reason : "Request rejected"
-      }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
+      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "failed",
         error: reason != null ? reason : "Request rejected",
         description: eip712Payload.description
-      }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
+      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1505,7 +1505,8 @@ var CHAINS_BY_ID = {
   42161: import_chains.arbitrum,
   10: import_chains.optimism,
   8453: import_chains.base,
-  11155111: import_chains.sepolia
+  11155111: import_chains.sepolia,
+  31337: import_chains.foundry
 };
 
 // src/aa/execute.ts

@@ -12,6 +12,7 @@ import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
 import {
   readState,
+  hasSameBackendPendingId,
   writeState,
   type CliSessionState,
   type PendingTx,
@@ -115,15 +116,20 @@ export class CliSession {
   // Mutators (auto-persist)
   // ---------------------------------------------------------------------------
 
-  /** Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only persists if something changed. */
-  mergeConfig(config: CliConfig): void {
+  /**
+   * Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only
+   * persists if something changed. Fields left `undefined` on the input are
+   * NOT clobbered — settings commands like `wallet set` pass partial configs
+   * and must not wipe out an existing `baseUrl`.
+   */
+  mergeConfig(config: Partial<CliConfig>): void {
     let changed = false;
 
-    if (config.baseUrl !== this.state.baseUrl) {
+    if (config.baseUrl !== undefined && config.baseUrl !== this.state.baseUrl) {
       this.state.baseUrl = config.baseUrl;
       changed = true;
     }
-    if (config.app !== this.state.app) {
+    if (config.app !== undefined && config.app !== this.state.app) {
       this.state.app = config.app;
       changed = true;
     }
@@ -205,13 +211,8 @@ export class CliSession {
   addPendingTx(tx: Omit<PendingTx, "id">): PendingTx | null {
     if (!this.state.pendingTxs) this.state.pendingTxs = [];
 
-    const isDuplicate = this.state.pendingTxs.some(
-      (existing) =>
-        existing.kind === tx.kind &&
-        existing.to === tx.to &&
-        existing.data === tx.data &&
-        existing.value === tx.value &&
-        existing.chainId === tx.chainId,
+    const isDuplicate = this.state.pendingTxs.some((existing) =>
+      hasSameBackendPendingId(existing, tx),
     );
     if (isDuplicate) return null;
 
