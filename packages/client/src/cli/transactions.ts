@@ -1,9 +1,10 @@
 import type {
-  TransactionExecutionResult,
-  WalletExecutionCall,
+  ExecutionResult,
+  AAWalletCall,
 } from "../aa";
 import type { WalletRequest } from "../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../wallet-utils";
+import { toAAWalletCall } from "../wallet-utils";
 import type { PendingTx, SignedTx } from "./state";
 
 export function walletRequestToPendingTx(
@@ -13,6 +14,7 @@ export function walletRequestToPendingTx(
     const payload = request.payload as WalletTxPayload;
     return {
       kind: "transaction",
+      txId: payload.txId,
       to: payload.to,
       value: payload.value,
       data: payload.data,
@@ -25,30 +27,31 @@ export function walletRequestToPendingTx(
   const payload = request.payload as WalletEip712Payload;
   return {
     kind: "eip712_sign",
+    eip712Id: payload.eip712Id,
     description: payload.description,
     timestamp: request.timestamp,
     payload: request.payload as unknown as Record<string, unknown>,
   };
 }
 
-export function pendingTxToCallList(tx: PendingTx): WalletExecutionCall[] {
+export function pendingTxToCallList(tx: PendingTx): AAWalletCall[] {
   if (tx.kind !== "transaction" || !tx.to) {
     throw new Error("pending_transaction_missing_call_data");
   }
 
   return [
-    {
+    toAAWalletCall({
       to: tx.to,
-      value: tx.value ?? "0",
+      value: tx.value,
       data: tx.data,
-      chainId: tx.chainId ?? 1,
-    },
+      chainId: tx.chainId,
+    }),
   ];
 }
 
 export function toSignedTransactionRecord(
   tx: PendingTx,
-  execution: TransactionExecutionResult,
+  execution: ExecutionResult,
   from: string,
   chainId: number,
   timestamp: number,

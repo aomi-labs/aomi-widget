@@ -11,7 +11,7 @@ import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
-import { WalletTxHandler } from "@/components/wallet-tx-handler";
+import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
 import {
   SidebarInset,
   SidebarProvider,
@@ -39,7 +39,6 @@ const ComposerControlContext = createContext<ComposerControlContextValue>({
 });
 
 export const useComposerControl = () => useContext(ComposerControlContext);
-
 // =============================================================================
 // Types
 // =============================================================================
@@ -120,7 +119,7 @@ const Root: FC<RootProps> = ({
             {children}
           </SidebarInset>
           <NotificationToaster />
-          <WalletTxHandler />
+          <RuntimeTxHandler />
         </div>
       </SidebarProvider>
     </AomiRuntimeProvider>

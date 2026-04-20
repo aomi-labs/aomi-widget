@@ -27,8 +27,7 @@
         }
       ],
       "dependencies": [
-        "@aomi-labs/react",
-        "wagmi"
+        "@aomi-labs/react"
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
@@ -36,7 +35,7 @@
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
         "https://aomi.dev/r/notification.json",
-        "https://aomi.dev/r/wallet-tx-handler.json",
+        "https://aomi.dev/r/runtime-tx-handler.json",
         "separator",
         "breadcrumb",
         "sidebar"
@@ -45,7 +44,7 @@
     {
       "name": "control-bar",
       "type": "registry:component",
-      "description": "Control bar with model/namespace selectors, API key input, and wallet connect.",
+      "description": "Control bar with model/App selectors, API key input, and wallet connect.",
       "files": [
         {
           "type": "registry:component",
@@ -57,7 +56,7 @@
         },
         {
           "type": "registry:component",
-          "path": "components/control-bar/namespace-select.tsx"
+          "path": "components/control-bar/app-select.tsx"
         },
         {
           "type": "registry:component",
@@ -65,17 +64,30 @@
         },
         {
           "type": "registry:component",
-          "path": "components/control-bar/wallet-connect.tsx"
+          "path": "components/control-bar/connect-button.tsx"
         },
         {
           "type": "registry:component",
           "path": "components/control-bar/network-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/secret-input.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
         "@aomi-labs/react",
-        "wagmi",
-        "lucide-react"
+        "@getpara/react-sdk",
+        "lucide-react",
+        "wagmi"
       ],
       "registryDependencies": [
         "button",
@@ -224,13 +236,21 @@
       "registryDependencies": []
     },
     {
-      "name": "wallet-tx-handler",
+      "name": "runtime-tx-handler",
       "type": "registry:component",
-      "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
+      "description": "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
       "files": [
         {
           "type": "registry:component",
-          "path": "components/wallet-tx-handler.tsx"
+          "path": "components/runtime-tx-handler.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [

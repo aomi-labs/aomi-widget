@@ -10,11 +10,15 @@ npm install @aomi-labs/react @assistant-ui/react react react-dom
 pnpm add @aomi-labs/react @assistant-ui/react react react-dom
 ```
 
-Optional peer dependencies for wallet features:
+Optional dependencies when wiring wallet UI through Para + wagmi:
 
 ```bash
 pnpm add wagmi viem
 ```
+
+If you use the registry-installed `AomiFrame` from `@aomi-labs/widget-lib`,
+wallet behavior comes from the surrounding Para + wagmi provider tree.
+`@aomi-labs/react` does not ship built-in wallet providers.
 
 ## Quick Start
 
@@ -117,7 +121,7 @@ Returns an `AomiRuntimeApi` object with:
 | `useControl()` | Model/namespace/API key state |
 | `useNotification()` | Toast notification context |
 | `useEventContext()` | Raw event system access |
-| `useWalletHandler()` | Wallet request handler (auto-sign with wagmi) |
+| `useWalletHandler()` | Wallet request handler for custom adapter implementations |
 | `useNotificationHandler()` | Notification event handler |
 
 ## Utilities

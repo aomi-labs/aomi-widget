@@ -1,0 +1,15 @@
+[    3097ms] [INFO] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/media/Inter-VariableFont_slnt,wght.b9981368.ttf @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/:24
+[    7515ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[    9244ms] [LOG] [HMR] connected @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   18873ms] [LOG] [Fast Refresh] rebuilding @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   19054ms] [LOG] [Fast Refresh] done in 281ms @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   27405ms] [WARNING] WalletConnect Core is already initialized. This is probably a mistake and can lead to unexpected behavior. Init() was called 2 times. @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   28300ms] [LOG] [Fast Refresh] rebuilding @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   28349ms] [LOG] [Fast Refresh] done in 150ms @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[   32795ms] [WARNING] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information. @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[  198084ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[  199642ms] [LOG] [HMR] connected @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[  206444ms] [LOG] [Fast Refresh] rebuilding @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[  206646ms] [LOG] [Fast Refresh] done in 303ms @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[  213776ms] [WARNING] WalletConnect Core is already initialized. This is probably a mistake and can lead to unexpected behavior. Init() was called 2 times. @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297
+[  218721ms] [WARNING] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information. @ https://thiago-postdysenteric-impedingly.ngrok-free.dev/_next/static/chunks/1f875_next_dist_980d97fa._.js:2297

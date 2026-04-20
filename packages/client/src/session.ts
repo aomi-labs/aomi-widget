@@ -16,6 +16,7 @@
 
 import { AomiClient } from "./client";
 import type {
+  AomiClientType,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
@@ -24,8 +25,9 @@ import type {
   AomiSystemEvent,
   UserState,
 } from "./types";
-import { TypedEventEmitter } from "./event-emitter";
-import { unwrapSystemEvent } from "./event-unwrap";
+import { addUserStateExt } from "./types";
+import { TypedEventEmitter } from "./event";
+import { unwrapSystemEvent } from "./event";
 import {
   normalizeTxPayload,
   normalizeEip712Payload,
@@ -50,12 +52,21 @@ export type WalletRequestResult = {
   txHash?: string;
   signature?: string;
   amount?: string;
+  error?: string;
 };
 
 export type SendResult = {
   messages: AomiMessage[];
   title?: string;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNil(value: unknown): value is null | undefined {
+  return value === null || value === undefined;
+}
 
 function sortJson(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -73,6 +84,10 @@ function sortJson(value: unknown): unknown {
 }
 
 function isSubsetMatch(expected: unknown, actual: unknown): boolean {
+  if (isNil(expected) && isNil(actual)) {
+    return true;
+  }
+
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || expected.length !== actual.length) {
       return false;
@@ -107,6 +122,10 @@ export type SessionOptions = {
   apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
   userState?: UserState;
+  /** Optional client type hint forwarded to the backend via userState.ext.client_type. */
+  clientType?: AomiClientType;
+  /** Stable client ID used for secret-vault association. */
+  clientId?: string;
   /** Polling interval in ms. Default: 500 */
   pollIntervalMs?: number;
   /** Logger for debug output. Pass `console` for verbose logging. */
@@ -137,6 +156,13 @@ export type SessionEventMap = {
   processing_start: undefined;
   /** AI finished processing. */
   processing_end: undefined;
+  /**
+   * Backend transitioned from processing to idle (is_processing went false).
+   * Unlike `processing_end`, this fires even when there are unresolved local
+   * wallet requests.  CLI consumers use it to know that all system events
+   * (including wallet requests) have been delivered for the current turn.
+   */
+  backend_idle: undefined;
   /** An error occurred during polling or SSE. */
   error: { error: unknown };
   /** Wildcard: receives all events as { type, payload }. */
@@ -157,6 +183,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private publicKey?: string;
   private apiKey?: string;
   private userState?: UserState;
+  private clientId: string;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
 
@@ -164,6 +191,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private unsubscribeSSE: (() => void) | null = null;
   private _isProcessing = false;
+  private _backendWasProcessing = false;
   private walletRequests: WalletRequest[] = [];
   private walletRequestNextId = 1;
   private _messages: AomiMessage[] = [];
@@ -188,7 +216,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
-    this.userState = sessionOptions?.userState;
+    this.userState = sessionOptions?.clientType
+      ? addUserStateExt(sessionOptions?.userState ?? {}, "client_type", sessionOptions.clientType)
+      : sessionOptions?.userState;
+    this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
 
@@ -220,6 +251,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
+      clientId: this.clientId,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -250,6 +282,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
+      clientId: this.clientId,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -279,10 +312,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     if (req.kind === "transaction") {
+      const txPayload = req.payload as WalletTxPayload;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash ?? "",
         status: "success",
         amount: result.amount,
+        ...(txPayload.txId !== undefined
+          ? { pending_tx_id: txPayload.txId }
+          : {}),
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -290,6 +327,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         status: "success",
         signature: result.signature,
         description: eip712Payload.description,
+        ...(eip712Payload.eip712Id !== undefined
+          ? { pending_eip712_id: eip712Payload.eip712Id }
+          : {}),
       });
     }
 
@@ -310,9 +350,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     if (req.kind === "transaction") {
+      const txPayload = req.payload as WalletTxPayload;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
+        error: reason ?? "Request rejected",
+        ...(txPayload.txId !== undefined
+          ? { pending_tx_id: txPayload.txId }
+          : {}),
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -320,6 +365,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         status: "failed",
         error: reason ?? "Request rejected",
         description: eip712Payload.description,
+        ...(eip712Payload.eip712Id !== undefined
+          ? { pending_eip712_id: eip712Payload.eip712Id }
+          : {}),
       });
     }
 
@@ -386,9 +434,49 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.userState = userState;
 
     const address = userState["address"];
-    if (typeof address === "string" && address.length > 0) {
+    const isConnected = userState["isConnected"];
+    if (
+      typeof address === "string" &&
+      address.length > 0 &&
+      isConnected !== false
+    ) {
       this.publicKey = address;
+    } else {
+      this.publicKey = undefined;
     }
+  }
+
+  setClientType(clientType: AomiClientType): void {
+    this.resolveUserState(addUserStateExt(this.userState ?? {}, "client_type", clientType));
+  }
+
+  addExtValue(key: string, value: unknown): void {
+    const current = this.userState ?? {};
+    const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
+    this.resolveUserState({
+      ...current,
+      ext: {
+        ...currentExt,
+        [key]: value,
+      },
+    });
+  }
+
+  removeExtValue(key: string): void {
+    if (!this.userState) return;
+    const currentExt = this.userState["ext"];
+    if (!isRecord(currentExt)) return;
+
+    const nextExt = { ...currentExt };
+    delete nextExt[key];
+
+    const nextState = { ...this.userState };
+    if (Object.keys(nextExt).length === 0) {
+      delete nextState["ext"];
+    } else {
+      nextState["ext"] = nextExt;
+    }
+    this.resolveUserState(nextState);
   }
 
   resolveWallet(address: string, chainId?: number): void {
@@ -398,26 +486,62 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async syncUserState(): Promise<AomiStateResponse> {
     this.assertOpen();
 
-    const state = await this.client.fetchState(this.sessionId, this.userState);
+    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
   }
 
   // ===========================================================================
-  // Internal — Polling (ported from PollingController)
+  // Public API — Polling Control
   // ===========================================================================
 
-  private startPolling(): void {
+  /** Whether the session is currently polling for state updates. */
+  getIsPolling(): boolean {
+    return this.pollTimer !== null;
+  }
+
+  /**
+   * Fetch the current state from the backend (one-shot).
+   * Automatically starts polling if the backend is processing.
+   */
+  async fetchCurrentState(): Promise<void> {
+    this.assertOpen();
+
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId,
+    );
+
+    this.assertUserStateAligned(state.user_state);
+    this.applyState(state);
+
+    if (state.is_processing && !this.pollTimer) {
+      this._isProcessing = true;
+      this.emit("processing_start", undefined);
+      this.startPolling();
+    } else if (!state.is_processing) {
+      this._isProcessing = false;
+    }
+  }
+
+  /**
+   * Start polling for state updates. Idempotent — no-op if already polling.
+   * Useful for resuming polling after resolving a wallet request.
+   */
+  startPolling(): void {
     if (this.pollTimer || this.closed) return;
 
+    this._backendWasProcessing = true;
     this.logger?.debug("[session] polling started", this.sessionId);
     this.pollTimer = setInterval(() => {
       void this.pollTick();
     }, this.pollIntervalMs);
   }
 
-  private stopPolling(): void {
+  /** Stop polling for state updates. Idempotent — no-op if not polling. */
+  stopPolling(): void {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
@@ -432,6 +556,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       const state = await this.client.fetchState(
         this.sessionId,
         this.userState,
+        this.clientId,
       );
 
       // Guard: polling may have been stopped while awaiting fetch
@@ -439,6 +564,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
+
+      // Detect backend processing → idle transition.
+      // Fires even when local wallet requests are pending, so CLI consumers
+      // know all system events for this turn have been delivered.
+      if (this._backendWasProcessing && !state.is_processing) {
+        this.emit("backend_idle", undefined);
+      }
+      this._backendWasProcessing = !!state.is_processing;
 
       if (!state.is_processing && this.walletRequests.length === 0) {
         this.stopPolling();
@@ -578,8 +711,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (!isSubsetMatch(this.userState, actualUserState)) {
       const expected = JSON.stringify(sortJson(this.userState));
       const actual = JSON.stringify(sortJson(actualUserState));
-      throw new Error(
-        `Backend user_state mismatch. expected subset=${expected} actual=${actual}`,
+      console.warn(
+        `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`,
       );
     }
   }

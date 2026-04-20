@@ -42,15 +42,9 @@ export type {
 
 export type {
   InboundEvent,
-  OutboundEvent,
   SSEStatus,
   EventSubscriber,
-  EventBuffer,
-} from "./state/event-buffer";
-
-export type {
-  WalletBuffer,
-} from "./state/wallet-buffer";
+} from "./contexts/event-context";
 
 // =============================================================================
 // Handler Hooks
@@ -131,4 +125,5 @@ export {
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
+  type StoredProviderKey,
 } from "./contexts/control-context";

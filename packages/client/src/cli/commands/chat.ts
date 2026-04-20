@@ -1,6 +1,6 @@
 import type { WalletRequest } from "../../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
-import { addPendingTx } from "../state";
+import { CliSession } from "../cli-session";
 import {
   DIM,
   RESET,
@@ -17,32 +17,100 @@ import {
 } from "../output";
 import {
   applyRequestedModelIfPresent,
-  getOrCreateSession,
+  ingestSecretsForSession,
 } from "../context";
 import { fatal } from "../errors";
 import { walletRequestToPendingTx } from "../transactions";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 
-export async function chatCommand(runtime: CliRuntime): Promise<void> {
-  const message = runtime.parsed.positional.join(" ");
+type WalletSnapshot = {
+  publicKey?: string;
+  chainId?: number;
+};
+
+function normalizeAddress(address: string | undefined): string | undefined {
+  return address?.toLowerCase();
+}
+
+export function shouldBroadcastWalletStateChange(
+  config: CliConfig,
+  previous: WalletSnapshot | null,
+  next: WalletSnapshot,
+): boolean {
+  if (!config.privateKey || !next.publicKey) {
+    return false;
+  }
+
+  return (
+    normalizeAddress(previous?.publicKey) !== normalizeAddress(next.publicKey) ||
+    previous?.chainId !== next.chainId
+  );
+}
+
+export async function syncWalletStateForChat(
+  config: CliConfig,
+  previous: WalletSnapshot | null,
+  next: WalletSnapshot,
+  cli: CliSession,
+  session: {
+    resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
+    syncUserState: () => Promise<unknown>;
+    client: { sendSystemMessage: (sessionId: string, message: string) => Promise<unknown> };
+  },
+): Promise<void> {
+  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+    return;
+  }
+
+  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId));
+  await session.syncUserState();
+
+  const payload: Record<string, unknown> = {
+    address: next.publicKey,
+    isConnected: true,
+  };
+  if (next.chainId !== undefined) {
+    payload.chainId = next.chainId;
+  }
+
+  await session.client.sendSystemMessage(
+    cli.sessionId,
+    JSON.stringify({
+      type: "wallet:state_changed",
+      payload,
+    }),
+  );
+}
+
+export async function chatCommand(config: CliConfig, message: string, verbose: boolean): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
 
-  const verbose =
-    runtime.parsed.flags["verbose"] === "true" ||
-    runtime.parsed.flags["v"] === "true";
-
-  const { session, state } = getOrCreateSession(runtime);
+  const previousCli = config.freshSession ? null : CliSession.load();
+  const previousWallet = previousCli
+    ? {
+        publicKey: previousCli.publicKey,
+        chainId: previousCli.chainId,
+      }
+    : null;
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
 
   try {
-    await applyRequestedModelIfPresent(runtime, session, state);
-
-    const userState = buildCliUserState(state.publicKey, state.chainId);
-    if (userState) {
-      session.resolveUserState(userState);
-    }
+    await ingestSecretsForSession(config, cli, session.client);
+    await applyRequestedModelIfPresent(config, cli, session);
+    await syncWalletStateForChat(
+      config,
+      previousWallet,
+      {
+        publicKey: cli.publicKey,
+        chainId: cli.chainId,
+      },
+      cli,
+      session,
+    );
 
     const capturedRequests: WalletRequest[] = [];
     let printedAgentCount = 0;
@@ -109,11 +177,13 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
 
     if (session.getIsProcessing()) {
       await new Promise<void>((resolve) => {
-        const checkWallet = () => {
-          if (capturedRequests.length > 0) resolve();
-        };
-        session.on("wallet_tx_request", checkWallet);
-        session.on("wallet_eip712_request", checkWallet);
+        // Wait for the backend to finish its turn so ALL system events
+        // (including every wallet request) have been delivered.
+        // `backend_idle` fires when is_processing goes false, even if
+        // there are unresolved local wallet requests.
+        // `processing_end` fires when both backend is idle AND there
+        // are no local wallet requests (e.g. pure-text response).
+        session.on("backend_idle", () => resolve());
         session.on("processing_end", () => resolve());
       });
     }
@@ -152,7 +222,11 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
     }
 
     for (const request of capturedRequests) {
-      const pending = addPendingTx(state, walletRequestToPendingTx(request));
+      const pending = cli.addPendingTx(walletRequestToPendingTx(request));
+      if (!pending) {
+        console.log("⚠️  Duplicate wallet request skipped");
+        continue;
+      }
       console.log(`⚡ Wallet request queued: ${pending.id}`);
       if (request.kind === "transaction") {
         const payload = request.payload as WalletTxPayload;
@@ -182,7 +256,7 @@ export async function chatCommand(runtime: CliRuntime): Promise<void> {
 
     if (capturedRequests.length > 0) {
       console.log(
-        "\nRun `aomi tx` to see pending transactions, `aomi sign <id>` to sign.",
+        "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign.",
       );
     }
   } finally {

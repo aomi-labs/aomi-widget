@@ -2,7 +2,6 @@
 
 import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useAccount, useSwitchChain } from "wagmi";
 import { cn, SUPPORTED_CHAINS, getChainInfo } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export type NetworkSelectProps = {
   className?: string;
@@ -21,28 +21,10 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   className,
   chains = SUPPORTED_CHAINS,
 }) => {
-  let chainId: number | undefined;
-  let isConnected = false;
-  let switchChain: ((args: { chainId: number }) => void) | undefined;
-  let isPending = false;
-
-  try {
-    const wagmiAccount = useAccount();
-    chainId = wagmiAccount.chainId;
-    isConnected = wagmiAccount.isConnected;
-  } catch {
-    chainId = undefined;
-    isConnected = false;
-  }
-
-  try {
-    const wagmiSwitch = useSwitchChain();
-    switchChain = wagmiSwitch.switchChain;
-    isPending = wagmiSwitch.isPending;
-  } catch {
-    switchChain = undefined;
-    isPending = false;
-  }
+  const adapter = useAomiAuthAdapter();
+  const { chainId, isConnected } = adapter.identity;
+  const switchChain = adapter.switchChain;
+  const isPending = adapter.isSwitchingChain;
   const [open, setOpen] = useState(false);
 
   // Show only when wallet is connected.
@@ -58,11 +40,11 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           variant="ghost"
           role="combobox"
           aria-expanded={open}
-          disabled={isPending}
+          disabled={isPending || !switchChain}
           className={cn(
             "h-8 w-auto min-w-[80px] justify-between rounded-full px-3 text-xs",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            isPending && "cursor-not-allowed opacity-50",
+            (isPending || !switchChain) && "cursor-not-allowed opacity-50",
             className,
           )}
         >
@@ -79,10 +61,10 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           {chains.map((chain) => (
             <button
               key={chain.id}
-              disabled={isPending}
+              disabled={isPending || !switchChain}
               onClick={() => {
                 if (isPending || chain.id === chainId || !switchChain) return;
-                switchChain({ chainId: chain.id });
+                void switchChain(chain.id);
                 setOpen(false);
               }}
               className={cn(
@@ -90,7 +72,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:bg-accent focus:text-accent-foreground",
                 chainId === chain.id && "bg-accent",
-                isPending && "cursor-not-allowed opacity-50",
+                (isPending || !switchChain) && "cursor-not-allowed opacity-50",
               )}
             >
               <span>{chain.name}</span>

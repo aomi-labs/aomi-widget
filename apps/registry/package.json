@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "1.2.2",
+  "version": "1.2.6",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
   "main": "./src/index.ts",
@@ -28,6 +28,8 @@
     "@aomi-labs/react": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
+    "@getpara/react-sdk": "2.19.0",
+    "@tanstack/react-query": "^5.90.10",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-collapsible": "^1.1.12",
@@ -44,14 +46,13 @@
     "remark-gfm": "^4.0.1",
     "sonner": "^1.7.4",
     "vaul": "^1.1.2",
+    "viem": "^2.47.11",
+    "wagmi": "^2.19.5",
     "zustand": "^5.0.8"
   },
   "peerDependencies": {
-    "@getpara/react-core": "^2.19.0",
-    "@getpara/react-sdk": "^2.19.0",
     "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
-    "wagmi": "^2.0.0"
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

@@ -17,10 +17,19 @@ import { initThreadControl } from "../state/thread-store";
 // Types
 // =============================================================================
 
+/** A stored provider API key (BYOK) */
+export type StoredProviderKey = {
+  apiKey: string;
+  keyPrefix: string;
+  label?: string;
+};
+
 /** Global control state (shared across all threads) */
 export type ControlState = {
   /** API key for authenticated requests */
   apiKey: string | null;
+  /** Stable client identifier for this browser profile (associates sessions with secrets) */
+  clientId: string | null;
   /** Available models fetched from backend */
   availableModels: string[];
   /** Authorized apps fetched from backend */
@@ -29,13 +38,27 @@ export type ControlState = {
   defaultModel: string | null;
   /** Default app (from authorizedApps) */
   defaultApp: string | null;
+  /** Provider API keys stored locally (BYOK) — keyed by provider name */
+  providerKeys: Record<string, StoredProviderKey>;
 };
 
 export type ControlContextApi = {
-  /** Global state (apiKey, available models/apps) */
+  /** Global state (apiKey, clientId, available models/apps) */
   state: ControlState;
   /** Update global state (apiKey only) */
   setApiKey: (apiKey: string | null) => void;
+  /** Ingest secrets into the backend vault, returns opaque handles */
+  ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
+  /** Clear all secrets from the backend vault */
+  clearSecrets: () => Promise<void>;
+  /** Store a provider API key (BYOK) in localStorage and ingest into backend vault */
+  setProviderKey: (provider: string, apiKey: string, label?: string) => Promise<void>;
+  /** Remove a provider API key from localStorage and backend vault */
+  removeProviderKey: (provider: string) => Promise<void>;
+  /** Get all stored provider keys (metadata only — keys are in state.providerKeys) */
+  getProviderKeys: () => Record<string, StoredProviderKey>;
+  /** Check if a provider key is stored */
+  hasProviderKey: (provider?: string) => boolean;
   /** Fetch available models from backend */
   getAvailableModels: () => Promise<string[]>;
   /** Fetch authorized apps from backend */
@@ -69,6 +92,28 @@ export type ControlContextApi = {
 // =============================================================================
 
 const API_KEY_STORAGE_KEY = "aomi_api_key";
+const CLIENT_ID_STORAGE_KEY = "aomi_client_id";
+const PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
+const PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
+
+function getOrCreateClientId(): string {
+  try {
+    const storedClientId = globalThis.localStorage?.getItem(CLIENT_ID_STORAGE_KEY);
+    if (storedClientId && storedClientId.trim().length > 0) {
+      return storedClientId;
+    }
+  } catch {
+    // localStorage not available
+  }
+
+  const clientId = globalThis.crypto?.randomUUID?.() ?? `client-${Date.now()}`;
+  try {
+    globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+  } catch {
+    // localStorage not available
+  }
+  return clientId;
+}
 
 function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
@@ -131,10 +176,12 @@ export function ControlContextProvider({
 }: ControlContextProviderProps) {
   const [state, setStateInternal] = useState<ControlState>(() => ({
     apiKey: null,
+    clientId: getOrCreateClientId(),
     availableModels: [],
     authorizedApps: [],
     defaultModel: null,
     defaultApp: null,
+    providerKeys: {},
   }));
 
   const stateRef = useRef(state);
@@ -161,6 +208,17 @@ export function ControlContextProvider({
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = currentThreadMetadata?.control?.isProcessing ?? false;
 
+  // Persist client id so settings page and chat runtime share one vault namespace.
+  useEffect(() => {
+    try {
+      if (state.clientId) {
+        globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, state.clientId);
+      }
+    } catch {
+      // localStorage not available
+    }
+  }, [state.clientId]);
+
   // Load API key from localStorage on mount
   useEffect(() => {
     try {
@@ -171,6 +229,19 @@ export function ControlContextProvider({
       }
     } catch {
       // localStorage not available
+    }
+  }, []);
+
+  // Load provider keys from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = globalThis.localStorage?.getItem(PROVIDER_KEYS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, StoredProviderKey>;
+        setStateInternal((prev) => ({ ...prev, providerKeys: parsed }));
+      }
+    } catch {
+      // localStorage not available or invalid JSON
     }
   }, []);
 
@@ -186,6 +257,39 @@ export function ControlContextProvider({
       // localStorage not available
     }
   }, [state.apiKey]);
+
+  // Persist provider keys to localStorage
+  useEffect(() => {
+    try {
+      const keys = state.providerKeys;
+      if (Object.keys(keys).length > 0) {
+        globalThis.localStorage?.setItem(
+          PROVIDER_KEYS_STORAGE_KEY,
+          JSON.stringify(keys),
+        );
+      } else {
+        globalThis.localStorage?.removeItem(PROVIDER_KEYS_STORAGE_KEY);
+      }
+    } catch {
+      // localStorage not available
+    }
+  }, [state.providerKeys]);
+
+  // Auto-ingest provider keys into backend vault when the client id or stored key set changes.
+  useEffect(() => {
+    if (!state.clientId) return;
+    const keys = stateRef.current.providerKeys;
+    if (Object.keys(keys).length === 0) return;
+
+    const secrets: Record<string, string> = {};
+    for (const [provider, entry] of Object.entries(keys)) {
+      secrets[`${PROVIDER_KEY_SECRET_PREFIX}${provider}`] = entry.apiKey;
+    }
+
+    void aomiClientRef.current.ingestSecrets(state.clientId, secrets).catch((err: unknown) => {
+      console.error("Failed to auto-ingest provider keys:", err);
+    });
+  }, [state.clientId, state.providerKeys]);
 
   // Fetch apps whenever the auth context changes
   useEffect(() => {
@@ -245,6 +349,100 @@ export function ControlContextProvider({
       return next;
     });
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Secrets
+  // ---------------------------------------------------------------------------
+  const ingestSecrets = useCallback(
+    async (secrets: Record<string, string>): Promise<Record<string, string>> => {
+      const clientId = stateRef.current.clientId;
+      if (!clientId) throw new Error("clientId not initialized");
+      const { handles } = await aomiClientRef.current.ingestSecrets(
+        clientId,
+        secrets,
+      );
+      return handles;
+    },
+    [],
+  );
+
+  const clearSecrets = useCallback(async (): Promise<void> => {
+    const clientId = stateRef.current.clientId;
+    if (!clientId) return;
+    await aomiClientRef.current.clearSecrets?.(clientId);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Provider Keys (BYOK)
+  // ---------------------------------------------------------------------------
+  const setProviderKey = useCallback(
+    async (provider: string, apiKey: string, label?: string): Promise<void> => {
+      const trimmed = apiKey.trim();
+      if (!trimmed) return;
+
+      const entry: StoredProviderKey = {
+        apiKey: trimmed,
+        keyPrefix: trimmed.slice(0, 7),
+        label,
+      };
+
+      setStateInternal((prev) => {
+        const next = {
+          ...prev,
+          providerKeys: { ...prev.providerKeys, [provider]: entry },
+        };
+        callbacks.current.forEach((cb) => cb(next));
+        return next;
+      });
+
+      // Ingest into backend vault
+      const clientId = stateRef.current.clientId;
+      if (clientId) {
+        try {
+          await aomiClientRef.current.ingestSecrets(clientId, {
+            [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed,
+          });
+        } catch (err) {
+          console.error("Failed to ingest provider key:", err);
+        }
+      }
+    },
+    [],
+  );
+
+  const removeProviderKey = useCallback(
+    async (provider: string): Promise<void> => {
+      const clientId = stateRef.current.clientId;
+      if (clientId) {
+        await aomiClientRef.current.deleteSecret(
+          clientId,
+          `${PROVIDER_KEY_SECRET_PREFIX}${provider}`,
+        );
+      }
+
+      setStateInternal((prev) => {
+        const { [provider]: _, ...rest } = prev.providerKeys;
+        const next = { ...prev, providerKeys: rest };
+        callbacks.current.forEach((cb) => cb(next));
+        return next;
+      });
+    },
+    [],
+  );
+
+  const getProviderKeys = useCallback(
+    (): Record<string, StoredProviderKey> => stateRef.current.providerKeys,
+    [],
+  );
+
+  const hasProviderKey = useCallback(
+    (provider?: string): boolean => {
+      const keys = stateRef.current.providerKeys;
+      if (provider) return provider in keys;
+      return Object.keys(keys).length > 0;
+    },
+    [],
+  );
 
   // ---------------------------------------------------------------------------
   // Fetch available options
@@ -366,7 +564,11 @@ export function ControlContextProvider({
       const result = await aomiClientRef.current.setModel(
         threadId,
         model,
-        { app, apiKey: stateRef.current.apiKey ?? undefined },
+        {
+          app,
+          apiKey: stateRef.current.apiKey ?? undefined,
+          clientId: stateRef.current.clientId ?? undefined,
+        },
       );
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
@@ -474,6 +676,12 @@ export function ControlContextProvider({
       value={{
         state,
         setApiKey,
+        ingestSecrets,
+        clearSecrets,
+        setProviderKey,
+        removeProviderKey,
+        getProviderKeys,
+        hasProviderKey,
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,

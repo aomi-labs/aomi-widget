@@ -66,7 +66,7 @@ function AomiRuntimeInner({
     <ControlContextProvider
       aomiClient={aomiClient}
       sessionId={threadContext.currentThreadId}
-      publicKey={user.address ?? undefined}
+      publicKey={user.isConnected ? (user.address ?? undefined) : undefined}
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
     >

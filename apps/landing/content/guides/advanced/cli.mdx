@@ -1,390 +1,216 @@
 ---
 title: CLI
-description: Install and run the CLI for EVM scripts and local workflows.
+description: Install and run the current Aomi CLI for agent chats, transactions, and secrets.
 ---
 
 # AOMI CLI
 
-The AOMI CLI provides interactive and scriptable access to AI-powered blockchain operations from your terminal.
+The current Aomi CLI ships with [`@aomi-labs/client`](https://www.npmjs.com/package/@aomi-labs/client) and exposes the `aomi` executable.
+
+Use it to:
+
+- chat with an Aomi backend from the terminal
+- persist and resume local sessions
+- inspect pending wallet requests and sign them
+- ingest per-session secrets with `aomi --secret ...` or `aomi secret ...`
 
 ## Installation
 
-### Homebrew (macOS/Linux)
+### One-off usage
 
 ```bash
-brew tap aomi-labs/aomi
-brew install aomi-cli
+npx @aomi-labs/client --version
+npx @aomi-labs/client --help
 ```
 
-### From Source
+### Global install
 
 ```bash
-git clone https://github.com/aomi-labs/product-mono.git
-cd product-mono/aomi
-cargo install --path bin/cli
+npm install -g @aomi-labs/client
+aomi --version
+aomi --help
 ```
 
-### Verify Installation
+## Core Commands
 
 ```bash
-aomi-cli --help
-```
+aomi chat "swap 1 ETH for USDC"
+aomi chat "swap 1 ETH for USDC" --model claude-sonnet-4
+aomi chat "swap 1 ETH" --verbose
 
-## Usage
+aomi app list
+aomi app current
+
+aomi model list
+aomi model current
+aomi model set claude-sonnet-4
+
+aomi chain list
+aomi --version
+
+aomi secret list
+aomi secret clear
+aomi --secret ALCHEMY_API_KEY=... TENDERLY_ACCESS_TOKEN=...
+
+aomi session list
+aomi session resume session-2
+aomi session delete session-2
+
+aomi log
+aomi tx
+aomi sign tx-1 --private-key 0x...
+aomi status
+aomi events
+aomi close
+```
 
 ```mermaid
 flowchart TD
-    START[aomi-cli] --> MODE{Mode?}
-    MODE -->|No args| INTERACTIVE[Interactive REPL]
-    MODE -->|--prompt| SINGLE[Single Prompt]
+    START["aomi"] --> MODE{"Command type"}
+    MODE -->|"chat"| CHAT["aomi chat \"...\""]
+    MODE -->|"inspect"| INSPECT["aomi tx / log / status / events"]
+    MODE -->|"session"| SESSION["aomi session list/resume/delete"]
+    MODE -->|"secrets"| SECRET["aomi --secret ... / aomi secret list|clear"]
+    MODE -->|"sign"| SIGN["aomi sign tx-N"]
 
-    INTERACTIVE --> LOOP[Read-Eval-Print Loop]
-    LOOP --> INPUT[User Input]
-    INPUT --> PROCESS[Process Message]
-    PROCESS --> STREAM[Stream Response]
-    STREAM --> LOOP
-
-    SINGLE --> EXEC[Execute Prompt]
-    EXEC --> OUTPUT[Print Response]
-    OUTPUT --> EXIT[Exit]
+    CHAT --> BACKEND["Send request to backend"]
+    SECRET --> STATE["Persist secret handles in local session state"]
+    BACKEND --> QUEUE{"Wallet request queued?"}
+    QUEUE -->|"no"| DONE["Return final output"]
+    QUEUE -->|"yes"| TX["Inspect with aomi tx"]
+    TX --> SIGN
+    SIGN --> RESULT["Submit tx or signature"]
 ```
 
-### Interactive Mode
+## Secrets
 
-Start an interactive session:
+The CLI supports per-session secret ingestion. This is the feature that lets the backend refer to opaque handles instead of raw secret values.
+
+### Ingest secrets
 
 ```bash
-aomi-cli
+aomi --secret ALCHEMY_API_KEY=sk_live_123
 ```
 
-```
-Interactive Aomi CLI ready.
-Commands: :help, :backend <default|l2b|forge>, :exit
-> What is the ETH balance of vitalik.eth?
-
-The ETH balance of vitalik.eth (0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045) is:
-- 1,234.56 ETH
-
-[Tool: Get account info] ✓
->
-```
-
-### Single Prompt Mode
-
-Execute a single prompt and exit:
+You can ingest multiple values in one call:
 
 ```bash
-aomi-cli --prompt "What is the current gas price on Ethereum?"
+aomi --secret \
+  ALCHEMY_API_KEY=sk_live_123 \
+  TENDERLY_ACCESS_TOKEN=tok_456
 ```
 
-Useful for scripting:
+You can also prepend `--secret` to another command. The CLI ingests the values first, then runs the command:
 
 ```bash
-#!/bin/bash
-ETH_BALANCE=$(aomi-cli --prompt "Get ETH balance for $WALLET_ADDRESS" 2>/dev/null)
-echo "Balance: $ETH_BALANCE"
+aomi --secret ALCHEMY_API_KEY=sk_live_123 chat "check my Base wallet activity"
 ```
 
-## Command-Line Options
-
-| Option | Short | Description | Default |
-| ------ | ----- | ----------- | ------- |
-| `--prompt <TEXT>` | `-p` | Single prompt mode | - |
-| `--backend <NAME>` | | Select backend | `default` |
-| `--no-docs` | | Skip loading documentation | false |
-| `--skip-mcp` | | Skip MCP connections | false |
-| `--debug-file <PATH>` | | Write debug logs to file | - |
-| `--log-level <LEVEL>` | | Log filter level | `debug` |
-| `--show-tool` | | Show full tool output | false |
-
-### Examples
+### Inspect or clear secrets
 
 ```bash
-# Use Forge backend for contract development
-aomi-cli --backend forge
-
-# Use L2Beat backend for protocol analysis
-aomi-cli --backend l2b
-
-# Skip docs for faster startup
-aomi-cli --no-docs
-
-# Enable debug logging
-aomi-cli --debug-file ./aomi.log --log-level trace
-
-# Show complete tool output
-aomi-cli --show-tool
+aomi secret list
+aomi secret clear
 ```
 
-## REPL Commands
+`aomi secret clear` removes all configured secrets for the active session.
 
-Inside interactive mode, use `:` prefix for commands:
+## Transaction Flow
 
-| Command | Description |
-| ------- | ----------- |
-| `:help` | Show available commands |
-| `:backend <name>` | Switch backend (default, l2b, forge) |
-| `:test-events` | Emit mock system events (debugging) |
-| `:exit` / `:quit` | Exit the CLI |
+The backend prepares wallet requests. The CLI stores them locally and submits them when you call `aomi sign`.
 
-### Switching Backends
+```bash
+$ aomi chat "swap 1 ETH for USDC on Uniswap" --public-key 0xYourAddr --chain 1
+⚡ Wallet request queued: tx-1
+Run `aomi tx` to see pending transactions, `aomi sign <id>` to sign.
 
+$ aomi tx
+Pending (1):
+  ⏳ tx-1  to: 0x3fC9...7FAD  value: 1000000000000000000  chain: 1
+
+$ aomi sign tx-1 --private-key 0xabc...
+Signer:  0xYourAddr
+IDs:     tx-1
+Kind:    transaction
+Exec:    aa (alchemy, 7702; fallback: eoa)
+✅ Sent! Hash: 0xabc123...
 ```
-> :backend forge
-Switched to Forge backend.
 
-> Help me deploy an ERC20 token
+## Signing Modes
 
-I'll help you deploy an ERC20 token. Let me set up an execution plan...
-```
+`aomi sign` supports three modes:
 
-## Backends
+- default: account abstraction first, then automatic EOA fallback
+- `--aa`: require account abstraction and do not fall back
+- `--eoa`: force direct EOA execution
+
+You can further constrain AA execution with:
+
+- `--aa-provider alchemy|pimlico`
+- `--aa-mode 4337|7702`
+
+## Options
+
+These flags match the current CLI help output:
+
+| Flag                    | Env               | Description                                              |
+| ----------------------- | ----------------- | -------------------------------------------------------- |
+| `--backend-url`         | `AOMI_BACKEND_URL`   | Backend URL                                              |
+| `--api-key`             | `AOMI_API_KEY`    | API key for non-default apps                             |
+| `--app`                 | `AOMI_APP`        | App name                                                 |
+| `--model`               | `AOMI_MODEL`      | Model rig to apply before chat                           |
+| `--secret <NAME=value>` | —                 | Ingest secret values for the active session              |
+| `--public-key`          | `AOMI_PUBLIC_KEY` | Wallet address shared with the agent                     |
+| `--private-key`         | `PRIVATE_KEY`     | Hex private key for `aomi sign`                          |
+| `--rpc-url`             | `CHAIN_RPC_URL`   | RPC URL for transaction submission                       |
+| `--chain`               | `AOMI_CHAIN_ID`   | Chain ID (`1`, `137`, `42161`, `8453`, `10`, `11155111`) |
+| `--verbose`, `-v`       | —                 | Stream tool calls and agent responses live               |
+| `--version`, `-V`       | —                 | Print the installed CLI version                          |
+
+## Session State
+
+The CLI is not a daemon. Each command starts, reads local state, talks to the backend, and exits.
+
+By default it stores session files under `~/.aomi/`:
+
+- `sessionId`: active backend conversation
+- `clientId`: stable client identity used for secret handles
+- `model`: last selected model
+- `publicKey`: persisted wallet address
+- `chainId`: persisted active chain
+- `secretHandles`: ingested secret handles for the session
+- `pendingTxs`: unsigned wallet requests
+- `signedTxs`: completed transactions
 
 ```mermaid
 flowchart LR
-    CLI[aomi-cli] --> SELECT{--backend}
-    SELECT -->|default| CHAT[ChatApp<br/>General Assistant]
-    SELECT -->|l2b| L2B[L2BeatApp<br/>Protocol Analysis]
-    SELECT -->|forge| FORGE[ForgeApp<br/>Contract Development]
-
-    CHAT --> TOOLS1[Balance queries<br/>Contract calls<br/>Web search]
-    L2B --> TOOLS2[L2 analysis<br/>Security scores<br/>Protocol comparison]
-    FORGE --> TOOLS3[Script generation<br/>Simulation<br/>Deployment]
+    USER["Terminal user"] --> CLI["aomi CLI"]
+    CLI --> STATE["~/.aomi session state"]
+    CLI --> API["Aomi backend API"]
+    STATE --> SID["sessionId"]
+    STATE --> CID["clientId"]
+    STATE --> SH["secretHandles"]
+    STATE --> TXS["pendingTxs / signedTxs"]
+    CID --> API
+    SH --> API
 ```
 
-### Default Backend
-
-General-purpose blockchain assistant:
-
-- Query account balances and transaction history
-- Call view functions on contracts
-- Simulate transactions
-- Search for blockchain information
-- Encode function calls
+## Examples
 
 ```bash
-aomi-cli
-> What are the top holders of USDC?
-```
+# Start a session
+aomi chat "hello"
 
-### L2Beat Backend
+# Switch models
+aomi model set gpt-5
 
-Layer 2 protocol analysis:
+# Inject a secret, then use it immediately
+aomi --secret ALCHEMY_API_KEY=sk_live_123 chat "simulate a swap on Base"
 
-- Analyze L2 security properties
-- Compare protocols
-- Evaluate data availability
-- Assess bridge risks
+# Review local session state
+aomi status
+aomi log
 
-```bash
-aomi-cli --backend l2b
-> Compare the security of Arbitrum and Optimism
-```
-
-### Forge Backend
-
-Smart contract development:
-
-- Generate Forge scripts
-- Compile and simulate
-- Plan multi-step deployments
-- Execute transactions
-
-```bash
-aomi-cli --backend forge
-> Deploy a simple ERC20 token with 1M supply
-```
-
-## Environment Variables
-
-### Required
-
-| Variable | Description |
-| -------- | ----------- |
-| `ANTHROPIC_API_KEY` | Claude API key for LLM |
-
-### Optional
-
-| Variable | Description |
-| -------- | ----------- |
-| `BRAVE_SEARCH_API_KEY` | Enable web search |
-| `ETHERSCAN_API_KEY` | Contract data lookups |
-| `ALCHEMY_API_KEY` | RPC endpoint access |
-| `BAML_SERVER_URL` | Structured AI server |
-
-### Setup
-
-```bash
-# Add to ~/.bashrc or ~/.zshrc
-export ANTHROPIC_API_KEY="sk-ant-..."
-export ETHERSCAN_API_KEY="..."
-export BRAVE_SEARCH_API_KEY="..."
-
-# Or use .env file
-cp .env.template .env
-# Edit .env with your keys
-```
-
-## Output Formatting
-
-### Tool Output
-
-By default, only tool names are shown:
-
-```
-> Check ETH balance of vitalik.eth
-
-[Tool: Get account info] ✓
-
-The balance is 1,234.56 ETH.
-```
-
-With `--show-tool`, full output is displayed:
-
-```
-> Check ETH balance of vitalik.eth
-
-[Tool: Get account info]
-{
-  "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-  "balance": "1234560000000000000000",
-  "balance_formatted": "1234.56 ETH"
-}
-
-The balance is 1,234.56 ETH.
-```
-
-### System Events
-
-System events are rendered separately from chat:
-
-```
-> Send 0.1 ETH to alice.eth
-
-[System] Transaction pending approval...
-[Inline] {"type": "wallet_request", "to": "0x...", "value": "0.1"}
-
-Please approve the transaction in your wallet.
-```
-
-## Debugging
-
-### Debug Logs
-
-Enable structured logging to a file:
-
-```bash
-aomi-cli --debug-file ./debug.log --log-level trace
-```
-
-Log levels: `trace`, `debug`, `info`, `warn`, `error`
-
-### Custom Filters
-
-Filter logs by module:
-
-```bash
-aomi-cli --debug-file ./debug.log --log-level "aomi_cli=debug,aomi_tools=trace"
-```
-
-### Test Events
-
-Emit mock system events for debugging:
-
-```
-> :test-events
-
-[Inline] {"type": "test_inline", "message": "InlineDisplay mock payload"}
-[System] SystemNotice mock message
-[Error] SystemError mock message
-[Async] {"type": "test_async", "message": "AsyncUpdate mock payload"}
-```
-
-## Scripting Examples
-
-### Balance Check Script
-
-```bash
-#!/bin/bash
-
-ADDRESSES=(
-    "vitalik.eth"
-    "0x742d35Cc6634C0532925a3b844Bc9e7595f..."
-)
-
-for addr in "${ADDRESSES[@]}"; do
-    echo "Checking $addr..."
-    aomi-cli --prompt "Get ETH balance of $addr" --no-docs
-    echo ""
-done
-```
-
-### Contract Verification
-
-```bash
-#!/bin/bash
-
-CONTRACT=$1
-NETWORK=${2:-ethereum}
-
-aomi-cli --prompt "
-Verify the contract at $CONTRACT on $NETWORK:
-1. Fetch the ABI and source code
-2. Check if it's a proxy
-3. List the main functions
-" --no-docs
-```
-
-### Daily Report
-
-```bash
-#!/bin/bash
-
-DATE=$(date +%Y-%m-%d)
-OUTPUT="report-$DATE.md"
-
-aomi-cli --prompt "
-Generate a summary of the top DeFi protocols:
-- Total TVL
-- 24h volume
-- Notable events
-Format as markdown.
-" > "$OUTPUT"
-
-echo "Report saved to $OUTPUT"
-```
-
-## Troubleshooting
-
-### "ANTHROPIC_API_KEY not set"
-
-Set your API key:
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-### "MCP connection failed"
-
-Skip MCP if not needed:
-
-```bash
-aomi-cli --skip-mcp
-```
-
-### Slow Startup
-
-Skip documentation loading:
-
-```bash
-aomi-cli --no-docs
-```
-
-### No Output
-
-Check debug logs:
-
-```bash
-aomi-cli --debug-file ./debug.log --log-level debug
-# Then check debug.log for errors
+# Close the active local session pointer
+aomi close
 ```

@@ -14,16 +14,32 @@ export type UserState = {
   chainId?: number;
   isConnected: boolean;
   ensName?: string;
+  ext?: Record<string, unknown>;
 };
 
 type UserContextValue = {
   user: UserState;
   setUser: (data: Partial<UserState>) => void;
+  addExtValue: (key: string, value: unknown) => void;
+  removeExtValue: (key: string) => void;
   getUserState: () => UserState;
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
+
+function normalizeUserState(next: UserState, data: Partial<UserState>): UserState {
+  if (data.isConnected === false) {
+    return {
+      ...next,
+      address: undefined,
+      chainId: undefined,
+      ensName: undefined,
+    };
+  }
+
+  return next;
+}
 
 export function useUser() {
   const context = useContext(UserContext);
@@ -34,6 +50,8 @@ export function useUser() {
   return {
     user: context.user,
     setUser: context.setUser,
+    addExtValue: context.addExtValue,
+    removeExtValue: context.removeExtValue,
     getUserState: context.getUserState,
     onUserStateChange: context.onUserStateChange,
   };
@@ -47,6 +65,7 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
     address: undefined,
     chainId: undefined,
     ensName: undefined,
+    ext: undefined,
   });
 
   // Refs for stable getter functions
@@ -60,13 +79,47 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
 
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
-      const next = { ...prev, ...data };
+      const next = normalizeUserState({ ...prev, ...data }, data);
 
       // Notify all subscribers
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
 
+      return next;
+    });
+  }, []);
+
+  const addExtValue = useCallback((key: string, value: unknown) => {
+    setUserState((prev) => {
+      const next = {
+        ...prev,
+        ext: {
+          ...(prev.ext ?? {}),
+          [key]: value,
+        },
+      };
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+      return next;
+    });
+  }, []);
+
+  const removeExtValue = useCallback((key: string) => {
+    setUserState((prev) => {
+      if (!prev.ext || !(key in prev.ext)) {
+        return prev;
+      }
+      const nextExt = { ...prev.ext };
+      delete nextExt[key];
+      const next = {
+        ...prev,
+        ext: Object.keys(nextExt).length > 0 ? nextExt : undefined,
+      };
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
       return next;
     });
   }, []);
@@ -92,6 +145,8 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         setUser,
+        addExtValue,
+        removeExtValue,
         getUserState,
         onUserStateChange,
       }}

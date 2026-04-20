@@ -2,11 +2,12 @@
 
 import { useState, type CSSProperties } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import { useDemoBackendUrl } from "@/components/runtime/use-demo-backend-url";
+import { LandingParaProvider } from "../components/landing-para-provider";
+
+const DEMO_BACKEND_URL = "/";
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const backendUrl = useDemoBackendUrl();
 
   return (
     <>
@@ -186,7 +187,7 @@ export function Hero() {
           </div>
         </div>
       </div>
-      <div className="animate-fade-in mr-auto mb-30 ml-auto flex w-full max-w-7xl flex-col items-center pt-36 pr-4 pl-4 text-center">
+      <div className="mr-auto mb-30 ml-auto flex w-full max-w-7xl flex-col items-center pt-36 pr-4 pl-4 text-center">
         <div className="mb-8 flex cursor-default items-center rounded-full border-0 bg-black/20 pt-1.5 pr-2 pb-1.5 pl-2 shadow-lg ring-1 ring-white/10 backdrop-blur-[80px] transition-colors">
           <div className="flex -space-x-2">
             <div className="h-6 w-6 overflow-hidden rounded-full border border-white/20 bg-neutral-200">
@@ -224,7 +225,7 @@ export function Hero() {
           <span className="font-pt-serif italic"> from action.</span>
         </p>
         <p className="font-geist mr-auto mb-10 ml-auto max-w-xl text-sm leading-relaxed font-light tracking-wide text-neutral-50 drop-shadow-lg md:text-base">
-          Embed AI features in your crypto product. Simulation-first,
+          Embed AI features in your crypto product. Universal Smart Contract support,
           <br className="hidden md:block" />
           human-in-the-loop, multi-chain. Ship in minutes.
         </p>
@@ -264,14 +265,14 @@ export function Hero() {
         <div className="flex w-full max-w-[1500px] flex-col items-center justify-start pt-10 pb-10">
           <div
             id="terminal-container"
-            className="h-[680px] w-full max-w-[900px] origin-bottom-left transform transition-all duration-300"
+            className="h-[680px] w-full max-w-[900px] origin-bottom-left transition-all duration-300"
           >
-            {backendUrl ? (
+            <LandingParaProvider>
               <AomiFrame.Root
                 height="100%"
                 width="100%"
                 walletPosition="footer"
-                backendUrl={backendUrl}
+                backendUrl={DEMO_BACKEND_URL}
               >
                 <AomiFrame.Header />
                 <AomiFrame.Composer
@@ -279,9 +280,7 @@ export function Hero() {
                   controlBarProps={{ hideApiKey: true, hideNetwork: false }}
                 />
               </AomiFrame.Root>
-            ) : (
-              <div className="h-full w-full" />
-            )}
+            </LandingParaProvider>
           </div>
         </div>
       </div>

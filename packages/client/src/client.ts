@@ -2,9 +2,17 @@ import type {
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
+  AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiDeleteProviderKeyResponse,
+  AomiDeleteSecretResponse,
+  AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiListProviderKeysResponse,
+  AomiProviderKeyEntry,
+  AomiSaveProviderKeyResponse,
   AomiSSEEvent,
+  AomiSimulateResponse,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
@@ -20,6 +28,30 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 
 const SESSION_ID_HEADER = "X-Session-Id";
 const API_KEY_HEADER = "X-API-Key";
+
+function joinApiPath(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}` || normalizedPath;
+}
+
+function buildApiUrl(
+  baseUrl: string,
+  path: string,
+  query?: Record<string, string | undefined>,
+): string {
+  const url = joinApiPath(baseUrl, path);
+  if (!query) return url;
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined) continue;
+    params.set(key, value);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `${url}?${queryString}` : url;
+}
 
 function toQueryString(payload: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -101,13 +133,14 @@ export class AomiClient {
   async fetchState(
     sessionId: string,
     userState?: UserState,
+    clientId?: string,
   ): Promise<AomiStateResponse> {
-    const url = new URL("/api/state", this.baseUrl);
-    if (userState) {
-      url.searchParams.set("user_state", JSON.stringify(userState));
-    }
+    const url = buildApiUrl(this.baseUrl, "/api/state", {
+      user_state: userState ? JSON.stringify(userState) : undefined,
+      client_id: clientId,
+    });
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -129,6 +162,7 @@ export class AomiClient {
       publicKey?: string;
       apiKey?: string;
       userState?: UserState;
+      clientId?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -140,6 +174,9 @@ export class AomiClient {
     }
     if (options?.userState) {
       payload.user_state = JSON.stringify(options.userState);
+    }
+    if (options?.clientId) {
+      payload.client_id = options.clientId;
     }
 
     return postState<AomiChatResponse>(
@@ -179,6 +216,73 @@ export class AomiClient {
   }
 
   // ===========================================================================
+  // Secrets
+  // ===========================================================================
+
+  /**
+   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   * Call this once at page load (or when secrets change) with a stable
+   * client_id for the browser tab. The same client_id should be passed
+   * to `sendMessage` / `fetchState` so sessions get associated.
+   */
+  async ingestSecrets(
+    clientId: string,
+    secrets: Record<string, string>,
+  ): Promise<AomiIngestSecretsResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, secrets }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiIngestSecretsResponse;
+  }
+
+  /**
+   * Clear all secrets for a client (e.g. on page unload or logout).
+   */
+  async clearSecrets(clientId: string): Promise<AomiClearSecretsResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId,
+    });
+    const response = await fetch(url, { method: "DELETE" });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiClearSecretsResponse;
+  }
+
+  /**
+   * Remove a single secret for a client.
+   */
+  async deleteSecret(
+    clientId: string,
+    name: string,
+  ): Promise<AomiDeleteSecretResponse> {
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/secrets/${encodeURIComponent(name)}`,
+      {
+        client_id: clientId,
+      },
+    );
+    const response = await fetch(url, { method: "DELETE" });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiDeleteSecretResponse;
+  }
+
+  // ===========================================================================
   // SSE (Real-time Updates)
   // ===========================================================================
 
@@ -203,7 +307,9 @@ export class AomiClient {
    * List all threads for a wallet address.
    */
   async listThreads(publicKey: string): Promise<AomiThread[]> {
-    const url = `${this.baseUrl}/api/sessions?public_key=${encodeURIComponent(publicKey)}`;
+    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
+      public_key: publicKey,
+    });
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -217,7 +323,10 @@ export class AomiClient {
    * Get a single thread by ID.
    */
   async getThread(sessionId: string): Promise<AomiThread> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+    );
     const response = await fetch(url, {
       headers: withSessionHeader(sessionId),
     });
@@ -239,7 +348,7 @@ export class AomiClient {
     const body: Record<string, string> = {};
     if (publicKey) body.public_key = publicKey;
 
-    const url = `${this.baseUrl}/api/sessions`;
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await fetch(url, {
       method: "POST",
       headers: withSessionHeader(threadId, {
@@ -259,7 +368,10 @@ export class AomiClient {
    * Delete a thread by ID.
    */
   async deleteThread(sessionId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+    );
     const response = await fetch(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId),
@@ -274,7 +386,10 @@ export class AomiClient {
    * Rename a thread.
    */
   async renameThread(sessionId: string, newTitle: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+    );
     const response = await fetch(url, {
       method: "PATCH",
       headers: withSessionHeader(sessionId, {
@@ -292,7 +407,10 @@ export class AomiClient {
    * Archive a thread.
    */
   async archiveThread(sessionId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/archive`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
+    );
     const response = await fetch(url, {
       method: "POST",
       headers: withSessionHeader(sessionId),
@@ -307,7 +425,10 @@ export class AomiClient {
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/unarchive`;
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`,
+    );
     const response = await fetch(url, {
       method: "POST",
       headers: withSessionHeader(sessionId),
@@ -329,11 +450,10 @@ export class AomiClient {
     sessionId: string,
     count?: number,
   ): Promise<AomiSystemEvent[]> {
-    const url = new URL("/api/events", this.baseUrl);
-    if (count !== undefined) {
-      url.searchParams.set("count", String(count));
-    }
-    const response = await fetch(url.toString(), {
+    const url = buildApiUrl(this.baseUrl, "/api/events", {
+      count: count !== undefined ? String(count) : undefined,
+    });
+    const response = await fetch(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -356,10 +476,9 @@ export class AomiClient {
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ): Promise<string[]> {
-    const url = new URL("/api/control/apps", this.baseUrl);
-    if (options?.publicKey) {
-      url.searchParams.set("public_key", options.publicKey);
-    }
+    const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+      public_key: options?.publicKey,
+    });
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -367,7 +486,7 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await fetch(url.toString(), { headers });
+    const response = await fetch(url, { headers });
 
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
@@ -383,14 +502,14 @@ export class AomiClient {
     sessionId: string,
     options?: { apiKey?: string },
   ): Promise<string[]> {
-    const url = new URL("/api/control/models", this.baseUrl);
+    const url = buildApiUrl(this.baseUrl, "/api/control/models");
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       headers,
     });
 
@@ -407,7 +526,7 @@ export class AomiClient {
   async setModel(
     sessionId: string,
     rig: string,
-    options?: { app?: string; apiKey?: string },
+    options?: { app?: string; apiKey?: string; clientId?: string },
   ): Promise<{
     success: boolean;
     rig: string;
@@ -419,6 +538,9 @@ export class AomiClient {
     if (options?.app) {
       payload.app = options.app;
     }
+    if (options?.clientId) {
+      payload.client_id = options.clientId;
+    }
 
     return postState<{
       success: boolean;
@@ -426,5 +548,123 @@ export class AomiClient {
       baml: string;
       created: boolean;
     }>(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+  }
+
+  /**
+   * List BYOK provider keys bound to the current session's client.
+   */
+  async listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]> {
+    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+    const response = await fetch(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiListProviderKeysResponse;
+    return data.provider_keys ?? [];
+  }
+
+  /**
+   * Save or replace a BYOK provider key for the client bound to this session.
+   */
+  async saveProviderKey(
+    sessionId: string,
+    provider: string,
+    apiKey: string,
+    label?: string,
+  ): Promise<AomiProviderKeyEntry> {
+    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        provider,
+        api_key: apiKey,
+        label,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiSaveProviderKeyResponse;
+    return data.key;
+  }
+
+  /**
+   * Delete a BYOK provider key for the client bound to this session.
+   */
+  async deleteProviderKey(
+    sessionId: string,
+    provider: string,
+  ): Promise<boolean> {
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/control/provider-keys/${encodeURIComponent(provider)}`,
+    );
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiDeleteProviderKeyResponse;
+    return data.deleted;
+  }
+
+  // ===========================================================================
+  // Batch Simulation
+  // ===========================================================================
+
+  /**
+   * Simulate transactions as an atomic batch.
+   * Each tx sees state changes from previous txs (e.g., approve → swap).
+   * Sends full tx payloads — the backend does not look up by ID.
+   */
+  async simulateBatch(
+    sessionId: string,
+    transactions: Array<{
+      to: string;
+      value?: string;
+      data?: string;
+      label?: string;
+    }>,
+    options?: { from?: string; chainId?: number },
+  ): Promise<AomiSimulateResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const headers = new Headers(
+      withSessionHeader(sessionId, { "Content-Type": "application/json" }),
+    );
+    if (this.apiKey) {
+      headers.set(API_KEY_HEADER, this.apiKey);
+    }
+
+    const payload = {
+      transactions,
+      from: options?.from,
+      chain_id: options?.chainId,
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`);
+    }
+
+    return (await response.json()) as AomiSimulateResponse;
   }
 }

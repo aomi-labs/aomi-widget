@@ -12,6 +12,8 @@ import { homedir, tmpdir } from "node:os";
 export type PendingTx = {
   id: string;
   kind: "transaction" | "eip712_sign";
+  txId?: number;
+  eip712Id?: number;
   to?: string;
   value?: string;
   data?: string;
@@ -44,15 +46,37 @@ export type SignedTx = {
 
 export type CliSessionState = {
   sessionId: string;
+  clientId?: string;
   baseUrl: string;
   app?: string;
   model?: string;
   apiKey?: string;
   publicKey?: string;
+  privateKey?: string;
   chainId?: number;
   pendingTxs?: PendingTx[];
   signedTxs?: SignedTx[];
+  secretHandles?: Record<string, string>;
 };
+
+function getBackendPendingId(tx: Omit<PendingTx, "id"> | PendingTx): number | undefined {
+  return tx.kind === "transaction" ? tx.txId : tx.eip712Id;
+}
+
+export function hasSameBackendPendingId(
+  existing: PendingTx,
+  next: Omit<PendingTx, "id">,
+): boolean {
+  const existingBackendId = getBackendPendingId(existing);
+  const nextBackendId = getBackendPendingId(next);
+
+  return (
+    existing.kind === next.kind &&
+    existingBackendId !== undefined &&
+    nextBackendId !== undefined &&
+    existingBackendId === nextBackendId
+  );
+}
 
 type StoredSessionState = CliSessionState & {
   localId: number;
@@ -100,14 +124,17 @@ function toSessionFilePath(localId: number): string {
 function toCliSessionState(stored: StoredSessionState): CliSessionState {
   return {
     sessionId: stored.sessionId,
+    clientId: stored.clientId,
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
+    privateKey: stored.privateKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     signedTxs: stored.signedTxs,
+    secretHandles: stored.secretHandles,
   };
 }
 
@@ -123,14 +150,17 @@ function readStoredSession(path: string): StoredSessionState | null {
     const fallbackLocalId = parseSessionFileLocalId(basename(path)) ?? 0;
     return {
       sessionId: parsed.sessionId,
+      clientId: parsed.clientId,
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
+      privateKey: parsed.privateKey,
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       signedTxs: parsed.signedTxs,
+      secretHandles: parsed.secretHandles,
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
           ? parsed.localId
@@ -391,8 +421,16 @@ function getNextTxId(state: CliSessionState): string {
 export function addPendingTx(
   state: CliSessionState,
   tx: Omit<PendingTx, "id">,
-): PendingTx {
+): PendingTx | null {
   if (!state.pendingTxs) state.pendingTxs = [];
+
+  // Requests are only deduped when they carry the same backend staging id.
+  const isDuplicate = state.pendingTxs.some((existing) =>
+    hasSameBackendPendingId(existing, tx),
+  );
+  if (isDuplicate) {
+    return null;
+  }
 
   const pending: PendingTx = {
     ...tx,

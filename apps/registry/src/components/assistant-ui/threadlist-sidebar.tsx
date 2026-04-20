@@ -10,7 +10,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
-import { WalletConnect } from "@/components/control-bar/wallet-connect";
+import { ConnectButton } from "@/components/control-bar/connect-button";
 
 const AomiLogo = ({ className }: { className?: string }) => (
   <svg
@@ -58,7 +58,7 @@ export function ThreadListSidebar({
           >
             <AomiLogo className="aomi-sidebar-header-icon size-6" />
           </Link>
-          {walletPosition === "header" && <WalletConnect />}
+          {walletPosition === "header" && <ConnectButton />}
         </div>
       </SidebarHeader>
       <SidebarContent className="aomi-sidebar-content">
@@ -67,7 +67,7 @@ export function ThreadListSidebar({
       <SidebarRail />
       {walletPosition === "footer" && (
         <SidebarFooter className="aomi-sidebar-footer mx-5 mb-5 border-0">
-          <WalletConnect className="w-full" />
+          <ConnectButton className="w-full" />
         </SidebarFooter>
       )}
     </Sidebar>

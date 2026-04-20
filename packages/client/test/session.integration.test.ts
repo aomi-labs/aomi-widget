@@ -17,6 +17,7 @@ import type { AomiMessage, SendResult, SessionEventMap } from "../src/index";
 
 const BACKEND_URL = "https://api.aomi.dev";
 const TEST_TIMEOUT = 30_000; // 30s — AI responses can be slow
+const describeLive = process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
 
 const sessions: Session[] = [];
 
@@ -46,7 +47,7 @@ afterEach(async () => {
 // Session.send() — blocking send
 // =============================================================================
 
-describe("Session.send() (live backend)", () => {
+describeLive("Session.send() (live backend)", () => {
   it(
     "sends a message and returns a result with messages",
     async () => {
@@ -100,7 +101,7 @@ describe("Session.send() (live backend)", () => {
 // Session.sendAsync() — non-blocking send
 // =============================================================================
 
-describe("Session.sendAsync() (live backend)", () => {
+describeLive("Session.sendAsync() (live backend)", () => {
   it(
     "returns immediately and fires events",
     async () => {
@@ -143,7 +144,7 @@ describe("Session.sendAsync() (live backend)", () => {
 // Events
 // =============================================================================
 
-describe("Session events (live backend)", () => {
+describeLive("Session events (live backend)", () => {
   it(
     "emits processing_start and processing_end events",
     async () => {
@@ -240,7 +241,7 @@ describe("Session events (live backend)", () => {
 // Accessors
 // =============================================================================
 
-describe("Session accessors (live backend)", () => {
+describeLive("Session accessors (live backend)", () => {
   it(
     "getMessages() returns messages after send",
     async () => {
@@ -285,7 +286,7 @@ describe("Session accessors (live backend)", () => {
 // Session with existing AomiClient
 // =============================================================================
 
-describe("Session with AomiClient instance (live backend)", () => {
+describeLive("Session with AomiClient instance (live backend)", () => {
   it(
     "accepts an AomiClient instead of options",
     async () => {
@@ -306,7 +307,7 @@ describe("Session with AomiClient instance (live backend)", () => {
 // Session.interrupt()
 // =============================================================================
 
-describe("Session.interrupt() (live backend)", () => {
+describeLive("Session.interrupt() (live backend)", () => {
   it(
     "can interrupt a response",
     async () => {
@@ -330,7 +331,7 @@ describe("Session.interrupt() (live backend)", () => {
 // Session.close()
 // =============================================================================
 
-describe("Session.close() (live backend)", () => {
+describeLive("Session.close() (live backend)", () => {
   it(
     "prevents further sends after close",
     async () => {

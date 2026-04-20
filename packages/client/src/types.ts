@@ -8,6 +8,38 @@
  */
 export type UserState = Record<string, unknown>;
 
+/**
+ * Known client surfaces that may want backend-specific UX strategies.
+ * Additional string values are allowed for forward compatibility.
+ */
+export type AomiClientType = "ts_cli" | "web_ui" | (string & {});
+
+export const CLIENT_TYPE_TS_CLI: AomiClientType = "ts_cli";
+export const CLIENT_TYPE_WEB_UI: AomiClientType = "web_ui";
+
+/**
+ * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
+ */
+export function addUserStateExt(
+  userState: UserState,
+  key: string,
+  value: unknown,
+): UserState {
+  const currentExt = userState["ext"];
+  const extRecord =
+    typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt)
+      ? (currentExt as Record<string, unknown>)
+      : {};
+
+  return {
+    ...userState,
+    ext: {
+      ...extRecord,
+      [key]: value,
+    },
+  };
+}
+
 // =============================================================================
 // Logger
 // =============================================================================
@@ -24,7 +56,7 @@ export type Logger = {
 // =============================================================================
 
 export type AomiClientOptions = {
-  /** Base URL of the Aomi backend (e.g. "https://aomi.dev") */
+  /** Base URL of the Aomi backend (e.g. "https://api.aomi.dev" or "/" for same-origin proxying) */
   baseUrl: string;
   /** Default API key for non-default apps */
   apiKey?: string;
@@ -81,6 +113,39 @@ export interface AomiSystemResponse {
 }
 
 /**
+ * POST /api/simulate
+ * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
+ */
+export interface AomiSimulateFee {
+  /** Treasury address to receive the fee. */
+  recipient: string;
+  /** Fee amount in wei (decimal string). */
+  amount_wei: string;
+  /** Token type — always "native" for now. */
+  token: "native";
+}
+
+export interface AomiSimulateResponse {
+  result: {
+    batch_success: boolean;
+    stateful: boolean;
+    from: string;
+    network: string;
+    total_gas?: number;
+    fee?: AomiSimulateFee;
+    steps: Array<{
+      step: number;
+      label: string;
+      success: boolean;
+      result?: string | null;
+      revert_reason?: string | null;
+      gas_used?: number;
+      tx: { to: string; value_wei: string; value_eth: string; data: string };
+    }>;
+  };
+}
+
+/**
  * POST /api/interrupt
  * Interrupts current processing and returns updated session state
  */
@@ -105,6 +170,29 @@ export interface AomiCreateThreadResponse {
   title?: string;
 }
 
+/**
+ * GET/POST /api/control/provider-keys
+ * Lists or saves BYOK provider keys for the bound client.
+ */
+export interface AomiProviderKeyEntry {
+  provider: string;
+  key_prefix: string;
+  label?: string | null;
+  is_active: boolean;
+}
+
+export interface AomiListProviderKeysResponse {
+  provider_keys: AomiProviderKeyEntry[];
+}
+
+export interface AomiSaveProviderKeyResponse {
+  key: AomiProviderKeyEntry;
+}
+
+export interface AomiDeleteProviderKeyResponse {
+  deleted: boolean;
+}
+
 // =============================================================================
 // SSE Event Types (/api/updates)
 // =============================================================================
@@ -123,6 +211,30 @@ export type AomiSSEEvent = {
   new_title?: string;
   [key: string]: unknown;
 };
+
+/**
+ * POST /api/secrets
+ * Ingests secrets for a client, returns opaque handles
+ */
+export interface AomiIngestSecretsResponse {
+  handles: Record<string, string>;
+}
+
+/**
+ * DELETE /api/secrets
+ * Clears all secrets for a client
+ */
+export interface AomiClearSecretsResponse {
+  cleared: boolean;
+}
+
+/**
+ * DELETE /api/secrets/:name
+ * Removes a single secret for a client
+ */
+export interface AomiDeleteSecretResponse {
+  deleted: boolean;
+}
 
 export type AomiSSEEventType =
   | "title_changed"
