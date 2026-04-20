@@ -18,13 +18,17 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
 }) => {
   const adapter = useAomiAuthAdapter();
   const identity = useAomiAuthIdentity();
+  const isBooting = identity.status === "booting" || !adapter.isReady;
+  const isConnected = identity.status === "connected";
 
   useEffect(() => {
     onConnectionChange?.(identity.isConnected);
   }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    const action = identity.isConnected ? adapter.manageAccount : adapter.connect;
+    const action =
+      identity.status === "connected" ? adapter.disconnect : adapter.connect;
+
     void action().catch((error) => {
       console.error("[ConnectButton] Wallet action failed:", error);
     });
@@ -33,11 +37,19 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   const ticker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
     : undefined;
-  const secondaryLabel =
-    identity.status === "social" ? identity.secondaryLabel : ticker;
-  const primaryLabel =
-    identity.status === "disconnected" ? connectLabel : identity.primaryLabel;
-  const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
+  const secondaryLabel = isConnected
+    ? (identity.secondaryLabel ?? ticker)
+    : undefined;
+  const primaryLabel = isBooting
+    ? "Loading Wallet..."
+    : isConnected
+      ? identity.primaryLabel
+      : connectLabel;
+  const ariaLabel = isBooting
+    ? "Wallet loading"
+    : isConnected
+      ? "Wallet connected"
+      : "Connect account";
 
   return (
     <button
@@ -55,11 +67,12 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
       )}
       aria-label={ariaLabel}
       disabled={
-        identity.isConnected ? !adapter.canManageAccount : !adapter.canConnect
+        isBooting
+        || (identity.status === "disconnected" && !adapter.canConnect)
       }
     >
       <span className="max-w-[180px] truncate">{primaryLabel}</span>
-      {identity.isConnected && secondaryLabel && (
+      {isConnected && secondaryLabel && (
         <span className="opacity-50">{secondaryLabel}</span>
       )}
     </button>
