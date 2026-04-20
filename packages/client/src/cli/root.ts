@@ -11,6 +11,18 @@ import { secretDef } from "./commands/defs/secret";
 import { globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
 
+const SUBCOMMAND_NAMES = new Set([
+  "chat",
+  "tx",
+  "session",
+  "model",
+  "app",
+  "chain",
+  "wallet",
+  "config",
+  "secret",
+]);
+
 export const root = defineCommand({
   meta: {
     name: "aomi",
@@ -33,7 +45,16 @@ export const root = defineCommand({
       description: "Use your own provider API key. Format: PROVIDER:KEY",
     },
   },
-  async run({ args }) {
+  async run({ args, rawArgs }) {
+    // citty 0.2.2 quirk: when a subCommand is matched, it runs the subcommand
+    // AND still falls through to the parent's `run`. Bail out here if rawArgs
+    // contain a known subcommand token — otherwise every `aomi wallet set …`
+    // or `aomi tx sign …` would spuriously try to start the REPL and exit 1
+    // on non-TTY.
+    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+    if (firstToken && SUBCOMMAND_NAMES.has(firstToken)) {
+      return;
+    }
     const { runRootCli } = await import("./repl");
     await runRootCli(args);
   },

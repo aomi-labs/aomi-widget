@@ -52,6 +52,7 @@ export type WalletRequestResult = {
   txHash?: string;
   signature?: string;
   amount?: string;
+  error?: string;
 };
 
 export type SendResult = {
@@ -61,6 +62,10 @@ export type SendResult = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNil(value: unknown): value is null | undefined {
+  return value === null || value === undefined;
 }
 
 function sortJson(value: unknown): unknown {
@@ -79,6 +84,10 @@ function sortJson(value: unknown): unknown {
 }
 
 function isSubsetMatch(expected: unknown, actual: unknown): boolean {
+  if (isNil(expected) && isNil(actual)) {
+    return true;
+  }
+
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || expected.length !== actual.length) {
       return false;
@@ -303,10 +312,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     if (req.kind === "transaction") {
+      const txPayload = req.payload as WalletTxPayload;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash ?? "",
         status: "success",
         amount: result.amount,
+        ...(txPayload.txId !== undefined
+          ? { pending_tx_id: txPayload.txId }
+          : {}),
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -314,6 +327,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         status: "success",
         signature: result.signature,
         description: eip712Payload.description,
+        ...(eip712Payload.eip712Id !== undefined
+          ? { pending_eip712_id: eip712Payload.eip712Id }
+          : {}),
       });
     }
 
@@ -334,9 +350,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     if (req.kind === "transaction") {
+      const txPayload = req.payload as WalletTxPayload;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
+        error: reason ?? "Request rejected",
+        ...(txPayload.txId !== undefined
+          ? { pending_tx_id: txPayload.txId }
+          : {}),
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -344,6 +365,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         status: "failed",
         error: reason ?? "Request rejected",
         description: eip712Payload.description,
+        ...(eip712Payload.eip712Id !== undefined
+          ? { pending_eip712_id: eip712Payload.eip712Id }
+          : {}),
       });
     }
 

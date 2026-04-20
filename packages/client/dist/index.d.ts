@@ -464,6 +464,7 @@ type WalletTxPayload = {
     value?: string;
     data?: string;
     chainId?: number;
+    txId?: number;
 };
 type WalletEip712Payload = {
     typed_data?: {
@@ -478,6 +479,7 @@ type WalletEip712Payload = {
         message?: Record<string, unknown>;
     };
     description?: string;
+    eip712Id?: number;
 };
 type ViemSignTypedDataArgs = {
     domain?: Record<string, unknown>;
@@ -519,6 +521,7 @@ type WalletRequestResult = {
     txHash?: string;
     signature?: string;
     amount?: string;
+    error?: string;
 };
 type SendResult = {
     messages: AomiMessage[];

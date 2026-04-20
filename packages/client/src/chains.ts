@@ -1,7 +1,7 @@
 import type { Chain } from "viem";
-import { mainnet, polygon, arbitrum, optimism, base, sepolia } from "viem/chains";
+import { mainnet, polygon, arbitrum, optimism, base, sepolia, foundry } from "viem/chains";
 
-export const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111] as const;
+export const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111, 31337] as const;
 
 export const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
@@ -10,6 +10,7 @@ export const CHAIN_NAMES: Record<number, string> = {
   8453: "Base",
   10: "Optimism",
   11155111: "Sepolia",
+  31337: "Anvil (local)",
 };
 
 /** Alchemy network slugs for proxy URL construction. */
@@ -29,4 +30,5 @@ export const CHAINS_BY_ID: Record<number, Chain> = {
   10: optimism,
   8453: base,
   11155111: sepolia,
+  31337: foundry,
 };

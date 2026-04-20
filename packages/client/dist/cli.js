@@ -58,19 +58,20 @@ var init_errors = __esm({
 });
 
 // src/chains.ts
-import { mainnet, polygon, arbitrum, optimism, base, sepolia } from "viem/chains";
+import { mainnet, polygon, arbitrum, optimism, base, sepolia, foundry } from "viem/chains";
 var SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
-    SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111];
+    SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111, 31337];
     CHAIN_NAMES = {
       1: "Ethereum",
       137: "Polygon",
       42161: "Arbitrum One",
       8453: "Base",
       10: "Optimism",
-      11155111: "Sepolia"
+      11155111: "Sepolia",
+      31337: "Anvil (local)"
     };
     ALCHEMY_CHAIN_SLUGS = {
       1: "eth-mainnet",
@@ -86,7 +87,8 @@ var init_chains = __esm({
       42161: arbitrum,
       10: optimism,
       8453: base,
-      11155111: sepolia
+      11155111: sepolia,
+      31337: foundry
     };
   }
 });
@@ -1053,6 +1055,16 @@ function parseChainId2(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function parsePendingId(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
 function normalizeAddress(value) {
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
@@ -1067,7 +1079,7 @@ function normalizeAddress(value) {
   }
 }
 function normalizeTxPayload(payload) {
-  var _a3, _b, _c;
+  var _a3, _b, _c, _d, _e;
   const root2 = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root2 == null ? void 0 : root2.ctx);
@@ -1077,12 +1089,13 @@ function normalizeTxPayload(payload) {
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
   const data = typeof args.data === "string" ? args.data : void 0;
   const chainId = (_c = (_b = (_a3 = parseChainId2(args.chainId)) != null ? _a3 : parseChainId2(args.chain_id)) != null ? _b : parseChainId2(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId2(ctx == null ? void 0 : ctx.userChainId);
-  return { to, value, data, chainId };
+  const txId = (_e = (_d = parsePendingId(args.txId)) != null ? _d : parsePendingId(args.pending_tx_id)) != null ? _e : parsePendingId(args.pendingTxId);
+  return { to, value, data, chainId, txId };
 }
 function normalizeEip712Payload(payload) {
-  var _a3;
+  var _a3, _b, _c, _d;
   const args = getToolArgs(payload);
-  const typedDataRaw = (_a3 = args.typed_data) != null ? _a3 : args.typedData;
+  const typedDataRaw = (_b = (_a3 = args.typed_data) != null ? _a3 : args["712_typed_data"]) != null ? _b : args.typedData;
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -1097,7 +1110,8 @@ function normalizeEip712Payload(payload) {
     typedData = typedDataRaw;
   }
   const description = typeof args.description === "string" ? args.description : void 0;
-  return { typed_data: typedData, description };
+  const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
+  return { typed_data: typedData, description, eip712Id };
 }
 function toAAWalletCall(payload, defaultChainId = 1) {
   var _a3, _b;
@@ -1136,6 +1150,9 @@ var init_wallet_utils = __esm({
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function isNil(value) {
+  return value === null || value === void 0;
+}
 function sortJson(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -1149,6 +1166,9 @@ function sortJson(value) {
   return value;
 }
 function isSubsetMatch(expected, actual) {
+  if (isNil(expected) && isNil(actual)) {
+    return true;
+  }
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || expected.length !== actual.length) {
       return false;
@@ -1274,18 +1294,19 @@ var init_session = __esm({
           throw new Error(`No pending wallet request with id "${requestId}"`);
         }
         if (req.kind === "transaction") {
-          await this.sendSystemEvent("wallet:tx_complete", {
+          const txPayload = req.payload;
+          await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
             txHash: (_a3 = result.txHash) != null ? _a3 : "",
             status: "success",
             amount: result.amount
-          });
+          }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
         } else {
           const eip712Payload = req.payload;
-          await this.sendSystemEvent("wallet_eip712_response", {
+          await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "success",
             signature: result.signature,
             description: eip712Payload.description
-          });
+          }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -1301,17 +1322,19 @@ var init_session = __esm({
           throw new Error(`No pending wallet request with id "${requestId}"`);
         }
         if (req.kind === "transaction") {
-          await this.sendSystemEvent("wallet:tx_complete", {
+          const txPayload = req.payload;
+          await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
             txHash: "",
-            status: "failed"
-          });
+            status: "failed",
+            error: reason != null ? reason : "Request rejected"
+          }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
         } else {
           const eip712Payload = req.payload;
-          await this.sendSystemEvent("wallet_eip712_response", {
+          await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "failed",
             error: reason != null ? reason : "Request rejected",
             description: eip712Payload.description
-          });
+          }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -1979,14 +2002,19 @@ var init_cli_session = __esm({
       // ---------------------------------------------------------------------------
       // Mutators (auto-persist)
       // ---------------------------------------------------------------------------
-      /** Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only persists if something changed. */
+      /**
+       * Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only
+       * persists if something changed. Fields left `undefined` on the input are
+       * NOT clobbered — settings commands like `wallet set` pass partial configs
+       * and must not wipe out an existing `baseUrl`.
+       */
       mergeConfig(config) {
         let changed = false;
-        if (config.baseUrl !== this.state.baseUrl) {
+        if (config.baseUrl !== void 0 && config.baseUrl !== this.state.baseUrl) {
           this.state.baseUrl = config.baseUrl;
           changed = true;
         }
-        if (config.app !== this.state.app) {
+        if (config.app !== void 0 && config.app !== this.state.app) {
           this.state.app = config.app;
           changed = true;
         }
@@ -2302,6 +2330,7 @@ function walletRequestToPendingTx(request) {
     const payload2 = request.payload;
     return {
       kind: "transaction",
+      txId: payload2.txId,
       to: payload2.to,
       value: payload2.value,
       data: payload2.data,
@@ -2313,6 +2342,7 @@ function walletRequestToPendingTx(request) {
   const payload = request.payload;
   return {
     kind: "eip712_sign",
+    eip712Id: payload.eip712Id,
     description: payload.description,
     timestamp: request.timestamp,
     payload: request.payload
@@ -3988,9 +4018,12 @@ Use \`--eoa\` to sign without account abstraction.`
           finalDecision.execution === "aa" ? finalDecision.aaMode : void 0
         )
       );
-      backendNotifications = pendingTxs.map(() => ({
+      backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
-        payload: { txHash: execution.txHash, status: "success" }
+        payload: __spreadValues({
+          txHash: execution.txHash,
+          status: "success"
+        }, tx.txId !== void 0 ? { pending_tx_id: tx.txId } : {})
       }));
     } else {
       if (pendingTxs.length > 1) {
@@ -4025,11 +4058,11 @@ Use \`--eoa\` to sign without account abstraction.`
       }];
       backendNotifications = [{
         type: "wallet_eip712_response",
-        payload: {
+        payload: __spreadValues({
           status: "success",
           signature,
           description: pendingTx.description
-        }
+        }, pendingTx.eip712Id !== void 0 ? { pending_eip712_id: pendingTx.eip712Id } : {})
       }];
     }
     cli.setPublicKey(account.address);
@@ -4733,22 +4766,13 @@ __export(preferences_exports, {
   setWalletCommand: () => setWalletCommand
 });
 import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
-function loadOrCreateForSettings(config) {
-  var _a3, _b;
+function loadOrCreateForSettings() {
+  const existing = CliSession.load();
+  if (existing) return existing;
   return CliSession.loadOrCreate({
-    baseUrl: (_a3 = config == null ? void 0 : config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
-    apiKey: config == null ? void 0 : config.apiKey,
-    app: (_b = config == null ? void 0 : config.app) != null ? _b : "default",
-    model: config == null ? void 0 : config.model,
-    freshSession: false,
-    publicKey: config == null ? void 0 : config.publicKey,
-    privateKey: config == null ? void 0 : config.privateKey,
-    chainRpcUrl: config == null ? void 0 : config.chainRpcUrl,
-    chain: config == null ? void 0 : config.chain,
-    secrets: {},
-    execution: config == null ? void 0 : config.execution,
-    aaProvider: config == null ? void 0 : config.aaProvider,
-    aaMode: config == null ? void 0 : config.aaMode
+    baseUrl: "https://api.aomi.dev",
+    app: "default",
+    secrets: {}
   });
 }
 function setWalletCommand(privateKeyInput) {
@@ -4777,7 +4801,7 @@ function setBackendCommand(url) {
   if (!trimmed) {
     fatal("Usage: aomi config set-backend <url>");
   }
-  const cli = loadOrCreateForSettings({ baseUrl: trimmed });
+  const cli = loadOrCreateForSettings();
   cli.setBaseUrl(trimmed);
   console.log(`Backend set to ${trimmed}`);
   printDataFileLocation();
@@ -5526,7 +5550,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.24",
+  version: "0.1.26",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -5567,6 +5591,17 @@ var package_default = {
 };
 
 // src/cli/root.ts
+var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
+  "chat",
+  "tx",
+  "session",
+  "model",
+  "app",
+  "chain",
+  "wallet",
+  "config",
+  "secret"
+]);
 var root = defineCommand10({
   meta: {
     name: "aomi",
@@ -5588,7 +5623,11 @@ var root = defineCommand10({
       description: "Use your own provider API key. Format: PROVIDER:KEY"
     }
   }),
-  async run({ args }) {
+  async run({ args, rawArgs }) {
+    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+    if (firstToken && SUBCOMMAND_NAMES.has(firstToken)) {
+      return;
+    }
     const { runRootCli: runRootCli2 } = await Promise.resolve().then(() => (init_repl(), repl_exports));
     await runRootCli2(args);
   },
