@@ -39,7 +39,6 @@ const ComposerControlContext = createContext<ComposerControlContextValue>({
 });
 
 export const useComposerControl = () => useContext(ComposerControlContext);
-
 // =============================================================================
 // Types
 // =============================================================================

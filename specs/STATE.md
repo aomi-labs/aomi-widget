@@ -6,6 +6,18 @@
 
 ## Recent Changes
 
+### CLI root-shape alignment with Rust CLI (2026-04-19)
+
+- **Added root chat mode** to `packages/client/src/cli/root.ts` + new `src/cli/repl.ts`:
+  - `aomi` now starts an interactive REPL by default
+  - `aomi --prompt "<message>"` sends a single prompt and exits
+- **Added REPL commands** matching the backend CLI shape: `/heap`, `/app`, `/model`, `/key`, and `:exit`
+- **Added provider-key support** to the TS CLI:
+  - new `src/cli/commands/provider-keys.ts`
+  - new `AomiClient` methods for `GET/POST/DELETE /api/control/provider-keys`
+- **Kept noun-verb operator subcommands** (`tx`, `session`, `secret`, `model`, `app`, `chain`) for wallet/session workflows instead of removing them
+- **Added unit coverage** in `test/cli/cli-provider-keys.unit.test.ts` and `test/cli/cli-repl.unit.test.ts`
+
 ### AA Proxy: Delete client-side complexity (2026-04-12)
 
 - **Deleted 8 source files (~871 lines):** `cli/aa-config.ts`, `cli/commands/aa.ts`, `cli/commands/defs/aa.ts`, `aa/env.ts`, `aa/alchemy/env.ts`, `aa/pimlico/env.ts`, `aa/alchemy/resolve.ts`, `aa/resolve.ts`
@@ -123,8 +135,8 @@ aomi aa status|set|test|reset
 
 ### Aomi wallet adapter rename (2026-04-03)
 
-- **`apps/registry/src/lib/wallet-adapter.ts` → `aomi-wallet-adapter.ts`** — same exports (`WalletAdapter`, `useWalletAdapter`, etc.); all internal imports updated.
-- **Registry** — item `wallet-adapter` renamed to **`aomi-wallet-adapter`**; install URL is now `https://aomi.dev/r/aomi-wallet-adapter.json` (rebuilt `apps/registry/dist/` → `apps/landing/public/r/`).
+- **`apps/registry/src/lib/wallet-adapter.ts` → `aomi-auth-adapter.ts`** — auth adapter exports now use the `AomiAuth*` naming surface consistently.
+- **Registry** — item `wallet-adapter` renamed to **`aomi-auth-adapter`**; install URL is now `https://aomi.dev/r/aomi-auth-adapter.json` (rebuilt `apps/registry/dist/` → `apps/landing/public/r/`).
 - **`apps/registry/scripts/build-registry.js`** — clears `dist/` before writing so renamed/removed registry items do not leave stale `*.json` artifacts.
 
 ### Landing cleanup (2026-04-03)
@@ -134,23 +146,23 @@ aomi aa status|set|test|reset
 
 ### Registry file renames (2026-04-03)
 
-- **`control-bar/wallet-connect.tsx` → `connect-button.tsx`** — exports `ConnectButton` / `ConnectButtonProps`; `WalletConnect` / `WalletConnectProps` kept as deprecated aliases.
-- **`wallet-tx-handler.tsx` → `runtime-tx-handler.tsx`** — exports `RuntimeTxHandler`; `WalletTxHandler` kept as deprecated alias. Registry item slug **`wallet-tx-handler` → `runtime-tx-handler`** (shadcn URL is now `https://aomi.dev/r/runtime-tx-handler.json`).
+- **`control-bar/wallet-connect.tsx` → `connect-button.tsx`** — public surface is now `ConnectButton` / `ConnectButtonProps`.
+- **`wallet-tx-handler.tsx` → `runtime-tx-handler.tsx`** — public surface is now `RuntimeTxHandler`. Registry item slug **`wallet-tx-handler` → `runtime-tx-handler`** (shadcn URL is now `https://aomi.dev/r/runtime-tx-handler.json`).
 - **`apps/registry/src/registry.ts`** — updated `control-bar` file list, `aomi-frame` registry dependency, and runtime handler entry.
 - **Rebuilt `apps/registry/dist/`** and synced to `apps/landing/public/r/`.
 
 ### Wallet Bridge Architecture (2026-04-03)
 
-- **New file `apps/registry/src/lib/aomi-wallet-adapter.ts`** — extracted `WalletAdapter` type, `WalletAdapterContext`, `DISCONNECTED_ADAPTER`, `useWalletAdapter()` hook. Backward-compat aliases: `AomiAdapter`, `AomiAdapterContext`, `useAomiAdapter`.
-- **New file `apps/registry/src/components/para-wallet-bridge.tsx`** — `ParaWalletBridge` component runs inside `ParaProviderMin`, reads wagmi + Para auth hooks, writes `WalletAdapterContext`. Includes `LocalhostNetworkEnforcer`.
-- **New file `apps/landing/app/components/landing-para-provider.tsx`** — `LandingParaProvider` wraps `ParaProviderMin` + `ParaWalletBridge` with all Para SDK config (apiKey, env, chains, wallets, oAuth).
-- **Modified `apps/registry/src/components/aomi-frame.tsx`** — removed `AomiAdapterProvider` wrapper and `adapter` prop from `Root`. Widget now reads from `WalletAdapterContext` provided by an ancestor bridge.
+- **New file `apps/registry/src/lib/aomi-auth-adapter.ts`** — extracted `AomiAuthAdapter`, `AomiAuthAdapterContext`, `AOMI_AUTH_DISCONNECTED_ADAPTER`, `AomiAuthAdapterProvider`, and `useAomiAuthAdapter()`.
+- **New file `apps/landing/app/components/landing-aomi-auth-bridge.tsx`** — `LandingAomiAuthBridge` runs inside the Para provider tree, reads wagmi + Para auth hooks, and writes `AomiAuthAdapterContext`.
+- **New file `apps/landing/app/components/landing-para-provider.tsx`** — `LandingParaProvider` wraps `ParaProvider` + `LandingAomiAuthBridge` with all Para SDK config (apiKey, env, chains, wallets, oAuth).
+- **Modified `apps/registry/src/components/aomi-frame.tsx`** — removed `AomiAuthAdapterProvider` wrapper and `adapter` prop from `Root`. Widget now reads from `AomiAuthAdapterContext` provided by an ancestor bridge.
 - **Modified `apps/landing/app/sections/hero.tsx`** — wrapped `AomiFrame.Root` with `LandingParaProvider`.
-- **Modified consumer imports** — `connect-button.tsx`, `runtime-tx-handler.tsx`, `network-select.tsx`, `account-identity.ts` now import from `lib/aomi-wallet-adapter` (relative paths).
-- **Updated `apps/registry/src/index.ts`** — exports `WalletAdapter`, `useWalletAdapter`, `ParaWalletBridge` + backward-compat aliases.
-- **Updated `apps/registry/src/registry.ts`** — replaced `aomi-adapter-provider` entry with `aomi-wallet-adapter` + `para-wallet-bridge` entries.
-- **Deleted `apps/registry/src/components/aomi-adapter-provider.tsx`** — replaced by `lib/aomi-wallet-adapter.ts`.
-- **Deleted `apps/registry/src/components/para-adapter-provider.tsx`** (564 lines) — replaced by `para-wallet-bridge.tsx` + consumer-side `LandingParaProvider`.
+- **Modified consumer imports** — `connect-button.tsx`, `runtime-tx-handler.tsx`, `network-select.tsx`, `account-identity.ts` now import from `lib/aomi-auth-adapter` (relative paths).
+- **Updated `apps/registry/src/index.ts`** — exports the `AomiAuth*` auth adapter and identity surface.
+- **Updated `apps/registry/src/registry.ts`** — replaced `aomi-adapter-provider` entry with `aomi-auth-adapter` + `aomi-auth-sync-bridge` entries.
+- **Deleted `apps/registry/src/components/aomi-adapter-provider.tsx`** — replaced by `lib/aomi-auth-adapter.ts`.
+- **Deleted `apps/registry/src/components/para-adapter-provider.tsx`** (564 lines) — replaced by the host-side `LandingAomiAuthBridge` + `LandingParaProvider`.
 - **Modified `apps/registry/package.json`** — removed `@getpara/react-sdk`, `@getpara/react-core`, `@getpara/evm-wallet-connectors` from deps; added `@getpara/react-sdk` as optional peer dep.
 - **Fixed Para modal not opening** — `ParaProviderMin` gates both children AND `ParaModal` behind `isReady` (which never fires due to Zustand store duplication). Fix: render `ParaModal` outside `ParaProviderMin` wrapped in `ParaProviderCore` (from `@getpara/react-core/internal`) with `waitForReady: false` + `AuthProvider` (from `@getpara/react-sdk-lite` internal dist, accessed via turbopack alias `@para-internal/auth-provider`). This provides both `CoreStoreContext` and `AuthContext` that `ParaModal` requires for OAuth/phone/wallet auth flows. Added corresponding turbopack + webpack aliases in `next.config.ts`.
 

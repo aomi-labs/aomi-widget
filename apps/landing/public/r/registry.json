@@ -31,8 +31,6 @@
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
-        "https://aomi.dev/r/aomi-wallet-adapter.json",
-        "https://aomi.dev/r/para-wallet-bridge.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
@@ -41,45 +39,6 @@
         "separator",
         "breadcrumb",
         "sidebar"
-      ]
-    },
-    {
-      "name": "aomi-wallet-adapter",
-      "type": "registry:component",
-      "description": "Provider-agnostic wallet adapter context, types, and hook.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-wallet-adapter.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/account-identity.ts"
-        }
-      ],
-      "dependencies": [
-        "@aomi-labs/react"
-      ],
-      "registryDependencies": []
-    },
-    {
-      "name": "para-wallet-bridge",
-      "type": "registry:component",
-      "description": "Para wallet bridge — runs inside ParaProviderMin, writes WalletAdapterContext.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "components/para-wallet-bridge.tsx"
-        }
-      ],
-      "dependencies": [
-        "@aomi-labs/react",
-        "@getpara/react-sdk",
-        "viem",
-        "wagmi"
-      ],
-      "registryDependencies": [
-        "https://aomi.dev/r/aomi-wallet-adapter.json"
       ]
     },
     {
@@ -110,14 +69,27 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/network-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/secret-input.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
         "@aomi-labs/react",
-        "lucide-react"
+        "@getpara/react-sdk",
+        "lucide-react",
+        "wagmi"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-wallet-adapter.json",
         "button",
         "popover",
         "dialog",
@@ -266,19 +238,26 @@
     {
       "name": "runtime-tx-handler",
       "type": "registry:component",
-      "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to the active Aomi adapter.",
+      "description": "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
       "files": [
         {
           "type": "registry:component",
           "path": "components/runtime-tx-handler.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
-        "@aomi-labs/react"
+        "@aomi-labs/react",
+        "wagmi"
       ],
-      "registryDependencies": [
-        "https://aomi.dev/r/aomi-wallet-adapter.json"
-      ]
+      "registryDependencies": []
     },
     {
       "name": "button",

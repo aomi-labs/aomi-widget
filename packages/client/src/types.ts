@@ -170,6 +170,29 @@ export interface AomiCreateThreadResponse {
   title?: string;
 }
 
+/**
+ * GET/POST /api/control/provider-keys
+ * Lists or saves BYOK provider keys for the bound client.
+ */
+export interface AomiProviderKeyEntry {
+  provider: string;
+  key_prefix: string;
+  label?: string | null;
+  is_active: boolean;
+}
+
+export interface AomiListProviderKeysResponse {
+  provider_keys: AomiProviderKeyEntry[];
+}
+
+export interface AomiSaveProviderKeyResponse {
+  key: AomiProviderKeyEntry;
+}
+
+export interface AomiDeleteProviderKeyResponse {
+  deleted: boolean;
+}
+
 // =============================================================================
 // SSE Event Types (/api/updates)
 // =============================================================================

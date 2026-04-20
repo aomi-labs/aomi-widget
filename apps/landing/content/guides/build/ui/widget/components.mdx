@@ -151,14 +151,14 @@ import { ApiKeyInput } from "@/components/control-bar";
 />
 ```
 
-### WalletConnect
+### ConnectButton
 
 Button to connect or disconnect a wallet. Syncs wallet state with the Aomi runtime via `useUser`.
 
 ```tsx
-import { WalletConnect } from "@/components/control-bar";
+import { ConnectButton } from "@/components/control-bar";
 
-<WalletConnect
+<ConnectButton
   connectLabel="Connect Wallet"
   onConnectionChange={(connected) => console.log(connected)}
 />

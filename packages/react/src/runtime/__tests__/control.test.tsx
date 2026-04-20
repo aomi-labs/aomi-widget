@@ -111,4 +111,47 @@ describe("Control context", () => {
       publicKey: "0xabc",
     });
   });
+
+  it("drops public key app scoping after disconnect", async () => {
+    const getApps = vi.fn(async () => ["default"]);
+    setAomiClientConfig({
+      getApps,
+      getModels: async () => [],
+    });
+
+    const { api } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getApps).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      api.setUser({
+        address: "0xabc",
+        isConnected: true,
+      });
+      await flushPromises();
+    });
+
+    await waitFor(() => {
+      expect(getApps).toHaveBeenCalledTimes(2);
+    });
+
+    expect(getApps.mock.calls[1]?.[1]).toMatchObject({
+      publicKey: "0xabc",
+    });
+
+    await act(async () => {
+      api.setUser({ isConnected: false });
+      await flushPromises();
+    });
+
+    await waitFor(() => {
+      expect(getApps).toHaveBeenCalledTimes(3);
+    });
+
+    expect(getApps.mock.calls[2]?.[1]).toMatchObject({
+      publicKey: undefined,
+    });
+  });
 });

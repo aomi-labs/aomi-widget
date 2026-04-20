@@ -28,6 +28,19 @@ type UserContextValue = {
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
 
+function normalizeUserState(next: UserState, data: Partial<UserState>): UserState {
+  if (data.isConnected === false) {
+    return {
+      ...next,
+      address: undefined,
+      chainId: undefined,
+      ensName: undefined,
+    };
+  }
+
+  return next;
+}
+
 export function useUser() {
   const context = useContext(UserContext);
   if (!context) {
@@ -66,7 +79,7 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
 
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
-      const next = { ...prev, ...data };
+      const next = normalizeUserState({ ...prev, ...data }, data);
 
       // Notify all subscribers
       StateChangeCallbacks.current.forEach((callback) => {

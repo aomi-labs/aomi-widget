@@ -42,7 +42,15 @@ const MAX_AUTO_FEE_WEI = BigInt("50000000000000000"); // 0.05 ETH
 function validateAndBuildFeeCall(
   fee: AomiSimulateFee,
   chainId: number,
-): AAWalletCall {
+): AAWalletCall | null {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === 0n) {
+    return null;
+  }
+  if (amountWei < 0n) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+
   let recipient: string;
   try {
     recipient = getAddress(fee.recipient);
@@ -50,11 +58,6 @@ function validateAndBuildFeeCall(
     throw new Error(
       `Invalid fee recipient address from backend: ${fee.recipient}`,
     );
-  }
-
-  const amountWei = BigInt(fee.amount_wei);
-  if (amountWei <= 0n) {
-    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
   }
 
   if (amountWei > MAX_AUTO_FEE_WEI) {
@@ -178,21 +181,22 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     );
   }
 
-  const privateKey = config.privateKey;
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session. Run `aomi chat` first.");
+  }
+
+  const privateKey = config.privateKey ?? cli.privateKey;
   if (!privateKey) {
     fatal(
       [
         "Private key required for `aomi tx sign`.",
         "Pass one of:",
-        "  --private-key <hex-key>",
+        "  aomi wallet set <hex-key>",
+        "  aomi tx sign --private-key <hex-key> <tx-id>",
         "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>",
       ].join("\n"),
     );
-  }
-
-  const cli = CliSession.load();
-  if (!cli) {
-    fatal("No active session. Run `aomi chat` first.");
   }
 
   cli.mergeConfig(config);
@@ -288,7 +292,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       // of being silently swallowed.
       if (simFee) {
         const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
-        callList.push(feeCall);
+        if (feeCall) {
+          callList.push(feeCall);
+        }
       }
 
       const decision = resolveCliExecutionDecision({

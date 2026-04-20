@@ -5,6 +5,8 @@ import { sessionDef } from "./commands/defs/session";
 import { modelDef } from "./commands/defs/model";
 import { appDef } from "./commands/defs/app";
 import { chainDef } from "./commands/defs/chain";
+import { walletDef } from "./commands/defs/wallet";
+import { configDef } from "./commands/defs/config";
 import { secretDef } from "./commands/defs/secret";
 import { globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
@@ -15,7 +17,26 @@ export const root = defineCommand({
     version: packageJson.version,
     description: "CLI client for Aomi on-chain agent",
   },
-  args: { ...globalArgs },
+  args: {
+    ...globalArgs,
+    prompt: {
+      type: "string",
+      alias: "p",
+      description: "Send a single prompt and exit",
+    },
+    "show-tool": {
+      type: "boolean",
+      description: "Show tool output while chatting from root mode",
+    },
+    "provider-key": {
+      type: "string",
+      description: "Use your own provider API key. Format: PROVIDER:KEY",
+    },
+  },
+  async run({ args }) {
+    const { runRootCli } = await import("./repl");
+    await runRootCli(args);
+  },
   subCommands: {
     chat: chatDef,
     tx: txDef,
@@ -23,6 +44,8 @@ export const root = defineCommand({
     model: modelDef,
     app: appDef,
     chain: chainDef,
+    wallet: walletDef,
+    config: configDef,
     secret: secretDef,
   },
 });

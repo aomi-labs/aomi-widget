@@ -410,8 +410,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.userState = userState;
 
     const address = userState["address"];
-    if (typeof address === "string" && address.length > 0) {
+    const isConnected = userState["isConnected"];
+    if (
+      typeof address === "string" &&
+      address.length > 0 &&
+      isConnected !== false
+    ) {
       this.publicKey = address;
+    } else {
+      this.publicKey = undefined;
     }
   }
 
