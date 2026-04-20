@@ -7,9 +7,8 @@ import type { UserState } from "./contexts/user-context";
 import type { ThreadMetadata } from "./state/thread-store";
 import type {
   EventSubscriber,
-  OutboundEvent,
   SSEStatus,
-} from "./state/event-buffer";
+} from "./contexts/event-context";
 import type {
   Notification,
   NotificationData,
@@ -33,6 +32,10 @@ export type AomiRuntimeApi = {
   getUserState: () => UserState;
   /** Update user state (partial updates merged with existing state) */
   setUser: (data: Partial<UserState>) => void;
+  /** Add or overwrite a value in user_state.ext */
+  addExtValue: (key: string, value: unknown) => void;
+  /** Remove a value from user_state.ext */
+  removeExtValue: (key: string) => void;
   /** Subscribe to user state changes. Returns unsubscribe function. */
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
 
@@ -100,7 +103,7 @@ export type AomiRuntimeApi = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send a system command to the backend */
-  sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
+  sendSystemCommand: (event: { type: string; sessionId: string; payload: unknown }) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };

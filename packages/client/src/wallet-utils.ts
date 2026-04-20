@@ -10,13 +10,15 @@
 // Types
 // =============================================================================
 
-import { getAddress } from "viem";
+import { type Hex, getAddress } from "viem";
+import type { AAWalletCall } from "./aa/types";
 
 export type WalletTxPayload = {
   to: string;
   value?: string;
   data?: string;
   chainId?: number;
+  txId?: number;
 };
 
 export type WalletEip712Payload = {
@@ -27,6 +29,7 @@ export type WalletEip712Payload = {
     message?: Record<string, unknown>;
   };
   description?: string;
+  eip712Id?: number;
 };
 
 export type ViemSignTypedDataArgs = {
@@ -68,6 +71,19 @@ function parseChainId(value: unknown): number | undefined {
 
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parsePendingId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function normalizeAddress(value: unknown): string | undefined {
@@ -115,8 +131,12 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
     parseChainId(args.chain_id) ??
     parseChainId(ctx?.user_chain_id) ??
     parseChainId(ctx?.userChainId);
+  const txId =
+    parsePendingId(args.txId) ??
+    parsePendingId(args.pending_tx_id) ??
+    parsePendingId(args.pendingTxId);
 
-  return { to, value, data, chainId };
+  return { to, value, data, chainId, txId };
 }
 
 /**
@@ -126,7 +146,8 @@ export function normalizeEip712Payload(
   payload: unknown,
 ): WalletEip712Payload {
   const args = getToolArgs(payload);
-  const typedDataRaw = args.typed_data ?? args.typedData;
+  const typedDataRaw =
+    args.typed_data ?? args["712_typed_data"] ?? args.typedData;
   let typedData: WalletEip712Payload["typed_data"] | undefined;
 
   if (typeof typedDataRaw === "string") {
@@ -148,8 +169,28 @@ export function normalizeEip712Payload(
 
   const description =
     typeof args.description === "string" ? args.description : undefined;
+  const eip712Id =
+    parsePendingId(args.eip712Id) ??
+    parsePendingId(args.pending_eip712_id) ??
+    parsePendingId(args.pendingEip712Id);
 
-  return { typed_data: typedData, description };
+  return { typed_data: typedData, description, eip712Id };
+}
+
+/**
+ * Convert a normalized WalletTxPayload into an AAWalletCall.
+ * This is the single boundary conversion point from backend payloads to AA-ready calls.
+ */
+export function toAAWalletCall(
+  payload: WalletTxPayload,
+  defaultChainId = 1,
+): AAWalletCall {
+  return {
+    to: payload.to as Hex,
+    value: BigInt(payload.value ?? "0"),
+    data: payload.data ? (payload.data as Hex) : undefined,
+    chainId: payload.chainId ?? defaultChainId,
+  };
 }
 
 /**

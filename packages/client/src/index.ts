@@ -9,11 +9,17 @@ export { AomiClient } from "./client";
 // =============================================================================
 
 export type {
+  AomiClientType,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
+  AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiDeleteSecretResponse,
+  AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiSimulateFee,
+  AomiSimulateResponse,
   AomiSSEEvent,
   AomiSSEEventType,
   AomiStateResponse,
@@ -29,6 +35,9 @@ export type {
 // =============================================================================
 
 export {
+  addUserStateExt,
+  CLIENT_TYPE_TS_CLI,
+  CLIENT_TYPE_WEB_UI,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
@@ -54,8 +63,8 @@ export type {
 // Event Utilities
 // =============================================================================
 
-export { TypedEventEmitter } from "./event-emitter";
-export { unwrapSystemEvent, type UnwrappedEvent } from "./event-unwrap";
+export { TypedEventEmitter } from "./event";
+export { unwrapSystemEvent, type UnwrappedEvent } from "./event";
 
 // =============================================================================
 // Wallet Utilities
@@ -65,6 +74,7 @@ export {
   normalizeTxPayload,
   normalizeEip712Payload,
   toViemSignTypedDataArgs,
+  toAAWalletCall,
 } from "./wallet-utils";
 
 export type {
@@ -79,37 +89,32 @@ export type {
 
 export {
   DEFAULT_AA_CONFIG,
-  parseAAConfig,
   getAAChainConfig,
   buildAAExecutionPlan,
   getWalletExecutorReady,
   executeWalletCalls,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
-  readEnv,
-  isProviderConfigured,
-  resolveDefaultProvider,
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
-  resolveAlchemyConfig,
   resolvePimlicoConfig,
   createAAProviderState,
 } from "./aa";
 
 export type {
-  AAExecutionMode,
-  AASponsorshipMode,
-  WalletExecutionCall,
+  AAProvider,
+  AAMode,
+  AASponsorship,
+  AAWalletCall,
+  AACallPayload,
   AAChainConfig,
   AAConfig,
-  AAExecutionPlan,
+  AAResolvedConfig,
   WalletAtomicCapability,
-  WalletPrimitiveCall,
-  AALike,
-  AAProviderQuery,
-  AAProviderState,
-  TransactionExecutionResult,
-  SendCallsSyncArgs,
+  SmartAccount,
+  AAState,
+  ExecutionResult,
+  AtomicBatchArgs,
   ExecuteWalletCallsParams,
   AlchemyHookParams,
   UseAlchemyAAHook,
@@ -117,12 +122,8 @@ export type {
   PimlicoHookParams,
   UsePimlicoAAHook,
   CreatePimlicoAAProviderOptions,
-  AAProvider,
-  ParaSmartAccountLike,
-  AlchemyResolveOptions,
-  AlchemyResolvedConfig,
   PimlicoResolveOptions,
   PimlicoResolvedConfig,
-  CreateAAOwner,
-  CreateAAProviderStateOptions,
+  AAOwner,
+  CreateAAStateOptions,
 } from "./aa";

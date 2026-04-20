@@ -25,7 +25,7 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-frame",
     file: "components/aomi-frame.tsx",
-    dependencies: ["@aomi-labs/react", "wagmi"],
+    dependencies: ["@aomi-labs/react"],
     registryDependencies: [
       // Theme (CSS variables required by all components)
       aomi("aomi-theme"),
@@ -34,7 +34,7 @@ export const registry: RegistryComponent[] = [
       aomi("assistant-threadlist-sidebar"),
       aomi("control-bar"),
       aomi("notification"),
-      aomi("wallet-tx-handler"),
+      aomi("runtime-tx-handler"),
       // shadcn primitives
       "separator",
       "breadcrumb",
@@ -49,18 +49,25 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/model-select.tsx",
       "components/control-bar/app-select.tsx",
       "components/control-bar/api-key-input.tsx",
-      "components/control-bar/wallet-connect.tsx",
+      "components/control-bar/connect-button.tsx",
       "components/control-bar/network-select.tsx",
-      "lib/use-account-identity.ts",
+      "components/control-bar/secret-input.tsx",
+      "lib/aomi-auth-adapter.ts",
+      "lib/auth-identity.ts",
     ],
     dependencies: [
       "@aomi-labs/react",
-      "@getpara/react-core",
       "@getpara/react-sdk",
-      "wagmi",
       "lucide-react",
+      "wagmi",
     ],
-    registryDependencies: ["button", "popover", "dialog", "input", "label"],
+    registryDependencies: [
+      "button",
+      "popover",
+      "dialog",
+      "input",
+      "label",
+    ],
     description:
       "Control bar with model/App selectors, API key input, and wallet connect.",
   },
@@ -147,11 +154,15 @@ export const registry: RegistryComponent[] = [
     description: "Shadcn wrapper for Sonner toasts.",
   },
   {
-    name: "wallet-tx-handler",
-    file: "components/wallet-tx-handler.tsx",
+    name: "runtime-tx-handler",
+    file: [
+      "components/runtime-tx-handler.tsx",
+      "lib/aomi-auth-adapter.ts",
+      "lib/auth-identity.ts",
+    ],
     dependencies: ["@aomi-labs/react", "wagmi"],
     description:
-      "Bridges wallet transaction and EIP-712 signing requests from the AI backend to wagmi.",
+      "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
   },
   // === SHADCN UI PRIMITIVES ===
   {

@@ -5,7 +5,7 @@ AI assistant + onchain widget library for React applications.
 ## Installation
 
 ```bash
-pnpm install @aomi-labs/react
+pnpm install @aomi-labs/react @aomi-labs/widget-lib
 ```
 
 Or install via shadcn registry:
@@ -14,15 +14,46 @@ Or install via shadcn registry:
 npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
+The registry install includes provider-agnostic Aomi auth adapter primitives.
+To enable wallet UX, render the widget inside your Para + wagmi provider tree,
+as shown in the landing example.
+
 ## Quick Start
 
-Drop the frame into your app with zero configuration:
+Drop the frame into your app with zero configuration. Without wallet providers,
+the chat UI still works and wallet actions remain disabled.
 
 ```tsx
-import { AomiFrame } from "@aomi-labs/react";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 
 export function Assistant() {
   return <AomiFrame height="640px" width="100%" />;
+}
+```
+
+Wrap the frame in your wallet providers when needed:
+
+```tsx
+import "@getpara/react-sdk/styles.css";
+import { Environment, ParaProvider } from "@getpara/react-sdk";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AomiFrame } from "@aomi-labs/widget-lib";
+
+const queryClient = new QueryClient();
+
+export function Assistant() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ParaProvider
+        paraClientConfig={{
+          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
+          env: Environment.BETA,
+        }}
+      >
+        <AomiFrame height="640px" width="100%" />
+      </ParaProvider>
+    </QueryClientProvider>
+  );
 }
 ```
 
@@ -62,12 +93,15 @@ import { AomiFrame } from "@aomi-labs/react";
 | `walletPosition` | `"header" \| "footer" \| null` | `"footer"`                                    | Where to show wallet connect button |
 | `backendUrl`     | `string`                       | `NEXT_PUBLIC_BACKEND_URL` or `localhost:8080` | Backend API URL                     |
 
+Wallet behavior comes from the surrounding Para + wagmi provider tree. If you
+do not provide one, the frame renders and the wallet UI stays disabled.
+
 ### Compound Components (Advanced)
 
 For full customization, use the compound component API:
 
 ```tsx
-import { AomiFrame } from "@aomi-labs/react";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 
 export function CustomAssistant() {
   return (
@@ -84,7 +118,9 @@ export function CustomAssistant() {
 
 #### AomiFrame.Root
 
-The root container that provides all necessary contexts.
+The root container that provides the widget layout, runtime providers, and
+transaction bridge. Wallet behavior is read from the surrounding Para + wagmi
+provider tree when present.
 
 | Prop             | Type                           | Default                 | Description                       |
 | ---------------- | ------------------------------ | ----------------------- | --------------------------------- |
@@ -157,15 +193,15 @@ import {
   ModelSelect,
   NamespaceSelect,
   ApiKeyInput,
-  WalletConnect,
-} from "@aomi-labs/react";
+  ConnectButton,
+} from "@aomi-labs/widget-lib/control-bar";
 
 // Custom layout
 <div className="flex gap-2">
   <ModelSelect placeholder="Choose model" />
   <NamespaceSelect placeholder="Choose agent" />
   <ApiKeyInput title="API Key" description="Enter your key" />
-  <WalletConnect connectLabel="Connect" />
+  <ConnectButton connectLabel="Connect" />
 </div>;
 ```
 
@@ -191,13 +227,13 @@ import {
 | `title`       | `string` | `"Aomi API Key"`          | Dialog title           |
 | `description` | `string` | `"Enter your API key..."` | Dialog description     |
 
-#### WalletConnect Props
+#### ConnectButton props
 
-| Prop                 | Type                           | Default            | Description                   |
-| -------------------- | ------------------------------ | ------------------ | ----------------------------- |
-| `className`          | `string`                       | -                  | Additional CSS classes        |
-| `connectLabel`       | `string`                       | `"Connect Wallet"` | Button text when disconnected |
-| `onConnectionChange` | `(connected: boolean) => void` | -                  | Callback on connection change |
+| Prop                 | Type                           | Default             | Description                   |
+| -------------------- | ------------------------------ | ------------------- | ----------------------------- |
+| `className`          | `string`                       | -                   | Additional CSS classes        |
+| `connectLabel`       | `string`                       | `"Connect Account"` | Button text when disconnected |
+| `onConnectionChange` | `(connected: boolean) => void` | -                   | Callback on connection change |
 
 ## Hooks
 

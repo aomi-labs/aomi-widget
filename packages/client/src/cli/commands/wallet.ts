@@ -3,47 +3,90 @@ import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
   executeWalletCalls,
-  type TransactionExecutionResult,
+  type ExecutionResult,
 } from "../../aa";
-import { ClientSession } from "../../session";
 import {
+  toAAWalletCall,
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
+import type { AomiSimulateFee } from "../../types";
+import type { AAWalletCall } from "../../aa";
+import { getAddress } from "viem";
+import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import {
   createCliProviderState,
   describeExecutionDecision,
-  isAlchemySponsorshipLimitError,
+  getAlternativeAAMode,
   resolveCliExecutionDecision,
+  type CliExecutionDecision,
 } from "../execution";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
-import {
-  addSignedTx,
-  readState,
-  removePendingTx,
-  writeState,
-  type CliSessionState,
-} from "../state";
-import { buildCliUserState } from "../user-state";
+import type { SignedTx } from "../state";
 import {
   formatSignedTxLine,
   formatTxLine,
   pendingTxToCallList,
   toSignedTransactionRecord,
 } from "../transactions";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
+
+// ---------------------------------------------------------------------------
+// Fee Validation
+// ---------------------------------------------------------------------------
+
+/** Max fee the CLI will auto-inject without aborting (0.05 ETH). */
+const MAX_AUTO_FEE_WEI = BigInt("50000000000000000"); // 0.05 ETH
+
+function validateAndBuildFeeCall(
+  fee: AomiSimulateFee,
+  chainId: number,
+): AAWalletCall | null {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === 0n) {
+    return null;
+  }
+  if (amountWei < 0n) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+
+  let recipient: string;
+  try {
+    recipient = getAddress(fee.recipient);
+  } catch {
+    throw new Error(
+      `Invalid fee recipient address from backend: ${fee.recipient}`,
+    );
+  }
+
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    const feeEth = (Number(amountWei) / 1e18).toFixed(6);
+    throw new Error(
+      `Fee of ${feeEth} ETH exceeds safety limit of ${Number(MAX_AUTO_FEE_WEI) / 1e18} ETH. Aborting.`,
+    );
+  }
+
+  const feeEth = (Number(amountWei) / 1e18).toFixed(6);
+  console.log(`Fee:     ${feeEth} ETH → ${recipient}`);
+
+  return toAAWalletCall({
+    to: recipient,
+    value: fee.amount_wei,
+    chainId,
+  });
+}
 
 export function txCommand(): void {
-  const state = readState();
-  if (!state) {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
 
-  const pending = state.pendingTxs ?? [];
-  const signed = state.signedTxs ?? [];
+  const pending = [...cli.pendingTxs];
+  const signed = [...cli.signedTxs];
 
   if (pending.length === 0 && signed.length === 0) {
     console.log("No transactions.");
@@ -67,94 +110,6 @@ export function txCommand(): void {
   }
 
   printDataFileLocation();
-}
-
-function requirePendingTx(state: CliSessionState, txId: string) {
-  const pendingTx = (state.pendingTxs ?? []).find((tx) => tx.id === txId);
-  if (!pendingTx) {
-    fatal(
-      `No pending transaction with id "${txId}".\nRun \`aomi tx\` to see available IDs.`,
-    );
-  }
-  return pendingTx;
-}
-
-function requirePendingTxs(
-  state: CliSessionState,
-  txIds: string[],
-): ReturnType<typeof requirePendingTx>[] {
-  const uniqueIds = Array.from(new Set(txIds));
-  if (uniqueIds.length !== txIds.length) {
-    fatal("Duplicate transaction IDs are not allowed in a single `aomi sign` call.");
-  }
-
-  return uniqueIds.map((txId) => requirePendingTx(state, txId));
-}
-
-function rewriteSessionState(
-  runtime: CliRuntime,
-  state: CliSessionState,
-): void {
-  let changed = false;
-
-  if (runtime.config.baseUrl !== state.baseUrl) {
-    state.baseUrl = runtime.config.baseUrl;
-    changed = true;
-  }
-
-  if (runtime.config.app !== state.app) {
-    state.app = runtime.config.app;
-    changed = true;
-  }
-
-  if (
-    runtime.config.apiKey !== undefined &&
-    runtime.config.apiKey !== state.apiKey
-  ) {
-    state.apiKey = runtime.config.apiKey;
-    changed = true;
-  }
-
-  if (runtime.config.chain !== undefined && runtime.config.chain !== state.chainId) {
-    state.chainId = runtime.config.chain;
-    changed = true;
-  }
-
-  if (changed) {
-    writeState(state);
-  }
-}
-
-function createSessionFromState(state: CliSessionState): ClientSession {
-  const session = new ClientSession(
-    { baseUrl: state.baseUrl, apiKey: state.apiKey },
-    {
-      sessionId: state.sessionId,
-      app: state.app,
-      apiKey: state.apiKey,
-      publicKey: state.publicKey,
-    },
-  );
-
-  const userState = buildCliUserState(state.publicKey, state.chainId);
-  if (userState) {
-    session.resolveUserState(userState);
-  }
-
-  return session;
-}
-
-async function persistResolvedSignerState(
-  session: ClientSession,
-  state: CliSessionState,
-  address: string,
-  chainId?: number,
-): Promise<void> {
-  state.publicKey = address;
-  writeState(state);
-
-  session.resolveWallet(address, chainId);
-  await session.syncUserState();
 }
 
 function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
@@ -198,7 +153,7 @@ async function executeCliTransaction(params: {
   rpcUrl?: string;
   providerState: Awaited<ReturnType<typeof createCliProviderState>>;
   callList: ReturnType<typeof pendingTxToCallList>;
-}): Promise<TransactionExecutionResult> {
+}): Promise<ExecutionResult> {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
   const unsupportedWalletMethod = async (): Promise<never> => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
@@ -218,154 +173,52 @@ async function executeCliTransaction(params: {
   });
 }
 
-async function executeTransactionWithFallback(params: {
-  decision: ReturnType<typeof resolveCliExecutionDecision>;
-  privateKey: `0x${string}`;
-  currentChainId: number;
-  chainsById: Record<number, Chain>;
-  primaryChain: Chain;
-  rpcUrl?: string;
-  callList: ReturnType<typeof pendingTxToCallList>;
-}): Promise<{
-  execution: TransactionExecutionResult;
-  finalDecision: ReturnType<typeof resolveCliExecutionDecision>;
-}> {
-  const { decision, privateKey, currentChainId, chainsById, primaryChain, rpcUrl, callList } =
-    params;
 
-  const runExecution = async (
-    providerState: Awaited<ReturnType<typeof createCliProviderState>>,
-  ) =>
-    executeCliTransaction({
-      privateKey,
-      currentChainId,
-      chainsById,
-      rpcUrl,
-      providerState,
-      callList,
-    });
-
-  if (decision.execution === "eoa") {
-    const providerState = await createCliProviderState({
-      decision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl ?? "",
-      callList,
-    });
-    return {
-      execution: await runExecution(providerState),
-      finalDecision: decision,
-    };
-  }
-
-  let providerState = await createCliProviderState({
-    decision,
-    chain: primaryChain,
-    privateKey,
-    rpcUrl: rpcUrl ?? "",
-    callList,
-    sponsored: true,
-  });
-
-  try {
-    return {
-      execution: await runExecution(providerState),
-      finalDecision: decision,
-    };
-  } catch (error) {
-    const shouldRetryUnsponsored =
-      decision.provider === "alchemy" &&
-      isAlchemySponsorshipLimitError(error);
-
-    if (shouldRetryUnsponsored) {
-      console.log("AA sponsorship unavailable. Retrying AA with user-funded gas...");
-      providerState = await createCliProviderState({
-        decision,
-        chain: primaryChain,
-        privateKey,
-        rpcUrl: rpcUrl ?? "",
-        callList,
-        sponsored: false,
-      });
-
-      try {
-        return {
-          execution: await runExecution(providerState),
-          finalDecision: decision,
-        };
-      } catch (retryError) {
-        error = retryError;
-      }
-    }
-
-    if (!decision.fallbackToEoa) {
-      throw error;
-    }
-
-    const eoaDecision = { execution: "eoa" } as const;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.log(`AA execution failed: ${errorMessage}`);
-    console.log("Retrying with EOA execution...");
-    const eoaProviderState = await createCliProviderState({
-      decision: eoaDecision,
-      chain: primaryChain,
-      privateKey,
-      rpcUrl: rpcUrl ?? "",
-      callList,
-    });
-    return {
-      execution: await runExecution(eoaProviderState),
-      finalDecision: eoaDecision,
-    };
-  }
-}
-
-export async function signCommand(runtime: CliRuntime): Promise<void> {
-  const txIds = runtime.parsed.positional;
+export async function signCommand(config: CliConfig, txIds: string[]): Promise<void> {
   if (txIds.length === 0) {
     fatal(
-      "Usage: aomi sign <tx-id> [<tx-id> ...]\nRun `aomi tx` to see pending transaction IDs.",
+      "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs.",
     );
   }
 
-  const privateKey = runtime.config.privateKey;
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session. Run `aomi chat` first.");
+  }
+
+  const privateKey = config.privateKey ?? cli.privateKey;
   if (!privateKey) {
     fatal(
       [
-        "Private key required for `aomi sign`.",
+        "Private key required for `aomi tx sign`.",
         "Pass one of:",
-        "  --private-key <hex-key>",
-        "  PRIVATE_KEY=<hex-key> aomi sign <tx-id>",
+        "  aomi wallet set <hex-key>",
+        "  aomi tx sign --private-key <hex-key> <tx-id>",
+        "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>",
       ].join("\n"),
     );
   }
 
-  const state = readState();
-  if (!state) {
-    fatal("No active session. Run `aomi chat` first.");
-  }
+  cli.mergeConfig(config);
 
-  rewriteSessionState(runtime, state);
-
-  const pendingTxs = requirePendingTxs(state, txIds);
-  const session = createSessionFromState(state);
+  const pendingTxs = cli.requirePendingTxs(txIds);
+  const session = cli.createClientSession();
 
   try {
     const account = privateKeyToAccount(privateKey as `0x${string}`);
 
     if (
-      state.publicKey &&
-      account.address.toLowerCase() !== state.publicKey.toLowerCase()
+      cli.publicKey &&
+      account.address.toLowerCase() !== cli.publicKey.toLowerCase()
     ) {
       console.log(
-        `⚠️  Signer ${account.address} differs from session public key ${state.publicKey}`,
+        `⚠️  Signer ${account.address} differs from session public key ${cli.publicKey}`,
       );
       console.log("   Updating session to match the signing key...");
     }
 
-    const rpcUrl = runtime.config.chainRpcUrl;
-    const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? state.chainId ?? 1);
+    const rpcUrl = config.chainRpcUrl;
+    const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? cli.chainId ?? 1);
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
     const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
@@ -379,7 +232,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
     console.log(`Signer:  ${account.address}`);
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
 
-    let signedRecords: Parameters<typeof addSignedTx>[1][] = [];
+    let signedRecords: SignedTx[] = [];
     let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
@@ -387,7 +240,7 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       for (const tx of pendingTxs) {
         console.log(`Tx:      ${tx.id} -> ${tx.to}`);
         if (tx.value) console.log(`Value:   ${tx.value}`);
-        if (tx.chainId ?? state.chainId) console.log(`Chain:   ${tx.chainId ?? state.chainId}`);
+        if (tx.chainId ?? cli.chainId) console.log(`Chain:   ${tx.chainId ?? cli.chainId}`);
         if (tx.data) {
           console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
@@ -403,22 +256,99 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
       if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
       }
+
+      // Simulate batch to validate and compute service fee.
+      let simFee: AomiSimulateFee | undefined;
+      try {
+        const simResponse = await session.client.simulateBatch(
+          cli.sessionId,
+          pendingTxs.map((tx) => ({
+            to: tx.to ?? "",
+            value: tx.value,
+            data: tx.data,
+            label: tx.description ?? tx.id,
+          })),
+          {
+            from: account.address,
+            chainId: primaryChainId,
+          },
+        );
+        const { result: sim } = simResponse;
+        if (!sim.batch_success) {
+          const failed = sim.steps.find((s) => !s.success);
+          console.log(
+            `\x1b[31m❌ Simulation failed at step ${failed?.step ?? "?"}: ${failed?.revert_reason ?? "unknown"}${RESET}`,
+          );
+        }
+        simFee = sim.fee;
+      } catch (e) {
+        if (e instanceof CliExit) throw e;
+        console.log(
+          `${DIM}Simulation unavailable, skipping fee injection.${RESET}`,
+        );
+      }
+
+      // Fee validation is outside the try/catch so failures abort instead
+      // of being silently swallowed.
+      if (simFee) {
+        const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
+        if (feeCall) {
+          callList.push(feeCall);
+        }
+      }
+
       const decision = resolveCliExecutionDecision({
-        config: runtime.config,
+        config,
         chain,
         callList,
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      const { execution, finalDecision } = await executeTransactionWithFallback({
-        decision,
-        privateKey: privateKey as `0x${string}`,
-        currentChainId: primaryChainId,
-        chainsById,
-        primaryChain: chain,
-        rpcUrl,
-        callList,
-      });
+      // Execute with AA mode fallback (e.g. 7702 → 4337)
+      let finalDecision: CliExecutionDecision = decision;
+      let execution: ExecutionResult;
+
+      const runWithDecision = async (d: CliExecutionDecision) => {
+        const ps = await createCliProviderState({
+          decision: d,
+          chain,
+          privateKey: privateKey as `0x${string}`,
+          rpcUrl: rpcUrl ?? "",
+          callList,
+        });
+        return executeCliTransaction({
+          privateKey: privateKey as `0x${string}`,
+          currentChainId: primaryChainId,
+          chainsById,
+          rpcUrl,
+          providerState: ps,
+          callList,
+        });
+      };
+
+      try {
+        execution = await runWithDecision(decision);
+      } catch (primaryError) {
+        const alt = getAlternativeAAMode(decision);
+        if (!alt) throw primaryError;
+
+        const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+        console.log(`AA ${decision.execution === "aa" ? decision.aaMode : "execution"} failed: ${primaryMsg}`);
+        console.log(`Retrying with ${alt.execution === "aa" ? alt.aaMode : "eoa"}...`);
+
+        try {
+          execution = await runWithDecision(alt);
+          finalDecision = alt;
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          fatal(
+            `❌ AA execution failed with both modes.\n` +
+            `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
+            `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
+            `Use \`--eoa\` to sign without account abstraction.`,
+          );
+        }
+      }
 
       console.log(`✅ Sent! Hash: ${execution.txHash}`);
       if (execution.txHashes.length > 1) {
@@ -445,9 +375,13 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
           finalDecision.execution === "aa" ? finalDecision.aaMode : undefined,
         ),
       );
-      backendNotifications = pendingTxs.map(() => ({
+      backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
-        payload: { txHash: execution.txHash, status: "success" },
+        payload: {
+          txHash: execution.txHash,
+          status: "success",
+          ...(tx.txId !== undefined ? { pending_tx_id: tx.txId } : {}),
+        },
       }));
     } else {
       if (pendingTxs.length > 1) {
@@ -492,28 +426,28 @@ export async function signCommand(runtime: CliRuntime): Promise<void> {
           status: "success",
           signature,
           description: pendingTx.description,
+          ...(pendingTx.eip712Id !== undefined
+            ? { pending_eip712_id: pendingTx.eip712Id }
+            : {}),
         },
       }];
     }
 
-    await persistResolvedSignerState(
-      session,
-      state,
-      account.address,
-      primaryChainId,
-    );
+    // Persist signer state
+    cli.setPublicKey(account.address);
+    session.resolveWallet(account.address, primaryChainId);
+    await session.syncUserState();
 
     for (const txId of txIds) {
-      removePendingTx(state, txId);
+      cli.removePendingTx(txId);
     }
-    const freshState = readState()!;
     for (const signedRecord of signedRecords) {
-      addSignedTx(freshState, signedRecord);
+      cli.addSignedTx(signedRecord);
     }
 
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
-        state.sessionId,
+        cli.sessionId,
         JSON.stringify(backendNotification),
       );
     }

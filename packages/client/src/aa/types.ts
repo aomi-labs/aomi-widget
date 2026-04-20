@@ -4,17 +4,18 @@ import type { Chain, Hex } from "viem";
 // Enums / Literal Types
 // ---------------------------------------------------------------------------
 
-export type AAExecutionMode = "4337" | "7702";
-export type AASponsorshipMode = "disabled" | "optional" | "required";
+export type AAProvider = "alchemy" | "pimlico";
+export type AAMode = "4337" | "7702";
+export type AASponsorship = "disabled" | "optional" | "required";
 
 // ---------------------------------------------------------------------------
 // Call Types
 // ---------------------------------------------------------------------------
 
-export type WalletExecutionCall = {
-  to: string;
-  value: string;
-  data?: string;
+export type AAWalletCall = {
+  to: Hex;
+  value: bigint;
+  data?: Hex;
   chainId: number;
 };
 
@@ -24,12 +25,6 @@ export type WalletAtomicCapability = {
   };
 };
 
-export type WalletPrimitiveCall = {
-  to: Hex;
-  value: bigint;
-  data?: Hex;
-};
-
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -37,15 +32,15 @@ export type WalletPrimitiveCall = {
 export interface AAChainConfig {
   chainId: number;
   enabled: boolean;
-  defaultMode: AAExecutionMode;
-  supportedModes: AAExecutionMode[];
+  defaultMode: AAMode;
+  supportedModes: AAMode[];
   allowBatching: boolean;
-  sponsorship: AASponsorshipMode;
+  sponsorship: AASponsorship;
 }
 
 export interface AAConfig {
   enabled: boolean;
-  provider: string;
+  provider: AAProvider;
   fallbackToEoa: boolean;
   chains: AAChainConfig[];
 }
@@ -54,12 +49,12 @@ export interface AAConfig {
 // Execution Plan
 // ---------------------------------------------------------------------------
 
-export interface AAExecutionPlan {
-  provider: string;
+export interface AAResolvedConfig {
+  provider: AAProvider;
   chainId: number;
-  mode: AAExecutionMode;
+  mode: AAMode;
   batchingEnabled: boolean;
-  sponsorship: AASponsorshipMode;
+  sponsorship: AASponsorship;
   fallbackToEoa: boolean;
 }
 
@@ -67,34 +62,30 @@ export interface AAExecutionPlan {
 // Provider Abstractions
 // ---------------------------------------------------------------------------
 
-export interface AALike {
+/** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
+export type AACallPayload = Omit<AAWalletCall, "chainId">;
+
+export interface SmartAccount {
   provider: string;
   mode: string;
   AAAddress?: Hex;
   delegationAddress?: Hex;
-  sendTransaction: (call: WalletPrimitiveCall) => Promise<{ transactionHash: string }>;
-  sendBatchTransaction: (calls: WalletPrimitiveCall[]) => Promise<{ transactionHash: string }>;
+  sendTransaction: (call: AACallPayload) => Promise<{ transactionHash: string }>;
+  sendBatchTransaction: (calls: AACallPayload[]) => Promise<{ transactionHash: string }>;
 }
 
-export interface AAProviderQuery<TAA extends AALike = AALike> {
-  AA?: TAA | null;
-  isPending?: boolean;
-  error?: Error | null;
-}
-
-export interface AAProviderState<TAA extends AALike = AALike> {
-  plan: AAExecutionPlan | null;
-  AA?: TAA | null;
-  isPending: boolean;
+export interface AAState<TAccount extends SmartAccount = SmartAccount> {
+  resolved: AAResolvedConfig | null;
+  account?: TAccount | null;
+  pending: boolean;
   error: Error | null;
-  query?: AAProviderQuery<TAA>;
 }
 
 // ---------------------------------------------------------------------------
 // Execution Params / Results
 // ---------------------------------------------------------------------------
 
-export interface TransactionExecutionResult {
+export interface ExecutionResult {
   txHash: string;
   txHashes: string[];
   executionKind: string;
@@ -104,8 +95,8 @@ export interface TransactionExecutionResult {
   delegationAddress?: Hex;
 }
 
-export interface SendCallsSyncArgs {
-  calls: WalletPrimitiveCall[];
+export interface AtomicBatchArgs {
+  calls: AACallPayload[];
   capabilities?: {
     atomic?: {
       required?: boolean;
@@ -114,14 +105,14 @@ export interface SendCallsSyncArgs {
 }
 
 export interface ExecuteWalletCallsParams<
-  TAA extends AALike = AALike,
+  TAccount extends SmartAccount = SmartAccount,
 > {
-  callList: WalletExecutionCall[];
+  callList: AAWalletCall[];
   currentChainId: number;
   capabilities: Record<string, WalletAtomicCapability> | undefined;
   localPrivateKey: `0x${string}` | null;
-  providerState: AAProviderState<TAA>;
-  sendCallsSyncAsync: (args: SendCallsSyncArgs) => Promise<unknown>;
+  providerState: AAState<TAccount>;
+  sendCallsSyncAsync: (args: AtomicBatchArgs) => Promise<unknown>;
   sendTransactionAsync: (args: {
     chainId: number;
     to: Hex;
@@ -137,8 +128,8 @@ export interface ExecuteWalletCallsParams<
 // Validation Sets
 // ---------------------------------------------------------------------------
 
-export const MODES = new Set<AAExecutionMode>(["4337", "7702"]);
-export const SPONSORSHIP_MODES = new Set<AASponsorshipMode>([
+export const MODES = new Set<AAMode>(["4337", "7702"]);
+export const SPONSORSHIP_MODES = new Set<AASponsorship>([
   "disabled",
   "optional",
   "required",
@@ -148,81 +139,13 @@ export const SPONSORSHIP_MODES = new Set<AASponsorshipMode>([
 // Helpers
 // ---------------------------------------------------------------------------
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function assertChainConfig(
-  value: unknown,
-  index: number,
-): asserts value is AAChainConfig {
-  if (!isObject(value)) {
-    throw new Error(`Invalid AA config chain at index ${index}: expected object`);
-  }
-
-  if (typeof value.chainId !== "number") {
-    throw new Error(`Invalid AA config chain at index ${index}: chainId must be a number`);
-  }
-  if (typeof value.enabled !== "boolean") {
-    throw new Error(`Invalid AA config chain ${value.chainId}: enabled must be a boolean`);
-  }
-  if (!MODES.has(value.defaultMode as AAExecutionMode)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported defaultMode`);
-  }
-  if (!Array.isArray(value.supportedModes) || value.supportedModes.length === 0) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes must be a non-empty array`);
-  }
-  if (!value.supportedModes.every((mode) => MODES.has(mode as AAExecutionMode))) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: supportedModes contains an unsupported mode`);
-  }
-  if (!value.supportedModes.includes(value.defaultMode)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: defaultMode must be in supportedModes`);
-  }
-  if (typeof value.allowBatching !== "boolean") {
-    throw new Error(`Invalid AA config chain ${value.chainId}: allowBatching must be a boolean`);
-  }
-  if (!SPONSORSHIP_MODES.has(value.sponsorship as AASponsorshipMode)) {
-    throw new Error(`Invalid AA config chain ${value.chainId}: unsupported sponsorship mode`);
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Config Parsing & Planning
+// Config Planning
 // ---------------------------------------------------------------------------
-
-export function parseAAConfig(
-  value: unknown,
-): AAConfig {
-  if (!isObject(value)) {
-    throw new Error("Invalid AA config: expected object");
-  }
-
-  if (typeof value.enabled !== "boolean") {
-    throw new Error("Invalid AA config: enabled must be a boolean");
-  }
-  if (typeof value.provider !== "string" || !value.provider) {
-    throw new Error("Invalid AA config: provider must be a non-empty string");
-  }
-  if (typeof value.fallbackToEoa !== "boolean") {
-    throw new Error("Invalid AA config: fallbackToEoa must be a boolean");
-  }
-  if (!Array.isArray(value.chains)) {
-    throw new Error("Invalid AA config: chains must be an array");
-  }
-
-  value.chains.forEach((chain, index) => assertChainConfig(chain, index));
-
-  return {
-    enabled: value.enabled,
-    provider: value.provider as string,
-    fallbackToEoa: value.fallbackToEoa,
-    chains: value.chains as AAChainConfig[],
-  };
-}
 
 export function getAAChainConfig(
   config: AAConfig,
-  calls: WalletExecutionCall[],
+  calls: AAWalletCall[],
   chainsById: Record<number, Chain>,
 ): AAChainConfig | null {
   if (!config.enabled || calls.length === 0) {
@@ -253,7 +176,7 @@ export function getAAChainConfig(
 export function buildAAExecutionPlan(
   config: AAConfig,
   chainConfig: AAChainConfig,
-): AAExecutionPlan {
+): AAResolvedConfig {
   const mode = chainConfig.supportedModes.includes(chainConfig.defaultMode)
     ? chainConfig.defaultMode
     : chainConfig.supportedModes[0];
@@ -277,28 +200,20 @@ export function buildAAExecutionPlan(
 // ---------------------------------------------------------------------------
 
 export function getWalletExecutorReady(
-  providerState: AAProviderState,
+  providerState: AAState,
 ): boolean {
   return (
-    !providerState.plan ||
-    (!providerState.isPending &&
-      (Boolean(providerState.AA) ||
+    !providerState.resolved ||
+    (!providerState.pending &&
+      (Boolean(providerState.account) ||
         Boolean(providerState.error) ||
-        providerState.plan.fallbackToEoa))
+        providerState.resolved.fallbackToEoa))
   );
 }
 
 // ---------------------------------------------------------------------------
 // Execution
 // ---------------------------------------------------------------------------
-
-export function mapCall(call: WalletExecutionCall): WalletPrimitiveCall {
-  return {
-    to: call.to as Hex,
-    value: BigInt(call.value),
-    data: call.data ? (call.data as Hex) : undefined,
-  };
-}
 
 export const DEFAULT_AA_CONFIG: AAConfig = {
   enabled: true,
@@ -348,190 +263,9 @@ export const DEFAULT_AA_CONFIG: AAConfig = {
   ],
 };
 
-export const DISABLED_PROVIDER_STATE: AAProviderState = {
-  plan: null,
-  AA: undefined,
-  isPending: false,
+export const DISABLED_PROVIDER_STATE: AAState = {
+  resolved: null,
+  account: undefined,
+  pending: false,
   error: null,
 };
-
-export async function executeWalletCalls(
-  params: ExecuteWalletCallsParams,
-): Promise<TransactionExecutionResult> {
-  const {
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    providerState,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl,
-  } = params;
-
-  if (providerState.plan && providerState.AA) {
-    return executeViaAA(callList, providerState);
-  }
-
-  if (providerState.plan && providerState.error && !providerState.plan.fallbackToEoa) {
-    throw providerState.error;
-  }
-
-  return executeViaEoa({
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Internal Execution Paths
-// ---------------------------------------------------------------------------
-
-async function executeViaAA(
-  callList: WalletExecutionCall[],
-  providerState: AAProviderState,
-): Promise<TransactionExecutionResult> {
-  const AA = providerState.AA;
-  const plan = providerState.plan;
-
-  if (!AA || !plan) {
-    throw providerState.error ?? new Error("smart_account_unavailable");
-  }
-
-  const callsPayload = callList.map(mapCall);
-  const receipt =
-    callList.length > 1
-      ? await AA.sendBatchTransaction(callsPayload)
-      : await AA.sendTransaction(callsPayload[0]);
-  const txHash = receipt.transactionHash;
-  const providerPrefix = AA.provider.toLowerCase();
-
-  return {
-    txHash,
-    txHashes: [txHash],
-    executionKind: `${providerPrefix}_${AA.mode}`,
-    batched: callList.length > 1,
-    sponsored: plan.sponsorship !== "disabled",
-    AAAddress: AA.AAAddress,
-    delegationAddress:
-      AA.mode === "7702" ? AA.delegationAddress : undefined,
-  };
-}
-
-async function executeViaEoa({
-  callList,
-  currentChainId,
-  capabilities,
-  localPrivateKey,
-  sendCallsSyncAsync,
-  sendTransactionAsync,
-  switchChainAsync,
-  chainsById,
-  getPreferredRpcUrl,
-}: Omit<ExecuteWalletCallsParams, "providerState">): Promise<TransactionExecutionResult> {
-  const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount } = await import("viem/accounts");
-
-  const hashes: string[] = [];
-
-  if (localPrivateKey) {
-    for (const call of callList) {
-      const chain = chainsById[call.chainId];
-      if (!chain) {
-        throw new Error(`Unsupported chain ${call.chainId}`);
-      }
-      const rpcUrl = getPreferredRpcUrl(chain);
-      if (!rpcUrl) {
-        throw new Error(`No RPC for chain ${call.chainId}`);
-      }
-
-      const account = privateKeyToAccount(localPrivateKey);
-      const walletClient = createWalletClient({
-        account,
-        chain,
-        transport: http(rpcUrl),
-      });
-      const hash = await walletClient.sendTransaction({
-        account,
-        to: call.to as Hex,
-        value: BigInt(call.value),
-        data: call.data ? (call.data as Hex) : undefined,
-      });
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(rpcUrl),
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      hashes.push(hash);
-    }
-
-    return {
-      txHash: hashes[hashes.length - 1],
-      txHashes: hashes,
-      executionKind: "eoa",
-      batched: hashes.length > 1,
-      sponsored: false,
-    };
-  }
-
-  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
-  if (chainIds.length > 1) {
-    throw new Error("mixed_chain_bundle_not_supported");
-  }
-
-  const chainId = chainIds[0];
-  if (currentChainId !== chainId) {
-    await switchChainAsync({ chainId });
-  }
-
-  const chainCaps = capabilities?.[`eip155:${chainId}`];
-  const atomicStatus = chainCaps?.atomic?.status;
-  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
-
-  if (canUseSendCalls) {
-    const batchResult = await sendCallsSyncAsync({
-      calls: callList.map(mapCall),
-      capabilities: {
-        atomic: {
-          required: true,
-        },
-      },
-    });
-
-    const receipts =
-      (batchResult as { receipts?: Array<{ transactionHash?: string }> }).receipts ??
-      [];
-    for (const receipt of receipts) {
-      if (receipt.transactionHash) {
-        hashes.push(receipt.transactionHash);
-      }
-    }
-  } else {
-    for (const call of callList) {
-      const hash = await sendTransactionAsync({
-        chainId: call.chainId,
-        to: call.to as Hex,
-        value: BigInt(call.value),
-        data: call.data ? (call.data as Hex) : undefined,
-      });
-      hashes.push(hash);
-    }
-  }
-
-  return {
-    txHash: hashes[hashes.length - 1],
-    txHashes: hashes,
-    executionKind: "eoa",
-    batched: hashes.length > 1,
-    sponsored: false,
-  };
-}

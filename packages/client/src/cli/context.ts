@@ -1,96 +1,48 @@
 import { AomiClient } from "../client";
-import { ClientSession } from "../session";
-import type { CliRuntime } from "./types";
-import { readState, writeState, type CliSessionState } from "./state";
-import { buildCliUserState } from "./user-state";
+import type { AomiIngestSecretsResponse } from "../types";
+import type { ClientSession } from "../session";
+import type { CliConfig } from "./types";
+import type { CliSession } from "./cli-session";
 
-export function getOrCreateSession(
-  runtime: CliRuntime,
-): { session: ClientSession; state: CliSessionState } {
-  const { config } = runtime;
+export function createControlClient(config: CliConfig): AomiClient {
+  return new AomiClient({
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+  });
+}
 
-  let state = readState();
-  if (!state) {
-    state = {
-      sessionId: crypto.randomUUID(),
-      baseUrl: config.baseUrl,
-      app: config.app,
-      apiKey: config.apiKey,
-      publicKey: config.publicKey,
-      chainId: config.chain,
-    };
-    writeState(state);
-  } else {
-    let changed = false;
-    if (config.baseUrl !== state.baseUrl) {
-      state.baseUrl = config.baseUrl;
-      changed = true;
-    }
-    if (config.app !== state.app) {
-      state.app = config.app;
-      changed = true;
-    }
-    if (config.apiKey !== undefined && config.apiKey !== state.apiKey) {
-      state.apiKey = config.apiKey;
-      changed = true;
-    }
-    if (config.publicKey !== undefined && config.publicKey !== state.publicKey) {
-      state.publicKey = config.publicKey;
-      changed = true;
-    }
-    if (config.chain !== undefined && config.chain !== state.chainId) {
-      state.chainId = config.chain;
-      changed = true;
-    }
-    if (changed) writeState(state);
-  }
+export async function ingestSecretsForSession(
+  config: CliConfig,
+  cli: CliSession,
+  client: AomiClient,
+): Promise<Record<string, string>> {
+  const secrets = config.secrets;
+  if (Object.keys(secrets).length === 0) return {};
 
-  const session = new ClientSession(
-    { baseUrl: state.baseUrl, apiKey: state.apiKey },
-    {
-      sessionId: state.sessionId,
-      app: state.app,
-      apiKey: state.apiKey,
-      publicKey: state.publicKey,
-    },
+  const clientId = cli.ensureClientId();
+
+  const response: AomiIngestSecretsResponse = await client.ingestSecrets(
+    clientId,
+    secrets,
   );
 
-  const userState = buildCliUserState(state.publicKey, state.chainId);
-  if (userState) {
-    session.resolveUserState(userState);
-  }
-
-  return { session, state };
-}
-
-export function createControlClient(runtime: CliRuntime): AomiClient {
-  return new AomiClient({
-    baseUrl: runtime.config.baseUrl,
-    apiKey: runtime.config.apiKey,
-  });
-}
-
-export async function applyModelSelection(
-  session: ClientSession,
-  state: CliSessionState,
-  model: string,
-): Promise<void> {
-  await session.client.setModel(state.sessionId, model, {
-    app: state.app,
-    apiKey: state.apiKey,
-  });
-  state.model = model;
-  writeState(state);
+  cli.addSecretHandles(response.handles);
+  return response.handles;
 }
 
 export async function applyRequestedModelIfPresent(
-  runtime: CliRuntime,
+  config: CliConfig,
+  cli: CliSession,
   session: ClientSession,
-  state: CliSessionState,
 ): Promise<void> {
-  const requestedModel = runtime.config.model;
-  if (!requestedModel || requestedModel === state.model) {
+  const requestedModel = config.model;
+  if (!requestedModel || requestedModel === cli.model) {
     return;
   }
-  await applyModelSelection(session, state, requestedModel);
+
+  await session.client.setModel(cli.sessionId, requestedModel, {
+    app: cli.app,
+    apiKey: cli.apiKey,
+  });
+  cli.setModel(requestedModel);
 }

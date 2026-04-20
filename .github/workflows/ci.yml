@@ -44,7 +44,8 @@ jobs:
         env:
           NEXT_PUBLIC_PROJECT_ID: 000000000000000000000000000000000000000000
 
-  publish:
+  publish-npm:
+    name: Publish to npm
     needs: build-and-lint
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest

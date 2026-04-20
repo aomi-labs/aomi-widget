@@ -4,17 +4,17 @@ import "./globals.css";
 import { Provider } from "./provider";
 
 export const metadata: Metadata = {
-  title: "Blockchain AI Infrastructure for Web3 Builders | Aomi",
+  title: "Best Blockchain Harness for Agentic AI | Aomi",
   description:
-    "Blockchain AI infrastructure for Web3 builders. Embed AI features with our React SDK. Simulation-first, human-in-the-loop, multi-chain. Ship in minutes.",
+    "Blockchain AI infrastructure for Web3 builders and enterprise. Embed AI features with our React SDK, transact with Skills. Universal Smart Contract support, human-in-the-loop, multi-chain. Ship in minutes.",
   icons: {
     icon: "/assets/images/bubble.svg",
   },
   metadataBase: new URL("https://aomi.dev"),
   openGraph: {
-    title: "Blockchain AI Infrastructure for Web3 Builders | Aomi",
+    title: "Best Blockchain Harness for Agentic AI | Aomi",
     description:
-      "Blockchain AI infrastructure for Web3 builders. Embed AI features with our React SDK. Simulation-first, human-in-the-loop, multi-chain.",
+      "Blockchain AI infrastructure for Web3 builders and enterprise. Embed AI features with our React SDK, transact with Skills. Universal Smart Contract support, human-in-the-loop, multi-chain.",
     url: "https://aomi.dev",
     siteName: "Aomi",
     images: [
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
         url: "/api/og",
         width: 1200,
         height: 630,
-        alt: "Aomi - Blockchain AI Infrastructure for Web3 Builders",
+        alt: "Aomi - Best Blockchain Harness for Agentic AI",
       },
     ],
     locale: "en_US",
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Blockchain AI Infrastructure for Web3 Builders | Aomi",
+    title: "Best Blockchain Harness for Agentic AI | Aomi",
     description:
-      "Blockchain AI infrastructure for Web3 builders. Embed AI features with our React SDK. Simulation-first, human-in-the-loop, multi-chain.",
+      "Blockchain AI infrastructure for Web3 builders and enterprise. Embed AI features with our React SDK, transact with Skills. Universal Smart Contract support, human-in-the-loop, multi-chain.",
     images: ["/api/og"],
     creator: "@aomi_labs",
   },

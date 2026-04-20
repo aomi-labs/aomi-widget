@@ -1,26 +1,26 @@
 import type { Hex, TransactionReceipt } from "viem";
 
 import type {
-  AAExecutionMode,
-  AALike,
-  WalletPrimitiveCall,
+  AAMode,
+  AACallPayload,
+  SmartAccount,
 } from "./types";
 
 // ---------------------------------------------------------------------------
 // Smart Account Shape (from @getpara/aa-* SDKs)
 // ---------------------------------------------------------------------------
 
-export type ParaSmartAccountLike = {
+type SdkSmartAccount = {
   provider: string;
-  mode: AAExecutionMode;
+  mode: AAMode;
   smartAccountAddress: Hex;
   delegationAddress?: Hex;
   sendTransaction: (
-    call: WalletPrimitiveCall,
+    call: AACallPayload,
     options?: unknown,
   ) => Promise<TransactionReceipt>;
   sendBatchTransaction: (
-    calls: WalletPrimitiveCall[],
+    calls: AACallPayload[],
     options?: unknown,
   ) => Promise<TransactionReceipt>;
 };
@@ -30,17 +30,31 @@ export type ParaSmartAccountLike = {
 // ---------------------------------------------------------------------------
 
 /**
- * Bridges a `ParaSmartAccountLike` (from `@getpara/aa-*` SDKs) into
- * the library's `AALike` interface:
+ * Bridges the provider SDK smart-account shape into the library's
+ * SmartAccount interface:
  * - Maps `smartAccountAddress` → `AAAddress`
  * - Unwraps `TransactionReceipt` → `{ transactionHash }`
  */
-export function adaptSmartAccount(account: ParaSmartAccountLike): AALike {
+export function adaptSmartAccount(account: SdkSmartAccount): SmartAccount {
+  // In 7702 mode the smart-account address IS the user's EOA.  If the SDK
+  // returns the EOA as the delegation address it's a known bug — the real
+  // delegation target should be the implementation contract (e.g. Alchemy's
+  // SemiModularAccount7702), not the EOA itself.  Drop the bogus value so
+  // callers don't display a misleading "Deleg: <own-address>".
+  const delegationAddress =
+    account.mode === "7702" &&
+    account.delegationAddress &&
+    account.smartAccountAddress &&
+    account.delegationAddress.toLowerCase() ===
+      account.smartAccountAddress.toLowerCase()
+      ? undefined
+      : account.delegationAddress;
+
   return {
     provider: account.provider,
     mode: account.mode,
     AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+    delegationAddress,
     sendTransaction: async (call) => {
       const receipt = await account.sendTransaction(call);
       return { transactionHash: receipt.transactionHash };

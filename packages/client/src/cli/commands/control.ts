@@ -1,35 +1,36 @@
-import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../args";
-import { createControlClient, getOrCreateSession, applyModelSelection } from "../context";
-import { fatal } from "../errors";
+import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../../chains";
+import { CliSession } from "../cli-session";
+import { createControlClient } from "../context";
 import { printDataFileLocation } from "../output";
-import { readState } from "../state";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 import { DEFAULT_AA_CONFIG } from "../../aa/types";
+import { fatal } from "../errors";
 
-export async function statusCommand(runtime: CliRuntime): Promise<void> {
-  if (!readState()) {
+export async function statusCommand(config: CliConfig): Promise<void> {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
+  cli.mergeConfig(config);
 
-  const { session, state } = getOrCreateSession(runtime);
-
+  const session = cli.createClientSession();
   try {
-    const apiState = await session.client.fetchState(state.sessionId);
+    const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
     console.log(
       JSON.stringify(
         {
-          sessionId: state.sessionId,
-          baseUrl: state.baseUrl,
-          app: state.app,
-          model: state.model ?? null,
-          chainId: state.chainId ?? null,
+          sessionId: cli.sessionId,
+          baseUrl: cli.baseUrl,
+          app: cli.app,
+          model: cli.model ?? null,
+          chainId: cli.chainId ?? null,
           isProcessing: apiState.is_processing ?? false,
           messageCount: apiState.messages?.length ?? 0,
           title: apiState.title ?? null,
-          pendingTxs: state.pendingTxs?.length ?? 0,
-          signedTxs: state.signedTxs?.length ?? 0,
+          pendingTxs: cli.pendingTxs.length,
+          signedTxs: cli.signedTxs.length,
         },
         null,
         2,
@@ -41,29 +42,30 @@ export async function statusCommand(runtime: CliRuntime): Promise<void> {
   }
 }
 
-export async function eventsCommand(runtime: CliRuntime): Promise<void> {
-  if (!readState()) {
+export async function eventsCommand(config: CliConfig): Promise<void> {
+  const cli = CliSession.load();
+  if (!cli) {
     console.log("No active session");
     return;
   }
+  cli.mergeConfig(config);
 
-  const { session, state } = getOrCreateSession(runtime);
-
+  const session = cli.createClientSession();
   try {
-    const events = await session.client.getSystemEvents(state.sessionId);
+    const events = await session.client.getSystemEvents(cli.sessionId);
     console.log(JSON.stringify(events, null, 2));
   } finally {
     session.close();
   }
 }
 
-export async function appsCommand(runtime: CliRuntime): Promise<void> {
-  const client = createControlClient(runtime);
-  const state = readState();
-  const sessionId = state?.sessionId ?? crypto.randomUUID();
+export async function appsCommand(config: CliConfig): Promise<void> {
+  const client = createControlClient(config);
+  const cli = CliSession.load();
+  const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: runtime.config.publicKey,
-    apiKey: runtime.config.apiKey ?? state?.apiKey,
+    publicKey: config.publicKey ?? cli?.publicKey,
+    apiKey: config.apiKey ?? cli?.apiKey,
   });
 
   if (apps.length === 0) {
@@ -71,19 +73,19 @@ export async function appsCommand(runtime: CliRuntime): Promise<void> {
     return;
   }
 
-  const currentApp = state?.app ?? runtime.config.app;
+  const currentApp = cli?.app ?? config.app;
   for (const app of apps) {
     const marker = currentApp === app ? "  (current)" : "";
     console.log(`${app}${marker}`);
   }
 }
 
-export async function modelsCommand(runtime: CliRuntime): Promise<void> {
-  const client = createControlClient(runtime);
-  const state = readState();
-  const sessionId = state?.sessionId ?? crypto.randomUUID();
+export async function modelsCommand(config: CliConfig): Promise<void> {
+  const client = createControlClient(config);
+  const cli = CliSession.load();
+  const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const models = await client.getModels(sessionId, {
-    apiKey: runtime.config.apiKey ?? state?.apiKey,
+    apiKey: config.apiKey ?? cli?.apiKey,
   });
 
   if (models.length === 0) {
@@ -92,77 +94,126 @@ export async function modelsCommand(runtime: CliRuntime): Promise<void> {
   }
 
   for (const model of models) {
-    const marker = state?.model === model ? "  (current)" : "";
+    const marker = cli?.model === model ? "  (current)" : "";
     console.log(`${model}${marker}`);
   }
 }
 
-export async function appCommand(runtime: CliRuntime): Promise<void> {
-  const subcommand = runtime.parsed.positional[0];
-
-  if (!subcommand || subcommand === "current") {
-    const state = readState();
-    if (!state) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-    console.log(state.app ?? "(default)");
+export function currentAppCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
     printDataFileLocation();
     return;
   }
-
-  if (subcommand === "list") {
-    await appsCommand(runtime);
-    return;
-  }
-
-  fatal("Usage: aomi app list\n       aomi app current");
+  console.log(cli.app ?? "(default)");
+  printDataFileLocation();
 }
 
-export async function modelCommand(runtime: CliRuntime): Promise<void> {
-  const subcommand = runtime.parsed.positional[0];
-
-  if (!subcommand || subcommand === "current") {
-    const state = readState();
-    if (!state) {
-      console.log("No active session");
-      printDataFileLocation();
-      return;
-    }
-    console.log(state.model ?? "(default backend model)");
+export function currentChainCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
     printDataFileLocation();
     return;
   }
+  if (cli.chainId === undefined) {
+    console.log("No active chain");
+  } else {
+    console.log(String(cli.chainId));
+  }
+  printDataFileLocation();
+}
 
-  if (subcommand === "list") {
-    await modelsCommand(runtime);
+export function currentBackendCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
     return;
   }
+  console.log(cli.baseUrl);
+  printDataFileLocation();
+}
 
-  if (subcommand !== "set") {
-    fatal("Usage: aomi model list\n       aomi model set <rig>\n       aomi model current");
+export function currentWalletCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  if (!cli.publicKey) {
+    console.log("No wallet configured");
+    printDataFileLocation();
+    return;
+  }
+  const signerStatus = cli.privateKey ? "saved signer" : "address only";
+  console.log(`${cli.publicKey} (${signerStatus})`);
+  printDataFileLocation();
+}
+
+export function currentModelCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  console.log(cli.model ?? "(default backend model)");
+  printDataFileLocation();
+}
+
+export function setAppCommand(
+  config: CliConfig,
+  app: string,
+  options?: { printLocation?: boolean },
+): void {
+  const trimmed = app.trim();
+  if (!trimmed) {
+    fatal("Usage: aomi app set <app-name>");
   }
 
-  const model = runtime.parsed.positional.slice(1).join(" ").trim();
-  if (!model) {
-    fatal("Usage: aomi model set <rig>");
+  const cli = CliSession.loadOrCreate({
+    ...config,
+    app: trimmed,
+  });
+  cli.mergeConfig({
+    ...config,
+    app: trimmed,
+  });
+
+  console.log(`App set to ${trimmed}`);
+  if (options?.printLocation !== false) {
+    printDataFileLocation();
   }
+}
 
-  const { session, state } = getOrCreateSession(runtime);
-
+export async function setModelCommand(
+  config: CliConfig,
+  model: string,
+  options?: { printLocation?: boolean },
+): Promise<void> {
+  const cli = CliSession.loadOrCreate(config);
+  const session = cli.createClientSession();
   try {
-    await applyModelSelection(session, state, model);
+    await session.client.setModel(cli.sessionId, model, {
+      app: cli.app,
+      apiKey: cli.apiKey,
+    });
+    cli.setModel(model);
     console.log(`Model set to ${model}`);
-    printDataFileLocation();
+    if (options?.printLocation !== false) {
+      printDataFileLocation();
+    }
   } finally {
     session.close();
   }
 }
 
 export function chainsCommand(): void {
-  const state = readState();
-  const currentChainId = state?.chainId;
+  const cli = CliSession.load();
+  const currentChainId = cli?.chainId;
 
   for (const id of SUPPORTED_CHAIN_IDS) {
     const name = CHAIN_NAMES[id] ?? `Chain ${id}`;
@@ -173,15 +224,4 @@ export function chainsCommand(): void {
     const marker = currentChainId === id ? "  (current)" : "";
     console.log(`${id}  ${name}${aaInfo}${marker}`);
   }
-}
-
-export function chainCommand(runtime: CliRuntime): void {
-  const subcommand = runtime.parsed.positional[0];
-
-  if (!subcommand || subcommand === "list") {
-    chainsCommand();
-    return;
-  }
-
-  fatal("Usage: aomi chain list");
 }

@@ -1,10 +1,10 @@
 import { AomiClient } from "../../client";
+import { CliSession } from "../cli-session";
 import { fatal } from "../errors";
 import { RESET, YELLOW, printDataFileLocation } from "../output";
 import {
   deleteStoredSession,
   listStoredSessions,
-  readState,
   setActiveSession,
   type StoredSessionRecord,
 } from "../state";
@@ -13,7 +13,7 @@ import {
   printKeyValueTable,
   printTransactionTable,
 } from "../tables";
-import type { CliRuntime } from "../types";
+import type { CliConfig } from "../types";
 
 type RemoteSessionStats = {
   topic: string;
@@ -31,7 +31,7 @@ async function fetchRemoteSessionStats(
   });
 
   try {
-    const apiState = await client.fetchState(record.sessionId);
+    const apiState = await client.fetchState(record.sessionId, undefined, record.state.clientId);
     const messages = apiState.messages ?? [];
     return {
       topic: apiState.title ?? "Untitled Session",
@@ -75,7 +75,7 @@ function printSessionSummary(
   printTransactionTable(pendingTxs, signedTxs);
 }
 
-export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
+export async function sessionsCommand(_config: CliConfig): Promise<void> {
   const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
   if (sessions.length === 0) {
     console.log("No local sessions.");
@@ -83,7 +83,7 @@ export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
     return;
   }
 
-  const activeSessionId = readState()?.sessionId;
+  const activeSessionId = CliSession.load()?.sessionId;
 
   const statsResults = await Promise.all(
     sessions.map((record) => fetchRemoteSessionStats(record)),
@@ -103,48 +103,32 @@ export async function sessionsCommand(_runtime: CliRuntime): Promise<void> {
   printDataFileLocation();
 }
 
-export async function sessionCommand(runtime: CliRuntime): Promise<void> {
-  const subcommand = runtime.parsed.positional[0];
-  const selector = runtime.parsed.positional[1];
+export function newSessionCommand(config: CliConfig): void {
+  const cli = CliSession.create(config);
+  console.log(`Active session set to ${cli.sessionId} (new).`);
+  printDataFileLocation();
+}
 
-  if (subcommand === "resume") {
-    if (!selector) {
-      fatal("Usage: aomi session resume <session-id|session-N|N>");
-    }
-    const resumed = setActiveSession(selector);
-    if (!resumed) {
-      fatal(`No local session found for selector \"${selector}\".`);
-    }
-    console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
-    printDataFileLocation();
-    return;
+export function resumeSessionCommand(selector: string): void {
+  const resumed = setActiveSession(selector);
+  if (!resumed) {
+    fatal(`No local session found for selector "${selector}".`);
   }
+  console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+  printDataFileLocation();
+}
 
-  if (subcommand === "delete") {
-    if (!selector) {
-      fatal("Usage: aomi session delete <session-id|session-N|N>");
-    }
-    const deleted = deleteStoredSession(selector);
-    if (!deleted) {
-      fatal(`No local session found for selector \"${selector}\".`);
-    }
-    console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
-    const active = readState();
-    if (active) {
-      console.log(`Active session: ${active.sessionId}`);
-    } else {
-      console.log("No active session");
-    }
-    printDataFileLocation();
-    return;
+export function deleteSessionCommand(selector: string): void {
+  const deleted = deleteStoredSession(selector);
+  if (!deleted) {
+    fatal(`No local session found for selector "${selector}".`);
   }
-
-  if (subcommand === "list") {
-    await sessionsCommand(runtime);
-    return;
+  console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+  const active = CliSession.load();
+  if (active) {
+    console.log(`Active session: ${active.sessionId}`);
+  } else {
+    console.log("No active session");
   }
-
-  fatal(
-    "Usage: aomi session list\n       aomi session resume <session-id|session-N|N>\n       aomi session delete <session-id|session-N|N>",
-  );
+  printDataFileLocation();
 }

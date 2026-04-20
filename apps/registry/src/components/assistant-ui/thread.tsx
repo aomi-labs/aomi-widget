@@ -37,7 +37,7 @@ import { ModelSelect } from "@/components/control-bar/model-select";
 import { AppSelect } from "@/components/control-bar/app-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
-import { WalletConnect } from "@/components/control-bar/wallet-connect";
+import { ConnectButton } from "@/components/control-bar/connect-button";
 import { useAssistantApi, useMessage } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
@@ -225,7 +225,7 @@ const ComposerAction: FC = () => {
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
           {!hideApp && <AppSelect />}
-          {!hideWallet && <WalletConnect />}
+          {!hideWallet && <ConnectButton />}
           {!hideApiKey && <ApiKeyInput />}
         </div>
       )}

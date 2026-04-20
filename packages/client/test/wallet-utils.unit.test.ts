@@ -1,59 +1,49 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  normalizeTxPayload,
-  toViemSignTypedDataArgs,
-} from "../src/wallet-utils";
+import { normalizeEip712Payload, normalizeTxPayload } from "../src/index";
 
 describe("wallet payload normalization", () => {
-  it("normalizes a mixed-case address to its checksum form", () => {
-    const payload = normalizeTxPayload({
-      args: {
-        to: "0xA0b86991c6218b36c1d19D4a2e9Eb0CE3606eb48",
+  it("retains backend tx identifiers on wallet transaction requests", () => {
+    expect(
+      normalizeTxPayload({
+        txId: 7,
+        pending_tx_id: 7,
+        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
         value: "0",
         data: "0x",
-        chainId: 1,
-      },
-    });
-
-    expect(payload).toMatchObject({
-      to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        chain_id: 8453,
+      }),
+    ).toEqual({
+      txId: 7,
+      to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "0",
       data: "0x",
-      chainId: 1,
+      chainId: 8453,
     });
   });
 
-  it("removes EIP712Domain before producing viem signing args", () => {
-    const signArgs = toViemSignTypedDataArgs({
+  it("retains backend eip712 identifiers on wallet signature requests", () => {
+    expect(
+      normalizeEip712Payload({
+        eip712Id: 11,
+        pending_eip712_id: "11",
+        typed_data: {
+          domain: { chainId: 8453, name: "Permit2" },
+          types: { Permit: [{ name: "owner", type: "address" }] },
+          primaryType: "Permit",
+          message: { owner: "0x123" },
+        },
+        description: "Permit2 signature",
+      }),
+    ).toEqual({
+      eip712Id: 11,
       typed_data: {
-        domain: {
-          chainId: 1,
-          name: "Permit2",
-        },
-        types: {
-          EIP712Domain: [{ name: "name", type: "string" }],
-          PermitSingle: [{ name: "details", type: "PermitDetails" }],
-        },
-        primaryType: "PermitSingle",
-        message: {
-          spender: "0x0000000000000000000000000000000000000001",
-        },
+        domain: { chainId: 8453, name: "Permit2" },
+        types: { Permit: [{ name: "owner", type: "address" }] },
+        primaryType: "Permit",
+        message: { owner: "0x123" },
       },
-    });
-
-    expect(signArgs).toMatchObject({
-      domain: {
-        chainId: 1,
-        name: "Permit2",
-      },
-      primaryType: "PermitSingle",
-      message: {
-        spender: "0x0000000000000000000000000000000000000001",
-      },
-    });
-    expect(signArgs?.types).toEqual({
-      PermitSingle: [{ name: "details", type: "PermitDetails" }],
+      description: "Permit2 signature",
     });
   });
 });
