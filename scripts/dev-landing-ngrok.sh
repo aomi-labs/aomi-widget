@@ -30,7 +30,14 @@ if ! command -v ngrok >/dev/null 2>&1; then
 fi
 
 pkill -f "ngrok http ${PORT}" 2>/dev/null || true
-lsof -ti "tcp:${PORT}" 2>/dev/null | xargs -r kill -9
+
+port_pids="$(lsof -ti "tcp:${PORT}" 2>/dev/null || true)"
+if [[ -n "$port_pids" ]]; then
+  # `lsof` exits non-zero when no process is bound to the port, which is expected here.
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] && kill -9 "$pid"
+  done <<<"$port_pids"
+fi
 
 pushd "$PROJECT_ROOT" >/dev/null
 PORT="$PORT" HOSTNAME="$HOST" NEXT_PUBLIC_BACKEND_URL="$BACKEND_URL" \
