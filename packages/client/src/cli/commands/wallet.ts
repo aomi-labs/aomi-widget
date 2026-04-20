@@ -375,9 +375,13 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           finalDecision.execution === "aa" ? finalDecision.aaMode : undefined,
         ),
       );
-      backendNotifications = pendingTxs.map(() => ({
+      backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
-        payload: { txHash: execution.txHash, status: "success" },
+        payload: {
+          txHash: execution.txHash,
+          status: "success",
+          ...(tx.txId !== undefined ? { txId: tx.txId } : {}),
+        },
       }));
     } else {
       if (pendingTxs.length > 1) {
@@ -422,6 +426,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           status: "success",
           signature,
           description: pendingTx.description,
+          ...(pendingTx.eip712Id !== undefined
+            ? { eip712Id: pendingTx.eip712Id }
+            : {}),
         },
       }];
     }
