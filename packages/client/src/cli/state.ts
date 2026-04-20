@@ -12,6 +12,8 @@ import { homedir, tmpdir } from "node:os";
 export type PendingTx = {
   id: string;
   kind: "transaction" | "eip712_sign";
+  txId?: number;
+  eip712Id?: number;
   to?: string;
   value?: string;
   data?: string;
@@ -56,6 +58,25 @@ export type CliSessionState = {
   signedTxs?: SignedTx[];
   secretHandles?: Record<string, string>;
 };
+
+function getBackendPendingId(tx: Omit<PendingTx, "id"> | PendingTx): number | undefined {
+  return tx.kind === "transaction" ? tx.txId : tx.eip712Id;
+}
+
+export function hasSameBackendPendingId(
+  existing: PendingTx,
+  next: Omit<PendingTx, "id">,
+): boolean {
+  const existingBackendId = getBackendPendingId(existing);
+  const nextBackendId = getBackendPendingId(next);
+
+  return (
+    existing.kind === next.kind &&
+    existingBackendId !== undefined &&
+    nextBackendId !== undefined &&
+    existingBackendId === nextBackendId
+  );
+}
 
 type StoredSessionState = CliSessionState & {
   localId: number;
@@ -403,15 +424,9 @@ export function addPendingTx(
 ): PendingTx | null {
   if (!state.pendingTxs) state.pendingTxs = [];
 
-  // Dedup: skip if an identical pending tx already exists (same to/data/value/chainId).
-  // Prevents duplicates when the agent re-queues a wallet request across turns.
-  const isDuplicate = state.pendingTxs.some(
-    (existing) =>
-      existing.kind === tx.kind &&
-      existing.to === tx.to &&
-      existing.data === tx.data &&
-      existing.value === tx.value &&
-      existing.chainId === tx.chainId,
+  // Requests are only deduped when they carry the same backend staging id.
+  const isDuplicate = state.pendingTxs.some((existing) =>
+    hasSameBackendPendingId(existing, tx),
   );
   if (isDuplicate) {
     return null;
