@@ -12,6 +12,8 @@ import { homedir, tmpdir } from "node:os";
 export type PendingTx = {
   id: string;
   kind: "transaction" | "eip712_sign";
+  txId?: number;
+  eip712Id?: number;
   to?: string;
   value?: string;
   data?: string;

@@ -856,6 +856,16 @@ function parseChainId(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function parsePendingId(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
 function normalizeAddress(value) {
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
@@ -870,7 +880,7 @@ function normalizeAddress(value) {
   }
 }
 function normalizeTxPayload(payload) {
-  var _a, _b, _c;
+  var _a, _b, _c, _d, _e;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
@@ -880,12 +890,13 @@ function normalizeTxPayload(payload) {
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
   const data = typeof args.data === "string" ? args.data : void 0;
   const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
-  return { to, value, data, chainId };
+  const txId = (_e = (_d = parsePendingId(args.txId)) != null ? _d : parsePendingId(args.pending_tx_id)) != null ? _e : parsePendingId(args.pendingTxId);
+  return { to, value, data, chainId, txId };
 }
 function normalizeEip712Payload(payload) {
-  var _a;
+  var _a, _b, _c, _d;
   const args = getToolArgs(payload);
-  const typedDataRaw = (_a = args.typed_data) != null ? _a : args.typedData;
+  const typedDataRaw = (_b = (_a = args.typed_data) != null ? _a : args["712_typed_data"]) != null ? _b : args.typedData;
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -900,7 +911,8 @@ function normalizeEip712Payload(payload) {
     typedData = typedDataRaw;
   }
   const description = typeof args.description === "string" ? args.description : void 0;
-  return { typed_data: typedData, description };
+  const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
+  return { typed_data: typedData, description, eip712Id };
 }
 function toAAWalletCall(payload, defaultChainId = 1) {
   var _a, _b;
@@ -934,6 +946,9 @@ function toViemSignTypedDataArgs(payload) {
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function isNil(value) {
+  return value === null || value === void 0;
+}
 function sortJson(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -947,6 +962,9 @@ function sortJson(value) {
   return value;
 }
 function isSubsetMatch(expected, actual) {
+  if (isNil(expected) && isNil(actual)) {
+    return true;
+  }
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || expected.length !== actual.length) {
       return false;
@@ -1063,18 +1081,19 @@ var ClientSession = class extends TypedEventEmitter {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
-      await this.sendSystemEvent("wallet:tx_complete", {
+      const txPayload = req.payload;
+      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
         txHash: (_a = result.txHash) != null ? _a : "",
         status: "success",
         amount: result.amount
-      });
+      }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
-      await this.sendSystemEvent("wallet_eip712_response", {
+      await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "success",
         signature: result.signature,
         description: eip712Payload.description
-      });
+      }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1090,17 +1109,19 @@ var ClientSession = class extends TypedEventEmitter {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
-      await this.sendSystemEvent("wallet:tx_complete", {
+      const txPayload = req.payload;
+      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
         txHash: "",
-        status: "failed"
-      });
+        status: "failed",
+        error: reason != null ? reason : "Request rejected"
+      }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
-      await this.sendSystemEvent("wallet_eip712_response", {
+      await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "failed",
         error: reason != null ? reason : "Request rejected",
         description: eip712Payload.description
-      });
+      }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
