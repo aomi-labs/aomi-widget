@@ -274,7 +274,7 @@ describe("ClientSession ext helpers", () => {
           txHash: "0xabc",
           status: "success",
           amount: undefined,
-          txId: 7,
+          pending_tx_id: 7,
         },
       }),
     );
@@ -323,7 +323,7 @@ describe("ClientSession ext helpers", () => {
           status: "failed",
           error: "User rejected",
           description: "Permit2 signature",
-          eip712Id: 11,
+          pending_eip712_id: 11,
         },
       }),
     );
