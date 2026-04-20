@@ -1028,14 +1028,14 @@ var ClientSession = class extends TypedEventEmitter {
         txHash: (_a = result.txHash) != null ? _a : "",
         status: "success",
         amount: result.amount
-      }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
+      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "success",
         signature: result.signature,
         description: eip712Payload.description
-      }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
+      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1056,14 +1056,14 @@ var ClientSession = class extends TypedEventEmitter {
         txHash: "",
         status: "failed",
         error: reason != null ? reason : "Request rejected"
-      }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
+      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "failed",
         error: reason != null ? reason : "Request rejected",
         description: eip712Payload.description
-      }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
+      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1432,7 +1432,7 @@ var DEFAULT_AA_CONFIG = {
 };
 
 // src/chains.ts
-import { mainnet, polygon, arbitrum, optimism, base, sepolia } from "viem/chains";
+import { mainnet, polygon, arbitrum, optimism, base, sepolia, foundry } from "viem/chains";
 var ALCHEMY_CHAIN_SLUGS = {
   1: "eth-mainnet",
   137: "polygon-mainnet",
@@ -1447,7 +1447,8 @@ var CHAINS_BY_ID = {
   42161: arbitrum,
   10: optimism,
   8453: base,
-  11155111: sepolia
+  11155111: sepolia,
+  31337: foundry
 };
 
 // src/aa/execute.ts

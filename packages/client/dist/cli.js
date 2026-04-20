@@ -58,19 +58,20 @@ var init_errors = __esm({
 });
 
 // src/chains.ts
-import { mainnet, polygon, arbitrum, optimism, base, sepolia } from "viem/chains";
+import { mainnet, polygon, arbitrum, optimism, base, sepolia, foundry } from "viem/chains";
 var SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
-    SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111];
+    SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111, 31337];
     CHAIN_NAMES = {
       1: "Ethereum",
       137: "Polygon",
       42161: "Arbitrum One",
       8453: "Base",
       10: "Optimism",
-      11155111: "Sepolia"
+      11155111: "Sepolia",
+      31337: "Anvil (local)"
     };
     ALCHEMY_CHAIN_SLUGS = {
       1: "eth-mainnet",
@@ -86,7 +87,8 @@ var init_chains = __esm({
       42161: arbitrum,
       10: optimism,
       8453: base,
-      11155111: sepolia
+      11155111: sepolia,
+      31337: foundry
     };
   }
 });
@@ -1297,14 +1299,14 @@ var init_session = __esm({
             txHash: (_a3 = result.txHash) != null ? _a3 : "",
             status: "success",
             amount: result.amount
-          }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
+          }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
         } else {
           const eip712Payload = req.payload;
           await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "success",
             signature: result.signature,
             description: eip712Payload.description
-          }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
+          }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -1325,14 +1327,14 @@ var init_session = __esm({
             txHash: "",
             status: "failed",
             error: reason != null ? reason : "Request rejected"
-          }, txPayload.txId !== void 0 ? { txId: txPayload.txId } : {}));
+          }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
         } else {
           const eip712Payload = req.payload;
           await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "failed",
             error: reason != null ? reason : "Request rejected",
             description: eip712Payload.description
-          }, eip712Payload.eip712Id !== void 0 ? { eip712Id: eip712Payload.eip712Id } : {}));
+          }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -2000,14 +2002,19 @@ var init_cli_session = __esm({
       // ---------------------------------------------------------------------------
       // Mutators (auto-persist)
       // ---------------------------------------------------------------------------
-      /** Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only persists if something changed. */
+      /**
+       * Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only
+       * persists if something changed. Fields left `undefined` on the input are
+       * NOT clobbered — settings commands like `wallet set` pass partial configs
+       * and must not wipe out an existing `baseUrl`.
+       */
       mergeConfig(config) {
         let changed = false;
-        if (config.baseUrl !== this.state.baseUrl) {
+        if (config.baseUrl !== void 0 && config.baseUrl !== this.state.baseUrl) {
           this.state.baseUrl = config.baseUrl;
           changed = true;
         }
-        if (config.app !== this.state.app) {
+        if (config.app !== void 0 && config.app !== this.state.app) {
           this.state.app = config.app;
           changed = true;
         }
@@ -4016,7 +4023,7 @@ Use \`--eoa\` to sign without account abstraction.`
         payload: __spreadValues({
           txHash: execution.txHash,
           status: "success"
-        }, tx.txId !== void 0 ? { txId: tx.txId } : {})
+        }, tx.txId !== void 0 ? { pending_tx_id: tx.txId } : {})
       }));
     } else {
       if (pendingTxs.length > 1) {
@@ -4055,7 +4062,7 @@ Use \`--eoa\` to sign without account abstraction.`
           status: "success",
           signature,
           description: pendingTx.description
-        }, pendingTx.eip712Id !== void 0 ? { eip712Id: pendingTx.eip712Id } : {})
+        }, pendingTx.eip712Id !== void 0 ? { pending_eip712_id: pendingTx.eip712Id } : {})
       }];
     }
     cli.setPublicKey(account.address);
@@ -4759,22 +4766,13 @@ __export(preferences_exports, {
   setWalletCommand: () => setWalletCommand
 });
 import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
-function loadOrCreateForSettings(config) {
-  var _a3, _b;
+function loadOrCreateForSettings() {
+  const existing = CliSession.load();
+  if (existing) return existing;
   return CliSession.loadOrCreate({
-    baseUrl: (_a3 = config == null ? void 0 : config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
-    apiKey: config == null ? void 0 : config.apiKey,
-    app: (_b = config == null ? void 0 : config.app) != null ? _b : "default",
-    model: config == null ? void 0 : config.model,
-    freshSession: false,
-    publicKey: config == null ? void 0 : config.publicKey,
-    privateKey: config == null ? void 0 : config.privateKey,
-    chainRpcUrl: config == null ? void 0 : config.chainRpcUrl,
-    chain: config == null ? void 0 : config.chain,
-    secrets: {},
-    execution: config == null ? void 0 : config.execution,
-    aaProvider: config == null ? void 0 : config.aaProvider,
-    aaMode: config == null ? void 0 : config.aaMode
+    baseUrl: "https://api.aomi.dev",
+    app: "default",
+    secrets: {}
   });
 }
 function setWalletCommand(privateKeyInput) {
@@ -4803,7 +4801,7 @@ function setBackendCommand(url) {
   if (!trimmed) {
     fatal("Usage: aomi config set-backend <url>");
   }
-  const cli = loadOrCreateForSettings({ baseUrl: trimmed });
+  const cli = loadOrCreateForSettings();
   cli.setBaseUrl(trimmed);
   console.log(`Backend set to ${trimmed}`);
   printDataFileLocation();
@@ -5593,6 +5591,17 @@ var package_default = {
 };
 
 // src/cli/root.ts
+var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
+  "chat",
+  "tx",
+  "session",
+  "model",
+  "app",
+  "chain",
+  "wallet",
+  "config",
+  "secret"
+]);
 var root = defineCommand10({
   meta: {
     name: "aomi",
@@ -5614,7 +5623,11 @@ var root = defineCommand10({
       description: "Use your own provider API key. Format: PROVIDER:KEY"
     }
   }),
-  async run({ args }) {
+  async run({ args, rawArgs }) {
+    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+    if (firstToken && SUBCOMMAND_NAMES.has(firstToken)) {
+      return;
+    }
     const { runRootCli: runRootCli2 } = await Promise.resolve().then(() => (init_repl(), repl_exports));
     await runRootCli2(args);
   },
