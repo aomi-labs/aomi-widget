@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, type FC } from "react";
-import { cn, getChainInfo } from "@aomi-labs/react";
+import { cn, getChainInfo, useUser } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
-import { useAomiAuthIdentity } from "../../lib/auth-identity";
 
 export type ConnectButtonProps = {
   className?: string;
@@ -17,39 +16,42 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   onConnectionChange,
 }) => {
   const adapter = useAomiAuthAdapter();
-  const identity = useAomiAuthIdentity();
-  const isBooting = identity.status === "booting" || !adapter.isReady;
-  const isConnected = identity.status === "connected";
+  const { setUser } = useUser();
+  const identity = adapter.identity;
 
   useEffect(() => {
+    setUser({
+      address: identity.address ?? undefined,
+      chainId: identity.chainId ?? undefined,
+      isConnected: identity.isConnected,
+    });
     onConnectionChange?.(identity.isConnected);
-  }, [identity.isConnected, onConnectionChange]);
+  }, [
+    identity.address,
+    identity.chainId,
+    identity.isConnected,
+    setUser,
+    onConnectionChange,
+  ]);
 
   const handleClick = () => {
-    const action =
-      identity.status === "connected" ? adapter.disconnect : adapter.connect;
-
-    void action().catch((error) => {
-      console.error("[ConnectButton] Wallet action failed:", error);
-    });
+    if (identity.isConnected) {
+      void adapter.manageAccount();
+      return;
+    }
+    void adapter.connect();
   };
 
   const ticker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
     : undefined;
-  const secondaryLabel = isConnected
+  const secondaryLabel = identity.isConnected
     ? (identity.secondaryLabel ?? ticker)
     : undefined;
-  const primaryLabel = isBooting
-    ? "Loading Wallet..."
-    : isConnected
-      ? identity.primaryLabel
-      : connectLabel;
-  const ariaLabel = isBooting
-    ? "Wallet loading"
-    : isConnected
-      ? "Wallet connected"
-      : "Connect account";
+  const primaryLabel = identity.status === "disconnected"
+    ? connectLabel
+    : identity.primaryLabel;
+  const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
 
   return (
     <button
@@ -66,13 +68,10 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
         className,
       )}
       aria-label={ariaLabel}
-      disabled={
-        isBooting
-        || (identity.status === "disconnected" && !adapter.canConnect)
-      }
+      disabled={!adapter.canManageAccount && !adapter.canConnect}
     >
       <span className="max-w-[180px] truncate">{primaryLabel}</span>
-      {isConnected && secondaryLabel && (
+      {identity.isConnected && secondaryLabel && (
         <span className="opacity-50">{secondaryLabel}</span>
       )}
     </button>

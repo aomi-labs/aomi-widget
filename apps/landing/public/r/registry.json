@@ -31,8 +31,6 @@
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-theme.json",
-        "https://aomi.dev/r/aomi-auth-adapter.json",
-        "https://aomi.dev/r/aomi-auth-sync-bridge.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/control-bar.json",
@@ -41,42 +39,6 @@
         "separator",
         "breadcrumb",
         "sidebar"
-      ]
-    },
-    {
-      "name": "aomi-auth-adapter",
-      "type": "registry:component",
-      "description": "Provider-agnostic Aomi auth adapter context, types, and hook.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/auth-identity.ts"
-        }
-      ],
-      "dependencies": [
-        "@aomi-labs/react"
-      ],
-      "registryDependencies": []
-    },
-    {
-      "name": "aomi-auth-sync-bridge",
-      "type": "registry:component",
-      "description": "Syncs Aomi auth adapter identity into the Aomi runtime user state.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "components/aomi-auth-sync-bridge.tsx"
-        }
-      ],
-      "dependencies": [
-        "@aomi-labs/react"
-      ],
-      "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json"
       ]
     },
     {
@@ -111,14 +73,23 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/secret-input.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
         "@aomi-labs/react",
-        "lucide-react"
+        "@getpara/react-sdk",
+        "lucide-react",
+        "wagmi"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json",
         "button",
         "popover",
         "dialog",
@@ -267,19 +238,26 @@
     {
       "name": "runtime-tx-handler",
       "type": "registry:component",
-      "description": "Bridges wallet transaction and EIP-712 signing requests from the AI backend to the active Aomi adapter.",
+      "description": "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
       "files": [
         {
           "type": "registry:component",
           "path": "components/runtime-tx-handler.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
-        "@aomi-labs/react"
+        "@aomi-labs/react",
+        "wagmi"
       ],
-      "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json"
-      ]
+      "registryDependencies": []
     },
     {
       "name": "button",
