@@ -1,7 +1,5 @@
 "use client";
 
-import { useAomiAuthAdapter } from "./aomi-auth-adapter";
-
 export type AomiAuthStatus = "booting" | "disconnected" | "connected";
 
 export type AomiAuthIdentity = {
@@ -83,8 +81,4 @@ export function inferAuthProvider(authMethods: unknown): string | undefined {
 
   const first = authMethods.values().next().value;
   return typeof first === "string" ? first.toLowerCase() : undefined;
-}
-
-export function useAomiAuthIdentity(): AomiAuthIdentity {
-  return useAomiAuthAdapter().identity;
 }

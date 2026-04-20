@@ -14,16 +14,16 @@ import {
   paraApiKey,
   paraEnvironment,
   transports,
-  useLocalhost,
+  useAnvilForWallet,
   walletConnectProjectId,
 } from "./config";
 
-function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
+function DevAnvilRpcHook({ children }: { children: ReactNode }) {
   const { isConnected, chainId, connector } = useAccount();
   const { switchChain } = useSwitchChain();
 
   useEffect(() => {
-    if (!useLocalhost) return;
+    if (!useAnvilForWallet) return;
     if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
 
     const switchToLocalhost = async () => {
@@ -60,7 +60,7 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
 
         switchChain({ chainId: LOCALHOST_CHAIN_ID });
       } catch (error) {
-        console.error("[LocalhostNetworkEnforcer] Failed to switch:", error);
+        console.error("[DevAnvilRpcHook] Failed to switch:", error);
       }
     };
 
@@ -112,7 +112,7 @@ function ContextProvider({
           },
         }}
       >
-        <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
+        <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
       </ParaProvider>
     </QueryClientProvider>
   );

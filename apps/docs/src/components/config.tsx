@@ -15,7 +15,8 @@ import {
 } from "@getpara/react-sdk";
 import { defineChain, http, type Chain, type Transport } from "viem";
 
-export const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
+export const useAnvilForWallet =
+  process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
 export const LOCALHOST_CHAIN_ID = 31337;
 
 const localhost = defineChain({
@@ -57,7 +58,7 @@ const defaultNetworks = [
 ] as const;
 
 export const networks = (
-  useLocalhost ? [localhost, ...defaultNetworks] : [...defaultNetworks]
+  useAnvilForWallet ? [localhost, ...defaultNetworks] : [...defaultNetworks]
 ) as readonly [Chain, ...Chain[]];
 
 export const transports = Object.fromEntries(

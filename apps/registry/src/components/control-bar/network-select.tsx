@@ -3,13 +3,13 @@
 import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
 import { cn, SUPPORTED_CHAINS, getChainInfo } from "@aomi-labs/react";
-import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export type NetworkSelectProps = {
   className?: string;
@@ -22,8 +22,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   chains = SUPPORTED_CHAINS,
 }) => {
   const adapter = useAomiAuthAdapter();
-  const chainId = adapter.identity.chainId;
-  const isConnected = adapter.identity.isConnected;
+  const { chainId, isConnected } = adapter.identity;
   const switchChain = adapter.switchChain;
   const isPending = adapter.isSwitchingChain;
   const [open, setOpen] = useState(false);

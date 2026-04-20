@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  useCallback,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -12,15 +12,10 @@ import {
   type TExternalWallet,
   type TOAuthMethod,
 } from "@getpara/react-sdk";
-import {
-  AomiAuthAdapterProvider,
-  AOMI_AUTH_BOOTING_ADAPTER,
-  AOMI_AUTH_DISCONNECTED_ADAPTER,
-  type AomiAuthAdapter,
-} from "@aomi-labs/widget-lib";
 import "@getpara/react-sdk/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { defineChain, http, type Chain, type Transport } from "viem";
+import { useAccount, useSwitchChain } from "wagmi";
 import {
   arbitrum,
   base,
@@ -31,9 +26,10 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import { LandingAomiAuthBridge } from "./landing-aomi-auth-bridge";
 
-const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
+const useAnvilForWallet =
+  process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
+const LOCALHOST_CHAIN_ID = 31337;
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY;
 const walletConnectProjectId =
@@ -75,7 +71,7 @@ const defaultNetworks = [
   lineaSepolia,
 ] as const;
 
-const networks = (useLocalhost
+const networks = (useAnvilForWallet
   ? [localhost, ...defaultNetworks]
   : [...defaultNetworks]) as readonly [Chain, ...Chain[]];
 
@@ -97,30 +93,59 @@ const adapterWallets = walletConnectProjectId
 
 const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
 
-function isSameAdapterState(
-  currentAdapter: AomiAuthAdapter,
-  nextAdapter: AomiAuthAdapter,
-): boolean {
-  return (
-    currentAdapter.isReady === nextAdapter.isReady
-    && currentAdapter.isSwitchingChain === nextAdapter.isSwitchingChain
-    && currentAdapter.canConnect === nextAdapter.canConnect
-    && currentAdapter.canManageAccount === nextAdapter.canManageAccount
-    && currentAdapter.identity.status === nextAdapter.identity.status
-    && currentAdapter.identity.isConnected === nextAdapter.identity.isConnected
-    && currentAdapter.identity.address === nextAdapter.identity.address
-    && currentAdapter.identity.chainId === nextAdapter.identity.chainId
-    && currentAdapter.identity.authProvider === nextAdapter.identity.authProvider
-    && currentAdapter.identity.primaryLabel === nextAdapter.identity.primaryLabel
-    && currentAdapter.identity.secondaryLabel === nextAdapter.identity.secondaryLabel
-  );
+function DevAnvilRpcHook({ children }: { children: ReactNode }) {
+  const { isConnected, chainId, connector } = useAccount();
+  const { switchChain } = useSwitchChain();
+
+  useEffect(() => {
+    if (!useAnvilForWallet) return;
+    if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
+
+    const switchToLocalhost = async () => {
+      try {
+        const provider = await connector?.getProvider();
+        if (provider && typeof provider === "object" && "request" in provider) {
+          const ethProvider = provider as {
+            request: (args: {
+              method: string;
+              params: unknown[];
+            }) => Promise<unknown>;
+          };
+          try {
+            await ethProvider.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: `0x${LOCALHOST_CHAIN_ID.toString(16)}`,
+                  chainName: "Localhost",
+                  nativeCurrency: {
+                    name: "Ether",
+                    symbol: "ETH",
+                    decimals: 18,
+                  },
+                  rpcUrls: ["http://127.0.0.1:8545"],
+                },
+              ],
+            });
+          } catch {
+            // Chain may already be configured in the wallet.
+          }
+        }
+
+        switchChain({ chainId: LOCALHOST_CHAIN_ID });
+      } catch (error) {
+        console.error("[DevAnvilRpcHook] Failed to switch network:", error);
+      }
+    };
+
+    void switchToLocalhost();
+  }, [isConnected, chainId, connector, switchChain]);
+
+  return <>{children}</>;
 }
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
-  const [adapter, setAdapter] = useState<AomiAuthAdapter>(
-    paraApiKey ? AOMI_AUTH_BOOTING_ADAPTER : AOMI_AUTH_DISCONNECTED_ADAPTER,
-  );
 
   const paraModalConfig = useMemo(
     () => ({
@@ -152,34 +177,23 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const handleAdapterChange = useCallback((nextAdapter: AomiAuthAdapter) => {
-    setAdapter((currentAdapter) =>
-      isSameAdapterState(currentAdapter, nextAdapter)
-        ? currentAdapter
-        : nextAdapter,
-    );
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
-      <AomiAuthAdapterProvider value={adapter}>
-        {paraApiKey ? (
-          <ParaProvider
-            paraClientConfig={{
-              apiKey: paraApiKey,
-              env: paraEnvironment,
-            }}
-            config={{ appName: "Aomi Labs" }}
-            paraModalConfig={paraModalConfig}
-            externalWalletConfig={externalWalletConfig}
-          >
-            <LandingAomiAuthBridge onAdapterChange={handleAdapterChange} />
-            {children}
-          </ParaProvider>
-        ) : (
-          children
-        )}
-      </AomiAuthAdapterProvider>
+      {paraApiKey ? (
+        <ParaProvider
+          paraClientConfig={{
+            apiKey: paraApiKey,
+            env: paraEnvironment,
+          }}
+          config={{ appName: "Aomi Labs" }}
+          paraModalConfig={paraModalConfig}
+          externalWalletConfig={externalWalletConfig}
+        >
+          <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+        </ParaProvider>
+      ) : (
+        children
+      )}
     </QueryClientProvider>
   );
 }

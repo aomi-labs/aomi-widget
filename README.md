@@ -15,12 +15,12 @@ npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
 The registry install includes provider-agnostic Aomi auth adapter primitives.
-To enable wallet UX, supply a host-level auth bridge, for example with
-Para, wagmi, or your own wallet implementation.
+To enable wallet UX, render the widget inside your Para + wagmi provider tree,
+as shown in the landing example.
 
 ## Quick Start
 
-Drop the frame into your app with zero configuration. Without an auth adapter,
+Drop the frame into your app with zero configuration. Without wallet providers,
 the chat UI still works and wallet actions remain disabled.
 
 ```tsx
@@ -31,36 +31,28 @@ export function Assistant() {
 }
 ```
 
-Bring your own Aomi auth adapter when needed:
+Wrap the frame in your wallet providers when needed:
 
 ```tsx
-import {
-  AomiFrame,
-  AomiAuthAdapterProvider,
-  type AomiAuthAdapter,
-} from "@aomi-labs/widget-lib";
+import "@getpara/react-sdk/styles.css";
+import { Environment, ParaProvider } from "@getpara/react-sdk";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 
-const adapter: AomiAuthAdapter = {
-  identity: {
-    status: "disconnected",
-    isConnected: false,
-    primaryLabel: "Not connected",
-  },
-  isReady: true,
-  isSwitchingChain: false,
-  canConnect: true,
-  canManageAccount: false,
-  connect: async () => {
-    // open your wallet flow
-  },
-  manageAccount: async () => undefined,
-};
+const queryClient = new QueryClient();
 
 export function Assistant() {
   return (
-    <AomiAuthAdapterProvider value={adapter}>
-      <AomiFrame height="640px" width="100%" />
-    </AomiAuthAdapterProvider>
+    <QueryClientProvider client={queryClient}>
+      <ParaProvider
+        paraClientConfig={{
+          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
+          env: Environment.BETA,
+        }}
+      >
+        <AomiFrame height="640px" width="100%" />
+      </ParaProvider>
+    </QueryClientProvider>
   );
 }
 ```
@@ -101,9 +93,8 @@ import { AomiFrame } from "@aomi-labs/react";
 | `walletPosition` | `"header" \| "footer" \| null` | `"footer"`                                    | Where to show wallet connect button |
 | `backendUrl`     | `string`                       | `NEXT_PUBLIC_BACKEND_URL` or `localhost:8080` | Backend API URL                     |
 
-Wallet behavior comes from the surrounding `AomiAuthAdapterProvider` context. If
-you do not provide one, the frame renders with a disconnected adapter and the
-wallet UI stays disabled.
+Wallet behavior comes from the surrounding Para + wagmi provider tree. If you
+do not provide one, the frame renders and the wallet UI stays disabled.
 
 ### Compound Components (Advanced)
 
@@ -127,9 +118,9 @@ export function CustomAssistant() {
 
 #### AomiFrame.Root
 
-The root container that provides the widget layout, runtime providers, wallet
-sync bridge, and transaction bridge. Wallet behavior is read from the nearest
-`AomiAuthAdapterProvider` context.
+The root container that provides the widget layout, runtime providers, and
+transaction bridge. Wallet behavior is read from the surrounding Para + wagmi
+provider tree when present.
 
 | Prop             | Type                           | Default                 | Description                       |
 | ---------------- | ------------------------------ | ----------------------- | --------------------------------- |
