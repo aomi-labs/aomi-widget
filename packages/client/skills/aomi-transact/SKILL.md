@@ -13,7 +13,7 @@ license: MIT
 allowed-tools: Bash
 metadata:
   author: aomi-labs
-  version: "0.6"
+  version: "0.7"
 ---
 
 # Aomi Transact
@@ -34,18 +34,29 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 
 ## Hard Rules
 
+- **Never pass `--private-key` on the command line.** Always set `PRIVATE_KEY` in the environment (e.g. `export PRIVATE_KEY=0x...`) and let `aomi tx sign` read it. Keys in argv are visible to `ps`, shell history, and anything reading `/proc/*/cmdline`. The `--private-key` flag exists for tooling integration; skill-driven agents must prefer the env var.
+- **Never pass `--api-key`, provider keys, or any secret as a command-line flag.** Use `aomi secret add NAME=value` or the corresponding environment variable. Same argv-exposure reason.
 - Never print secrets verbatim in normal status, preflight, or confirmation output.
 - Treat `PRIVATE_KEY`, `AOMI_API_KEY`, `ALCHEMY_API_KEY`, `PIMLICO_API_KEY`, and private RPC URLs as secrets.
 - If the user provides a private key or API key, do not repeat it back unless they explicitly ask for that exact value to be reformatted.
 - Prefer `aomi secret add NAME=value` over stuffing provider API keys into normal chat text.
 - Do not sign anything unless the CLI has actually queued a wallet request and you can identify its `tx-N` ID.
 - When starting work from a new Codex or assistant chat thread, default the first Aomi command to `--new-session` unless the user explicitly wants to continue an existing session.
-- If `PRIVATE_KEY` is set in the environment, do not also pass `--private-key` unless you intentionally want to override the environment value.
 - `--public-key` must match the address derived from the signing key. If they differ, `aomi tx sign` will update the session to the signer address.
 - Private keys must start with `0x`. Add the prefix if missing.
-- `CHAIN_RPC_URL` is only one default RPC URL. When switching chains, prefer passing `--rpc-url` on `aomi tx sign`.
+- `CHAIN_RPC_URL` is only one default RPC URL. When switching chains, prefer setting `CHAIN_RPC_URL` in the environment or passing `--rpc-url` on `aomi tx sign`.
 - Switching the chat/session chain with `--chain` does not switch `CHAIN_RPC_URL`. The RPC used for `aomi tx sign` must match the pending transaction's chain.
 - `--aa-provider` and `--aa-mode` are AA-only controls and cannot be used with `--eoa`.
+
+## Security Model
+
+This skill is rated higher-risk by static scanners because it does exactly what it says: it signs real transactions with real keys and controls real funds. That rating is honest. The rules below exist so that *risk comes from the user's intent, not from skill-induced footguns*.
+
+- **Secrets live in env vars or secret handles, never in argv.** `PRIVATE_KEY`, `ALCHEMY_API_KEY`, `PIMLICO_API_KEY`, `AOMI_API_KEY`, exchange keys — all of these belong in the shell environment (`export NAME=value`) or ingested via `aomi secret add NAME=value`. The CLI reads them from there. The `--private-key` / `--api-key` flags exist but the skill must not use them.
+- **RPC URLs can embed provider keys.** A URL like `https://eth-mainnet.g.alchemy.com/v2/<KEY>` is a secret. Construct it from `ALCHEMY_API_KEY` at use-time; never log the full URL.
+- **No blind signing.** Only call `aomi tx sign` after `aomi tx list` shows a pending `tx-N` the user asked for. Multi-step batches (approve → swap) must go through `aomi tx simulate` first.
+- **One transaction at a time unless the user asked for a batch.** `aomi tx sign` accepts multiple ids; that's for pre-confirmed batches, not for sweeping a queue.
+- **Scope of control.** This skill does not access files outside `~/.aomi`, does not install software, and does not execute code it generates. It invokes the `aomi` CLI and reads its output. If you find yourself doing anything else, stop.
 
 ## Command Structure
 
@@ -199,17 +210,20 @@ Use these rules exactly:
 - `--eoa`: force direct EOA execution, skip AA entirely.
 - `--aa-provider` or `--aa-mode`: AA-specific controls that also force AA mode. Cannot be used with `--eoa`.
 
-Examples:
+Examples (export secrets once per shell, then invoke):
 
 ```bash
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+
 # Default: auto-detect. AA if configured, EOA if not.
-aomi tx sign tx-1 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+aomi tx sign tx-1
 
 # Force EOA only
-aomi tx sign tx-1 --eoa --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+aomi tx sign tx-1 --eoa
 
-# Explicit AA provider and mode
-aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337 --private-key 0xYourPrivateKey
+# Explicit AA provider and mode (credentials still come from env)
+aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337
 ```
 
 ### Batch Simulation
@@ -267,8 +281,10 @@ aomi tx list
 # 3. Simulate the batch
 aomi tx simulate tx-1 tx-2
 
-# 4. If simulation succeeds, sign
-aomi tx sign tx-1 tx-2 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+# 4. If simulation succeeds, sign (credentials from env)
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1 tx-2
 
 # 5. Verify
 aomi tx list
@@ -656,9 +672,9 @@ aomi chat "proceed"
 aomi tx list
 
 # 4. Sign — auto-detects AA if configured, otherwise uses EOA
-aomi tx sign tx-1 \
-  --private-key 0xYourPrivateKey \
-  --rpc-url https://eth.llamarpc.com
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1
 
 # 5. Verify
 aomi tx list
@@ -679,9 +695,9 @@ aomi tx list
 aomi tx simulate tx-1 tx-2
 
 # 4. If simulation passes, sign the batch
-aomi tx sign tx-1 tx-2 \
-  --private-key 0xYourPrivateKey \
-  --rpc-url https://eth.llamarpc.com
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1 tx-2
 
 # 5. Verify
 aomi tx list
@@ -690,19 +706,17 @@ aomi tx list
 ### Explicit EOA Flow
 
 ```bash
-aomi tx sign tx-1 \
-  --eoa \
-  --private-key 0xYourPrivateKey \
-  --rpc-url https://eth.llamarpc.com
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1 --eoa
 ```
 
 ### Explicit AA Flow
 
 ```bash
-aomi tx sign tx-1 \
-  --aa-provider pimlico \
-  --aa-mode 4337 \
-  --private-key 0xYourPrivateKey
+export PRIVATE_KEY=0xYourPrivateKey
+export PIMLICO_API_KEY=your-pimlico-key
+aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337
 ```
 
 ### AA Setup With Environment Variables
@@ -711,9 +725,10 @@ aomi tx sign tx-1 \
 # Export once per shell — auto-detected by `aomi tx sign`
 export ALCHEMY_API_KEY=your-alchemy-key
 export ALCHEMY_GAS_POLICY_ID=your-gas-policy-id
+export PRIVATE_KEY=0xYourPrivateKey
 
-# All subsequent signs auto-use AA — no flags needed
-aomi tx sign tx-1 --private-key 0xYourPrivateKey
+# All subsequent signs auto-use AA — no flags, no argv-exposed keys
+aomi tx sign tx-1
 ```
 
 ### Alchemy Sponsorship Flow
@@ -748,8 +763,10 @@ aomi chat "proceed with the transfer route"
 # 3. Review the queued transfer request
 aomi tx list
 
-# 4. Sign the transfer
-aomi tx sign tx-1 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+# 4. Sign the transfer (credentials from env)
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1
 
 # 5. Continue with the agent if a submit/finalize step is required
 aomi chat "the transfer has been sent, continue"
@@ -762,7 +779,9 @@ aomi chat "the transfer has been sent, continue"
 aomi chat "swap 0.1 USDC for WETH using Khalani on Polygon" --app khalani --chain 137
 aomi tx list
 
-# Sign with a Polygon RPC, even if CHAIN_RPC_URL is still set to Ethereum
+# Sign with a Polygon RPC, even if CHAIN_RPC_URL is still set to Ethereum.
+# PRIVATE_KEY must already be exported; --rpc-url override is fine
+# because a public RPC is not a secret (unlike provider-keyed URLs).
 aomi tx sign tx-8 --rpc-url https://polygon.drpc.org --chain 137
 ```
 
