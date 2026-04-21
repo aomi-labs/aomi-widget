@@ -237,6 +237,64 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("hydrates pending wallet requests from backend user_state", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-7b" });
+    const requestsChanged = vi.fn();
+
+    session.on("wallet_requests_changed", requestsChanged);
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        address: "0x9C7a99480c59955a635123EDa064456393e519f5",
+        chain_id: 8453,
+        is_connected: true,
+        pending_txs: {
+          1: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x",
+            chain_id: 8453,
+          },
+        },
+        pending_eip712s: {
+          7: {
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0x123" },
+            },
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "tx-1",
+        kind: "transaction",
+        payload: expect.objectContaining({ txId: 1, chainId: 8453 }),
+      }),
+      expect.objectContaining({
+        id: "eip712-7",
+        kind: "eip712_sign",
+        payload: expect.objectContaining({
+          eip712Id: 7,
+          description: "Permit2 signature",
+        }),
+      }),
+    ]);
+    expect(requestsChanged).toHaveBeenCalled();
+
+    session.close();
+  });
+
   it("forwards backend tx identifiers in wallet completion callbacks", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-8" });

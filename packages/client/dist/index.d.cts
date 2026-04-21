@@ -591,6 +591,8 @@ type SessionEventMap = {
     processing_start: undefined;
     /** AI finished processing. */
     processing_end: undefined;
+    /** Authoritative pending wallet request list changed. */
+    wallet_requests_changed: WalletRequest[];
     /**
      * Backend transitioned from processing to idle (is_processing went false).
      * Unlike `processing_end`, this fires even when there are unresolved local
@@ -704,6 +706,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private resolvePending;
     private assertOpen;
     private assertUserStateAligned;
+    private getWalletRequestId;
+    private syncWalletRequests;
 }
 
 declare function executeWalletCalls(params: ExecuteWalletCallsParams): Promise<ExecutionResult>;
