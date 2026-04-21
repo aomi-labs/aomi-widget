@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { AomiClient } from "@aomi-labs/client";
+import { AomiClient, UserState } from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
@@ -66,7 +66,9 @@ function AomiRuntimeInner({
     <ControlContextProvider
       aomiClient={aomiClient}
       sessionId={threadContext.currentThreadId}
-      publicKey={user.isConnected ? (user.address ?? undefined) : undefined}
+      publicKey={
+        UserState.isConnected(user) ? (UserState.address(user) ?? undefined) : undefined
+      }
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
     >

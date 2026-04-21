@@ -30,6 +30,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
   const session = cli.createClientSession();
   try {
     const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
+    cli.syncPendingFromUserState(apiState.user_state);
     const messages = apiState.messages ?? [];
     const pendingTxs = [...cli.pendingTxs];
     const signedTxs = [...cli.signedTxs];

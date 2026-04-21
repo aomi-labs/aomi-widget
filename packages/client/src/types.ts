@@ -6,7 +6,7 @@
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
  */
-export type UserState = Record<string, unknown>;
+export interface UserState extends Record<string, unknown> {}
 
 /**
  * Known client surfaces that may want backend-specific UX strategies.
@@ -17,27 +17,128 @@ export type AomiClientType = "ts_cli" | "web_ui" | (string & {});
 export const CLIENT_TYPE_TS_CLI: AomiClientType = "ts_cli";
 export const CLIENT_TYPE_WEB_UI: AomiClientType = "web_ui";
 
-/**
- * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
- */
+const USER_STATE_KEY_ALIASES: Record<string, string> = {
+  chainId: "chain_id",
+  isConnected: "is_connected",
+  ensName: "ens_name",
+  pendingTxs: "pending_txs",
+  pendingEip712s: "pending_eip712s",
+  nextId: "next_id",
+};
+
+function parseUserStateChainId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export namespace UserState {
+  /**
+   * Canonicalize client-side user state to the backend's snake_case `UserState`.
+   * Existing snake_case keys win when both forms are present.
+   */
+  export function normalize(userState?: UserState | null): UserState | undefined {
+    if (!userState) {
+      return undefined;
+    }
+
+    const normalized: UserState = {};
+    for (const [key, value] of Object.entries(userState)) {
+      const normalizedKey = USER_STATE_KEY_ALIASES[key] ?? key;
+      if (normalizedKey in normalized) {
+        continue;
+      }
+      normalized[normalizedKey] = value;
+    }
+
+    return normalized;
+  }
+
+  export function address(userState?: UserState | null): string | undefined {
+    const normalized = normalize(userState);
+    const address = normalized?.address;
+    return typeof address === "string" && address.length > 0 ? address : undefined;
+  }
+
+  export function chainId(userState?: UserState | null): number | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateChainId(normalized?.chain_id);
+  }
+
+  export function isConnected(userState?: UserState | null): boolean | undefined {
+    const normalized = normalize(userState);
+    const isConnected = normalized?.is_connected;
+    return typeof isConnected === "boolean" ? isConnected : undefined;
+  }
+
+  /**
+   * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
+   */
+  export function withExt(
+    userState: UserState,
+    key: string,
+    value: unknown,
+  ): UserState {
+    const normalizedUserState = normalize(userState) ?? {};
+    const currentExt = normalizedUserState["ext"];
+    const extRecord =
+      typeof currentExt === "object" &&
+      currentExt !== null &&
+      !Array.isArray(currentExt)
+        ? (currentExt as Record<string, unknown>)
+        : {};
+
+    return {
+      ...normalizedUserState,
+      ext: {
+        ...extRecord,
+        [key]: value,
+      },
+    };
+  }
+}
+
+export function normalizeUserState(
+  userState?: UserState | null,
+): UserState | undefined {
+  return UserState.normalize(userState);
+}
+
+export function getUserStateAddress(
+  userState?: UserState | null,
+): string | undefined {
+  return UserState.address(userState);
+}
+
+export function getUserStateChainId(
+  userState?: UserState | null,
+): number | undefined {
+  return UserState.chainId(userState);
+}
+
+export function getUserStateIsConnected(
+  userState?: UserState | null,
+): boolean | undefined {
+  return UserState.isConnected(userState);
+}
+
 export function addUserStateExt(
   userState: UserState,
   key: string,
   value: unknown,
 ): UserState {
-  const currentExt = userState["ext"];
-  const extRecord =
-    typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt)
-      ? (currentExt as Record<string, unknown>)
-      : {};
-
-  return {
-    ...userState,
-    ext: {
-      ...extRecord,
-      [key]: value,
-    },
-  };
+  return UserState.withExt(userState, key, value);
 }
 
 // =============================================================================

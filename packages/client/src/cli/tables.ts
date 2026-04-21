@@ -29,15 +29,29 @@ export function estimateTokenCount(messages: AomiMessage[]): number {
   return Math.round(totalChars / 4);
 }
 
+function toIsoTimestamp(timestamp: unknown): string | null {
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  try {
+    return new Date(timestamp).toISOString();
+  } catch {
+    return null;
+  }
+}
+
 export function toPendingTxMetadata(tx: PendingTx): Record<string, unknown> {
   return {
     id: tx.id,
     kind: tx.kind,
+    txId: tx.txId ?? null,
+    eip712Id: tx.eip712Id ?? null,
     to: tx.to ?? null,
     value: tx.value ?? null,
     chainId: tx.chainId ?? null,
     description: tx.description ?? null,
-    timestamp: new Date(tx.timestamp).toISOString(),
+    timestamp: toIsoTimestamp(tx.timestamp),
   };
 }
 
@@ -60,7 +74,7 @@ export function toSignedTxMetadata(tx: SignedTx): Record<string, unknown> {
     value: tx.value ?? null,
     chainId: tx.chainId ?? null,
     description: tx.description ?? null,
-    timestamp: new Date(tx.timestamp).toISOString(),
+    timestamp: toIsoTimestamp(tx.timestamp),
   };
 }
 
@@ -95,12 +109,18 @@ export function printTransactionTable(
   signedTxs: SignedTx[],
   color: string = GREEN,
 ): void {
+  const safePendingTxs = pendingTxs.filter(
+    (tx): tx is PendingTx => typeof tx === "object" && tx !== null,
+  );
+  const safeSignedTxs = signedTxs.filter(
+    (tx): tx is SignedTx => typeof tx === "object" && tx !== null,
+  );
   const rows = [
-    ...pendingTxs.map((tx) => ({
+    ...safePendingTxs.map((tx) => ({
       status: "pending",
       metadata: toPendingTxMetadata(tx),
     })),
-    ...signedTxs.map((tx) => ({
+    ...safeSignedTxs.map((tx) => ({
       status: "signed",
       metadata: toSignedTxMetadata(tx),
     })),

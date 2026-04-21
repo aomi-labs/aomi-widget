@@ -6,7 +6,7 @@ const txListDef = defineCommand({
   args: {},
   async run() {
     const { txCommand } = await import("../wallet");
-    txCommand();
+    await txCommand();
   },
 });
 

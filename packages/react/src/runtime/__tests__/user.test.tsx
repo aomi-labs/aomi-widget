@@ -15,7 +15,6 @@ import {
   renderRuntime,
   resetAomiClientMocks,
   setAomiClientConfig,
-  getLatestAomiClient,
   flushPromises,
 } from "./test-harness";
 
@@ -33,10 +32,10 @@ describe("User API", () => {
       const { api } = renderRuntime();
 
       expect(api.user).toEqual({
-        isConnected: false,
         address: undefined,
-        chainId: undefined,
-        ensName: undefined,
+        chain_id: undefined,
+        is_connected: false,
+        ens_name: undefined,
         ext: undefined,
       });
     });
@@ -54,9 +53,9 @@ describe("User API", () => {
 
       expect(getApi().user).toEqual({
         address: "0xABC",
-        chainId: 1,
-        isConnected: true,
-        ensName: undefined,
+        chain_id: 1,
+        is_connected: true,
+        ens_name: undefined,
         ext: undefined,
       });
     });
@@ -71,14 +70,14 @@ describe("User API", () => {
       });
 
       expect(getApi().user.address).toBe("0x123");
-      expect(getApi().user.isConnected).toBe(false); // unchanged
+      expect(getApi().user.is_connected).toBe(false); // unchanged
 
       await act(async () => {
         api.setUser({ isConnected: true });
       });
 
       expect(getApi().user.address).toBe("0x123"); // unchanged
-      expect(getApi().user.isConnected).toBe(true);
+      expect(getApi().user.is_connected).toBe(true);
     });
 
     it("updates all user state fields", async () => {
@@ -95,9 +94,9 @@ describe("User API", () => {
 
       expect(getApi().user).toEqual({
         address: "0xDEF",
-        chainId: 137,
-        isConnected: true,
-        ensName: "user.eth",
+        chain_id: 137,
+        is_connected: true,
+        ens_name: "user.eth",
         ext: undefined,
       });
     });
@@ -131,6 +130,8 @@ describe("User API", () => {
       expect(messageJson.type).toBe("wallet:state_changed");
       expect(messageJson.payload.address).toBe("0x789");
       expect(messageJson.payload.ext).toBeUndefined();
+      expect(messageJson.payload.chain_id).toBe(1);
+      expect(messageJson.payload.is_connected).toBe(true);
     });
   });
 
@@ -193,7 +194,7 @@ describe("User API", () => {
 
       const state = api.getUserState();
       expect(state.address).toBe("0xABC");
-      expect(state.isConnected).toBe(true);
+      expect(state.is_connected).toBe(true);
     });
 
     it("returns fresh state on each call", async () => {
@@ -281,7 +282,7 @@ describe("User API", () => {
         });
       });
 
-      expect(getApi().user.isConnected).toBe(true);
+      expect(getApi().user.is_connected).toBe(true);
       expect(getApi().user.address).toBe("0xWALLET");
 
       // Disconnect
@@ -294,7 +295,7 @@ describe("User API", () => {
         });
       });
 
-      expect(getApi().user.isConnected).toBe(false);
+      expect(getApi().user.is_connected).toBe(false);
       expect(getApi().user.address).toBeUndefined();
     });
 
@@ -314,10 +315,10 @@ describe("User API", () => {
         api.setUser({ isConnected: false });
       });
 
-      expect(getApi().user.isConnected).toBe(false);
+      expect(getApi().user.is_connected).toBe(false);
       expect(getApi().user.address).toBeUndefined();
-      expect(getApi().user.chainId).toBeUndefined();
-      expect(getApi().user.ensName).toBeUndefined();
+      expect(getApi().user.chain_id).toBeUndefined();
+      expect(getApi().user.ens_name).toBeUndefined();
     });
 
     it("handles chain switching", async () => {
@@ -331,13 +332,13 @@ describe("User API", () => {
         });
       });
 
-      expect(getApi().user.chainId).toBe(1);
+      expect(getApi().user.chain_id).toBe(1);
 
       await act(async () => {
         api.setUser({ chainId: 137 }); // Polygon
       });
 
-      expect(getApi().user.chainId).toBe(137);
+      expect(getApi().user.chain_id).toBe(137);
       expect(getApi().user.address).toBe("0xUSER"); // address preserved
     });
   });
