@@ -190,6 +190,10 @@ function getAppMetadata(appId: string): AppMetadata {
   );
 }
 
+function isPublicApp(appId: string) {
+  return APP_METADATA[appId]?.requiresApiKey === false;
+}
+
 async function getSupportedApps() {
   try {
     const response = await fetch("https://api.aomi.dev/api/control/apps", {
@@ -240,10 +244,10 @@ function buildPortalHref(appId: string) {
 }
 
 export async function Apps() {
-  const appIds = sortApps(await getSupportedApps());
+  const appIds = sortApps((await getSupportedApps()).filter(isPublicApp));
   const description = APP_DEEP_LINKS_ENABLED
-    ? "Choose an app below and jump into the portal with that app passed into chat. Some apps are open by default, while others prompt for an API key after launch."
-    : "Choose an app below and jump into the portal to continue from there. The live portal does not yet support app preselection by URL, so app selection still happens inside chat. Some apps are open by default, while others prompt for an API key after launch.";
+    ? "Choose an app below and jump into the portal with that app passed into chat. This list is limited to publicly accessible apps."
+    : "Choose an app below and jump into the portal to continue from there. The live portal does not yet support app preselection by URL, so app selection still happens inside chat. This list is limited to publicly accessible apps.";
 
   return (
     <section
