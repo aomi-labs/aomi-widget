@@ -27,7 +27,6 @@ export type {
   AomiSystemResponse,
   AomiThread,
   Logger,
-  UserState,
 } from "./types";
 
 // =============================================================================
@@ -35,6 +34,7 @@ export type {
 // =============================================================================
 
 export {
+  UserState,
   addUserStateExt,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,

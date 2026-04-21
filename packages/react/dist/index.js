@@ -37,7 +37,7 @@ import { toViemSignTypedDataArgs } from "@aomi-labs/client";
 
 // packages/react/src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
-import { AomiClient } from "@aomi-labs/client";
+import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
 
 // packages/react/src/contexts/control-context.tsx
 import {
@@ -880,18 +880,10 @@ import {
   useRef as useRef4,
   useState as useState3
 } from "react";
+import { UserState } from "@aomi-labs/client";
+import { UserState as UserState2 } from "@aomi-labs/client";
 import { jsx as jsx5 } from "react/jsx-runtime";
 var UserContext = createContext5(void 0);
-function normalizeUserState(next, data) {
-  if (data.isConnected === false) {
-    return __spreadProps(__spreadValues({}, next), {
-      address: void 0,
-      chainId: void 0,
-      ensName: void 0
-    });
-  }
-  return next;
-}
 function useUser() {
   const context = useContext5(UserContext);
   if (!context) {
@@ -908,10 +900,10 @@ function useUser() {
 }
 function UserContextProvider({ children }) {
   const [user, setUserState] = useState3({
-    isConnected: false,
     address: void 0,
-    chainId: void 0,
-    ensName: void 0,
+    chain_id: void 0,
+    is_connected: false,
+    ens_name: void 0,
     ext: void 0
   });
   const userRef = useRef4(user);
@@ -921,7 +913,13 @@ function UserContextProvider({ children }) {
   );
   const setUser = useCallback4((data) => {
     setUserState((prev) => {
-      const next = normalizeUserState(__spreadValues(__spreadValues({}, prev), data), data);
+      var _a, _b, _c;
+      const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
+      const next = normalizedData.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _b : prev), {
+        address: void 0,
+        chain_id: void 0,
+        ens_name: void 0
+      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _c : prev;
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
@@ -930,12 +928,7 @@ function UserContextProvider({ children }) {
   }, []);
   const addExtValue = useCallback4((key, value) => {
     setUserState((prev) => {
-      var _a;
-      const next = __spreadProps(__spreadValues({}, prev), {
-        ext: __spreadProps(__spreadValues({}, (_a = prev.ext) != null ? _a : {}), {
-          [key]: value
-        })
-      });
+      const next = UserState.withExt(prev, key, value);
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
@@ -944,10 +937,11 @@ function UserContextProvider({ children }) {
   }, []);
   const removeExtValue = useCallback4((key) => {
     setUserState((prev) => {
-      if (!prev.ext || !(key in prev.ext)) {
+      const ext = prev.ext;
+      if (typeof ext !== "object" || ext === null || Array.isArray(ext) || !(key in ext)) {
         return prev;
       }
-      const nextExt = __spreadValues({}, prev.ext);
+      const nextExt = __spreadValues({}, ext);
       delete nextExt[key];
       const next = __spreadProps(__spreadValues({}, prev), {
         ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
@@ -990,6 +984,7 @@ import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
 } from "@assistant-ui/react";
+import { UserState as UserState3 } from "@aomi-labs/client";
 
 // packages/react/src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
@@ -1183,16 +1178,13 @@ function useRuntimeOrchestrator(aomiClient, options) {
         })
       );
       cleanups.push(
-        session.on("wallet_tx_request", (req) => {
-          var _a2;
-          return (_a2 = options.onWalletRequest) == null ? void 0 : _a2.call(options, req);
-        })
-      );
-      cleanups.push(
-        session.on("wallet_eip712_request", (req) => {
-          var _a2;
-          return (_a2 = options.onWalletRequest) == null ? void 0 : _a2.call(options, req);
-        })
+        session.on(
+          "wallet_requests_changed",
+          (requests) => {
+            var _a2;
+            return (_a2 = options.onPendingRequestsChange) == null ? void 0 : _a2.call(options, requests);
+          }
+        )
       );
       cleanups.push(
         session.on("title_changed", ({ title }) => {
@@ -1218,7 +1210,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const ensureInitialState = useCallback5(
     async (threadId) => {
-      var _a;
+      var _a, _b;
       if (pendingFetches.current.has(threadId)) return;
       pendingFetches.current.add(threadId);
       try {
@@ -1226,6 +1218,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
         if (userState) session.resolveUserState(userState);
         await session.fetchCurrentState();
+        (_b = options.onPendingRequestsChange) == null ? void 0 : _b.call(options, session.getPendingRequests());
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -1242,7 +1235,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const sendMessage = useCallback5(
     async (text, threadId) => {
-      var _a;
+      var _a, _b;
       const session = getSession(threadId);
       const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
       if (userState) session.resolveUserState(userState);
@@ -1260,6 +1253,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
       await session.sendAsync(text);
+      (_b = options.onPendingRequestsChange) == null ? void 0 : _b.call(options, session.getPendingRequests());
     },
     [getSession]
   );
@@ -1447,9 +1441,9 @@ function useWalletHandler({
   getSession
 }) {
   const [pendingRequests, setPendingRequests] = useState5([]);
-  const requestsRef = useRef6([]);
-  const enqueueRequest = useCallback6((request) => {
-    requestsRef.current = [...requestsRef.current, request];
+  const requestsRef = useRef6(pendingRequests);
+  const setRequests = useCallback6((requests) => {
+    requestsRef.current = [...requests];
     setPendingRequests(requestsRef.current);
   }, []);
   const resolveRequest = useCallback6(
@@ -1459,13 +1453,12 @@ function useWalletHandler({
         console.error("[wallet-handler] No session available to resolve request");
         return;
       }
-      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
-      setPendingRequests(requestsRef.current);
+      setRequests(requestsRef.current.filter((request) => request.id !== id));
       void session.resolve(id, result).catch((err) => {
         console.error("[wallet-handler] Failed to resolve request:", err);
       });
     },
-    [getSession]
+    [getSession, setRequests]
   );
   const rejectRequest = useCallback6(
     (id, error) => {
@@ -1474,17 +1467,16 @@ function useWalletHandler({
         console.error("[wallet-handler] No session available to reject request");
         return;
       }
-      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
-      setPendingRequests(requestsRef.current);
+      setRequests(requestsRef.current.filter((request) => request.id !== id));
       void session.reject(id, error).catch((err) => {
         console.error("[wallet-handler] Failed to reject request:", err);
       });
     },
-    [getSession]
+    [getSession, setRequests]
   );
   return {
     pendingRequests,
-    enqueueRequest,
+    setRequests,
     resolveRequest,
     rejectRequest
   };
@@ -1518,11 +1510,7 @@ function AomiRuntimeCore({
     cancelGeneration: orchestratorCancel,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => {
-      var _a;
-      const userState = getUserState();
-      return userState.isConnected ? (_a = userState.address) != null ? _a : void 0 : void 0;
-    },
+    getPublicKey: () => UserState3.isConnected(getUserState()) ? UserState3.address(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -1530,17 +1518,20 @@ function AomiRuntimeCore({
       var _a;
       return (_a = getControlState().clientId) != null ? _a : void 0;
     },
-    onWalletRequest: (request) => walletHandler.enqueueRequest(request),
+    onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event)
   });
   sessionManagerRef.current = sessionManager;
   const walletSnapshot = useCallback7(
-    (nextUser) => ({
-      address: nextUser.address,
-      chainId: nextUser.chainId,
-      isConnected: nextUser.isConnected,
-      ensName: nextUser.ensName
-    }),
+    (nextUser) => {
+      var _a;
+      return {
+        address: UserState3.address(nextUser),
+        chain_id: UserState3.chainId(nextUser),
+        is_connected: (_a = UserState3.isConnected(nextUser)) != null ? _a : false,
+        ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0
+      };
+    },
     [getUserState]
   );
   const lastWalletStateRef = useRef7(walletSnapshot(getUserState()));
@@ -1549,7 +1540,7 @@ function AomiRuntimeCore({
     const unsubscribe = onUserStateChange(async (newUser) => {
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      if (prevWalletState.address === nextWalletState.address && prevWalletState.chainId === nextWalletState.chainId && prevWalletState.isConnected === nextWalletState.isConnected && prevWalletState.ensName === nextWalletState.ensName) {
+      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
@@ -1570,26 +1561,50 @@ function AomiRuntimeCore({
   ]);
   const threadContextRef = useRef7(threadContext);
   threadContextRef.current = threadContext;
-  const currentThreadIdRef = useRef7(threadContext.currentThreadId);
-  useEffect3(() => {
-    currentThreadIdRef.current = threadContext.currentThreadId;
-  }, [threadContext.currentThreadId]);
+  const remoteThreadIdsRef = useRef7(/* @__PURE__ */ new Set());
+  const warmedThreadIdsRef = useRef7(/* @__PURE__ */ new Set());
+  const warmThread = useCallback7(
+    async (threadId) => {
+      if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
+        return;
+      }
+      const userState = getUserState();
+      await aomiClientRef.current.createThread(
+        threadId,
+        UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
+      );
+      warmedThreadIdsRef.current.add(threadId);
+    },
+    [aomiClientRef, getUserState]
+  );
   useEffect3(() => {
     const unsubscribe = eventContext.subscribe(
       "user_state_request",
       () => {
+        var _a, _b, _c;
+        const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
         eventContext.sendOutboundSystem({
           type: "user_state_response",
           sessionId: threadContext.currentThreadId,
-          payload: getUserState()
+          payload: (_c = session.getUserState()) != null ? _c : getUserState()
         });
       }
     );
     return unsubscribe;
-  }, [eventContext, threadContext.currentThreadId, getUserState]);
+  }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
   useEffect3(() => {
-    void ensureInitialState(threadContext.currentThreadId);
-  }, [ensureInitialState, threadContext.currentThreadId]);
+    const threadId = threadContext.currentThreadId;
+    let cancelled = false;
+    void (async () => {
+      await warmThread(threadId);
+      if (!cancelled) {
+        await ensureInitialState(threadId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
   useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
@@ -1605,16 +1620,22 @@ function AomiRuntimeCore({
     threadContext.currentThreadId
   );
   useEffect3(() => {
-    const userAddress = user.isConnected ? user.address : void 0;
-    if (!userAddress) return;
+    const userAddress = UserState3.isConnected(user) ? UserState3.address(user) : void 0;
+    if (!userAddress) {
+      remoteThreadIdsRef.current.clear();
+      warmedThreadIdsRef.current.clear();
+      return;
+    }
     const fetchThreadList = async () => {
       var _a, _b, _c;
       try {
         const threadList = await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
+        const remoteThreadIds = /* @__PURE__ */ new Set();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
         for (const thread of threadList) {
+          remoteThreadIds.add(thread.session_id);
           const rawTitle = (_a = thread.title) != null ? _a : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive = ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
@@ -1633,16 +1654,26 @@ function AomiRuntimeCore({
             }
           }
         }
+        remoteThreadIdsRef.current = remoteThreadIds;
+        warmedThreadIdsRef.current = new Set(
+          Array.from(warmedThreadIdsRef.current).filter(
+            (threadId) => remoteThreadIds.has(threadId)
+          )
+        );
         currentContext.setThreadMetadata(newMetadata);
         if (maxChatNum > currentContext.threadCnt) {
           currentContext.setThreadCnt(maxChatNum);
+        }
+        if (remoteThreadIds.has(currentContext.currentThreadId)) {
+          await warmThread(currentContext.currentThreadId);
+          await ensureInitialState(currentContext.currentThreadId);
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
       }
     };
     void fetchThreadList();
-  }, [user.address, user.isConnected, aomiClientRef]);
+  }, [user, aomiClientRef, ensureInitialState, warmThread]);
   const threadListAdapter = useMemo2(
     () => buildThreadListAdapter({
       aomiClientRef,
@@ -1845,7 +1876,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: user.isConnected ? (_a = user.address) != null ? _a : void 0 : void 0,
+      publicKey: UserState4.isConnected(user) ? (_a = UserState4.address(user)) != null ? _a : void 0 : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ jsx7(

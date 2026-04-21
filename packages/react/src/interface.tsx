@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { UserState } from "./contexts/user-context";
+import type { UserState } from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
 import type {
   EventSubscriber,

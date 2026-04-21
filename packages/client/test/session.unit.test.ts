@@ -59,9 +59,9 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0xabc",
-      chainId: 1,
-      isConnected: true,
-      ensName: "wallet.eth",
+      chain_id: 1,
+      is_connected: true,
+      ens_name: "wallet.eth",
       ext: {
         SIMMER_API_KEY: "sk_live_2",
         PARA_API_KEY: "para_live_2",
@@ -85,7 +85,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0xdef",
-      isConnected: true,
+      is_connected: true,
       ext: { SIMMER_API_KEY: "sk_live_3" },
     });
 
@@ -94,7 +94,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[1][2]?.userState).toEqual({
       address: "0xdef",
-      isConnected: true,
+      is_connected: true,
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -131,7 +131,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0x123",
-      isConnected: true,
+      is_connected: true,
       ext: { client_type: CLIENT_TYPE_WEB_UI },
     });
 
@@ -144,7 +144,7 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-5",
       userState: {
         address: "0x999",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "sk_live_5" },
       },
     });
@@ -154,7 +154,7 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x999",
-        isConnected: true,
+        is_connected: true,
         ext: {
           SIMMER_API_KEY: "sk_live_5",
           PARA_API_KEY: "para_live_5",
@@ -176,7 +176,7 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-6",
       userState: {
         address: "0x888",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "expected" },
       },
     });
@@ -186,7 +186,7 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x888",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "different" },
       },
     } satisfies AomiStateResponse);
@@ -208,9 +208,9 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-7",
       userState: {
         address: "0x9C7a99480c59955a635123EDa064456393e519f5",
-        chainId: 8453,
-        isConnected: true,
-        ensName: undefined,
+        chain_id: 8453,
+        is_connected: true,
+        ens_name: undefined,
         ext: undefined,
       },
     });
@@ -220,11 +220,12 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x9C7a99480c59955a635123EDa064456393e519f5",
-        chainId: 8453,
-        isConnected: true,
-        ensName: null,
+        chain_id: 8453,
+        is_connected: true,
+        ens_name: null,
         ext: null,
-        pendingTransactions: [],
+        pending_txs: {},
+        pending_eip712s: {},
       },
     } satisfies AomiChatResponse);
 
@@ -232,6 +233,64 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
     });
     expect(warnSpy).not.toHaveBeenCalled();
+
+    session.close();
+  });
+
+  it("hydrates pending wallet requests from backend user_state", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-7b" });
+    const requestsChanged = vi.fn();
+
+    session.on("wallet_requests_changed", requestsChanged);
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        address: "0x9C7a99480c59955a635123EDa064456393e519f5",
+        chain_id: 8453,
+        is_connected: true,
+        pending_txs: {
+          1: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x",
+            chain_id: 8453,
+          },
+        },
+        pending_eip712s: {
+          7: {
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0x123" },
+            },
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "tx-1",
+        kind: "transaction",
+        payload: expect.objectContaining({ txId: 1, chainId: 8453 }),
+      }),
+      expect.objectContaining({
+        id: "eip712-7",
+        kind: "eip712_sign",
+        payload: expect.objectContaining({
+          eip712Id: 7,
+          description: "Permit2 signature",
+        }),
+      }),
+    ]);
+    expect(requestsChanged).toHaveBeenCalled();
 
     session.close();
   });
