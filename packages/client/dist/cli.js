@@ -1464,6 +1464,7 @@ var init_session = __esm({
         } else {
           this.publicKey = void 0;
         }
+        this.syncWalletRequests();
       }
       setClientType(clientType) {
         var _a3;
@@ -1643,19 +1644,25 @@ var init_session = __esm({
       // Internal — Wallet Request Queue
       // ===========================================================================
       enqueueWalletRequest(kind, payload) {
+        var _a3;
+        const id = this.getWalletRequestId(kind, payload);
+        const existing = this.walletRequests.find((request) => request.id === id);
         const req = {
-          id: `wreq-${this.walletRequestNextId++}`,
+          id,
           kind,
           payload,
-          timestamp: Date.now()
+          timestamp: (_a3 = existing == null ? void 0 : existing.timestamp) != null ? _a3 : Date.now()
         };
-        this.walletRequests.push(req);
+        this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+        this.emit("wallet_requests_changed", this.getPendingRequests());
         return req;
       }
       removeWalletRequest(id) {
         const idx = this.walletRequests.findIndex((r) => r.id === id);
         if (idx === -1) return null;
-        return this.walletRequests.splice(idx, 1)[0];
+        const [request] = this.walletRequests.splice(idx, 1);
+        this.emit("wallet_requests_changed", this.getPendingRequests());
+        return request;
       }
       // ===========================================================================
       // Internal — Helpers
@@ -1689,6 +1696,65 @@ var init_session = __esm({
             `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`
           );
         }
+      }
+      getWalletRequestId(kind, payload) {
+        if (kind === "transaction") {
+          const txId = payload.txId;
+          if (typeof txId === "number") {
+            return `tx-${txId}`;
+          }
+        } else {
+          const eip712Id = payload.eip712Id;
+          if (typeof eip712Id === "number") {
+            return `eip712-${eip712Id}`;
+          }
+        }
+        return `wreq-${this.walletRequestNextId++}`;
+      }
+      syncWalletRequests() {
+        var _a3, _b, _c, _d, _e, _f, _g, _h;
+        const nextRequests = [];
+        const pendingTxs = isRecord((_a3 = this.userState) == null ? void 0 : _a3.pending_txs) ? (_b = this.userState) == null ? void 0 : _b.pending_txs : void 0;
+        const pendingEip712s = isRecord((_c = this.userState) == null ? void 0 : _c.pending_eip712s) ? (_d = this.userState) == null ? void 0 : _d.pending_eip712s : void 0;
+        for (const [id, raw] of Object.entries(pendingTxs != null ? pendingTxs : {}).sort(
+          (left, right) => Number(left[0]) - Number(right[0])
+        )) {
+          const payload = normalizeTxPayload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+            pending_tx_id: Number(id)
+          }));
+          if (!payload) {
+            continue;
+          }
+          const requestId = this.getWalletRequestId("transaction", payload);
+          nextRequests.push({
+            id: requestId,
+            kind: "transaction",
+            payload,
+            timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+          });
+        }
+        for (const [id, raw] of Object.entries(pendingEip712s != null ? pendingEip712s : {}).sort(
+          (left, right) => Number(left[0]) - Number(right[0])
+        )) {
+          const payload = normalizeEip712Payload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+            pending_eip712_id: Number(id)
+          }));
+          const requestId = this.getWalletRequestId("eip712_sign", payload);
+          nextRequests.push({
+            id: requestId,
+            kind: "eip712_sign",
+            payload,
+            timestamp: (_h = (_g = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _g.timestamp) != null ? _h : Date.now()
+          });
+        }
+        if (nextRequests.length === this.walletRequests.length && nextRequests.every((request, index) => {
+          const current = this.walletRequests[index];
+          return (current == null ? void 0 : current.id) === request.id && current.kind === request.kind && JSON.stringify(current.payload) === JSON.stringify(request.payload);
+        })) {
+          return;
+        }
+        this.walletRequests = nextRequests;
+        this.emit("wallet_requests_changed", this.getPendingRequests());
       }
     };
   }
