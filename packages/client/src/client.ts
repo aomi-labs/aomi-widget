@@ -18,8 +18,8 @@ import type {
   AomiSystemResponse,
   AomiThread,
   Logger,
-  UserState,
 } from "./types";
+import { UserState, type UserState as UserStateShape } from "./types";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 
 // =============================================================================
@@ -132,11 +132,14 @@ export class AomiClient {
    */
   async fetchState(
     sessionId: string,
-    userState?: UserState,
+    userState?: UserStateShape,
     clientId?: string,
   ): Promise<AomiStateResponse> {
+    const normalizedUserState = UserState.normalize(userState);
     const url = buildApiUrl(this.baseUrl, "/api/state", {
-      user_state: userState ? JSON.stringify(userState) : undefined,
+      user_state: normalizedUserState
+        ? JSON.stringify(normalizedUserState)
+        : undefined,
       client_id: clientId,
     });
 
@@ -161,19 +164,20 @@ export class AomiClient {
       app?: string;
       publicKey?: string;
       apiKey?: string;
-      userState?: UserState;
+      userState?: UserStateShape;
       clientId?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
+    const normalizedUserState = UserState.normalize(options?.userState);
 
     const payload: Record<string, unknown> = { message, app };
     if (options?.publicKey) {
       payload.public_key = options.publicKey;
     }
-    if (options?.userState) {
-      payload.user_state = JSON.stringify(options.userState);
+    if (normalizedUserState) {
+      payload.user_state = JSON.stringify(normalizedUserState);
     }
     if (options?.clientId) {
       payload.client_id = options.clientId;

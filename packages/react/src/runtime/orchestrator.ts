@@ -1,16 +1,14 @@
 "use client";
 
-import type { MutableRefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type {
   AomiClient,
-  AomiSSEEvent,
+  UserState,
   WalletRequest,
 } from "@aomi-labs/client";
 import { Session as ClientSession } from "@aomi-labs/client";
-import type { UserState } from "../contexts/user-context";
 import {
   useThreadContext,
   type ThreadContext,
@@ -24,7 +22,7 @@ type OrchestratorOptions = {
   getApp: () => string;
   getApiKey?: () => string | null;
   getClientId?: () => string | undefined;
-  onWalletRequest?: (request: WalletRequest) => void;
+  onPendingRequestsChange?: (requests: WalletRequest[]) => void;
   onEvent?: (event: { type: string; payload: unknown; sessionId: string }) => void;
 };
 
@@ -95,12 +93,10 @@ export function useRuntimeOrchestrator(
         }),
       );
 
-      // Wallet requests → forwarded to handler
       cleanups.push(
-        session.on("wallet_tx_request", (req) => options.onWalletRequest?.(req)),
-      );
-      cleanups.push(
-        session.on("wallet_eip712_request", (req) => options.onWalletRequest?.(req)),
+        session.on("wallet_requests_changed", (requests) =>
+          options.onPendingRequestsChange?.(requests),
+        ),
       );
 
       // Title changes → thread metadata
@@ -143,6 +139,7 @@ export function useRuntimeOrchestrator(
         const userState = options.getUserState?.();
         if (userState) session.resolveUserState(userState);
         await session.fetchCurrentState();
+        options.onPendingRequestsChange?.(session.getPendingRequests());
 
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
@@ -182,6 +179,7 @@ export function useRuntimeOrchestrator(
       });
 
       await session.sendAsync(text);
+      options.onPendingRequestsChange?.(session.getPendingRequests());
     },
     [getSession],
   );

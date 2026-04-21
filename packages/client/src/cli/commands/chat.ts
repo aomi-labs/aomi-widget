@@ -1,4 +1,3 @@
-import type { WalletRequest } from "../../session";
 import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
 import { CliSession } from "../cli-session";
 import {
@@ -20,7 +19,6 @@ import {
   ingestSecretsForSession,
 } from "../context";
 import { fatal } from "../errors";
-import { walletRequestToPendingTx } from "../transactions";
 import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 
@@ -112,14 +110,9 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       session,
     );
 
-    const capturedRequests: WalletRequest[] = [];
+    const previousPendingIds = new Set(cli.pendingTxs.map((tx) => tx.id));
     let printedAgentCount = 0;
     const seenToolResults = new Set<string>();
-
-    session.on("wallet_tx_request", (request) => capturedRequests.push(request));
-    session.on("wallet_eip712_request", (request) =>
-      capturedRequests.push(request),
-    );
 
     session.on("tool_complete", (event) => {
       const name = getToolNameFromEvent(event);
@@ -221,20 +214,22 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       console.log(`${DIM}✅ Done${RESET}`);
     }
 
-    for (const request of capturedRequests) {
-      const pending = cli.addPendingTx(walletRequestToPendingTx(request));
-      if (!pending) {
-        console.log("⚠️  Duplicate wallet request skipped");
-        continue;
-      }
+    const authoritativePendingTxs = cli.syncPendingFromUserState(
+      session.getUserState(),
+    );
+    const newPendingTxs = authoritativePendingTxs.filter(
+      (tx) => !previousPendingIds.has(tx.id),
+    );
+
+    for (const pending of newPendingTxs) {
       console.log(`⚡ Wallet request queued: ${pending.id}`);
-      if (request.kind === "transaction") {
-        const payload = request.payload as WalletTxPayload;
+      if (pending.kind === "transaction") {
+        const payload = pending.payload as WalletTxPayload;
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
       } else {
-        const payload = request.payload as WalletEip712Payload;
+        const payload = pending.payload as WalletEip712Payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);
         }
@@ -249,12 +244,12 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
 
       if (last?.content) {
         console.log(last.content);
-      } else if (capturedRequests.length === 0) {
+      } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
       }
     }
 
-    if (capturedRequests.length > 0) {
+    if (newPendingTxs.length > 0) {
       console.log(
         "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign.",
       );

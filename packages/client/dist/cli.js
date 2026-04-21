@@ -251,6 +251,96 @@ var init_shared = __esm({
   }
 });
 
+// src/types.ts
+function parseUserStateChainId(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return void 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return void 0;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+function isInlineCall(event) {
+  return "InlineCall" in event;
+}
+function isSystemNotice(event) {
+  return "SystemNotice" in event;
+}
+function isSystemError(event) {
+  return "SystemError" in event;
+}
+function isAsyncCallback(event) {
+  return "AsyncCallback" in event;
+}
+var CLIENT_TYPE_TS_CLI, USER_STATE_KEY_ALIASES, UserState;
+var init_types = __esm({
+  "src/types.ts"() {
+    "use strict";
+    CLIENT_TYPE_TS_CLI = "ts_cli";
+    USER_STATE_KEY_ALIASES = {
+      chainId: "chain_id",
+      isConnected: "is_connected",
+      ensName: "ens_name",
+      pendingTxs: "pending_txs",
+      pendingEip712s: "pending_eip712s",
+      nextId: "next_id"
+    };
+    ((UserState2) => {
+      function normalize(userState) {
+        var _a3;
+        if (!userState) {
+          return void 0;
+        }
+        const normalized = {};
+        for (const [key, value] of Object.entries(userState)) {
+          const normalizedKey = (_a3 = USER_STATE_KEY_ALIASES[key]) != null ? _a3 : key;
+          if (normalizedKey in normalized) {
+            continue;
+          }
+          normalized[normalizedKey] = value;
+        }
+        return normalized;
+      }
+      UserState2.normalize = normalize;
+      function address(userState) {
+        const normalized = normalize(userState);
+        const address2 = normalized == null ? void 0 : normalized.address;
+        return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
+      }
+      UserState2.address = address;
+      function chainId(userState) {
+        const normalized = normalize(userState);
+        return parseUserStateChainId(normalized == null ? void 0 : normalized.chain_id);
+      }
+      UserState2.chainId = chainId;
+      function isConnected(userState) {
+        const normalized = normalize(userState);
+        const isConnected2 = normalized == null ? void 0 : normalized.is_connected;
+        return typeof isConnected2 === "boolean" ? isConnected2 : void 0;
+      }
+      UserState2.isConnected = isConnected;
+      function withExt(userState, key, value) {
+        var _a3;
+        const normalizedUserState = (_a3 = normalize(userState)) != null ? _a3 : {};
+        const currentExt = normalizedUserState["ext"];
+        const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
+        return __spreadProps(__spreadValues({}, normalizedUserState), {
+          ext: __spreadProps(__spreadValues({}, extRecord), {
+            [key]: value
+          })
+        });
+      }
+      UserState2.withExt = withExt;
+    })(UserState || (UserState = {}));
+  }
+});
+
 // src/sse.ts
 function extractSseData(rawEvent) {
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
@@ -481,6 +571,7 @@ var SESSION_ID_HEADER, API_KEY_HEADER, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
+    init_types();
     init_sse();
     SESSION_ID_HEADER = "X-Session-Id";
     API_KEY_HEADER = "X-API-Key";
@@ -502,8 +593,9 @@ var init_client = __esm({
        * Fetch current session state (messages, processing status, title).
        */
       async fetchState(sessionId, userState, clientId) {
+        const normalizedUserState = UserState.normalize(userState);
         const url = buildApiUrl(this.baseUrl, "/api/state", {
-          user_state: userState ? JSON.stringify(userState) : void 0,
+          user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
         });
         const response = await fetch(url, {
@@ -521,12 +613,13 @@ var init_client = __esm({
         var _a3, _b;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
+        const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
         const payload = { message, app };
         if (options == null ? void 0 : options.publicKey) {
           payload.public_key = options.publicKey;
         }
-        if (options == null ? void 0 : options.userState) {
-          payload.user_state = JSON.stringify(options.userState);
+        if (normalizedUserState) {
+          payload.user_state = JSON.stringify(normalizedUserState);
         }
         if (options == null ? void 0 : options.clientId) {
           payload.client_id = options.clientId;
@@ -908,36 +1001,6 @@ ${body}` : ""}`);
   }
 });
 
-// src/types.ts
-function addUserStateExt(userState, key, value) {
-  const currentExt = userState["ext"];
-  const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
-  return __spreadProps(__spreadValues({}, userState), {
-    ext: __spreadProps(__spreadValues({}, extRecord), {
-      [key]: value
-    })
-  });
-}
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
-}
-var CLIENT_TYPE_TS_CLI;
-var init_types = __esm({
-  "src/types.ts"() {
-    "use strict";
-    CLIENT_TYPE_TS_CLI = "ts_cli";
-  }
-});
-
 // src/event.ts
 function unwrapSystemEvent(event) {
   var _a3;
@@ -1198,7 +1261,7 @@ var init_session = __esm({
     init_wallet_utils();
     ClientSession = class extends TypedEventEmitter {
       constructor(clientOrOptions, sessionOptions) {
-        var _a3, _b, _c, _d, _e;
+        var _a3, _b, _c, _d;
         super();
         // Internal state
         this.pollTimer = null;
@@ -1216,9 +1279,10 @@ var init_session = __esm({
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
         this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? addUserStateExt((_c = sessionOptions == null ? void 0 : sessionOptions.userState) != null ? _c : {}, "client_type", sessionOptions.clientType) : sessionOptions == null ? void 0 : sessionOptions.userState;
-        this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
-        this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+        const initialUserState = UserState.normalize(sessionOptions == null ? void 0 : sessionOptions.userState);
+        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
+        this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+        this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
         this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
         this.unsubscribeSSE = this.client.subscribeSSE(
           this.sessionId,
@@ -1379,6 +1443,10 @@ var init_session = __esm({
       getTitle() {
         return this._title;
       }
+      /** Latest authoritative backend user_state snapshot seen by this session. */
+      getUserState() {
+        return this.userState ? __spreadValues({}, this.userState) : void 0;
+      }
       /** Pending wallet requests waiting for resolve/reject. */
       getPendingRequests() {
         return [...this.walletRequests];
@@ -1388,18 +1456,19 @@ var init_session = __esm({
         return this._isProcessing;
       }
       resolveUserState(userState) {
-        this.userState = userState;
-        const address = userState["address"];
-        const isConnected = userState["isConnected"];
-        if (typeof address === "string" && address.length > 0 && isConnected !== false) {
+        this.userState = UserState.normalize(userState);
+        const address = UserState.address(this.userState);
+        const isConnected = UserState.isConnected(this.userState);
+        if (address && isConnected !== false) {
           this.publicKey = address;
         } else {
           this.publicKey = void 0;
         }
+        this.syncWalletRequests();
       }
       setClientType(clientType) {
         var _a3;
-        this.resolveUserState(addUserStateExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType));
+        this.resolveUserState(UserState.withExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType));
       }
       addExtValue(key, value) {
         var _a3;
@@ -1426,7 +1495,11 @@ var init_session = __esm({
         this.resolveUserState(nextState);
       }
       resolveWallet(address, chainId) {
-        this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });
+        this.resolveUserState({
+          address,
+          chain_id: chainId != null ? chainId : 1,
+          is_connected: true
+        });
       }
       async syncUserState() {
         this.assertOpen();
@@ -1517,6 +1590,9 @@ var init_session = __esm({
       // ===========================================================================
       applyState(state) {
         var _a3;
+        if (state.user_state) {
+          this.resolveUserState(state.user_state);
+        }
         if (state.messages) {
           this._messages = state.messages;
           this.emit("messages", this._messages);
@@ -1568,19 +1644,25 @@ var init_session = __esm({
       // Internal — Wallet Request Queue
       // ===========================================================================
       enqueueWalletRequest(kind, payload) {
+        var _a3;
+        const id = this.getWalletRequestId(kind, payload);
+        const existing = this.walletRequests.find((request) => request.id === id);
         const req = {
-          id: `wreq-${this.walletRequestNextId++}`,
+          id,
           kind,
           payload,
-          timestamp: Date.now()
+          timestamp: (_a3 = existing == null ? void 0 : existing.timestamp) != null ? _a3 : Date.now()
         };
-        this.walletRequests.push(req);
+        this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+        this.emit("wallet_requests_changed", this.getPendingRequests());
         return req;
       }
       removeWalletRequest(id) {
         const idx = this.walletRequests.findIndex((r) => r.id === id);
         if (idx === -1) return null;
-        return this.walletRequests.splice(idx, 1)[0];
+        const [request] = this.walletRequests.splice(idx, 1);
+        this.emit("wallet_requests_changed", this.getPendingRequests());
+        return request;
       }
       // ===========================================================================
       // Internal — Helpers
@@ -1602,18 +1684,225 @@ var init_session = __esm({
         }
       }
       assertUserStateAligned(actualUserState) {
-        if (!this.userState || !actualUserState) {
+        const expectedUserState = UserState.normalize(this.userState);
+        const normalizedActualUserState = UserState.normalize(actualUserState);
+        if (!expectedUserState || !normalizedActualUserState) {
           return;
         }
-        if (!isSubsetMatch(this.userState, actualUserState)) {
-          const expected = JSON.stringify(sortJson(this.userState));
-          const actual = JSON.stringify(sortJson(actualUserState));
+        if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
+          const expected = JSON.stringify(sortJson(expectedUserState));
+          const actual = JSON.stringify(sortJson(normalizedActualUserState));
           console.warn(
             `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`
           );
         }
       }
+      getWalletRequestId(kind, payload) {
+        if (kind === "transaction") {
+          const txId = payload.txId;
+          if (typeof txId === "number") {
+            return `tx-${txId}`;
+          }
+        } else {
+          const eip712Id = payload.eip712Id;
+          if (typeof eip712Id === "number") {
+            return `eip712-${eip712Id}`;
+          }
+        }
+        return `wreq-${this.walletRequestNextId++}`;
+      }
+      syncWalletRequests() {
+        var _a3, _b, _c, _d, _e, _f, _g, _h;
+        const nextRequests = [];
+        const pendingTxs = isRecord((_a3 = this.userState) == null ? void 0 : _a3.pending_txs) ? (_b = this.userState) == null ? void 0 : _b.pending_txs : void 0;
+        const pendingEip712s = isRecord((_c = this.userState) == null ? void 0 : _c.pending_eip712s) ? (_d = this.userState) == null ? void 0 : _d.pending_eip712s : void 0;
+        for (const [id, raw] of Object.entries(pendingTxs != null ? pendingTxs : {}).sort(
+          (left, right) => Number(left[0]) - Number(right[0])
+        )) {
+          const payload = normalizeTxPayload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+            pending_tx_id: Number(id)
+          }));
+          if (!payload) {
+            continue;
+          }
+          const requestId = this.getWalletRequestId("transaction", payload);
+          nextRequests.push({
+            id: requestId,
+            kind: "transaction",
+            payload,
+            timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+          });
+        }
+        for (const [id, raw] of Object.entries(pendingEip712s != null ? pendingEip712s : {}).sort(
+          (left, right) => Number(left[0]) - Number(right[0])
+        )) {
+          const payload = normalizeEip712Payload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+            pending_eip712_id: Number(id)
+          }));
+          const requestId = this.getWalletRequestId("eip712_sign", payload);
+          nextRequests.push({
+            id: requestId,
+            kind: "eip712_sign",
+            payload,
+            timestamp: (_h = (_g = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _g.timestamp) != null ? _h : Date.now()
+          });
+        }
+        if (nextRequests.length === this.walletRequests.length && nextRequests.every((request, index) => {
+          const current = this.walletRequests[index];
+          return (current == null ? void 0 : current.id) === request.id && current.kind === request.kind && JSON.stringify(current.payload) === JSON.stringify(request.payload);
+        })) {
+          return;
+        }
+        this.walletRequests = nextRequests;
+        this.emit("wallet_requests_changed", this.getPendingRequests());
+      }
     };
+  }
+});
+
+// src/cli/user-state.ts
+import { getAddress as getAddress2 } from "viem";
+function asRecord2(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  return value;
+}
+function parsePendingId2(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function parseOptionalString(value) {
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function parseChainId3(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return void 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return void 0;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+function normalizeMaybeAddress(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return void 0;
+  }
+  try {
+    return getAddress2(value);
+  } catch (e) {
+    return value;
+  }
+}
+function pendingDisplayId(id) {
+  return `tx-${id}`;
+}
+function txTimestamp(existingById, id, fallbackNow) {
+  var _a3, _b;
+  return (_b = (_a3 = existingById.get(id)) == null ? void 0 : _a3.timestamp) != null ? _b : fallbackNow;
+}
+function buildCliUserState(publicKey, chainId) {
+  const userState = {};
+  if (publicKey !== void 0) {
+    userState.address = publicKey;
+    userState.is_connected = true;
+  }
+  if (chainId !== void 0) {
+    userState.chain_id = chainId;
+  }
+  return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
+}
+function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
+  var _a3, _b;
+  const normalizedUserState = UserState.normalize(userState);
+  if (!normalizedUserState) {
+    return [];
+  }
+  const existingById = new Map(existingPendingTxs.map((tx) => [tx.id, tx]));
+  const fallbackNow = Date.now();
+  const nextPendingTxs = [];
+  const pendingTxs = (_a3 = asRecord2(normalizedUserState.pending_txs)) != null ? _a3 : {};
+  for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
+    const pendingId = parsePendingId2(rawId);
+    const tx = asRecord2(rawValue);
+    if (!pendingId || !tx) {
+      continue;
+    }
+    const id = pendingDisplayId(pendingId);
+    const to = normalizeMaybeAddress(tx.to);
+    if (!to) {
+      continue;
+    }
+    nextPendingTxs.push({
+      id,
+      kind: "transaction",
+      txId: pendingId,
+      to,
+      value: parseOptionalString(tx.value),
+      data: parseOptionalString(tx.data),
+      chainId: parseChainId3(tx.chain_id),
+      description: parseOptionalString(tx.label),
+      timestamp: txTimestamp(existingById, id, fallbackNow),
+      payload: {
+        pending_tx_id: pendingId,
+        txId: pendingId,
+        to,
+        value: parseOptionalString(tx.value),
+        data: parseOptionalString(tx.data),
+        chain_id: parseChainId3(tx.chain_id),
+        chainId: parseChainId3(tx.chain_id),
+        description: parseOptionalString(tx.label)
+      }
+    });
+  }
+  const pendingEip712s = (_b = asRecord2(normalizedUserState.pending_eip712s)) != null ? _b : {};
+  for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
+    const pendingId = parsePendingId2(rawId);
+    const request = asRecord2(rawValue);
+    if (!pendingId || !request) {
+      continue;
+    }
+    const id = pendingDisplayId(pendingId);
+    const description = parseOptionalString(request.description);
+    nextPendingTxs.push({
+      id,
+      kind: "eip712_sign",
+      eip712Id: pendingId,
+      chainId: parseChainId3(request.chain_id),
+      description,
+      timestamp: txTimestamp(existingById, id, fallbackNow),
+      payload: {
+        pending_eip712_id: pendingId,
+        eip712Id: pendingId,
+        typed_data: request.typed_data,
+        description
+      }
+    });
+  }
+  nextPendingTxs.sort((left, right) => {
+    const leftId = left.kind === "transaction" ? left.txId : left.eip712Id;
+    const rightId = right.kind === "transaction" ? right.txId : right.eip712Id;
+    return (leftId != null ? leftId : Number.MAX_SAFE_INTEGER) - (rightId != null ? rightId : Number.MAX_SAFE_INTEGER);
+  });
+  return nextPendingTxs;
+}
+function walletSnapshotFromUserState(userState) {
+  const address = UserState.address(userState);
+  const isConnected = UserState.isConnected(userState);
+  return {
+    publicKey: isConnected === false ? void 0 : address,
+    chainId: UserState.chainId(userState)
+  };
+}
+var init_user_state = __esm({
+  "src/cli/user-state.ts"() {
+    "use strict";
+    init_types();
   }
 });
 
@@ -1628,6 +1917,14 @@ import {
 } from "fs";
 import { basename, join } from "path";
 import { homedir, tmpdir } from "os";
+function getBackendPendingId(tx) {
+  return tx.kind === "transaction" ? tx.txId : tx.eip712Id;
+}
+function hasSameBackendPendingId(existing, next) {
+  const existingBackendId = getBackendPendingId(existing);
+  const nextBackendId = getBackendPendingId(next);
+  return existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
+}
 function ensureStorageDirs() {
   mkdirSync(SESSIONS_DIR, { recursive: true });
 }
@@ -1868,10 +2165,23 @@ function clearState() {
   migrateLegacyStateIfNeeded();
   writeActiveLocalId(null);
 }
+function syncPendingTxsFromUserState(state, userState) {
+  var _a3;
+  const walletSnapshot = walletSnapshotFromUserState(userState);
+  state.publicKey = walletSnapshot.publicKey;
+  state.chainId = walletSnapshot.chainId;
+  state.pendingTxs = pendingTxsFromBackendUserState(
+    userState,
+    (_a3 = state.pendingTxs) != null ? _a3 : []
+  );
+  writeState(state);
+  return state.pendingTxs;
+}
 var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
 var init_state = __esm({
   "src/cli/state.ts"() {
     "use strict";
+    init_user_state();
     SESSION_FILE_PREFIX = "session-";
     SESSION_FILE_SUFFIX = ".json";
     LEGACY_STATE_FILE = join(
@@ -1882,25 +2192,6 @@ var init_state = __esm({
     SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
     ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
     _migrationDone = false;
-  }
-});
-
-// src/cli/user-state.ts
-function buildCliUserState(publicKey, chainId) {
-  const userState = {};
-  if (publicKey !== void 0) {
-    userState.address = publicKey;
-    userState.isConnected = true;
-  }
-  if (chainId !== void 0) {
-    userState.chainId = chainId;
-  }
-  return addUserStateExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
-}
-var init_user_state = __esm({
-  "src/cli/user-state.ts"() {
-    "use strict";
-    init_types();
   }
 });
 
@@ -2085,11 +2376,11 @@ var init_cli_session = __esm({
       addPendingTx(tx) {
         if (!this.state.pendingTxs) this.state.pendingTxs = [];
         const isDuplicate = this.state.pendingTxs.some(
-          (existing) => existing.kind === tx.kind && existing.to === tx.to && existing.data === tx.data && existing.value === tx.value && existing.chainId === tx.chainId
+          (existing) => hasSameBackendPendingId(existing, tx)
         );
         if (isDuplicate) return null;
         const pending = __spreadProps(__spreadValues({}, tx), {
-          id: this.getNextTxId()
+          id: this.getDisplayTxId(tx)
         });
         this.state.pendingTxs.push(pending);
         this.save();
@@ -2107,6 +2398,11 @@ var init_cli_session = __esm({
         if (!this.state.signedTxs) this.state.signedTxs = [];
         this.state.signedTxs.push(tx);
         this.save();
+      }
+      syncPendingFromUserState(userState) {
+        const pendingTxs = syncPendingTxsFromUserState(this.state, userState);
+        this.reload();
+        return pendingTxs;
       }
       /** Get a pending tx by ID, or fatal() if not found. */
       requirePendingTx(txId) {
@@ -2162,6 +2458,11 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       save() {
         writeState(this.state);
+      }
+      getDisplayTxId(tx) {
+        if (typeof tx.txId === "number") return `tx-${tx.txId}`;
+        if (typeof tx.eip712Id === "number") return `tx-${tx.eip712Id}`;
+        return this.getNextTxId();
       }
       getNextTxId() {
         var _a3, _b;
@@ -2324,108 +2625,6 @@ var init_context = __esm({
   }
 });
 
-// src/cli/transactions.ts
-function walletRequestToPendingTx(request) {
-  if (request.kind === "transaction") {
-    const payload2 = request.payload;
-    return {
-      kind: "transaction",
-      txId: payload2.txId,
-      to: payload2.to,
-      value: payload2.value,
-      data: payload2.data,
-      chainId: payload2.chainId,
-      timestamp: request.timestamp,
-      payload: request.payload
-    };
-  }
-  const payload = request.payload;
-  return {
-    kind: "eip712_sign",
-    eip712Id: payload.eip712Id,
-    description: payload.description,
-    timestamp: request.timestamp,
-    payload: request.payload
-  };
-}
-function pendingTxToCallList(tx) {
-  if (tx.kind !== "transaction" || !tx.to) {
-    throw new Error("pending_transaction_missing_call_data");
-  }
-  return [
-    toAAWalletCall({
-      to: tx.to,
-      value: tx.value,
-      data: tx.data,
-      chainId: tx.chainId
-    })
-  ];
-}
-function toSignedTransactionRecord(tx, execution, from, chainId, timestamp, aaProvider, aaMode) {
-  return {
-    id: tx.id,
-    kind: "transaction",
-    txHash: execution.txHash,
-    txHashes: execution.txHashes,
-    executionKind: execution.executionKind,
-    aaProvider,
-    aaMode,
-    batched: execution.batched,
-    sponsored: execution.sponsored,
-    AAAddress: execution.AAAddress,
-    delegationAddress: execution.delegationAddress,
-    from,
-    to: tx.to,
-    value: tx.value,
-    chainId,
-    timestamp
-  };
-}
-function formatTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`];
-  if (tx.kind === "transaction") {
-    parts.push(`to: ${(_a3 = tx.to) != null ? _a3 : "?"}`);
-    if (tx.value) parts.push(`value: ${tx.value}`);
-    if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
-    if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
-  } else {
-    parts.push("eip712");
-    if (tx.description) parts.push(tx.description);
-  }
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-function formatSignedTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`];
-  if (tx.kind === "eip712_sign") {
-    parts.push(`sig: ${(_a3 = tx.signature) == null ? void 0 : _a3.slice(0, 20)}...`);
-    if (tx.description) parts.push(tx.description);
-  } else {
-    parts.push(`hash: ${tx.txHash}`);
-    if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
-    if (tx.aaProvider) parts.push(`provider: ${tx.aaProvider}`);
-    if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
-    if (tx.txHashes && tx.txHashes.length > 1) {
-      parts.push(`txs: ${tx.txHashes.length}`);
-    }
-    if (tx.sponsored) parts.push("sponsored");
-    if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
-    if (tx.delegationAddress) parts.push(`delegation: ${tx.delegationAddress}`);
-    if (tx.to) parts.push(`to: ${tx.to}`);
-    if (tx.value) parts.push(`value: ${tx.value}`);
-  }
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-var init_transactions = __esm({
-  "src/cli/transactions.ts"() {
-    "use strict";
-    init_wallet_utils();
-  }
-});
-
 // src/cli/commands/chat.ts
 var chat_exports = {};
 __export(chat_exports, {
@@ -2487,14 +2686,9 @@ async function chatCommand(config, message, verbose) {
       cli,
       session
     );
-    const capturedRequests = [];
+    const previousPendingIds = new Set(cli.pendingTxs.map((tx) => tx.id));
     let printedAgentCount = 0;
     const seenToolResults = /* @__PURE__ */ new Set();
-    session.on("wallet_tx_request", (request) => capturedRequests.push(request));
-    session.on(
-      "wallet_eip712_request",
-      (request) => capturedRequests.push(request)
-    );
     session.on("tool_complete", (event) => {
       const name = getToolNameFromEvent(event);
       const result = getToolResultFromEvent(event);
@@ -2577,20 +2771,21 @@ async function chatCommand(config, message, verbose) {
       );
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
-    for (const request of capturedRequests) {
-      const pending = cli.addPendingTx(walletRequestToPendingTx(request));
-      if (!pending) {
-        console.log("\u26A0\uFE0F  Duplicate wallet request skipped");
-        continue;
-      }
+    const authoritativePendingTxs = cli.syncPendingFromUserState(
+      session.getUserState()
+    );
+    const newPendingTxs = authoritativePendingTxs.filter(
+      (tx) => !previousPendingIds.has(tx.id)
+    );
+    for (const pending of newPendingTxs) {
       console.log(`\u26A1 Wallet request queued: ${pending.id}`);
-      if (request.kind === "transaction") {
-        const payload = request.payload;
+      if (pending.kind === "transaction") {
+        const payload = pending.payload;
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
       } else {
-        const payload = request.payload;
+        const payload = pending.payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);
         }
@@ -2603,11 +2798,11 @@ async function chatCommand(config, message, verbose) {
       const last = agentMessages[agentMessages.length - 1];
       if (last == null ? void 0 : last.content) {
         console.log(last.content);
-      } else if (capturedRequests.length === 0) {
+      } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
       }
     }
-    if (capturedRequests.length > 0) {
+    if (newPendingTxs.length > 0) {
       console.log(
         "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign."
       );
@@ -2623,7 +2818,6 @@ var init_chat = __esm({
     init_output();
     init_context();
     init_errors();
-    init_transactions();
     init_user_state();
   }
 });
@@ -3729,6 +3923,85 @@ var init_execution = __esm({
   }
 });
 
+// src/cli/transactions.ts
+function pendingTxToCallList(tx) {
+  if (tx.kind !== "transaction" || !tx.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return [
+    toAAWalletCall({
+      to: tx.to,
+      value: tx.value,
+      data: tx.data,
+      chainId: tx.chainId
+    })
+  ];
+}
+function toSignedTransactionRecord(tx, execution, from, chainId, timestamp, aaProvider, aaMode) {
+  return {
+    id: tx.id,
+    kind: "transaction",
+    txHash: execution.txHash,
+    txHashes: execution.txHashes,
+    executionKind: execution.executionKind,
+    aaProvider,
+    aaMode,
+    batched: execution.batched,
+    sponsored: execution.sponsored,
+    AAAddress: execution.AAAddress,
+    delegationAddress: execution.delegationAddress,
+    from,
+    to: tx.to,
+    value: tx.value,
+    chainId,
+    timestamp
+  };
+}
+function formatTxLine(tx, prefix) {
+  var _a3;
+  const parts = [`${prefix} ${tx.id}`];
+  if (tx.kind === "transaction") {
+    parts.push(`to: ${(_a3 = tx.to) != null ? _a3 : "?"}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+    if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
+    if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
+  } else {
+    parts.push("eip712");
+    if (tx.description) parts.push(tx.description);
+  }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+function formatSignedTxLine(tx, prefix) {
+  var _a3;
+  const parts = [`${prefix} ${tx.id}`];
+  if (tx.kind === "eip712_sign") {
+    parts.push(`sig: ${(_a3 = tx.signature) == null ? void 0 : _a3.slice(0, 20)}...`);
+    if (tx.description) parts.push(tx.description);
+  } else {
+    parts.push(`hash: ${tx.txHash}`);
+    if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
+    if (tx.aaProvider) parts.push(`provider: ${tx.aaProvider}`);
+    if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
+    if (tx.txHashes && tx.txHashes.length > 1) {
+      parts.push(`txs: ${tx.txHashes.length}`);
+    }
+    if (tx.sponsored) parts.push("sponsored");
+    if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
+    if (tx.delegationAddress) parts.push(`delegation: ${tx.delegationAddress}`);
+    if (tx.to) parts.push(`to: ${tx.to}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+  }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+var init_transactions = __esm({
+  "src/cli/transactions.ts"() {
+    "use strict";
+    init_wallet_utils();
+  }
+});
+
 // src/cli/commands/wallet.ts
 var wallet_exports = {};
 __export(wallet_exports, {
@@ -3738,7 +4011,7 @@ __export(wallet_exports, {
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 import * as viemChains from "viem/chains";
-import { getAddress as getAddress2 } from "viem";
+import { getAddress as getAddress3 } from "viem";
 function validateAndBuildFeeCall(fee, chainId) {
   const amountWei = BigInt(fee.amount_wei);
   if (amountWei === /* @__PURE__ */ BigInt("0")) {
@@ -3749,7 +4022,7 @@ function validateAndBuildFeeCall(fee, chainId) {
   }
   let recipient;
   try {
-    recipient = getAddress2(fee.recipient);
+    recipient = getAddress3(fee.recipient);
   } catch (e) {
     throw new Error(
       `Invalid fee recipient address from backend: ${fee.recipient}`
@@ -3769,12 +4042,24 @@ function validateAndBuildFeeCall(fee, chainId) {
     chainId
   });
 }
-function txCommand() {
+async function txCommand() {
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
+  }
+  const session = cli.createClientSession();
+  try {
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      void 0,
+      cli.clientId
+    );
+    cli.syncPendingFromUserState(apiState.user_state);
+  } catch (e) {
+  } finally {
+    session.close();
   }
   const pending = [...cli.pendingTxs];
   const signed = [...cli.signedTxs];
@@ -3863,9 +4148,15 @@ async function signCommand(config, txIds) {
     );
   }
   cli.mergeConfig(config);
-  const pendingTxs = cli.requirePendingTxs(txIds);
   const session = cli.createClientSession();
   try {
+    const initialState = await session.client.fetchState(
+      cli.sessionId,
+      void 0,
+      cli.clientId
+    );
+    cli.syncPendingFromUserState(initialState.user_state);
+    const pendingTxs = cli.requirePendingTxs(txIds);
     const account = privateKeyToAccount5(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
@@ -4067,18 +4358,16 @@ Use \`--eoa\` to sign without account abstraction.`
     }
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId);
-    await session.syncUserState();
-    for (const txId of txIds) {
-      cli.removePendingTx(txId);
-    }
-    for (const signedRecord of signedRecords) {
-      cli.addSignedTx(signedRecord);
-    }
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
         cli.sessionId,
         JSON.stringify(backendNotification)
       );
+    }
+    const syncedState = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState.user_state);
+    for (const signedRecord of signedRecords) {
+      cli.addSignedTx(signedRecord);
     }
     console.log("Backend notified.");
   } catch (err) {
@@ -4117,6 +4406,17 @@ async function simulateCommand(txIds) {
   }
   if (txIds.length === 0) {
     fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
+  }
+  const session = cli.createClientSession();
+  try {
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      void 0,
+      cli.clientId
+    );
+    cli.syncPendingFromUserState(apiState.user_state);
+  } finally {
+    session.close();
   }
   const pendingTxs = txIds.map((txId) => cli.requirePendingTx(txId));
   console.log(
@@ -4213,16 +4513,28 @@ function estimateTokenCount(messages) {
   }
   return Math.round(totalChars / 4);
 }
+function toIsoTimestamp(timestamp) {
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
+    return null;
+  }
+  try {
+    return new Date(timestamp).toISOString();
+  } catch (e) {
+    return null;
+  }
+}
 function toPendingTxMetadata(tx) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e, _f;
   return {
     id: tx.id,
     kind: tx.kind,
-    to: (_a3 = tx.to) != null ? _a3 : null,
-    value: (_b = tx.value) != null ? _b : null,
-    chainId: (_c = tx.chainId) != null ? _c : null,
-    description: (_d = tx.description) != null ? _d : null,
-    timestamp: new Date(tx.timestamp).toISOString()
+    txId: (_a3 = tx.txId) != null ? _a3 : null,
+    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
+    to: (_c = tx.to) != null ? _c : null,
+    value: (_d = tx.value) != null ? _d : null,
+    chainId: (_e = tx.chainId) != null ? _e : null,
+    description: (_f = tx.description) != null ? _f : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
   };
 }
 function toSignedTxMetadata(tx) {
@@ -4245,7 +4557,7 @@ function toSignedTxMetadata(tx) {
     value: (_m = tx.value) != null ? _m : null,
     chainId: (_n = tx.chainId) != null ? _n : null,
     description: (_o = tx.description) != null ? _o : null,
-    timestamp: new Date(tx.timestamp).toISOString()
+    timestamp: toIsoTimestamp(tx.timestamp)
   };
 }
 function printKeyValueTable(rows, color = CYAN) {
@@ -4269,12 +4581,18 @@ function printKeyValueTable(rows, color = CYAN) {
   }
 }
 function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
+  const safePendingTxs = pendingTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const safeSignedTxs = signedTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
   const rows = [
-    ...pendingTxs.map((tx) => ({
+    ...safePendingTxs.map((tx) => ({
       status: "pending",
       metadata: toPendingTxMetadata(tx)
     })),
-    ...signedTxs.map((tx) => ({
+    ...safeSignedTxs.map((tx) => ({
       status: "signed",
       metadata: toSignedTxMetadata(tx)
     }))
@@ -4329,7 +4647,7 @@ __export(sessions_exports, {
   sessionsCommand: () => sessionsCommand
 });
 async function fetchRemoteSessionStats(record) {
-  var _a3, _b;
+  var _a3, _b, _c;
   const client = new AomiClient({
     baseUrl: record.state.baseUrl,
     apiKey: record.state.apiKey
@@ -4341,20 +4659,24 @@ async function fetchRemoteSessionStats(record) {
       topic: (_b = apiState.title) != null ? _b : "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
-      toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length
+      toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
+      pendingTxs: pendingTxsFromBackendUserState(
+        apiState.user_state,
+        (_c = record.state.pendingTxs) != null ? _c : []
+      )
     };
   } catch (e) {
     return null;
   }
 }
 function printSessionSummary(record, stats, isActive) {
-  var _a3, _b, _c;
-  const pendingTxs = (_a3 = record.state.pendingTxs) != null ? _a3 : [];
-  const signedTxs = (_b = record.state.signedTxs) != null ? _b : [];
+  var _a3, _b, _c, _d;
+  const pendingTxs = (_b = (_a3 = stats == null ? void 0 : stats.pendingTxs) != null ? _a3 : record.state.pendingTxs) != null ? _b : [];
+  const signedTxs = (_c = record.state.signedTxs) != null ? _c : [];
   const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
   console.log(`${YELLOW}------ ${header} ------${RESET}`);
   printKeyValueTable([
-    ["\u{1F9E0} topic", (_c = stats == null ? void 0 : stats.topic) != null ? _c : "Unavailable (fetch failed)"],
+    ["\u{1F9E0} topic", (_d = stats == null ? void 0 : stats.topic) != null ? _d : "Unavailable (fetch failed)"],
     ["\u{1F4AC} msg count", stats ? String(stats.messageCount) : "n/a"],
     [
       "\u{1F9EE} token count",
@@ -4429,6 +4751,7 @@ var init_sessions = __esm({
     init_errors();
     init_output();
     init_state();
+    init_user_state();
     init_tables();
   }
 });
@@ -4672,6 +4995,7 @@ async function logCommand(config) {
   const session = cli.createClientSession();
   try {
     const apiState = await session.client.fetchState(cli.sessionId, void 0, cli.clientId);
+    cli.syncPendingFromUserState(apiState.user_state);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     const pendingTxs = [...cli.pendingTxs];
     const signedTxs = [...cli.signedTxs];
@@ -5161,7 +5485,7 @@ var txListDef = defineCommand2({
   args: {},
   async run() {
     const { txCommand: txCommand2 } = await Promise.resolve().then(() => (init_wallet(), wallet_exports));
-    txCommand2();
+    await txCommand2();
   }
 });
 var txSimulateDef = defineCommand2({

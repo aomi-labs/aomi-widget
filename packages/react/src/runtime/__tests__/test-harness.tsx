@@ -119,6 +119,13 @@ export const getLatestAomiClient = () =>
 
 vi.mock("@aomi-labs/client", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
+  const UserState = actual.UserState as {
+    normalize: (
+      userState?: Record<string, unknown> | null,
+    ) => Record<string, unknown> | undefined;
+    address: (userState?: Record<string, unknown> | null) => string | undefined;
+    isConnected: (userState?: Record<string, unknown> | null) => boolean | undefined;
+  };
 
   // Mock class defined inside the factory
   class MockAomiClient {
@@ -266,6 +273,12 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _apiKey?: string;
     private _userState?: Record<string, unknown>;
     private _clientId?: string;
+    private _walletRequests: Array<{
+      id: string;
+      kind: "transaction" | "eip712_sign";
+      payload: Record<string, unknown>;
+      timestamp: number;
+    }> = [];
 
     constructor(
       clientOrOptions: unknown,
@@ -282,6 +295,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       this._publicKey = opts?.publicKey;
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
+      this.resolveUserState(opts?.userState);
 
       // SSE subscription
       this.client.subscribeSSE(this.sessionId, (event: AomiSSEEvent) => {
@@ -310,10 +324,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         userState: this._userState,
         clientId: this._clientId,
       });
-      if (response?.messages) {
-        this._messages = response.messages;
-        this.emit("messages", response.messages);
-      }
+      this.applyState(response);
       if (response?.is_processing) {
         this._isProcessing = true;
         this.emit("processing_start", undefined);
@@ -331,10 +342,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     async fetchCurrentState() {
       const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
-      if (state?.messages) {
-        this._messages = state.messages;
-        this.emit("messages", state.messages);
-      }
+      this.applyState(state);
       this._isProcessing = !!state?.is_processing;
     }
 
@@ -342,20 +350,17 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async reject(_id: string, _reason?: string) {}
 
     resolveUserState(userState: unknown) {
-      if (userState && typeof userState === "object") {
-        this._userState = userState as Record<string, unknown>;
-        const addr = (userState as Record<string, unknown>).address;
-        const isConnected = (userState as Record<string, unknown>).isConnected;
-        if (
-          typeof addr === "string" &&
-          addr.length > 0 &&
-          isConnected !== false
-        ) {
-          this._publicKey = addr;
-        } else {
-          this._publicKey = undefined;
-        }
-      }
+      const normalized = UserState.normalize(
+        userState as Record<string, unknown> | null | undefined,
+      );
+      if (!normalized) return;
+
+      this._userState = normalized;
+      this._publicKey =
+        UserState.isConnected(normalized) === false
+          ? undefined
+          : UserState.address(normalized);
+      this.syncWalletRequests();
     }
     resolveWallet(_address: string, _chainId?: number) {}
     startPolling() {
@@ -363,10 +368,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       this._pollTimer = setInterval(async () => {
         try {
           const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
-          if (state?.messages) {
-            this._messages = state.messages;
-            this.emit("messages", state.messages);
-          }
+          this.applyState(state);
           if (!state?.is_processing) {
             this.stopPolling();
             this._isProcessing = false;
@@ -387,9 +389,62 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     getIsPolling() { return this._pollTimer !== null; }
     getMessages() { return this._messages; }
     getTitle() { return this._title; }
-    getPendingRequests() { return []; }
+    getPendingRequests() { return [...this._walletRequests]; }
+    getUserState() { return this._userState ? { ...this._userState } : undefined; }
     close() { this.stopPolling(); this.listeners.clear(); }
     removeAllListeners() { this.listeners.clear(); }
+
+    private applyState(
+      state?: AomiStateResponse | AomiChatResponse | { user_state?: Record<string, unknown> | null },
+    ) {
+      if (state?.user_state) {
+        this.resolveUserState(state.user_state);
+      }
+      if (state?.messages) {
+        this._messages = state.messages;
+        this.emit("messages", state.messages);
+      }
+    }
+
+    private syncWalletRequests() {
+      const pendingTxs =
+        this._userState?.pending_txs &&
+        typeof this._userState.pending_txs === "object" &&
+        !Array.isArray(this._userState.pending_txs)
+          ? (this._userState.pending_txs as Record<string, Record<string, unknown>>)
+          : {};
+      const pendingEip712s =
+        this._userState?.pending_eip712s &&
+        typeof this._userState.pending_eip712s === "object" &&
+        !Array.isArray(this._userState.pending_eip712s)
+          ? (this._userState.pending_eip712s as Record<string, Record<string, unknown>>)
+          : {};
+
+      this._walletRequests = [
+        ...Object.entries(pendingTxs)
+          .sort((left, right) => Number(left[0]) - Number(right[0]))
+          .map(([id, payload]) => ({
+            id: `tx-${id}`,
+            kind: "transaction" as const,
+            payload: { ...payload, txId: Number(id), pending_tx_id: Number(id) },
+            timestamp: Date.now(),
+          })),
+        ...Object.entries(pendingEip712s)
+          .sort((left, right) => Number(left[0]) - Number(right[0]))
+          .map(([id, payload]) => ({
+            id: `eip712-${id}`,
+            kind: "eip712_sign" as const,
+            payload: {
+              ...payload,
+              eip712Id: Number(id),
+              pending_eip712_id: Number(id),
+            },
+            timestamp: Date.now(),
+          })),
+      ];
+
+      this.emit("wallet_requests_changed", this.getPendingRequests());
+    }
   }
 
   return {
