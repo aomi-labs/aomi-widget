@@ -8,7 +8,7 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import type { AomiClient } from "@aomi-labs/client";
+import { UserState, type AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/user-context";
@@ -66,15 +66,15 @@ export function AomiRuntimeCore({
     cancelGeneration: orchestratorCancel,
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => {
-      const userState = getUserState();
-      return userState.isConnected ? (userState.address ?? undefined) : undefined;
-    },
+    getPublicKey: () =>
+      UserState.isConnected(getUserState())
+        ? UserState.address(getUserState())
+        : undefined,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
-    onWalletRequest: (request) => walletHandler.enqueueRequest(request),
+    onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event),
   });
 
@@ -85,10 +85,11 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
-      address: nextUser.address,
-      chainId: nextUser.chainId,
-      isConnected: nextUser.isConnected,
-      ensName: nextUser.ensName,
+      address: UserState.address(nextUser),
+      chain_id: UserState.chainId(nextUser),
+      is_connected: UserState.isConnected(nextUser) ?? false,
+      ens_name:
+        typeof nextUser.ens_name === "string" ? nextUser.ens_name : undefined,
     }),
     [getUserState],
   );
@@ -103,9 +104,9 @@ export function AomiRuntimeCore({
       const prevWalletState = lastWalletStateRef.current;
       if (
         prevWalletState.address === nextWalletState.address &&
-        prevWalletState.chainId === nextWalletState.chainId &&
-        prevWalletState.isConnected === nextWalletState.isConnected &&
-        prevWalletState.ensName === nextWalletState.ensName
+        prevWalletState.chain_id === nextWalletState.chain_id &&
+        prevWalletState.is_connected === nextWalletState.is_connected &&
+        prevWalletState.ens_name === nextWalletState.ens_name
       ) {
         return;
       }
@@ -133,11 +134,29 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
+  const remoteThreadIdsRef = useRef(new Set<string>());
+  const warmedThreadIdsRef = useRef(new Set<string>());
 
-  const currentThreadIdRef = useRef(threadContext.currentThreadId);
-  useEffect(() => {
-    currentThreadIdRef.current = threadContext.currentThreadId;
-  }, [threadContext.currentThreadId]);
+  const warmThread = useCallback(
+    async (threadId: string) => {
+      if (
+        !remoteThreadIdsRef.current.has(threadId) ||
+        warmedThreadIdsRef.current.has(threadId)
+      ) {
+        return;
+      }
+
+      const userState = getUserState();
+      await aomiClientRef.current.createThread(
+        threadId,
+        UserState.isConnected(userState)
+          ? UserState.address(userState)
+          : undefined,
+      );
+      warmedThreadIdsRef.current.add(threadId);
+    },
+    [aomiClientRef, getUserState],
+  );
 
   // ---------------------------------------------------------------------------
   // Respond to user_state_request from backend
@@ -146,22 +165,37 @@ export function AomiRuntimeCore({
     const unsubscribe = eventContext.subscribe(
       "user_state_request",
       () => {
+        const session =
+          sessionManagerRef.current?.get(threadContext.currentThreadId) ??
+          getSession(threadContext.currentThreadId);
         eventContext.sendOutboundSystem({
           type: "user_state_response",
           sessionId: threadContext.currentThreadId,
-          payload: getUserState(),
+          payload: session.getUserState() ?? getUserState(),
         });
       },
     );
     return unsubscribe;
-  }, [eventContext, threadContext.currentThreadId, getUserState]);
+  }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
 
   // ---------------------------------------------------------------------------
   // Initial state fetch on thread change
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    void ensureInitialState(threadContext.currentThreadId);
-  }, [ensureInitialState, threadContext.currentThreadId]);
+    const threadId = threadContext.currentThreadId;
+    let cancelled = false;
+
+    void (async () => {
+      await warmThread(threadId);
+      if (!cancelled) {
+        await ensureInitialState(threadId);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
 
   // Sync isRunning to thread metadata for control context
   useEffect(() => {
@@ -185,18 +219,26 @@ export function AomiRuntimeCore({
   // Fetch thread list when user connects
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const userAddress = user.isConnected ? user.address : undefined;
-    if (!userAddress) return;
+    const userAddress = UserState.isConnected(user)
+      ? UserState.address(user)
+      : undefined;
+    if (!userAddress) {
+      remoteThreadIdsRef.current.clear();
+      warmedThreadIdsRef.current.clear();
+      return;
+    }
 
     const fetchThreadList = async () => {
       try {
         const threadList =
           await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
+        const remoteThreadIds = new Set<string>();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
 
         for (const thread of threadList) {
+          remoteThreadIds.add(thread.session_id);
           const rawTitle = thread.title ?? "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive =
@@ -219,9 +261,20 @@ export function AomiRuntimeCore({
           }
         }
 
+        remoteThreadIdsRef.current = remoteThreadIds;
+        warmedThreadIdsRef.current = new Set(
+          Array.from(warmedThreadIdsRef.current).filter((threadId) =>
+            remoteThreadIds.has(threadId),
+          ),
+        );
         currentContext.setThreadMetadata(newMetadata);
         if (maxChatNum > currentContext.threadCnt) {
           currentContext.setThreadCnt(maxChatNum);
+        }
+
+        if (remoteThreadIds.has(currentContext.currentThreadId)) {
+          await warmThread(currentContext.currentThreadId);
+          await ensureInitialState(currentContext.currentThreadId);
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
@@ -229,7 +282,7 @@ export function AomiRuntimeCore({
     };
 
     void fetchThreadList();
-  }, [user.address, user.isConnected, aomiClientRef]);
+  }, [user, aomiClientRef, ensureInitialState, warmThread]);
 
   // ---------------------------------------------------------------------------
   // Thread list adapter

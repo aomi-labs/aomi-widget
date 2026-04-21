@@ -77,12 +77,26 @@ function validateAndBuildFeeCall(
   });
 }
 
-export function txCommand(): void {
+export async function txCommand(): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
+  }
+
+  const session = cli.createClientSession();
+  try {
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      undefined,
+      cli.clientId,
+    );
+    cli.syncPendingFromUserState(apiState.user_state);
+  } catch {
+    // Fall back to the last persisted local view if the backend is unavailable.
+  } finally {
+    session.close();
   }
 
   const pending = [...cli.pendingTxs];
@@ -200,11 +214,16 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
   }
 
   cli.mergeConfig(config);
-
-  const pendingTxs = cli.requirePendingTxs(txIds);
   const session = cli.createClientSession();
 
   try {
+    const initialState = await session.client.fetchState(
+      cli.sessionId,
+      undefined,
+      cli.clientId,
+    );
+    cli.syncPendingFromUserState(initialState.user_state);
+    const pendingTxs = cli.requirePendingTxs(txIds);
     const account = privateKeyToAccount(privateKey as `0x${string}`);
 
     if (
@@ -433,23 +452,21 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       }];
     }
 
-    // Persist signer state
+    // Persist signer state and notify the backend with authoritative staged ids.
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId);
-    await session.syncUserState();
-
-    for (const txId of txIds) {
-      cli.removePendingTx(txId);
-    }
-    for (const signedRecord of signedRecords) {
-      cli.addSignedTx(signedRecord);
-    }
 
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
         cli.sessionId,
         JSON.stringify(backendNotification),
       );
+    }
+
+    const syncedState = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState.user_state);
+    for (const signedRecord of signedRecords) {
+      cli.addSignedTx(signedRecord);
     }
 
     console.log("Backend notified.");

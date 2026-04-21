@@ -72,8 +72,8 @@ export type {
 export {
   useUser,
   UserContextProvider,
-  type UserState,
 } from "./contexts/user-context";
+export type { UserState } from "@aomi-labs/client";
 
 // User config type (for render prop pattern)
 export type { UserConfig } from "./runtime/utils";

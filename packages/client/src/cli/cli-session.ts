@@ -13,6 +13,7 @@ import type { CliConfig } from "./types";
 import {
   readState,
   hasSameBackendPendingId,
+  syncPendingTxsFromUserState,
   writeState,
   type CliSessionState,
   type PendingTx,
@@ -218,7 +219,7 @@ export class CliSession {
 
     const pending: PendingTx = {
       ...tx,
-      id: this.getNextTxId(),
+      id: this.getDisplayTxId(tx),
     };
     this.state.pendingTxs.push(pending);
     this.save();
@@ -238,6 +239,12 @@ export class CliSession {
     if (!this.state.signedTxs) this.state.signedTxs = [];
     this.state.signedTxs.push(tx);
     this.save();
+  }
+
+  syncPendingFromUserState(userState: Parameters<typeof syncPendingTxsFromUserState>[1]): PendingTx[] {
+    const pendingTxs = syncPendingTxsFromUserState(this.state, userState);
+    this.reload();
+    return pendingTxs;
   }
 
   /** Get a pending tx by ID, or fatal() if not found. */
@@ -299,6 +306,12 @@ export class CliSession {
 
   private save(): void {
     writeState(this.state);
+  }
+
+  private getDisplayTxId(tx: Omit<PendingTx, "id">): string {
+    if (typeof tx.txId === "number") return `tx-${tx.txId}`;
+    if (typeof tx.eip712Id === "number") return `tx-${tx.eip712Id}`;
+    return this.getNextTxId();
   }
 
   private getNextTxId(): string {

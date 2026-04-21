@@ -4,7 +4,6 @@ import type { ExternalStoreThreadData } from "@assistant-ui/react";
 
 import type { AomiClient } from "@aomi-labs/client";
 import type { ThreadContext } from "../contexts/thread-context";
-import type { UserState } from "../contexts/user-context";
 import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
 import { isPlaceholderTitle, parseTimestamp } from "./utils";
 

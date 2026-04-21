@@ -8,6 +8,7 @@ import {
   setActiveSession,
   type StoredSessionRecord,
 } from "../state";
+import { pendingTxsFromBackendUserState } from "../user-state";
 import {
   estimateTokenCount,
   printKeyValueTable,
@@ -20,6 +21,7 @@ type RemoteSessionStats = {
   messageCount: number;
   tokenCountEstimate: number;
   toolCalls: number;
+  pendingTxs: ReturnType<typeof pendingTxsFromBackendUserState>;
 };
 
 async function fetchRemoteSessionStats(
@@ -38,6 +40,10 @@ async function fetchRemoteSessionStats(
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
       toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
+      pendingTxs: pendingTxsFromBackendUserState(
+        apiState.user_state,
+        record.state.pendingTxs ?? [],
+      ),
     };
   } catch {
     return null;
@@ -49,7 +55,7 @@ function printSessionSummary(
   stats: RemoteSessionStats | null,
   isActive: boolean,
 ): void {
-  const pendingTxs = record.state.pendingTxs ?? [];
+  const pendingTxs = stats?.pendingTxs ?? record.state.pendingTxs ?? [];
   const signedTxs = record.state.signedTxs ?? [];
   const header = isActive
     ? `🧵 Session id: ${record.sessionId} (session-${record.localId}, active)`

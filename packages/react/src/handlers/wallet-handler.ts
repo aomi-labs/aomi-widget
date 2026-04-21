@@ -28,8 +28,8 @@ export type WalletHandlerConfig = {
 export type WalletHandlerApi = {
   /** All queued wallet requests (tx + eip712) */
   pendingRequests: WalletRequest[];
-  /** Enqueue a wallet request (called by orchestrator on ClientSession events) */
-  enqueueRequest: (request: WalletRequest) => void;
+  /** Replace pending requests with the session's authoritative snapshot. */
+  setRequests: (requests: WalletRequest[]) => void;
   /** Complete a request successfully — sends response to backend via ClientSession */
   resolveRequest: (id: string, result: WalletRequestResult) => void;
   /** Fail a request — sends error to backend via ClientSession */
@@ -40,10 +40,10 @@ export function useWalletHandler({
   getSession,
 }: WalletHandlerConfig): WalletHandlerApi {
   const [pendingRequests, setPendingRequests] = useState<WalletRequest[]>([]);
-  const requestsRef = useRef<WalletRequest[]>([]);
+  const requestsRef = useRef<WalletRequest[]>(pendingRequests);
 
-  const enqueueRequest = useCallback((request: WalletRequest) => {
-    requestsRef.current = [...requestsRef.current, request];
+  const setRequests = useCallback((requests: WalletRequest[]) => {
+    requestsRef.current = [...requests];
     setPendingRequests(requestsRef.current);
   }, []);
 
@@ -55,14 +55,13 @@ export function useWalletHandler({
         return;
       }
 
-      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
-      setPendingRequests(requestsRef.current);
+      setRequests(requestsRef.current.filter((request) => request.id !== id));
 
       void session.resolve(id, result).catch((err) => {
         console.error("[wallet-handler] Failed to resolve request:", err);
       });
     },
-    [getSession],
+    [getSession, setRequests],
   );
 
   const rejectRequest = useCallback(
@@ -73,19 +72,18 @@ export function useWalletHandler({
         return;
       }
 
-      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
-      setPendingRequests(requestsRef.current);
+      setRequests(requestsRef.current.filter((request) => request.id !== id));
 
       void session.reject(id, error).catch((err) => {
         console.error("[wallet-handler] Failed to reject request:", err);
       });
     },
-    [getSession],
+    [getSession, setRequests],
   );
 
   return {
     pendingRequests,
-    enqueueRequest,
+    setRequests,
     resolveRequest,
     rejectRequest,
   };
