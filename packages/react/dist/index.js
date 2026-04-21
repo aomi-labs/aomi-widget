@@ -1561,6 +1561,22 @@ function AomiRuntimeCore({
   ]);
   const threadContextRef = useRef7(threadContext);
   threadContextRef.current = threadContext;
+  const remoteThreadIdsRef = useRef7(/* @__PURE__ */ new Set());
+  const warmedThreadIdsRef = useRef7(/* @__PURE__ */ new Set());
+  const warmThread = useCallback7(
+    async (threadId) => {
+      if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
+        return;
+      }
+      const userState = getUserState();
+      await aomiClientRef.current.createThread(
+        threadId,
+        UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
+      );
+      warmedThreadIdsRef.current.add(threadId);
+    },
+    [aomiClientRef, getUserState]
+  );
   useEffect3(() => {
     const unsubscribe = eventContext.subscribe(
       "user_state_request",
@@ -1577,8 +1593,18 @@ function AomiRuntimeCore({
     return unsubscribe;
   }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
   useEffect3(() => {
-    void ensureInitialState(threadContext.currentThreadId);
-  }, [ensureInitialState, threadContext.currentThreadId]);
+    const threadId = threadContext.currentThreadId;
+    let cancelled = false;
+    void (async () => {
+      await warmThread(threadId);
+      if (!cancelled) {
+        await ensureInitialState(threadId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
   useEffect3(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
@@ -1595,15 +1621,21 @@ function AomiRuntimeCore({
   );
   useEffect3(() => {
     const userAddress = UserState3.isConnected(user) ? UserState3.address(user) : void 0;
-    if (!userAddress) return;
+    if (!userAddress) {
+      remoteThreadIdsRef.current.clear();
+      warmedThreadIdsRef.current.clear();
+      return;
+    }
     const fetchThreadList = async () => {
       var _a, _b, _c;
       try {
         const threadList = await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
+        const remoteThreadIds = /* @__PURE__ */ new Set();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
         for (const thread of threadList) {
+          remoteThreadIds.add(thread.session_id);
           const rawTitle = (_a = thread.title) != null ? _a : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive = ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
@@ -1622,16 +1654,26 @@ function AomiRuntimeCore({
             }
           }
         }
+        remoteThreadIdsRef.current = remoteThreadIds;
+        warmedThreadIdsRef.current = new Set(
+          Array.from(warmedThreadIdsRef.current).filter(
+            (threadId) => remoteThreadIds.has(threadId)
+          )
+        );
         currentContext.setThreadMetadata(newMetadata);
         if (maxChatNum > currentContext.threadCnt) {
           currentContext.setThreadCnt(maxChatNum);
+        }
+        if (remoteThreadIds.has(currentContext.currentThreadId)) {
+          await warmThread(currentContext.currentThreadId);
+          await ensureInitialState(currentContext.currentThreadId);
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
       }
     };
     void fetchThreadList();
-  }, [user, aomiClientRef]);
+  }, [user, aomiClientRef, ensureInitialState, warmThread]);
   const threadListAdapter = useMemo2(
     () => buildThreadListAdapter({
       aomiClientRef,
