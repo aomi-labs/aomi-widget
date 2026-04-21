@@ -8,6 +8,11 @@ import {
 } from "node:fs";
 import { basename, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
+import type { UserState } from "../types";
+import {
+  pendingTxsFromBackendUserState,
+  walletSnapshotFromUserState,
+} from "./user-state";
 
 export type PendingTx = {
   id: string;
@@ -418,6 +423,11 @@ function getNextTxId(state: CliSessionState): string {
   return `tx-${max + 1}`;
 }
 
+function toBackendDisplayId(tx: Omit<PendingTx, "id">): string | undefined {
+  const pendingId = getBackendPendingId(tx);
+  return pendingId !== undefined ? `tx-${pendingId}` : undefined;
+}
+
 export function addPendingTx(
   state: CliSessionState,
   tx: Omit<PendingTx, "id">,
@@ -434,7 +444,7 @@ export function addPendingTx(
 
   const pending: PendingTx = {
     ...tx,
-    id: getNextTxId(state),
+    id: toBackendDisplayId(tx) ?? getNextTxId(state),
   };
   state.pendingTxs.push(pending);
   writeState(state);
@@ -460,4 +470,19 @@ export function addSignedTx(
   if (!state.signedTxs) state.signedTxs = [];
   state.signedTxs.push(tx);
   writeState(state);
+}
+
+export function syncPendingTxsFromUserState(
+  state: CliSessionState,
+  userState: UserState | null | undefined,
+): PendingTx[] {
+  const walletSnapshot = walletSnapshotFromUserState(userState);
+  state.publicKey = walletSnapshot.publicKey;
+  state.chainId = walletSnapshot.chainId;
+  state.pendingTxs = pendingTxsFromBackendUserState(
+    userState,
+    state.pendingTxs ?? [],
+  );
+  writeState(state);
+  return state.pendingTxs;
 }

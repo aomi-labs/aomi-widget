@@ -155,8 +155,8 @@ describe("CLI session lifecycle", () => {
       payload: { txId: 8 },
     });
 
-    expect(first?.id).toBe("tx-1");
-    expect(second?.id).toBe("tx-2");
+    expect(first?.id).toBe("tx-7");
+    expect(second?.id).toBe("tx-8");
     expect(cli.pendingTxs).toHaveLength(2);
     expect(cli.pendingTxs.map((tx) => tx.txId)).toEqual([7, 8]);
   });
@@ -192,7 +192,7 @@ describe("CLI session lifecycle", () => {
       payload: { txId: 7 },
     });
 
-    expect(first?.id).toBe("tx-1");
+    expect(first?.id).toBe("tx-7");
     expect(replay).toBeNull();
     expect(cli.pendingTxs).toHaveLength(1);
   });
@@ -228,8 +228,8 @@ describe("CLI session lifecycle", () => {
       },
     });
 
-    expect(first?.id).toBe("tx-1");
-    expect(second?.id).toBe("tx-2");
+    expect(first?.id).toBe("tx-11");
+    expect(second?.id).toBe("tx-12");
     expect(cli.pendingTxs).toHaveLength(2);
     expect(cli.pendingTxs.map((tx) => tx.eip712Id)).toEqual([11, 12]);
   });
@@ -266,5 +266,64 @@ describe("CLI session lifecycle", () => {
     expect(first?.id).toBe("tx-1");
     expect(replay?.id).toBe("tx-2");
     expect(cli.pendingTxs).toHaveLength(2);
+  });
+
+  it("replaces local pending state from authoritative backend user_state", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+
+    const cli = CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+    });
+
+    cli.addPendingTx({
+      kind: "transaction",
+      txId: 99,
+      to: "0x1111111111111111111111111111111111111111",
+      value: "0",
+      data: "0xdeadbeef",
+      chainId: 1,
+      timestamp: 1,
+      payload: { txId: 99 },
+    });
+
+    const synced = cli.syncPendingFromUserState({
+      address: "0xabc",
+      chain_id: 8453,
+      is_connected: true,
+      pending_txs: {
+        "7": {
+          chain_id: 8453,
+          from: "0xabc",
+          to: "0x1111111111111111111111111111111111111111",
+          value: "0",
+          gas: null,
+          data: "0x",
+          label: "Approve",
+          kind: "erc20_approve",
+          batch_status: "Batch [7] pending",
+        },
+      },
+      pending_eip712s: {
+        "8": {
+          chain_id: 8453,
+          signer: "0xabc",
+          description: "Permit2 signature",
+          typed_data: {
+            domain: { chainId: 8453, name: "Permit2" },
+            types: { Permit: [{ name: "owner", type: "address" }] },
+            primaryType: "Permit",
+            message: { owner: "0xabc" },
+          },
+        },
+      },
+    });
+
+    expect(cli.publicKey).toBe("0xabc");
+    expect(cli.chainId).toBe(8453);
+    expect(synced.map((tx) => tx.id)).toEqual(["tx-7", "tx-8"]);
+    expect(synced.map((tx) => tx.kind)).toEqual(["transaction", "eip712_sign"]);
   });
 });
