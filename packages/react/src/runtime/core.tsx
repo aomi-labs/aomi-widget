@@ -134,6 +134,29 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
+  const remoteThreadIdsRef = useRef(new Set<string>());
+  const warmedThreadIdsRef = useRef(new Set<string>());
+
+  const warmThread = useCallback(
+    async (threadId: string) => {
+      if (
+        !remoteThreadIdsRef.current.has(threadId) ||
+        warmedThreadIdsRef.current.has(threadId)
+      ) {
+        return;
+      }
+
+      const userState = getUserState();
+      await aomiClientRef.current.createThread(
+        threadId,
+        UserState.isConnected(userState)
+          ? UserState.address(userState)
+          : undefined,
+      );
+      warmedThreadIdsRef.current.add(threadId);
+    },
+    [aomiClientRef, getUserState],
+  );
 
   // ---------------------------------------------------------------------------
   // Respond to user_state_request from backend
@@ -159,8 +182,20 @@ export function AomiRuntimeCore({
   // Initial state fetch on thread change
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    void ensureInitialState(threadContext.currentThreadId);
-  }, [ensureInitialState, threadContext.currentThreadId]);
+    const threadId = threadContext.currentThreadId;
+    let cancelled = false;
+
+    void (async () => {
+      await warmThread(threadId);
+      if (!cancelled) {
+        await ensureInitialState(threadId);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
 
   // Sync isRunning to thread metadata for control context
   useEffect(() => {
@@ -187,17 +222,23 @@ export function AomiRuntimeCore({
     const userAddress = UserState.isConnected(user)
       ? UserState.address(user)
       : undefined;
-    if (!userAddress) return;
+    if (!userAddress) {
+      remoteThreadIdsRef.current.clear();
+      warmedThreadIdsRef.current.clear();
+      return;
+    }
 
     const fetchThreadList = async () => {
       try {
         const threadList =
           await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
+        const remoteThreadIds = new Set<string>();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
 
         for (const thread of threadList) {
+          remoteThreadIds.add(thread.session_id);
           const rawTitle = thread.title ?? "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive =
@@ -220,9 +261,20 @@ export function AomiRuntimeCore({
           }
         }
 
+        remoteThreadIdsRef.current = remoteThreadIds;
+        warmedThreadIdsRef.current = new Set(
+          Array.from(warmedThreadIdsRef.current).filter((threadId) =>
+            remoteThreadIds.has(threadId),
+          ),
+        );
         currentContext.setThreadMetadata(newMetadata);
         if (maxChatNum > currentContext.threadCnt) {
           currentContext.setThreadCnt(maxChatNum);
+        }
+
+        if (remoteThreadIds.has(currentContext.currentThreadId)) {
+          await warmThread(currentContext.currentThreadId);
+          await ensureInitialState(currentContext.currentThreadId);
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
@@ -230,7 +282,7 @@ export function AomiRuntimeCore({
     };
 
     void fetchThreadList();
-  }, [user, aomiClientRef]);
+  }, [user, aomiClientRef, ensureInitialState, warmThread]);
 
   // ---------------------------------------------------------------------------
   // Thread list adapter

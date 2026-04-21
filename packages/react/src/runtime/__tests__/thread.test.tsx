@@ -210,6 +210,77 @@ describe("Thread API", () => {
         expect(getApi().getThreadMetadata("thread-2")?.title).toBe("");
       });
     });
+
+    it("warms a listed thread before fetching its messages", async () => {
+      let warmed = false;
+      const fetchThreads = vi.fn(
+        async (): Promise<AomiThread[]> => [
+          { session_id: "thread-1", title: "Loaded Thread" },
+        ],
+      );
+      const createThread = vi.fn(async (threadId: string) => {
+        if (threadId === "thread-1") {
+          warmed = true;
+        }
+        return { session_id: threadId };
+      });
+      const fetchState = vi.fn(
+        async (sessionId: string): Promise<AomiStateResponse> => {
+          if (sessionId === "thread-1" && warmed) {
+            return {
+              is_processing: false,
+              messages: [
+                {
+                  sender: "agent",
+                  content: "Recovered from backend",
+                },
+              ],
+            };
+          }
+
+          return {
+            is_processing: false,
+            messages: [],
+          };
+        },
+      );
+      setAomiClientConfig({ fetchThreads, createThread, fetchState });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ address: "0xabc", isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(fetchThreads).toHaveBeenCalledWith("0xabc");
+      });
+
+      await act(async () => {
+        getApi().selectThread("thread-1");
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(createThread).toHaveBeenCalledWith("thread-1", "0xabc");
+      });
+
+      await waitFor(() => {
+        expect(getApi().currentThreadId).toBe("thread-1");
+        expect(getApi().getMessages("thread-1")).toEqual([
+          expect.objectContaining({
+            role: "assistant",
+            content: [
+              expect.objectContaining({
+                type: "text",
+                text: "Recovered from backend",
+              }),
+            ],
+          }),
+        ]);
+      });
+    });
   });
 
   describe("getThreadMetadata", () => {
