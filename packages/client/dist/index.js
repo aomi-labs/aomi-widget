@@ -18,6 +18,95 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
+// src/types.ts
+var CLIENT_TYPE_TS_CLI = "ts_cli";
+var CLIENT_TYPE_WEB_UI = "web_ui";
+var USER_STATE_KEY_ALIASES = {
+  chainId: "chain_id",
+  isConnected: "is_connected",
+  ensName: "ens_name",
+  pendingTxs: "pending_txs",
+  pendingEip712s: "pending_eip712s",
+  nextId: "next_id"
+};
+function parseUserStateChainId(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return void 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return void 0;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+var UserState;
+((UserState2) => {
+  function normalize(userState) {
+    var _a;
+    if (!userState) {
+      return void 0;
+    }
+    const normalized = {};
+    for (const [key, value] of Object.entries(userState)) {
+      const normalizedKey = (_a = USER_STATE_KEY_ALIASES[key]) != null ? _a : key;
+      if (normalizedKey in normalized) {
+        continue;
+      }
+      normalized[normalizedKey] = value;
+    }
+    return normalized;
+  }
+  UserState2.normalize = normalize;
+  function address(userState) {
+    const normalized = normalize(userState);
+    const address2 = normalized == null ? void 0 : normalized.address;
+    return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
+  }
+  UserState2.address = address;
+  function chainId(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateChainId(normalized == null ? void 0 : normalized.chain_id);
+  }
+  UserState2.chainId = chainId;
+  function isConnected(userState) {
+    const normalized = normalize(userState);
+    const isConnected2 = normalized == null ? void 0 : normalized.is_connected;
+    return typeof isConnected2 === "boolean" ? isConnected2 : void 0;
+  }
+  UserState2.isConnected = isConnected;
+  function withExt(userState, key, value) {
+    var _a;
+    const normalizedUserState = (_a = normalize(userState)) != null ? _a : {};
+    const currentExt = normalizedUserState["ext"];
+    const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
+    return __spreadProps(__spreadValues({}, normalizedUserState), {
+      ext: __spreadProps(__spreadValues({}, extRecord), {
+        [key]: value
+      })
+    });
+  }
+  UserState2.withExt = withExt;
+})(UserState || (UserState = {}));
+function addUserStateExt(userState, key, value) {
+  return UserState.withExt(userState, key, value);
+}
+function isInlineCall(event) {
+  return "InlineCall" in event;
+}
+function isSystemNotice(event) {
+  return "SystemNotice" in event;
+}
+function isSystemError(event) {
+  return "SystemError" in event;
+}
+function isAsyncCallback(event) {
+  return "AsyncCallback" in event;
+}
+
 // src/sse.ts
 function extractSseData(rawEvent) {
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
@@ -259,8 +348,9 @@ var AomiClient = class {
    * Fetch current session state (messages, processing status, title).
    */
   async fetchState(sessionId, userState, clientId) {
+    const normalizedUserState = UserState.normalize(userState);
     const url = buildApiUrl(this.baseUrl, "/api/state", {
-      user_state: userState ? JSON.stringify(userState) : void 0,
+      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
     });
     const response = await fetch(url, {
@@ -278,12 +368,13 @@ var AomiClient = class {
     var _a, _b;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
+    const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
     const payload = { message, app };
     if (options == null ? void 0 : options.publicKey) {
       payload.public_key = options.publicKey;
     }
-    if (options == null ? void 0 : options.userState) {
-      payload.user_state = JSON.stringify(options.userState);
+    if (normalizedUserState) {
+      payload.user_state = JSON.stringify(normalizedUserState);
     }
     if (options == null ? void 0 : options.clientId) {
       payload.client_id = options.clientId;
@@ -663,31 +754,6 @@ ${body}` : ""}`);
   }
 };
 
-// src/types.ts
-var CLIENT_TYPE_TS_CLI = "ts_cli";
-var CLIENT_TYPE_WEB_UI = "web_ui";
-function addUserStateExt(userState, key, value) {
-  const currentExt = userState["ext"];
-  const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
-  return __spreadProps(__spreadValues({}, userState), {
-    ext: __spreadProps(__spreadValues({}, extRecord), {
-      [key]: value
-    })
-  });
-}
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
-}
-
 // src/event.ts
 var TypedEventEmitter = class {
   constructor() {
@@ -927,7 +993,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     super();
     // Internal state
     this.pollTimer = null;
@@ -945,9 +1011,10 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? addUserStateExt((_c = sessionOptions == null ? void 0 : sessionOptions.userState) != null ? _c : {}, "client_type", sessionOptions.clientType) : sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
-    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+    const initialUserState = UserState.normalize(sessionOptions == null ? void 0 : sessionOptions.userState);
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
+    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1108,6 +1175,10 @@ var ClientSession = class extends TypedEventEmitter {
   getTitle() {
     return this._title;
   }
+  /** Latest authoritative backend user_state snapshot seen by this session. */
+  getUserState() {
+    return this.userState ? __spreadValues({}, this.userState) : void 0;
+  }
   /** Pending wallet requests waiting for resolve/reject. */
   getPendingRequests() {
     return [...this.walletRequests];
@@ -1117,10 +1188,10 @@ var ClientSession = class extends TypedEventEmitter {
     return this._isProcessing;
   }
   resolveUserState(userState) {
-    this.userState = userState;
-    const address = userState["address"];
-    const isConnected = userState["isConnected"];
-    if (typeof address === "string" && address.length > 0 && isConnected !== false) {
+    this.userState = UserState.normalize(userState);
+    const address = UserState.address(this.userState);
+    const isConnected = UserState.isConnected(this.userState);
+    if (address && isConnected !== false) {
       this.publicKey = address;
     } else {
       this.publicKey = void 0;
@@ -1128,7 +1199,7 @@ var ClientSession = class extends TypedEventEmitter {
   }
   setClientType(clientType) {
     var _a;
-    this.resolveUserState(addUserStateExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
+    this.resolveUserState(UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
   }
   addExtValue(key, value) {
     var _a;
@@ -1155,7 +1226,11 @@ var ClientSession = class extends TypedEventEmitter {
     this.resolveUserState(nextState);
   }
   resolveWallet(address, chainId) {
-    this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });
+    this.resolveUserState({
+      address,
+      chain_id: chainId != null ? chainId : 1,
+      is_connected: true
+    });
   }
   async syncUserState() {
     this.assertOpen();
@@ -1246,6 +1321,9 @@ var ClientSession = class extends TypedEventEmitter {
   // ===========================================================================
   applyState(state) {
     var _a;
+    if (state.user_state) {
+      this.resolveUserState(state.user_state);
+    }
     if (state.messages) {
       this._messages = state.messages;
       this.emit("messages", this._messages);
@@ -1331,12 +1409,14 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   assertUserStateAligned(actualUserState) {
-    if (!this.userState || !actualUserState) {
+    const expectedUserState = UserState.normalize(this.userState);
+    const normalizedActualUserState = UserState.normalize(actualUserState);
+    if (!expectedUserState || !normalizedActualUserState) {
       return;
     }
-    if (!isSubsetMatch(this.userState, actualUserState)) {
-      const expected = JSON.stringify(sortJson(this.userState));
-      const actual = JSON.stringify(sortJson(actualUserState));
+    if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
+      const expected = JSON.stringify(sortJson(expectedUserState));
+      const actual = JSON.stringify(sortJson(normalizedActualUserState));
       console.warn(
         `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`
       );
@@ -2411,6 +2491,7 @@ export {
   DEFAULT_AA_CONFIG,
   ClientSession as Session,
   TypedEventEmitter,
+  UserState,
   adaptSmartAccount,
   addUserStateExt,
   buildAAExecutionPlan,

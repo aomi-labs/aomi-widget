@@ -23,9 +23,8 @@ import type {
   AomiSSEEvent,
   AomiStateResponse,
   AomiSystemEvent,
-  UserState,
 } from "./types";
-import { addUserStateExt } from "./types";
+import { UserState, type UserState as UserStateShape } from "./types";
 import { TypedEventEmitter } from "./event";
 import { unwrapSystemEvent } from "./event";
 import {
@@ -121,7 +120,7 @@ export type SessionOptions = {
   /** API key override. */
   apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
-  userState?: UserState;
+  userState?: UserStateShape;
   /** Optional client type hint forwarded to the backend via userState.ext.client_type. */
   clientType?: AomiClientType;
   /** Stable client ID used for secret-vault association. */
@@ -182,7 +181,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private app: string;
   private publicKey?: string;
   private apiKey?: string;
-  private userState?: UserState;
+  private userState?: UserStateShape;
   private clientId: string;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
@@ -216,9 +215,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
+    const initialUserState = UserState.normalize(sessionOptions?.userState);
     this.userState = sessionOptions?.clientType
-      ? addUserStateExt(sessionOptions?.userState ?? {}, "client_type", sessionOptions.clientType)
-      : sessionOptions?.userState;
+      ? UserState.withExt(initialUserState ?? {}, "client_type", sessionOptions.clientType)
+      : initialUserState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
@@ -420,6 +420,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     return this._title;
   }
 
+  /** Latest authoritative backend user_state snapshot seen by this session. */
+  getUserState(): UserStateShape | undefined {
+    return this.userState ? { ...this.userState } : undefined;
+  }
+
   /** Pending wallet requests waiting for resolve/reject. */
   getPendingRequests(): WalletRequest[] {
     return [...this.walletRequests];
@@ -430,14 +435,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     return this._isProcessing;
   }
 
-  resolveUserState(userState: UserState): void {
-    this.userState = userState;
+  resolveUserState(userState: UserStateShape): void {
+    this.userState = UserState.normalize(userState);
 
-    const address = userState["address"];
-    const isConnected = userState["isConnected"];
+    const address = UserState.address(this.userState);
+    const isConnected = UserState.isConnected(this.userState);
     if (
-      typeof address === "string" &&
-      address.length > 0 &&
+      address &&
       isConnected !== false
     ) {
       this.publicKey = address;
@@ -447,7 +451,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   setClientType(clientType: AomiClientType): void {
-    this.resolveUserState(addUserStateExt(this.userState ?? {}, "client_type", clientType));
+    this.resolveUserState(UserState.withExt(this.userState ?? {}, "client_type", clientType));
   }
 
   addExtValue(key: string, value: unknown): void {
@@ -480,7 +484,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   resolveWallet(address: string, chainId?: number): void {
-    this.resolveUserState({ address, chainId: chainId ?? 1, isConnected: true });
+    this.resolveUserState({
+      address,
+      chain_id: chainId ?? 1,
+      is_connected: true,
+    });
   }
 
   async syncUserState(): Promise<AomiStateResponse> {
@@ -592,9 +600,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private applyState(
     state: Pick<
       AomiStateResponse,
-      "messages" | "system_events" | "title" | "is_processing"
+      "messages" | "system_events" | "title" | "is_processing" | "user_state"
     >,
   ): void {
+    if (state.user_state) {
+      this.resolveUserState(state.user_state);
+    }
+
     if (state.messages) {
       this._messages = state.messages;
       this.emit("messages", this._messages);
@@ -703,14 +715,17 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  private assertUserStateAligned(actualUserState?: UserState | null): void {
-    if (!this.userState || !actualUserState) {
+  private assertUserStateAligned(actualUserState?: UserStateShape | null): void {
+    const expectedUserState = UserState.normalize(this.userState);
+    const normalizedActualUserState = UserState.normalize(actualUserState);
+
+    if (!expectedUserState || !normalizedActualUserState) {
       return;
     }
 
-    if (!isSubsetMatch(this.userState, actualUserState)) {
-      const expected = JSON.stringify(sortJson(this.userState));
-      const actual = JSON.stringify(sortJson(actualUserState));
+    if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
+      const expected = JSON.stringify(sortJson(expectedUserState));
+      const actual = JSON.stringify(sortJson(normalizedActualUserState));
       console.warn(
         `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`,
       );

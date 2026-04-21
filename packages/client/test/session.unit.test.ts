@@ -59,9 +59,9 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0xabc",
-      chainId: 1,
-      isConnected: true,
-      ensName: "wallet.eth",
+      chain_id: 1,
+      is_connected: true,
+      ens_name: "wallet.eth",
       ext: {
         SIMMER_API_KEY: "sk_live_2",
         PARA_API_KEY: "para_live_2",
@@ -85,7 +85,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0xdef",
-      isConnected: true,
+      is_connected: true,
       ext: { SIMMER_API_KEY: "sk_live_3" },
     });
 
@@ -94,7 +94,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[1][2]?.userState).toEqual({
       address: "0xdef",
-      isConnected: true,
+      is_connected: true,
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -131,7 +131,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0x123",
-      isConnected: true,
+      is_connected: true,
       ext: { client_type: CLIENT_TYPE_WEB_UI },
     });
 
@@ -144,7 +144,7 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-5",
       userState: {
         address: "0x999",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "sk_live_5" },
       },
     });
@@ -154,7 +154,7 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x999",
-        isConnected: true,
+        is_connected: true,
         ext: {
           SIMMER_API_KEY: "sk_live_5",
           PARA_API_KEY: "para_live_5",
@@ -176,7 +176,7 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-6",
       userState: {
         address: "0x888",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "expected" },
       },
     });
@@ -186,7 +186,7 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x888",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "different" },
       },
     } satisfies AomiStateResponse);
@@ -208,9 +208,9 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-7",
       userState: {
         address: "0x9C7a99480c59955a635123EDa064456393e519f5",
-        chainId: 8453,
-        isConnected: true,
-        ensName: undefined,
+        chain_id: 8453,
+        is_connected: true,
+        ens_name: undefined,
         ext: undefined,
       },
     });
@@ -220,11 +220,12 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x9C7a99480c59955a635123EDa064456393e519f5",
-        chainId: 8453,
-        isConnected: true,
-        ensName: null,
+        chain_id: 8453,
+        is_connected: true,
+        ens_name: null,
         ext: null,
-        pendingTransactions: [],
+        pending_txs: {},
+        pending_eip712s: {},
       },
     } satisfies AomiChatResponse);
 
