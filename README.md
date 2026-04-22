@@ -1,60 +1,70 @@
-# Aomi Widget
+# Aomi
 
-**Aomi Widget is an open-source React component library that adds an AI chat assistant with built-in onchain wallet actions to any web app.** It ships as a drop-in `<AomiFrame />` component plus headless hooks, and is designed for teams building AI-powered crypto, DeFi, and web3 products.
+**Aomi is an open-source toolkit for building AI agents that can read and transact onchain.** It ships four entry points from one repo — a React widget, a headless runtime, a CLI, and an agent skill — all backed by an Aomi-compatible backend.
 
-- **Package:** `@aomi-labs/react` (runtime) and `@aomi-labs/widget-lib` (UI via shadcn registry)
-- **Stack:** React 19, Next.js 15, TypeScript, Tailwind CSS 4, Radix UI, `@assistant-ui/react`
+- **Widget** — `<AomiFrame />`, a drop-in React chat component with wallet actions.
+- **Headless runtime** — `@aomi-labs/react` hooks and providers that manage concurrent threads, backend polling, control state, and wallet events, with no UI opinions.
+- **CLI** — `aomi`, a terminal client for chatting with Aomi agents and signing onchain transactions directly from your shell.
+- **Agent skill** — `aomi-transact`, a Claude / Codex skill that teaches an AI agent to operate the CLI as an onchain tool.
 - **License:** MIT
 
-## What is Aomi Widget?
+## What is Aomi?
 
-Aomi Widget is a React chat widget for AI assistants that can read wallet state and request onchain transactions. It combines three pieces:
+Aomi is an AI-assistant framework for onchain apps. It gives you an agent that can answer questions about crypto, DeFi, wallets, and markets — and, when asked, queue real wallet transactions that your user (or your own key, from the CLI) can sign.
 
-1. **A chat UI** — threads, streaming messages, tool calls, markdown, and a composer.
-2. **A runtime** — backend polling/SSE, thread management, model/namespace selection, and system events.
-3. **A wallet bridge** — provider-agnostic adapter that plugs into Para, wagmi, or your own auth stack.
+You pick how you integrate:
 
-If you want an AI assistant that can talk about *and* act on onchain data inside your app, this is what you embed.
+| Entry point | Package | Use when you want… |
+| --- | --- | --- |
+| React widget | `@aomi-labs/widget-lib` | A prebuilt chat UI inside a web app |
+| Headless runtime | `@aomi-labs/react` | Your own UI on top of Aomi's thread + wallet runtime |
+| TypeScript client | `@aomi-labs/client` | Node or browser programmatic access, no React |
+| CLI | `@aomi-labs/client` (`aomi` bin) | Chat + sign transactions from a terminal |
+| Agent skill | `skills/aomi-transact` | Let an AI agent use Aomi as a tool |
+
+All entry points share a common backend API, so a conversation started in the widget can be continued from the CLI and vice versa.
 
 ## Key features
 
-- **Drop-in React component** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
-- **Works without a wallet** — chat UI still functions; wallet actions disable gracefully.
-- **Provider-agnostic auth** — use Para + wagmi (recommended), or wire your own adapter.
-- **Headless hooks** — `useAomiRuntime` and `useControl` for fully custom UIs.
-- **Compound components** — `AomiFrame.Root` / `.Header` / `.Composer` for custom layouts.
-- **shadcn registry install** — copy source into your repo for full customization.
-- **Per-thread model & namespace state** — each conversation remembers its settings.
-- **Streaming, tool calls, and system events** — backed by `@assistant-ui/react` primitives.
+- **AI chat + onchain actions in one loop** — the agent can queue wallet requests inside any conversation.
+- **Drop-in React widget** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
+- **Headless runtime for custom UIs** — concurrent thread management, per-thread model/namespace state, backend polling/SSE, event bus, and wallet bridge, exposed as React hooks.
+- **Terminal-first CLI** — `aomi chat`, `aomi tx list`, `aomi tx simulate`, `aomi tx sign`, session management, secret ingestion.
+- **Account Abstraction built in** — EIP-4337 and EIP-7702 signing via Alchemy or Pimlico, with automatic mode fallback.
+- **Batch simulation** — dry-run multi-step flows (approve → swap) on a forked chain before signing.
+- **Agent-ready** — install `aomi-transact` as a Claude/Codex skill and your agent can transact onchain autonomously.
+- **Provider-agnostic wallet** — Para + wagmi recommended; bring your own adapter if needed.
+- **Shared session model** — threads, messages, and wallet requests flow through the same backend API across widget, runtime, CLI, and skill.
 
-## When should I use Aomi Widget?
+## Install
 
-| Use case | Fit |
-| --- | --- |
-| Embed an AI assistant in a DeFi, wallet, or onchain app | **Primary** |
-| Add onchain tool-calling to an existing AI product | **Primary** |
-| Build a chat UI with no wallet/web3 needs | Works, but lighter alternatives exist |
-| Replace your entire AI backend | Out of scope — Aomi Widget is the frontend + runtime; pair it with an Aomi-compatible backend |
-
-## Installation
-
-Install the npm packages:
+Pick the package for your entry point. All three live in this monorepo.
 
 ```bash
+# React widget + UI components
 pnpm install @aomi-labs/react @aomi-labs/widget-lib
+
+# Headless runtime only (no UI)
+pnpm install @aomi-labs/react
+
+# TypeScript client (Node / browser, no React)
+pnpm install @aomi-labs/client
+
+# CLI (installs the `aomi` executable)
+npm install -g @aomi-labs/client
 ```
 
-Or copy source into your project via the shadcn registry:
+Or copy widget source into your repo via the shadcn registry:
 
 ```bash
 npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
-The registry install includes the provider-agnostic **Aomi auth adapter** primitives. To enable wallet UX, render the widget inside your Para + wagmi provider tree (see the landing example).
+---
 
-## Quick start
+## Widget: `<AomiFrame />`
 
-Drop the frame into your app. Without wallet providers, chat still works and wallet actions stay disabled.
+A prebuilt React chat widget for onchain AI assistants. Without wallet providers, chat works and wallet actions stay disabled.
 
 ```tsx
 import { AomiFrame } from "@aomi-labs/widget-lib";
@@ -92,41 +102,7 @@ export function Assistant() {
 }
 ```
 
-## Requirements
-
-- **React:** 18 or 19
-- **Next.js:** 14+ (or any React framework that supports client components)
-- **Node:** 18+
-- **Tailwind CSS:** v4
-- **Backend:** an Aomi-compatible backend reachable via `NEXT_PUBLIC_BACKEND_URL` (default `http://localhost:8080`)
-- **Optional for wallet UX:** `@getpara/react-sdk`, `wagmi`, `@tanstack/react-query`
-
-## AomiFrame component
-
-### Default layout
-
-The default layout includes a sidebar with thread list, a header with controls, and a message composer:
-
-```tsx
-import { AomiFrame } from "@aomi-labs/react";
-
-// Basic usage
-<AomiFrame />
-
-// With custom dimensions
-<AomiFrame width="800px" height="600px" />
-
-// With custom backend URL
-<AomiFrame backendUrl="https://api.example.com" />
-
-// Wallet button in header instead of footer
-<AomiFrame walletPosition="header" />
-
-// Hide wallet button entirely
-<AomiFrame walletPosition={null} />
-```
-
-### Props
+### AomiFrame props
 
 | Prop             | Type                           | Default                                       | Description                         |
 | ---------------- | ------------------------------ | --------------------------------------------- | ----------------------------------- |
@@ -137,84 +113,29 @@ import { AomiFrame } from "@aomi-labs/react";
 | `walletPosition` | `"header" \| "footer" \| null` | `"footer"`                                    | Where to show wallet connect button |
 | `backendUrl`     | `string`                       | `NEXT_PUBLIC_BACKEND_URL` or `localhost:8080` | Backend API URL                     |
 
-Wallet behavior is read from the surrounding Para + wagmi provider tree. Without one, the frame still renders and wallet UI stays disabled.
-
-### Compound components (advanced)
-
-Use the compound API for custom layouts:
+### Compound components
 
 ```tsx
 import { AomiFrame } from "@aomi-labs/widget-lib";
 
-export function CustomAssistant() {
-  return (
-    <AomiFrame.Root height="600px" backendUrl="https://api.example.com">
-      <AomiFrame.Header
-        withControl={true}
-        controlBarProps={{ hideWallet: true, hideApiKey: true }}
-      />
-      <AomiFrame.Composer />
-    </AomiFrame.Root>
-  );
-}
+<AomiFrame.Root height="600px" backendUrl="https://api.example.com">
+  <AomiFrame.Header
+    withControl={true}
+    controlBarProps={{ hideWallet: true, hideApiKey: true }}
+  />
+  <AomiFrame.Composer />
+</AomiFrame.Root>;
 ```
 
-#### AomiFrame.Root
+### ControlBar
 
-Root container providing layout, runtime providers, and transaction bridge.
-
-| Prop             | Type                           | Default                 | Description                       |
-| ---------------- | ------------------------------ | ----------------------- | --------------------------------- |
-| `children`       | `ReactNode`                    | -                       | Header and Composer components    |
-| `width`          | `CSSProperties["width"]`       | `"100%"`                | Container width                   |
-| `height`         | `CSSProperties["height"]`      | `"80vh"`                | Container height                  |
-| `className`      | `string`                       | -                       | Additional CSS classes            |
-| `style`          | `CSSProperties`                | -                       | Inline styles                     |
-| `walletPosition` | `"header" \| "footer" \| null` | `"footer"`              | Wallet button position in sidebar |
-| `backendUrl`     | `string`                       | env or `localhost:8080` | Backend API URL                   |
-
-#### AomiFrame.Header
-
-Header with sidebar trigger, control bar, and thread title.
-
-| Prop              | Type              | Default | Description                   |
-| ----------------- | ----------------- | ------- | ----------------------------- |
-| `children`        | `ReactNode`       | -       | Additional elements to render |
-| `withControl`     | `boolean`         | `true`  | Show the control bar          |
-| `controlBarProps` | `ControlBarProps` | -       | Props passed to ControlBar    |
-| `className`       | `string`          | -       | Additional CSS classes        |
-
-#### AomiFrame.Composer
-
-Main content area with messages and input composer.
-
-| Prop              | Type              | Default | Description                     |
-| ----------------- | ----------------- | ------- | ------------------------------- |
-| `children`        | `ReactNode`       | -       | Additional elements to render   |
-| `withControl`     | `boolean`         | `false` | Show control bar above messages |
-| `controlBarProps` | `ControlBarProps` | -       | Props passed to ControlBar      |
-| `className`       | `string`          | -       | Additional CSS classes          |
-
-## ControlBar component
-
-ControlBar provides model selection, namespace/agent selection, API key input, and wallet connection.
+`ControlBar` provides model selection, namespace/agent selection, API key input, and wallet connection.
 
 ```tsx
 import { ControlBar } from "@aomi-labs/react";
 
-// Full control bar
-<ControlBar />
-
-// Hide specific controls
-<ControlBar hideModel hideApiKey />
-
-// Add custom controls
-<ControlBar hideWallet>
-  <MyCustomButton />
-</ControlBar>
+<ControlBar hideModel hideApiKey />;
 ```
-
-### ControlBar props
 
 | Prop            | Type        | Default | Description                   |
 | --------------- | ----------- | ------- | ----------------------------- |
@@ -225,57 +146,40 @@ import { ControlBar } from "@aomi-labs/react";
 | `hideApiKey`    | `boolean`   | `false` | Hide API key input            |
 | `hideWallet`    | `boolean`   | `false` | Hide wallet connect button    |
 
-### Individual control components
+Individual pieces (`ModelSelect`, `NamespaceSelect`, `ApiKeyInput`, `ConnectButton`) are also exported from `@aomi-labs/widget-lib/control-bar` for fully custom layouts.
 
-Compose a fully custom control bar:
+---
+
+## Headless runtime: `@aomi-labs/react`
+
+The headless runtime is the engine under `<AomiFrame />`. Use it directly when you want your own UI.
+
+It manages:
+
+- **Concurrent threads** — create, switch, rename, archive, and delete chat threads; each thread has its own message history, model, namespace, and processing state.
+- **Backend orchestration** — polling and SSE with the Aomi backend, including `/api/chat`, `/api/state`, `/api/interrupt`, `/api/system`, and `/api/sessions/*`.
+- **Per-thread control state** — selected model, selected namespace/agent, dirty flag, `isProcessing` — all scoped per thread.
+- **Wallet bridge** — `useWalletHandler()` subscribes to inbound wallet transaction requests and routes signed results back to the backend.
+- **User + event contexts** — wallet state auto-syncs via `onUserStateChange`, system events flow through a typed event buffer.
+
+### Mount the runtime
 
 ```tsx
 import {
-  ModelSelect,
-  NamespaceSelect,
-  ApiKeyInput,
-  ConnectButton,
-} from "@aomi-labs/widget-lib/control-bar";
+  ThreadContextProvider,
+  AomiRuntimeProvider,
+} from "@aomi-labs/react";
 
-<div className="flex gap-2">
-  <ModelSelect placeholder="Choose model" />
-  <NamespaceSelect placeholder="Choose agent" />
-  <ApiKeyInput title="API Key" description="Enter your key" />
-  <ConnectButton connectLabel="Connect" />
-</div>;
+export function App({ children }) {
+  return (
+    <ThreadContextProvider>
+      <AomiRuntimeProvider backendUrl="https://api.aomi.dev">
+        {children}
+      </AomiRuntimeProvider>
+    </ThreadContextProvider>
+  );
+}
 ```
-
-#### ModelSelect props
-
-| Prop          | Type     | Default          | Description            |
-| ------------- | -------- | ---------------- | ---------------------- |
-| `className`   | `string` | -                | Additional CSS classes |
-| `placeholder` | `string` | `"Select model"` | Placeholder text       |
-
-#### NamespaceSelect props
-
-| Prop          | Type     | Default          | Description            |
-| ------------- | -------- | ---------------- | ---------------------- |
-| `className`   | `string` | -                | Additional CSS classes |
-| `placeholder` | `string` | `"Select agent"` | Placeholder text       |
-
-#### ApiKeyInput props
-
-| Prop          | Type     | Default                   | Description            |
-| ------------- | -------- | ------------------------- | ---------------------- |
-| `className`   | `string` | -                         | Additional CSS classes |
-| `title`       | `string` | `"Aomi API Key"`          | Dialog title           |
-| `description` | `string` | `"Enter your API key..."` | Dialog description     |
-
-#### ConnectButton props
-
-| Prop                 | Type                           | Default             | Description                   |
-| -------------------- | ------------------------------ | ------------------- | ----------------------------- |
-| `className`          | `string`                       | -                   | Additional CSS classes        |
-| `connectLabel`       | `string`                       | `"Connect Account"` | Button text when disconnected |
-| `onConnectionChange` | `(connected: boolean) => void` | -                   | Callback on connection change |
-
-## Hooks
 
 ### useAomiRuntime
 
@@ -286,18 +190,13 @@ import { useAomiRuntime } from "@aomi-labs/react";
 
 function MyComponent() {
   const {
-    // Thread management
     currentThreadId,
     createThread,
     selectThread,
     deleteThread,
-
-    // Messages
     sendMessage,
     getMessages,
     isRunning,
-
-    // User state
     user,
     setUser,
   } = useAomiRuntime();
@@ -308,82 +207,247 @@ function MyComponent() {
 
 ### useControl
 
-Access control state (model, namespace, API key).
+Model, namespace, and API key state — persisted to `localStorage` where appropriate.
 
 ```tsx
 import { useControl } from "@aomi-labs/react";
 
-function MyComponent() {
+function Controls() {
   const {
-    state, // { namespace, apiKey, availableModels, authorizedNamespaces }
-    setState, // Update namespace or apiKey
-    getAvailableModels,
-    getAuthorizedNamespaces,
-    onModelSelect, // Select a model (backend-only)
+    state, // { namespace, apiKey, availableModels, authorizedNamespaces, ... }
+    onModelSelect,
+    onNamespaceSelect,
+    setApiKey,
   } = useControl();
 
-  return <div>Current namespace: {state.namespace}</div>;
+  return <div>Namespace: {state.namespace}</div>;
 }
 ```
 
+### useWalletHandler
+
+Subscribe to inbound wallet transaction requests surfaced by the backend.
+
+```tsx
+import { useWalletHandler } from "@aomi-labs/react";
+
+useWalletHandler({
+  onTxRequest: async (req) => {
+    const hash = await mySigner.sendTransaction(req.payload);
+    return { txHash: hash };
+  },
+});
+```
+
+---
+
+## TypeScript client: `@aomi-labs/client`
+
+Platform-agnostic client for Node.js and browsers. No React, no UI.
+
+```ts
+import { AomiClient, Session } from "@aomi-labs/client";
+
+// Low-level: direct HTTP/SSE access
+const client = new AomiClient({ baseUrl: "https://api.aomi.dev" });
+await client.createThread(crypto.randomUUID());
+
+// High-level: polls, dispatches events, manages wallet requests
+const session = new Session(client, { namespace: "default" });
+const result = await session.send("Swap 1 ETH for USDC on Uniswap");
+
+session.on("wallet_tx_request", async (req) => {
+  const signed = await mySigner.signTransaction(req.payload);
+  await session.resolve(req.id, { txHash: signed.hash });
+});
+```
+
+See [`packages/client/README.md`](packages/client/README.md) for the full `Session` API.
+
+---
+
+## CLI: `aomi`
+
+The `aomi` CLI lets you chat with Aomi agents and sign onchain transactions directly from your terminal. Installing `@aomi-labs/client` globally exposes the `aomi` binary.
+
+```bash
+npm install -g @aomi-labs/client
+aomi --version
+```
+
+### Two entry shapes
+
+```bash
+# Interactive REPL (reuses active session)
+aomi
+
+# One-shot prompt
+aomi --prompt "what is the price of ETH?"
+
+# Noun-verb subcommands for durable workflows
+aomi chat "swap 1 ETH for USDC" --public-key 0xYourAddress --chain 1
+aomi tx list
+aomi tx simulate tx-1 tx-2
+aomi tx sign tx-1 tx-2 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+aomi session list|new|resume|delete|status|log|events|close
+aomi model list|set|current
+aomi app list|current
+aomi chain list
+aomi secret add NAME=value
+```
+
+### Example: swap with account abstraction
+
+```bash
+export ALCHEMY_API_KEY=your-alchemy-key
+export ALCHEMY_GAS_POLICY_ID=your-gas-policy-id
+export PRIVATE_KEY=0xYourPrivateKey
+
+aomi chat "swap 100 USDC for ETH" --public-key 0xYourAddress --chain 1
+aomi tx sign tx-1    # auto-detects AA, tries 7702 then 4337, errors if both fail
+```
+
+### AA execution model
+
+| AA configured? | Flag | Result |
+| --- | --- | --- |
+| Yes | (none) | AA automatically (preferred mode → alternative mode fallback) |
+| Yes | `--aa-provider` / `--aa-mode` | AA with explicit settings |
+| Yes | `--eoa` | EOA, skip AA |
+| No | (none) | EOA |
+| No | `--aa-provider` | Error: AA requires provider credentials |
+
+There is **no silent EOA fallback** — if AA is selected and both modes fail, the CLI returns a hard error suggesting `--eoa`. Supported providers: **Alchemy** (4337 sponsored + 7702) and **Pimlico** (4337 sponsored).
+
+### Batch simulation
+
+`aomi tx simulate` runs pending transactions sequentially on a forked chain so state-dependent flows (approve → swap) are validated as a batch. Returns per-step success, revert reasons, and gas usage without modifying onchain state.
+
+See [`packages/client/skills/aomi-transact/SKILL.md`](packages/client/skills/aomi-transact/SKILL.md) for the complete CLI reference.
+
+---
+
+## Agent skill: `aomi-transact`
+
+`aomi-transact` is an agent skill that teaches an AI assistant (Claude, Codex, etc.) to drive the Aomi CLI — inspect sessions, build wallet requests, simulate batches, sign with AA or EOA, switch apps and chains, and ingest per-session secrets.
+
+Install via the skills registry:
+
+```bash
+npx skills add aomi-labs/skills
+```
+
+The skill file lives at [`packages/client/skills/aomi-transact/SKILL.md`](packages/client/skills/aomi-transact/SKILL.md) and includes:
+
+- Hard rules for handling private keys and API keys safely.
+- The default chat → review → simulate → sign workflow.
+- Full command, flag, and environment variable reference.
+- AA provider and mode selection guidance per chain.
+- Integrated-app catalog (Binance, Bybit, CoW, DefiLlama, Dune, dYdX, GMX, Hyperliquid, Kaito, Kalshi, Khalani, LI.FI, Manifold, Morpho, Neynar, OKX, 1inch, Polymarket, X, Yearn, 0x, and more).
+- Troubleshooting for RPC, simulation, and AA failures.
+
+A companion skill, `aomi-build`, scaffolds new backend apps from OpenAPI specs, REST endpoints, or SDK examples.
+
+---
+
 ## FAQ
 
-### Do I need a wallet to use Aomi Widget?
+### What can an Aomi agent actually do?
 
-No. Chat works without any wallet provider. Wallet actions simply stay disabled until you wrap the frame in a Para + wagmi provider tree (or your own Aomi auth adapter).
+Answer questions about crypto, DeFi, markets, wallets, and onchain state — and, when authorized, queue real wallet transactions (swaps, transfers, approvals, cross-chain intents, prediction-market bets, perps orders) that the user or CLI signs.
 
-### Which wallet providers are supported?
+### Do I need a wallet to use Aomi?
 
-The widget ships a provider-agnostic **Aomi auth adapter**. The reference integration uses **Para** for auth plus **wagmi** for chain interactions, but any stack can implement the adapter interface.
+No. In the widget, chat works without any wallet provider and wallet actions stay disabled. In the CLI, read-only flows (prices, balances, quotes) work without a private key.
 
-### Can I customize the UI?
+### Is Aomi hosted or self-hosted?
 
-Yes, three levels:
-
-1. Pass props to `<AomiFrame />`.
-2. Compose `AomiFrame.Root` / `.Header` / `.Composer` and individual ControlBar parts.
-3. Install via shadcn registry (`npx shadcn add ...`) to get source files in your repo and edit them directly.
-
-### Is this a hosted service or self-hosted?
-
-The widget is a client library. It talks to an **Aomi-compatible backend** that you point at via `NEXT_PUBLIC_BACKEND_URL`. You can run that backend yourself or use a hosted Aomi endpoint.
-
-### What framework does it require?
-
-React 18 or 19. It's designed for Next.js but works in any React framework that supports client components and Tailwind CSS v4.
-
-### Does it support streaming and tool calls?
-
-Yes. The runtime streams assistant messages and dispatches tool calls and system events (including wallet transaction requests) through a typed event bus.
+The packages in this repo are client libraries. They talk to an **Aomi-compatible backend** reachable via `NEXT_PUBLIC_BACKEND_URL` (widget/runtime) or `AOMI_BACKEND_URL` / `--backend-url` (CLI). You can run that backend yourself or use a hosted Aomi endpoint.
 
 ### What's the difference between `@aomi-labs/react` and `@aomi-labs/widget-lib`?
 
-- `@aomi-labs/react` — runtime, contexts, and hooks.
-- `@aomi-labs/widget-lib` — prebuilt UI components (AomiFrame, ControlBar, etc.).
+- `@aomi-labs/react` — headless runtime, contexts, and hooks. No UI.
+- `@aomi-labs/widget-lib` — prebuilt UI components (`AomiFrame`, `ControlBar`, etc.) built on top of the runtime.
 
-Install both for the default experience, or use the shadcn registry to copy UI source into your repo.
+Install both for the default experience, or install only `@aomi-labs/react` if you're building a custom UI.
+
+### When should I use the CLI vs. the widget?
+
+- **Widget / runtime** — when a human user will connect a wallet in the browser and sign requests themselves.
+- **CLI** — when you (the developer) want to script or run onchain flows from your terminal with a local private key, or when an AI agent should drive Aomi as a tool.
+
+### Which chains and AA modes are supported?
+
+Ethereum, Polygon, Arbitrum, Base, Optimism, and Sepolia. AA uses EIP-4337 (bundler + paymaster) or EIP-7702 (native delegation). Default mode is 7702 on Ethereum, 4337 on L2s.
+
+### Does it support streaming and tool calls?
+
+Yes. The runtime streams assistant messages and dispatches tool calls and system events — including wallet transaction requests — through a typed event bus.
+
+### How does an AI agent use Aomi?
+
+Install the `aomi-transact` skill. The agent then uses the `aomi` CLI as a tool, following the skill's workflow rules for session management, simulation, and signing. No custom integration code needed.
+
+---
+
+## Requirements
+
+- **React:** 18 or 19 (widget and runtime)
+- **Node:** 18+ (CLI and client)
+- **Next.js:** 14+ recommended for the widget
+- **Tailwind CSS:** v4 (widget)
+- **Backend:** an Aomi-compatible backend reachable over HTTP/SSE
+- **Optional for wallet UX:** `@getpara/react-sdk`, `wagmi`, `@tanstack/react-query`
+- **Optional for CLI AA:** `ALCHEMY_API_KEY` and/or `PIMLICO_API_KEY`
 
 ## Development
 
+This is a pnpm monorepo.
+
 ```bash
 pnpm install
-pnpm run build:lib            # Build the library
+pnpm run build:lib            # Build the widget/runtime library
+pnpm run build:client         # Build the TypeScript client + CLI
 pnpm --filter landing dev     # Run demo at localhost:3000
 pnpm run dev:landing:live     # Watch library + demo together
 pnpm lint                     # Lint check
 pnpm test                     # Run tests
 ```
 
+### Repo layout
+
+```
+packages/
+  react/       # @aomi-labs/react — headless runtime, contexts, hooks
+  client/      # @aomi-labs/client — TypeScript client + `aomi` CLI + skills
+apps/
+  registry/    # @aomi-labs/widget-lib — shadcn-installable UI components
+  landing/     # Demo Next.js app (localhost:3000)
+```
+
 ## Environment variables
 
-Create a `.env` file:
+Widget / runtime:
 
 ```
 NEXT_PUBLIC_PROJECT_ID=your_reown_project_id
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
 ```
 
-Get your Project ID from [Reown](https://docs.reown.com/).
+CLI (optional):
+
+```
+AOMI_BACKEND_URL=https://api.aomi.dev
+AOMI_API_KEY=...
+PRIVATE_KEY=0x...
+CHAIN_RPC_URL=https://eth.llamarpc.com
+ALCHEMY_API_KEY=...
+ALCHEMY_GAS_POLICY_ID=...
+PIMLICO_API_KEY=...
+AOMI_STATE_DIR=~/.aomi
+```
+
+Get your Reown Project ID from [Reown](https://docs.reown.com/).
 
 ## License
 
