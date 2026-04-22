@@ -1,27 +1,60 @@
 # Aomi Widget
 
-AI assistant + onchain widget library for React applications.
+**Aomi Widget is an open-source React component library that adds an AI chat assistant with built-in onchain wallet actions to any web app.** It ships as a drop-in `<AomiFrame />` component plus headless hooks, and is designed for teams building AI-powered crypto, DeFi, and web3 products.
+
+- **Package:** `@aomi-labs/react` (runtime) and `@aomi-labs/widget-lib` (UI via shadcn registry)
+- **Stack:** React 19, Next.js 15, TypeScript, Tailwind CSS 4, Radix UI, `@assistant-ui/react`
+- **License:** MIT
+
+## What is Aomi Widget?
+
+Aomi Widget is a React chat widget for AI assistants that can read wallet state and request onchain transactions. It combines three pieces:
+
+1. **A chat UI** — threads, streaming messages, tool calls, markdown, and a composer.
+2. **A runtime** — backend polling/SSE, thread management, model/namespace selection, and system events.
+3. **A wallet bridge** — provider-agnostic adapter that plugs into Para, wagmi, or your own auth stack.
+
+If you want an AI assistant that can talk about *and* act on onchain data inside your app, this is what you embed.
+
+## Key features
+
+- **Drop-in React component** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
+- **Works without a wallet** — chat UI still functions; wallet actions disable gracefully.
+- **Provider-agnostic auth** — use Para + wagmi (recommended), or wire your own adapter.
+- **Headless hooks** — `useAomiRuntime` and `useControl` for fully custom UIs.
+- **Compound components** — `AomiFrame.Root` / `.Header` / `.Composer` for custom layouts.
+- **shadcn registry install** — copy source into your repo for full customization.
+- **Per-thread model & namespace state** — each conversation remembers its settings.
+- **Streaming, tool calls, and system events** — backed by `@assistant-ui/react` primitives.
+
+## When should I use Aomi Widget?
+
+| Use case | Fit |
+| --- | --- |
+| Embed an AI assistant in a DeFi, wallet, or onchain app | **Primary** |
+| Add onchain tool-calling to an existing AI product | **Primary** |
+| Build a chat UI with no wallet/web3 needs | Works, but lighter alternatives exist |
+| Replace your entire AI backend | Out of scope — Aomi Widget is the frontend + runtime; pair it with an Aomi-compatible backend |
 
 ## Installation
+
+Install the npm packages:
 
 ```bash
 pnpm install @aomi-labs/react @aomi-labs/widget-lib
 ```
 
-Or install via shadcn registry:
+Or copy source into your project via the shadcn registry:
 
 ```bash
 npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
-The registry install includes provider-agnostic Aomi auth adapter primitives.
-To enable wallet UX, render the widget inside your Para + wagmi provider tree,
-as shown in the landing example.
+The registry install includes the provider-agnostic **Aomi auth adapter** primitives. To enable wallet UX, render the widget inside your Para + wagmi provider tree (see the landing example).
 
-## Quick Start
+## Quick start
 
-Drop the frame into your app with zero configuration. Without wallet providers,
-the chat UI still works and wallet actions remain disabled.
+Drop the frame into your app. Without wallet providers, chat still works and wallet actions stay disabled.
 
 ```tsx
 import { AomiFrame } from "@aomi-labs/widget-lib";
@@ -31,7 +64,9 @@ export function Assistant() {
 }
 ```
 
-Wrap the frame in your wallet providers when needed:
+### With wallet providers
+
+Wrap the frame in Para + React Query to enable wallet connection and transaction requests:
 
 ```tsx
 import "@getpara/react-sdk/styles.css";
@@ -57,11 +92,20 @@ export function Assistant() {
 }
 ```
 
-## AomiFrame Component
+## Requirements
 
-### Simple Usage (Default Layout)
+- **React:** 18 or 19
+- **Next.js:** 14+ (or any React framework that supports client components)
+- **Node:** 18+
+- **Tailwind CSS:** v4
+- **Backend:** an Aomi-compatible backend reachable via `NEXT_PUBLIC_BACKEND_URL` (default `http://localhost:8080`)
+- **Optional for wallet UX:** `@getpara/react-sdk`, `wagmi`, `@tanstack/react-query`
 
-The default layout includes a sidebar with thread list, header with controls, and message composer:
+## AomiFrame component
+
+### Default layout
+
+The default layout includes a sidebar with thread list, a header with controls, and a message composer:
 
 ```tsx
 import { AomiFrame } from "@aomi-labs/react";
@@ -82,7 +126,7 @@ import { AomiFrame } from "@aomi-labs/react";
 <AomiFrame walletPosition={null} />
 ```
 
-### Props Reference
+### Props
 
 | Prop             | Type                           | Default                                       | Description                         |
 | ---------------- | ------------------------------ | --------------------------------------------- | ----------------------------------- |
@@ -93,12 +137,11 @@ import { AomiFrame } from "@aomi-labs/react";
 | `walletPosition` | `"header" \| "footer" \| null` | `"footer"`                                    | Where to show wallet connect button |
 | `backendUrl`     | `string`                       | `NEXT_PUBLIC_BACKEND_URL` or `localhost:8080` | Backend API URL                     |
 
-Wallet behavior comes from the surrounding Para + wagmi provider tree. If you
-do not provide one, the frame renders and the wallet UI stays disabled.
+Wallet behavior is read from the surrounding Para + wagmi provider tree. Without one, the frame still renders and wallet UI stays disabled.
 
-### Compound Components (Advanced)
+### Compound components (advanced)
 
-For full customization, use the compound component API:
+Use the compound API for custom layouts:
 
 ```tsx
 import { AomiFrame } from "@aomi-labs/widget-lib";
@@ -118,9 +161,7 @@ export function CustomAssistant() {
 
 #### AomiFrame.Root
 
-The root container that provides the widget layout, runtime providers, and
-transaction bridge. Wallet behavior is read from the surrounding Para + wagmi
-provider tree when present.
+Root container providing layout, runtime providers, and transaction bridge.
 
 | Prop             | Type                           | Default                 | Description                       |
 | ---------------- | ------------------------------ | ----------------------- | --------------------------------- |
@@ -134,7 +175,7 @@ provider tree when present.
 
 #### AomiFrame.Header
 
-The header with sidebar trigger, control bar, and thread title.
+Header with sidebar trigger, control bar, and thread title.
 
 | Prop              | Type              | Default | Description                   |
 | ----------------- | ----------------- | ------- | ----------------------------- |
@@ -145,7 +186,7 @@ The header with sidebar trigger, control bar, and thread title.
 
 #### AomiFrame.Composer
 
-The main content area with messages and input composer.
+Main content area with messages and input composer.
 
 | Prop              | Type              | Default | Description                     |
 | ----------------- | ----------------- | ------- | ------------------------------- |
@@ -154,9 +195,9 @@ The main content area with messages and input composer.
 | `controlBarProps` | `ControlBarProps` | -       | Props passed to ControlBar      |
 | `className`       | `string`          | -       | Additional CSS classes          |
 
-## ControlBar Component
+## ControlBar component
 
-The ControlBar provides model selection, namespace/agent selection, API key input, and wallet connection.
+ControlBar provides model selection, namespace/agent selection, API key input, and wallet connection.
 
 ```tsx
 import { ControlBar } from "@aomi-labs/react";
@@ -173,7 +214,7 @@ import { ControlBar } from "@aomi-labs/react";
 </ControlBar>
 ```
 
-### ControlBar Props
+### ControlBar props
 
 | Prop            | Type        | Default | Description                   |
 | --------------- | ----------- | ------- | ----------------------------- |
@@ -184,9 +225,9 @@ import { ControlBar } from "@aomi-labs/react";
 | `hideApiKey`    | `boolean`   | `false` | Hide API key input            |
 | `hideWallet`    | `boolean`   | `false` | Hide wallet connect button    |
 
-### Individual Control Components
+### Individual control components
 
-Use individual components for granular control:
+Compose a fully custom control bar:
 
 ```tsx
 import {
@@ -196,7 +237,6 @@ import {
   ConnectButton,
 } from "@aomi-labs/widget-lib/control-bar";
 
-// Custom layout
 <div className="flex gap-2">
   <ModelSelect placeholder="Choose model" />
   <NamespaceSelect placeholder="Choose agent" />
@@ -205,21 +245,21 @@ import {
 </div>;
 ```
 
-#### ModelSelect Props
+#### ModelSelect props
 
 | Prop          | Type     | Default          | Description            |
 | ------------- | -------- | ---------------- | ---------------------- |
 | `className`   | `string` | -                | Additional CSS classes |
 | `placeholder` | `string` | `"Select model"` | Placeholder text       |
 
-#### NamespaceSelect Props
+#### NamespaceSelect props
 
 | Prop          | Type     | Default          | Description            |
 | ------------- | -------- | ---------------- | ---------------------- |
 | `className`   | `string` | -                | Additional CSS classes |
 | `placeholder` | `string` | `"Select agent"` | Placeholder text       |
 
-#### ApiKeyInput Props
+#### ApiKeyInput props
 
 | Prop          | Type     | Default                   | Description            |
 | ------------- | -------- | ------------------------- | ---------------------- |
@@ -239,7 +279,7 @@ import {
 
 ### useAomiRuntime
 
-Access the runtime API for programmatic control:
+Programmatic control over threads, messages, and user state.
 
 ```tsx
 import { useAomiRuntime } from "@aomi-labs/react";
@@ -268,7 +308,7 @@ function MyComponent() {
 
 ### useControl
 
-Access control state (model, namespace, API key):
+Access control state (model, namespace, API key).
 
 ```tsx
 import { useControl } from "@aomi-labs/react";
@@ -286,6 +326,43 @@ function MyComponent() {
 }
 ```
 
+## FAQ
+
+### Do I need a wallet to use Aomi Widget?
+
+No. Chat works without any wallet provider. Wallet actions simply stay disabled until you wrap the frame in a Para + wagmi provider tree (or your own Aomi auth adapter).
+
+### Which wallet providers are supported?
+
+The widget ships a provider-agnostic **Aomi auth adapter**. The reference integration uses **Para** for auth plus **wagmi** for chain interactions, but any stack can implement the adapter interface.
+
+### Can I customize the UI?
+
+Yes, three levels:
+
+1. Pass props to `<AomiFrame />`.
+2. Compose `AomiFrame.Root` / `.Header` / `.Composer` and individual ControlBar parts.
+3. Install via shadcn registry (`npx shadcn add ...`) to get source files in your repo and edit them directly.
+
+### Is this a hosted service or self-hosted?
+
+The widget is a client library. It talks to an **Aomi-compatible backend** that you point at via `NEXT_PUBLIC_BACKEND_URL`. You can run that backend yourself or use a hosted Aomi endpoint.
+
+### What framework does it require?
+
+React 18 or 19. It's designed for Next.js but works in any React framework that supports client components and Tailwind CSS v4.
+
+### Does it support streaming and tool calls?
+
+Yes. The runtime streams assistant messages and dispatches tool calls and system events (including wallet transaction requests) through a typed event bus.
+
+### What's the difference between `@aomi-labs/react` and `@aomi-labs/widget-lib`?
+
+- `@aomi-labs/react` — runtime, contexts, and hooks.
+- `@aomi-labs/widget-lib` — prebuilt UI components (AomiFrame, ControlBar, etc.).
+
+Install both for the default experience, or use the shadcn registry to copy UI source into your repo.
+
 ## Development
 
 ```bash
@@ -297,9 +374,9 @@ pnpm lint                     # Lint check
 pnpm test                     # Run tests
 ```
 
-## Environment Variables
+## Environment variables
 
-Create `.env` with:
+Create a `.env` file:
 
 ```
 NEXT_PUBLIC_PROJECT_ID=your_reown_project_id
