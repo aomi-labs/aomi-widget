@@ -43,31 +43,31 @@ export function useWalletHandler({
 }: WalletHandlerConfig): WalletHandlerApi {
   const [pendingRequests, setPendingRequests] = useState<WalletRequest[]>([]);
   const requestsRef = useRef<WalletRequest[]>(pendingRequests);
-  const inFlightRequestIdsRef = useRef<Set<string>>(new Set());
-  const suppressedRequestIdsRef = useRef<Set<string>>(new Set());
+  const inFlightRequestSetRef = useRef<Set<string>>(new Set());
+  const suppressedRequestSetRef = useRef<Set<string>>(new Set());
 
   const syncVisibleRequests = useCallback(() => {
     setPendingRequests(
       requestsRef.current.filter(
-        (request) => !suppressedRequestIdsRef.current.has(request.id),
+        (request) => !suppressedRequestSetRef.current.has(request.id),
       ),
     );
   }, []);
 
   const setRequests = useCallback((requests: WalletRequest[]) => {
     const incomingIds = new Set(requests.map((request) => request.id));
-    for (const id of suppressedRequestIdsRef.current) {
+    for (const id of suppressedRequestSetRef.current) {
       if (
         !incomingIds.has(id) &&
-        !inFlightRequestIdsRef.current.has(id)
+        !inFlightRequestSetRef.current.has(id)
       ) {
-        suppressedRequestIdsRef.current.delete(id);
+        suppressedRequestSetRef.current.delete(id);
       }
     }
 
     const preservedInFlight = requestsRef.current.filter(
       (request) =>
-        inFlightRequestIdsRef.current.has(request.id) &&
+        inFlightRequestSetRef.current.has(request.id) &&
         !incomingIds.has(request.id),
     );
 
@@ -80,8 +80,8 @@ export function useWalletHandler({
       return;
     }
 
-    inFlightRequestIdsRef.current.add(id);
-    suppressedRequestIdsRef.current.add(id);
+    inFlightRequestSetRef.current.add(id);
+    suppressedRequestSetRef.current.add(id);
     syncVisibleRequests();
   }, [syncVisibleRequests]);
 
@@ -103,7 +103,7 @@ export function useWalletHandler({
         requestsRef.current = requestsRef.current.filter(
           (request) => request.id !== id,
         );
-        inFlightRequestIdsRef.current.delete(id);
+        inFlightRequestSetRef.current.delete(id);
         syncVisibleRequests();
       }
     },
@@ -128,7 +128,7 @@ export function useWalletHandler({
         requestsRef.current = requestsRef.current.filter(
           (request) => request.id !== id,
         );
-        inFlightRequestIdsRef.current.delete(id);
+        inFlightRequestSetRef.current.delete(id);
         syncVisibleRequests();
       }
     },
