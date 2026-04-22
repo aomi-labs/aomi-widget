@@ -92,10 +92,13 @@ export type AomiRuntimeApi = {
   pendingWalletRequests: WalletRequest[];
   /** Mark a wallet request as being processed */
   startWalletRequest: (id: string) => void;
-  /** Complete a wallet request — dequeues + sends response to backend */
-  resolveWalletRequest: (id: string, result: WalletRequestResult) => void;
-  /** Fail a wallet request — dequeues + sends error to backend */
-  rejectWalletRequest: (id: string, error?: string) => void;
+  /** Complete a wallet request after the backend acknowledges the response */
+  resolveWalletRequest: (
+    id: string,
+    result: WalletRequestResult,
+  ) => Promise<void>;
+  /** Fail a wallet request after the backend acknowledges the error */
+  rejectWalletRequest: (id: string, error?: string) => Promise<void>;
 
   // -------------------------------------------------------------------------
   // EVENT API
