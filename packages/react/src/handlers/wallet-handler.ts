@@ -44,17 +44,27 @@ export function useWalletHandler({
   const [pendingRequests, setPendingRequests] = useState<WalletRequest[]>([]);
   const requestsRef = useRef<WalletRequest[]>(pendingRequests);
   const inFlightRequestIdsRef = useRef<Set<string>>(new Set());
+  const suppressedRequestIdsRef = useRef<Set<string>>(new Set());
 
   const syncVisibleRequests = useCallback(() => {
     setPendingRequests(
       requestsRef.current.filter(
-        (request) => !inFlightRequestIdsRef.current.has(request.id),
+        (request) => !suppressedRequestIdsRef.current.has(request.id),
       ),
     );
   }, []);
 
   const setRequests = useCallback((requests: WalletRequest[]) => {
     const incomingIds = new Set(requests.map((request) => request.id));
+    for (const id of suppressedRequestIdsRef.current) {
+      if (
+        !incomingIds.has(id) &&
+        !inFlightRequestIdsRef.current.has(id)
+      ) {
+        suppressedRequestIdsRef.current.delete(id);
+      }
+    }
+
     const preservedInFlight = requestsRef.current.filter(
       (request) =>
         inFlightRequestIdsRef.current.has(request.id) &&
@@ -71,6 +81,7 @@ export function useWalletHandler({
     }
 
     inFlightRequestIdsRef.current.add(id);
+    suppressedRequestIdsRef.current.add(id);
     syncVisibleRequests();
   }, [syncVisibleRequests]);
 
@@ -86,12 +97,12 @@ export function useWalletHandler({
 
       try {
         await session.resolve(id, result);
-        requestsRef.current = requestsRef.current.filter(
-          (request) => request.id !== id,
-        );
       } catch (err) {
         console.error("[wallet-handler] Failed to resolve request:", err);
       } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id,
+        );
         inFlightRequestIdsRef.current.delete(id);
         syncVisibleRequests();
       }
@@ -111,12 +122,12 @@ export function useWalletHandler({
 
       try {
         await session.reject(id, error);
-        requestsRef.current = requestsRef.current.filter(
-          (request) => request.id !== id,
-        );
       } catch (err) {
         console.error("[wallet-handler] Failed to reject request:", err);
       } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id,
+        );
         inFlightRequestIdsRef.current.delete(id);
         syncVisibleRequests();
       }
