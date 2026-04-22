@@ -14,6 +14,7 @@ export function walletRequestToPendingTx(
     const payload = request.payload as WalletTxPayload;
     return {
       kind: "transaction",
+      txId: payload.txId,
       to: payload.to,
       value: payload.value,
       data: payload.data,
@@ -26,6 +27,7 @@ export function walletRequestToPendingTx(
   const payload = request.payload as WalletEip712Payload;
   return {
     kind: "eip712_sign",
+    eip712Id: payload.eip712Id,
     description: payload.description,
     timestamp: request.timestamp,
     payload: request.payload as unknown as Record<string, unknown>,

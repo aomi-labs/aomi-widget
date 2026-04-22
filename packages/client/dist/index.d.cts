@@ -1,11 +1,6 @@
 import { Hex, Chain, TransactionReceipt } from 'viem';
 
 /**
- * Client-side user state synced with the backend.
- * Typically wallet connection info, but can be any key-value data.
- */
-type UserState = Record<string, unknown>;
-/**
  * Known client surfaces that may want backend-specific UX strategies.
  * Additional string values are allowed for forward compatibility.
  */
@@ -13,8 +8,25 @@ type AomiClientType = "ts_cli" | "web_ui" | (string & {});
 declare const CLIENT_TYPE_TS_CLI: AomiClientType;
 declare const CLIENT_TYPE_WEB_UI: AomiClientType;
 /**
- * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
+ * Client-side user state synced with the backend.
+ * Typically wallet connection info, but can be any key-value data.
  */
+interface UserState extends Record<string, unknown> {
+}
+declare namespace UserState {
+    /**
+     * Canonicalize client-side user state to the backend's snake_case `UserState`.
+     * Existing snake_case keys win when both forms are present.
+     */
+    function normalize(userState?: UserState | null): UserState | undefined;
+    function address(userState?: UserState | null): string | undefined;
+    function chainId(userState?: UserState | null): number | undefined;
+    function isConnected(userState?: UserState | null): boolean | undefined;
+    /**
+     * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
+     */
+    function withExt(userState: UserState, key: string, value: unknown): UserState;
+}
 declare function addUserStateExt(userState: UserState, key: string, value: unknown): UserState;
 /**
  * Optional logger for debug output. Pass `console` or any compatible object.
@@ -464,6 +476,7 @@ type WalletTxPayload = {
     value?: string;
     data?: string;
     chainId?: number;
+    txId?: number;
 };
 type WalletEip712Payload = {
     typed_data?: {
@@ -478,6 +491,7 @@ type WalletEip712Payload = {
         message?: Record<string, unknown>;
     };
     description?: string;
+    eip712Id?: number;
 };
 type ViemSignTypedDataArgs = {
     domain?: Record<string, unknown>;
@@ -519,6 +533,7 @@ type WalletRequestResult = {
     txHash?: string;
     signature?: string;
     amount?: string;
+    error?: string;
 };
 type SendResult = {
     messages: AomiMessage[];
@@ -576,6 +591,8 @@ type SessionEventMap = {
     processing_start: undefined;
     /** AI finished processing. */
     processing_end: undefined;
+    /** Authoritative pending wallet request list changed. */
+    wallet_requests_changed: WalletRequest[];
     /**
      * Backend transitioned from processing to idle (is_processing went false).
      * Unlike `processing_end`, this fires even when there are unresolved local
@@ -653,6 +670,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getMessages(): AomiMessage[];
     /** Current session title. */
     getTitle(): string | undefined;
+    /** Latest authoritative backend user_state snapshot seen by this session. */
+    getUserState(): UserState | undefined;
     /** Pending wallet requests waiting for resolve/reject. */
     getPendingRequests(): WalletRequest[];
     /** Whether the AI is currently processing. */
@@ -687,6 +706,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private resolvePending;
     private assertOpen;
     private assertUserStateAligned;
+    private getWalletRequestId;
+    private syncWalletRequests;
 }
 
 declare function executeWalletCalls(params: ExecuteWalletCallsParams): Promise<ExecutionResult>;
@@ -806,4 +827,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, type UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, resolvePimlicoConfig, toAAWalletCall, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, resolvePimlicoConfig, toAAWalletCall, toViemSignTypedDataArgs, unwrapSystemEvent };

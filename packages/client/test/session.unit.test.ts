@@ -14,8 +14,11 @@ function createMockClient() {
   const fetchState = vi
     .spyOn(client, "fetchState")
     .mockResolvedValue({ is_processing: false, messages: [] });
+  const sendSystemMessage = vi
+    .spyOn(client, "sendSystemMessage")
+    .mockResolvedValue(undefined);
 
-  return { client, sendMessage, fetchState };
+  return { client, sendMessage, fetchState, sendSystemMessage };
 }
 
 describe("ClientSession ext helpers", () => {
@@ -56,9 +59,9 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0xabc",
-      chainId: 1,
-      isConnected: true,
-      ensName: "wallet.eth",
+      chain_id: 1,
+      is_connected: true,
+      ens_name: "wallet.eth",
       ext: {
         SIMMER_API_KEY: "sk_live_2",
         PARA_API_KEY: "para_live_2",
@@ -82,7 +85,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0xdef",
-      isConnected: true,
+      is_connected: true,
       ext: { SIMMER_API_KEY: "sk_live_3" },
     });
 
@@ -91,7 +94,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[1][2]?.userState).toEqual({
       address: "0xdef",
-      isConnected: true,
+      is_connected: true,
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -128,7 +131,7 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0x123",
-      isConnected: true,
+      is_connected: true,
       ext: { client_type: CLIENT_TYPE_WEB_UI },
     });
 
@@ -141,7 +144,7 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-5",
       userState: {
         address: "0x999",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "sk_live_5" },
       },
     });
@@ -151,7 +154,7 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x999",
-        isConnected: true,
+        is_connected: true,
         ext: {
           SIMMER_API_KEY: "sk_live_5",
           PARA_API_KEY: "para_live_5",
@@ -173,7 +176,7 @@ describe("ClientSession ext helpers", () => {
       sessionId: "session-unit-6",
       userState: {
         address: "0x888",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "expected" },
       },
     });
@@ -183,7 +186,7 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       user_state: {
         address: "0x888",
-        isConnected: true,
+        is_connected: true,
         ext: { SIMMER_API_KEY: "different" },
       },
     } satisfies AomiStateResponse);
@@ -193,6 +196,195 @@ describe("ClientSession ext helpers", () => {
     });
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("Backend user_state mismatch (non-fatal)"),
+    );
+
+    session.close();
+  });
+
+  it("accepts backend nulls for optional user_state fields", async () => {
+    const { client, sendMessage } = createMockClient();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const session = new Session(client, {
+      sessionId: "session-unit-7",
+      userState: {
+        address: "0x9C7a99480c59955a635123EDa064456393e519f5",
+        chain_id: 8453,
+        is_connected: true,
+        ens_name: undefined,
+        ext: undefined,
+      },
+    });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        address: "0x9C7a99480c59955a635123EDa064456393e519f5",
+        chain_id: 8453,
+        is_connected: true,
+        ens_name: null,
+        ext: null,
+        pending_txs: {},
+        pending_eip712s: {},
+      },
+    } satisfies AomiChatResponse);
+
+    await expect(session.sendAsync("null normalization check")).resolves.toMatchObject({
+      is_processing: false,
+    });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    session.close();
+  });
+
+  it("hydrates pending wallet requests from backend user_state", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-7b" });
+    const requestsChanged = vi.fn();
+
+    session.on("wallet_requests_changed", requestsChanged);
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        address: "0x9C7a99480c59955a635123EDa064456393e519f5",
+        chain_id: 8453,
+        is_connected: true,
+        pending_txs: {
+          1: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x",
+            chain_id: 8453,
+          },
+        },
+        pending_eip712s: {
+          7: {
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0x123" },
+            },
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "tx-1",
+        kind: "transaction",
+        payload: expect.objectContaining({ txId: 1, chainId: 8453 }),
+      }),
+      expect.objectContaining({
+        id: "eip712-7",
+        kind: "eip712_sign",
+        payload: expect.objectContaining({
+          eip712Id: 7,
+          description: "Permit2 signature",
+        }),
+      }),
+    ]);
+    expect(requestsChanged).toHaveBeenCalled();
+
+    session.close();
+  });
+
+  it("forwards backend tx identifiers in wallet completion callbacks", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-8" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet_tx_request",
+          payload: {
+            txId: 7,
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x",
+            chain_id: 8453,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_tx_request", resolve);
+    });
+
+    await session.sendAsync("queue tx");
+    const request = await requestPromise;
+
+    await session.resolve((request as { id: string }).id, { txHash: "0xabc" });
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-unit-8",
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: {
+          txHash: "0xabc",
+          status: "success",
+          amount: undefined,
+          pending_tx_id: 7,
+        },
+      }),
+    );
+
+    session.close();
+  });
+
+  it("forwards backend eip712 identifiers in wallet rejection callbacks", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-9" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet_eip712_request",
+          payload: {
+            eip712Id: 11,
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0x123" },
+            },
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_eip712_request", resolve);
+    });
+
+    await session.sendAsync("queue signature");
+    const request = await requestPromise;
+
+    await session.reject((request as { id: string }).id, "User rejected");
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-unit-9",
+      JSON.stringify({
+        type: "wallet_eip712_response",
+        payload: {
+          status: "failed",
+          error: "User rejected",
+          description: "Permit2 signature",
+          pending_eip712_id: 11,
+        },
+      }),
     );
 
     session.close();

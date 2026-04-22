@@ -13,6 +13,18 @@ export async function simulateCommand(txIds: string[]): Promise<void> {
     fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
   }
 
+  const session = cli.createClientSession();
+  try {
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      undefined,
+      cli.clientId,
+    );
+    cli.syncPendingFromUserState(apiState.user_state);
+  } finally {
+    session.close();
+  }
+
   // Resolve tx IDs to local pending tx payloads.
   const pendingTxs = txIds.map((txId) => cli.requirePendingTx(txId));
 
