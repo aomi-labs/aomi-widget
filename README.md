@@ -1,9 +1,10 @@
 # Aomi
 
-**Aomi is an open-source toolkit for building AI agents that can read and transact onchain.** It ships four entry points from one repo — a React widget, a headless runtime, a CLI, and an agent skill — all backed by an Aomi-compatible backend.
+**Aomi is an open-source toolkit for building AI agents that can read and transact onchain.** It ships five entry points from one repo — a React widget, a headless runtime, a TypeScript client, a CLI, and an agent skill — all backed by an Aomi-compatible backend.
 
 - **Widget** — `<AomiFrame />`, a drop-in React chat component with wallet actions.
 - **Headless runtime** — `@aomi-labs/react` hooks and providers that manage concurrent threads, backend polling, control state, and wallet events, with no UI opinions.
+- **TypeScript client** — `@aomi-labs/client`, a platform-agnostic client for Node.js and browsers.
 - **CLI** — `aomi`, a terminal client for chatting with Aomi agents and signing onchain transactions directly from your shell.
 - **Agent skill** — `aomi-transact`, a Claude / Codex skill that teaches an AI agent to operate the CLI as an onchain tool.
 - **License:** MIT
@@ -28,7 +29,7 @@ All entry points share a common backend API, so a conversation started in the wi
 
 - **AI chat + onchain actions in one loop** — the agent can queue wallet requests inside any conversation.
 - **Drop-in React widget** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
-- **Headless runtime for custom UIs** — concurrent thread management, per-thread model/namespace state, backend polling/SSE, event bus, and wallet bridge, exposed as React hooks.
+- **Headless runtime for custom UIs** — concurrent thread management, per-thread model/namespace state, backend polling/SSE, event bus, and wallet request handler, exposed as React hooks.
 - **Terminal-first CLI** — `aomi chat`, `aomi tx list`, `aomi tx simulate`, `aomi tx sign`, session management, secret ingestion.
 - **Account Abstraction built in** — EIP-4337 and EIP-7702 signing via Alchemy or Pimlico, with automatic mode fallback.
 - **Batch simulation** — dry-run multi-step flows (approve → swap) on a forked chain before signing.
@@ -38,7 +39,7 @@ All entry points share a common backend API, so a conversation started in the wi
 
 ## Install
 
-Pick the package for your entry point. All three live in this monorepo.
+Pick the package for your entry point. All five live in this monorepo.
 
 ```bash
 # React widget + UI components
@@ -159,7 +160,7 @@ It manages:
 - **Concurrent threads** — create, switch, rename, archive, and delete chat threads; each thread has its own message history, model, namespace, and processing state.
 - **Backend orchestration** — polling and SSE with the Aomi backend, including `/api/chat`, `/api/state`, `/api/interrupt`, `/api/system`, and `/api/sessions/*`.
 - **Per-thread control state** — selected model, selected namespace/agent, dirty flag, `isProcessing` — all scoped per thread.
-- **Wallet bridge** — `useWalletHandler()` subscribes to inbound wallet transaction requests and routes signed results back to the backend.
+- **Wallet request handler** — `useWalletHandler()` subscribes to inbound wallet transaction requests and routes signed results back to the backend.
 - **User + event contexts** — wallet state auto-syncs via `onUserStateChange`, system events flow through a typed event buffer.
 
 ### Mount the runtime
