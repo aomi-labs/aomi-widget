@@ -227,10 +227,10 @@ export function Hero() {
         </div>
 
         <h1 className="mb-4 max-w-5xl text-center font-serif text-4xl leading-[1.1] tracking-tight text-neutral-50 drop-shadow-2xl md:text-5xl lg:text-6xl">
-          Blockchain AI Infrastructure
+          Best Blockchain Harness
           <br />
           <span className="text-white/90">
-            for Web3 Builders
+            for Agentic AI
           </span>
         </h1>
         <p className="mb-6 max-w-5xl text-center font-serif text-2xl leading-[1.2] tracking-tight text-white/70 drop-shadow-lg md:text-3xl lg:text-4xl">
@@ -238,9 +238,9 @@ export function Hero() {
           <span className="font-pt-serif italic"> from action.</span>
         </p>
         <p className="font-geist mr-auto mb-10 ml-auto max-w-xl text-sm leading-relaxed font-light tracking-wide text-neutral-50 drop-shadow-lg md:text-base">
-          Embed AI features in your crypto product. Universal Smart Contract support,
+          Empower your crypto journey with AI. Transact to universal protocoals,
           <br className="hidden md:block" />
-          human-in-the-loop, multi-chain. Ship in minutes.
+          top-security, multi-chain. Land in seconds.
         </p>
         <div className="mb-25 flex items-center gap-4">
           <a

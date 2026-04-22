@@ -53,6 +53,7 @@ __export(index_exports, {
   DEFAULT_AA_CONFIG: () => DEFAULT_AA_CONFIG,
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
+  UserState: () => UserState,
   adaptSmartAccount: () => adaptSmartAccount,
   addUserStateExt: () => addUserStateExt,
   buildAAExecutionPlan: () => buildAAExecutionPlan,
@@ -75,6 +76,95 @@ __export(index_exports, {
   unwrapSystemEvent: () => unwrapSystemEvent
 });
 module.exports = __toCommonJS(index_exports);
+
+// src/types.ts
+var CLIENT_TYPE_TS_CLI = "ts_cli";
+var CLIENT_TYPE_WEB_UI = "web_ui";
+var USER_STATE_KEY_ALIASES = {
+  chainId: "chain_id",
+  isConnected: "is_connected",
+  ensName: "ens_name",
+  pendingTxs: "pending_txs",
+  pendingEip712s: "pending_eip712s",
+  nextId: "next_id"
+};
+function parseUserStateChainId(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return void 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return void 0;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+var UserState;
+((UserState2) => {
+  function normalize(userState) {
+    var _a;
+    if (!userState) {
+      return void 0;
+    }
+    const normalized = {};
+    for (const [key, value] of Object.entries(userState)) {
+      const normalizedKey = (_a = USER_STATE_KEY_ALIASES[key]) != null ? _a : key;
+      if (normalizedKey in normalized) {
+        continue;
+      }
+      normalized[normalizedKey] = value;
+    }
+    return normalized;
+  }
+  UserState2.normalize = normalize;
+  function address(userState) {
+    const normalized = normalize(userState);
+    const address2 = normalized == null ? void 0 : normalized.address;
+    return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
+  }
+  UserState2.address = address;
+  function chainId(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateChainId(normalized == null ? void 0 : normalized.chain_id);
+  }
+  UserState2.chainId = chainId;
+  function isConnected(userState) {
+    const normalized = normalize(userState);
+    const isConnected2 = normalized == null ? void 0 : normalized.is_connected;
+    return typeof isConnected2 === "boolean" ? isConnected2 : void 0;
+  }
+  UserState2.isConnected = isConnected;
+  function withExt(userState, key, value) {
+    var _a;
+    const normalizedUserState = (_a = normalize(userState)) != null ? _a : {};
+    const currentExt = normalizedUserState["ext"];
+    const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
+    return __spreadProps(__spreadValues({}, normalizedUserState), {
+      ext: __spreadProps(__spreadValues({}, extRecord), {
+        [key]: value
+      })
+    });
+  }
+  UserState2.withExt = withExt;
+})(UserState || (UserState = {}));
+function addUserStateExt(userState, key, value) {
+  return UserState.withExt(userState, key, value);
+}
+function isInlineCall(event) {
+  return "InlineCall" in event;
+}
+function isSystemNotice(event) {
+  return "SystemNotice" in event;
+}
+function isSystemError(event) {
+  return "SystemError" in event;
+}
+function isAsyncCallback(event) {
+  return "AsyncCallback" in event;
+}
 
 // src/sse.ts
 function extractSseData(rawEvent) {
@@ -317,8 +407,9 @@ var AomiClient = class {
    * Fetch current session state (messages, processing status, title).
    */
   async fetchState(sessionId, userState, clientId) {
+    const normalizedUserState = UserState.normalize(userState);
     const url = buildApiUrl(this.baseUrl, "/api/state", {
-      user_state: userState ? JSON.stringify(userState) : void 0,
+      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
     });
     const response = await fetch(url, {
@@ -336,12 +427,13 @@ var AomiClient = class {
     var _a, _b;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
+    const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
     const payload = { message, app };
     if (options == null ? void 0 : options.publicKey) {
       payload.public_key = options.publicKey;
     }
-    if (options == null ? void 0 : options.userState) {
-      payload.user_state = JSON.stringify(options.userState);
+    if (normalizedUserState) {
+      payload.user_state = JSON.stringify(normalizedUserState);
     }
     if (options == null ? void 0 : options.clientId) {
       payload.client_id = options.clientId;
@@ -721,31 +813,6 @@ ${body}` : ""}`);
   }
 };
 
-// src/types.ts
-var CLIENT_TYPE_TS_CLI = "ts_cli";
-var CLIENT_TYPE_WEB_UI = "web_ui";
-function addUserStateExt(userState, key, value) {
-  const currentExt = userState["ext"];
-  const extRecord = typeof currentExt === "object" && currentExt !== null && !Array.isArray(currentExt) ? currentExt : {};
-  return __spreadProps(__spreadValues({}, userState), {
-    ext: __spreadProps(__spreadValues({}, extRecord), {
-      [key]: value
-    })
-  });
-}
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
-}
-
 // src/event.ts
 var TypedEventEmitter = class {
   constructor() {
@@ -856,6 +923,16 @@ function parseChainId(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function parsePendingId(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
 function normalizeAddress(value) {
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
@@ -870,7 +947,7 @@ function normalizeAddress(value) {
   }
 }
 function normalizeTxPayload(payload) {
-  var _a, _b, _c;
+  var _a, _b, _c, _d, _e;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
@@ -880,12 +957,13 @@ function normalizeTxPayload(payload) {
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
   const data = typeof args.data === "string" ? args.data : void 0;
   const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
-  return { to, value, data, chainId };
+  const txId = (_e = (_d = parsePendingId(args.txId)) != null ? _d : parsePendingId(args.pending_tx_id)) != null ? _e : parsePendingId(args.pendingTxId);
+  return { to, value, data, chainId, txId };
 }
 function normalizeEip712Payload(payload) {
-  var _a;
+  var _a, _b, _c, _d;
   const args = getToolArgs(payload);
-  const typedDataRaw = (_a = args.typed_data) != null ? _a : args.typedData;
+  const typedDataRaw = (_b = (_a = args.typed_data) != null ? _a : args["712_typed_data"]) != null ? _b : args.typedData;
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -900,7 +978,8 @@ function normalizeEip712Payload(payload) {
     typedData = typedDataRaw;
   }
   const description = typeof args.description === "string" ? args.description : void 0;
-  return { typed_data: typedData, description };
+  const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
+  return { typed_data: typedData, description, eip712Id };
 }
 function toAAWalletCall(payload, defaultChainId = 1) {
   var _a, _b;
@@ -934,6 +1013,9 @@ function toViemSignTypedDataArgs(payload) {
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function isNil(value) {
+  return value === null || value === void 0;
+}
 function sortJson(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -947,6 +1029,9 @@ function sortJson(value) {
   return value;
 }
 function isSubsetMatch(expected, actual) {
+  if (isNil(expected) && isNil(actual)) {
+    return true;
+  }
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || expected.length !== actual.length) {
       return false;
@@ -967,7 +1052,7 @@ function isSubsetMatch(expected, actual) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     super();
     // Internal state
     this.pollTimer = null;
@@ -985,9 +1070,10 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? addUserStateExt((_c = sessionOptions == null ? void 0 : sessionOptions.userState) != null ? _c : {}, "client_type", sessionOptions.clientType) : sessionOptions == null ? void 0 : sessionOptions.userState;
-    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
-    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+    const initialUserState = UserState.normalize(sessionOptions == null ? void 0 : sessionOptions.userState);
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
+    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1063,18 +1149,19 @@ var ClientSession = class extends TypedEventEmitter {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
-      await this.sendSystemEvent("wallet:tx_complete", {
+      const txPayload = req.payload;
+      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
         txHash: (_a = result.txHash) != null ? _a : "",
         status: "success",
         amount: result.amount
-      });
+      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
-      await this.sendSystemEvent("wallet_eip712_response", {
+      await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "success",
         signature: result.signature,
         description: eip712Payload.description
-      });
+      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1090,17 +1177,19 @@ var ClientSession = class extends TypedEventEmitter {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
-      await this.sendSystemEvent("wallet:tx_complete", {
+      const txPayload = req.payload;
+      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
         txHash: "",
-        status: "failed"
-      });
+        status: "failed",
+        error: reason != null ? reason : "Request rejected"
+      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
     } else {
       const eip712Payload = req.payload;
-      await this.sendSystemEvent("wallet_eip712_response", {
+      await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "failed",
         error: reason != null ? reason : "Request rejected",
         description: eip712Payload.description
-      });
+      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1145,6 +1234,10 @@ var ClientSession = class extends TypedEventEmitter {
   getTitle() {
     return this._title;
   }
+  /** Latest authoritative backend user_state snapshot seen by this session. */
+  getUserState() {
+    return this.userState ? __spreadValues({}, this.userState) : void 0;
+  }
   /** Pending wallet requests waiting for resolve/reject. */
   getPendingRequests() {
     return [...this.walletRequests];
@@ -1154,18 +1247,19 @@ var ClientSession = class extends TypedEventEmitter {
     return this._isProcessing;
   }
   resolveUserState(userState) {
-    this.userState = userState;
-    const address = userState["address"];
-    const isConnected = userState["isConnected"];
-    if (typeof address === "string" && address.length > 0 && isConnected !== false) {
+    this.userState = UserState.normalize(userState);
+    const address = UserState.address(this.userState);
+    const isConnected = UserState.isConnected(this.userState);
+    if (address && isConnected !== false) {
       this.publicKey = address;
     } else {
       this.publicKey = void 0;
     }
+    this.syncWalletRequests();
   }
   setClientType(clientType) {
     var _a;
-    this.resolveUserState(addUserStateExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
+    this.resolveUserState(UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
   }
   addExtValue(key, value) {
     var _a;
@@ -1192,7 +1286,11 @@ var ClientSession = class extends TypedEventEmitter {
     this.resolveUserState(nextState);
   }
   resolveWallet(address, chainId) {
-    this.resolveUserState({ address, chainId: chainId != null ? chainId : 1, isConnected: true });
+    this.resolveUserState({
+      address,
+      chain_id: chainId != null ? chainId : 1,
+      is_connected: true
+    });
   }
   async syncUserState() {
     this.assertOpen();
@@ -1283,6 +1381,9 @@ var ClientSession = class extends TypedEventEmitter {
   // ===========================================================================
   applyState(state) {
     var _a;
+    if (state.user_state) {
+      this.resolveUserState(state.user_state);
+    }
     if (state.messages) {
       this._messages = state.messages;
       this.emit("messages", this._messages);
@@ -1334,19 +1435,25 @@ var ClientSession = class extends TypedEventEmitter {
   // Internal — Wallet Request Queue
   // ===========================================================================
   enqueueWalletRequest(kind, payload) {
+    var _a;
+    const id = this.getWalletRequestId(kind, payload);
+    const existing = this.walletRequests.find((request) => request.id === id);
     const req = {
-      id: `wreq-${this.walletRequestNextId++}`,
+      id,
       kind,
       payload,
-      timestamp: Date.now()
+      timestamp: (_a = existing == null ? void 0 : existing.timestamp) != null ? _a : Date.now()
     };
-    this.walletRequests.push(req);
+    this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    this.emit("wallet_requests_changed", this.getPendingRequests());
     return req;
   }
   removeWalletRequest(id) {
     const idx = this.walletRequests.findIndex((r) => r.id === id);
     if (idx === -1) return null;
-    return this.walletRequests.splice(idx, 1)[0];
+    const [request] = this.walletRequests.splice(idx, 1);
+    this.emit("wallet_requests_changed", this.getPendingRequests());
+    return request;
   }
   // ===========================================================================
   // Internal — Helpers
@@ -1368,16 +1475,77 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   assertUserStateAligned(actualUserState) {
-    if (!this.userState || !actualUserState) {
+    const expectedUserState = UserState.normalize(this.userState);
+    const normalizedActualUserState = UserState.normalize(actualUserState);
+    if (!expectedUserState || !normalizedActualUserState) {
       return;
     }
-    if (!isSubsetMatch(this.userState, actualUserState)) {
-      const expected = JSON.stringify(sortJson(this.userState));
-      const actual = JSON.stringify(sortJson(actualUserState));
+    if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
+      const expected = JSON.stringify(sortJson(expectedUserState));
+      const actual = JSON.stringify(sortJson(normalizedActualUserState));
       console.warn(
         `[session] Backend user_state mismatch (non-fatal). expected subset=${expected} actual=${actual}`
       );
     }
+  }
+  getWalletRequestId(kind, payload) {
+    if (kind === "transaction") {
+      const txId = payload.txId;
+      if (typeof txId === "number") {
+        return `tx-${txId}`;
+      }
+    } else {
+      const eip712Id = payload.eip712Id;
+      if (typeof eip712Id === "number") {
+        return `eip712-${eip712Id}`;
+      }
+    }
+    return `wreq-${this.walletRequestNextId++}`;
+  }
+  syncWalletRequests() {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const nextRequests = [];
+    const pendingTxs = isRecord((_a = this.userState) == null ? void 0 : _a.pending_txs) ? (_b = this.userState) == null ? void 0 : _b.pending_txs : void 0;
+    const pendingEip712s = isRecord((_c = this.userState) == null ? void 0 : _c.pending_eip712s) ? (_d = this.userState) == null ? void 0 : _d.pending_eip712s : void 0;
+    for (const [id, raw] of Object.entries(pendingTxs != null ? pendingTxs : {}).sort(
+      (left, right) => Number(left[0]) - Number(right[0])
+    )) {
+      const payload = normalizeTxPayload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+        pending_tx_id: Number(id)
+      }));
+      if (!payload) {
+        continue;
+      }
+      const requestId = this.getWalletRequestId("transaction", payload);
+      nextRequests.push({
+        id: requestId,
+        kind: "transaction",
+        payload,
+        timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+      });
+    }
+    for (const [id, raw] of Object.entries(pendingEip712s != null ? pendingEip712s : {}).sort(
+      (left, right) => Number(left[0]) - Number(right[0])
+    )) {
+      const payload = normalizeEip712Payload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+        pending_eip712_id: Number(id)
+      }));
+      const requestId = this.getWalletRequestId("eip712_sign", payload);
+      nextRequests.push({
+        id: requestId,
+        kind: "eip712_sign",
+        payload,
+        timestamp: (_h = (_g = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _g.timestamp) != null ? _h : Date.now()
+      });
+    }
+    if (nextRequests.length === this.walletRequests.length && nextRequests.every((request, index) => {
+      const current = this.walletRequests[index];
+      return (current == null ? void 0 : current.id) === request.id && current.kind === request.kind && JSON.stringify(current.payload) === JSON.stringify(request.payload);
+    })) {
+      return;
+    }
+    this.walletRequests = nextRequests;
+    this.emit("wallet_requests_changed", this.getPendingRequests());
   }
 };
 
@@ -1484,7 +1652,8 @@ var CHAINS_BY_ID = {
   42161: import_chains.arbitrum,
   10: import_chains.optimism,
   8453: import_chains.base,
-  11155111: import_chains.sepolia
+  11155111: import_chains.sepolia,
+  31337: import_chains.foundry
 };
 
 // src/aa/execute.ts
@@ -2448,6 +2617,7 @@ async function createAAProviderState(options) {
   DEFAULT_AA_CONFIG,
   Session,
   TypedEventEmitter,
+  UserState,
   adaptSmartAccount,
   addUserStateExt,
   buildAAExecutionPlan,

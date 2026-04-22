@@ -28,64 +28,117 @@ export type WalletHandlerConfig = {
 export type WalletHandlerApi = {
   /** All queued wallet requests (tx + eip712) */
   pendingRequests: WalletRequest[];
-  /** Enqueue a wallet request (called by orchestrator on ClientSession events) */
-  enqueueRequest: (request: WalletRequest) => void;
+  /** Replace pending requests with the session's authoritative snapshot. */
+  setRequests: (requests: WalletRequest[]) => void;
+  /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
+  startRequest: (id: string) => void;
   /** Complete a request successfully — sends response to backend via ClientSession */
-  resolveRequest: (id: string, result: WalletRequestResult) => void;
+  resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
   /** Fail a request — sends error to backend via ClientSession */
-  rejectRequest: (id: string, error?: string) => void;
+  rejectRequest: (id: string, error?: string) => Promise<void>;
 };
 
 export function useWalletHandler({
   getSession,
 }: WalletHandlerConfig): WalletHandlerApi {
   const [pendingRequests, setPendingRequests] = useState<WalletRequest[]>([]);
-  const requestsRef = useRef<WalletRequest[]>([]);
+  const requestsRef = useRef<WalletRequest[]>(pendingRequests);
+  const inFlightRequestSetRef = useRef<Set<string>>(new Set());
+  const suppressedRequestSetRef = useRef<Set<string>>(new Set());
 
-  const enqueueRequest = useCallback((request: WalletRequest) => {
-    requestsRef.current = [...requestsRef.current, request];
-    setPendingRequests(requestsRef.current);
+  const syncVisibleRequests = useCallback(() => {
+    setPendingRequests(
+      requestsRef.current.filter(
+        (request) => !suppressedRequestSetRef.current.has(request.id),
+      ),
+    );
   }, []);
 
+  const setRequests = useCallback((requests: WalletRequest[]) => {
+    const incomingIds = new Set(requests.map((request) => request.id));
+    for (const id of suppressedRequestSetRef.current) {
+      if (
+        !incomingIds.has(id) &&
+        !inFlightRequestSetRef.current.has(id)
+      ) {
+        suppressedRequestSetRef.current.delete(id);
+      }
+    }
+
+    const preservedInFlight = requestsRef.current.filter(
+      (request) =>
+        inFlightRequestSetRef.current.has(request.id) &&
+        !incomingIds.has(request.id),
+    );
+
+    requestsRef.current = [...requests, ...preservedInFlight];
+    syncVisibleRequests();
+  }, [syncVisibleRequests]);
+
+  const startRequest = useCallback((id: string) => {
+    if (!requestsRef.current.some((request) => request.id === id)) {
+      return;
+    }
+
+    inFlightRequestSetRef.current.add(id);
+    suppressedRequestSetRef.current.add(id);
+    syncVisibleRequests();
+  }, [syncVisibleRequests]);
+
   const resolveRequest = useCallback(
-    (id: string, result: WalletRequestResult) => {
+    async (id: string, result: WalletRequestResult) => {
       const session = getSession();
       if (!session) {
         console.error("[wallet-handler] No session available to resolve request");
         return;
       }
 
-      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
-      setPendingRequests(requestsRef.current);
+      startRequest(id);
 
-      void session.resolve(id, result).catch((err) => {
+      try {
+        await session.resolve(id, result);
+      } catch (err) {
         console.error("[wallet-handler] Failed to resolve request:", err);
-      });
+      } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id,
+        );
+        inFlightRequestSetRef.current.delete(id);
+        syncVisibleRequests();
+      }
     },
-    [getSession],
+    [getSession, startRequest, syncVisibleRequests],
   );
 
   const rejectRequest = useCallback(
-    (id: string, error?: string) => {
+    async (id: string, error?: string) => {
       const session = getSession();
       if (!session) {
         console.error("[wallet-handler] No session available to reject request");
         return;
       }
 
-      requestsRef.current = requestsRef.current.filter((r) => r.id !== id);
-      setPendingRequests(requestsRef.current);
+      startRequest(id);
 
-      void session.reject(id, error).catch((err) => {
+      try {
+        await session.reject(id, error);
+      } catch (err) {
         console.error("[wallet-handler] Failed to reject request:", err);
-      });
+      } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id,
+        );
+        inFlightRequestSetRef.current.delete(id);
+        syncVisibleRequests();
+      }
     },
-    [getSession],
+    [getSession, startRequest, syncVisibleRequests],
   );
 
   return {
     pendingRequests,
-    enqueueRequest,
+    setRequests,
+    startRequest,
     resolveRequest,
     rejectRequest,
   };

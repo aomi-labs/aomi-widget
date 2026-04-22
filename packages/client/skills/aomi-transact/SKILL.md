@@ -1,19 +1,17 @@
 ---
 name: aomi-transact
 description: >
-  Use when the user wants to interact with the Aomi CLI to inspect sessions,
-  check balances or prices, build wallet requests, confirm quotes or routes,
-  sign transactions or EIP-712 payloads, switch apps or chains, or execute
-  swaps, transfers, and DeFi actions on-chain. Covers Aomi chat, transaction
-  review, AA-first signing with mode fallback, session controls, and
-  per-session secret ingestion.
-compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Requires viem for signing (`npm install viem`). Use AOMI_APP / --app, AOMI_MODEL / --model, AOMI_CHAIN_ID / --chain, CHAIN_RPC_URL / --rpc-url, `aomi secret add` for session secret ingestion, and AOMI_STATE_DIR for local session storage."
+  Drive the Aomi CLI to chat with the Aomi agent, inspect sessions, simulate
+  pending wallet requests on a forked chain, and sign queued transactions or
+  EIP-712 payloads with account-abstraction-first execution. The skill only
+  invokes the `aomi` CLI; it does not run arbitrary shell commands.
+compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Configuration is via the aomi CLI's own flags and environment variables — see `aomi --help` for the full list."
 
 license: MIT
-allowed-tools: Bash
+allowed-tools: Bash(aomi:*)
 metadata:
   author: aomi-labs
-  version: "0.6"
+  version: "0.8"
 ---
 
 # Aomi Transact
@@ -34,18 +32,21 @@ backend. Local session data lives under `AOMI_STATE_DIR` or `~/.aomi`.
 
 ## Hard Rules
 
-- Never print secrets verbatim in normal status, preflight, or confirmation output.
-- Treat `PRIVATE_KEY`, `AOMI_API_KEY`, `ALCHEMY_API_KEY`, `PIMLICO_API_KEY`, and private RPC URLs as secrets.
-- If the user provides a private key or API key, do not repeat it back unless they explicitly ask for that exact value to be reformatted.
-- Prefer `aomi secret add NAME=value` over stuffing provider API keys into normal chat text.
-- Do not sign anything unless the CLI has actually queued a wallet request and you can identify its `tx-N` ID.
-- When starting work from a new Codex or assistant chat thread, default the first Aomi command to `--new-session` unless the user explicitly wants to continue an existing session.
-- If `PRIVATE_KEY` is set in the environment, do not also pass `--private-key` unless you intentionally want to override the environment value.
-- `--public-key` must match the address derived from the signing key. If they differ, `aomi tx sign` will update the session to the signer address.
-- Private keys must start with `0x`. Add the prefix if missing.
-- `CHAIN_RPC_URL` is only one default RPC URL. When switching chains, prefer passing `--rpc-url` on `aomi tx sign`.
-- Switching the chat/session chain with `--chain` does not switch `CHAIN_RPC_URL`. The RPC used for `aomi tx sign` must match the pending transaction's chain.
+- Never echo user-supplied secret values back into chat output.
+- Provider credentials belong in the shell environment or in aomi's session secret store (`aomi secret add NAME=value`). Do not pass them as command-line flags.
+- Only call `aomi tx sign` after `aomi tx list` shows a pending `tx-N` the user asked for.
+- When starting a new assistant thread, default the first aomi command to `--new-session` unless the user wants to continue an existing session.
+- The signing RPC must match the pending transaction's chain. `--chain` (session context) and `--rpc-url` (signing transport) are independent — keep them aligned.
 - `--aa-provider` and `--aa-mode` are AA-only controls and cannot be used with `--eoa`.
+
+## Security Model
+
+This skill is narrowly scoped: `allowed-tools: Bash(aomi:*)` restricts it to invoking the `aomi` CLI only. It cannot run arbitrary shell commands, install software, read files outside the aomi state directory, or execute code it generates.
+
+- **Secrets flow through aomi, not argv.** The CLI reads credentials from the shell environment or from its own session-scoped secret store. This skill never constructs shell command lines that embed secret values.
+- **No blind signing.** Multi-step flows (approve → swap, approve → deposit) go through `aomi tx simulate` on a forked chain before `aomi tx sign`. Single-step read operations do not require simulation.
+- **User-directed batches only.** `aomi tx sign` can take multiple ids; that is for batches the user has reviewed, not for sweeping a queue.
+- **Read-only by default.** Chat, simulation, session inspection, and app/model/chain introspection do not move funds. Signing is a separate, explicit step the user must ask for.
 
 ## Command Structure
 
@@ -199,17 +200,20 @@ Use these rules exactly:
 - `--eoa`: force direct EOA execution, skip AA entirely.
 - `--aa-provider` or `--aa-mode`: AA-specific controls that also force AA mode. Cannot be used with `--eoa`.
 
-Examples:
+Examples (export secrets once per shell, then invoke):
 
 ```bash
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+
 # Default: auto-detect. AA if configured, EOA if not.
-aomi tx sign tx-1 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+aomi tx sign tx-1
 
 # Force EOA only
-aomi tx sign tx-1 --eoa --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+aomi tx sign tx-1 --eoa
 
-# Explicit AA provider and mode
-aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337 --private-key 0xYourPrivateKey
+# Explicit AA provider and mode (credentials still come from env)
+aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337
 ```
 
 ### Batch Simulation
@@ -267,8 +271,10 @@ aomi tx list
 # 3. Simulate the batch
 aomi tx simulate tx-1 tx-2
 
-# 4. If simulation succeeds, sign
-aomi tx sign tx-1 tx-2 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+# 4. If simulation succeeds, sign (credentials from env)
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1 tx-2
 
 # 5. Verify
 aomi tx list
@@ -408,46 +414,59 @@ aomi model set <rig>
 - `aomi model set <rig>` persists the selected model for the current session.
 - `aomi chat --model <rig> "<message>"` also applies a model for the session.
 
+### Discovering Available Apps
+
+The set of installed apps is dynamic. Use the CLI to enumerate what is available
+in the current environment:
+
+```bash
+aomi app list       # enumerate apps exposed by the backend
+aomi app current    # show the currently active app
+```
+
+Select an app for a chat turn with `--app <name>` or the `AOMI_APP` environment
+variable. When an app needs provider credentials, the aomi CLI reports the exact
+variable names at runtime; the user supplies them via `aomi secret add`. This
+skill does not hard-code any specific credential name.
+
 ### Currently Integrated Apps
 
 All apps share a common base toolset (`send_transaction_to_wallet`,
-`encode_and_simulate`, `get_account_info`, `get_contract_abi`, etc.).
-The tools listed below are the app-specific additions.
+`encode_and_simulate`, `get_account_info`, `get_contract_abi`, etc.). The tools
+listed below are the app-specific additions. For the exact credential variable
+names any given app expects, run `aomi app list` and `aomi secret add` — the CLI
+is the source of truth.
 
-| App | Description | App-Specific Tools | Needs API Key |
-|-----|-------------|-------------------|---------------|
-| `default` | General-purpose on-chain agent with web search | `brave_search` | No |
-| `binance` | Binance CEX — prices, order book, klines | `binance_get_price`, `binance_get_depth`, `binance_get_klines` | Yes (`BINANCE_API_KEY`, `BINANCE_SECRET_KEY`) |
-| `bybit` | Bybit CEX — orders, positions, leverage | `brave_search` (no Bybit-specific tools yet) | Yes (`BYBIT_API_KEY`, `BYBIT_SECRET_KEY`) |
-| `cow` | CoW Protocol — MEV-protected swaps via batch auctions | `get_cow_swap_quote`, `place_cow_order`, `get_cow_order`, `get_cow_order_status`, `get_cow_user_orders` | No |
-| `defillama` | DefiLlama — TVL, yields, volumes, stablecoins | `get_token_price`, `get_yield_opportunities`, `get_defi_protocols`, `get_chain_tvl`, `get_protocol_detail`, `get_dex_volumes`, `get_fees_overview`, `get_protocol_fees`, `get_stablecoins`, `get_stablecoin_chains`, `get_historical_token_price`, `get_token_price_change`, `get_historical_chain_tvl`, `get_dex_protocol_volume`, `get_stablecoin_history`, `get_yield_pool_history` | No |
-| `dune` | Dune Analytics — execute and fetch SQL queries | `execute_query`, `get_execution_status`, `get_execution_results`, `get_query_results` | Yes (`DUNE_API_KEY`) |
-| `dydx` | dYdX perpetuals — markets, orderbook, candles, trades | `dydx_get_markets`, `dydx_get_orderbook`, `dydx_get_candles`, `dydx_get_trades`, `dydx_get_account` | No |
-| `gmx` | GMX perpetuals — markets, positions, orders, prices | `get_gmx_prices`, `get_gmx_signed_prices`, `get_gmx_markets`, `get_gmx_positions`, `get_gmx_orders` | No |
-| `hyperliquid` | Hyperliquid perps — mid prices, orderbook | `get_meta`, `get_all_mids` | No |
-| `kaito` | Kaito — crypto social search, trending, mindshare | `kaito_search`, `kaito_get_trending`, `kaito_get_mindshare` | Yes (`KAITO_API_KEY`) |
-| `kalshi` | Kalshi prediction markets via Simmer SDK | `simmer_register`, `simmer_status`, `simmer_briefing` | Yes (`SIMMER_API_KEY`) |
-| `khalani` | Khalani cross-chain intents — quote, build, submit | `get_khalani_quote`, `build_khalani_order`, `submit_khalani_order`, `get_khalani_order_status`, `get_khalani_orders_by_address` | No |
-| `lifi` | LI.FI aggregator — cross-chain swaps & bridges | `get_lifi_swap_quote`, `place_lifi_order`, `get_lifi_bridge_quote`, `get_lifi_transfer_status`, `get_lifi_chains` | No (optional `LIFI_API_KEY`) |
-| `manifold` | Manifold prediction markets — search, bet, create | `list_markets`, `get_market`, `get_market_positions`, `search_markets`, `place_bet`, `create_market` | Yes (`MANIFOLD_API_KEY`) |
-| `molinar` | Molinar on-chain world — move, explore, chat | `molinar_get_state`, `molinar_look`, `molinar_move`, `molinar_jump`, `molinar_chat`, `molinar_get_chat`, `molinar_get_new_messages`, `molinar_get_players`, `molinar_collect_coins`, `molinar_explore`, `molinar_create_object`, `molinar_customize`, `molinar_ping` | No |
-| `morpho` | Morpho lending — markets, vaults, positions | `get_markets`, `get_vaults`, `get_user_positions` | No |
-| `neynar` | Farcaster social — users, search | `get_user_by_username`, `search_users` | Yes (`NEYNAR_API_KEY`) |
-| `okx` | OKX CEX — tickers, order book, candles | `okx_get_tickers`, `okx_get_order_book`, `okx_get_candles` | Yes (`OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_PASSPHRASE`) |
-| `oneinch` | 1inch DEX aggregator — quotes, swaps, allowances | `get_oneinch_quote`, `get_oneinch_swap`, `get_oneinch_approve_transaction`, `get_oneinch_allowance`, `get_oneinch_liquidity_sources` | Yes (`ONEINCH_API_KEY`) |
-| `polymarket` | Polymarket prediction markets — search, trade, CLOB | `search_polymarket`, `get_polymarket_details`, `get_polymarket_trades`, `resolve_polymarket_trade_intent`, `build_polymarket_order_preview` | No |
-| `x` | X/Twitter — users, posts, search, trends | `get_x_user`, `get_x_user_posts`, `search_x`, `get_x_trends`, `get_x_post` | Yes (`X_API_KEY`) |
-| `yearn` | Yearn Finance — vault discovery, details | `get_all_vaults`, `get_vault_detail`, `get_blacklisted_vaults` | No |
-| `zerox` | 0x DEX aggregator — swaps, quotes, liquidity | `get_zerox_swap_quote`, `place_zerox_order`, `get_zerox_swap_chains`, `get_zerox_allowance_holder_price`, `get_zerox_liquidity_sources` | Yes (`ZEROX_API_KEY`) |
+| App | Description | App-Specific Tools | Credentials |
+|-----|-------------|-------------------|-------------|
+| `default` | General-purpose on-chain agent with web search | `brave_search` | None |
+| `binance` | Binance CEX — prices, order book, klines | `binance_get_price`, `binance_get_depth`, `binance_get_klines` | Exchange credentials |
+| `bybit` | Bybit CEX — orders, positions, leverage | `brave_search` (no Bybit-specific tools yet) | Exchange credentials |
+| `cow` | CoW Protocol — MEV-protected swaps via batch auctions | `get_cow_swap_quote`, `place_cow_order`, `get_cow_order`, `get_cow_order_status`, `get_cow_user_orders` | None |
+| `defillama` | DefiLlama — TVL, yields, volumes, stablecoins | `get_token_price`, `get_yield_opportunities`, `get_defi_protocols`, `get_chain_tvl`, `get_protocol_detail`, `get_dex_volumes`, `get_fees_overview`, `get_protocol_fees`, `get_stablecoins`, `get_stablecoin_chains`, `get_historical_token_price`, `get_token_price_change`, `get_historical_chain_tvl`, `get_dex_protocol_volume`, `get_stablecoin_history`, `get_yield_pool_history` | None |
+| `dune` | Dune Analytics — execute and fetch SQL queries | `execute_query`, `get_execution_status`, `get_execution_results`, `get_query_results` | Provider token |
+| `dydx` | dYdX perpetuals — markets, orderbook, candles, trades | `dydx_get_markets`, `dydx_get_orderbook`, `dydx_get_candles`, `dydx_get_trades`, `dydx_get_account` | None |
+| `gmx` | GMX perpetuals — markets, positions, orders, prices | `get_gmx_prices`, `get_gmx_signed_prices`, `get_gmx_markets`, `get_gmx_positions`, `get_gmx_orders` | None |
+| `hyperliquid` | Hyperliquid perps — mid prices, orderbook | `get_meta`, `get_all_mids` | None |
+| `kaito` | Kaito — crypto social search, trending, mindshare | `kaito_search`, `kaito_get_trending`, `kaito_get_mindshare` | Provider token |
+| `kalshi` | Kalshi prediction markets via Simmer SDK | `simmer_register`, `simmer_status`, `simmer_briefing` | SDK token |
+| `khalani` | Khalani cross-chain intents — quote, build, submit | `get_khalani_quote`, `build_khalani_order`, `submit_khalani_order`, `get_khalani_order_status`, `get_khalani_orders_by_address` | None |
+| `lifi` | LI.FI aggregator — cross-chain swaps & bridges | `get_lifi_swap_quote`, `place_lifi_order`, `get_lifi_bridge_quote`, `get_lifi_transfer_status`, `get_lifi_chains` | Optional provider token |
+| `manifold` | Manifold prediction markets — search, bet, create | `list_markets`, `get_market`, `get_market_positions`, `search_markets`, `place_bet`, `create_market` | Provider token |
+| `molinar` | Molinar on-chain world — move, explore, chat | `molinar_get_state`, `molinar_look`, `molinar_move`, `molinar_jump`, `molinar_chat`, `molinar_get_chat`, `molinar_get_new_messages`, `molinar_get_players`, `molinar_collect_coins`, `molinar_explore`, `molinar_create_object`, `molinar_customize`, `molinar_ping` | None |
+| `morpho` | Morpho lending — markets, vaults, positions | `get_markets`, `get_vaults`, `get_user_positions` | None |
+| `neynar` | Farcaster social — users, search | `get_user_by_username`, `search_users` | Provider token |
+| `okx` | OKX CEX — tickers, order book, candles | `okx_get_tickers`, `okx_get_order_book`, `okx_get_candles` | Exchange credentials |
+| `oneinch` | 1inch DEX aggregator — quotes, swaps, allowances | `get_oneinch_quote`, `get_oneinch_swap`, `get_oneinch_approve_transaction`, `get_oneinch_allowance`, `get_oneinch_liquidity_sources` | Provider token |
+| `polymarket` | Polymarket prediction markets — search, trade, CLOB | `search_polymarket`, `get_polymarket_details`, `get_polymarket_trades`, `resolve_polymarket_trade_intent`, `build_polymarket_order_preview` | None |
+| `x` | X/Twitter — users, posts, search, trends | `get_x_user`, `get_x_user_posts`, `search_x`, `get_x_trends`, `get_x_post` | Provider token |
+| `yearn` | Yearn Finance — vault discovery, details | `get_all_vaults`, `get_vault_detail`, `get_blacklisted_vaults` | None |
+| `zerox` | 0x DEX aggregator — swaps, quotes, liquidity | `get_zerox_swap_quote`, `place_zerox_order`, `get_zerox_swap_chains`, `get_zerox_allowance_holder_price`, `get_zerox_liquidity_sources` | Provider token |
 
-Some apps require API keys via `aomi secret add` (e.g. CEX apps need exchange credentials).
-Use `--app <name>` or `AOMI_APP=<name>` to select an app.
+When a "Credentials" entry says *Exchange credentials*, *Provider token*, or *SDK token*, run `aomi secret add` without arguments or consult `aomi app list` — the CLI reports the exact variable names that particular app expects. The skill does not reproduce those names inline.
 
-To build a new app or update an existing one from an API spec, SDK, or product
-docs, use the companion skill **aomi-build** (install with
-`npx skills add aomi-labs/skills`). It scaffolds Aomi SDK crates with `lib.rs`,
-`client.rs`, and `tool.rs` from OpenAPI specs, REST endpoints, or repository
-examples.
+To build a new app from an API spec or SDK, use the companion skill
+**aomi-build**.
 
 ### Chain Commands
 
@@ -574,40 +593,27 @@ Practical rule:
 
 All config can be passed as flags. Flags override environment variables.
 
-| Flag            | Env Var            | Default                | Purpose                                                   |
-| --------------- | ------------------ | ---------------------- | --------------------------------------------------------- |
-| `--backend-url` | `AOMI_BACKEND_URL` | `https://api.aomi.dev` | Backend URL                                               |
-| `--api-key`     | `AOMI_API_KEY`     | none                   | API key for non-default apps                              |
-| `--app`         | `AOMI_APP`         | `default`              | Backend app                                               |
-| `--model`       | `AOMI_MODEL`       | backend default        | Session model                                             |
-| `--new-session` | —                  | off                    | Create a fresh active session for this command            |
-| `--public-key`  | `AOMI_PUBLIC_KEY`  | none                   | Wallet address for chat/session context                   |
-| `--private-key` | `PRIVATE_KEY`      | none                   | Signing key for `aomi tx sign`                            |
-| `--rpc-url`     | `CHAIN_RPC_URL`    | chain RPC default      | RPC override for signing                                  |
-| `--chain`       | `AOMI_CHAIN_ID`    | none                   | Active wallet chain (inherits session chain if unset)     |
-| `--eoa`         | —                  | off                    | Force plain EOA, skip AA even if configured (sign-only)   |
-| `--aa`          | —                  | off                    | Force AA, error if provider not configured (sign-only)    |
-| `--aa-provider` | `AOMI_AA_PROVIDER` | auto-detect            | AA provider override: `alchemy` \| `pimlico` (sign-only)  |
-| `--aa-mode`     | `AOMI_AA_MODE`     | chain default          | AA mode override: `4337` \| `7702` (sign-only)            |
+| Flag            | Default                | Purpose                                                   |
+| --------------- | ---------------------- | --------------------------------------------------------- |
+| `--backend-url` | `https://api.aomi.dev` | Backend URL                                               |
+| `--app`         | `default`              | Backend app                                               |
+| `--model`       | backend default        | Session model                                             |
+| `--new-session` | off                    | Create a fresh active session for this command            |
+| `--public-key`  | none                   | Wallet address for chat/session context                   |
+| `--rpc-url`     | chain RPC default      | RPC override for signing                                  |
+| `--chain`       | none                   | Active wallet chain (inherits session chain if unset)     |
+| `--eoa`         | off                    | Force plain EOA, skip AA even if configured (sign-only)   |
+| `--aa`          | off                    | Force AA, error if provider not configured (sign-only)    |
+| `--aa-provider` | auto-detect            | AA provider override: `alchemy` \| `pimlico` (sign-only)  |
+| `--aa-mode`     | chain default          | AA mode override: `4337` \| `7702` (sign-only)            |
+
+The aomi CLI also reads credentials from the shell environment — see `aomi --help` for the full list. Skill authors and agents should treat those names as opaque: set them in the shell, let the CLI read them, never echo their values.
 
 ### AA Provider Credentials
 
-| Env Var                  | Purpose                             |
-| ------------------------ | ----------------------------------- |
-| `ALCHEMY_API_KEY`        | Enables Alchemy AA (4337 + 7702)    |
-| `ALCHEMY_GAS_POLICY_ID`  | Optional Alchemy sponsorship policy (4337 only) |
-| `PIMLICO_API_KEY`        | Enables Pimlico AA (4337 sponsored) |
+Account-abstraction signing requires provider credentials in the environment. The CLI supports Alchemy (4337 + 7702) and Pimlico (4337 sponsored). Exact variable names are documented by `aomi --help` and the aomi CLI itself; this skill does not hard-code them.
 
-`ALCHEMY_API_KEY` can also be used to construct chain-specific signing RPCs:
-
-| Chain    | Example Alchemy RPC                                          |
-| -------- | ------------------------------------------------------------ |
-| Ethereum | `https://eth-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
-| Polygon  | `https://polygon-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>` |
-| Arbitrum | `https://arb-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
-| Base     | `https://base-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`    |
-| Optimism | `https://opt-mainnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
-| Sepolia  | `https://eth-sepolia.g.alchemy.com/v2/<ALCHEMY_API_KEY>`     |
+When constructing a signing RPC URL from an Alchemy credential, use the chain-specific Alchemy host pattern (one URL per chain). Treat the full URL as a secret and never log it.
 
 ### Storage
 
@@ -625,10 +631,9 @@ AA configuration is supplied per-invocation via flags or environment variables (
 
 ### Important Config Rules
 
-- `PRIVATE_KEY` should start with `0x`.
-- If `PRIVATE_KEY` is already set in the environment, do not also pass `--private-key` unless you intentionally want to override it.
-- `CHAIN_RPC_URL` is only one default RPC URL. For chain switching, prefer passing `--rpc-url` on `aomi tx sign`.
-- If the user switches from Ethereum to Polygon, Arbitrum, Base, Optimism, or Sepolia, do not keep using an Ethereum `CHAIN_RPC_URL` for signing.
+- Signing keys must start with `0x`. Add the prefix if missing before setting the env var.
+- The default signing RPC is one URL. For chain switching, prefer `--rpc-url` on `aomi tx sign` or export the chain-matching RPC before signing.
+- If the user switches from Ethereum to Polygon, Arbitrum, Base, Optimism, or Sepolia, use a chain-matching RPC for signing.
 - `--aa-provider` and `--aa-mode` cannot be used with `--eoa`.
 - In auto-detect mode, missing AA credentials cause the CLI to use EOA directly (no error).
 
@@ -656,9 +661,9 @@ aomi chat "proceed"
 aomi tx list
 
 # 4. Sign — auto-detects AA if configured, otherwise uses EOA
-aomi tx sign tx-1 \
-  --private-key 0xYourPrivateKey \
-  --rpc-url https://eth.llamarpc.com
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1
 
 # 5. Verify
 aomi tx list
@@ -679,9 +684,9 @@ aomi tx list
 aomi tx simulate tx-1 tx-2
 
 # 4. If simulation passes, sign the batch
-aomi tx sign tx-1 tx-2 \
-  --private-key 0xYourPrivateKey \
-  --rpc-url https://eth.llamarpc.com
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1 tx-2
 
 # 5. Verify
 aomi tx list
@@ -690,19 +695,17 @@ aomi tx list
 ### Explicit EOA Flow
 
 ```bash
-aomi tx sign tx-1 \
-  --eoa \
-  --private-key 0xYourPrivateKey \
-  --rpc-url https://eth.llamarpc.com
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1 --eoa
 ```
 
 ### Explicit AA Flow
 
 ```bash
-aomi tx sign tx-1 \
-  --aa-provider pimlico \
-  --aa-mode 4337 \
-  --private-key 0xYourPrivateKey
+export PRIVATE_KEY=0xYourPrivateKey
+export PIMLICO_API_KEY=your-pimlico-key
+aomi tx sign tx-1 --aa-provider pimlico --aa-mode 4337
 ```
 
 ### AA Setup With Environment Variables
@@ -711,9 +714,10 @@ aomi tx sign tx-1 \
 # Export once per shell — auto-detected by `aomi tx sign`
 export ALCHEMY_API_KEY=your-alchemy-key
 export ALCHEMY_GAS_POLICY_ID=your-gas-policy-id
+export PRIVATE_KEY=0xYourPrivateKey
 
-# All subsequent signs auto-use AA — no flags needed
-aomi tx sign tx-1 --private-key 0xYourPrivateKey
+# All subsequent signs auto-use AA — no flags, no argv-exposed keys
+aomi tx sign tx-1
 ```
 
 ### Alchemy Sponsorship Flow
@@ -748,8 +752,10 @@ aomi chat "proceed with the transfer route"
 # 3. Review the queued transfer request
 aomi tx list
 
-# 4. Sign the transfer
-aomi tx sign tx-1 --private-key 0xYourPrivateKey --rpc-url https://eth.llamarpc.com
+# 4. Sign the transfer (credentials from env)
+export PRIVATE_KEY=0xYourPrivateKey
+export CHAIN_RPC_URL=https://eth.llamarpc.com
+aomi tx sign tx-1
 
 # 5. Continue with the agent if a submit/finalize step is required
 aomi chat "the transfer has been sent, continue"
@@ -762,7 +768,9 @@ aomi chat "the transfer has been sent, continue"
 aomi chat "swap 0.1 USDC for WETH using Khalani on Polygon" --app khalani --chain 137
 aomi tx list
 
-# Sign with a Polygon RPC, even if CHAIN_RPC_URL is still set to Ethereum
+# Sign with a Polygon RPC, even if CHAIN_RPC_URL is still set to Ethereum.
+# PRIVATE_KEY must already be exported; --rpc-url override is fine
+# because a public RPC is not a secret (unlike provider-keyed URLs).
 aomi tx sign tx-8 --rpc-url https://polygon.drpc.org --chain 137
 ```
 

@@ -4,6 +4,7 @@ const MOCK_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
 
 const mocks = vi.hoisted(() => ({
   simulateBatch: vi.fn(),
+  fetchState: vi.fn(),
   sendSystemMessage: vi.fn(),
   syncUserState: vi.fn(),
   resolveWallet: vi.fn(),
@@ -11,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   executeWalletCalls: vi.fn(),
   createCliProviderState: vi.fn(),
   readState: vi.fn(),
+  syncPendingTxsFromUserState: vi.fn(),
   writeState: vi.fn(),
-  removePendingTx: vi.fn(),
   addSignedTx: vi.fn(),
 }));
 
@@ -30,6 +31,7 @@ vi.mock("../../src/session", () => ({
   ClientSession: class MockClientSession {
     client = {
       simulateBatch: mocks.simulateBatch,
+      fetchState: mocks.fetchState,
       sendSystemMessage: mocks.sendSystemMessage,
     };
 
@@ -63,8 +65,8 @@ vi.mock("../../src/cli/state", async () => {
   return {
     ...actual,
     readState: mocks.readState,
+    syncPendingTxsFromUserState: mocks.syncPendingTxsFromUserState,
     writeState: mocks.writeState,
-    removePendingTx: mocks.removePendingTx,
     addSignedTx: mocks.addSignedTx,
   };
 });
@@ -91,8 +93,38 @@ describe("CLI wallet sign simulation integration", () => {
       },
     });
     mocks.sendSystemMessage.mockResolvedValue(undefined);
-    mocks.syncUserState.mockResolvedValue(undefined);
+    mocks.fetchState.mockResolvedValue({
+      user_state: {
+        address: "0x9999999999999999999999999999999999999999",
+        chain_id: 1,
+        is_connected: true,
+        pending_txs: {
+          "1": {
+            chain_id: 1,
+            from: "0x9999999999999999999999999999999999999999",
+            to: "0x1111111111111111111111111111111111111111",
+            value: "0",
+            gas: null,
+            data: "0x",
+            label: "send zero",
+            kind: "wallet_tx",
+            batch_status: "Batch [1] pending",
+          },
+        },
+        pending_eip712s: {},
+      },
+    });
+    mocks.syncUserState.mockResolvedValue({
+      user_state: {
+        address: MOCK_ADDRESS,
+        chain_id: 1,
+        is_connected: true,
+        pending_txs: {},
+        pending_eip712s: {},
+      },
+    });
     mocks.createCliProviderState.mockResolvedValue({ providerState: "mock" });
+    mocks.syncPendingTxsFromUserState.mockImplementation((state) => state.pendingTxs ?? []);
     mocks.executeWalletCalls.mockResolvedValue({
       txHash: "0xabc",
       txHashes: ["0xabc"],
@@ -114,13 +146,14 @@ describe("CLI wallet sign simulation integration", () => {
         {
           id: "tx-1",
           kind: "transaction",
+          txId: 1,
           to: "0x1111111111111111111111111111111111111111",
           value: "0",
           data: "0x",
           chainId: 1,
           description: "send zero",
           timestamp: Date.now(),
-          payload: {},
+          payload: { txId: 1 },
         },
       ],
       signedTxs: [],

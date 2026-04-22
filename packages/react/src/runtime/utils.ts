@@ -1,7 +1,7 @@
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type { AomiMessage } from "@aomi-labs/client";
-import type { UserState } from "../contexts/user-context";
+import type { UserState } from "@aomi-labs/client";
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";

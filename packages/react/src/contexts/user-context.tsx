@@ -8,14 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { UserState } from "@aomi-labs/client";
 
-export type UserState = {
-  address?: string;
-  chainId?: number;
-  isConnected: boolean;
-  ensName?: string;
-  ext?: Record<string, unknown>;
-};
+export { UserState } from "@aomi-labs/client";
 
 type UserContextValue = {
   user: UserState;
@@ -27,19 +22,6 @@ type UserContextValue = {
 };
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
-
-function normalizeUserState(next: UserState, data: Partial<UserState>): UserState {
-  if (data.isConnected === false) {
-    return {
-      ...next,
-      address: undefined,
-      chainId: undefined,
-      ensName: undefined,
-    };
-  }
-
-  return next;
-}
 
 export function useUser() {
   const context = useContext(UserContext);
@@ -61,10 +43,10 @@ export function useUser() {
 
 export function UserContextProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<UserState>({
-    isConnected: false,
     address: undefined,
-    chainId: undefined,
-    ensName: undefined,
+    chain_id: undefined,
+    is_connected: false,
+    ens_name: undefined,
     ext: undefined,
   });
 
@@ -79,9 +61,17 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
 
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
-      const next = normalizeUserState({ ...prev, ...data }, data);
+      const normalizedData = UserState.normalize(data) ?? {};
+      const next: UserState =
+        normalizedData.is_connected === false
+          ? {
+              ...(UserState.normalize({ ...prev, ...normalizedData }) ?? prev),
+              address: undefined,
+              chain_id: undefined,
+              ens_name: undefined,
+            }
+          : (UserState.normalize({ ...prev, ...normalizedData }) ?? prev);
 
-      // Notify all subscribers
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
@@ -92,13 +82,7 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
 
   const addExtValue = useCallback((key: string, value: unknown) => {
     setUserState((prev) => {
-      const next = {
-        ...prev,
-        ext: {
-          ...(prev.ext ?? {}),
-          [key]: value,
-        },
-      };
+      const next = UserState.withExt(prev, key, value);
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
@@ -108,12 +92,18 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
 
   const removeExtValue = useCallback((key: string) => {
     setUserState((prev) => {
-      if (!prev.ext || !(key in prev.ext)) {
+      const ext = prev.ext;
+      if (
+        typeof ext !== "object" ||
+        ext === null ||
+        Array.isArray(ext) ||
+        !(key in ext)
+      ) {
         return prev;
       }
-      const nextExt = { ...prev.ext };
+      const nextExt = { ...(ext as Record<string, unknown>) };
       delete nextExt[key];
-      const next = {
+      const next: UserState = {
         ...prev,
         ext: Object.keys(nextExt).length > 0 ? nextExt : undefined,
       };
