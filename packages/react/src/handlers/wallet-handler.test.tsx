@@ -75,4 +75,62 @@ describe("useWalletHandler", () => {
 
     expect(result.current.pendingRequests).toEqual([]);
   });
+
+  it("removes a request even when backend acknowledgement fails", async () => {
+    const resolveDeferred = createDeferred<void>();
+    const session = {
+      resolve: vi.fn(() => resolveDeferred.promise),
+      reject: vi.fn(),
+    };
+
+    const request: WalletRequest = {
+      id: "tx-2",
+      kind: "transaction",
+      payload: {
+        to: "0x0000000000000000000000000000000000000000",
+        value: "100",
+        txId: 2,
+      },
+      timestamp: Date.now(),
+    };
+
+    const { result } = renderHook(() =>
+      useWalletHandler({
+        getSession: () => session as never,
+      }),
+    );
+
+    act(() => {
+      result.current.setRequests([request]);
+    });
+
+    let resolvePromise!: Promise<void>;
+    act(() => {
+      resolvePromise = result.current.resolveRequest(request.id, {
+        txHash: "0xdef",
+      });
+    });
+
+    expect(result.current.pendingRequests).toEqual([]);
+
+    await act(async () => {
+      resolveDeferred.reject(new Error("network error"));
+      await resolvePromise;
+    });
+
+    expect(result.current.pendingRequests).toEqual([]);
+
+    act(() => {
+      result.current.setRequests([request]);
+    });
+
+    expect(result.current.pendingRequests).toEqual([]);
+
+    act(() => {
+      result.current.setRequests([]);
+      result.current.setRequests([request]);
+    });
+
+    expect(result.current.pendingRequests).toEqual([request]);
+  });
 });
