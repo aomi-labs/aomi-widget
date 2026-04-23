@@ -14,7 +14,13 @@ export type {
   AomiSystemResponse,
   AomiThread,
 } from "@aomi-labs/client";
-export { toViemSignTypedDataArgs } from "@aomi-labs/client";
+export {
+  toViemSignTypedDataArgs,
+  hydrateTxPayloadFromUserState,
+  toAAWalletCall,
+  executeWalletCalls,
+  DISABLED_PROVIDER_STATE,
+} from "@aomi-labs/client";
 
 // =============================================================================
 // Runtime Provider

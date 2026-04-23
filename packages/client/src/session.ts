@@ -29,6 +29,7 @@ import { TypedEventEmitter } from "./event";
 import { unwrapSystemEvent } from "./event";
 import {
   normalizeTxPayload,
+  hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   type WalletTxPayload,
   type WalletEip712Payload,
@@ -631,7 +632,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       if (!unwrapped) continue;
 
       if (unwrapped.type === "wallet_tx_request") {
-        const payload = normalizeTxPayload(unwrapped.payload);
+        const normalizedPayload = normalizeTxPayload(unwrapped.payload);
+        const payload = normalizedPayload
+          ? hydrateTxPayloadFromUserState(normalizedPayload, this.userState)
+          : null;
         if (payload) {
           const req = this.enqueueWalletRequest("transaction", payload);
           this.emit("wallet_tx_request", req);

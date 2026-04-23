@@ -72,6 +72,7 @@ export { unwrapSystemEvent, type UnwrappedEvent } from "./event";
 
 export {
   normalizeTxPayload,
+  hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   toViemSignTypedDataArgs,
   toAAWalletCall,
@@ -89,6 +90,7 @@ export type {
 
 export {
   DEFAULT_AA_CONFIG,
+  DISABLED_PROVIDER_STATE,
   getAAChainConfig,
   buildAAExecutionPlan,
   getWalletExecutorReady,

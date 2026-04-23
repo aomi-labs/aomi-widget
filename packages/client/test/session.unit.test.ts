@@ -295,6 +295,56 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("hydrates id-only wallet_tx_request payloads from backend user_state", async () => {
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-7c" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        pending_txs: {
+          15: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "42",
+            data: "0x",
+            chain_id: 8453,
+          },
+        },
+      },
+      system_events: [{
+        InlineCall: {
+          type: "wallet_tx_request",
+          payload: {
+            pending_tx_id: 15,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_tx_request", resolve);
+    });
+
+    await session.sendAsync("queue id-only tx");
+    const request = requestPromise as Promise<{
+      kind: "transaction";
+      payload: { txId?: number; to?: string; value?: string; chainId?: number };
+    }>;
+
+    await expect(request).resolves.toMatchObject({
+      kind: "transaction",
+      payload: {
+        txId: 15,
+        to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+        value: "42",
+        chainId: 8453,
+      },
+    });
+
+    session.close();
+  });
+
   it("forwards backend tx identifiers in wallet completion callbacks", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-8" });
