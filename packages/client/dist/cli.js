@@ -1146,14 +1146,51 @@ function normalizeTxPayload(payload) {
   const root2 = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root2 == null ? void 0 : root2.ctx);
+  const txId = (_b = (_a3 = parsePendingId(args.txId)) != null ? _a3 : parsePendingId(args.pending_tx_id)) != null ? _b : parsePendingId(args.pendingTxId);
   const to = normalizeAddress(args.to);
-  if (!to) return null;
+  if (!to && txId === void 0) return null;
   const valueRaw = args.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
   const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_c = (_b = (_a3 = parseChainId2(args.chainId)) != null ? _a3 : parseChainId2(args.chain_id)) != null ? _b : parseChainId2(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId2(ctx == null ? void 0 : ctx.userChainId);
-  const txId = (_e = (_d = parsePendingId(args.txId)) != null ? _d : parsePendingId(args.pending_tx_id)) != null ? _e : parsePendingId(args.pendingTxId);
+  const chainId = (_e = (_d = (_c = parseChainId2(args.chainId)) != null ? _c : parseChainId2(args.chain_id)) != null ? _d : parseChainId2(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _e : parseChainId2(ctx == null ? void 0 : ctx.userChainId);
   return { to, value, data, chainId, txId };
+}
+function hydrateTxPayloadFromUserState(payload, userState, options) {
+  var _a3, _b, _c;
+  if (payload.to || payload.txId === void 0) {
+    return payload;
+  }
+  const strict = (options == null ? void 0 : options.strict) === true;
+  const normalizedUserState = asRecord(userState);
+  const pendingTxsRaw = asRecord(normalizedUserState == null ? void 0 : normalizedUserState.pending_txs);
+  if (!pendingTxsRaw) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const pendingEntry = asRecord(pendingTxsRaw[String(payload.txId)]);
+  if (!pendingEntry) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const hydrated = normalizeTxPayload(__spreadProps(__spreadValues({}, pendingEntry), {
+    pending_tx_id: payload.txId
+  }));
+  if (!(hydrated == null ? void 0 : hydrated.to)) {
+    if (strict) {
+      throw new Error("pending_transaction_missing_call_data");
+    }
+    return payload;
+  }
+  return __spreadProps(__spreadValues({}, payload), {
+    to: hydrated.to,
+    value: (_a3 = payload.value) != null ? _a3 : hydrated.value,
+    data: (_b = payload.data) != null ? _b : hydrated.data,
+    chainId: (_c = payload.chainId) != null ? _c : hydrated.chainId
+  });
 }
 function normalizeEip712Payload(payload) {
   var _a3, _b, _c, _d;
@@ -1178,6 +1215,9 @@ function normalizeEip712Payload(payload) {
 }
 function toAAWalletCall(payload, defaultChainId = 1) {
   var _a3, _b;
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
   return {
     to: payload.to,
     value: BigInt((_a3 = payload.value) != null ? _a3 : "0"),
@@ -1610,7 +1650,8 @@ var init_session = __esm({
           const unwrapped = unwrapSystemEvent(event);
           if (!unwrapped) continue;
           if (unwrapped.type === "wallet_tx_request") {
-            const payload = normalizeTxPayload(unwrapped.payload);
+            const normalizedPayload = normalizeTxPayload(unwrapped.payload);
+            const payload = normalizedPayload ? hydrateTxPayloadFromUserState(normalizedPayload, this.userState) : null;
             if (payload) {
               const req = this.enqueueWalletRequest("transaction", payload);
               this.emit("wallet_tx_request", req);
@@ -5874,7 +5915,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.26",
+  version: "0.1.27",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

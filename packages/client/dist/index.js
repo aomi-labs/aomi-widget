@@ -892,14 +892,51 @@ function normalizeTxPayload(payload) {
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
+  const txId = (_b = (_a = parsePendingId(args.txId)) != null ? _a : parsePendingId(args.pending_tx_id)) != null ? _b : parsePendingId(args.pendingTxId);
   const to = normalizeAddress(args.to);
-  if (!to) return null;
+  if (!to && txId === void 0) return null;
   const valueRaw = args.value;
   const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
   const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
-  const txId = (_e = (_d = parsePendingId(args.txId)) != null ? _d : parsePendingId(args.pending_tx_id)) != null ? _e : parsePendingId(args.pendingTxId);
+  const chainId = (_e = (_d = (_c = parseChainId(args.chainId)) != null ? _c : parseChainId(args.chain_id)) != null ? _d : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _e : parseChainId(ctx == null ? void 0 : ctx.userChainId);
   return { to, value, data, chainId, txId };
+}
+function hydrateTxPayloadFromUserState(payload, userState, options) {
+  var _a, _b, _c;
+  if (payload.to || payload.txId === void 0) {
+    return payload;
+  }
+  const strict = (options == null ? void 0 : options.strict) === true;
+  const normalizedUserState = asRecord(userState);
+  const pendingTxsRaw = asRecord(normalizedUserState == null ? void 0 : normalizedUserState.pending_txs);
+  if (!pendingTxsRaw) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const pendingEntry = asRecord(pendingTxsRaw[String(payload.txId)]);
+  if (!pendingEntry) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const hydrated = normalizeTxPayload(__spreadProps(__spreadValues({}, pendingEntry), {
+    pending_tx_id: payload.txId
+  }));
+  if (!(hydrated == null ? void 0 : hydrated.to)) {
+    if (strict) {
+      throw new Error("pending_transaction_missing_call_data");
+    }
+    return payload;
+  }
+  return __spreadProps(__spreadValues({}, payload), {
+    to: hydrated.to,
+    value: (_a = payload.value) != null ? _a : hydrated.value,
+    data: (_b = payload.data) != null ? _b : hydrated.data,
+    chainId: (_c = payload.chainId) != null ? _c : hydrated.chainId
+  });
 }
 function normalizeEip712Payload(payload) {
   var _a, _b, _c, _d;
@@ -924,6 +961,9 @@ function normalizeEip712Payload(payload) {
 }
 function toAAWalletCall(payload, defaultChainId = 1) {
   var _a, _b;
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
   return {
     to: payload.to,
     value: BigInt((_a = payload.value) != null ? _a : "0"),
@@ -1342,7 +1382,8 @@ var ClientSession = class extends TypedEventEmitter {
       const unwrapped = unwrapSystemEvent(event);
       if (!unwrapped) continue;
       if (unwrapped.type === "wallet_tx_request") {
-        const payload = normalizeTxPayload(unwrapped.payload);
+        const normalizedPayload = normalizeTxPayload(unwrapped.payload);
+        const payload = normalizedPayload ? hydrateTxPayloadFromUserState(normalizedPayload, this.userState) : null;
         if (payload) {
           const req = this.enqueueWalletRequest("transaction", payload);
           this.emit("wallet_tx_request", req);
@@ -1575,6 +1616,12 @@ var DEFAULT_AA_CONFIG = {
       sponsorship: "optional"
     }
   ]
+};
+var DISABLED_PROVIDER_STATE = {
+  resolved: null,
+  account: void 0,
+  pending: false,
+  error: null
 };
 
 // src/chains.ts
@@ -2555,6 +2602,7 @@ export {
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG,
+  DISABLED_PROVIDER_STATE,
   ClientSession as Session,
   TypedEventEmitter,
   UserState,
@@ -2567,6 +2615,7 @@ export {
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,
+  hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,
   isAsyncCallback,
   isInlineCall,

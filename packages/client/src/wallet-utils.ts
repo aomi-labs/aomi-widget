@@ -14,11 +14,15 @@ import { type Hex, getAddress } from "viem";
 import type { AAWalletCall } from "./aa/types";
 
 export type WalletTxPayload = {
-  to: string;
+  to?: string;
   value?: string;
   data?: string;
   chainId?: number;
   txId?: number;
+};
+
+type HydrateTxPayloadOptions = {
+  strict?: boolean;
 };
 
 export type WalletEip712Payload = {
@@ -107,15 +111,19 @@ function normalizeAddress(value: unknown): string | undefined {
 
 /**
  * Normalize a wallet_tx_request payload into a consistent shape.
- * Returns `null` if the payload is missing the required `to` field.
+ * Returns `null` if both `to` and `pending_tx_id` are missing.
  */
 export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root?.ctx);
+  const txId =
+    parsePendingId(args.txId) ??
+    parsePendingId(args.pending_tx_id) ??
+    parsePendingId(args.pendingTxId);
 
   const to = normalizeAddress(args.to);
-  if (!to) return null;
+  if (!to && txId === undefined) return null;
 
   const valueRaw = args.value;
   const value =
@@ -131,12 +139,55 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
     parseChainId(args.chain_id) ??
     parseChainId(ctx?.user_chain_id) ??
     parseChainId(ctx?.userChainId);
-  const txId =
-    parsePendingId(args.txId) ??
-    parsePendingId(args.pending_tx_id) ??
-    parsePendingId(args.pendingTxId);
 
   return { to, value, data, chainId, txId };
+}
+
+export function hydrateTxPayloadFromUserState(
+  payload: WalletTxPayload,
+  userState: unknown,
+  options?: HydrateTxPayloadOptions,
+): WalletTxPayload {
+  if (payload.to || payload.txId === undefined) {
+    return payload;
+  }
+
+  const strict = options?.strict === true;
+  const normalizedUserState = asRecord(userState);
+  const pendingTxsRaw = asRecord(normalizedUserState?.pending_txs);
+  if (!pendingTxsRaw) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+
+  const pendingEntry = asRecord(pendingTxsRaw[String(payload.txId)]);
+  if (!pendingEntry) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+
+  const hydrated = normalizeTxPayload({
+    ...pendingEntry,
+    pending_tx_id: payload.txId,
+  });
+  if (!hydrated?.to) {
+    if (strict) {
+      throw new Error("pending_transaction_missing_call_data");
+    }
+    return payload;
+  }
+
+  return {
+    ...payload,
+    to: hydrated.to,
+    value: payload.value ?? hydrated.value,
+    data: payload.data ?? hydrated.data,
+    chainId: payload.chainId ?? hydrated.chainId,
+  };
 }
 
 /**
@@ -185,6 +236,10 @@ export function toAAWalletCall(
   payload: WalletTxPayload,
   defaultChainId = 1,
 ): AAWalletCall {
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+
   return {
     to: payload.to as Hex,
     value: BigInt(payload.value ?? "0"),

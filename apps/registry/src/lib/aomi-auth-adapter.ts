@@ -5,8 +5,10 @@ import {
   useAccount as useParaAccount,
   useModal,
 } from "@getpara/react-sdk";
+import type { Chain } from "viem";
 import {
   useAccount as useWagmiAccount,
+  useConfig,
   useSendTransaction,
   useSignTypedData,
   useSwitchChain,
@@ -14,6 +16,11 @@ import {
 import type {
   WalletEip712Payload,
   WalletTxPayload,
+} from "@aomi-labs/react";
+import {
+  DISABLED_PROVIDER_STATE,
+  executeWalletCalls,
+  toAAWalletCall,
 } from "@aomi-labs/react";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
@@ -48,6 +55,16 @@ type WagmiAccountShape = {
   isConnected: boolean;
 };
 
+type WagmiConfigShape = {
+  chains: readonly Chain[];
+};
+
+function getPreferredRpcUrl(chain: Chain): string {
+  return chain.rpcUrls.default.http[0]
+    ?? chain.rpcUrls.public?.http[0]
+    ?? "";
+}
+
 export type AomiAuthAdapter = {
   identity: AomiAuthIdentity;
   isReady: boolean;
@@ -78,6 +95,10 @@ const DISCONNECTED_WAGMI_ACCOUNT: WagmiAccountShape = {
   isConnected: false,
 };
 
+const DISCONNECTED_WAGMI_CONFIG: WagmiConfigShape = {
+  chains: [],
+};
+
 function useSafeParaAccount(): ParaAccountShape {
   try {
     return useParaAccount() as ParaAccountShape;
@@ -99,6 +120,17 @@ function useSafeWagmiAccount(): WagmiAccountShape {
     return useWagmiAccount() as WagmiAccountShape;
   } catch {
     return DISCONNECTED_WAGMI_ACCOUNT;
+  }
+}
+
+function useSafeWagmiConfig(): WagmiConfigShape {
+  try {
+    const config = useConfig();
+    return {
+      chains: config.chains ?? [],
+    };
+  } catch {
+    return DISCONNECTED_WAGMI_CONFIG;
   }
 }
 
@@ -168,6 +200,15 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { sendTransactionAsync } = useSafeSendTransaction();
   const { signTypedDataAsync } = useSafeSignTypedData();
+  const wagmiConfig = useSafeWagmiConfig();
+
+  const chainsById = useMemo<Record<number, Chain>>(
+    () =>
+      Object.fromEntries(
+        (wagmiConfig.chains ?? []).map((chain) => [chain.id, chain]),
+      ),
+    [wagmiConfig.chains],
+  );
 
   return useMemo(() => {
     const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
@@ -237,18 +278,46 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
         : undefined,
       sendTransaction: sendTransactionAsync
         ? async (payload: WalletTxPayload) => {
-            const txHash = await sendTransactionAsync({
-              chainId: payload.chainId,
-              to: payload.to as `0x${string}`,
-              value: payload.value ? BigInt(payload.value) : undefined,
-              data:
-                payload.data && payload.data !== "0x"
-                  ? (payload.data as `0x${string}`)
-                  : undefined,
+            if (!payload.to) {
+              throw new Error("pending_transaction_missing_call_data");
+            }
+
+            const call = toAAWalletCall(payload, payload.chainId ?? chainId ?? 1);
+            const execution = await executeWalletCalls({
+              callList: [call],
+              currentChainId: chainId ?? call.chainId,
+              capabilities: undefined,
+              localPrivateKey: null,
+              providerState: DISABLED_PROVIDER_STATE,
+              sendCallsSyncAsync: async () => {
+                throw new Error("wallet_send_calls_not_supported");
+              },
+              sendTransactionAsync: async ({
+                chainId: txChainId,
+                to,
+                value,
+                data,
+              }) => {
+                return sendTransactionAsync({
+                  chainId: txChainId,
+                  to,
+                  value,
+                  data,
+                });
+              },
+              switchChainAsync: switchChainAsync
+                ? async ({ chainId: nextChainId }) => {
+                    await switchChainAsync({ chainId: nextChainId });
+                  }
+                : async () => {
+                    throw new Error("wallet_switch_chain_not_supported");
+                  },
+              chainsById,
+              getPreferredRpcUrl,
             });
 
             return {
-              txHash,
+              txHash: execution.txHash,
               amount: payload.value,
             };
           }
@@ -268,6 +337,7 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
     paraAccount.isConnected,
     paraAccount.isLoading,
     paraModal,
+    chainsById,
     sendTransactionAsync,
     signTypedDataAsync,
     switchChainAsync,

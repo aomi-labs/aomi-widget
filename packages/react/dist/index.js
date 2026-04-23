@@ -33,7 +33,13 @@ var __objRest = (source, exclude) => {
 
 // packages/react/src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
-import { toViemSignTypedDataArgs } from "@aomi-labs/client";
+import {
+  toViemSignTypedDataArgs,
+  hydrateTxPayloadFromUserState,
+  toAAWalletCall,
+  executeWalletCalls,
+  DISABLED_PROVIDER_STATE
+} from "@aomi-labs/client";
 
 // packages/react/src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
@@ -1936,16 +1942,20 @@ export {
   AomiClient2 as AomiClient,
   AomiRuntimeProvider,
   ControlContextProvider,
+  DISABLED_PROVIDER_STATE,
   EventContextProvider,
   NotificationContextProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
   cn,
+  executeWalletCalls,
   formatAddress,
   getChainInfo,
   getNetworkName,
+  hydrateTxPayloadFromUserState,
   initThreadControl,
+  toAAWalletCall,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   useControl,

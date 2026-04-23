@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  hydrateTxPayloadFromUserState,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletEip712Payload,
@@ -32,6 +33,7 @@ function parseChainId(value: number | string | undefined): number | undefined {
  */
 export function RuntimeTxHandler() {
   const {
+    user,
     pendingWalletRequests,
     startWalletRequest,
     resolveWalletRequest,
@@ -56,20 +58,19 @@ export function RuntimeTxHandler() {
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "transaction") {
-          const payload = req.payload as WalletTxPayload;
+          const initialPayload = req.payload as WalletTxPayload;
+          const payload = initialPayload.to
+            ? initialPayload
+            : hydrateTxPayloadFromUserState(initialPayload, user);
+
+          if (!payload.to) {
+            rejectWalletRequest(req.id, "pending_transaction_missing_call_data");
+            return;
+          }
 
           if (!adapter.sendTransaction) {
             rejectWalletRequest(req.id, "Wallet provider is not ready");
             return;
-          }
-
-          if (
-            payload.chainId &&
-            currentChainId &&
-            payload.chainId !== currentChainId &&
-            adapter.switchChain
-          ) {
-            await adapter.switchChain(payload.chainId);
           }
 
           const result = await adapter.sendTransaction(payload);
@@ -124,6 +125,7 @@ export function RuntimeTxHandler() {
     }
   }, [
     adapter,
+    user,
     pendingWalletRequests,
     currentChainId,
     startWalletRequest,
