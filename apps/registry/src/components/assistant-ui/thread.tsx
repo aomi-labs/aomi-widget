@@ -64,7 +64,7 @@ export const Thread: FC = () => {
             ["--thread-max-width" as string]: "44rem",
           }}
         >
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-2">
+          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll px-2">
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
@@ -81,9 +81,9 @@ export const Thread: FC = () => {
             <ThreadPrimitive.If empty={false}>
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
             </ThreadPrimitive.If>
-
-            <Composer />
           </ThreadPrimitive.Viewport>
+
+          <Composer />
         </ThreadPrimitive.Root>
       </MotionConfig>
     </LazyMotion>
@@ -192,7 +192,7 @@ const ThreadSuggestions: FC = () => {
 
 const Composer: FC = () => {
   return (
-    <div className="aui-composer-wrapper bg-background sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl pb-4 md:pb-6">
+    <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
       <ThreadScrollToBottom />
       <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground relative flex w-full flex-col px-1 pt-2">
         <ComposerPrimitive.Input
@@ -218,10 +218,10 @@ const ComposerAction: FC = () => {
   const hideNetwork = controlBarProps.hideNetwork ?? false;
 
   return (
-    <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center">
-      {/* Inline controls: [Model ▾] [App ▾] [🔑] */}
+    <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center gap-1">
+      {/* Inline controls — horizontally scrollable on mobile */}
       {composerControl.enabled && (
-        <div className="ml-2 flex items-center gap-2">
+        <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto md:ml-2 md:gap-2">
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
           {!hideApp && <AppSelect />}
@@ -230,38 +230,40 @@ const ComposerAction: FC = () => {
         </div>
       )}
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Spacer — only when no inline controls */}
+      {!composerControl.enabled && <div className="flex-1" />}
 
-      <ThreadPrimitive.If running={false}>
-        <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip="Send message"
-            side="bottom"
-            type="submit"
-            variant="default"
-            size="icon"
-            className="aui-composer-send mb-3 mr-3 size-[34px] rounded-full p-1"
-            aria-label="Send message"
-          >
-            <ArrowUpIcon className="aui-composer-send-icon size-5" />
-          </TooltipIconButton>
-        </ComposerPrimitive.Send>
-      </ThreadPrimitive.If>
+      <div className="shrink-0">
+        <ThreadPrimitive.If running={false}>
+          <ComposerPrimitive.Send asChild>
+            <TooltipIconButton
+              tooltip="Send message"
+              side="bottom"
+              type="submit"
+              variant="default"
+              size="icon"
+              className="aui-composer-send mb-3 mr-2 size-[38px] rounded-full p-1 md:mr-3 md:size-[34px]"
+              aria-label="Send message"
+            >
+              <ArrowUpIcon className="aui-composer-send-icon size-5" />
+            </TooltipIconButton>
+          </ComposerPrimitive.Send>
+        </ThreadPrimitive.If>
 
-      <ThreadPrimitive.If running>
-        <ComposerPrimitive.Cancel asChild>
-          <Button
-            type="button"
-            variant="default"
-            size="icon"
-            className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 size-[34px] rounded-full border"
-            aria-label="Stop generating"
-          >
-            <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
-          </Button>
-        </ComposerPrimitive.Cancel>
-      </ThreadPrimitive.If>
+        <ThreadPrimitive.If running>
+          <ComposerPrimitive.Cancel asChild>
+            <Button
+              type="button"
+              variant="default"
+              size="icon"
+              className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 mb-3 mr-2 size-[38px] rounded-full border md:mr-3 md:size-[34px]"
+              aria-label="Stop generating"
+            >
+              <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
+            </Button>
+          </ComposerPrimitive.Cancel>
+        </ThreadPrimitive.If>
+      </div>
     </div>
   );
 };
@@ -280,7 +282,7 @@ const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root asChild>
       <div
-        className="aui-assistant-message-root animate-in fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-[var(--thread-max-width)] py-4 duration-150 ease-out last:mb-24"
+        className="aui-assistant-message-root animate-in fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-[var(--thread-max-width)] py-4 duration-150 ease-out"
         data-role="assistant"
       >
         <div className="aui-assistant-message-content text-foreground mx-2 break-words text-sm leading-5">
