@@ -1,6 +1,18 @@
-# Aomi Widget
+# Aomi
 
-AI assistant + onchain widget library for React applications.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/@aomi-labs/widget-lib.svg)](https://www.npmjs.com/package/@aomi-labs/widget-lib)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+
+> Open-source AI blockchain infrastructure for executing on-chain transactions. One-line install.
+
+## What is Aomi?
+
+Aomi is open-source AI blockchain infrastructure for executing on-chain transactions. This repo provides `AomiFrame` — a drop-in React widget that gives your app an AI assistant capable of natural-language chat, wallet connection, transaction simulation, and on-chain execution. Installs in one line via npm or the shadcn registry.
+
+## Supported Chains
+
+Aomi currently supports EVM-compatible chains. Chain-agnostic support is on the roadmap.
 
 ## Installation
 
