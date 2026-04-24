@@ -1,6 +1,26 @@
-# Aomi Widget
+# Aomi
 
-AI assistant + onchain widget library for React applications.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/@aomi-labs/widget-lib.svg)](https://www.npmjs.com/package/@aomi-labs/widget-lib)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+
+> Open-source AI blockchain infrastructure for executing on-chain transactions. One-line install.
+
+## What is Aomi?
+
+Aomi is open-source AI blockchain infrastructure for executing on-chain transactions. This repo provides `AomiFrame` — a drop-in React widget that gives your app an AI assistant capable of natural-language chat, wallet connection, transaction simulation, and on-chain execution. Installs in one line via npm or the shadcn registry.
+
+## Supported Chains
+
+Aomi currently supports EVM-compatible chains. Chain-agnostic support is on the roadmap.
+
+## Use Cases
+
+- **DeFi dApps** — embed a chat-based swap, lend, or borrow assistant so users transact in plain English without touching menus.
+- **Wallet dashboards and portfolio tools** — add an AI co-pilot that explains balances, proposes rebalances, and executes the moves.
+- **Developer portals** — give developers a natural-language interface to manage API keys, wallets, and test flows without navigating a settings UI.
+- **Prediction markets** — let users chat through research, order placement, and position management (Polymarket, Kalshi, and more via plugins).
+- **GameFi companions** — drop in an AI buddy that handles token transfers, rewards claims, and on-chain actions for players.
 
 ## Installation
 
@@ -307,6 +327,29 @@ NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
 ```
 
 Get your Project ID from [Reown](https://docs.reown.com/).
+
+## FAQ
+
+**Is Aomi open-source?**
+Yes. MIT licensed. The widget, plugin SDK, and agent skills are all open-source — you can inspect, fork, or extend any layer.
+
+**Does Aomi take custody of my keys?**
+No. Aomi plans the transaction and hands it back to your wallet for local signing. The widget never has access to private keys.
+
+**Which chains does Aomi support?**
+EVM-compatible chains today, including Ethereum, Arbitrum, Base, Optimism, and Polygon. Chain-agnostic support is on the roadmap.
+
+**How does Aomi compare to LangChain or the Vercel AI SDK?**
+LangChain and the AI SDK are general-purpose frameworks that require you to build blockchain integrations manually. Aomi is purpose-built for crypto — native multi-chain support, real-time transaction simulation, wallet integration, and a Rust backend tuned for agentic crypto workloads.
+
+**Can I use `<AomiFrame />` without wallet providers?**
+Yes. The widget renders and chat works standalone; wallet actions stay disabled until you wrap the frame in your Para + wagmi provider tree.
+
+**Does the agent hallucinate bad transactions?**
+Every AI-generated action can be simulated before execution. You see exact token changes and gas costs before signing — the AI suggests, you verify, you decide.
+
+**How do I add a new protocol or API integration?**
+Build a plugin with [aomi-sdk](https://github.com/aomi-labs/aomi-sdk). The Aomi runtime hot-loads new plugins as they're published.
 
 ## License
 
