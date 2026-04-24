@@ -97,9 +97,11 @@ export interface ExecutionResult {
 
 export interface AtomicBatchArgs {
   calls: AACallPayload[];
+  chainId?: number;
   capabilities?: {
     atomic?: {
       required?: boolean;
+      optional?: boolean;
     };
   };
 }

@@ -36,6 +36,7 @@ import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
   hydrateTxPayloadFromUserState,
+  toAAWalletCalls,
   toAAWalletCall,
   executeWalletCalls,
   DISABLED_PROVIDER_STATE
@@ -917,6 +918,13 @@ function UserContextProvider({ children }) {
   const StateChangeCallbacks = useRef4(
     /* @__PURE__ */ new Set()
   );
+  const notifyStateChange = useCallback4((next) => {
+    queueMicrotask(() => {
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+    });
+  }, []);
   const setUser = useCallback4((data) => {
     setUserState((prev) => {
       var _a, _b, _c;
@@ -926,21 +934,17 @@ function UserContextProvider({ children }) {
         chain_id: void 0,
         ens_name: void 0
       }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _c : prev;
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
   const addExtValue = useCallback4((key, value) => {
     setUserState((prev) => {
       const next = UserState.withExt(prev, key, value);
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
   const removeExtValue = useCallback4((key) => {
     setUserState((prev) => {
       const ext = prev.ext;
@@ -952,12 +956,10 @@ function UserContextProvider({ children }) {
       const next = __spreadProps(__spreadValues({}, prev), {
         ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
       });
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
   const getUserState = useCallback4(() => userRef.current, []);
   const onUserStateChange = useCallback4(
     (callback) => {
@@ -985,7 +987,7 @@ function UserContextProvider({ children }) {
 }
 
 // packages/react/src/runtime/core.tsx
-import { useCallback as useCallback7, useEffect as useEffect3, useMemo as useMemo2, useRef as useRef7 } from "react";
+import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -1013,6 +1015,11 @@ var SessionManager = class {
   }
   get(threadId) {
     return this.sessions.get(threadId);
+  }
+  forEach(callback) {
+    for (const [threadId, session] of this.sessions) {
+      callback(session, threadId);
+    }
   }
   close(threadId) {
     const session = this.sessions.get(threadId);
@@ -1216,15 +1223,13 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const ensureInitialState = useCallback5(
     async (threadId) => {
-      var _a, _b;
+      var _a;
       if (pendingFetches.current.has(threadId)) return;
       pendingFetches.current.add(threadId);
       try {
         const session = getSession(threadId);
-        const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
-        if (userState) session.resolveUserState(userState);
         await session.fetchCurrentState();
-        (_b = options.onPendingRequestsChange) == null ? void 0 : _b.call(options, session.getPendingRequests());
+        (_a = options.onPendingRequestsChange) == null ? void 0 : _a.call(options, session.getPendingRequests());
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -1241,10 +1246,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const sendMessage = useCallback5(
     async (text, threadId) => {
-      var _a, _b;
+      var _a;
       const session = getSession(threadId);
-      const userState = (_a = options.getUserState) == null ? void 0 : _a.call(options);
-      if (userState) session.resolveUserState(userState);
       const existingMessages = threadContextRef.current.getThreadMessages(threadId);
       const userMessage = {
         role: "user",
@@ -1259,7 +1262,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
       await session.sendAsync(text);
-      (_b = options.onPendingRequestsChange) == null ? void 0 : _b.call(options, session.getPendingRequests());
+      (_a = options.onPendingRequestsChange) == null ? void 0 : _a.call(options, session.getPendingRequests());
     },
     [getSession]
   );
@@ -1488,8 +1491,41 @@ function useWalletHandler({
   };
 }
 
+// packages/react/src/runtime/user-state-provider.tsx
+import { useEffect as useEffect3, useRef as useRef7 } from "react";
+import { Fragment, jsx as jsx6 } from "react/jsx-runtime";
+function stableStateString(state) {
+  return JSON.stringify(state != null ? state : {});
+}
+function RuntimeUserStateProvider({
+  children,
+  sessionManager,
+  getUserState,
+  onUserStateChange
+}) {
+  const lastSerializedStateRef = useRef7("");
+  useEffect3(() => {
+    const applyToSessions = (next) => {
+      const serialized = stableStateString(next);
+      if (serialized === lastSerializedStateRef.current) {
+        return;
+      }
+      lastSerializedStateRef.current = serialized;
+      sessionManager.forEach((session) => {
+        session.resolveUserState(next);
+      });
+    };
+    applyToSessions(getUserState());
+    const unsubscribe = onUserStateChange((next) => {
+      applyToSessions(next);
+    });
+    return unsubscribe;
+  }, [getUserState, onUserStateChange, sessionManager]);
+  return /* @__PURE__ */ jsx6(Fragment, { children });
+}
+
 // packages/react/src/runtime/core.tsx
-import { jsx as jsx6 } from "react/jsx-runtime";
+import { jsx as jsx7 } from "react/jsx-runtime";
 function AomiRuntimeCore({
   children,
   aomiClient
@@ -1499,7 +1535,7 @@ function AomiRuntimeCore({
   const notificationContext = useNotification();
   const { user, onUserStateChange, getUserState } = useUser();
   const { getControlState, getCurrentThreadApp } = useControl();
-  const sessionManagerRef = useRef7(null);
+  const sessionManagerRef = useRef8(null);
   const walletHandler = useWalletHandler({
     getSession: () => {
       var _a;
@@ -1540,8 +1576,8 @@ function AomiRuntimeCore({
     },
     [getUserState]
   );
-  const lastWalletStateRef = useRef7(walletSnapshot(getUserState()));
-  useEffect3(() => {
+  const lastWalletStateRef = useRef8(walletSnapshot(getUserState()));
+  useEffect4(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
     const unsubscribe = onUserStateChange(async (newUser) => {
       const nextWalletState = walletSnapshot(newUser);
@@ -1565,10 +1601,10 @@ function AomiRuntimeCore({
     getUserState,
     walletSnapshot
   ]);
-  const threadContextRef = useRef7(threadContext);
+  const threadContextRef = useRef8(threadContext);
   threadContextRef.current = threadContext;
-  const remoteThreadIdsRef = useRef7(/* @__PURE__ */ new Set());
-  const warmedThreadIdsRef = useRef7(/* @__PURE__ */ new Set());
+  const remoteThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
+  const warmedThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
   const warmThread = useCallback7(
     async (threadId) => {
       if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
@@ -1583,7 +1619,7 @@ function AomiRuntimeCore({
     },
     [aomiClientRef, getUserState]
   );
-  useEffect3(() => {
+  useEffect4(() => {
     const unsubscribe = eventContext.subscribe(
       "user_state_request",
       () => {
@@ -1598,7 +1634,7 @@ function AomiRuntimeCore({
     );
     return unsubscribe;
   }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
-  useEffect3(() => {
+  useEffect4(() => {
     const threadId = threadContext.currentThreadId;
     let cancelled = false;
     void (async () => {
@@ -1611,7 +1647,7 @@ function AomiRuntimeCore({
       cancelled = true;
     };
   }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
-  useEffect3(() => {
+  useEffect4(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
     if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
@@ -1625,7 +1661,7 @@ function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId
   );
-  useEffect3(() => {
+  useEffect4(() => {
     const userAddress = UserState3.isConnected(user) ? UserState3.address(user) : void 0;
     if (!userAddress) {
       remoteThreadIdsRef.current.clear();
@@ -1694,7 +1730,7 @@ function AomiRuntimeCore({
       threadContext.allThreadsMetadata
     ]
   );
-  useEffect3(() => {
+  useEffect4(() => {
     const showToolNotification = (eventType) => (event) => {
       const payload = event.payload;
       const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
@@ -1719,7 +1755,7 @@ function AomiRuntimeCore({
       unsubscribeComplete();
     };
   }, [eventContext, notificationContext]);
-  useEffect3(() => {
+  useEffect4(() => {
     const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
     });
     return unsubscribe;
@@ -1742,7 +1778,7 @@ function AomiRuntimeCore({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  useEffect3(() => {
+  useEffect4(() => {
     return () => {
       sessionManager.closeAll();
     };
@@ -1858,17 +1894,25 @@ function AomiRuntimeCore({
       eventContext
     ]
   );
-  return /* @__PURE__ */ jsx6(AomiRuntimeApiProvider, { value: aomiRuntimeApi, children: /* @__PURE__ */ jsx6(AssistantRuntimeProvider, { runtime, children }) });
+  return /* @__PURE__ */ jsx7(AomiRuntimeApiProvider, { value: aomiRuntimeApi, children: /* @__PURE__ */ jsx7(
+    RuntimeUserStateProvider,
+    {
+      sessionManager,
+      getUserState: userContext.getUserState,
+      onUserStateChange: userContext.onUserStateChange,
+      children: /* @__PURE__ */ jsx7(AssistantRuntimeProvider, { runtime, children })
+    }
+  ) });
 }
 
 // packages/react/src/runtime/aomi-runtime.tsx
-import { jsx as jsx7 } from "react/jsx-runtime";
+import { jsx as jsx8 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080"
 }) {
   const aomiClient = useMemo3(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
-  return /* @__PURE__ */ jsx7(ThreadContextProvider, { children: /* @__PURE__ */ jsx7(NotificationContextProvider, { children: /* @__PURE__ */ jsx7(UserContextProvider, { children: /* @__PURE__ */ jsx7(AomiRuntimeInner, { aomiClient, children }) }) }) });
+  return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(UserContextProvider, { children: /* @__PURE__ */ jsx8(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
   children,
@@ -1877,7 +1921,7 @@ function AomiRuntimeInner({
   var _a;
   const threadContext = useThreadContext();
   const { user } = useUser();
-  return /* @__PURE__ */ jsx7(
+  return /* @__PURE__ */ jsx8(
     ControlContextProvider,
     {
       aomiClient,
@@ -1885,12 +1929,12 @@ function AomiRuntimeInner({
       publicKey: UserState4.isConnected(user) ? (_a = UserState4.address(user)) != null ? _a : void 0 : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
-      children: /* @__PURE__ */ jsx7(
+      children: /* @__PURE__ */ jsx8(
         EventContextProvider,
         {
           aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ jsx7(AomiRuntimeCore, { aomiClient, children })
+          children: /* @__PURE__ */ jsx8(AomiRuntimeCore, { aomiClient, children })
         }
       )
     }
@@ -1898,7 +1942,7 @@ function AomiRuntimeInner({
 }
 
 // packages/react/src/handlers/notification-handler.ts
-import { useCallback as useCallback8, useEffect as useEffect4, useState as useState6 } from "react";
+import { useCallback as useCallback8, useEffect as useEffect5, useState as useState6 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
   return `notif-${Date.now()}-${++notificationIdCounter2}`;
@@ -1908,7 +1952,7 @@ function useNotificationHandler({
 } = {}) {
   const { subscribe } = useEventContext();
   const [notifications, setNotifications] = useState6([]);
-  useEffect4(() => {
+  useEffect5(() => {
     const unsubscribe = subscribe("notification", (event) => {
       var _a, _b;
       const payload = event.payload;
@@ -1945,6 +1989,7 @@ export {
   DISABLED_PROVIDER_STATE,
   EventContextProvider,
   NotificationContextProvider,
+  RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
@@ -1956,6 +2001,7 @@ export {
   hydrateTxPayloadFromUserState,
   initThreadControl,
   toAAWalletCall,
+  toAAWalletCalls,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   useControl,

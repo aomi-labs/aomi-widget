@@ -17,6 +17,7 @@ export type {
 export {
   toViemSignTypedDataArgs,
   hydrateTxPayloadFromUserState,
+  toAAWalletCalls,
   toAAWalletCall,
   executeWalletCalls,
   DISABLED_PROVIDER_STATE,
@@ -27,6 +28,7 @@ export {
 // =============================================================================
 export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
 export type { AomiRuntimeProviderProps } from "./runtime/aomi-runtime";
+export { RuntimeUserStateProvider } from "./runtime/user-state-provider";
 
 // =============================================================================
 // Unified Runtime API

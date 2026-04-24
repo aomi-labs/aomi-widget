@@ -8,7 +8,9 @@ import {
 import type { Chain } from "viem";
 import {
   useAccount as useWagmiAccount,
+  useCapabilities,
   useConfig,
+  useSendCallsSync,
   useSendTransaction,
   useSignTypedData,
   useSwitchChain,
@@ -20,7 +22,7 @@ import type {
 import {
   DISABLED_PROVIDER_STATE,
   executeWalletCalls,
-  toAAWalletCall,
+  toAAWalletCalls,
 } from "@aomi-labs/react";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
@@ -76,7 +78,19 @@ export type AomiAuthAdapter = {
   switchChain?: (chainId: number) => Promise<void>;
   sendTransaction?: (
     payload: WalletTxPayload,
-  ) => Promise<{ txHash: string; amount?: string }>;
+  ) => Promise<{
+    txHash: string;
+    amount?: string;
+    aaRequestedMode?: "4337" | "7702" | "none";
+    aaResolvedMode?: "4337" | "7702" | "none";
+    aaFallbackReason?: string;
+    executionKind?: string;
+    batched?: boolean;
+    callCount?: number;
+    sponsored?: boolean;
+    smartAccountAddress?: string;
+    delegationAddress?: string;
+  }>;
   signTypedData?: (
     payload: WalletEip712Payload,
   ) => Promise<{ signature: string }>;
@@ -189,6 +203,38 @@ function useSafeSignTypedData(): {
   }
 }
 
+function useSafeCapabilities(): {
+  capabilities?: Parameters<typeof executeWalletCalls>[0]["capabilities"];
+} {
+  try {
+    const { data } = useCapabilities();
+    return {
+      capabilities: data as Parameters<typeof executeWalletCalls>[0]["capabilities"],
+    };
+  } catch {
+    return { capabilities: undefined };
+  }
+}
+
+function useSafeSendCallsSync(): {
+  sendCallsSyncAsync?: Parameters<typeof executeWalletCalls>[0]["sendCallsSyncAsync"];
+} {
+  try {
+    const { sendCallsSyncAsync } = useSendCallsSync();
+    return {
+      sendCallsSyncAsync: async ({ calls, capabilities, chainId }) => {
+        return sendCallsSyncAsync({
+          calls,
+          capabilities,
+          chainId,
+        });
+      },
+    };
+  } catch {
+    return { sendCallsSyncAsync: undefined };
+  }
+}
+
 export function useAomiAuthAdapter(): AomiAuthAdapter {
   const paraAccount = useSafeParaAccount();
   const paraModal = useSafeParaModal();
@@ -199,6 +245,8 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
   } = useSafeWagmiAccount();
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { sendTransactionAsync } = useSafeSendTransaction();
+  const { sendCallsSyncAsync } = useSafeSendCallsSync();
+  const { capabilities } = useSafeCapabilities();
   const { signTypedDataAsync } = useSafeSignTypedData();
   const wagmiConfig = useSafeWagmiConfig();
 
@@ -279,19 +327,32 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
       sendTransaction: sendTransactionAsync
         ? async (payload: WalletTxPayload) => {
             if (!payload.to) {
-              throw new Error("pending_transaction_missing_call_data");
+              // New tx_ids contract hydrates `calls`; keep this guard for
+              // defensive handling when hydration failed.
+              if (!payload.calls || payload.calls.length === 0) {
+                throw new Error("pending_transaction_missing_call_data");
+              }
             }
 
-            const call = toAAWalletCall(payload, payload.chainId ?? chainId ?? 1);
+            const callList = toAAWalletCalls(payload, payload.chainId ?? chainId ?? 1);
             const execution = await executeWalletCalls({
-              callList: [call],
-              currentChainId: chainId ?? call.chainId,
-              capabilities: undefined,
+              callList,
+              currentChainId: chainId ?? callList[0]?.chainId ?? 1,
+              capabilities,
               localPrivateKey: null,
               providerState: DISABLED_PROVIDER_STATE,
-              sendCallsSyncAsync: async () => {
-                throw new Error("wallet_send_calls_not_supported");
-              },
+              sendCallsSyncAsync:
+                sendCallsSyncAsync
+                  ? async ({ calls, capabilities, chainId }) => {
+                      return sendCallsSyncAsync({
+                        calls,
+                        capabilities,
+                        chainId,
+                      });
+                    }
+                  : async () => {
+                      throw new Error("wallet_send_calls_not_supported");
+                    },
               sendTransactionAsync: async ({
                 chainId: txChainId,
                 to,
@@ -316,9 +377,33 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
               getPreferredRpcUrl,
             });
 
+            const aaRequestedMode =
+              payload.aaPreference === "none"
+                ? "none"
+                : payload.aaPreference === "eip7702"
+                  ? "7702"
+                  : "4337";
+            const aaResolvedMode = execution.executionKind.endsWith("_7702")
+              ? "7702"
+              : execution.executionKind.endsWith("_4337")
+                ? "4337"
+                : "none";
+
             return {
               txHash: execution.txHash,
               amount: payload.value,
+              aaRequestedMode,
+              aaResolvedMode,
+              aaFallbackReason:
+                aaRequestedMode === "7702" && aaResolvedMode === "4337"
+                  ? "requested_7702_fallback_4337"
+                  : undefined,
+              executionKind: execution.executionKind,
+              batched: execution.batched,
+              callCount: callList.length,
+              sponsored: execution.sponsored,
+              smartAccountAddress: execution.AAAddress,
+              delegationAddress: execution.delegationAddress,
             };
           }
         : undefined,
@@ -337,7 +422,9 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
     paraAccount.isConnected,
     paraAccount.isLoading,
     paraModal,
+    capabilities,
     chainsById,
+    sendCallsSyncAsync,
     sendTransactionAsync,
     signTypedDataAsync,
     switchChainAsync,

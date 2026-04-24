@@ -18,6 +18,15 @@ export type WalletRequestResult = {
   txHash?: string;
   signature?: string;
   amount?: string;
+  aaRequestedMode?: "4337" | "7702" | "none";
+  aaResolvedMode?: "4337" | "7702" | "none";
+  aaFallbackReason?: string;
+  executionKind?: string;
+  batched?: boolean;
+  callCount?: number;
+  sponsored?: boolean;
+  smartAccountAddress?: string;
+  delegationAddress?: string;
 };
 
 export type WalletHandlerConfig = {

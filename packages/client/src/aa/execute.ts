@@ -1,3 +1,5 @@
+import { createPublicClient, createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import type { Hex } from "viem";
 import { CHAINS_BY_ID } from "../chains";
 
@@ -7,6 +9,7 @@ import type {
   AAWalletCall,
   ExecuteWalletCallsParams,
   ExecutionResult,
+  WalletAtomicCapability,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -104,7 +107,6 @@ async function resolve7702Delegation(
   callList: AAWalletCall[],
 ): Promise<Hex | undefined> {
   try {
-    const { createPublicClient, http } = await import("viem");
     const chainId = callList[0]?.chainId;
     if (!chainId) return undefined;
 
@@ -143,9 +145,6 @@ async function executeViaEoa({
   chainsById,
   getPreferredRpcUrl,
 }: Omit<ExecuteWalletCallsParams, "providerState">): Promise<ExecutionResult> {
-  const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount } = await import("viem/accounts");
-
   const hashes: string[] = [];
 
   if (localPrivateKey) {
@@ -198,18 +197,25 @@ async function executeViaEoa({
     await switchChainAsync({ chainId });
   }
 
-  const chainCaps = capabilities?.[`eip155:${chainId}`];
+  const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = chainCaps?.atomic?.status;
   const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  const atomicCapabilityRequest =
+    atomicStatus === "ready"
+      ? { required: true }
+      : atomicStatus === "supported"
+        ? { optional: true }
+        : undefined;
 
   if (canUseSendCalls) {
     const batchResult = await sendCallsSyncAsync({
+      chainId,
       calls: callList.map(({ to, value, data }) => ({ to, value, data })),
-      capabilities: {
-        atomic: {
-          required: true,
-        },
-      },
+      capabilities: atomicCapabilityRequest
+        ? {
+            atomic: atomicCapabilityRequest,
+          }
+        : undefined,
     });
 
     const receipts =
@@ -239,4 +245,24 @@ async function executeViaEoa({
     batched: hashes.length > 1,
     sponsored: false,
   };
+}
+
+function resolveChainCapabilities(
+  capabilities: ExecuteWalletCallsParams["capabilities"],
+  chainId: number,
+): WalletAtomicCapability | undefined {
+  if (!capabilities) {
+    return undefined;
+  }
+
+  const asRecord = capabilities as Record<string, WalletAtomicCapability>;
+  const eip155Key = `eip155:${chainId}`;
+  const decimalKey = String(chainId);
+  const hexKey = `0x${chainId.toString(16)}`;
+
+  return (
+    asRecord[eip155Key]
+    ?? asRecord[decimalKey]
+    ?? asRecord[hexKey]
+  );
 }

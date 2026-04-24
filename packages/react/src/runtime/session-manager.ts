@@ -28,6 +28,12 @@ export class SessionManager {
     return this.sessions.get(threadId);
   }
 
+  forEach(callback: (session: ClientSession, threadId: string) => void): void {
+    for (const [threadId, session] of this.sessions) {
+      callback(session, threadId);
+    }
+  }
+
   close(threadId: string): void {
     const session = this.sessions.get(threadId);
     if (session) {

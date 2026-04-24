@@ -31,6 +31,7 @@ import {
   normalizeTxPayload,
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  type WalletTxAaPreference,
   type WalletTxPayload,
   type WalletEip712Payload,
 } from "./wallet-utils";
@@ -53,6 +54,15 @@ export type WalletRequestResult = {
   signature?: string;
   amount?: string;
   error?: string;
+  aaRequestedMode?: "4337" | "7702" | "none";
+  aaResolvedMode?: "4337" | "7702" | "none";
+  aaFallbackReason?: string;
+  executionKind?: string;
+  batched?: boolean;
+  callCount?: number;
+  sponsored?: boolean;
+  smartAccountAddress?: string;
+  delegationAddress?: string;
 };
 
 export type SendResult = {
@@ -109,6 +119,34 @@ function isSubsetMatch(expected: unknown, actual: unknown): boolean {
   }
 
   return expected === actual;
+}
+
+function txIdsFromPayload(payload: WalletTxPayload): number[] {
+  if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
+    return [...payload.txIds];
+  }
+  if (typeof payload.txId === "number") {
+    return [payload.txId];
+  }
+  return [];
+}
+
+function aaRequestedModeFromPreference(
+  preference: WalletTxAaPreference | undefined,
+): "4337" | "7702" | "none" {
+  if (preference === "none") return "none";
+  if (preference === "eip7702") return "7702";
+  return "4337";
+}
+
+function aaModeFromExecutionKind(
+  executionKind: string | undefined,
+): "4337" | "7702" | "none" | undefined {
+  if (!executionKind) return undefined;
+  if (executionKind.endsWith("_4337")) return "4337";
+  if (executionKind.endsWith("_7702")) return "7702";
+  if (executionKind === "eoa") return "none";
+  return undefined;
 }
 
 export type SessionOptions = {
@@ -316,13 +354,26 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction") {
       const txPayload = req.payload as WalletTxPayload;
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = result.aaRequestedMode ?? aaRequestedModeFromPreference(txPayload.aaPreference);
+      const resolvedMode =
+        result.aaResolvedMode ??
+        aaModeFromExecutionKind(result.executionKind) ??
+        requestedMode;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash ?? "",
         status: "success",
         amount: result.amount,
-        ...(txPayload.txId !== undefined
-          ? { pending_tx_id: txPayload.txId }
-          : {}),
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: resolvedMode,
+        aa_fallback_reason: result.aaFallbackReason,
+        execution_kind: result.executionKind,
+        batched: result.batched ?? pendingTxIds.length > 1,
+        call_count: result.callCount ?? pendingTxIds.length,
+        sponsored: result.sponsored,
+        smart_account_address: result.smartAccountAddress,
+        delegation_address: result.delegationAddress,
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -354,13 +405,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction") {
       const txPayload = req.payload as WalletTxPayload;
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
         error: reason ?? "Request rejected",
-        ...(txPayload.txId !== undefined
-          ? { pending_tx_id: txPayload.txId }
-          : {}),
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: requestedMode,
+        aa_fallback_reason: undefined,
+        execution_kind: undefined,
+        batched: pendingTxIds.length > 1,
+        call_count: pendingTxIds.length,
+        sponsored: undefined,
+        smart_account_address: undefined,
+        delegation_address: undefined,
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -752,9 +812,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     payload: WalletTxPayload | WalletEip712Payload,
   ): string {
     if (kind === "transaction") {
-      const txId = (payload as WalletTxPayload).txId;
-      if (typeof txId === "number") {
-        return `tx-${txId}`;
+      const txPayload = payload as WalletTxPayload;
+      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
+        return `txreq-${txPayload.requestId}`;
+      }
+      const txIds = txIdsFromPayload(txPayload);
+      if (txIds.length > 0) {
+        return `tx-${txIds.join("-")}`;
       }
     } else {
       const eip712Id = (payload as WalletEip712Payload).eip712Id;
@@ -778,13 +842,18 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     for (const [id, raw] of Object.entries(pendingTxs ?? {}).sort((left, right) =>
       Number(left[0]) - Number(right[0]),
     )) {
-      const payload = normalizeTxPayload({
-        ...(isRecord(raw) ? raw : {}),
-        pending_tx_id: Number(id),
-      });
-      if (!payload) {
-        continue;
-      }
+      const payload = hydrateTxPayloadFromUserState(
+        {
+          txId: Number(id),
+          txIds: [Number(id)],
+          aaPreference: "auto",
+        },
+        {
+          pending_txs: {
+            [id]: isRecord(raw) ? raw : {},
+          },
+        },
+      );
 
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({

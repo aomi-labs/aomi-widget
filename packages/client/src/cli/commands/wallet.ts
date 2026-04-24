@@ -399,7 +399,13 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         payload: {
           txHash: execution.txHash,
           status: "success",
-          ...(tx.txId !== undefined ? { pending_tx_id: tx.txId } : {}),
+          pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
+          execution_kind: execution.executionKind,
+          batched: execution.batched,
+          call_count: execution.txHashes.length,
+          sponsored: execution.sponsored,
+          smart_account_address: execution.AAAddress,
+          delegation_address: execution.delegationAddress,
         },
       }));
     } else {

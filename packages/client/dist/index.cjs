@@ -74,6 +74,7 @@ __export(index_exports, {
   normalizeTxPayload: () => normalizeTxPayload,
   resolvePimlicoConfig: () => resolvePimlicoConfig,
   toAAWalletCall: () => toAAWalletCall,
+  toAAWalletCalls: () => toAAWalletCalls,
   toViemSignTypedDataArgs: () => toViemSignTypedDataArgs,
   unwrapSystemEvent: () => unwrapSystemEvent
 });
@@ -925,6 +926,13 @@ function parseChainId(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function parseTxIds(value) {
+  if (!Array.isArray(value)) return [];
+  const parsed = value.map((entry) => parsePendingId(entry)).filter((entry) => typeof entry === "number");
+  const unique = Array.from(new Set(parsed));
+  unique.sort((left, right) => left - right);
+  return unique;
+}
 function parsePendingId(value) {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
@@ -934,6 +942,21 @@ function parsePendingId(value) {
   if (!trimmed) return void 0;
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function parseValue(value) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return void 0;
+}
+function normalizeAaPreference(value) {
+  if (typeof value !== "string") return void 0;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "auto" || normalized === "eip4337" || normalized === "eip7702" || normalized === "none") {
+    return normalized;
+  }
+  return void 0;
 }
 function normalizeAddress(value) {
   if (typeof value !== "string") return void 0;
@@ -949,25 +972,31 @@ function normalizeAddress(value) {
   }
 }
 function normalizeTxPayload(payload) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
-  const txId = (_b = (_a = parsePendingId(args.txId)) != null ? _a : parsePendingId(args.pending_tx_id)) != null ? _b : parsePendingId(args.pendingTxId);
+  const txIds = parseTxIds((_a = args.tx_ids) != null ? _a : args.txIds);
+  if (txIds.length === 0) return null;
   const to = normalizeAddress(args.to);
-  if (!to && txId === void 0) return null;
-  const valueRaw = args.value;
-  const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
+  const value = parseValue(args.value);
   const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_e = (_d = (_c = parseChainId(args.chainId)) != null ? _c : parseChainId(args.chain_id)) != null ? _d : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _e : parseChainId(ctx == null ? void 0 : ctx.userChainId);
-  return { to, value, data, chainId, txId };
+  const chainId = (_d = (_c = (_b = parseChainId(args.chainId)) != null ? _b : parseChainId(args.chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _d : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  const requestId = typeof args.tx_id === "string" ? args.tx_id : typeof args.txId === "string" ? args.txId : void 0;
+  const aaPreference = (_f = normalizeAaPreference((_e = args.aa_preference) != null ? _e : args.aaPreference)) != null ? _f : "auto";
+  const txId = txIds.length === 1 ? txIds[0] : void 0;
+  return { to, value, data, chainId, txId, txIds, aaPreference, requestId };
 }
 function hydrateTxPayloadFromUserState(payload, userState, options) {
-  var _a, _b, _c;
-  if (payload.to || payload.txId === void 0) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const strict = (options == null ? void 0 : options.strict) === true;
+  const txIds = Array.isArray(payload.txIds) && payload.txIds.length > 0 ? payload.txIds : payload.txId !== void 0 ? [payload.txId] : [];
+  if (txIds.length === 0) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
     return payload;
   }
-  const strict = (options == null ? void 0 : options.strict) === true;
   const normalizedUserState = asRecord(userState);
   const pendingTxsRaw = asRecord(normalizedUserState == null ? void 0 : normalizedUserState.pending_txs);
   if (!pendingTxsRaw) {
@@ -976,27 +1005,48 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
     }
     return payload;
   }
-  const pendingEntry = asRecord(pendingTxsRaw[String(payload.txId)]);
-  if (!pendingEntry) {
+  const calls = [];
+  for (const txId of txIds) {
+    const pendingEntry = asRecord(pendingTxsRaw[String(txId)]);
+    if (!pendingEntry) {
+      if (strict) {
+        throw new Error("pending_tx_not_found");
+      }
+      continue;
+    }
+    const to = normalizeAddress(pendingEntry.to);
+    if (!to) {
+      if (strict) {
+        throw new Error("pending_transaction_missing_call_data");
+      }
+      continue;
+    }
+    calls.push({
+      txId,
+      to,
+      value: parseValue(pendingEntry.value),
+      data: typeof pendingEntry.data === "string" ? pendingEntry.data : void 0,
+      chainId: (_b = (_a = parseChainId(pendingEntry.chain_id)) != null ? _a : parseChainId(pendingEntry.chainId)) != null ? _b : parseChainId(payload.chainId),
+      from: typeof pendingEntry.from === "string" ? pendingEntry.from : void 0,
+      gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : void 0,
+      description: typeof pendingEntry.label === "string" ? pendingEntry.label : typeof pendingEntry.description === "string" ? pendingEntry.description : void 0
+    });
+  }
+  if (calls.length === 0) {
     if (strict) {
       throw new Error("pending_tx_not_found");
     }
     return payload;
   }
-  const hydrated = normalizeTxPayload(__spreadProps(__spreadValues({}, pendingEntry), {
-    pending_tx_id: payload.txId
-  }));
-  if (!(hydrated == null ? void 0 : hydrated.to)) {
-    if (strict) {
-      throw new Error("pending_transaction_missing_call_data");
-    }
-    return payload;
-  }
+  const first = calls[0];
   return __spreadProps(__spreadValues({}, payload), {
-    to: hydrated.to,
-    value: (_a = payload.value) != null ? _a : hydrated.value,
-    data: (_b = payload.data) != null ? _b : hydrated.data,
-    chainId: (_c = payload.chainId) != null ? _c : hydrated.chainId
+    txIds,
+    txId: (_c = payload.txId) != null ? _c : first.txId,
+    to: (_d = payload.to) != null ? _d : first.to,
+    value: (_e = payload.value) != null ? _e : first.value,
+    data: (_f = payload.data) != null ? _f : first.data,
+    chainId: (_g = payload.chainId) != null ? _g : first.chainId,
+    calls
   });
 }
 function normalizeEip712Payload(payload) {
@@ -1020,17 +1070,32 @@ function normalizeEip712Payload(payload) {
   const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
   return { typed_data: typedData, description, eip712Id };
 }
-function toAAWalletCall(payload, defaultChainId = 1) {
+function toAAWalletCalls(payload, defaultChainId = 1) {
   var _a, _b;
-  if (!payload.to) {
+  const calls = ((_a = payload.calls) == null ? void 0 : _a.length) ? payload.calls : payload.to ? [
+    {
+      txId: (_b = payload.txId) != null ? _b : 0,
+      to: payload.to,
+      value: payload.value,
+      data: payload.data,
+      chainId: payload.chainId
+    }
+  ] : [];
+  if (calls.length === 0) {
     throw new Error("pending_transaction_missing_call_data");
   }
-  return {
-    to: payload.to,
-    value: BigInt((_a = payload.value) != null ? _a : "0"),
-    data: payload.data ? payload.data : void 0,
-    chainId: (_b = payload.chainId) != null ? _b : defaultChainId
-  };
+  return calls.map((call) => {
+    var _a2, _b2, _c;
+    return {
+      to: call.to,
+      value: BigInt((_a2 = call.value) != null ? _a2 : "0"),
+      data: call.data ? call.data : void 0,
+      chainId: (_c = (_b2 = call.chainId) != null ? _b2 : payload.chainId) != null ? _c : defaultChainId
+    };
+  });
+}
+function toAAWalletCall(payload, defaultChainId = 1) {
+  return toAAWalletCalls(payload, defaultChainId)[0];
 }
 function toViemSignTypedDataArgs(payload) {
   var _a;
@@ -1091,6 +1156,27 @@ function isSubsetMatch(expected, actual) {
     );
   }
   return expected === actual;
+}
+function txIdsFromPayload(payload) {
+  if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
+    return [...payload.txIds];
+  }
+  if (typeof payload.txId === "number") {
+    return [payload.txId];
+  }
+  return [];
+}
+function aaRequestedModeFromPreference(preference) {
+  if (preference === "none") return "none";
+  if (preference === "eip7702") return "7702";
+  return "4337";
+}
+function aaModeFromExecutionKind(executionKind) {
+  if (!executionKind) return void 0;
+  if (executionKind.endsWith("_4337")) return "4337";
+  if (executionKind.endsWith("_7702")) return "7702";
+  if (executionKind === "eoa") return "none";
+  return void 0;
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
@@ -1185,18 +1271,31 @@ var ClientSession = class extends TypedEventEmitter {
    * Sends the result to the backend and resumes polling.
    */
   async resolve(requestId, result) {
-    var _a;
+    var _a, _b, _c, _d, _e, _f;
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
       const txPayload = req.payload;
-      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
-        txHash: (_a = result.txHash) != null ? _a : "",
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(txPayload.aaPreference);
+      const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
+      await this.sendSystemEvent("wallet:tx_complete", {
+        txHash: (_d = result.txHash) != null ? _d : "",
         status: "success",
-        amount: result.amount
-      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
+        amount: result.amount,
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: resolvedMode,
+        aa_fallback_reason: result.aaFallbackReason,
+        execution_kind: result.executionKind,
+        batched: (_e = result.batched) != null ? _e : pendingTxIds.length > 1,
+        call_count: (_f = result.callCount) != null ? _f : pendingTxIds.length,
+        sponsored: result.sponsored,
+        smart_account_address: result.smartAccountAddress,
+        delegation_address: result.delegationAddress
+      });
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
@@ -1220,11 +1319,23 @@ var ClientSession = class extends TypedEventEmitter {
     }
     if (req.kind === "transaction") {
       const txPayload = req.payload;
-      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
+      await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
-        error: reason != null ? reason : "Request rejected"
-      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
+        error: reason != null ? reason : "Request rejected",
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: requestedMode,
+        aa_fallback_reason: void 0,
+        execution_kind: void 0,
+        batched: pendingTxIds.length > 1,
+        call_count: pendingTxIds.length,
+        sponsored: void 0,
+        smart_account_address: void 0,
+        delegation_address: void 0
+      });
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
@@ -1533,9 +1644,13 @@ var ClientSession = class extends TypedEventEmitter {
   }
   getWalletRequestId(kind, payload) {
     if (kind === "transaction") {
-      const txId = payload.txId;
-      if (typeof txId === "number") {
-        return `tx-${txId}`;
+      const txPayload = payload;
+      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
+        return `txreq-${txPayload.requestId}`;
+      }
+      const txIds = txIdsFromPayload(txPayload);
+      if (txIds.length > 0) {
+        return `tx-${txIds.join("-")}`;
       }
     } else {
       const eip712Id = payload.eip712Id;
@@ -1553,12 +1668,18 @@ var ClientSession = class extends TypedEventEmitter {
     for (const [id, raw] of Object.entries(pendingTxs != null ? pendingTxs : {}).sort(
       (left, right) => Number(left[0]) - Number(right[0])
     )) {
-      const payload = normalizeTxPayload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
-        pending_tx_id: Number(id)
-      }));
-      if (!payload) {
-        continue;
-      }
+      const payload = hydrateTxPayloadFromUserState(
+        {
+          txId: Number(id),
+          txIds: [Number(id)],
+          aaPreference: "auto"
+        },
+        {
+          pending_txs: {
+            [id]: isRecord(raw) ? raw : {}
+          }
+        }
+      );
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
@@ -1685,6 +1806,10 @@ var DISABLED_PROVIDER_STATE = {
   error: null
 };
 
+// src/aa/execute.ts
+var import_viem2 = require("viem");
+var import_accounts = require("viem/accounts");
+
 // src/chains.ts
 var import_chains = require("viem/chains");
 var ALCHEMY_CHAIN_SLUGS = {
@@ -1765,12 +1890,11 @@ async function executeViaAA(callList, providerState) {
 async function resolve7702Delegation(txHash, callList) {
   var _a, _b, _c, _d;
   try {
-    const { createPublicClient, http } = await import("viem");
     const chainId = (_a = callList[0]) == null ? void 0 : _a.chainId;
     if (!chainId) return void 0;
     const chain = CHAINS_BY_ID[chainId];
     if (!chain) return void 0;
-    const client = createPublicClient({ chain, transport: http() });
+    const client = (0, import_viem2.createPublicClient)({ chain, transport: (0, import_viem2.http)() });
     const tx = await client.getTransaction({ hash: txHash });
     const authList = tx.authorizationList;
     const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
@@ -1793,8 +1917,6 @@ async function executeViaEoa({
   getPreferredRpcUrl
 }) {
   var _a, _b;
-  const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount4 } = await import("viem/accounts");
   const hashes = [];
   if (localPrivateKey) {
     for (const call of callList) {
@@ -1806,11 +1928,11 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount4(localPrivateKey);
-      const walletClient = createWalletClient({
+      const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
+      const walletClient = (0, import_viem2.createWalletClient)({
         account,
         chain,
-        transport: http(rpcUrl)
+        transport: (0, import_viem2.http)(rpcUrl)
       });
       const hash = await walletClient.sendTransaction({
         account,
@@ -1818,9 +1940,9 @@ async function executeViaEoa({
         value: call.value,
         data: call.data
       });
-      const publicClient = createPublicClient({
+      const publicClient = (0, import_viem2.createPublicClient)({
         chain,
-        transport: http(rpcUrl)
+        transport: (0, import_viem2.http)(rpcUrl)
       });
       await publicClient.waitForTransactionReceipt({ hash });
       hashes.push(hash);
@@ -1841,17 +1963,17 @@ async function executeViaEoa({
   if (currentChainId !== chainId) {
     await switchChainAsync({ chainId });
   }
-  const chainCaps = capabilities == null ? void 0 : capabilities[`eip155:${chainId}`];
+  const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = (_a = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a.status;
   const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  const atomicCapabilityRequest = atomicStatus === "ready" ? { required: true } : atomicStatus === "supported" ? { optional: true } : void 0;
   if (canUseSendCalls) {
     const batchResult = await sendCallsSyncAsync({
+      chainId,
       calls: callList.map(({ to, value, data }) => ({ to, value, data })),
-      capabilities: {
-        atomic: {
-          required: true
-        }
-      }
+      capabilities: atomicCapabilityRequest ? {
+        atomic: atomicCapabilityRequest
+      } : void 0
     });
     const receipts = (_b = batchResult.receipts) != null ? _b : [];
     for (const receipt of receipts) {
@@ -1877,6 +1999,17 @@ async function executeViaEoa({
     batched: hashes.length > 1,
     sponsored: false
   };
+}
+function resolveChainCapabilities(capabilities, chainId) {
+  var _a, _b;
+  if (!capabilities) {
+    return void 0;
+  }
+  const asRecord2 = capabilities;
+  const eip155Key = `eip155:${chainId}`;
+  const decimalKey = String(chainId);
+  const hexKey = `0x${chainId.toString(16)}`;
+  return (_b = (_a = asRecord2[eip155Key]) != null ? _a : asRecord2[decimalKey]) != null ? _b : asRecord2[hexKey];
 }
 
 // src/aa/alchemy/provider.ts
@@ -1937,7 +2070,7 @@ function createAlchemyAAProvider({
 }
 
 // src/aa/alchemy/create.ts
-var import_accounts2 = require("viem/accounts");
+var import_accounts3 = require("viem/accounts");
 
 // src/aa/adapt.ts
 function adaptSmartAccount(account) {
@@ -1964,13 +2097,13 @@ function isAlchemySponsorshipLimitError(error) {
 }
 
 // src/aa/owner.ts
-var import_accounts = require("viem/accounts");
+var import_accounts2 = require("viem/accounts");
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: (0, import_accounts.privateKeyToAccount)(owner.privateKey)
+      signer: (0, import_accounts2.privateKeyToAccount)(owner.privateKey)
     }
   };
 }
@@ -2168,7 +2301,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemy4337State(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = (0, import_accounts2.privateKeyToAccount)(params.privateKey);
+  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -2257,7 +2390,7 @@ async function createAlchemy4337State(params) {
   };
 }
 async function createAlchemy7702State(params) {
-  const { createWalletClient, createPublicClient, http } = await import("viem");
+  const { createWalletClient: createWalletClient2, createPublicClient: createPublicClient2, http: http2 } = await import("viem");
   const { encodeExecuteData } = await import("viem/experimental/erc7821");
   if (params.gasPolicyId) {
     aaDebug(
@@ -2268,7 +2401,7 @@ async function createAlchemy7702State(params) {
       "\u26A0\uFE0F  Gas policy is not supported for raw EIP-7702 transactions. The signer's EOA pays gas directly."
     );
   }
-  const signer = (0, import_accounts2.privateKeyToAccount)(params.privateKey);
+  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
   const signerAddress = signer.address;
   let rpcUrl;
   if (params.proxyBaseUrl) {
@@ -2276,14 +2409,14 @@ async function createAlchemy7702State(params) {
   } else if (params.apiKey) {
     rpcUrl = alchemyRpcUrl(params.chain.id, params.apiKey);
   }
-  const walletClient = createWalletClient({
+  const walletClient = createWalletClient2({
     account: signer,
     chain: params.chain,
-    transport: http(rpcUrl)
+    transport: http2(rpcUrl)
   });
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient2({
     chain: params.chain,
-    transport: http(rpcUrl)
+    transport: http2(rpcUrl)
   });
   const send7702 = async (calls) => {
     aaDebug("7702:send:start", {
@@ -2455,7 +2588,7 @@ function createPimlicoAAProvider({
 }
 
 // src/aa/pimlico/create.ts
-var import_accounts3 = require("viem/accounts");
+var import_accounts4 = require("viem/accounts");
 var AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
@@ -2552,9 +2685,9 @@ async function createPimlicoDirectState(params) {
   const { createSmartAccountClient } = await import("permissionless");
   const { toSimpleSmartAccount } = await import("permissionless/accounts");
   const { createPimlicoClient } = await import("permissionless/clients/pimlico");
-  const { createPublicClient, http } = await import("viem");
+  const { createPublicClient: createPublicClient2, http: http2 } = await import("viem");
   const { entryPoint07Address } = await import("viem/account-abstraction");
-  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
+  const signer = (0, import_accounts4.privateKeyToAccount)(params.privateKey);
   const signerAddress = signer.address;
   const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
   pimDebug("4337:start", {
@@ -2562,13 +2695,13 @@ async function createPimlicoDirectState(params) {
     chainId: params.chain.id,
     pimlicoRpcUrl: pimlicoRpcUrl.replace(params.apiKey, "***")
   });
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient2({
     chain: params.chain,
-    transport: http(params.rpcUrl)
+    transport: http2(params.rpcUrl)
   });
   const paymasterClient = createPimlicoClient({
     entryPoint: { address: entryPoint07Address, version: "0.7" },
-    transport: http(pimlicoRpcUrl)
+    transport: http2(pimlicoRpcUrl)
   });
   const smartAccount = await toSimpleSmartAccount({
     client: publicClient,
@@ -2584,7 +2717,7 @@ async function createPimlicoDirectState(params) {
     account: smartAccount,
     chain: params.chain,
     paymaster: paymasterClient,
-    bundlerTransport: http(pimlicoRpcUrl),
+    bundlerTransport: http2(pimlicoRpcUrl),
     userOperation: {
       estimateFeesPerGas: async () => {
         const gasPrice = await paymasterClient.getUserOperationGasPrice();
@@ -2687,6 +2820,7 @@ async function createAAProviderState(options) {
   normalizeTxPayload,
   resolvePimlicoConfig,
   toAAWalletCall,
+  toAAWalletCalls,
   toViemSignTypedDataArgs,
   unwrapSystemEvent
 });

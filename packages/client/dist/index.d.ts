@@ -441,9 +441,11 @@ interface ExecutionResult {
 }
 interface AtomicBatchArgs {
     calls: AACallPayload[];
+    chainId?: number;
     capabilities?: {
         atomic?: {
             required?: boolean;
+            optional?: boolean;
         };
     };
 }
@@ -472,12 +474,27 @@ declare function getWalletExecutorReady(providerState: AAState): boolean;
 declare const DEFAULT_AA_CONFIG: AAConfig;
 declare const DISABLED_PROVIDER_STATE: AAState;
 
+type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
+type WalletTxCallPayload = {
+    txId: number;
+    to: string;
+    value?: string;
+    data?: string;
+    chainId?: number;
+    from?: string;
+    gas?: string;
+    description?: string;
+};
 type WalletTxPayload = {
     to?: string;
     value?: string;
     data?: string;
     chainId?: number;
     txId?: number;
+    txIds?: number[];
+    aaPreference?: WalletTxAaPreference;
+    requestId?: string;
+    calls?: WalletTxCallPayload[];
 };
 type HydrateTxPayloadOptions = {
     strict?: boolean;
@@ -508,7 +525,7 @@ type ViemSignTypedDataArgs = {
 };
 /**
  * Normalize a wallet_tx_request payload into a consistent shape.
- * Returns `null` if both `to` and `pending_tx_id` are missing.
+ * Hard cutover contract: requires `tx_ids`.
  */
 declare function normalizeTxPayload(payload: unknown): WalletTxPayload | null;
 declare function hydrateTxPayloadFromUserState(payload: WalletTxPayload, userState: unknown, options?: HydrateTxPayloadOptions): WalletTxPayload;
@@ -517,9 +534,10 @@ declare function hydrateTxPayloadFromUserState(payload: WalletTxPayload, userSta
  */
 declare function normalizeEip712Payload(payload: unknown): WalletEip712Payload;
 /**
- * Convert a normalized WalletTxPayload into an AAWalletCall.
+ * Convert a normalized WalletTxPayload into AAWalletCalls.
  * This is the single boundary conversion point from backend payloads to AA-ready calls.
  */
+declare function toAAWalletCalls(payload: WalletTxPayload, defaultChainId?: number): AAWalletCall[];
 declare function toAAWalletCall(payload: WalletTxPayload, defaultChainId?: number): AAWalletCall;
 /**
  * Convert normalized EIP-712 payloads into the viem signing shape used by both
@@ -539,6 +557,15 @@ type WalletRequestResult = {
     signature?: string;
     amount?: string;
     error?: string;
+    aaRequestedMode?: "4337" | "7702" | "none";
+    aaResolvedMode?: "4337" | "7702" | "none";
+    aaFallbackReason?: string;
+    executionKind?: string;
+    batched?: boolean;
+    callCount?: number;
+    sponsored?: boolean;
+    smartAccountAddress?: string;
+    delegationAddress?: string;
 };
 type SendResult = {
     messages: AomiMessage[];
@@ -832,4 +859,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, resolvePimlicoConfig, toAAWalletCall, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, adaptSmartAccount, addUserStateExt, buildAAExecutionPlan, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeTxPayload, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
