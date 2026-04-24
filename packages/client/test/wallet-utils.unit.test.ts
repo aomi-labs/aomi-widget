@@ -10,15 +10,18 @@ describe("wallet payload normalization", () => {
   it("retains backend tx identifiers on wallet transaction requests", () => {
     expect(
       normalizeTxPayload({
-        txId: 7,
-        pending_tx_id: 7,
+        tx_ids: [7],
+        aa_preference: "auto",
         to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
         value: "0",
         data: "0x",
         chain_id: 8453,
       }),
     ).toEqual({
+      txIds: [7],
       txId: 7,
+      aaPreference: "auto",
+      requestId: undefined,
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "0",
       data: "0x",
@@ -29,10 +32,14 @@ describe("wallet payload normalization", () => {
   it("accepts id-only wallet transaction requests", () => {
     expect(
       normalizeTxPayload({
-        pending_tx_id: "17",
+        tx_ids: ["17"],
+        aa_preference: "eip4337",
       }),
     ).toEqual({
+      txIds: [17],
       txId: 17,
+      aaPreference: "eip4337",
+      requestId: undefined,
       to: undefined,
       value: undefined,
       data: undefined,
@@ -40,16 +47,20 @@ describe("wallet payload normalization", () => {
     });
   });
 
-  it("retains mixed wallet transaction payloads (raw call + pending id)", () => {
+  it("retains mixed wallet transaction payloads (raw call + tx_ids)", () => {
     expect(
       normalizeTxPayload({
-        pending_tx_id: 22,
+        tx_ids: [22],
+        aa_preference: "eip7702",
         to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
         value: "1000",
         data: "0x1234",
       }),
     ).toEqual({
+      txIds: [22],
       txId: 22,
+      aaPreference: "eip7702",
+      requestId: undefined,
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "1000",
       data: "0x1234",
@@ -57,7 +68,7 @@ describe("wallet payload normalization", () => {
     });
   });
 
-  it("rejects wallet transaction requests when id and to are both missing", () => {
+  it("rejects wallet transaction requests when tx_ids is missing", () => {
     expect(
       normalizeTxPayload({
         value: "1",
@@ -70,6 +81,8 @@ describe("wallet payload normalization", () => {
     const hydrated = hydrateTxPayloadFromUserState(
       {
         txId: 9,
+        txIds: [9],
+        aaPreference: "auto",
       },
       {
         pending_txs: {
@@ -86,10 +99,24 @@ describe("wallet payload normalization", () => {
 
     expect(hydrated).toEqual({
       txId: 9,
+      txIds: [9],
+      aaPreference: "auto",
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "5",
       data: "0x",
       chainId: 8453,
+      calls: [
+        {
+          txId: 9,
+          to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+          value: "5",
+          data: "0x",
+          chainId: 8453,
+          from: undefined,
+          gas: undefined,
+          description: undefined,
+        },
+      ],
     });
   });
 
@@ -98,6 +125,7 @@ describe("wallet payload normalization", () => {
       hydrateTxPayloadFromUserState(
         {
           txId: 404,
+          txIds: [404],
         },
         {
           pending_txs: {

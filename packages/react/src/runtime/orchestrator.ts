@@ -135,9 +135,6 @@ export function useRuntimeOrchestrator(
 
       try {
         const session = getSession(threadId);
-        // Update user state before fetching
-        const userState = options.getUserState?.();
-        if (userState) session.resolveUserState(userState);
         await session.fetchCurrentState();
         options.onPendingRequestsChange?.(session.getPendingRequests());
 
@@ -160,8 +157,6 @@ export function useRuntimeOrchestrator(
   const sendMessage = useCallback(
     async (text: string, threadId: string) => {
       const session = getSession(threadId);
-      const userState = options.getUserState?.();
-      if (userState) session.resolveUserState(userState);
 
       // Add user message to thread immediately
       const existingMessages = threadContextRef.current.getThreadMessages(threadId);

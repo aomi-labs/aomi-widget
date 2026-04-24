@@ -75,11 +75,14 @@ export {
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   toViemSignTypedDataArgs,
+  toAAWalletCalls,
   toAAWalletCall,
 } from "./wallet-utils";
 
 export type {
   WalletTxPayload,
+  WalletTxCallPayload,
+  WalletTxAaPreference,
   WalletEip712Payload,
   ViemSignTypedDataArgs,
 } from "./wallet-utils";

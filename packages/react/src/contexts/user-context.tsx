@@ -59,6 +59,14 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
     new Set(),
   );
 
+  const notifyStateChange = useCallback((next: UserState) => {
+    queueMicrotask(() => {
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+    });
+  }, []);
+
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
       const normalizedData = UserState.normalize(data) ?? {};
@@ -71,24 +79,19 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
               ens_name: undefined,
             }
           : (UserState.normalize({ ...prev, ...normalizedData }) ?? prev);
-
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
 
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
 
   const addExtValue = useCallback((key: string, value: unknown) => {
     setUserState((prev) => {
       const next = UserState.withExt(prev, key, value);
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
 
   const removeExtValue = useCallback((key: string) => {
     setUserState((prev) => {
@@ -107,12 +110,10 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
         ...prev,
         ext: Object.keys(nextExt).length > 0 ? nextExt : undefined,
       };
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
 
   // Stable getters that runtime classes can call
   const getUserState = useCallback(() => userRef.current, []);

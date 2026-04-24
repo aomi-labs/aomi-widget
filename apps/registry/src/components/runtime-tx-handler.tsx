@@ -25,6 +25,10 @@ function parseChainId(value: number | string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function hasHydratedCalls(payload: WalletTxPayload): boolean {
+  return Array.isArray(payload.calls) && payload.calls.length > 0;
+}
+
 /**
  * Invisible bridge component that processes wallet transaction and EIP-712
  * signing requests from the AI backend through the active Aomi auth adapter.
@@ -59,14 +63,9 @@ export function RuntimeTxHandler() {
       try {
         if (req.kind === "transaction") {
           const initialPayload = req.payload as WalletTxPayload;
-          const payload = initialPayload.to
+          const payload = hasHydratedCalls(initialPayload)
             ? initialPayload
-            : hydrateTxPayloadFromUserState(initialPayload, user);
-
-          if (!payload.to) {
-            rejectWalletRequest(req.id, "pending_transaction_missing_call_data");
-            return;
-          }
+            : hydrateTxPayloadFromUserState(initialPayload, user, { strict: true });
 
           if (!adapter.sendTransaction) {
             rejectWalletRequest(req.id, "Wallet provider is not ready");
@@ -74,11 +73,7 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.sendTransaction(payload);
-
-          resolveWalletRequest(req.id, {
-            txHash: result.txHash,
-            amount: result.amount,
-          });
+          resolveWalletRequest(req.id, result);
           return;
         }
 

@@ -279,7 +279,7 @@ describe("ClientSession ext helpers", () => {
       expect.objectContaining({
         id: "tx-1",
         kind: "transaction",
-        payload: expect.objectContaining({ txId: 1, chainId: 8453 }),
+        payload: expect.objectContaining({ txId: 1, txIds: [1], chainId: 8453 }),
       }),
       expect.objectContaining({
         id: "eip712-7",
@@ -316,7 +316,8 @@ describe("ClientSession ext helpers", () => {
         InlineCall: {
           type: "wallet_tx_request",
           payload: {
-            pending_tx_id: 15,
+            tx_ids: [15],
+            aa_preference: "auto",
           },
         },
       }],
@@ -329,13 +330,14 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("queue id-only tx");
     const request = requestPromise as Promise<{
       kind: "transaction";
-      payload: { txId?: number; to?: string; value?: string; chainId?: number };
+      payload: { txId?: number; txIds?: number[]; to?: string; value?: string; chainId?: number };
     }>;
 
     await expect(request).resolves.toMatchObject({
       kind: "transaction",
       payload: {
         txId: 15,
+        txIds: [15],
         to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
         value: "42",
         chainId: 8453,
@@ -352,15 +354,22 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet_tx_request",
-          payload: {
-            txId: 7,
+      user_state: {
+        pending_txs: {
+          7: {
             to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
             value: "0",
             data: "0x",
             chain_id: 8453,
+          },
+        },
+      },
+      system_events: [{
+        InlineCall: {
+          type: "wallet_tx_request",
+          payload: {
+            tx_ids: [7],
+            aa_preference: "auto",
           },
         },
       }],
@@ -383,7 +392,16 @@ describe("ClientSession ext helpers", () => {
           txHash: "0xabc",
           status: "success",
           amount: undefined,
-          pending_tx_id: 7,
+          pending_tx_ids: [7],
+          aa_requested_mode: "4337",
+          aa_resolved_mode: "4337",
+          aa_fallback_reason: undefined,
+          execution_kind: undefined,
+          batched: false,
+          call_count: 1,
+          sponsored: undefined,
+          smart_account_address: undefined,
+          delegation_address: undefined,
         },
       }),
     );
