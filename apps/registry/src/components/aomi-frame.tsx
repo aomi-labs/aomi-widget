@@ -115,7 +115,7 @@ const Root: FC<RootProps> = ({
           {showSidebar && (
             <ThreadListSidebar walletPosition={walletPosition} />
           )}
-          <SidebarInset className="relative flex flex-col">
+          <SidebarInset className="relative flex min-h-0 flex-col">
             {children}
           </SidebarInset>
           <NotificationToaster />
