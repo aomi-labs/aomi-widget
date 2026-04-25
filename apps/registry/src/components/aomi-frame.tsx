@@ -12,6 +12,7 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
 import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
+import { AuthStateSync } from "@/components/auth-state-sync";
 import {
   SidebarInset,
   SidebarProvider,
@@ -119,6 +120,7 @@ const Root: FC<RootProps> = ({
             {children}
           </SidebarInset>
           <NotificationToaster />
+          <AuthStateSync />
           <RuntimeTxHandler />
         </div>
       </SidebarProvider>
