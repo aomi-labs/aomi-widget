@@ -1454,41 +1454,84 @@ function useWalletHandler({
 }) {
   const [pendingRequests, setPendingRequests] = (0, import_react8.useState)([]);
   const requestsRef = (0, import_react8.useRef)(pendingRequests);
-  const setRequests = (0, import_react8.useCallback)((requests) => {
-    requestsRef.current = [...requests];
-    setPendingRequests(requestsRef.current);
+  const inFlightRequestSetRef = (0, import_react8.useRef)(/* @__PURE__ */ new Set());
+  const suppressedRequestSetRef = (0, import_react8.useRef)(/* @__PURE__ */ new Set());
+  const syncVisibleRequests = (0, import_react8.useCallback)(() => {
+    setPendingRequests(
+      requestsRef.current.filter(
+        (request) => !suppressedRequestSetRef.current.has(request.id)
+      )
+    );
   }, []);
+  const setRequests = (0, import_react8.useCallback)((requests) => {
+    const incomingIds = new Set(requests.map((request) => request.id));
+    for (const id of suppressedRequestSetRef.current) {
+      if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
+        suppressedRequestSetRef.current.delete(id);
+      }
+    }
+    const preservedInFlight = requestsRef.current.filter(
+      (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
+    );
+    requestsRef.current = [...requests, ...preservedInFlight];
+    syncVisibleRequests();
+  }, [syncVisibleRequests]);
+  const startRequest = (0, import_react8.useCallback)((id) => {
+    if (!requestsRef.current.some((request) => request.id === id)) {
+      return;
+    }
+    inFlightRequestSetRef.current.add(id);
+    suppressedRequestSetRef.current.add(id);
+    syncVisibleRequests();
+  }, [syncVisibleRequests]);
   const resolveRequest = (0, import_react8.useCallback)(
-    (id, result) => {
+    async (id, result) => {
       const session = getSession();
       if (!session) {
         console.error("[wallet-handler] No session available to resolve request");
         return;
       }
-      setRequests(requestsRef.current.filter((request) => request.id !== id));
-      void session.resolve(id, result).catch((err) => {
+      startRequest(id);
+      try {
+        await session.resolve(id, result);
+      } catch (err) {
         console.error("[wallet-handler] Failed to resolve request:", err);
-      });
+      } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id
+        );
+        inFlightRequestSetRef.current.delete(id);
+        syncVisibleRequests();
+      }
     },
-    [getSession, setRequests]
+    [getSession, startRequest, syncVisibleRequests]
   );
   const rejectRequest = (0, import_react8.useCallback)(
-    (id, error) => {
+    async (id, error) => {
       const session = getSession();
       if (!session) {
         console.error("[wallet-handler] No session available to reject request");
         return;
       }
-      setRequests(requestsRef.current.filter((request) => request.id !== id));
-      void session.reject(id, error).catch((err) => {
+      startRequest(id);
+      try {
+        await session.reject(id, error);
+      } catch (err) {
         console.error("[wallet-handler] Failed to reject request:", err);
-      });
+      } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id
+        );
+        inFlightRequestSetRef.current.delete(id);
+        syncVisibleRequests();
+      }
     },
-    [getSession, setRequests]
+    [getSession, startRequest, syncVisibleRequests]
   );
   return {
     pendingRequests,
     setRequests,
+    startRequest,
     resolveRequest,
     rejectRequest
   };
@@ -1834,9 +1877,7 @@ function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
-      startWalletRequest: () => {
-      },
-      // No-op: ClientSession manages processing state
+      startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       // Event API

@@ -54,6 +54,9 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/secret-input.tsx",
       "lib/aomi-auth-adapter.ts",
       "lib/auth-identity.ts",
+      "lib/auth-providers/types.ts",
+      "lib/auth-providers/auth-identity.ts",
+      "lib/auth-providers/context.tsx",
     ],
     dependencies: [
       "@aomi-labs/react",
@@ -159,10 +162,48 @@ export const registry: RegistryComponent[] = [
       "components/runtime-tx-handler.tsx",
       "lib/aomi-auth-adapter.ts",
       "lib/auth-identity.ts",
+      "lib/auth-providers/types.ts",
+      "lib/auth-providers/auth-identity.ts",
+      "lib/auth-providers/context.tsx",
     ],
     dependencies: ["@aomi-labs/react", "wagmi"],
     description:
       "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
+  },
+  {
+    name: "aomi-base-account-provider",
+    file: [
+      "lib/auth-providers/providers/base-account.tsx",
+      "lib/auth-providers/types.ts",
+      "lib/auth-providers/auth-identity.ts",
+      "lib/auth-providers/context.tsx",
+      "lib/auth-providers/index.ts",
+    ],
+    dependencies: [
+      "@aomi-labs/react",
+      "wagmi",
+      "viem",
+      "@tanstack/react-query",
+    ],
+    description:
+      "Self-contained auth provider for Base Account (Smart Wallet) + injected wallet via Wagmi.",
+  },
+  {
+    name: "aomi-para-provider",
+    file: [
+      "lib/auth-providers/providers/para.tsx",
+      "lib/auth-providers/types.ts",
+      "lib/auth-providers/auth-identity.ts",
+      "lib/auth-providers/context.tsx",
+      "lib/auth-providers/index.ts",
+    ],
+    dependencies: [
+      "@aomi-labs/react",
+      "@getpara/react-sdk",
+      "wagmi",
+    ],
+    description:
+      "Auth adapter provider for Para (social/embedded wallets) with Wagmi EVM support.",
   },
   // === SHADCN UI PRIMITIVES ===
   {

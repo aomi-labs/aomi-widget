@@ -24,6 +24,8 @@ export {
 // Re-export types and utilities from @aomi-labs/react
 export type { UserConfig } from "@aomi-labs/react";
 export { formatAddress, getNetworkName } from "@aomi-labs/react";
+
+// Auth adapter (stable path — reads from context)
 export type { AomiAuthAdapter } from "./lib/aomi-auth-adapter";
 export { useAomiAuthAdapter } from "./lib/aomi-auth-adapter";
 export type {
@@ -36,3 +38,8 @@ export {
   formatAuthProvider,
   inferAuthProvider,
 } from "./lib/auth-identity";
+
+// Auth providers (context + base account — no Para SDK dependency)
+export { AomiAuthAdapterContext } from "./lib/auth-providers/context";
+export { AomiBaseAccountProvider } from "./lib/auth-providers/providers/base-account";
+export type { AomiBaseAccountProviderProps } from "./lib/auth-providers/providers/base-account";

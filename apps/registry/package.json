@@ -12,6 +12,7 @@
     "./components/ui/*": "./src/components/ui/*.tsx",
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
     "./components/control-bar/*": "./src/components/control-bar/*.tsx",
+    "./auth-providers/para": "./src/lib/auth-providers/providers/para.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./styles.css": "./src/themes/default.css",
     "./themes/*.css": "./src/themes/*.css"

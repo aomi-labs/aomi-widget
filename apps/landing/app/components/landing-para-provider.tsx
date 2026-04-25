@@ -26,6 +26,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
+import { AomiParaProvider } from "@aomi-labs/widget-lib/auth-providers/para";
 
 const useAnvilForWallet =
   process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
@@ -189,7 +190,9 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
           paraModalConfig={paraModalConfig}
           externalWalletConfig={externalWalletConfig}
         >
-          <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+          <AomiParaProvider>
+            <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+          </AomiParaProvider>
         </ParaProvider>
       ) : (
         children
