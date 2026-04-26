@@ -131,6 +131,14 @@ export type SessionOptions = {
   logger?: { debug: (...args: unknown[]) => void };
 };
 
+export type SessionRuntimeOptions = {
+  app: string;
+  publicKey?: string;
+  apiKey?: string;
+  clientId?: string;
+  userState?: UserStateShape;
+};
+
 /** Events emitted by Session. */
 export type SessionEventMap = {
   /** A transaction signing request arrived from the backend. */
@@ -435,6 +443,17 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   /** Whether the AI is currently processing. */
   getIsProcessing(): boolean {
     return this._isProcessing;
+  }
+
+  syncRuntimeOptions(options: SessionRuntimeOptions): void {
+    this.app = options.app;
+    this.publicKey = options.publicKey;
+    this.apiKey = options.apiKey;
+    this.clientId = options.clientId ?? this.clientId;
+
+    if (options.userState) {
+      this.resolveUserState(options.userState);
+    }
   }
 
   resolveUserState(userState: UserStateShape): void {

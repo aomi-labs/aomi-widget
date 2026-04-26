@@ -58,11 +58,13 @@ export function useRuntimeOrchestrator(
       const nextUserState = options.getUserState?.();
       const existing = manager.get(threadId);
       if (existing) {
-        existing.app = nextApp;
-        existing.publicKey = nextPublicKey;
-        existing.apiKey = nextApiKey;
-        existing.clientId = nextClientId ?? existing.clientId;
-        if (nextUserState) existing.resolveUserState(nextUserState);
+        existing.syncRuntimeOptions({
+          app: nextApp,
+          publicKey: nextPublicKey,
+          apiKey: nextApiKey,
+          clientId: nextClientId,
+          userState: nextUserState,
+        });
         return existing;
       }
 
