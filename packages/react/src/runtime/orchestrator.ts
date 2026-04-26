@@ -51,15 +51,27 @@ export function useRuntimeOrchestrator(
   const getSession = useCallback(
     (threadId: string): ClientSession => {
       const manager = sessionManagerRef.current!;
+      const nextApp = options.getApp();
+      const nextPublicKey = options.getPublicKey?.();
+      const nextApiKey = options.getApiKey?.() ?? undefined;
+      const nextClientId = options.getClientId?.();
+      const nextUserState = options.getUserState?.();
       const existing = manager.get(threadId);
-      if (existing) return existing;
+      if (existing) {
+        existing.app = nextApp;
+        existing.publicKey = nextPublicKey;
+        existing.apiKey = nextApiKey;
+        existing.clientId = nextClientId ?? existing.clientId;
+        if (nextUserState) existing.resolveUserState(nextUserState);
+        return existing;
+      }
 
       const session = manager.getOrCreate(threadId, {
-        app: options.getApp(),
-        publicKey: options.getPublicKey?.(),
-        apiKey: options.getApiKey?.() ?? undefined,
-        clientId: options.getClientId?.(),
-        userState: options.getUserState?.(),
+        app: nextApp,
+        publicKey: nextPublicKey,
+        apiKey: nextApiKey,
+        clientId: nextClientId,
+        userState: nextUserState,
       });
 
       // Wire ClientSession events → React state
