@@ -25,10 +25,12 @@ import {
   toViemSignTypedDataArgs,
 } from "@aomi-labs/react";
 import {
+  aaModeFromExecutionKind,
   createAAProviderState,
   type AAMode,
   type AAProvider,
 } from "@aomi-labs/client";
+import type ParaWeb from "@getpara/react-sdk";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
@@ -107,12 +109,6 @@ function resolveAAProvider(): AAProvider | null {
   if (ALCHEMY_API_KEY) return "alchemy";
   if (PIMLICO_API_KEY) return "pimlico";
   return null;
-}
-
-function inferResolvedAAMode(executionKind: string): RequestedAAMode {
-  if (executionKind.endsWith("_7702")) return "7702";
-  if (executionKind.endsWith("_4337")) return "4337";
-  return "none";
 }
 
 function normalizeAtomicCapabilities(
@@ -216,9 +212,9 @@ function useSafeWagmiAccount(): WagmiAccountShape {
   }
 }
 
-function useSafeParaClient(): unknown {
+function useSafeParaClient(): ParaWeb | null {
   try {
-    return useParaClient();
+    return useParaClient() ?? null;
   } catch {
     return null;
   }
@@ -351,7 +347,7 @@ async function resolveParaAAProviderState({
   chainsById: Record<number, Chain>;
   requestedMode: RequestedAAMode;
   shouldUseExternalSigner: boolean;
-  paraSession: unknown;
+  paraSession: ParaWeb | null;
   walletClient: ReturnType<typeof useWalletClient>["data"] | undefined;
   address: string | undefined;
   sponsored?: boolean;
@@ -717,7 +713,8 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
               }
             }
 
-            const aaResolvedMode = inferResolvedAAMode(execution.executionKind);
+            const aaResolvedMode: RequestedAAMode =
+              aaModeFromExecutionKind(execution.executionKind) ?? "none";
 
             return {
               txHash: execution.txHash,

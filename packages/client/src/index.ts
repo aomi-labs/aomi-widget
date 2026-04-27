@@ -48,7 +48,7 @@ export {
 // Session (high-level orchestrated client)
 // =============================================================================
 
-export { ClientSession as Session } from "./session";
+export { ClientSession as Session, aaModeFromExecutionKind } from "./session";
 
 export type {
   SessionOptions,
@@ -77,6 +77,7 @@ export {
   toViemSignTypedDataArgs,
   toAAWalletCalls,
   toAAWalletCall,
+  parseChainId,
 } from "./wallet-utils";
 
 export type {

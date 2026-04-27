@@ -21,6 +21,8 @@ export {
   toAAWalletCall,
   executeWalletCalls,
   DISABLED_PROVIDER_STATE,
+  parseChainId,
+  aaModeFromExecutionKind,
 } from "@aomi-labs/client";
 
 // =============================================================================

@@ -494,7 +494,6 @@ export function AomiRuntimeCore({
 
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
-      startWalletRequest: () => {}, // No-op: ClientSession manages processing state
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
 

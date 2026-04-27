@@ -363,6 +363,11 @@ function shouldFallbackFromAAError(
     return false;
   }
 
+  // 7702 is additive over EOA — any execution failure is safe to fallback
+  if (providerState.resolved.mode === "7702") {
+    return true;
+  }
+
   if (providerState.resolved.mode !== "4337") {
     return false;
   }

@@ -2094,6 +2094,9 @@ function shouldFallbackFromAAError(error, providerState) {
   if (!providerState.resolved) {
     return false;
   }
+  if (providerState.resolved.mode === "7702") {
+    return true;
+  }
   if (providerState.resolved.mode !== "4337") {
     return false;
   }
@@ -2354,7 +2357,6 @@ async function createAlchemySdkState(params) {
   };
 }
 async function createAlchemyAAState(options) {
-  var _a, _b;
   const {
     chain,
     owner,
@@ -2373,7 +2375,7 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const requestedGasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : (_a = process.env.ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _a.trim() : void 0;
+  const requestedGasPolicyId = sponsored ? options.gasPolicyId : void 0;
   const gasPolicyId = effectiveMode === "7702" ? void 0 : requestedGasPolicyId;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
@@ -2949,6 +2951,7 @@ export {
   ClientSession as Session,
   TypedEventEmitter,
   UserState,
+  aaModeFromExecutionKind,
   adaptSmartAccount,
   addUserStateExt,
   buildAAExecutionPlan,
@@ -2966,6 +2969,7 @@ export {
   isSystemNotice,
   normalizeEip712Payload,
   normalizeTxPayload,
+  parseChainId,
   resolvePimlicoConfig,
   toAAWalletCall,
   toAAWalletCalls,
