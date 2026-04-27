@@ -19,6 +19,11 @@ declare namespace UserState {
      * Existing snake_case keys win when both forms are present.
      */
     function normalize(userState?: UserState | null): UserState | undefined;
+    /**
+     * Reconcile a partial incoming snapshot against the previous canonical state.
+     * Preserves wallet context when backend/client snapshots omit address/chain_id.
+     */
+    function reconcile(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
     function address(userState?: UserState | null): string | undefined;
     function chainId(userState?: UserState | null): number | undefined;
     function isConnected(userState?: UserState | null): boolean | undefined;

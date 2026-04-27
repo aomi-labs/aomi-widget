@@ -30,7 +30,7 @@ var USER_STATE_KEY_ALIASES = {
   nextId: "next_id"
 };
 function parseUserStateChainId(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
   }
   if (typeof value !== "string") {
@@ -40,8 +40,15 @@ function parseUserStateChainId(value) {
   if (!trimmed) {
     return void 0;
   }
+  if (trimmed.startsWith("0x")) {
+    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
+    return Number.isInteger(parsedHex) && parsedHex > 0 ? parsedHex : void 0;
+  }
   const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function normalizeAddressForComparison(value) {
+  return typeof value === "string" ? value.toLowerCase() : void 0;
 }
 var UserState;
 ((UserState2) => {
@@ -61,6 +68,34 @@ var UserState;
     return normalized;
   }
   UserState2.normalize = normalize;
+  function reconcile(previousUserState, incomingUserState) {
+    const incoming = normalize(incomingUserState);
+    if (!incoming) {
+      return void 0;
+    }
+    const previous = normalize(previousUserState);
+    const reconciled = __spreadValues({}, incoming);
+    const previousAddress = address(previous);
+    const incomingAddress = address(incoming);
+    const incomingConnected = isConnected(incoming);
+    const incomingChainId = chainId(incoming);
+    const canPreserveConnectedWalletContext = incomingConnected !== false;
+    const sameAddress = normalizeAddressForComparison(previousAddress) !== void 0 && normalizeAddressForComparison(previousAddress) === normalizeAddressForComparison(incomingAddress);
+    if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
+      reconciled.address = previousAddress;
+    }
+    if (incomingChainId === void 0 && canPreserveConnectedWalletContext && previous && chainId(previous) !== void 0) {
+      const canPreserveChain = sameAddress || !incomingAddress && !!previousAddress;
+      if (canPreserveChain) {
+        reconciled.chain_id = chainId(previous);
+      }
+    }
+    if (isConnected(reconciled) === true && chainId(reconciled) === void 0) {
+      delete reconciled.is_connected;
+    }
+    return reconciled;
+  }
+  UserState2.reconcile = reconcile;
   function address(userState) {
     const normalized = normalize(userState);
     const address2 = normalized == null ? void 0 : normalized.address;
@@ -1136,7 +1171,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    const initialUserState = UserState.normalize(sessionOptions == null ? void 0 : sessionOptions.userState);
+    const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
     this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
     this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
@@ -1349,7 +1384,7 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   resolveUserState(userState) {
-    this.userState = UserState.normalize(userState);
+    this.userState = UserState.reconcile(this.userState, userState);
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
     if (address && isConnected !== false) {
@@ -1595,7 +1630,10 @@ var ClientSession = class extends TypedEventEmitter {
   }
   assertUserStateAligned(actualUserState) {
     const expectedUserState = UserState.normalize(this.userState);
-    const normalizedActualUserState = UserState.normalize(actualUserState);
+    const normalizedActualUserState = UserState.reconcile(
+      expectedUserState,
+      actualUserState
+    );
     if (!expectedUserState || !normalizedActualUserState) {
       return;
     }
