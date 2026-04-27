@@ -67,23 +67,45 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const pruneUndefined = useCallback((state: UserState): UserState => {
+    return Object.fromEntries(
+      Object.entries(state).filter(([, value]) => value !== undefined),
+    );
+  }, []);
+
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
-      const normalizedData = UserState.normalize(data) ?? {};
+      const normalizedData = pruneUndefined(UserState.normalize(data) ?? {});
+      const nextPartial: UserState = { ...normalizedData };
+
+      // Guard against a transient "connected-without-chain" payload:
+      // keep the previous chain if present; otherwise, delay flipping
+      // `is_connected` until a concrete chain arrives.
+      if (
+        nextPartial.is_connected === true &&
+        nextPartial.chain_id === undefined
+      ) {
+        if (prev.chain_id !== undefined) {
+          nextPartial.chain_id = prev.chain_id;
+        } else {
+          delete nextPartial.is_connected;
+        }
+      }
+
       const next: UserState =
-        normalizedData.is_connected === false
+        nextPartial.is_connected === false
           ? {
-              ...(UserState.normalize({ ...prev, ...normalizedData }) ?? prev),
+              ...(UserState.normalize({ ...prev, ...nextPartial }) ?? prev),
               address: undefined,
               chain_id: undefined,
               ens_name: undefined,
             }
-          : (UserState.normalize({ ...prev, ...normalizedData }) ?? prev);
+          : (UserState.normalize({ ...prev, ...nextPartial }) ?? prev);
       notifyStateChange(next);
 
       return next;
     });
-  }, [notifyStateChange]);
+  }, [notifyStateChange, pruneUndefined]);
 
   const addExtValue = useCallback((key: string, value: unknown) => {
     setUserState((prev) => {

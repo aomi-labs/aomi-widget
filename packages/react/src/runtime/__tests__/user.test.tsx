@@ -77,6 +77,14 @@ describe("User API", () => {
       });
 
       expect(getApi().user.address).toBe("0x123"); // unchanged
+      expect(getApi().user.is_connected).toBe(false); // waits for chain_id
+
+      await act(async () => {
+        api.setUser({ chainId: 1, isConnected: true });
+      });
+
+      expect(getApi().user.address).toBe("0x123");
+      expect(getApi().user.chain_id).toBe(1);
       expect(getApi().user.is_connected).toBe(true);
     });
 
@@ -189,11 +197,12 @@ describe("User API", () => {
       const { api } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0xABC", isConnected: true });
+        api.setUser({ address: "0xABC", chainId: 1, isConnected: true });
       });
 
       const state = api.getUserState();
       expect(state.address).toBe("0xABC");
+      expect(state.chain_id).toBe(1);
       expect(state.is_connected).toBe(true);
     });
 
@@ -265,6 +274,26 @@ describe("User API", () => {
 
       expect(callback1).toHaveBeenCalled();
       expect(callback2).toHaveBeenCalled();
+    });
+
+    it("keeps previous chain when connected updates omit chainId", async () => {
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xAAA",
+          chainId: 1,
+          isConnected: true,
+        });
+      });
+
+      await act(async () => {
+        api.setUser({ isConnected: true, chainId: undefined });
+      });
+
+      expect(getApi().user.address).toBe("0xAAA");
+      expect(getApi().user.chain_id).toBe(1);
+      expect(getApi().user.is_connected).toBe(true);
     });
   });
 

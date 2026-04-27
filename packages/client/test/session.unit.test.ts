@@ -85,7 +85,6 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0xdef",
-      is_connected: true,
       ext: { SIMMER_API_KEY: "sk_live_3" },
     });
 
@@ -94,7 +93,6 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[1][2]?.userState).toEqual({
       address: "0xdef",
-      is_connected: true,
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -131,7 +129,6 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       address: "0x123",
-      is_connected: true,
       ext: { client_type: CLIENT_TYPE_WEB_UI },
     });
 
@@ -164,6 +161,39 @@ describe("ClientSession ext helpers", () => {
 
     await expect(session.sendAsync("subset check")).resolves.toMatchObject({
       is_processing: false,
+    });
+
+    session.close();
+  });
+
+  it("preserves chain_id across partial backend user_state snapshots", async () => {
+    const { client, fetchState, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-5b",
+      userState: {
+        address: "0xabc",
+        chain_id: 8453,
+        is_connected: true,
+      },
+    });
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        address: "0xabc",
+        is_connected: true,
+        pending_txs: {},
+      },
+    } satisfies AomiStateResponse);
+
+    await session.syncUserState();
+    await session.sendAsync("keep chain");
+
+    expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
+      address: "0xabc",
+      chain_id: 8453,
+      is_connected: true,
     });
 
     session.close();
