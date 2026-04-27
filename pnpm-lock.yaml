@@ -325,6 +325,9 @@ importers:
 
   apps/registry:
     dependencies:
+      '@aomi-labs/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@aomi-labs/react':
         specifier: workspace:*
         version: link:../../packages/react

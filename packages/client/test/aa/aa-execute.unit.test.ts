@@ -220,4 +220,40 @@ describe("executeWalletCalls AA execution", () => {
       sponsored: false,
     });
   });
+
+  it("falls back to EOA execution when wallet_prepareCalls returns AA23", async () => {
+    const providerState = make4337ProviderState({
+      sendBatchTransaction: vi.fn().mockRejectedValue(
+        new Error(
+          "wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted",
+        ),
+      ),
+    });
+    const sendTransactionAsync = vi
+      .fn()
+      .mockResolvedValueOnce("0x555")
+      .mockResolvedValueOnce("0x666");
+
+    const result = await executeWalletCalls({
+      callList: BATCH_CALL_LIST,
+      currentChainId: 1,
+      capabilities: undefined,
+      localPrivateKey: null,
+      providerState,
+      sendCallsSyncAsync: vi.fn(),
+      sendTransactionAsync,
+      switchChainAsync: vi.fn(),
+      chainsById: { [mainnet.id]: mainnet },
+      getPreferredRpcUrl: () => "https://example-rpc.invalid",
+    });
+
+    expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(1);
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      executionKind: "eoa",
+      txHashes: ["0x555", "0x666"],
+      batched: true,
+      sponsored: false,
+    });
+  });
 });

@@ -19,6 +19,44 @@ const CALL_LIST = [
 ];
 
 describe("executeWalletCalls EOA capability handling", () => {
+  it("uses direct EOA signing for a single call even when atomic sendCalls is supported", async () => {
+    const sendCallsSyncAsync = vi.fn().mockResolvedValue({
+      receipts: [{ transactionHash: "0xabc" }],
+    });
+    const sendTransactionAsync = vi.fn().mockResolvedValue("0xsingle");
+    const singleCall = [CALL_LIST[0]];
+
+    const result = await executeWalletCalls({
+      callList: singleCall,
+      currentChainId: 1,
+      capabilities: {
+        "eip155:1": { atomic: { status: "ready" } },
+      },
+      localPrivateKey: null,
+      providerState: DISABLED_PROVIDER_STATE,
+      sendCallsSyncAsync,
+      sendTransactionAsync,
+      switchChainAsync: vi.fn(),
+      chainsById: { [mainnet.id]: mainnet },
+      getPreferredRpcUrl: () => "https://example-rpc.invalid",
+    });
+
+    expect(sendCallsSyncAsync).not.toHaveBeenCalled();
+    expect(sendTransactionAsync).toHaveBeenCalledWith({
+      chainId: 1,
+      to: singleCall[0].to,
+      value: singleCall[0].value,
+      data: singleCall[0].data,
+    });
+    expect(result).toMatchObject({
+      txHash: "0xsingle",
+      txHashes: ["0xsingle"],
+      executionKind: "eoa",
+      batched: false,
+      sponsored: false,
+    });
+  });
+
   it("requests atomic as optional for sendCalls", async () => {
     const sendCallsSyncAsync = vi.fn().mockResolvedValue({
       receipts: [{ transactionHash: "0xabc" }, { transactionHash: "0xdef" }],
@@ -69,9 +107,11 @@ describe("executeWalletCalls EOA capability handling", () => {
   });
 
   it("falls back to sequential sendTransaction when atomic capability is rejected", async () => {
-    const sendCallsSyncAsync = vi.fn().mockRejectedValue(
-      new Error("Unsupported non-optional capabilities: atomic"),
-    );
+    const sendCallsSyncAsync = vi
+      .fn()
+      .mockRejectedValue(
+        new Error("Unsupported non-optional capabilities: atomic"),
+      );
     const sendTransactionAsync = vi
       .fn()
       .mockResolvedValueOnce("0x111")

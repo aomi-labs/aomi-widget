@@ -3210,7 +3210,11 @@ async function executeViaAA(callList, providerState) {
   if (!account || !resolved) {
     throw (_a3 = providerState.error) != null ? _a3 : new Error("smart_account_unavailable");
   }
-  const callsPayload = callList.map(({ to, value, data }) => ({ to, value, data }));
+  const callsPayload = callList.map(({ to, value, data }) => ({
+    to,
+    value,
+    data
+  }));
   const sendAARequest = async () => {
     return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
   };
@@ -3221,24 +3225,30 @@ async function executeViaAA(callList, providerState) {
     if (!isRetryableBundlerSubmissionError(error)) {
       throw error;
     }
-    console.warn("[aomi][aa] transient bundler submission error; retrying once", {
-      provider: account.provider,
-      mode: account.mode,
-      chainId: resolved.chainId,
-      callCount: callList.length,
-      error: toErrorMessage(error)
-    });
-    try {
-      receipt = await sendAARequest();
-    } catch (retryError) {
-      console.error("[aomi][aa] AA retry failed after transient bundler submission error", {
+    console.warn(
+      "[aomi][aa] transient bundler submission error; retrying once",
+      {
         provider: account.provider,
         mode: account.mode,
         chainId: resolved.chainId,
         callCount: callList.length,
-        firstError: toErrorMessage(error),
-        retryError: toErrorMessage(retryError)
-      });
+        error: toErrorMessage(error)
+      }
+    );
+    try {
+      receipt = await sendAARequest();
+    } catch (retryError) {
+      console.error(
+        "[aomi][aa] AA retry failed after transient bundler submission error",
+        {
+          provider: account.provider,
+          mode: account.mode,
+          chainId: resolved.chainId,
+          callCount: callList.length,
+          firstError: toErrorMessage(error),
+          retryError: toErrorMessage(retryError)
+        }
+      );
       throw retryError;
     }
   }
@@ -3336,7 +3346,7 @@ async function executeViaEoa({
   }
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = (_a3 = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a3.status;
-  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  const canUseSendCalls = callList.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
   const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : void 0;
   const sendSequentially = async () => {
     for (const call of callList) {
@@ -3410,7 +3420,7 @@ function isRetryableBundlerSubmissionError(error) {
 function isAASimulationRevertError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
-  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted");
+  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted") || lowered.includes("wallet_preparecalls") && (lowered.includes("aa23 reverted") || lowered.includes("validation reverted"));
 }
 function isAAInsufficientPrefundError(error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -4197,7 +4207,10 @@ function resolveMode(chain, callList, explicitMode) {
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
-  const baseMode = (_a3 = explicitMode != null ? explicitMode : chainConfig == null ? void 0 : chainConfig.defaultMode) != null ? _a3 : "7702";
+  let baseMode = (_a3 = explicitMode != null ? explicitMode : chainConfig == null ? void 0 : chainConfig.defaultMode) != null ? _a3 : "7702";
+  if (!explicitMode && callList.length > 1 && (chainConfig == null ? void 0 : chainConfig.supportedModes.includes("7702"))) {
+    baseMode = "7702";
+  }
   const { mode } = maybeOverride4337ForTokenOps({
     mode: baseMode,
     callList,
@@ -4210,6 +4223,9 @@ function resolveCliExecutionDecision(params) {
   var _a3, _b;
   const { config, chain, callList } = params;
   if (config.execution === "eoa") {
+    return { execution: "eoa" };
+  }
+  if (config.execution !== "aa" && callList.length === 1) {
     return { execution: "eoa" };
   }
   const pimlicoKey = (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim();
@@ -4626,12 +4642,19 @@ async function signCommand(config, txIds) {
           finalDecision = alt;
         } catch (retryError) {
           const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          fatal(
-            `\u274C AA execution failed with both modes.
+          if (config.execution === "aa") {
+            fatal(
+              `\u274C AA execution failed with both modes.
   ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}
   ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}
 Use \`--eoa\` to sign without account abstraction.`
-          );
+            );
+          }
+          console.log(`AA ${alt.execution === "aa" ? alt.aaMode : "execution"} failed: ${retryMsg}`);
+          console.log("Retrying with eoa...");
+          const eoaDecision = { execution: "eoa" };
+          execution = await runWithDecision(eoaDecision);
+          finalDecision = eoaDecision;
         }
       }
       console.log(`\u2705 Sent! Hash: ${execution.txHash}`);
@@ -4647,6 +4670,7 @@ Use \`--eoa\` to sign without account abstraction.`
       if (execution.delegationAddress) {
         console.log(`Deleg:   ${execution.delegationAddress}`);
       }
+      const executionUsedAA = finalDecision.execution === "aa" && execution.executionKind !== "eoa";
       signedRecords = pendingTxs.map(
         (tx, index) => toSignedTransactionRecord(
           tx,
@@ -4654,8 +4678,8 @@ Use \`--eoa\` to sign without account abstraction.`
           account.address,
           resolvedChainIds[index],
           Date.now(),
-          finalDecision.execution === "aa" ? finalDecision.provider : void 0,
-          finalDecision.execution === "aa" ? finalDecision.aaMode : void 0
+          executionUsedAA ? finalDecision.provider : void 0,
+          executionUsedAA ? finalDecision.aaMode : void 0
         )
       );
       backendNotifications = pendingTxs.map((tx) => ({

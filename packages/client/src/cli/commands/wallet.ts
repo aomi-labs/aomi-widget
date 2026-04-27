@@ -323,7 +323,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      // Execute with AA mode fallback (e.g. 7702 → 4337)
+      // Execute with AA fallback chain in auto mode:
+      // 7702 -> 4337 -> EOA per-call
       let finalDecision: CliExecutionDecision = decision;
       let execution: ExecutionResult;
 
@@ -360,12 +361,21 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           finalDecision = alt;
         } catch (retryError) {
           const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          fatal(
-            `❌ AA execution failed with both modes.\n` +
-            `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
-            `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
-            `Use \`--eoa\` to sign without account abstraction.`,
-          );
+          if (config.execution === "aa") {
+            fatal(
+              `❌ AA execution failed with both modes.\n` +
+              `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
+              `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
+              `Use \`--eoa\` to sign without account abstraction.`,
+            );
+          }
+
+          console.log(`AA ${alt.execution === "aa" ? alt.aaMode : "execution"} failed: ${retryMsg}`);
+          console.log("Retrying with eoa...");
+
+          const eoaDecision: CliExecutionDecision = { execution: "eoa" };
+          execution = await runWithDecision(eoaDecision);
+          finalDecision = eoaDecision;
         }
       }
 
@@ -383,6 +393,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         console.log(`Deleg:   ${execution.delegationAddress}`);
       }
 
+      const executionUsedAA =
+        finalDecision.execution === "aa" && execution.executionKind !== "eoa";
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -390,8 +402,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           account.address,
           resolvedChainIds[index],
           Date.now(),
-          finalDecision.execution === "aa" ? finalDecision.provider : undefined,
-          finalDecision.execution === "aa" ? finalDecision.aaMode : undefined,
+          executionUsedAA ? finalDecision.provider : undefined,
+          executionUsedAA ? finalDecision.aaMode : undefined,
         ),
       );
       backendNotifications = pendingTxs.map((tx) => ({

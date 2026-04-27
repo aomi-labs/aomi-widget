@@ -72,7 +72,11 @@ export async function executeWalletCalls(
     }
   }
 
-  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
+  if (
+    providerState.resolved &&
+    providerState.error &&
+    !providerState.resolved.fallbackToEoa
+  ) {
     throw providerState.error;
   }
 
@@ -104,7 +108,11 @@ async function executeViaAA(
     throw providerState.error ?? new Error("smart_account_unavailable");
   }
 
-  const callsPayload: AACallPayload[] = callList.map(({ to, value, data }) => ({ to, value, data }));
+  const callsPayload: AACallPayload[] = callList.map(({ to, value, data }) => ({
+    to,
+    value,
+    data,
+  }));
   const sendAARequest = async () => {
     return callList.length > 1
       ? account.sendBatchTransaction(callsPayload)
@@ -118,24 +126,30 @@ async function executeViaAA(
     if (!isRetryableBundlerSubmissionError(error)) {
       throw error;
     }
-    console.warn("[aomi][aa] transient bundler submission error; retrying once", {
-      provider: account.provider,
-      mode: account.mode,
-      chainId: resolved.chainId,
-      callCount: callList.length,
-      error: toErrorMessage(error),
-    });
-    try {
-      receipt = await sendAARequest();
-    } catch (retryError) {
-      console.error("[aomi][aa] AA retry failed after transient bundler submission error", {
+    console.warn(
+      "[aomi][aa] transient bundler submission error; retrying once",
+      {
         provider: account.provider,
         mode: account.mode,
         chainId: resolved.chainId,
         callCount: callList.length,
-        firstError: toErrorMessage(error),
-        retryError: toErrorMessage(retryError),
-      });
+        error: toErrorMessage(error),
+      },
+    );
+    try {
+      receipt = await sendAARequest();
+    } catch (retryError) {
+      console.error(
+        "[aomi][aa] AA retry failed after transient bundler submission error",
+        {
+          provider: account.provider,
+          mode: account.mode,
+          chainId: resolved.chainId,
+          callCount: callList.length,
+          firstError: toErrorMessage(error),
+          retryError: toErrorMessage(retryError),
+        },
+      );
       throw retryError;
     }
   }
@@ -265,8 +279,12 @@ async function executeViaEoa({
 
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = chainCaps?.atomic?.status;
-  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
-  const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : undefined;
+  const canUseSendCalls =
+    callList.length > 1 &&
+    (atomicStatus === "supported" || atomicStatus === "ready");
+  const atomicCapabilityRequest = canUseSendCalls
+    ? { optional: true }
+    : undefined;
 
   const sendSequentially = async () => {
     for (const call of callList) {
@@ -293,8 +311,8 @@ async function executeViaEoa({
       });
 
       const receipts =
-        (batchResult as { receipts?: Array<{ transactionHash?: string }> }).receipts ??
-        [];
+        (batchResult as { receipts?: Array<{ transactionHash?: string }> })
+          .receipts ?? [];
       for (const receipt of receipts) {
         if (receipt.transactionHash) {
           hashes.push(receipt.transactionHash);
@@ -325,7 +343,8 @@ function isUnsupportedAtomicCapabilityError(error: unknown): boolean {
   return (
     lowered.includes("unsupported non-optional capabilities: atomic") ||
     (lowered.includes("unsupported") && lowered.includes("atomic")) ||
-    (lowered.includes("wallet does not support") && lowered.includes("capabilit"))
+    (lowered.includes("wallet does not support") &&
+      lowered.includes("capabilit"))
   );
 }
 
@@ -372,8 +391,10 @@ function isAASimulationRevertError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
   return (
-    lowered.includes("eth_estimateuseroperationgas") &&
-    lowered.includes("execution reverted")
+    (lowered.includes("eth_estimateuseroperationgas") &&
+      lowered.includes("execution reverted")) ||
+    (lowered.includes("wallet_preparecalls") &&
+      (lowered.includes("aa23 reverted") || lowered.includes("validation reverted")))
   );
 }
 
@@ -382,13 +403,18 @@ function isAAInsufficientPrefundError(error: unknown): boolean {
   const lowered = message.toLowerCase();
   return (
     lowered.includes("sender balance and deposit together") ||
-    (lowered.includes("precheck failed") && lowered.includes("must be at least"))
+    (lowered.includes("precheck failed") &&
+      lowered.includes("must be at least"))
   );
 }
 
 function classifyAAFallbackError(
   error: unknown,
-): "retryable_bundler" | "simulation_revert" | "insufficient_prefund" | "other" {
+):
+  | "retryable_bundler"
+  | "simulation_revert"
+  | "insufficient_prefund"
+  | "other" {
   if (isRetryableBundlerSubmissionError(error)) {
     return "retryable_bundler";
   }
@@ -414,9 +440,5 @@ function resolveChainCapabilities(
   const decimalKey = String(chainId);
   const hexKey = `0x${chainId.toString(16)}`;
 
-  return (
-    asRecord[eip155Key]
-    ?? asRecord[decimalKey]
-    ?? asRecord[hexKey]
-  );
+  return asRecord[eip155Key] ?? asRecord[decimalKey] ?? asRecord[hexKey];
 }

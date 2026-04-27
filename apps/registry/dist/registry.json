@@ -84,6 +84,7 @@
         }
       ],
       "dependencies": [
+        "@aomi-labs/client",
         "@aomi-labs/react",
         "@getpara/react-sdk",
         "lucide-react",
@@ -254,7 +255,9 @@
         }
       ],
       "dependencies": [
+        "@aomi-labs/client",
         "@aomi-labs/react",
+        "@getpara/react-sdk",
         "wagmi"
       ],
       "registryDependencies": []
