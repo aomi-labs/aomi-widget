@@ -186,12 +186,17 @@ export async function createCliProviderState(params: {
   const proxyBaseUrl = decision.proxy && chainSlug
     ? `${baseUrl}/aa/v1/${chainSlug}`
     : undefined;
+  const resolvedRpcUrl =
+    rpcUrl ||
+    chain.rpcUrls.default.http[0] ||
+    chain.rpcUrls.public?.http[0] ||
+    "";
 
   return createAAProviderState({
     provider: decision.provider,
     chain,
     owner: { kind: "direct", privateKey },
-    rpcUrl,
+    rpcUrl: resolvedRpcUrl,
     callList,
     mode: decision.aaMode,
     apiKey: decision.apiKey,

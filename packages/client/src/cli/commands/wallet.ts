@@ -31,6 +31,7 @@ import {
   toSignedTransactionRecord,
 } from "../transactions";
 import type { CliConfig } from "../types";
+import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
 
 // ---------------------------------------------------------------------------
 // Fee Validation
@@ -152,8 +153,17 @@ function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
 }
 
 function getPreferredRpcUrl(chain: Chain, override?: string): string {
+  if (override) {
+    return override;
+  }
+
+  const alchemyApiKey = process.env.ALCHEMY_API_KEY?.trim();
+  const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
+  if (alchemyApiKey && alchemyChainSlug) {
+    return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
+  }
+
   return (
-    override ??
     chain.rpcUrls.default.http[0] ??
     chain.rpcUrls.public?.http[0] ??
     ""
@@ -333,8 +343,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           decision: d,
           chain,
           privateKey: privateKey as `0x${string}`,
-          rpcUrl: rpcUrl ?? "",
+          rpcUrl: resolvedRpcUrl,
           callList,
+          baseUrl: cli.baseUrl,
         });
         return executeCliTransaction({
           privateKey: privateKey as `0x${string}`,
