@@ -1159,16 +1159,30 @@ function useRuntimeOrchestrator(aomiClient, options) {
     (threadId) => {
       var _a, _b, _c, _d, _e;
       const manager = sessionManagerRef.current;
+      const nextApp = options.getApp();
+      const nextPublicKey = (_a = options.getPublicKey) == null ? void 0 : _a.call(options);
+      const nextApiKey = (_c = (_b = options.getApiKey) == null ? void 0 : _b.call(options)) != null ? _c : void 0;
+      const nextClientId = (_d = options.getClientId) == null ? void 0 : _d.call(options);
+      const nextUserState = (_e = options.getUserState) == null ? void 0 : _e.call(options);
       const existing = manager.get(threadId);
-      if (existing) return existing;
+      if (existing) {
+        existing.syncRuntimeOptions({
+          app: nextApp,
+          publicKey: nextPublicKey,
+          apiKey: nextApiKey,
+          clientId: nextClientId,
+          userState: nextUserState
+        });
+        return existing;
+      }
       const session = manager.getOrCreate(threadId, {
-        app: options.getApp(),
-        publicKey: (_a = options.getPublicKey) == null ? void 0 : _a.call(options),
-        apiKey: (_c = (_b = options.getApiKey) == null ? void 0 : _b.call(options)) != null ? _c : void 0,
-        clientId: (_d = options.getClientId) == null ? void 0 : _d.call(options),
+        app: nextApp,
+        publicKey: nextPublicKey,
+        apiKey: nextApiKey,
+        clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
-        userState: (_e = options.getUserState) == null ? void 0 : _e.call(options)
+        userState: nextUserState
       });
       const cleanups = [];
       cleanups.push(
@@ -1456,41 +1470,84 @@ function useWalletHandler({
 }) {
   const [pendingRequests, setPendingRequests] = useState5([]);
   const requestsRef = useRef6(pendingRequests);
-  const setRequests = useCallback6((requests) => {
-    requestsRef.current = [...requests];
-    setPendingRequests(requestsRef.current);
+  const inFlightRequestSetRef = useRef6(/* @__PURE__ */ new Set());
+  const suppressedRequestSetRef = useRef6(/* @__PURE__ */ new Set());
+  const syncVisibleRequests = useCallback6(() => {
+    setPendingRequests(
+      requestsRef.current.filter(
+        (request) => !suppressedRequestSetRef.current.has(request.id)
+      )
+    );
   }, []);
+  const setRequests = useCallback6((requests) => {
+    const incomingIds = new Set(requests.map((request) => request.id));
+    for (const id of suppressedRequestSetRef.current) {
+      if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
+        suppressedRequestSetRef.current.delete(id);
+      }
+    }
+    const preservedInFlight = requestsRef.current.filter(
+      (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
+    );
+    requestsRef.current = [...requests, ...preservedInFlight];
+    syncVisibleRequests();
+  }, [syncVisibleRequests]);
+  const startRequest = useCallback6((id) => {
+    if (!requestsRef.current.some((request) => request.id === id)) {
+      return;
+    }
+    inFlightRequestSetRef.current.add(id);
+    suppressedRequestSetRef.current.add(id);
+    syncVisibleRequests();
+  }, [syncVisibleRequests]);
   const resolveRequest = useCallback6(
-    (id, result) => {
+    async (id, result) => {
       const session = getSession();
       if (!session) {
         console.error("[wallet-handler] No session available to resolve request");
         return;
       }
-      setRequests(requestsRef.current.filter((request) => request.id !== id));
-      void session.resolve(id, result).catch((err) => {
+      startRequest(id);
+      try {
+        await session.resolve(id, result);
+      } catch (err) {
         console.error("[wallet-handler] Failed to resolve request:", err);
-      });
+      } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id
+        );
+        inFlightRequestSetRef.current.delete(id);
+        syncVisibleRequests();
+      }
     },
-    [getSession, setRequests]
+    [getSession, startRequest, syncVisibleRequests]
   );
   const rejectRequest = useCallback6(
-    (id, error) => {
+    async (id, error) => {
       const session = getSession();
       if (!session) {
         console.error("[wallet-handler] No session available to reject request");
         return;
       }
-      setRequests(requestsRef.current.filter((request) => request.id !== id));
-      void session.reject(id, error).catch((err) => {
+      startRequest(id);
+      try {
+        await session.reject(id, error);
+      } catch (err) {
         console.error("[wallet-handler] Failed to reject request:", err);
-      });
+      } finally {
+        requestsRef.current = requestsRef.current.filter(
+          (request) => request.id !== id
+        );
+        inFlightRequestSetRef.current.delete(id);
+        syncVisibleRequests();
+      }
     },
-    [getSession, setRequests]
+    [getSession, startRequest, syncVisibleRequests]
   );
   return {
     pendingRequests,
     setRequests,
+    startRequest,
     resolveRequest,
     rejectRequest
   };
@@ -1869,6 +1926,7 @@ function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
+      startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       // Event API
