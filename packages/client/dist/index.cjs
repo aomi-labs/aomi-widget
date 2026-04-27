@@ -1897,6 +1897,9 @@ var CHAINS_BY_ID = {
 };
 
 // src/aa/execute.ts
+function normalizeRpcCallData(data) {
+  return data === "0x" ? void 0 : data;
+}
 async function executeWalletCalls(params) {
   const {
     callList,
@@ -2060,8 +2063,11 @@ async function executeViaEoa({
 }) {
   var _a, _b;
   const hashes = [];
+  const normalizedCalls = callList.map((call) => __spreadProps(__spreadValues({}, call), {
+    data: normalizeRpcCallData(call.data)
+  }));
   if (localPrivateKey) {
-    for (const call of callList) {
+    for (const call of normalizedCalls) {
       const chain = chainsById[call.chainId];
       if (!chain) {
         throw new Error(`Unsupported chain ${call.chainId}`);
@@ -2097,7 +2103,7 @@ async function executeViaEoa({
       sponsored: false
     };
   }
-  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
+  const chainIds = Array.from(new Set(normalizedCalls.map((call) => call.chainId)));
   if (chainIds.length > 1) {
     throw new Error("mixed_chain_bundle_not_supported");
   }
@@ -2107,10 +2113,10 @@ async function executeViaEoa({
   }
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = (_a = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a.status;
-  const canUseSendCalls = callList.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
+  const canUseSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
   const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : void 0;
   const sendSequentially = async () => {
-    for (const call of callList) {
+    for (const call of normalizedCalls) {
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
         to: call.to,
@@ -2124,7 +2130,7 @@ async function executeViaEoa({
     try {
       const batchResult = await sendCallsSyncAsync({
         chainId,
-        calls: callList.map(({ to, value, data }) => ({ to, value, data })),
+        calls: normalizedCalls.map(({ to, value, data }) => ({ to, value, data })),
         capabilities: atomicCapabilityRequest ? {
           atomic: atomicCapabilityRequest
         } : void 0
