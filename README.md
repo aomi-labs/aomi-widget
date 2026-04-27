@@ -5,13 +5,13 @@
 - **Widget** — `<AomiFrame />`, a drop-in React chat component with wallet actions.
 - **Headless runtime** — `@aomi-labs/react` hooks and providers that manage concurrent threads, backend polling, control state, and wallet events, with no UI opinions.
 - **TypeScript client** — `@aomi-labs/client`, a platform-agnostic client for Node.js and browsers.
-- **CLI** — `aomi`, a terminal client for chatting with Aomi agents and signing onchain transactions directly from your shell.
-- **Agent skill** — `aomi-transact`, a Claude / Codex skill that teaches an AI agent to operate the CLI as an onchain tool.
+- **CLI** — `aomi`, a terminal client for chatting with Aomi agents and signing on-chain transactions directly from your shell.
+- **Agent skill** — `aomi-transact`, a Claude / Codex skill that teaches an AI agent to operate the CLI as an on-chain tool.
 - **License:** MIT
 
 ## What is Aomi?
 
-Aomi is an AI-assistant framework for onchain apps. It gives you an agent that can answer questions about crypto, DeFi, wallets, and markets — and, when asked, queue real wallet transactions that your user (or your own key, from the CLI) can sign.
+Aomi is an AI-assistant framework for on-chain apps. It gives you an agent that can answer questions about crypto, DeFi, wallets, and markets — and, when asked, queue real wallet transactions that your user (or your own key, from the CLI) can sign.
 
 You pick how you integrate:
 
@@ -27,13 +27,13 @@ All entry points share a common backend API, so a conversation started in the wi
 
 ## Key features
 
-- **AI chat + onchain actions in one loop** — the agent can queue wallet requests inside any conversation.
+- **AI chat + on-chain actions in one loop** — the agent can queue wallet requests inside any conversation.
 - **Drop-in React widget** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
 - **Headless runtime for custom UIs** — concurrent thread management, per-thread model/namespace state, backend polling/SSE, event bus, and wallet request handler, exposed as React hooks.
 - **Terminal-first CLI** — `aomi chat`, `aomi tx list`, `aomi tx simulate`, `aomi tx sign`, session management, secret ingestion.
 - **Account Abstraction built in** — EIP-4337 and EIP-7702 signing via Alchemy or Pimlico, with automatic mode fallback.
 - **Batch simulation** — dry-run multi-step flows (approve → swap) on a forked chain before signing.
-- **Agent-ready** — install `aomi-transact` as a Claude/Codex skill and your agent can transact onchain autonomously.
+- **Agent-ready** — install `aomi-transact` as a Claude/Codex skill and your agent can transact on-chain autonomously.
 - **Provider-agnostic wallet** — Para + wagmi recommended; bring your own adapter if needed.
 - **Shared session model** — threads, messages, and wallet requests flow through the same backend API across widget, runtime, CLI, and skill.
 
@@ -65,7 +65,7 @@ npx shadcn add https://aomi.dev/r/aomi-frame.json
 
 ## Widget: `<AomiFrame />`
 
-A prebuilt React chat widget for onchain AI assistants. Without wallet providers, chat works and wallet actions stay disabled.
+A prebuilt React chat widget for on-chain AI assistants. Without wallet providers, chat works and wallet actions stay disabled.
 
 ```tsx
 import { AomiFrame } from "@aomi-labs/widget-lib";
@@ -269,7 +269,7 @@ See [`packages/client/README.md`](packages/client/README.md) for the full `Sessi
 
 ## CLI: `aomi`
 
-The `aomi` CLI lets you chat with Aomi agents and sign onchain transactions directly from your terminal. Installing `@aomi-labs/client` globally exposes the `aomi` binary.
+The `aomi` CLI lets you chat with Aomi agents and sign on-chain transactions directly from your terminal. Installing `@aomi-labs/client` globally exposes the `aomi` binary.
 
 ```bash
 npm install -g @aomi-labs/client
@@ -322,7 +322,7 @@ There is **no silent EOA fallback** — if AA is selected and both modes fail, t
 
 ### Batch simulation
 
-`aomi tx simulate` runs pending transactions sequentially on a forked chain so state-dependent flows (approve → swap) are validated as a batch. Returns per-step success, revert reasons, and gas usage without modifying onchain state.
+`aomi tx simulate` runs pending transactions sequentially on a forked chain so state-dependent flows (approve → swap) are validated as a batch. Returns per-step success, revert reasons, and gas usage without modifying on-chain state.
 
 See [`packages/client/skills/aomi-transact/SKILL.md`](packages/client/skills/aomi-transact/SKILL.md) for the complete CLI reference.
 
@@ -355,7 +355,7 @@ A companion skill, `aomi-build`, scaffolds new backend apps from OpenAPI specs, 
 
 ### What can an Aomi agent actually do?
 
-Answer questions about crypto, DeFi, markets, wallets, and onchain state — and, when authorized, queue real wallet transactions (swaps, transfers, approvals, cross-chain intents, prediction-market bets, perps orders) that the user or CLI signs.
+Answer questions about crypto, DeFi, markets, wallets, and on-chain state — and, when authorized, queue real wallet transactions (swaps, transfers, approvals, cross-chain intents, prediction-market bets, perps orders) that the user or CLI signs.
 
 ### Do I need a wallet to use Aomi?
 
@@ -375,7 +375,7 @@ Install both for the default experience, or install only `@aomi-labs/react` if y
 ### When should I use the CLI vs. the widget?
 
 - **Widget / runtime** — when a human user will connect a wallet in the browser and sign requests themselves.
-- **CLI** — when you (the developer) want to script or run onchain flows from your terminal with a local private key, or when an AI agent should drive Aomi as a tool.
+- **CLI** — when you (the developer) want to script or run on-chain flows from your terminal with a local private key, or when an AI agent should drive Aomi as a tool.
 
 ### Which chains and AA modes are supported?
 
