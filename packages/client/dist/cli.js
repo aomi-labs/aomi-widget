@@ -3599,6 +3599,30 @@ function deriveAlchemy4337AccountId(address) {
     hex.slice(20, 32).join("")
   ].join("-");
 }
+async function createAlchemySdkState(params) {
+  const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
+  const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, params.ownerParams), {
+    apiKey: params.apiKey,
+    gasPolicyId: params.gasPolicyId,
+    chain: params.chain,
+    rpcUrl: params.rpcUrl,
+    mode: params.mode
+  }));
+  if (!smartAccount) {
+    return {
+      resolved: params.resolved,
+      account: null,
+      pending: false,
+      error: new Error("Alchemy AA account could not be initialized.")
+    };
+  }
+  return {
+    resolved: params.resolved,
+    account: adaptSmartAccount(smartAccount),
+    pending: false,
+    error: null
+  };
+}
 async function createAlchemyAAState(options) {
   var _a3, _b;
   const {
@@ -3619,7 +3643,8 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : (_a3 = process.env.ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _a3.trim() : void 0;
+  const requestedGasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : (_a3 = process.env.ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _a3.trim() : void 0;
+  const gasPolicyId = effectiveMode === "7702" ? void 0 : requestedGasPolicyId;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
     sponsorship: gasPolicyId ? plan.sponsorship : "disabled",
@@ -3642,6 +3667,17 @@ async function createAlchemyAAState(options) {
       gasPolicyId
     };
     try {
+      if (execution.mode === "7702" && options.apiKey) {
+        return await createAlchemySdkState({
+          resolved: execution,
+          ownerParams: ownerParams.ownerParams,
+          chain,
+          rpcUrl: options.rpcUrl,
+          apiKey: options.apiKey,
+          mode: "7702",
+          gasPolicyId: void 0
+        });
+      }
       return await (execution.mode === "7702" ? createAlchemy7702State(directParams) : createAlchemy4337State(directParams));
     } catch (error) {
       return {
@@ -3663,28 +3699,15 @@ async function createAlchemyAAState(options) {
     };
   }
   try {
-    const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
-    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey: options.apiKey,
-      gasPolicyId,
+    return await createAlchemySdkState({
+      resolved: execution,
+      ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
+      apiKey: options.apiKey,
+      gasPolicyId,
       mode: execution.mode
-    }));
-    if (!smartAccount) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error("Alchemy AA account could not be initialized.")
-      };
-    }
-    return {
-      resolved: execution,
-      account: adaptSmartAccount(smartAccount),
-      pending: false,
-      error: null
-    };
+    });
   } catch (error) {
     return {
       resolved: execution,
@@ -4247,17 +4270,19 @@ function getAlternativeAAMode(decision) {
   return __spreadProps(__spreadValues({}, decision), { aaMode: alt });
 }
 async function createCliProviderState(params) {
+  var _a3;
   const { decision, chain, privateKey, rpcUrl, callList, baseUrl } = params;
   if (decision.execution === "eoa") {
     return DISABLED_PROVIDER_STATE;
   }
   const chainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
   const proxyBaseUrl = decision.proxy && chainSlug ? `${baseUrl}/aa/v1/${chainSlug}` : void 0;
+  const resolvedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0] || ((_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) || "";
   return createAAProviderState({
     provider: decision.provider,
     chain,
     owner: { kind: "direct", privateKey },
-    rpcUrl,
+    rpcUrl: resolvedRpcUrl,
     callList,
     mode: decision.aaMode,
     apiKey: decision.apiKey,
@@ -4468,8 +4493,16 @@ function resolveChain(targetChainId, rpcUrl) {
   };
 }
 function getPreferredRpcUrl(chain, override) {
-  var _a3, _b, _c;
-  return (_c = (_b = override != null ? override : chain.rpcUrls.default.http[0]) != null ? _b : (_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) != null ? _c : "";
+  var _a3, _b, _c, _d;
+  if (override) {
+    return override;
+  }
+  const alchemyApiKey = (_a3 = process.env.ALCHEMY_API_KEY) == null ? void 0 : _a3.trim();
+  const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
+  if (alchemyApiKey && alchemyChainSlug) {
+    return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
+  }
+  return (_d = (_c = chain.rpcUrls.default.http[0]) != null ? _c : (_b = chain.rpcUrls.public) == null ? void 0 : _b.http[0]) != null ? _d : "";
 }
 async function executeCliTransaction(params) {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
@@ -4617,8 +4650,9 @@ async function signCommand(config, txIds) {
           decision: d,
           chain,
           privateKey,
-          rpcUrl: rpcUrl != null ? rpcUrl : "",
-          callList
+          rpcUrl: resolvedRpcUrl,
+          callList,
+          baseUrl: cli.baseUrl
         });
         return executeCliTransaction({
           privateKey,
@@ -4769,6 +4803,7 @@ var init_wallet = __esm({
     init_execution();
     init_output();
     init_transactions();
+    init_chains();
     MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
   }
 });

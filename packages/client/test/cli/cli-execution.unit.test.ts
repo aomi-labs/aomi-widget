@@ -123,6 +123,14 @@ describe("CLI execution controls", () => {
       waitForCallsStatus: waitForCallsStatusMock,
       requestAccount: vi.fn().mockResolvedValue({ address: "0xaaaa" }),
     });
+    createAlchemySmartAccountMock.mockResolvedValue({
+      provider: "ALCHEMY",
+      mode: "7702",
+      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
+      sendTransaction: vi.fn(),
+      sendBatchTransaction: vi.fn(),
+    });
     process.env = { ...ORIGINAL_ENV };
     delete process.env.AOMI_AA_PROVIDER;
     delete process.env.AOMI_AA_MODE;
@@ -407,7 +415,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA 7702 provider state via raw viem", async () => {
+  it("creates Alchemy AA 7702 provider state via SDK when API key is set", async () => {
     const providerState = await createCliProviderState({
       decision: {
         execution: "aa",
@@ -422,8 +430,16 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    // 7702 bypasses wallet-apis
+    // 7702 bypasses wallet-apis in BYOK mode.
     expect(createSmartWalletClientMock).not.toHaveBeenCalled();
+    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "alchemy-key",
+        chain: mainnet,
+        rpcUrl: "https://example-rpc.invalid",
+        mode: "7702",
+      }),
+    );
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
