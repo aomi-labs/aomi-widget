@@ -1187,6 +1187,16 @@ var ClientSession = class extends TypedEventEmitter {
   getIsProcessing() {
     return this._isProcessing;
   }
+  syncRuntimeOptions(options) {
+    var _a;
+    this.app = options.app;
+    this.publicKey = options.publicKey;
+    this.apiKey = options.apiKey;
+    this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
+    if (options.userState) {
+      this.resolveUserState(options.userState);
+    }
+  }
   resolveUserState(userState) {
     this.userState = UserState.normalize(userState);
     const address = UserState.address(this.userState);
