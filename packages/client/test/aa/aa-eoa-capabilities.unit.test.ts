@@ -46,7 +46,7 @@ describe("executeWalletCalls EOA capability handling", () => {
       chainId: 1,
       to: singleCall[0].to,
       value: singleCall[0].value,
-      data: singleCall[0].data,
+      data: undefined,
     });
     expect(result).toMatchObject({
       txHash: "0xsingle",
@@ -84,12 +84,12 @@ describe("executeWalletCalls EOA capability handling", () => {
         {
           to: CALL_LIST[0].to,
           value: CALL_LIST[0].value,
-          data: CALL_LIST[0].data,
+          data: undefined,
         },
         {
           to: CALL_LIST[1].to,
           value: CALL_LIST[1].value,
-          data: CALL_LIST[1].data,
+          data: undefined,
         },
       ],
       capabilities: {
@@ -138,13 +138,13 @@ describe("executeWalletCalls EOA capability handling", () => {
       chainId: 1,
       to: CALL_LIST[0].to,
       value: CALL_LIST[0].value,
-      data: CALL_LIST[0].data,
+      data: undefined,
     });
     expect(sendTransactionAsync).toHaveBeenNthCalledWith(2, {
       chainId: 1,
       to: CALL_LIST[1].to,
       value: CALL_LIST[1].value,
-      data: CALL_LIST[1].data,
+      data: undefined,
     });
     expect(result).toMatchObject({
       txHash: "0x222",

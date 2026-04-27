@@ -162,7 +162,7 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
@@ -182,15 +182,15 @@ function buildCliConfig(args) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
   return {
-    baseUrl: (_f = (_e = str(args["backend-url"])) != null ? _e : process.env.AOMI_BACKEND_URL) != null ? _f : "https://api.aomi.dev",
-    apiKey: (_g = str(args["api-key"])) != null ? _g : process.env.AOMI_API_KEY,
-    app: (_i = (_h = str(args.app)) != null ? _h : process.env.AOMI_APP) != null ? _i : "default",
-    model: (_j = str(args.model)) != null ? _j : process.env.AOMI_MODEL,
+    baseUrl: (_e = str(args["backend-url"])) != null ? _e : process.env.AOMI_BACKEND_URL,
+    apiKey: (_f = str(args["api-key"])) != null ? _f : process.env.AOMI_API_KEY,
+    app: (_g = str(args.app)) != null ? _g : process.env.AOMI_APP,
+    model: (_h = str(args.model)) != null ? _h : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
-    chainRpcUrl: (_k = str(args["rpc-url"])) != null ? _k : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_l = str(args.chain)) != null ? _l : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_i = str(args["rpc-url"])) != null ? _i : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_j = str(args.chain)) != null ? _j : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
@@ -2816,8 +2816,9 @@ var init_output = __esm({
 
 // src/cli/context.ts
 function createControlClient(config) {
+  var _a3;
   return new AomiClient({
-    baseUrl: config.baseUrl,
+    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
     apiKey: config.apiKey
   });
 }
@@ -2859,6 +2860,12 @@ __export(chat_exports, {
 });
 function normalizeAddress2(address) {
   return address == null ? void 0 : address.toLowerCase();
+}
+function extractMentionedTxIds(content) {
+  var _a3;
+  if (!content) return [];
+  const matches = (_a3 = content.match(/\btx-\d+\b/gi)) != null ? _a3 : [];
+  return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 function shouldBroadcastWalletStateChange(config, previous, next) {
   if (!config.privateKey || !next.publicKey) {
@@ -3026,6 +3033,16 @@ async function chatCommand(config, message, verbose) {
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
       }
+      if (newPendingTxs.length === 0) {
+        const mentionedTxIds = extractMentionedTxIds(last == null ? void 0 : last.content);
+        if (mentionedTxIds.length > 0) {
+          console.log(
+            `
+${YELLOW}\u26A0\uFE0F Assistant referenced ${mentionedTxIds.join(", ")}, but backend returned no pending wallet requests.${RESET}`
+          );
+          console.log("   These IDs are not signable from this session.");
+        }
+      }
     }
     if (newPendingTxs.length > 0) {
       console.log(
@@ -3146,6 +3163,9 @@ var init_types2 = __esm({
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+function normalizeRpcCallData(data) {
+  return data === "0x" ? void 0 : data;
+}
 async function executeWalletCalls(params) {
   const {
     callList,
@@ -3309,8 +3329,11 @@ async function executeViaEoa({
 }) {
   var _a3, _b;
   const hashes = [];
+  const normalizedCalls = callList.map((call) => __spreadProps(__spreadValues({}, call), {
+    data: normalizeRpcCallData(call.data)
+  }));
   if (localPrivateKey) {
-    for (const call of callList) {
+    for (const call of normalizedCalls) {
       const chain = chainsById[call.chainId];
       if (!chain) {
         throw new Error(`Unsupported chain ${call.chainId}`);
@@ -3346,7 +3369,7 @@ async function executeViaEoa({
       sponsored: false
     };
   }
-  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
+  const chainIds = Array.from(new Set(normalizedCalls.map((call) => call.chainId)));
   if (chainIds.length > 1) {
     throw new Error("mixed_chain_bundle_not_supported");
   }
@@ -3356,10 +3379,10 @@ async function executeViaEoa({
   }
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = (_a3 = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a3.status;
-  const canUseSendCalls = callList.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
+  const canUseSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
   const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : void 0;
   const sendSequentially = async () => {
-    for (const call of callList) {
+    for (const call of normalizedCalls) {
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
         to: call.to,
@@ -3373,7 +3396,7 @@ async function executeViaEoa({
     try {
       const batchResult = await sendCallsSyncAsync({
         chainId,
-        calls: callList.map(({ to, value, data }) => ({ to, value, data })),
+        calls: normalizedCalls.map(({ to, value, data }) => ({ to, value, data })),
         capabilities: atomicCapabilityRequest ? {
           atomic: atomicCapabilityRequest
         } : void 0
@@ -6301,7 +6324,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.28",
+  version: "0.1.29",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
