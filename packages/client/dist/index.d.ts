@@ -586,6 +586,12 @@ type SessionOptions = {
     clientType?: AomiClientType;
     /** Stable client ID used for secret-vault association. */
     clientId?: string;
+    /**
+     * When true (default), synthesize pending transaction wallet requests from
+     * `user_state.pending_txs` during state sync. Web UI should disable this and
+     * rely on explicit `wallet_tx_request` events from `send_transaction_to_wallet`.
+     */
+    syncPendingTxRequestsFromUserState?: boolean;
     /** Polling interval in ms. Default: 500 */
     pollIntervalMs?: number;
     /** Logger for debug output. Pass `console` for verbose logging. */
@@ -652,6 +658,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private apiKey?;
     private userState?;
     private clientId;
+    private syncPendingTxRequestsFromUserState;
     private pollIntervalMs;
     private logger?;
     private pollTimer;

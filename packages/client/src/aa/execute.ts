@@ -33,7 +33,43 @@ export async function executeWalletCalls(
   } = params;
 
   if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState);
+    try {
+      return await executeViaAA(callList, providerState);
+    } catch (error) {
+      if (!shouldFallbackFromAAError(error, providerState)) {
+        throw error;
+      }
+      const errorKind = classifyAAFallbackError(error);
+      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
+        provider: providerState.account.provider,
+        mode: providerState.resolved.mode,
+        chainId: providerState.resolved.chainId,
+        callCount: callList.length,
+        errorKind,
+        error: toErrorMessage(error),
+      });
+      if (errorKind === "simulation_revert") {
+        console.warn(
+          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA.",
+        );
+      }
+      if (errorKind === "insufficient_prefund") {
+        console.warn(
+          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account.",
+        );
+      }
+      return executeViaEoa({
+        callList,
+        currentChainId,
+        capabilities,
+        localPrivateKey,
+        sendCallsSyncAsync,
+        sendTransactionAsync,
+        switchChainAsync,
+        chainsById,
+        getPreferredRpcUrl,
+      });
+    }
   }
 
   if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
@@ -69,10 +105,40 @@ async function executeViaAA(
   }
 
   const callsPayload: AACallPayload[] = callList.map(({ to, value, data }) => ({ to, value, data }));
-  const receipt =
-    callList.length > 1
-      ? await account.sendBatchTransaction(callsPayload)
-      : await account.sendTransaction(callsPayload[0]);
+  const sendAARequest = async () => {
+    return callList.length > 1
+      ? account.sendBatchTransaction(callsPayload)
+      : account.sendTransaction(callsPayload[0]);
+  };
+
+  let receipt;
+  try {
+    receipt = await sendAARequest();
+  } catch (error) {
+    if (!isRetryableBundlerSubmissionError(error)) {
+      throw error;
+    }
+    console.warn("[aomi][aa] transient bundler submission error; retrying once", {
+      provider: account.provider,
+      mode: account.mode,
+      chainId: resolved.chainId,
+      callCount: callList.length,
+      error: toErrorMessage(error),
+    });
+    try {
+      receipt = await sendAARequest();
+    } catch (retryError) {
+      console.error("[aomi][aa] AA retry failed after transient bundler submission error", {
+        provider: account.provider,
+        mode: account.mode,
+        chainId: resolved.chainId,
+        callCount: callList.length,
+        firstError: toErrorMessage(error),
+        retryError: toErrorMessage(retryError),
+      });
+      throw retryError;
+    }
+  }
   const txHash = receipt.transactionHash;
   const providerPrefix = account.provider.toLowerCase();
 
@@ -200,33 +266,9 @@ async function executeViaEoa({
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = chainCaps?.atomic?.status;
   const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
-  const atomicCapabilityRequest =
-    atomicStatus === "ready"
-      ? { required: true }
-      : atomicStatus === "supported"
-        ? { optional: true }
-        : undefined;
+  const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : undefined;
 
-  if (canUseSendCalls) {
-    const batchResult = await sendCallsSyncAsync({
-      chainId,
-      calls: callList.map(({ to, value, data }) => ({ to, value, data })),
-      capabilities: atomicCapabilityRequest
-        ? {
-            atomic: atomicCapabilityRequest,
-          }
-        : undefined,
-    });
-
-    const receipts =
-      (batchResult as { receipts?: Array<{ transactionHash?: string }> }).receipts ??
-      [];
-    for (const receipt of receipts) {
-      if (receipt.transactionHash) {
-        hashes.push(receipt.transactionHash);
-      }
-    }
-  } else {
+  const sendSequentially = async () => {
     for (const call of callList) {
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
@@ -236,6 +278,36 @@ async function executeViaEoa({
       });
       hashes.push(hash);
     }
+  };
+
+  if (canUseSendCalls) {
+    try {
+      const batchResult = await sendCallsSyncAsync({
+        chainId,
+        calls: callList.map(({ to, value, data }) => ({ to, value, data })),
+        capabilities: atomicCapabilityRequest
+          ? {
+              atomic: atomicCapabilityRequest,
+            }
+          : undefined,
+      });
+
+      const receipts =
+        (batchResult as { receipts?: Array<{ transactionHash?: string }> }).receipts ??
+        [];
+      for (const receipt of receipts) {
+        if (receipt.transactionHash) {
+          hashes.push(receipt.transactionHash);
+        }
+      }
+    } catch (error) {
+      if (!isUnsupportedAtomicCapabilityError(error)) {
+        throw error;
+      }
+      await sendSequentially();
+    }
+  } else {
+    await sendSequentially();
   }
 
   return {
@@ -245,6 +317,88 @@ async function executeViaEoa({
     batched: hashes.length > 1,
     sponsored: false,
   };
+}
+
+function isUnsupportedAtomicCapabilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    lowered.includes("unsupported non-optional capabilities: atomic") ||
+    (lowered.includes("unsupported") && lowered.includes("atomic")) ||
+    (lowered.includes("wallet does not support") && lowered.includes("capabilit"))
+  );
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message;
+  }
+  return String(error);
+}
+
+function shouldFallbackFromAAError(
+  error: unknown,
+  providerState: AAState,
+): boolean {
+  if (!providerState.resolved) {
+    return false;
+  }
+
+  if (providerState.resolved.mode !== "4337") {
+    return false;
+  }
+
+  return (
+    isRetryableBundlerSubmissionError(error) ||
+    isAASimulationRevertError(error) ||
+    isAAInsufficientPrefundError(error)
+  );
+}
+
+function isRetryableBundlerSubmissionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+
+  return (
+    lowered.includes("bundle id is unknown") ||
+    lowered.includes("bundle id unknown") ||
+    lowered.includes("has not been submitted") ||
+    (lowered.includes("userop") && lowered.includes("not found")) ||
+    (lowered.includes("user operation") && lowered.includes("not found"))
+  );
+}
+
+function isAASimulationRevertError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    lowered.includes("eth_estimateuseroperationgas") &&
+    lowered.includes("execution reverted")
+  );
+}
+
+function isAAInsufficientPrefundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    lowered.includes("sender balance and deposit together") ||
+    (lowered.includes("precheck failed") && lowered.includes("must be at least"))
+  );
+}
+
+function classifyAAFallbackError(
+  error: unknown,
+): "retryable_bundler" | "simulation_revert" | "insufficient_prefund" | "other" {
+  if (isRetryableBundlerSubmissionError(error)) {
+    return "retryable_bundler";
+  }
+  if (isAAInsufficientPrefundError(error)) {
+    return "insufficient_prefund";
+  }
+  if (isAASimulationRevertError(error)) {
+    return "simulation_revert";
+  }
+  return "other";
 }
 
 function resolveChainCapabilities(

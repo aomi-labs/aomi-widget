@@ -164,6 +164,12 @@ export type SessionOptions = {
   clientType?: AomiClientType;
   /** Stable client ID used for secret-vault association. */
   clientId?: string;
+  /**
+   * When true (default), synthesize pending transaction wallet requests from
+   * `user_state.pending_txs` during state sync. Web UI should disable this and
+   * rely on explicit `wallet_tx_request` events from `send_transaction_to_wallet`.
+   */
+  syncPendingTxRequestsFromUserState?: boolean;
   /** Polling interval in ms. Default: 500 */
   pollIntervalMs?: number;
   /** Logger for debug output. Pass `console` for verbose logging. */
@@ -224,6 +230,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private apiKey?: string;
   private userState?: UserStateShape;
   private clientId: string;
+  private syncPendingTxRequestsFromUserState: boolean;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
 
@@ -261,6 +268,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       ? UserState.withExt(initialUserState ?? {}, "client_type", sessionOptions.clientType)
       : initialUserState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
+    this.syncPendingTxRequestsFromUserState =
+      sessionOptions?.syncPendingTxRequestsFromUserState ?? true;
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
 
@@ -752,6 +761,24 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.walletRequests = existing
       ? this.walletRequests.map((request) => (request.id === id ? req : request))
       : [...this.walletRequests, req];
+
+    if (kind === "transaction") {
+      const nextTxIds = txIdsFromPayload(payload as WalletTxPayload);
+      if (nextTxIds.length > 1) {
+        const nextTxIdSet = new Set(nextTxIds);
+        this.walletRequests = this.walletRequests.filter((request) => {
+          if (request.id === id || request.kind !== "transaction") {
+            return true;
+          }
+          const requestTxIds = txIdsFromPayload(request.payload as WalletTxPayload);
+          if (requestTxIds.length === 0) {
+            return true;
+          }
+          return !requestTxIds.every((txId) => nextTxIdSet.has(txId));
+        });
+      }
+    }
+
     this.emit("wallet_requests_changed", this.getPendingRequests());
     return req;
   }
@@ -839,31 +866,78 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       ? this.userState?.pending_eip712s
       : undefined;
 
-    for (const [id, raw] of Object.entries(pendingTxs ?? {}).sort((left, right) =>
-      Number(left[0]) - Number(right[0]),
-    )) {
-      const payload = hydrateTxPayloadFromUserState(
-        {
-          txId: Number(id),
-          txIds: [Number(id)],
-          aaPreference: "auto",
-        },
-        {
-          pending_txs: {
-            [id]: isRecord(raw) ? raw : {},
-          },
-        },
-      );
+    const pendingTxEntries = Object.entries(pendingTxs ?? {})
+      .filter(([id]) => Number.isInteger(Number(id)))
+      .sort((left, right) => Number(left[0]) - Number(right[0]));
+    const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
+    const coveredPendingTxIds = new Set<number>();
 
+    const existingTxRequests = this.walletRequests
+      .filter((request): request is WalletRequest & { kind: "transaction" } =>
+        request.kind === "transaction",
+      )
+      .map((request) => ({
+        request,
+        txIds: txIdsFromPayload(request.payload as WalletTxPayload),
+      }))
+      .filter(
+        ({ txIds }) =>
+          txIds.length > 0 && txIds.every((txId) => pendingTxIdSet.has(txId)),
+      )
+      .sort((left, right) => {
+        if (left.txIds.length !== right.txIds.length) {
+          return right.txIds.length - left.txIds.length;
+        }
+        return left.request.timestamp - right.request.timestamp;
+      });
+
+    for (const { request, txIds } of existingTxRequests) {
+      if (txIds.some((txId) => coveredPendingTxIds.has(txId))) {
+        continue;
+      }
+      const payload = hydrateTxPayloadFromUserState(
+        request.payload as WalletTxPayload,
+        { pending_txs: pendingTxs ?? {} },
+      );
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
         kind: "transaction",
         payload,
-        timestamp:
-          this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+        timestamp: request.timestamp,
       });
+      txIds.forEach((txId) => coveredPendingTxIds.add(txId));
+    }
+
+    if (this.syncPendingTxRequestsFromUserState) {
+      for (const [id, raw] of pendingTxEntries) {
+        const txId = Number(id);
+        if (coveredPendingTxIds.has(txId)) {
+          continue;
+        }
+        const payload = hydrateTxPayloadFromUserState(
+          {
+            txId,
+            txIds: [txId],
+            aaPreference: "auto",
+          },
+          {
+            pending_txs: {
+              [id]: isRecord(raw) ? raw : {},
+            },
+          },
+        );
+
+        const requestId = this.getWalletRequestId("transaction", payload);
+        nextRequests.push({
+          id: requestId,
+          kind: "transaction",
+          payload,
+          timestamp:
+            this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
+            Date.now(),
+        });
+      }
     }
 
     for (const [id, raw] of Object.entries(pendingEip712s ?? {}).sort(

@@ -8,6 +8,7 @@ import type {
   UserState,
   WalletRequest,
 } from "@aomi-labs/client";
+import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 import { Session as ClientSession } from "@aomi-labs/client";
 import {
   useThreadContext,
@@ -59,6 +60,8 @@ export function useRuntimeOrchestrator(
         publicKey: options.getPublicKey?.(),
         apiKey: options.getApiKey?.() ?? undefined,
         clientId: options.getClientId?.(),
+        clientType: CLIENT_TYPE_WEB_UI,
+        syncPendingTxRequestsFromUserState: false,
         userState: options.getUserState?.(),
       });
 

@@ -347,6 +347,102 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("preserves batched wallet_tx_request payloads across user_state sync", async () => {
+    const { client, sendMessage, fetchState } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-7d" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        pending_txs: {
+          1: {
+            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            value: "0",
+            data: "0x095ea7b3",
+            chain_id: 1,
+          },
+          2: {
+            to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+            value: "0",
+            data: "0x3df02124",
+            chain_id: 1,
+          },
+        },
+      },
+      system_events: [{
+        InlineCall: {
+          type: "wallet_tx_request",
+          payload: {
+            tx_ids: [1, 2],
+            aa_preference: "auto",
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("queue batched tx");
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "tx-1-2",
+        kind: "transaction",
+        payload: expect.objectContaining({
+          txIds: [1, 2],
+          txId: 1,
+          chainId: 1,
+          calls: expect.arrayContaining([
+            expect.objectContaining({ txId: 1 }),
+            expect.objectContaining({ txId: 2 }),
+          ]),
+        }),
+      }),
+    ]);
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        pending_txs: {
+          1: {
+            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            value: "0",
+            data: "0x095ea7b3",
+            chain_id: 1,
+            batch_status: "Batch [1,2] passed",
+          },
+          2: {
+            to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+            value: "0",
+            data: "0x3df02124",
+            chain_id: 1,
+            batch_status: "Batch [1,2] passed",
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "tx-1-2",
+        kind: "transaction",
+        payload: expect.objectContaining({
+          txIds: [1, 2],
+          txId: 1,
+          chainId: 1,
+          calls: expect.arrayContaining([
+            expect.objectContaining({ txId: 1 }),
+            expect.objectContaining({ txId: 2 }),
+          ]),
+        }),
+      }),
+    ]);
+
+    session.close();
+  });
+
   it("forwards backend tx identifiers in wallet completion callbacks", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-8" });
