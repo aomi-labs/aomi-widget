@@ -253,7 +253,7 @@ var init_shared = __esm({
 
 // src/types.ts
 function parseUserStateChainId(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
   }
   if (typeof value !== "string") {
@@ -263,8 +263,15 @@ function parseUserStateChainId(value) {
   if (!trimmed) {
     return void 0;
   }
+  if (trimmed.startsWith("0x")) {
+    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
+    return Number.isInteger(parsedHex) && parsedHex > 0 ? parsedHex : void 0;
+  }
   const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function normalizeAddressForComparison(value) {
+  return typeof value === "string" ? value.toLowerCase() : void 0;
 }
 function isInlineCall(event) {
   return "InlineCall" in event;
@@ -308,6 +315,34 @@ var init_types = __esm({
         return normalized;
       }
       UserState2.normalize = normalize;
+      function reconcile(previousUserState, incomingUserState) {
+        const incoming = normalize(incomingUserState);
+        if (!incoming) {
+          return void 0;
+        }
+        const previous = normalize(previousUserState);
+        const reconciled = __spreadValues({}, incoming);
+        const previousAddress = address(previous);
+        const incomingAddress = address(incoming);
+        const incomingConnected = isConnected(incoming);
+        const incomingChainId = chainId(incoming);
+        const canPreserveConnectedWalletContext = incomingConnected !== false;
+        const sameAddress = normalizeAddressForComparison(previousAddress) !== void 0 && normalizeAddressForComparison(previousAddress) === normalizeAddressForComparison(incomingAddress);
+        if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
+          reconciled.address = previousAddress;
+        }
+        if (incomingChainId === void 0 && canPreserveConnectedWalletContext && previous && chainId(previous) !== void 0) {
+          const canPreserveChain = sameAddress || !incomingAddress && !!previousAddress;
+          if (canPreserveChain) {
+            reconciled.chain_id = chainId(previous);
+          }
+        }
+        if (isConnected(reconciled) === true && chainId(reconciled) === void 0) {
+          delete reconciled.is_connected;
+        }
+        return reconciled;
+      }
+      UserState2.reconcile = reconcile;
       function address(userState) {
         const normalized = normalize(userState);
         const address2 = normalized == null ? void 0 : normalized.address;
@@ -1404,7 +1439,7 @@ var init_session = __esm({
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
         this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-        const initialUserState = UserState.normalize(sessionOptions == null ? void 0 : sessionOptions.userState);
+        const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
         this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
         this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
         this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
@@ -1617,7 +1652,7 @@ var init_session = __esm({
         }
       }
       resolveUserState(userState) {
-        this.userState = UserState.normalize(userState);
+        this.userState = UserState.reconcile(this.userState, userState);
         const address = UserState.address(this.userState);
         const isConnected = UserState.isConnected(this.userState);
         if (address && isConnected !== false) {
@@ -1863,7 +1898,10 @@ var init_session = __esm({
       }
       assertUserStateAligned(actualUserState) {
         const expectedUserState = UserState.normalize(this.userState);
-        const normalizedActualUserState = UserState.normalize(actualUserState);
+        const normalizedActualUserState = UserState.reconcile(
+          expectedUserState,
+          actualUserState
+        );
         if (!expectedUserState || !normalizedActualUserState) {
           return;
         }
@@ -2035,10 +2073,12 @@ function buildCliUserState(publicKey, chainId) {
   const userState = {};
   if (publicKey !== void 0) {
     userState.address = publicKey;
-    userState.is_connected = true;
   }
   if (chainId !== void 0) {
     userState.chain_id = chainId;
+  }
+  if (publicKey !== void 0 && chainId !== void 0) {
+    userState.is_connected = true;
   }
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
@@ -2392,11 +2432,21 @@ function clearState() {
 }
 function syncPendingTxsFromUserState(state, userState) {
   var _a3;
-  const walletSnapshot = walletSnapshotFromUserState(userState);
-  state.publicKey = walletSnapshot.publicKey;
-  state.chainId = walletSnapshot.chainId;
+  const normalizedUserState = UserState.normalize(userState);
+  const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
+  const isConnected = UserState.isConnected(normalizedUserState);
+  if (walletSnapshot.publicKey !== void 0) {
+    state.publicKey = walletSnapshot.publicKey;
+  } else if (isConnected === false) {
+    state.publicKey = void 0;
+  }
+  if (walletSnapshot.chainId !== void 0) {
+    state.chainId = walletSnapshot.chainId;
+  } else if (isConnected === false) {
+    state.chainId = void 0;
+  }
   state.pendingTxs = pendingTxsFromBackendUserState(
-    userState,
+    normalizedUserState,
     (_a3 = state.pendingTxs) != null ? _a3 : []
   );
   writeState(state);
@@ -2406,6 +2456,7 @@ var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_
 var init_state = __esm({
   "src/cli/state.ts"() {
     "use strict";
+    init_types();
     init_user_state();
     SESSION_FILE_PREFIX = "session-";
     SESSION_FILE_SUFFIX = ".json";
@@ -2868,7 +2919,7 @@ function extractMentionedTxIds(content) {
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 function shouldBroadcastWalletStateChange(config, previous, next) {
-  if (!config.privateKey || !next.publicKey) {
+  if (!config.privateKey || !next.publicKey || next.chainId === void 0) {
     return false;
   }
   return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId;
@@ -2881,11 +2932,9 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
   await session.syncUserState();
   const payload = {
     address: next.publicKey,
+    chainId: next.chainId,
     isConnected: true
   };
-  if (next.chainId !== void 0) {
-    payload.chainId = next.chainId;
-  }
   await session.client.sendSystemMessage(
     cli.sessionId,
     JSON.stringify({
