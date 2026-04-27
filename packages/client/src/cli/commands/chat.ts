@@ -42,7 +42,7 @@ export function shouldBroadcastWalletStateChange(
   previous: WalletSnapshot | null,
   next: WalletSnapshot,
 ): boolean {
-  if (!config.privateKey || !next.publicKey) {
+  if (!config.privateKey || !next.publicKey || next.chainId === undefined) {
     return false;
   }
 
@@ -72,11 +72,9 @@ export async function syncWalletStateForChat(
 
   const payload: Record<string, unknown> = {
     address: next.publicKey,
+    chainId: next.chainId,
     isConnected: true,
   };
-  if (next.chainId !== undefined) {
-    payload.chainId = next.chainId;
-  }
 
   await session.client.sendSystemMessage(
     cli.sessionId,

@@ -271,7 +271,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
-    const initialUserState = UserState.normalize(sessionOptions?.userState);
+    const initialUserState = UserState.reconcile(undefined, sessionOptions?.userState);
     this.userState = sessionOptions?.clientType
       ? UserState.withExt(initialUserState ?? {}, "client_type", sessionOptions.clientType)
       : initialUserState;
@@ -527,7 +527,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   resolveUserState(userState: UserStateShape): void {
-    this.userState = UserState.normalize(userState);
+    this.userState = UserState.reconcile(this.userState, userState);
 
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
@@ -838,7 +838,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   private assertUserStateAligned(actualUserState?: UserStateShape | null): void {
     const expectedUserState = UserState.normalize(this.userState);
-    const normalizedActualUserState = UserState.normalize(actualUserState);
+    const normalizedActualUserState = UserState.reconcile(
+      expectedUserState,
+      actualUserState,
+    );
 
     if (!expectedUserState || !normalizedActualUserState) {
       return;
