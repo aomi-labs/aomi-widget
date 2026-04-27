@@ -601,6 +601,13 @@ type SessionOptions = {
         debug: (...args: unknown[]) => void;
     };
 };
+type SessionRuntimeOptions = {
+    app: string;
+    publicKey?: string;
+    apiKey?: string;
+    clientId?: string;
+    userState?: UserState;
+};
 /** Events emitted by Session. */
 type SessionEventMap = {
     /** A transaction signing request arrived from the backend. */
@@ -717,6 +724,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getPendingRequests(): WalletRequest[];
     /** Whether the AI is currently processing. */
     getIsProcessing(): boolean;
+    syncRuntimeOptions(options: SessionRuntimeOptions): void;
     resolveUserState(userState: UserState): void;
     setClientType(clientType: AomiClientType): void;
     addExtValue(key: string, value: unknown): void;

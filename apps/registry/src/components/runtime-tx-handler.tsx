@@ -52,17 +52,17 @@ export function RuntimeTxHandler() {
             : hydrateTxPayloadFromUserState(initialPayload, user, { strict: true });
 
           if (!adapter.sendTransaction) {
-            rejectWalletRequest(req.id, "Wallet provider is not ready");
+            await rejectWalletRequest(req.id, "Wallet provider is not ready");
             return;
           }
 
           const result = await adapter.sendTransaction(payload);
-          resolveWalletRequest(req.id, result);
+          await resolveWalletRequest(req.id, result);
           return;
         }
 
         if (!adapter.signTypedData) {
-          rejectWalletRequest(req.id, "Wallet provider is not ready");
+          await rejectWalletRequest(req.id, "Wallet provider is not ready");
           return;
         }
 
@@ -70,7 +70,7 @@ export function RuntimeTxHandler() {
         const signArgs = toViemSignTypedDataArgs(payload);
 
         if (!signArgs) {
-          rejectWalletRequest(req.id, "Missing typed_data payload");
+          await rejectWalletRequest(req.id, "Missing typed_data payload");
           return;
         }
 
@@ -93,10 +93,10 @@ export function RuntimeTxHandler() {
           typed_data: signArgs,
         };
         const result = await adapter.signTypedData(signaturePayload);
-        resolveWalletRequest(req.id, result);
+        await resolveWalletRequest(req.id, result);
       } catch (error) {
         console.error("[RuntimeTxHandler] Request failed:", error);
-        rejectWalletRequest(
+        await rejectWalletRequest(
           req.id,
           error instanceof Error ? error.message : "Request failed",
         );

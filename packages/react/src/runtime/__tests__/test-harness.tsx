@@ -362,6 +362,23 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           : UserState.address(normalized);
       this.syncWalletRequests();
     }
+    syncRuntimeOptions(
+      options: {
+        app: string;
+        publicKey?: string;
+        apiKey?: string;
+        clientId?: string;
+        userState?: Record<string, unknown>;
+      },
+    ) {
+      this._app = options.app;
+      this._publicKey = options.publicKey;
+      this._apiKey = options.apiKey;
+      this._clientId = options.clientId ?? this._clientId;
+      if (options.userState) {
+        this.resolveUserState(options.userState);
+      }
+    }
     resolveWallet(_address: string, _chainId?: number) {}
     startPolling() {
       if (this._pollTimer) return;

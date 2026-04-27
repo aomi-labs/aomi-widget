@@ -1606,6 +1606,16 @@ var init_session = __esm({
       getIsProcessing() {
         return this._isProcessing;
       }
+      syncRuntimeOptions(options) {
+        var _a3;
+        this.app = options.app;
+        this.publicKey = options.publicKey;
+        this.apiKey = options.apiKey;
+        this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
+        if (options.userState) {
+          this.resolveUserState(options.userState);
+        }
+      }
       resolveUserState(userState) {
         this.userState = UserState.normalize(userState);
         const address = UserState.address(this.userState);
@@ -6291,7 +6301,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.27",
+  version: "0.1.28",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

@@ -149,10 +149,12 @@ type WalletHandlerApi = {
     pendingRequests: WalletRequest[];
     /** Replace pending requests with the session's authoritative snapshot. */
     setRequests: (requests: WalletRequest[]) => void;
+    /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
+    startRequest: (id: string) => void;
     /** Complete a request successfully — sends response to backend via ClientSession */
-    resolveRequest: (id: string, result: WalletRequestResult) => void;
+    resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
     /** Fail a request — sends error to backend via ClientSession */
-    rejectRequest: (id: string, error?: string) => void;
+    rejectRequest: (id: string, error?: string) => Promise<void>;
 };
 declare function useWalletHandler({ getSession, }: WalletHandlerConfig): WalletHandlerApi;
 
@@ -205,10 +207,12 @@ type AomiRuntimeApi = {
     clearAllNotifications: () => void;
     /** All queued wallet requests (tx + eip712 signing) */
     pendingWalletRequests: WalletRequest[];
-    /** Complete a wallet request — dequeues + sends response to backend */
-    resolveWalletRequest: (id: string, result: WalletRequestResult) => void;
-    /** Fail a wallet request — dequeues + sends error to backend */
-    rejectWalletRequest: (id: string, error?: string) => void;
+    /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
+    startWalletRequest: (id: string) => void;
+    /** Complete a wallet request after the backend acknowledges the response */
+    resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
+    /** Fail a wallet request after the backend acknowledges the error */
+    rejectWalletRequest: (id: string, error?: string) => Promise<void>;
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
     subscribe: (type: string, callback: EventSubscriber) => () => void;
     /** Send a system command to the backend */
