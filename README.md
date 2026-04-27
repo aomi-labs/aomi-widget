@@ -1,6 +1,6 @@
 # Aomi
 
-**Aomi is an open-source toolkit for building AI agents that can read and transact onchain.** It ships five entry points from one repo — a React widget, a headless runtime, a TypeScript client, a CLI, and an agent skill — all backed by an Aomi-compatible backend.
+**The best blockchain harness for agentic AI - on-chain execution with runtime, skills, and component library.** Aomi ships five entry points from one repo — a React widget, a headless runtime, a TypeScript client, a CLI, and an agent skill — all backed by an Aomi-compatible backend.
 
 - **Widget** — `<AomiFrame />`, a drop-in React chat component with wallet actions.
 - **Headless runtime** — `@aomi-labs/react` hooks and providers that manage concurrent threads, backend polling, control state, and wallet events, with no UI opinions.
