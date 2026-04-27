@@ -1118,7 +1118,7 @@ function aaModeFromExecutionKind(executionKind) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     super();
     // Internal state
     this.pollTimer = null;
@@ -1139,7 +1139,8 @@ var ClientSession = class extends TypedEventEmitter {
     const initialUserState = UserState.normalize(sessionOptions == null ? void 0 : sessionOptions.userState);
     this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
+    this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
+    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1537,6 +1538,22 @@ var ClientSession = class extends TypedEventEmitter {
       timestamp: (_a = existing == null ? void 0 : existing.timestamp) != null ? _a : Date.now()
     };
     this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    if (kind === "transaction") {
+      const nextTxIds = txIdsFromPayload(payload);
+      if (nextTxIds.length > 1) {
+        const nextTxIdSet = new Set(nextTxIds);
+        this.walletRequests = this.walletRequests.filter((request) => {
+          if (request.id === id || request.kind !== "transaction") {
+            return true;
+          }
+          const requestTxIds = txIdsFromPayload(request.payload);
+          if (requestTxIds.length === 0) {
+            return true;
+          }
+          return !requestTxIds.every((txId) => nextTxIdSet.has(txId));
+        });
+      }
+    }
     this.emit("wallet_requests_changed", this.getPendingRequests());
     return req;
   }
@@ -1603,28 +1620,65 @@ var ClientSession = class extends TypedEventEmitter {
     const nextRequests = [];
     const pendingTxs = isRecord((_a = this.userState) == null ? void 0 : _a.pending_txs) ? (_b = this.userState) == null ? void 0 : _b.pending_txs : void 0;
     const pendingEip712s = isRecord((_c = this.userState) == null ? void 0 : _c.pending_eip712s) ? (_d = this.userState) == null ? void 0 : _d.pending_eip712s : void 0;
-    for (const [id, raw] of Object.entries(pendingTxs != null ? pendingTxs : {}).sort(
-      (left, right) => Number(left[0]) - Number(right[0])
-    )) {
+    const pendingTxEntries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
+    const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
+    const coveredPendingTxIds = /* @__PURE__ */ new Set();
+    const existingTxRequests = this.walletRequests.filter(
+      (request) => request.kind === "transaction"
+    ).map((request) => ({
+      request,
+      txIds: txIdsFromPayload(request.payload)
+    })).filter(
+      ({ txIds }) => txIds.length > 0 && txIds.every((txId) => pendingTxIdSet.has(txId))
+    ).sort((left, right) => {
+      if (left.txIds.length !== right.txIds.length) {
+        return right.txIds.length - left.txIds.length;
+      }
+      return left.request.timestamp - right.request.timestamp;
+    });
+    for (const { request, txIds } of existingTxRequests) {
+      if (txIds.some((txId) => coveredPendingTxIds.has(txId))) {
+        continue;
+      }
       const payload = hydrateTxPayloadFromUserState(
-        {
-          txId: Number(id),
-          txIds: [Number(id)],
-          aaPreference: "auto"
-        },
-        {
-          pending_txs: {
-            [id]: isRecord(raw) ? raw : {}
-          }
-        }
+        request.payload,
+        { pending_txs: pendingTxs != null ? pendingTxs : {} }
       );
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
         kind: "transaction",
         payload,
-        timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+        timestamp: request.timestamp
       });
+      txIds.forEach((txId) => coveredPendingTxIds.add(txId));
+    }
+    if (this.syncPendingTxRequestsFromUserState) {
+      for (const [id, raw] of pendingTxEntries) {
+        const txId = Number(id);
+        if (coveredPendingTxIds.has(txId)) {
+          continue;
+        }
+        const payload = hydrateTxPayloadFromUserState(
+          {
+            txId,
+            txIds: [txId],
+            aaPreference: "auto"
+          },
+          {
+            pending_txs: {
+              [id]: isRecord(raw) ? raw : {}
+            }
+          }
+        );
+        const requestId = this.getWalletRequestId("transaction", payload);
+        nextRequests.push({
+          id: requestId,
+          kind: "transaction",
+          payload,
+          timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+        });
+      }
     }
     for (const [id, raw] of Object.entries(pendingEip712s != null ? pendingEip712s : {}).sort(
       (left, right) => Number(left[0]) - Number(right[0])
@@ -1783,7 +1837,43 @@ async function executeWalletCalls(params) {
     getPreferredRpcUrl
   } = params;
   if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState);
+    try {
+      return await executeViaAA(callList, providerState);
+    } catch (error) {
+      if (!shouldFallbackFromAAError(error, providerState)) {
+        throw error;
+      }
+      const errorKind = classifyAAFallbackError(error);
+      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
+        provider: providerState.account.provider,
+        mode: providerState.resolved.mode,
+        chainId: providerState.resolved.chainId,
+        callCount: callList.length,
+        errorKind,
+        error: toErrorMessage(error)
+      });
+      if (errorKind === "simulation_revert") {
+        console.warn(
+          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA."
+        );
+      }
+      if (errorKind === "insufficient_prefund") {
+        console.warn(
+          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account."
+        );
+      }
+      return executeViaEoa({
+        callList,
+        currentChainId,
+        capabilities,
+        localPrivateKey,
+        sendCallsSyncAsync,
+        sendTransactionAsync,
+        switchChainAsync,
+        chainsById,
+        getPreferredRpcUrl
+      });
+    }
   }
   if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
     throw providerState.error;
@@ -1808,7 +1898,37 @@ async function executeViaAA(callList, providerState) {
     throw (_a = providerState.error) != null ? _a : new Error("smart_account_unavailable");
   }
   const callsPayload = callList.map(({ to, value, data }) => ({ to, value, data }));
-  const receipt = callList.length > 1 ? await account.sendBatchTransaction(callsPayload) : await account.sendTransaction(callsPayload[0]);
+  const sendAARequest = async () => {
+    return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
+  };
+  let receipt;
+  try {
+    receipt = await sendAARequest();
+  } catch (error) {
+    if (!isRetryableBundlerSubmissionError(error)) {
+      throw error;
+    }
+    console.warn("[aomi][aa] transient bundler submission error; retrying once", {
+      provider: account.provider,
+      mode: account.mode,
+      chainId: resolved.chainId,
+      callCount: callList.length,
+      error: toErrorMessage(error)
+    });
+    try {
+      receipt = await sendAARequest();
+    } catch (retryError) {
+      console.error("[aomi][aa] AA retry failed after transient bundler submission error", {
+        provider: account.provider,
+        mode: account.mode,
+        chainId: resolved.chainId,
+        callCount: callList.length,
+        firstError: toErrorMessage(error),
+        retryError: toErrorMessage(retryError)
+      });
+      throw retryError;
+    }
+  }
   const txHash = receipt.transactionHash;
   const providerPrefix = account.provider.toLowerCase();
   let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
@@ -1904,22 +2024,8 @@ async function executeViaEoa({
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = (_a = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a.status;
   const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
-  const atomicCapabilityRequest = atomicStatus === "ready" ? { required: true } : atomicStatus === "supported" ? { optional: true } : void 0;
-  if (canUseSendCalls) {
-    const batchResult = await sendCallsSyncAsync({
-      chainId,
-      calls: callList.map(({ to, value, data }) => ({ to, value, data })),
-      capabilities: atomicCapabilityRequest ? {
-        atomic: atomicCapabilityRequest
-      } : void 0
-    });
-    const receipts = (_b = batchResult.receipts) != null ? _b : [];
-    for (const receipt of receipts) {
-      if (receipt.transactionHash) {
-        hashes.push(receipt.transactionHash);
-      }
-    }
-  } else {
+  const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : void 0;
+  const sendSequentially = async () => {
     for (const call of callList) {
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
@@ -1929,6 +2035,30 @@ async function executeViaEoa({
       });
       hashes.push(hash);
     }
+  };
+  if (canUseSendCalls) {
+    try {
+      const batchResult = await sendCallsSyncAsync({
+        chainId,
+        calls: callList.map(({ to, value, data }) => ({ to, value, data })),
+        capabilities: atomicCapabilityRequest ? {
+          atomic: atomicCapabilityRequest
+        } : void 0
+      });
+      const receipts = (_b = batchResult.receipts) != null ? _b : [];
+      for (const receipt of receipts) {
+        if (receipt.transactionHash) {
+          hashes.push(receipt.transactionHash);
+        }
+      }
+    } catch (error) {
+      if (!isUnsupportedAtomicCapabilityError(error)) {
+        throw error;
+      }
+      await sendSequentially();
+    }
+  } else {
+    await sendSequentially();
   }
   return {
     txHash: hashes[hashes.length - 1],
@@ -1937,6 +2067,54 @@ async function executeViaEoa({
     batched: hashes.length > 1,
     sponsored: false
   };
+}
+function isUnsupportedAtomicCapabilityError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("unsupported non-optional capabilities: atomic") || lowered.includes("unsupported") && lowered.includes("atomic") || lowered.includes("wallet does not support") && lowered.includes("capabilit");
+}
+function toErrorMessage(error) {
+  var _a;
+  if (error instanceof Error) {
+    return (_a = error.stack) != null ? _a : error.message;
+  }
+  return String(error);
+}
+function shouldFallbackFromAAError(error, providerState) {
+  if (!providerState.resolved) {
+    return false;
+  }
+  if (providerState.resolved.mode !== "4337") {
+    return false;
+  }
+  return isRetryableBundlerSubmissionError(error) || isAASimulationRevertError(error) || isAAInsufficientPrefundError(error);
+}
+function isRetryableBundlerSubmissionError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("bundle id is unknown") || lowered.includes("bundle id unknown") || lowered.includes("has not been submitted") || lowered.includes("userop") && lowered.includes("not found") || lowered.includes("user operation") && lowered.includes("not found");
+}
+function isAASimulationRevertError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted");
+}
+function isAAInsufficientPrefundError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("sender balance and deposit together") || lowered.includes("precheck failed") && lowered.includes("must be at least");
+}
+function classifyAAFallbackError(error) {
+  if (isRetryableBundlerSubmissionError(error)) {
+    return "retryable_bundler";
+  }
+  if (isAAInsufficientPrefundError(error)) {
+    return "insufficient_prefund";
+  }
+  if (isAASimulationRevertError(error)) {
+    return "simulation_revert";
+  }
+  return "other";
 }
 function resolveChainCapabilities(capabilities, chainId) {
   var _a, _b;
