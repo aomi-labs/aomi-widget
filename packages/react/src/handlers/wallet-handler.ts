@@ -5,29 +5,15 @@ import type {
   WalletEip712Payload,
   WalletTxPayload,
   WalletRequest,
+  WalletRequestResult,
 } from "@aomi-labs/client";
 import type { Session as ClientSession } from "@aomi-labs/client";
 
 // Re-export types consumers need
-export type { WalletRequest, WalletTxPayload, WalletEip712Payload };
+export type { WalletRequest, WalletTxPayload, WalletEip712Payload, WalletRequestResult };
 
 export type WalletRequestKind = "transaction" | "eip712_sign";
 export type WalletRequestStatus = "pending" | "processing";
-
-export type WalletRequestResult = {
-  txHash?: string;
-  signature?: string;
-  amount?: string;
-  aaRequestedMode?: "4337" | "7702" | "none";
-  aaResolvedMode?: "4337" | "7702" | "none";
-  aaFallbackReason?: string;
-  executionKind?: string;
-  batched?: boolean;
-  callCount?: number;
-  sponsored?: boolean;
-  smartAccountAddress?: string;
-  delegationAddress?: string;
-};
 
 export type WalletHandlerConfig = {
   /** Get the ClientSession for the current thread. */

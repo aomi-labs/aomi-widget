@@ -60,6 +60,7 @@ __export(index_exports, {
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
+  aaModeFromExecutionKind: () => import_client8.aaModeFromExecutionKind,
   cn: () => cn,
   executeWalletCalls: () => import_client8.executeWalletCalls,
   formatAddress: () => formatAddress,
@@ -67,6 +68,7 @@ __export(index_exports, {
   getNetworkName: () => getNetworkName,
   hydrateTxPayloadFromUserState: () => import_client8.hydrateTxPayloadFromUserState,
   initThreadControl: () => initThreadControl,
+  parseChainId: () => import_client8.parseChainId,
   toAAWalletCall: () => import_client8.toAAWalletCall,
   toAAWalletCalls: () => import_client8.toAAWalletCalls,
   toViemSignTypedDataArgs: () => import_client8.toViemSignTypedDataArgs,
@@ -1878,9 +1880,6 @@ function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
-      startWalletRequest: () => {
-      },
-      // No-op: ClientSession manages processing state
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       // Event API
@@ -2008,6 +2007,7 @@ function useNotificationHandler({
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
+  aaModeFromExecutionKind,
   cn,
   executeWalletCalls,
   formatAddress,
@@ -2015,6 +2015,7 @@ function useNotificationHandler({
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  parseChainId,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignTypedDataArgs,

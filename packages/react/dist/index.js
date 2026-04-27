@@ -39,7 +39,9 @@ import {
   toAAWalletCalls,
   toAAWalletCall,
   executeWalletCalls,
-  DISABLED_PROVIDER_STATE
+  DISABLED_PROVIDER_STATE,
+  parseChainId,
+  aaModeFromExecutionKind
 } from "@aomi-labs/client";
 
 // packages/react/src/runtime/aomi-runtime.tsx
@@ -1867,9 +1869,6 @@ function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
-      startWalletRequest: () => {
-      },
-      // No-op: ClientSession manages processing state
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       // Event API
@@ -1996,6 +1995,7 @@ export {
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
+  aaModeFromExecutionKind,
   cn,
   executeWalletCalls,
   formatAddress,
@@ -2003,6 +2003,7 @@ export {
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  parseChainId,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignTypedDataArgs,

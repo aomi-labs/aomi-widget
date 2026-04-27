@@ -151,9 +151,7 @@ export async function createAlchemyAAState(
     { ...chainConfig, defaultMode: effectiveMode },
   );
 
-  const requestedGasPolicyId = sponsored
-    ? (options.gasPolicyId ?? process.env.ALCHEMY_GAS_POLICY_ID?.trim())
-    : undefined;
+  const requestedGasPolicyId = sponsored ? options.gasPolicyId : undefined;
   const gasPolicyId = effectiveMode === "7702" ? undefined : requestedGasPolicyId;
 
   const execution = {

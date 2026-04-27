@@ -139,7 +139,7 @@ function aaRequestedModeFromPreference(
   return "4337";
 }
 
-function aaModeFromExecutionKind(
+export function aaModeFromExecutionKind(
   executionKind: string | undefined,
 ): "4337" | "7702" | "none" | undefined {
   if (!executionKind) return undefined;

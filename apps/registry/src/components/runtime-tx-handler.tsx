@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import {
   hydrateTxPayloadFromUserState,
+  parseChainId,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletEip712Payload,
@@ -10,20 +11,6 @@ import {
   type WalletTxPayload,
 } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
-
-function parseChainId(value: number | string | undefined): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return undefined;
-
-  const trimmed = value.trim();
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : undefined;
-  }
-
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
@@ -39,7 +26,6 @@ export function RuntimeTxHandler() {
   const {
     user,
     pendingWalletRequests,
-    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
   } = useAomiRuntime();
@@ -53,8 +39,6 @@ export function RuntimeTxHandler() {
     if (!next || processingRef.current) return;
 
     processingRef.current = true;
-    startWalletRequest(next.id);
-
     processRequest(next).finally(() => {
       processingRef.current = false;
     });
@@ -123,7 +107,6 @@ export function RuntimeTxHandler() {
     user,
     pendingWalletRequests,
     currentChainId,
-    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
   ]);

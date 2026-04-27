@@ -78,7 +78,7 @@ function getToolArgs(payload: unknown): UnknownRecord {
   return nestedArgs ?? root ?? {};
 }
 
-function parseChainId(value: unknown): number | undefined {
+export function parseChainId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
 
