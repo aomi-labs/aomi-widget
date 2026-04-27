@@ -1,3 +1,5 @@
+import { createPublicClient, createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import type { Hex } from "viem";
 import { CHAINS_BY_ID } from "../chains";
 
@@ -7,7 +9,12 @@ import type {
   AAWalletCall,
   ExecuteWalletCallsParams,
   ExecutionResult,
+  WalletAtomicCapability,
 } from "./types";
+
+function normalizeRpcCallData(data: Hex | undefined): Hex | undefined {
+  return data === "0x" ? undefined : data;
+}
 
 // ---------------------------------------------------------------------------
 // Public Entry Point
@@ -30,10 +37,50 @@ export async function executeWalletCalls(
   } = params;
 
   if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState);
+    try {
+      return await executeViaAA(callList, providerState);
+    } catch (error) {
+      if (!shouldFallbackFromAAError(error, providerState)) {
+        throw error;
+      }
+      const errorKind = classifyAAFallbackError(error);
+      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
+        provider: providerState.account.provider,
+        mode: providerState.resolved.mode,
+        chainId: providerState.resolved.chainId,
+        callCount: callList.length,
+        errorKind,
+        error: toErrorMessage(error),
+      });
+      if (errorKind === "simulation_revert") {
+        console.warn(
+          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA.",
+        );
+      }
+      if (errorKind === "insufficient_prefund") {
+        console.warn(
+          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account.",
+        );
+      }
+      return executeViaEoa({
+        callList,
+        currentChainId,
+        capabilities,
+        localPrivateKey,
+        sendCallsSyncAsync,
+        sendTransactionAsync,
+        switchChainAsync,
+        chainsById,
+        getPreferredRpcUrl,
+      });
+    }
   }
 
-  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
+  if (
+    providerState.resolved &&
+    providerState.error &&
+    !providerState.resolved.fallbackToEoa
+  ) {
     throw providerState.error;
   }
 
@@ -65,11 +112,51 @@ async function executeViaAA(
     throw providerState.error ?? new Error("smart_account_unavailable");
   }
 
-  const callsPayload: AACallPayload[] = callList.map(({ to, value, data }) => ({ to, value, data }));
-  const receipt =
-    callList.length > 1
-      ? await account.sendBatchTransaction(callsPayload)
-      : await account.sendTransaction(callsPayload[0]);
+  const callsPayload: AACallPayload[] = callList.map(({ to, value, data }) => ({
+    to,
+    value,
+    data,
+  }));
+  const sendAARequest = async () => {
+    return callList.length > 1
+      ? account.sendBatchTransaction(callsPayload)
+      : account.sendTransaction(callsPayload[0]);
+  };
+
+  let receipt;
+  try {
+    receipt = await sendAARequest();
+  } catch (error) {
+    if (!isRetryableBundlerSubmissionError(error)) {
+      throw error;
+    }
+    console.warn(
+      "[aomi][aa] transient bundler submission error; retrying once",
+      {
+        provider: account.provider,
+        mode: account.mode,
+        chainId: resolved.chainId,
+        callCount: callList.length,
+        error: toErrorMessage(error),
+      },
+    );
+    try {
+      receipt = await sendAARequest();
+    } catch (retryError) {
+      console.error(
+        "[aomi][aa] AA retry failed after transient bundler submission error",
+        {
+          provider: account.provider,
+          mode: account.mode,
+          chainId: resolved.chainId,
+          callCount: callList.length,
+          firstError: toErrorMessage(error),
+          retryError: toErrorMessage(retryError),
+        },
+      );
+      throw retryError;
+    }
+  }
   const txHash = receipt.transactionHash;
   const providerPrefix = account.provider.toLowerCase();
 
@@ -104,7 +191,6 @@ async function resolve7702Delegation(
   callList: AAWalletCall[],
 ): Promise<Hex | undefined> {
   try {
-    const { createPublicClient, http } = await import("viem");
     const chainId = callList[0]?.chainId;
     if (!chainId) return undefined;
 
@@ -143,13 +229,14 @@ async function executeViaEoa({
   chainsById,
   getPreferredRpcUrl,
 }: Omit<ExecuteWalletCallsParams, "providerState">): Promise<ExecutionResult> {
-  const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount } = await import("viem/accounts");
-
   const hashes: string[] = [];
+  const normalizedCalls = callList.map((call) => ({
+    ...call,
+    data: normalizeRpcCallData(call.data),
+  }));
 
   if (localPrivateKey) {
-    for (const call of callList) {
+    for (const call of normalizedCalls) {
       const chain = chainsById[call.chainId];
       if (!chain) {
         throw new Error(`Unsupported chain ${call.chainId}`);
@@ -188,7 +275,7 @@ async function executeViaEoa({
     };
   }
 
-  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
+  const chainIds = Array.from(new Set(normalizedCalls.map((call) => call.chainId)));
   if (chainIds.length > 1) {
     throw new Error("mixed_chain_bundle_not_supported");
   }
@@ -198,30 +285,17 @@ async function executeViaEoa({
     await switchChainAsync({ chainId });
   }
 
-  const chainCaps = capabilities?.[`eip155:${chainId}`];
+  const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = chainCaps?.atomic?.status;
-  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  const canUseSendCalls =
+    normalizedCalls.length > 1 &&
+    (atomicStatus === "supported" || atomicStatus === "ready");
+  const atomicCapabilityRequest = canUseSendCalls
+    ? { optional: true }
+    : undefined;
 
-  if (canUseSendCalls) {
-    const batchResult = await sendCallsSyncAsync({
-      calls: callList.map(({ to, value, data }) => ({ to, value, data })),
-      capabilities: {
-        atomic: {
-          required: true,
-        },
-      },
-    });
-
-    const receipts =
-      (batchResult as { receipts?: Array<{ transactionHash?: string }> }).receipts ??
-      [];
-    for (const receipt of receipts) {
-      if (receipt.transactionHash) {
-        hashes.push(receipt.transactionHash);
-      }
-    }
-  } else {
-    for (const call of callList) {
+  const sendSequentially = async () => {
+    for (const call of normalizedCalls) {
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
         to: call.to,
@@ -230,6 +304,36 @@ async function executeViaEoa({
       });
       hashes.push(hash);
     }
+  };
+
+  if (canUseSendCalls) {
+    try {
+      const batchResult = await sendCallsSyncAsync({
+        chainId,
+        calls: normalizedCalls.map(({ to, value, data }) => ({ to, value, data })),
+        capabilities: atomicCapabilityRequest
+          ? {
+              atomic: atomicCapabilityRequest,
+            }
+          : undefined,
+      });
+
+      const receipts =
+        (batchResult as { receipts?: Array<{ transactionHash?: string }> })
+          .receipts ?? [];
+      for (const receipt of receipts) {
+        if (receipt.transactionHash) {
+          hashes.push(receipt.transactionHash);
+        }
+      }
+    } catch (error) {
+      if (!isUnsupportedAtomicCapabilityError(error)) {
+        throw error;
+      }
+      await sendSequentially();
+    }
+  } else {
+    await sendSequentially();
   }
 
   return {
@@ -239,4 +343,115 @@ async function executeViaEoa({
     batched: hashes.length > 1,
     sponsored: false,
   };
+}
+
+function isUnsupportedAtomicCapabilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    lowered.includes("unsupported non-optional capabilities: atomic") ||
+    (lowered.includes("unsupported") && lowered.includes("atomic")) ||
+    (lowered.includes("wallet does not support") &&
+      lowered.includes("capabilit"))
+  );
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message;
+  }
+  return String(error);
+}
+
+function shouldFallbackFromAAError(
+  error: unknown,
+  providerState: AAState,
+): boolean {
+  if (!providerState.resolved) {
+    return false;
+  }
+
+  // 7702 is additive over EOA — any execution failure is safe to fallback
+  if (providerState.resolved.mode === "7702") {
+    return true;
+  }
+
+  if (providerState.resolved.mode !== "4337") {
+    return false;
+  }
+
+  return (
+    isRetryableBundlerSubmissionError(error) ||
+    isAASimulationRevertError(error) ||
+    isAAInsufficientPrefundError(error)
+  );
+}
+
+function isRetryableBundlerSubmissionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+
+  return (
+    lowered.includes("bundle id is unknown") ||
+    lowered.includes("bundle id unknown") ||
+    lowered.includes("has not been submitted") ||
+    (lowered.includes("userop") && lowered.includes("not found")) ||
+    (lowered.includes("user operation") && lowered.includes("not found"))
+  );
+}
+
+function isAASimulationRevertError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    (lowered.includes("eth_estimateuseroperationgas") &&
+      lowered.includes("execution reverted")) ||
+    (lowered.includes("wallet_preparecalls") &&
+      (lowered.includes("aa23 reverted") || lowered.includes("validation reverted")))
+  );
+}
+
+function isAAInsufficientPrefundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    lowered.includes("sender balance and deposit together") ||
+    (lowered.includes("precheck failed") &&
+      lowered.includes("must be at least"))
+  );
+}
+
+function classifyAAFallbackError(
+  error: unknown,
+):
+  | "retryable_bundler"
+  | "simulation_revert"
+  | "insufficient_prefund"
+  | "other" {
+  if (isRetryableBundlerSubmissionError(error)) {
+    return "retryable_bundler";
+  }
+  if (isAAInsufficientPrefundError(error)) {
+    return "insufficient_prefund";
+  }
+  if (isAASimulationRevertError(error)) {
+    return "simulation_revert";
+  }
+  return "other";
+}
+
+function resolveChainCapabilities(
+  capabilities: ExecuteWalletCallsParams["capabilities"],
+  chainId: number,
+): WalletAtomicCapability | undefined {
+  if (!capabilities) {
+    return undefined;
+  }
+
+  const asRecord = capabilities as Record<string, WalletAtomicCapability>;
+  const eip155Key = `eip155:${chainId}`;
+  const decimalKey = String(chainId);
+  const hexKey = `0x${chainId.toString(16)}`;
+
+  return asRecord[eip155Key] ?? asRecord[decimalKey] ?? asRecord[hexKey];
 }

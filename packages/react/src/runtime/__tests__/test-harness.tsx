@@ -443,7 +443,12 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           .map(([id, payload]) => ({
             id: `tx-${id}`,
             kind: "transaction" as const,
-            payload: { ...payload, txId: Number(id), pending_tx_id: Number(id) },
+            payload: {
+              ...payload,
+              txId: Number(id),
+              txIds: [Number(id)],
+              aaPreference: "auto",
+            },
             timestamp: Date.now(),
           })),
         ...Object.entries(pendingEip712s)

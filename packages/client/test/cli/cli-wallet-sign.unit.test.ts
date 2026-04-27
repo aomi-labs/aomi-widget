@@ -261,6 +261,7 @@ describe("CLI wallet sign simulation integration", () => {
 
     expect(mocks.createCliProviderState).toHaveBeenCalledWith(
       expect.objectContaining({
+        baseUrl: "http://127.0.0.1:8080",
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",
@@ -309,6 +310,7 @@ describe("CLI wallet sign simulation integration", () => {
 
     expect(mocks.createCliProviderState).toHaveBeenCalledWith(
       expect.objectContaining({
+        baseUrl: "http://127.0.0.1:8080",
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",

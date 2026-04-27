@@ -72,11 +72,14 @@ export function buildCliUserState(
 
   if (publicKey !== undefined) {
     userState.address = publicKey;
-    userState.is_connected = true;
   }
 
   if (chainId !== undefined) {
     userState.chain_id = chainId;
+  }
+
+  if (publicKey !== undefined && chainId !== undefined) {
+    userState.is_connected = true;
   }
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);

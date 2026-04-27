@@ -20,6 +20,7 @@ import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
 import { initThreadControl } from "../state/thread-store";
 import { useWalletHandler } from "../handlers/wallet-handler";
+import { RuntimeUserStateProvider } from "./user-state-provider";
 
 // =============================================================================
 // Core Props
@@ -525,9 +526,15 @@ export function AomiRuntimeCore({
 
   return (
     <AomiRuntimeApiProvider value={aomiRuntimeApi}>
-      <AssistantRuntimeProvider runtime={runtime}>
-        {children}
-      </AssistantRuntimeProvider>
+      <RuntimeUserStateProvider
+        sessionManager={sessionManager}
+        getUserState={userContext.getUserState}
+        onUserStateChange={userContext.onUserStateChange}
+      >
+        <AssistantRuntimeProvider runtime={runtime}>
+          {children}
+        </AssistantRuntimeProvider>
+      </RuntimeUserStateProvider>
     </AomiRuntimeApiProvider>
   );
 }

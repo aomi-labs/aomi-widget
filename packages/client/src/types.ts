@@ -27,7 +27,7 @@ const USER_STATE_KEY_ALIASES: Record<string, string> = {
 };
 
 function parseUserStateChainId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
   }
   if (typeof value !== "string") {
@@ -39,8 +39,17 @@ function parseUserStateChainId(value: unknown): number | undefined {
     return undefined;
   }
 
+  if (trimmed.startsWith("0x")) {
+    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
+    return Number.isInteger(parsedHex) && parsedHex > 0 ? parsedHex : undefined;
+  }
+
   const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function normalizeAddressForComparison(value: string | undefined): string | undefined {
+  return typeof value === "string" ? value.toLowerCase() : undefined;
 }
 
 export namespace UserState {
@@ -63,6 +72,58 @@ export namespace UserState {
     }
 
     return normalized;
+  }
+
+  /**
+   * Reconcile a partial incoming snapshot against the previous canonical state.
+   * Preserves wallet context when backend/client snapshots omit address/chain_id.
+   */
+  export function reconcile(
+    previousUserState?: UserState | null,
+    incomingUserState?: UserState | null,
+  ): UserState | undefined {
+    const incoming = normalize(incomingUserState);
+    if (!incoming) {
+      return undefined;
+    }
+
+    const previous = normalize(previousUserState);
+    const reconciled: UserState = { ...incoming };
+
+    const previousAddress = address(previous);
+    const incomingAddress = address(incoming);
+    const incomingConnected = isConnected(incoming);
+    const incomingChainId = chainId(incoming);
+
+    const canPreserveConnectedWalletContext = incomingConnected !== false;
+    const sameAddress =
+      normalizeAddressForComparison(previousAddress) !== undefined &&
+      normalizeAddressForComparison(previousAddress) ===
+        normalizeAddressForComparison(incomingAddress);
+
+    if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
+      reconciled.address = previousAddress;
+    }
+
+    if (
+      incomingChainId === undefined &&
+      canPreserveConnectedWalletContext &&
+      previous &&
+      chainId(previous) !== undefined
+    ) {
+      const canPreserveChain =
+        sameAddress || (!incomingAddress && !!previousAddress);
+      if (canPreserveChain) {
+        reconciled.chain_id = chainId(previous);
+      }
+    }
+
+    // Never keep `is_connected: true` without a valid chain id.
+    if (isConnected(reconciled) === true && chainId(reconciled) === undefined) {
+      delete reconciled.is_connected;
+    }
+
+    return reconciled;
   }
 
   export function address(userState?: UserState | null): string | undefined {

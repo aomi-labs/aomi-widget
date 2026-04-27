@@ -6,7 +6,7 @@ import type { CliSession } from "./cli-session";
 
 export function createControlClient(config: CliConfig): AomiClient {
   return new AomiClient({
-    baseUrl: config.baseUrl,
+    baseUrl: config.baseUrl ?? "https://api.aomi.dev",
     apiKey: config.apiKey,
   });
 }

@@ -3,9 +3,9 @@ export type CliAAProvider = "alchemy" | "pimlico";
 export type CliAAMode = "4337" | "7702";
 
 export type CliConfig = {
-  baseUrl: string;
+  baseUrl?: string;
   apiKey?: string;
-  app: string;
+  app?: string;
   model?: string;
   freshSession?: boolean;
   publicKey?: string;
