@@ -25,6 +25,7 @@
     "clean:dist": "rm -rf dist"
   },
   "dependencies": {
+    "@aomi-labs/client": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",

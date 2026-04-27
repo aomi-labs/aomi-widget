@@ -996,6 +996,7 @@ import { UserState as UserState3 } from "@aomi-labs/client";
 
 // packages/react/src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
+import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
 // packages/react/src/runtime/session-manager.ts
 import { Session as ClientSession } from "@aomi-labs/client";
@@ -1163,6 +1164,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
         publicKey: (_a = options.getPublicKey) == null ? void 0 : _a.call(options),
         apiKey: (_c = (_b = options.getApiKey) == null ? void 0 : _b.call(options)) != null ? _c : void 0,
         clientId: (_d = options.getClientId) == null ? void 0 : _d.call(options),
+        clientType: CLIENT_TYPE_WEB_UI,
+        syncPendingTxRequestsFromUserState: false,
         userState: (_e = options.getUserState) == null ? void 0 : _e.call(options)
       });
       const cleanups = [];

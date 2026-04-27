@@ -1897,7 +1897,11 @@ async function executeViaAA(callList, providerState) {
   if (!account || !resolved) {
     throw (_a = providerState.error) != null ? _a : new Error("smart_account_unavailable");
   }
-  const callsPayload = callList.map(({ to, value, data }) => ({ to, value, data }));
+  const callsPayload = callList.map(({ to, value, data }) => ({
+    to,
+    value,
+    data
+  }));
   const sendAARequest = async () => {
     return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
   };
@@ -1908,24 +1912,30 @@ async function executeViaAA(callList, providerState) {
     if (!isRetryableBundlerSubmissionError(error)) {
       throw error;
     }
-    console.warn("[aomi][aa] transient bundler submission error; retrying once", {
-      provider: account.provider,
-      mode: account.mode,
-      chainId: resolved.chainId,
-      callCount: callList.length,
-      error: toErrorMessage(error)
-    });
-    try {
-      receipt = await sendAARequest();
-    } catch (retryError) {
-      console.error("[aomi][aa] AA retry failed after transient bundler submission error", {
+    console.warn(
+      "[aomi][aa] transient bundler submission error; retrying once",
+      {
         provider: account.provider,
         mode: account.mode,
         chainId: resolved.chainId,
         callCount: callList.length,
-        firstError: toErrorMessage(error),
-        retryError: toErrorMessage(retryError)
-      });
+        error: toErrorMessage(error)
+      }
+    );
+    try {
+      receipt = await sendAARequest();
+    } catch (retryError) {
+      console.error(
+        "[aomi][aa] AA retry failed after transient bundler submission error",
+        {
+          provider: account.provider,
+          mode: account.mode,
+          chainId: resolved.chainId,
+          callCount: callList.length,
+          firstError: toErrorMessage(error),
+          retryError: toErrorMessage(retryError)
+        }
+      );
       throw retryError;
     }
   }
@@ -2023,7 +2033,7 @@ async function executeViaEoa({
   }
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = (_a = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a.status;
-  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
+  const canUseSendCalls = callList.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
   const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : void 0;
   const sendSequentially = async () => {
     for (const call of callList) {
@@ -2097,7 +2107,7 @@ function isRetryableBundlerSubmissionError(error) {
 function isAASimulationRevertError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
-  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted");
+  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted") || lowered.includes("wallet_preparecalls") && (lowered.includes("aa23 reverted") || lowered.includes("validation reverted"));
 }
 function isAAInsufficientPrefundError(error) {
   const message = error instanceof Error ? error.message : String(error);

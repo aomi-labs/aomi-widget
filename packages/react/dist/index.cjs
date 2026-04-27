@@ -50,10 +50,10 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // packages/react/src/index.ts
 var index_exports = {};
 __export(index_exports, {
-  AomiClient: () => import_client6.AomiClient,
+  AomiClient: () => import_client7.AomiClient,
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   ControlContextProvider: () => ControlContextProvider,
-  DISABLED_PROVIDER_STATE: () => import_client7.DISABLED_PROVIDER_STATE,
+  DISABLED_PROVIDER_STATE: () => import_client8.DISABLED_PROVIDER_STATE,
   EventContextProvider: () => EventContextProvider,
   NotificationContextProvider: () => NotificationContextProvider,
   RuntimeUserStateProvider: () => RuntimeUserStateProvider,
@@ -61,15 +61,15 @@ __export(index_exports, {
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
   cn: () => cn,
-  executeWalletCalls: () => import_client7.executeWalletCalls,
+  executeWalletCalls: () => import_client8.executeWalletCalls,
   formatAddress: () => formatAddress,
   getChainInfo: () => getChainInfo,
   getNetworkName: () => getNetworkName,
-  hydrateTxPayloadFromUserState: () => import_client7.hydrateTxPayloadFromUserState,
+  hydrateTxPayloadFromUserState: () => import_client8.hydrateTxPayloadFromUserState,
   initThreadControl: () => initThreadControl,
-  toAAWalletCall: () => import_client7.toAAWalletCall,
-  toAAWalletCalls: () => import_client7.toAAWalletCalls,
-  toViemSignTypedDataArgs: () => import_client7.toViemSignTypedDataArgs,
+  toAAWalletCall: () => import_client8.toAAWalletCall,
+  toAAWalletCalls: () => import_client8.toAAWalletCalls,
+  toViemSignTypedDataArgs: () => import_client8.toViemSignTypedDataArgs,
   useAomiRuntime: () => useAomiRuntime,
   useControl: () => useControl,
   useCurrentThreadMessages: () => useCurrentThreadMessages,
@@ -82,12 +82,12 @@ __export(index_exports, {
   useWalletHandler: () => useWalletHandler
 });
 module.exports = __toCommonJS(index_exports);
-var import_client6 = require("@aomi-labs/client");
 var import_client7 = require("@aomi-labs/client");
+var import_client8 = require("@aomi-labs/client");
 
 // packages/react/src/runtime/aomi-runtime.tsx
 var import_react12 = require("react");
-var import_client5 = require("@aomi-labs/client");
+var import_client6 = require("@aomi-labs/client");
 
 // packages/react/src/contexts/control-context.tsx
 var import_react = require("react");
@@ -1003,10 +1003,11 @@ function UserContextProvider({ children }) {
 // packages/react/src/runtime/core.tsx
 var import_react10 = require("react");
 var import_react11 = require("@assistant-ui/react");
-var import_client4 = require("@aomi-labs/client");
+var import_client5 = require("@aomi-labs/client");
 
 // packages/react/src/runtime/orchestrator.ts
 var import_react6 = require("react");
+var import_client4 = require("@aomi-labs/client");
 
 // packages/react/src/runtime/session-manager.ts
 var import_client3 = require("@aomi-labs/client");
@@ -1174,6 +1175,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
         publicKey: (_a = options.getPublicKey) == null ? void 0 : _a.call(options),
         apiKey: (_c = (_b = options.getApiKey) == null ? void 0 : _b.call(options)) != null ? _c : void 0,
         clientId: (_d = options.getClientId) == null ? void 0 : _d.call(options),
+        clientType: import_client4.CLIENT_TYPE_WEB_UI,
+        syncPendingTxRequestsFromUserState: false,
         userState: (_e = options.getUserState) == null ? void 0 : _e.call(options)
       });
       const cleanups = [];
@@ -1563,7 +1566,7 @@ function AomiRuntimeCore({
     cancelGeneration: orchestratorCancel,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => import_client4.UserState.isConnected(getUserState()) ? import_client4.UserState.address(getUserState()) : void 0,
+    getPublicKey: () => import_client5.UserState.isConnected(getUserState()) ? import_client5.UserState.address(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -1579,9 +1582,9 @@ function AomiRuntimeCore({
     (nextUser) => {
       var _a;
       return {
-        address: import_client4.UserState.address(nextUser),
-        chain_id: import_client4.UserState.chainId(nextUser),
-        is_connected: (_a = import_client4.UserState.isConnected(nextUser)) != null ? _a : false,
+        address: import_client5.UserState.address(nextUser),
+        chain_id: import_client5.UserState.chainId(nextUser),
+        is_connected: (_a = import_client5.UserState.isConnected(nextUser)) != null ? _a : false,
         ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0
       };
     },
@@ -1624,7 +1627,7 @@ function AomiRuntimeCore({
       const userState = getUserState();
       await aomiClientRef.current.createThread(
         threadId,
-        import_client4.UserState.isConnected(userState) ? import_client4.UserState.address(userState) : void 0
+        import_client5.UserState.isConnected(userState) ? import_client5.UserState.address(userState) : void 0
       );
       warmedThreadIdsRef.current.add(threadId);
     },
@@ -1673,7 +1676,7 @@ function AomiRuntimeCore({
     threadContext.currentThreadId
   );
   (0, import_react10.useEffect)(() => {
-    const userAddress = import_client4.UserState.isConnected(user) ? import_client4.UserState.address(user) : void 0;
+    const userAddress = import_client5.UserState.isConnected(user) ? import_client5.UserState.address(user) : void 0;
     if (!userAddress) {
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
@@ -1922,7 +1925,7 @@ function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080"
 }) {
-  const aomiClient = (0, import_react12.useMemo)(() => new import_client5.AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  const aomiClient = (0, import_react12.useMemo)(() => new import_client6.AomiClient({ baseUrl: backendUrl }), [backendUrl]);
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(UserContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
@@ -1937,7 +1940,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: import_client5.UserState.isConnected(user) ? (_a = import_client5.UserState.address(user)) != null ? _a : void 0 : void 0,
+      publicKey: import_client6.UserState.isConnected(user) ? (_a = import_client6.UserState.address(user)) != null ? _a : void 0 : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(

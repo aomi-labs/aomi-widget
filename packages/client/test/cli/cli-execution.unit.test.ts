@@ -80,6 +80,18 @@ const CALL_LIST = [
     chainId: 1,
   },
 ] as const;
+const BATCH_CALL_LIST = [
+  {
+    to: "0x1111111111111111111111111111111111111111",
+    value: "1",
+    chainId: 1,
+  },
+  {
+    to: "0x2222222222222222222222222222222222222222",
+    value: "2",
+    chainId: 1,
+  },
+] as const;
 const ERC20_TRANSFER_CALL_LIST = [
   {
     to: "0x2222222222222222222222222222222222222222",
@@ -205,11 +217,22 @@ describe("CLI execution controls", () => {
   // resolveCliExecutionDecision — proxy default
   // -------------------------------------------------------------------------
 
-  it("defaults to proxy AA when no env vars are set (zero-config)", () => {
+  it("defaults to direct EOA for single-call auto mode", () => {
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
       callList: [...CALL_LIST],
+    });
+
+    expect(decision).toEqual({ execution: "eoa" });
+    expect(describeExecutionDecision(decision)).toBe("eoa");
+  });
+
+  it("defaults to proxy AA for multi-call batches when no env vars are set", () => {
+    const decision = resolveCliExecutionDecision({
+      config: { baseUrl: "https://api.aomi.dev", app: "default" },
+      chain: mainnet,
+      callList: [...BATCH_CALL_LIST],
     });
 
     expect(decision).toEqual({
@@ -227,13 +250,13 @@ describe("CLI execution controls", () => {
   // resolveCliExecutionDecision — BYOK
   // -------------------------------------------------------------------------
 
-  it("uses Alchemy BYOK when ALCHEMY_API_KEY is set", () => {
+  it("uses Alchemy BYOK when ALCHEMY_API_KEY is set for multi-call batches", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
 
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
-      callList: [...CALL_LIST],
+      callList: [...BATCH_CALL_LIST],
     });
 
     expect(decision).toEqual({
@@ -243,6 +266,26 @@ describe("CLI execution controls", () => {
       apiKey: "alchemy-key",
     });
     expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
+  });
+
+  it("prefers 7702 for multi-call batches when chain default mode is 4337", () => {
+    process.env.ALCHEMY_API_KEY = "alchemy-key";
+
+    const decision = resolveCliExecutionDecision({
+      config: { baseUrl: "https://api.aomi.dev", app: "default" },
+      chain: polygon,
+      callList: [
+        { ...ERC20_TRANSFER_CALL_LIST[0], data: "0x", to: "0x1111111111111111111111111111111111111111" },
+        { ...ERC20_TRANSFER_CALL_LIST[0], data: "0x", to: "0x2222222222222222222222222222222222222222" },
+      ],
+    });
+
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+      apiKey: "alchemy-key",
+    });
   });
 
   it("uses Pimlico BYOK when PIMLICO_API_KEY is set and provider is pimlico", () => {
