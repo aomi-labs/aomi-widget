@@ -39,6 +39,7 @@ describe("Control context", () => {
     await act(async () => {
       api.setUser({
         address: "0xabc",
+        chainId: 1,
         isConnected: true,
       });
       await flushPromises();
@@ -87,6 +88,7 @@ describe("Control context", () => {
     await act(async () => {
       api.setUser({
         address: "0xabc",
+        chainId: 1,
         isConnected: true,
       });
       await flushPromises();
@@ -128,6 +130,7 @@ describe("Control context", () => {
     await act(async () => {
       api.setUser({
         address: "0xabc",
+        chainId: 1,
         isConnected: true,
       });
       await flushPromises();

@@ -14,13 +14,23 @@ export type {
   AomiSystemResponse,
   AomiThread,
 } from "@aomi-labs/client";
-export { toViemSignTypedDataArgs } from "@aomi-labs/client";
+export {
+  toViemSignTypedDataArgs,
+  hydrateTxPayloadFromUserState,
+  toAAWalletCalls,
+  toAAWalletCall,
+  executeWalletCalls,
+  DISABLED_PROVIDER_STATE,
+  parseChainId,
+  aaModeFromExecutionKind,
+} from "@aomi-labs/client";
 
 // =============================================================================
 // Runtime Provider
 // =============================================================================
 export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
 export type { AomiRuntimeProviderProps } from "./runtime/aomi-runtime";
+export { RuntimeUserStateProvider } from "./runtime/user-state-provider";
 
 // =============================================================================
 // Unified Runtime API

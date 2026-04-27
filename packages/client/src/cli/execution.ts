@@ -87,7 +87,16 @@ function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliA
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
   });
-  const baseMode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
+  let baseMode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
+
+  // For multi-call batches, prefer 7702 first when available.
+  if (
+    !explicitMode &&
+    callList.length > 1 &&
+    chainConfig?.supportedModes.includes("7702")
+  ) {
+    baseMode = "7702";
+  }
 
   const { mode } = maybeOverride4337ForTokenOps({
     mode: baseMode,
@@ -116,6 +125,11 @@ export function resolveCliExecutionDecision(params: {
 
   // Explicit EOA
   if (config.execution === "eoa") {
+    return { execution: "eoa" };
+  }
+
+  // Auto mode: use direct EOA signing for single-call executions.
+  if (config.execution !== "aa" && callList.length === 1) {
     return { execution: "eoa" };
   }
 
@@ -172,12 +186,17 @@ export async function createCliProviderState(params: {
   const proxyBaseUrl = decision.proxy && chainSlug
     ? `${baseUrl}/aa/v1/${chainSlug}`
     : undefined;
+  const resolvedRpcUrl =
+    rpcUrl ||
+    chain.rpcUrls.default.http[0] ||
+    chain.rpcUrls.public?.http[0] ||
+    "";
 
   return createAAProviderState({
     provider: decision.provider,
     chain,
     owner: { kind: "direct", privateKey },
-    rpcUrl,
+    rpcUrl: resolvedRpcUrl,
     callList,
     mode: decision.aaMode,
     apiKey: decision.apiKey,

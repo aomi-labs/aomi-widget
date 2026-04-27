@@ -31,6 +31,7 @@ import {
   toSignedTransactionRecord,
 } from "../transactions";
 import type { CliConfig } from "../types";
+import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
 
 // ---------------------------------------------------------------------------
 // Fee Validation
@@ -152,8 +153,17 @@ function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
 }
 
 function getPreferredRpcUrl(chain: Chain, override?: string): string {
+  if (override) {
+    return override;
+  }
+
+  const alchemyApiKey = process.env.ALCHEMY_API_KEY?.trim();
+  const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
+  if (alchemyApiKey && alchemyChainSlug) {
+    return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
+  }
+
   return (
-    override ??
     chain.rpcUrls.default.http[0] ??
     chain.rpcUrls.public?.http[0] ??
     ""
@@ -323,7 +333,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      // Execute with AA mode fallback (e.g. 7702 → 4337)
+      // Execute with AA fallback chain in auto mode:
+      // 7702 -> 4337 -> EOA per-call
       let finalDecision: CliExecutionDecision = decision;
       let execution: ExecutionResult;
 
@@ -332,8 +343,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           decision: d,
           chain,
           privateKey: privateKey as `0x${string}`,
-          rpcUrl: rpcUrl ?? "",
+          rpcUrl: resolvedRpcUrl,
           callList,
+          baseUrl: cli.baseUrl,
         });
         return executeCliTransaction({
           privateKey: privateKey as `0x${string}`,
@@ -360,12 +372,21 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           finalDecision = alt;
         } catch (retryError) {
           const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          fatal(
-            `❌ AA execution failed with both modes.\n` +
-            `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
-            `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
-            `Use \`--eoa\` to sign without account abstraction.`,
-          );
+          if (config.execution === "aa") {
+            fatal(
+              `❌ AA execution failed with both modes.\n` +
+              `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
+              `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
+              `Use \`--eoa\` to sign without account abstraction.`,
+            );
+          }
+
+          console.log(`AA ${alt.execution === "aa" ? alt.aaMode : "execution"} failed: ${retryMsg}`);
+          console.log("Retrying with eoa...");
+
+          const eoaDecision: CliExecutionDecision = { execution: "eoa" };
+          execution = await runWithDecision(eoaDecision);
+          finalDecision = eoaDecision;
         }
       }
 
@@ -383,6 +404,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         console.log(`Deleg:   ${execution.delegationAddress}`);
       }
 
+      const executionUsedAA =
+        finalDecision.execution === "aa" && execution.executionKind !== "eoa";
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -390,8 +413,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           account.address,
           resolvedChainIds[index],
           Date.now(),
-          finalDecision.execution === "aa" ? finalDecision.provider : undefined,
-          finalDecision.execution === "aa" ? finalDecision.aaMode : undefined,
+          executionUsedAA ? finalDecision.provider : undefined,
+          executionUsedAA ? finalDecision.aaMode : undefined,
         ),
       );
       backendNotifications = pendingTxs.map((tx) => ({
@@ -399,7 +422,13 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         payload: {
           txHash: execution.txHash,
           status: "success",
-          ...(tx.txId !== undefined ? { pending_tx_id: tx.txId } : {}),
+          pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
+          execution_kind: execution.executionKind,
+          batched: execution.batched,
+          call_count: execution.txHashes.length,
+          sponsored: execution.sponsored,
+          smart_account_address: execution.AAAddress,
+          delegation_address: execution.delegationAddress,
         },
       }));
     } else {

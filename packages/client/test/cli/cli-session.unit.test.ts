@@ -326,4 +326,27 @@ describe("CLI session lifecycle", () => {
     expect(synced.map((tx) => tx.id)).toEqual(["tx-7", "tx-8"]);
     expect(synced.map((tx) => tx.kind)).toEqual(["transaction", "eip712_sign"]);
   });
+
+  it("does not wipe local chain when backend user_state omits chain_id", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+
+    const cli = CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      publicKey: "0xabc",
+      chain: 8453,
+    });
+
+    cli.syncPendingFromUserState({
+      address: "0xabc",
+      is_connected: true,
+      pending_txs: {},
+      pending_eip712s: {},
+    });
+
+    expect(cli.publicKey).toBe("0xabc");
+    expect(cli.chainId).toBe(8453);
+  });
 });

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import {
+  hydrateTxPayloadFromUserState,
+  parseChainId,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletEip712Payload,
@@ -10,18 +12,8 @@ import {
 } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
 
-function parseChainId(value: number | string | undefined): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return undefined;
-
-  const trimmed = value.trim();
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : undefined;
-  }
-
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+function hasHydratedCalls(payload: WalletTxPayload): boolean {
+  return Array.isArray(payload.calls) && payload.calls.length > 0;
 }
 
 /**
@@ -32,8 +24,8 @@ function parseChainId(value: number | string | undefined): number | undefined {
  */
 export function RuntimeTxHandler() {
   const {
+    user,
     pendingWalletRequests,
-    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
   } = useAomiRuntime();
@@ -47,8 +39,6 @@ export function RuntimeTxHandler() {
     if (!next || processingRef.current) return;
 
     processingRef.current = true;
-    startWalletRequest(next.id);
-
     processRequest(next).finally(() => {
       processingRef.current = false;
     });
@@ -56,28 +46,18 @@ export function RuntimeTxHandler() {
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "transaction") {
-          const payload = req.payload as WalletTxPayload;
+          const initialPayload = req.payload as WalletTxPayload;
+          const payload = hasHydratedCalls(initialPayload)
+            ? initialPayload
+            : hydrateTxPayloadFromUserState(initialPayload, user, { strict: true });
 
           if (!adapter.sendTransaction) {
             await rejectWalletRequest(req.id, "Wallet provider is not ready");
             return;
           }
 
-          if (
-            payload.chainId &&
-            currentChainId &&
-            payload.chainId !== currentChainId &&
-            adapter.switchChain
-          ) {
-            await adapter.switchChain(payload.chainId);
-          }
-
           const result = await adapter.sendTransaction(payload);
-
-          await resolveWalletRequest(req.id, {
-            txHash: result.txHash,
-            amount: result.amount,
-          });
+          await resolveWalletRequest(req.id, result);
           return;
         }
 
@@ -124,9 +104,9 @@ export function RuntimeTxHandler() {
     }
   }, [
     adapter,
+    user,
     pendingWalletRequests,
     currentChainId,
-    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
   ]);

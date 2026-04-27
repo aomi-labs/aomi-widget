@@ -72,6 +72,47 @@ interface AlchemyDirectOwnerParams {
   gasPolicyId?: string;
 }
 
+type ReadyOwnerParams = Extract<
+  ReturnType<typeof getOwnerParams>,
+  { kind: "ready" }
+>["ownerParams"];
+
+async function createAlchemySdkState(params: {
+  resolved: NonNullable<AAState["resolved"]>;
+  ownerParams: ReadyOwnerParams;
+  chain: Chain;
+  rpcUrl: string;
+  apiKey: string;
+  mode: AAMode;
+  gasPolicyId?: string;
+}): Promise<AAState> {
+  const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
+  const smartAccount = await createAlchemySmartAccount({
+    ...params.ownerParams,
+    apiKey: params.apiKey,
+    gasPolicyId: params.gasPolicyId,
+    chain: params.chain,
+    rpcUrl: params.rpcUrl,
+    mode: params.mode,
+  });
+
+  if (!smartAccount) {
+    return {
+      resolved: params.resolved,
+      account: null,
+      pending: false,
+      error: new Error("Alchemy AA account could not be initialized."),
+    };
+  }
+
+  return {
+    resolved: params.resolved,
+    account: adaptSmartAccount(smartAccount),
+    pending: false,
+    error: null,
+  };
+}
+
 export interface CreateAlchemyAAStateOptions {
   chain: Chain;
   owner: AAOwner;
@@ -110,9 +151,8 @@ export async function createAlchemyAAState(
     { ...chainConfig, defaultMode: effectiveMode },
   );
 
-  const gasPolicyId = sponsored
-    ? (options.gasPolicyId ?? process.env.ALCHEMY_GAS_POLICY_ID?.trim())
-    : undefined;
+  const requestedGasPolicyId = sponsored ? options.gasPolicyId : undefined;
+  const gasPolicyId = effectiveMode === "7702" ? undefined : requestedGasPolicyId;
 
   const execution = {
     ...plan,
@@ -139,6 +179,18 @@ export async function createAlchemyAAState(
       gasPolicyId,
     };
     try {
+      if (execution!.mode === "7702" && options.apiKey) {
+        return await createAlchemySdkState({
+          resolved: execution!,
+          ownerParams: ownerParams.ownerParams,
+          chain,
+          rpcUrl: options.rpcUrl,
+          apiKey: options.apiKey,
+          mode: "7702",
+          gasPolicyId: undefined,
+        });
+      }
+
       return await (execution!.mode === "7702"
         ? createAlchemy7702State(directParams)
         : createAlchemy4337State(directParams));
@@ -165,31 +217,15 @@ export async function createAlchemyAAState(
   }
 
   try {
-    const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
-    const smartAccount = await createAlchemySmartAccount({
-      ...ownerParams.ownerParams,
-      apiKey: options.apiKey,
-      gasPolicyId,
+    return await createAlchemySdkState({
+      resolved: execution!,
+      ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
+      apiKey: options.apiKey,
+      gasPolicyId,
       mode: execution!.mode,
     });
-
-    if (!smartAccount) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error("Alchemy AA account could not be initialized."),
-      };
-    }
-
-    return {
-      resolved: execution,
-      account: adaptSmartAccount(smartAccount),
-      pending: false,
-      error: null,
-    };
   } catch (error) {
     return {
       resolved: execution,

@@ -27,7 +27,7 @@
     "dev:landing:live": "pnpm run build:lib -- --watch & pnpm --filter landing dev",
     "dev:landing": "pnpm --filter landing dev",
     "dev:landing:ngrok": "./scripts/dev-landing-ngrok.sh",
-    "build:lib": "tsup",
+    "build:lib": "pnpm run build:client && tsup",
     "build:client": "pnpm --filter @aomi-labs/client build",
     "build:landing": "pnpm --filter landing build",
     "build:registry": "pnpm --filter @aomi-labs/widget-lib build",

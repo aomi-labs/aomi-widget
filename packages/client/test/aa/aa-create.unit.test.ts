@@ -132,13 +132,21 @@ describe("createAAProviderState", () => {
     toSimpleSmartAccountMock.mockResolvedValue({
       address: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
+    createAlchemySmartAccountMock.mockResolvedValue({
+      provider: "ALCHEMY",
+      mode: "7702",
+      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
+      sendTransaction: vi.fn(),
+      sendBatchTransaction: vi.fn(),
+    });
   });
 
   afterEach(() => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("creates an Alchemy 7702 provider state via raw viem", async () => {
+  it("creates an Alchemy 7702 provider state via SDK for direct owners", async () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -149,9 +157,16 @@ describe("createAAProviderState", () => {
       apiKey: "alchemy-key",
     });
 
-    // 7702 bypasses @alchemy/wallet-apis entirely
+    // 7702 bypasses @alchemy/wallet-apis in direct-owner mode.
     expect(createSmartWalletClientMock).not.toHaveBeenCalled();
-    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
+    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "alchemy-key",
+        chain: mainnet,
+        rpcUrl: "https://example-rpc.invalid",
+        mode: "7702",
+      }),
+    );
 
     expect(state.resolved).toMatchObject({
       provider: "alchemy",
@@ -159,9 +174,9 @@ describe("createAAProviderState", () => {
       fallbackToEoa: false,
     });
     expect(state.account).toMatchObject({
-      provider: "alchemy",
+      provider: "ALCHEMY",
       mode: "7702",
-      AAAddress: expect.stringMatching(/^0x[a-fA-F0-9]{40}$/),
+      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
     });
     expect(state.error).toBeNull();
@@ -255,8 +270,7 @@ describe("createAAProviderState", () => {
     expect(state.resolved).not.toBeNull();
   });
 
-  it("creates 7702 state even without wallet-apis", async () => {
-    // 7702 uses raw viem, so wallet-apis mock state doesn't matter
+  it("creates 7702 state without wallet-apis", async () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -267,8 +281,17 @@ describe("createAAProviderState", () => {
       apiKey: "key",
     });
 
+    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
+    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "key",
+        chain: mainnet,
+        rpcUrl: "https://example-rpc.invalid",
+        mode: "7702",
+      }),
+    );
     expect(state.account).toMatchObject({
-      provider: "alchemy",
+      provider: "ALCHEMY",
       mode: "7702",
     });
     expect(state.error).toBeNull();
@@ -337,7 +360,7 @@ describe("createAAProviderState owner modes", () => {
     expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
       expect.objectContaining({
         apiKey: "alchemy-key",
-        gasPolicyId: "policy-1",
+        gasPolicyId: undefined,
         para: PARA,
         chain: mainnet,
         rpcUrl: "https://example-rpc.invalid",
