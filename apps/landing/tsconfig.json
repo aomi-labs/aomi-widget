@@ -50,6 +50,12 @@
       ],
       "@aomi-labs/react/*": [
         "../../packages/react/src/*"
+      ],
+      "@aomi-labs/client": [
+        "../../packages/client/src/index.ts"
+      ],
+      "@aomi-labs/client/*": [
+        "../../packages/client/src/*"
       ]
     }
   },

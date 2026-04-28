@@ -16,6 +16,7 @@ import "@getpara/react-sdk/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { defineChain, http, type Chain, type Transport } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
+import { AomiParaAdapterProvider } from "../../../registry/src/lib/aomi-auth-adapter/providers/para";
 import {
   arbitrum,
   base,
@@ -189,10 +190,12 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
           paraModalConfig={paraModalConfig}
           externalWalletConfig={externalWalletConfig}
         >
-          <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+          <AomiParaAdapterProvider>
+            <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+          </AomiParaAdapterProvider>
         </ParaProvider>
       ) : (
-        children
+        <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
       )}
     </QueryClientProvider>
   );
