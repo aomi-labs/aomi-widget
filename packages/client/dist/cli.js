@@ -3542,11 +3542,48 @@ var init_execute = __esm({
   }
 });
 
+// src/aa/alchemy/defaults.ts
+function trimToUndefined(value) {
+  const trimmed = value == null ? void 0 : value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function resolveAlchemyApiKey(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_API_KEY;
+}
+function resolveAlchemyGasPolicyId(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_GAS_POLICY_ID;
+}
+var DEFAULT_ALCHEMY_API_KEY, DEFAULT_ALCHEMY_GAS_POLICY_ID;
+var init_defaults = __esm({
+  "src/aa/alchemy/defaults.ts"() {
+    "use strict";
+    DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
+    DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
+  }
+});
+
 // src/aa/alchemy/provider.ts
 var init_provider = __esm({
   "src/aa/alchemy/provider.ts"() {
     "use strict";
     init_types2();
+    init_defaults();
   }
 });
 
@@ -3716,6 +3753,10 @@ async function createAlchemyAAState(options) {
     mode,
     sponsored = true
   } = options;
+  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
+  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
+    gasPolicyId: options.gasPolicyId
+  });
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
@@ -3727,7 +3768,7 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const requestedGasPolicyId = sponsored ? options.gasPolicyId : void 0;
+  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : void 0;
   const gasPolicyId = effectiveMode === "7702" ? void 0 : requestedGasPolicyId;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
@@ -3746,7 +3787,7 @@ async function createAlchemyAAState(options) {
       resolved: execution,
       chain,
       privateKey: owner.privateKey,
-      apiKey: options.apiKey,
+      apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
       gasPolicyId
     };
@@ -3772,7 +3813,7 @@ async function createAlchemyAAState(options) {
       };
     }
   }
-  if (!options.apiKey) {
+  if (!apiKey) {
     return {
       resolved: execution,
       account: null,
@@ -3788,7 +3829,7 @@ async function createAlchemyAAState(options) {
       ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
-      apiKey: options.apiKey,
+      apiKey,
       gasPolicyId,
       mode: execution.mode
     });
@@ -4004,6 +4045,7 @@ var init_create = __esm({
     init_types2();
     init_owner();
     init_chains();
+    init_defaults();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
     AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
     EIP_7702_AUTH_GAS_OVERHEAD = BigInt(25e3);
@@ -4327,7 +4369,7 @@ function resolveMode(chain, callList, explicitMode) {
   return mode;
 }
 function resolveCliExecutionDecision(params) {
-  var _a3, _b;
+  var _a3;
   const { config, chain, callList } = params;
   if (config.execution === "eoa") {
     return { execution: "eoa" };
@@ -4336,7 +4378,7 @@ function resolveCliExecutionDecision(params) {
     return { execution: "eoa" };
   }
   const pimlicoKey = (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim();
-  const alchemyKey = (_b = process.env.ALCHEMY_API_KEY) == null ? void 0 : _b.trim();
+  const alchemyKey = resolveAlchemyApiKey();
   if (pimlicoKey && config.aaProvider === "pimlico") {
     const aaMode2 = resolveMode(chain, callList, config.aaMode);
     return { execution: "aa", provider: "pimlico", aaMode: aaMode2, apiKey: pimlicoKey };
@@ -4386,6 +4428,7 @@ var init_execution = __esm({
     "use strict";
     init_aa();
     init_chains();
+    init_defaults();
     ERC20_SELECTORS = /* @__PURE__ */ new Set([
       "0x095ea7b3",
       // approve(address,uint256)
@@ -4577,16 +4620,16 @@ function resolveChain(targetChainId, rpcUrl) {
   };
 }
 function getPreferredRpcUrl(chain, override) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c;
   if (override) {
     return override;
   }
-  const alchemyApiKey = (_a3 = process.env.ALCHEMY_API_KEY) == null ? void 0 : _a3.trim();
+  const alchemyApiKey = resolveAlchemyApiKey();
   const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
   if (alchemyApiKey && alchemyChainSlug) {
     return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
   }
-  return (_d = (_c = chain.rpcUrls.default.http[0]) != null ? _c : (_b = chain.rpcUrls.public) == null ? void 0 : _b.http[0]) != null ? _d : "";
+  return (_c = (_b = chain.rpcUrls.default.http[0]) != null ? _b : (_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) != null ? _c : "";
 }
 async function executeCliTransaction(params) {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
@@ -4888,6 +4931,7 @@ var init_wallet = __esm({
     init_output();
     init_transactions();
     init_chains();
+    init_defaults();
     MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
   }
 });

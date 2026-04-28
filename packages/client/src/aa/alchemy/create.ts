@@ -15,6 +15,10 @@ import {
   type AAOwner,
 } from "../owner";
 import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
+import {
+  resolveAlchemyApiKey,
+  resolveAlchemyGasPolicyId,
+} from "./defaults";
 
 const ALCHEMY_7702_DELEGATION_ADDRESS =
   "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
@@ -137,6 +141,10 @@ export async function createAlchemyAAState(
     mode,
     sponsored = true,
   } = options;
+  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
+  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
+    gasPolicyId: options.gasPolicyId,
+  });
 
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
@@ -151,7 +159,7 @@ export async function createAlchemyAAState(
     { ...chainConfig, defaultMode: effectiveMode },
   );
 
-  const requestedGasPolicyId = sponsored ? options.gasPolicyId : undefined;
+  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : undefined;
   const gasPolicyId = effectiveMode === "7702" ? undefined : requestedGasPolicyId;
 
   const execution = {
@@ -174,7 +182,7 @@ export async function createAlchemyAAState(
       resolved: execution!,
       chain,
       privateKey: owner.privateKey,
-      apiKey: options.apiKey,
+      apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
       gasPolicyId,
     };
@@ -205,7 +213,7 @@ export async function createAlchemyAAState(
   }
 
   // Session/adapter path — requires a real API key (no proxy support)
-  if (!options.apiKey) {
+  if (!apiKey) {
     return {
       resolved: execution,
       account: null,
@@ -222,7 +230,7 @@ export async function createAlchemyAAState(
       ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
-      apiKey: options.apiKey,
+      apiKey,
       gasPolicyId,
       mode: execution!.mode,
     });

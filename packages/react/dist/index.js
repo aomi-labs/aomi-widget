@@ -927,19 +927,32 @@ function UserContextProvider({ children }) {
       });
     });
   }, []);
+  const pruneUndefined = useCallback4((state) => {
+    return Object.fromEntries(
+      Object.entries(state).filter(([, value]) => value !== void 0)
+    );
+  }, []);
   const setUser = useCallback4((data) => {
     setUserState((prev) => {
       var _a, _b, _c;
-      const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
-      const next = normalizedData.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _b : prev), {
+      const normalizedData = pruneUndefined((_a = UserState.normalize(data)) != null ? _a : {});
+      const nextPartial = __spreadValues({}, normalizedData);
+      if (nextPartial.is_connected === true && nextPartial.chain_id === void 0) {
+        if (prev.chain_id !== void 0) {
+          nextPartial.chain_id = prev.chain_id;
+        } else {
+          delete nextPartial.is_connected;
+        }
+      }
+      const next = nextPartial.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev), {
         address: void 0,
         chain_id: void 0,
         ens_name: void 0
-      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _c : prev;
+      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _c : prev;
       notifyStateChange(next);
       return next;
     });
-  }, [notifyStateChange]);
+  }, [notifyStateChange, pruneUndefined]);
   const addExtValue = useCallback4((key, value) => {
     setUserState((prev) => {
       const next = UserState.withExt(prev, key, value);
