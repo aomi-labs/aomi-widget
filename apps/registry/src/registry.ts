@@ -32,6 +32,7 @@ export const registry: RegistryComponent[] = [
       // Internal aomi components (customized)
       aomi("assistant-thread"),
       aomi("assistant-threadlist-sidebar"),
+      aomi("aomi-auth-adapter"),
       aomi("control-bar"),
       aomi("notification"),
       aomi("runtime-tx-handler"),
@@ -43,6 +44,21 @@ export const registry: RegistryComponent[] = [
     description: "Full assistant shell with thread list and runtime wiring.",
   },
   {
+    name: "aomi-auth-adapter",
+    file: [
+      "lib/aomi-auth-adapter.ts",
+      "lib/aomi-auth-adapter/index.ts",
+      "lib/aomi-auth-adapter/context.tsx",
+      "lib/aomi-auth-adapter/types.ts",
+      "lib/aomi-auth-adapter/identity.ts",
+      "lib/aomi-auth-adapter/runtime-user-sync.tsx",
+      "lib/auth-identity.ts",
+    ],
+    dependencies: ["@aomi-labs/react"],
+    description:
+      "Generic Aomi auth adapter context and runtime user-state sync.",
+  },
+  {
     name: "control-bar",
     file: [
       "components/control-bar/index.tsx",
@@ -52,17 +68,10 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/connect-button.tsx",
       "components/control-bar/network-select.tsx",
       "components/control-bar/secret-input.tsx",
-      "lib/aomi-auth-adapter.ts",
-      "lib/auth-identity.ts",
     ],
-    dependencies: [
-      "@aomi-labs/client",
-      "@aomi-labs/react",
-      "@getpara/react-sdk",
-      "lucide-react",
-      "wagmi",
-    ],
+    dependencies: ["@aomi-labs/react", "lucide-react"],
     registryDependencies: [
+      aomi("aomi-auth-adapter"),
       "button",
       "popover",
       "dialog",
@@ -156,19 +165,48 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "runtime-tx-handler",
+    file: "components/runtime-tx-handler.tsx",
+    dependencies: ["@aomi-labs/react"],
+    registryDependencies: [aomi("aomi-auth-adapter")],
+    description:
+      "Executes wallet transaction and EIP-712 signing requests from the AI backend through the active auth adapter.",
+  },
+  {
+    name: "aomi-para-provider",
     file: [
-      "components/runtime-tx-handler.tsx",
-      "lib/aomi-auth-adapter.ts",
-      "lib/auth-identity.ts",
+      "lib/aomi-auth-adapter/providers/para.tsx",
+      "lib/aomi-auth-adapter/safe-wagmi-hooks.ts",
+      "lib/aomi-auth-adapter/wallet-execution.ts",
     ],
     dependencies: [
       "@aomi-labs/client",
       "@aomi-labs/react",
       "@getpara/react-sdk",
+      "@tanstack/react-query",
+      "viem",
       "wagmi",
     ],
+    registryDependencies: [aomi("aomi-auth-adapter")],
     description:
-      "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
+      "Para-backed Aomi auth adapter provider with the existing Aomi AA path.",
+  },
+  {
+    name: "aomi-base-account-provider",
+    file: [
+      "lib/aomi-auth-adapter/providers/base-account.tsx",
+      "lib/aomi-auth-adapter/safe-wagmi-hooks.ts",
+      "lib/aomi-auth-adapter/wallet-execution.ts",
+    ],
+    dependencies: [
+      "@aomi-labs/client",
+      "@aomi-labs/react",
+      "@tanstack/react-query",
+      "viem",
+      "wagmi",
+    ],
+    registryDependencies: [aomi("aomi-auth-adapter")],
+    description:
+      "Base Account-backed Aomi auth adapter provider using wagmi native wallet execution.",
   },
   // === SHADCN UI PRIMITIVES ===
   {

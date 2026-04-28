@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type FC } from "react";
-import { cn, getChainInfo, useUser } from "@aomi-labs/react";
+import { cn, getChainInfo } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export type ConnectButtonProps = {
@@ -16,30 +16,20 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   onConnectionChange,
 }) => {
   const adapter = useAomiAuthAdapter();
-  const { setUser } = useUser();
   const identity = adapter.identity;
 
   useEffect(() => {
-    setUser({
-      address: identity.address ?? undefined,
-      chainId: identity.chainId ?? undefined,
-      isConnected: identity.isConnected,
-    });
     onConnectionChange?.(identity.isConnected);
-  }, [
-    identity.address,
-    identity.chainId,
-    identity.isConnected,
-    setUser,
-    onConnectionChange,
-  ]);
+  }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    if (identity.isConnected) {
+    if (identity.isConnected && adapter.canManageAccount) {
       void adapter.manageAccount();
       return;
     }
-    void adapter.connect();
+    if (adapter.canConnect) {
+      void adapter.connect();
+    }
   };
 
   const ticker = identity.chainId
