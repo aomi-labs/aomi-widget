@@ -32,6 +32,7 @@ import {
 } from "../transactions";
 import type { CliConfig } from "../types";
 import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
+import { resolveAlchemyApiKey } from "../../aa/alchemy/defaults";
 
 // ---------------------------------------------------------------------------
 // Fee Validation
@@ -157,7 +158,7 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
     return override;
   }
 
-  const alchemyApiKey = process.env.ALCHEMY_API_KEY?.trim();
+  const alchemyApiKey = resolveAlchemyApiKey();
   const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
   if (alchemyApiKey && alchemyChainSlug) {
     return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;

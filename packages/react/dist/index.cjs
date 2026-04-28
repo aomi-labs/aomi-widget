@@ -941,19 +941,32 @@ function UserContextProvider({ children }) {
       });
     });
   }, []);
+  const pruneUndefined = (0, import_react5.useCallback)((state) => {
+    return Object.fromEntries(
+      Object.entries(state).filter(([, value]) => value !== void 0)
+    );
+  }, []);
   const setUser = (0, import_react5.useCallback)((data) => {
     setUserState((prev) => {
       var _a, _b, _c;
-      const normalizedData = (_a = import_client.UserState.normalize(data)) != null ? _a : {};
-      const next = normalizedData.is_connected === false ? __spreadProps(__spreadValues({}, (_b = import_client.UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _b : prev), {
+      const normalizedData = pruneUndefined((_a = import_client.UserState.normalize(data)) != null ? _a : {});
+      const nextPartial = __spreadValues({}, normalizedData);
+      if (nextPartial.is_connected === true && nextPartial.chain_id === void 0) {
+        if (prev.chain_id !== void 0) {
+          nextPartial.chain_id = prev.chain_id;
+        } else {
+          delete nextPartial.is_connected;
+        }
+      }
+      const next = nextPartial.is_connected === false ? __spreadProps(__spreadValues({}, (_b = import_client.UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev), {
         address: void 0,
         chain_id: void 0,
         ens_name: void 0
-      }) : (_c = import_client.UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _c : prev;
+      }) : (_c = import_client.UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _c : prev;
       notifyStateChange(next);
       return next;
     });
-  }, [notifyStateChange]);
+  }, [notifyStateChange, pruneUndefined]);
   const addExtValue = (0, import_react5.useCallback)((key, value) => {
     setUserState((prev) => {
       const next = import_client.UserState.withExt(prev, key, value);

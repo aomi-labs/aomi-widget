@@ -2195,19 +2195,47 @@ function resolveChainCapabilities(capabilities, chainId) {
   return (_b = (_a = asRecord2[eip155Key]) != null ? _a : asRecord2[decimalKey]) != null ? _b : asRecord2[hexKey];
 }
 
+// src/aa/alchemy/defaults.ts
+var DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
+var DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
+function trimToUndefined(value) {
+  const trimmed = value == null ? void 0 : value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function resolveAlchemyApiKey(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_API_KEY;
+}
+function resolveAlchemyGasPolicyId(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_GAS_POLICY_ID;
+}
+
 // src/aa/alchemy/provider.ts
 function resolveForHook(params) {
-  var _a, _b;
   const { calls, localPrivateKey, accountAbstractionConfig, chainsById, getPreferredRpcUrl } = params;
   if (!calls || localPrivateKey) return null;
   const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), { provider: "alchemy" });
   const chainConfig = getAAChainConfig(config, calls, chainsById);
   if (!chainConfig) return null;
-  const apiKey = (_a = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY) == null ? void 0 : _a.trim();
-  if (!apiKey) return null;
+  const apiKey = resolveAlchemyApiKey({ publicOnly: true });
   const chain = chainsById[chainConfig.chainId];
   if (!chain) return null;
-  const gasPolicyId = (_b = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _b.trim();
+  const gasPolicyId = resolveAlchemyGasPolicyId({ publicOnly: true });
   const resolved = buildAAExecutionPlan(config, chainConfig);
   return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
@@ -2418,6 +2446,10 @@ async function createAlchemyAAState(options) {
     mode,
     sponsored = true
   } = options;
+  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
+  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
+    gasPolicyId: options.gasPolicyId
+  });
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
@@ -2429,7 +2461,7 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const requestedGasPolicyId = sponsored ? options.gasPolicyId : void 0;
+  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : void 0;
   const gasPolicyId = effectiveMode === "7702" ? void 0 : requestedGasPolicyId;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
@@ -2448,7 +2480,7 @@ async function createAlchemyAAState(options) {
       resolved: execution,
       chain,
       privateKey: owner.privateKey,
-      apiKey: options.apiKey,
+      apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
       gasPolicyId
     };
@@ -2474,7 +2506,7 @@ async function createAlchemyAAState(options) {
       };
     }
   }
-  if (!options.apiKey) {
+  if (!apiKey) {
     return {
       resolved: execution,
       account: null,
@@ -2490,7 +2522,7 @@ async function createAlchemyAAState(options) {
       ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
-      apiKey: options.apiKey,
+      apiKey,
       gasPolicyId,
       mode: execution.mode
     });
