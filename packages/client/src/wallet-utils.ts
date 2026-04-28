@@ -34,6 +34,7 @@ export type WalletTxPayload = {
   txId?: number;
   txIds?: number[];
   aaPreference?: WalletTxAaPreference;
+  aaStrict?: boolean;
   requestId?: string;
   calls?: WalletTxCallPayload[];
 };

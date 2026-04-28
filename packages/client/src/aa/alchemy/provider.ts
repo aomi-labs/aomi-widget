@@ -9,6 +9,10 @@ import type {
   AAWalletCall,
 } from "../types";
 import { DEFAULT_AA_CONFIG, getAAChainConfig, buildAAExecutionPlan } from "../types";
+import {
+  resolveAlchemyApiKey,
+  resolveAlchemyGasPolicyId,
+} from "./defaults";
 
 export interface AlchemyHookParams {
   enabled: boolean;
@@ -60,13 +64,12 @@ function resolveForHook(params: {
   const chainConfig = getAAChainConfig(config, calls, chainsById);
   if (!chainConfig) return null;
 
-  const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim();
-  if (!apiKey) return null;
+  const apiKey = resolveAlchemyApiKey({ publicOnly: true });
 
   const chain = chainsById[chainConfig.chainId];
   if (!chain) return null;
 
-  const gasPolicyId = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
+  const gasPolicyId = resolveAlchemyGasPolicyId({ publicOnly: true });
   const resolved = buildAAExecutionPlan(config, chainConfig);
 
   return {

@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { UserState } from "@aomi-labs/client";
+import type { AomiSimulateResponse, UserState } from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
 import type {
   EventSubscriber,
@@ -97,6 +97,18 @@ export type AomiRuntimeApi = {
   ) => Promise<void>;
   /** Fail a wallet request after the backend acknowledges the error */
   rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+  /** Simulate a batch against the current thread session context. */
+  simulateBatchTransactions: (
+    transactions: Array<{
+      to: string;
+      value?: string;
+      data?: string;
+      label?: string;
+      chain_id?: number;
+      chainId?: number;
+    }>,
+    options?: { from?: string; chainId?: number },
+  ) => Promise<AomiSimulateResponse["result"]>;
 
   // -------------------------------------------------------------------------
   // EVENT API

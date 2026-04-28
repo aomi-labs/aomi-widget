@@ -10,6 +10,7 @@ import {
 } from "../aa";
 import { ALCHEMY_CHAIN_SLUGS } from "../chains";
 import type { CliAAProvider, CliAAMode, CliConfig } from "./types";
+import { resolveAlchemyApiKey } from "../aa/alchemy/defaults";
 
 // ---------------------------------------------------------------------------
 // ERC-20 Call Detection
@@ -113,8 +114,8 @@ function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliA
  *
  * - `--eoa`  → EOA, always.
  * - PIMLICO_API_KEY + --aa-provider pimlico → Pimlico direct
- * - ALCHEMY_API_KEY set → Alchemy BYOK
- * - (default) → Alchemy proxy via backend (zero-config)
+ * - Alchemy key resolved (env or built-in default) → Alchemy direct
+ * - (fallback) → Alchemy proxy via backend
  */
 export function resolveCliExecutionDecision(params: {
   config: CliConfig;
@@ -134,7 +135,7 @@ export function resolveCliExecutionDecision(params: {
   }
 
   const pimlicoKey = process.env.PIMLICO_API_KEY?.trim();
-  const alchemyKey = process.env.ALCHEMY_API_KEY?.trim();
+  const alchemyKey = resolveAlchemyApiKey();
 
   // Pimlico BYOK (only when explicitly requested)
   if (pimlicoKey && config.aaProvider === "pimlico") {
@@ -142,7 +143,7 @@ export function resolveCliExecutionDecision(params: {
     return { execution: "aa", provider: "pimlico", aaMode, apiKey: pimlicoKey };
   }
 
-  // Alchemy BYOK
+  // Alchemy direct (user key or built-in default)
   if (alchemyKey) {
     const aaMode = resolveMode(chain, callList, config.aaMode);
     return { execution: "aa", provider: "alchemy", aaMode, apiKey: alchemyKey };

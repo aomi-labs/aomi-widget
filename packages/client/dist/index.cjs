@@ -52,13 +52,16 @@ __export(index_exports, {
   CLIENT_TYPE_WEB_UI: () => CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG: () => DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE: () => DISABLED_PROVIDER_STATE,
+  MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
   UserState: () => UserState,
   aaModeFromExecutionKind: () => aaModeFromExecutionKind,
   adaptSmartAccount: () => adaptSmartAccount,
   addUserStateExt: () => addUserStateExt,
+  appendFeeCallToPayload: () => appendFeeCallToPayload,
   buildAAExecutionPlan: () => buildAAExecutionPlan,
+  buildFeeAAWalletCall: () => buildFeeAAWalletCall,
   createAAProviderState: () => createAAProviderState,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
@@ -72,6 +75,7 @@ __export(index_exports, {
   isSystemError: () => isSystemError,
   isSystemNotice: () => isSystemNotice,
   normalizeEip712Payload: () => normalizeEip712Payload,
+  normalizeSimulatedFee: () => normalizeSimulatedFee,
   normalizeTxPayload: () => normalizeTxPayload,
   parseChainId: () => parseChainId,
   resolvePimlicoConfig: () => resolvePimlicoConfig,
@@ -834,8 +838,18 @@ var AomiClient = class {
     if (this.apiKey) {
       headers.set(API_KEY_HEADER, this.apiKey);
     }
+    const normalizedTransactions = transactions.map((transaction) => {
+      var _a, _b;
+      return {
+        to: transaction.to,
+        value: transaction.value,
+        data: transaction.data,
+        label: transaction.label,
+        chain_id: (_b = (_a = transaction.chain_id) != null ? _a : transaction.chainId) != null ? _b : options == null ? void 0 : options.chainId
+      };
+    });
     const payload = {
-      transactions,
+      transactions: normalizedTransactions,
       from: options == null ? void 0 : options.from,
       chain_id: options == null ? void 0 : options.chainId
     };
@@ -2259,19 +2273,123 @@ function resolveChainCapabilities(capabilities, chainId) {
   return (_b = (_a = asRecord2[eip155Key]) != null ? _a : asRecord2[decimalKey]) != null ? _b : asRecord2[hexKey];
 }
 
+// src/aa/fee.ts
+var import_viem3 = require("viem");
+var MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
+var ZERO_WEI = BigInt("0");
+function toPayloadCalls(payload, defaultChainId) {
+  var _a, _b;
+  if (Array.isArray(payload.calls) && payload.calls.length > 0) {
+    return payload.calls;
+  }
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return [
+    {
+      txId: (_a = payload.txId) != null ? _a : 0,
+      to: payload.to,
+      value: payload.value,
+      data: payload.data,
+      chainId: (_b = payload.chainId) != null ? _b : defaultChainId
+    }
+  ];
+}
+function normalizeSimulatedFee(fee) {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === ZERO_WEI) {
+    return null;
+  }
+  if (amountWei < ZERO_WEI) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    throw new Error("fee_exceeds_safety_limit");
+  }
+  return {
+    recipient: (0, import_viem3.getAddress)(fee.recipient),
+    amountWei
+  };
+}
+function buildFeeAAWalletCall(fee, chainId) {
+  const normalizedFee = normalizeSimulatedFee(fee);
+  if (!normalizedFee) {
+    return null;
+  }
+  return {
+    to: normalizedFee.recipient,
+    value: normalizedFee.amountWei,
+    chainId
+  };
+}
+function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
+  var _a, _b;
+  const feeCall = normalizeSimulatedFee(fee);
+  if (!feeCall) {
+    return payload;
+  }
+  const calls = toPayloadCalls(payload, defaultChainId);
+  const forceAaPreference = (_a = options == null ? void 0 : options.forceAaPreference) != null ? _a : "eip4337";
+  const strictAa = (_b = options == null ? void 0 : options.strictAa) != null ? _b : true;
+  return __spreadProps(__spreadValues({}, payload), {
+    // Fee call must be the final call in the AA batch.
+    calls: [
+      ...calls,
+      {
+        txId: 0,
+        to: feeCall.recipient,
+        value: feeCall.amountWei.toString(),
+        chainId: defaultChainId
+      }
+    ],
+    // Force AA mode once fee is appended so single user tx + fee still batches via AA.
+    aaPreference: forceAaPreference,
+    // Do not silently downgrade fee-injected batch requests to EOA.
+    aaStrict: strictAa
+  });
+}
+
+// src/aa/alchemy/defaults.ts
+var DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
+var DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
+function trimToUndefined(value) {
+  const trimmed = value == null ? void 0 : value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function resolveAlchemyApiKey(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_API_KEY;
+}
+function resolveAlchemyGasPolicyId(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_GAS_POLICY_ID;
+}
+
 // src/aa/alchemy/provider.ts
 function resolveForHook(params) {
-  var _a, _b;
   const { calls, localPrivateKey, accountAbstractionConfig, chainsById, getPreferredRpcUrl } = params;
   if (!calls || localPrivateKey) return null;
   const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), { provider: "alchemy" });
   const chainConfig = getAAChainConfig(config, calls, chainsById);
   if (!chainConfig) return null;
-  const apiKey = (_a = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY) == null ? void 0 : _a.trim();
-  if (!apiKey) return null;
+  const apiKey = resolveAlchemyApiKey({ publicOnly: true });
   const chain = chainsById[chainConfig.chainId];
   if (!chain) return null;
-  const gasPolicyId = (_b = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _b.trim();
+  const gasPolicyId = resolveAlchemyGasPolicyId({ publicOnly: true });
   const resolved = buildAAExecutionPlan(config, chainConfig);
   return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
@@ -2482,6 +2600,10 @@ async function createAlchemyAAState(options) {
     mode,
     sponsored = true
   } = options;
+  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
+  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
+    gasPolicyId: options.gasPolicyId
+  });
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
@@ -2493,7 +2615,7 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const requestedGasPolicyId = sponsored ? options.gasPolicyId : void 0;
+  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : void 0;
   const gasPolicyId = effectiveMode === "7702" ? void 0 : requestedGasPolicyId;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
@@ -2512,7 +2634,7 @@ async function createAlchemyAAState(options) {
       resolved: execution,
       chain,
       privateKey: owner.privateKey,
-      apiKey: options.apiKey,
+      apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
       gasPolicyId
     };
@@ -2538,7 +2660,7 @@ async function createAlchemyAAState(options) {
       };
     }
   }
-  if (!options.apiKey) {
+  if (!apiKey) {
     return {
       resolved: execution,
       account: null,
@@ -2554,7 +2676,7 @@ async function createAlchemyAAState(options) {
       ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
-      apiKey: options.apiKey,
+      apiKey,
       gasPolicyId,
       mode: execution.mode
     });
@@ -3067,13 +3189,16 @@ async function createAAProviderState(options) {
   CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE,
+  MAX_AUTO_FEE_WEI,
   Session,
   TypedEventEmitter,
   UserState,
   aaModeFromExecutionKind,
   adaptSmartAccount,
   addUserStateExt,
+  appendFeeCallToPayload,
   buildAAExecutionPlan,
+  buildFeeAAWalletCall,
   createAAProviderState,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
@@ -3087,6 +3212,7 @@ async function createAAProviderState(options) {
   isSystemError,
   isSystemNotice,
   normalizeEip712Payload,
+  normalizeSimulatedFee,
   normalizeTxPayload,
   parseChainId,
   resolvePimlicoConfig,

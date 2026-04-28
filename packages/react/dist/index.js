@@ -38,6 +38,10 @@ import {
   hydrateTxPayloadFromUserState,
   toAAWalletCalls,
   toAAWalletCall,
+  appendFeeCallToPayload,
+  buildFeeAAWalletCall,
+  normalizeSimulatedFee,
+  MAX_AUTO_FEE_WEI,
   executeWalletCalls,
   DISABLED_PROVIDER_STATE,
   parseChainId,
@@ -927,19 +931,32 @@ function UserContextProvider({ children }) {
       });
     });
   }, []);
+  const pruneUndefined = useCallback4((state) => {
+    return Object.fromEntries(
+      Object.entries(state).filter(([, value]) => value !== void 0)
+    );
+  }, []);
   const setUser = useCallback4((data) => {
     setUserState((prev) => {
       var _a, _b, _c;
-      const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
-      const next = normalizedData.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _b : prev), {
+      const normalizedData = pruneUndefined((_a = UserState.normalize(data)) != null ? _a : {});
+      const nextPartial = __spreadValues({}, normalizedData);
+      if (nextPartial.is_connected === true && nextPartial.chain_id === void 0) {
+        if (prev.chain_id !== void 0) {
+          nextPartial.chain_id = prev.chain_id;
+        } else {
+          delete nextPartial.is_connected;
+        }
+      }
+      const next = nextPartial.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev), {
         address: void 0,
         chain_id: void 0,
         ens_name: void 0
-      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), normalizedData))) != null ? _c : prev;
+      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _c : prev;
       notifyStateChange(next);
       return next;
     });
-  }, [notifyStateChange]);
+  }, [notifyStateChange, pruneUndefined]);
   const addExtValue = useCallback4((key, value) => {
     setUserState((prev) => {
       const next = UserState.withExt(prev, key, value);
@@ -1895,6 +1912,22 @@ function AomiRuntimeCore({
     },
     [threadContext.allThreadsMetadata, threadListAdapter]
   );
+  const simulateBatchTransactions = useCallback7(
+    async (transactions, options) => {
+      var _a, _b;
+      const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
+      if (!session) {
+        throw new Error("runtime_session_unavailable");
+      }
+      const response = await session.client.simulateBatch(
+        session.sessionId,
+        transactions,
+        options
+      );
+      return response.result;
+    },
+    [getSession, threadContext.currentThreadId]
+  );
   const aomiRuntimeApi = useMemo2(
     () => ({
       // User API
@@ -1929,6 +1962,7 @@ function AomiRuntimeCore({
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
+      simulateBatchTransactions,
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
@@ -1951,6 +1985,7 @@ function AomiRuntimeCore({
       cancelGeneration,
       notificationContext,
       walletHandler,
+      simulateBatchTransactions,
       eventContext
     ]
   );
@@ -2048,12 +2083,15 @@ export {
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
   EventContextProvider,
+  MAX_AUTO_FEE_WEI,
   NotificationContextProvider,
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
   aaModeFromExecutionKind,
+  appendFeeCallToPayload,
+  buildFeeAAWalletCall,
   cn,
   executeWalletCalls,
   formatAddress,
@@ -2061,6 +2099,7 @@ export {
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  normalizeSimulatedFee,
   parseChainId,
   toAAWalletCall,
   toAAWalletCalls,

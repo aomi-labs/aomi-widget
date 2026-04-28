@@ -1015,8 +1015,18 @@ var init_client = __esm({
         if (this.apiKey) {
           headers.set(API_KEY_HEADER, this.apiKey);
         }
+        const normalizedTransactions = transactions.map((transaction) => {
+          var _a3, _b;
+          return {
+            to: transaction.to,
+            value: transaction.value,
+            data: transaction.data,
+            label: transaction.label,
+            chain_id: (_b = (_a3 = transaction.chain_id) != null ? _a3 : transaction.chainId) != null ? _b : options == null ? void 0 : options.chainId
+          };
+        });
         const payload = {
-          transactions,
+          transactions: normalizedTransactions,
           from: options == null ? void 0 : options.from,
           chain_id: options == null ? void 0 : options.chainId
         };
@@ -3542,11 +3552,86 @@ var init_execute = __esm({
   }
 });
 
+// src/aa/fee.ts
+import { getAddress as getAddress3 } from "viem";
+function normalizeSimulatedFee(fee) {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === ZERO_WEI) {
+    return null;
+  }
+  if (amountWei < ZERO_WEI) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    throw new Error("fee_exceeds_safety_limit");
+  }
+  return {
+    recipient: getAddress3(fee.recipient),
+    amountWei
+  };
+}
+function buildFeeAAWalletCall(fee, chainId) {
+  const normalizedFee = normalizeSimulatedFee(fee);
+  if (!normalizedFee) {
+    return null;
+  }
+  return {
+    to: normalizedFee.recipient,
+    value: normalizedFee.amountWei,
+    chainId
+  };
+}
+var MAX_AUTO_FEE_WEI, ZERO_WEI;
+var init_fee = __esm({
+  "src/aa/fee.ts"() {
+    "use strict";
+    MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
+    ZERO_WEI = BigInt("0");
+  }
+});
+
+// src/aa/alchemy/defaults.ts
+function trimToUndefined(value) {
+  const trimmed = value == null ? void 0 : value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function resolveAlchemyApiKey(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_API_KEY;
+}
+function resolveAlchemyGasPolicyId(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_GAS_POLICY_ID;
+}
+var DEFAULT_ALCHEMY_API_KEY, DEFAULT_ALCHEMY_GAS_POLICY_ID;
+var init_defaults = __esm({
+  "src/aa/alchemy/defaults.ts"() {
+    "use strict";
+    DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
+    DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
+  }
+});
+
 // src/aa/alchemy/provider.ts
 var init_provider = __esm({
   "src/aa/alchemy/provider.ts"() {
     "use strict";
     init_types2();
+    init_defaults();
   }
 });
 
@@ -3716,6 +3801,10 @@ async function createAlchemyAAState(options) {
     mode,
     sponsored = true
   } = options;
+  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
+  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
+    gasPolicyId: options.gasPolicyId
+  });
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
@@ -3727,7 +3816,7 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const requestedGasPolicyId = sponsored ? options.gasPolicyId : void 0;
+  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : void 0;
   const gasPolicyId = effectiveMode === "7702" ? void 0 : requestedGasPolicyId;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
@@ -3746,7 +3835,7 @@ async function createAlchemyAAState(options) {
       resolved: execution,
       chain,
       privateKey: owner.privateKey,
-      apiKey: options.apiKey,
+      apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
       gasPolicyId
     };
@@ -3772,7 +3861,7 @@ async function createAlchemyAAState(options) {
       };
     }
   }
-  if (!options.apiKey) {
+  if (!apiKey) {
     return {
       resolved: execution,
       account: null,
@@ -3788,7 +3877,7 @@ async function createAlchemyAAState(options) {
       ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
-      apiKey: options.apiKey,
+      apiKey,
       gasPolicyId,
       mode: execution.mode
     });
@@ -4004,6 +4093,7 @@ var init_create = __esm({
     init_types2();
     init_owner();
     init_chains();
+    init_defaults();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
     AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
     EIP_7702_AUTH_GAS_OVERHEAD = BigInt(25e3);
@@ -4273,6 +4363,7 @@ var init_aa = __esm({
     "use strict";
     init_types2();
     init_execute();
+    init_fee();
     init_alchemy();
     init_pimlico();
     init_adapt();
@@ -4327,7 +4418,7 @@ function resolveMode(chain, callList, explicitMode) {
   return mode;
 }
 function resolveCliExecutionDecision(params) {
-  var _a3, _b;
+  var _a3;
   const { config, chain, callList } = params;
   if (config.execution === "eoa") {
     return { execution: "eoa" };
@@ -4336,7 +4427,7 @@ function resolveCliExecutionDecision(params) {
     return { execution: "eoa" };
   }
   const pimlicoKey = (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim();
-  const alchemyKey = (_b = process.env.ALCHEMY_API_KEY) == null ? void 0 : _b.trim();
+  const alchemyKey = resolveAlchemyApiKey();
   if (pimlicoKey && config.aaProvider === "pimlico") {
     const aaMode2 = resolveMode(chain, callList, config.aaMode);
     return { execution: "aa", provider: "pimlico", aaMode: aaMode2, apiKey: pimlicoKey };
@@ -4386,6 +4477,7 @@ var init_execution = __esm({
     "use strict";
     init_aa();
     init_chains();
+    init_defaults();
     ERC20_SELECTORS = /* @__PURE__ */ new Set([
       "0x095ea7b3",
       // approve(address,uint256)
@@ -4485,37 +4577,6 @@ __export(wallet_exports, {
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
 import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 import * as viemChains from "viem/chains";
-import { getAddress as getAddress3 } from "viem";
-function validateAndBuildFeeCall(fee, chainId) {
-  const amountWei = BigInt(fee.amount_wei);
-  if (amountWei === /* @__PURE__ */ BigInt("0")) {
-    return null;
-  }
-  if (amountWei < /* @__PURE__ */ BigInt("0")) {
-    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
-  }
-  let recipient;
-  try {
-    recipient = getAddress3(fee.recipient);
-  } catch (e) {
-    throw new Error(
-      `Invalid fee recipient address from backend: ${fee.recipient}`
-    );
-  }
-  if (amountWei > MAX_AUTO_FEE_WEI) {
-    const feeEth2 = (Number(amountWei) / 1e18).toFixed(6);
-    throw new Error(
-      `Fee of ${feeEth2} ETH exceeds safety limit of ${Number(MAX_AUTO_FEE_WEI) / 1e18} ETH. Aborting.`
-    );
-  }
-  const feeEth = (Number(amountWei) / 1e18).toFixed(6);
-  console.log(`Fee:     ${feeEth} ETH \u2192 ${recipient}`);
-  return toAAWalletCall({
-    to: recipient,
-    value: fee.amount_wei,
-    chainId
-  });
-}
 async function txCommand() {
   const cli = CliSession.load();
   if (!cli) {
@@ -4577,16 +4638,16 @@ function resolveChain(targetChainId, rpcUrl) {
   };
 }
 function getPreferredRpcUrl(chain, override) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c;
   if (override) {
     return override;
   }
-  const alchemyApiKey = (_a3 = process.env.ALCHEMY_API_KEY) == null ? void 0 : _a3.trim();
+  const alchemyApiKey = resolveAlchemyApiKey();
   const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
   if (alchemyApiKey && alchemyChainSlug) {
     return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
   }
-  return (_d = (_c = chain.rpcUrls.default.http[0]) != null ? _c : (_b = chain.rpcUrls.public) == null ? void 0 : _b.http[0]) != null ? _d : "";
+  return (_c = (_b = chain.rpcUrls.default.http[0]) != null ? _b : (_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) != null ? _c : "";
 }
 async function executeCliTransaction(params) {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
@@ -4687,13 +4748,14 @@ async function signCommand(config, txIds) {
       try {
         const simResponse = await session.client.simulateBatch(
           cli.sessionId,
-          pendingTxs.map((tx) => {
+          pendingTxs.map((tx, index) => {
             var _a4, _b2;
             return {
               to: (_a4 = tx.to) != null ? _a4 : "",
               value: tx.value,
               data: tx.data,
-              label: (_b2 = tx.description) != null ? _b2 : tx.id
+              label: (_b2 = tx.description) != null ? _b2 : tx.id,
+              chain_id: resolvedChainIds[index]
             };
           }),
           {
@@ -4716,7 +4778,12 @@ async function signCommand(config, txIds) {
         );
       }
       if (simFee) {
-        const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
+        const normalizedFee = normalizeSimulatedFee(simFee);
+        if (normalizedFee) {
+          const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
+          console.log(`Fee:     ${feeEth} ETH \u2192 ${normalizedFee.recipient}`);
+        }
+        const feeCall = buildFeeAAWalletCall(simFee, primaryChainId);
         if (feeCall) {
           callList.push(feeCall);
         }
@@ -4876,7 +4943,6 @@ Use \`--eoa\` to sign without account abstraction.`
     session.close();
   }
 }
-var MAX_AUTO_FEE_WEI;
 var init_wallet = __esm({
   "src/cli/commands/wallet.ts"() {
     "use strict";
@@ -4888,7 +4954,7 @@ var init_wallet = __esm({
     init_output();
     init_transactions();
     init_chains();
-    MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
+    init_defaults();
   }
 });
 
@@ -4926,12 +4992,13 @@ async function simulateCommand(txIds) {
     apiKey: cli.apiKey
   });
   const transactions = pendingTxs.map((tx) => {
-    var _a4, _b2;
+    var _a4, _b2, _c2;
     return {
       to: (_a4 = tx.to) != null ? _a4 : "",
       value: tx.value,
       data: tx.data,
-      label: (_b2 = tx.description) != null ? _b2 : tx.id
+      label: (_b2 = tx.description) != null ? _b2 : tx.id,
+      chain_id: (_c2 = tx.chainId) != null ? _c2 : cli.chainId
     };
   });
   const response = await client.simulateBatch(
