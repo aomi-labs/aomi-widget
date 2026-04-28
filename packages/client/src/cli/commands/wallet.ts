@@ -2,17 +2,16 @@ import { type Chain, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
+  buildFeeAAWalletCall,
+  normalizeSimulatedFee,
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
 import {
-  toAAWalletCall,
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
 import type { AomiSimulateFee } from "../../types";
-import type { AAWalletCall } from "../../aa";
-import { getAddress } from "viem";
 import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import {
@@ -33,51 +32,6 @@ import {
 import type { CliConfig } from "../types";
 import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
 import { resolveAlchemyApiKey } from "../../aa/alchemy/defaults";
-
-// ---------------------------------------------------------------------------
-// Fee Validation
-// ---------------------------------------------------------------------------
-
-/** Max fee the CLI will auto-inject without aborting (0.05 ETH). */
-const MAX_AUTO_FEE_WEI = BigInt("50000000000000000"); // 0.05 ETH
-
-function validateAndBuildFeeCall(
-  fee: AomiSimulateFee,
-  chainId: number,
-): AAWalletCall | null {
-  const amountWei = BigInt(fee.amount_wei);
-  if (amountWei === 0n) {
-    return null;
-  }
-  if (amountWei < 0n) {
-    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
-  }
-
-  let recipient: string;
-  try {
-    recipient = getAddress(fee.recipient);
-  } catch {
-    throw new Error(
-      `Invalid fee recipient address from backend: ${fee.recipient}`,
-    );
-  }
-
-  if (amountWei > MAX_AUTO_FEE_WEI) {
-    const feeEth = (Number(amountWei) / 1e18).toFixed(6);
-    throw new Error(
-      `Fee of ${feeEth} ETH exceeds safety limit of ${Number(MAX_AUTO_FEE_WEI) / 1e18} ETH. Aborting.`,
-    );
-  }
-
-  const feeEth = (Number(amountWei) / 1e18).toFixed(6);
-  console.log(`Fee:     ${feeEth} ETH → ${recipient}`);
-
-  return toAAWalletCall({
-    to: recipient,
-    value: fee.amount_wei,
-    chainId,
-  });
-}
 
 export async function txCommand(): Promise<void> {
   const cli = CliSession.load();
@@ -292,11 +246,12 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       try {
         const simResponse = await session.client.simulateBatch(
           cli.sessionId,
-          pendingTxs.map((tx) => ({
+          pendingTxs.map((tx, index) => ({
             to: tx.to ?? "",
             value: tx.value,
             data: tx.data,
             label: tx.description ?? tx.id,
+            chain_id: resolvedChainIds[index],
           })),
           {
             from: account.address,
@@ -321,7 +276,12 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       // Fee validation is outside the try/catch so failures abort instead
       // of being silently swallowed.
       if (simFee) {
-        const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
+        const normalizedFee = normalizeSimulatedFee(simFee);
+        if (normalizedFee) {
+          const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
+          console.log(`Fee:     ${feeEth} ETH → ${normalizedFee.recipient}`);
+        }
+        const feeCall = buildFeeAAWalletCall(simFee, primaryChainId);
         if (feeCall) {
           callList.push(feeCall);
         }

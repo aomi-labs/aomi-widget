@@ -38,6 +38,10 @@ import {
   hydrateTxPayloadFromUserState,
   toAAWalletCalls,
   toAAWalletCall,
+  appendFeeCallToPayload,
+  buildFeeAAWalletCall,
+  normalizeSimulatedFee,
+  MAX_AUTO_FEE_WEI,
   executeWalletCalls,
   DISABLED_PROVIDER_STATE,
   parseChainId,
@@ -1908,6 +1912,22 @@ function AomiRuntimeCore({
     },
     [threadContext.allThreadsMetadata, threadListAdapter]
   );
+  const simulateBatchTransactions = useCallback7(
+    async (transactions, options) => {
+      var _a, _b;
+      const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
+      if (!session) {
+        throw new Error("runtime_session_unavailable");
+      }
+      const response = await session.client.simulateBatch(
+        session.sessionId,
+        transactions,
+        options
+      );
+      return response.result;
+    },
+    [getSession, threadContext.currentThreadId]
+  );
   const aomiRuntimeApi = useMemo2(
     () => ({
       // User API
@@ -1942,6 +1962,7 @@ function AomiRuntimeCore({
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
+      simulateBatchTransactions,
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
@@ -1964,6 +1985,7 @@ function AomiRuntimeCore({
       cancelGeneration,
       notificationContext,
       walletHandler,
+      simulateBatchTransactions,
       eventContext
     ]
   );
@@ -2061,12 +2083,15 @@ export {
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
   EventContextProvider,
+  MAX_AUTO_FEE_WEI,
   NotificationContextProvider,
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
   aaModeFromExecutionKind,
+  appendFeeCallToPayload,
+  buildFeeAAWalletCall,
   cn,
   executeWalletCalls,
   formatAddress,
@@ -2074,6 +2099,7 @@ export {
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  normalizeSimulatedFee,
   parseChainId,
   toAAWalletCall,
   toAAWalletCalls,

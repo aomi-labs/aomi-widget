@@ -55,12 +55,15 @@ __export(index_exports, {
   ControlContextProvider: () => ControlContextProvider,
   DISABLED_PROVIDER_STATE: () => import_client8.DISABLED_PROVIDER_STATE,
   EventContextProvider: () => EventContextProvider,
+  MAX_AUTO_FEE_WEI: () => import_client8.MAX_AUTO_FEE_WEI,
   NotificationContextProvider: () => NotificationContextProvider,
   RuntimeUserStateProvider: () => RuntimeUserStateProvider,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
   aaModeFromExecutionKind: () => import_client8.aaModeFromExecutionKind,
+  appendFeeCallToPayload: () => import_client8.appendFeeCallToPayload,
+  buildFeeAAWalletCall: () => import_client8.buildFeeAAWalletCall,
   cn: () => cn,
   executeWalletCalls: () => import_client8.executeWalletCalls,
   formatAddress: () => formatAddress,
@@ -68,6 +71,7 @@ __export(index_exports, {
   getNetworkName: () => getNetworkName,
   hydrateTxPayloadFromUserState: () => import_client8.hydrateTxPayloadFromUserState,
   initThreadControl: () => initThreadControl,
+  normalizeSimulatedFee: () => import_client8.normalizeSimulatedFee,
   parseChainId: () => import_client8.parseChainId,
   toAAWalletCall: () => import_client8.toAAWalletCall,
   toAAWalletCalls: () => import_client8.toAAWalletCalls,
@@ -1919,6 +1923,22 @@ function AomiRuntimeCore({
     },
     [threadContext.allThreadsMetadata, threadListAdapter]
   );
+  const simulateBatchTransactions = (0, import_react10.useCallback)(
+    async (transactions, options) => {
+      var _a, _b;
+      const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
+      if (!session) {
+        throw new Error("runtime_session_unavailable");
+      }
+      const response = await session.client.simulateBatch(
+        session.sessionId,
+        transactions,
+        options
+      );
+      return response.result;
+    },
+    [getSession, threadContext.currentThreadId]
+  );
   const aomiRuntimeApi = (0, import_react10.useMemo)(
     () => ({
       // User API
@@ -1953,6 +1973,7 @@ function AomiRuntimeCore({
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
+      simulateBatchTransactions,
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
@@ -1975,6 +1996,7 @@ function AomiRuntimeCore({
       cancelGeneration,
       notificationContext,
       walletHandler,
+      simulateBatchTransactions,
       eventContext
     ]
   );
@@ -2073,12 +2095,15 @@ function useNotificationHandler({
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
   EventContextProvider,
+  MAX_AUTO_FEE_WEI,
   NotificationContextProvider,
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
   aaModeFromExecutionKind,
+  appendFeeCallToPayload,
+  buildFeeAAWalletCall,
   cn,
   executeWalletCalls,
   formatAddress,
@@ -2086,6 +2111,7 @@ function useNotificationHandler({
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  normalizeSimulatedFee,
   parseChainId,
   toAAWalletCall,
   toAAWalletCalls,

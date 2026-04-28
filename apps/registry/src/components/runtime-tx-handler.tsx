@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  appendFeeCallToPayload,
   hydrateTxPayloadFromUserState,
   parseChainId,
   toViemSignTypedDataArgs,
@@ -16,6 +17,37 @@ function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
 }
 
+function toSimulationTransactions(payload: WalletTxPayload): Array<{
+  to: string;
+  value?: string;
+  data?: string;
+  label?: string;
+  chain_id?: number;
+}> {
+  if (Array.isArray(payload.calls) && payload.calls.length > 0) {
+    return payload.calls.map((call) => ({
+      to: call.to,
+      value: call.value,
+      data: call.data,
+      label: call.description,
+      chain_id: call.chainId,
+    }));
+  }
+
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+
+  return [
+    {
+      to: payload.to,
+      value: payload.value,
+      data: payload.data,
+      chain_id: payload.chainId,
+    },
+  ];
+}
+
 /**
  * Invisible bridge component that processes wallet transaction and EIP-712
  * signing requests from the AI backend through the active Aomi auth adapter.
@@ -28,6 +60,7 @@ export function RuntimeTxHandler() {
     pendingWalletRequests,
     resolveWalletRequest,
     rejectWalletRequest,
+    simulateBatchTransactions,
   } = useAomiRuntime();
   const adapter = useAomiAuthAdapter();
   const { chainId: currentChainId } = adapter.identity;
@@ -56,7 +89,32 @@ export function RuntimeTxHandler() {
             return;
           }
 
-          const result = await adapter.sendTransaction(payload);
+          const defaultChainId =
+            payload.chainId ??
+            payload.calls?.[0]?.chainId ??
+            currentChainId ??
+            1;
+          const simulationResult = await simulateBatchTransactions(
+            toSimulationTransactions(payload),
+            {
+              from: typeof user.address === "string" ? user.address : undefined,
+              chainId: defaultChainId,
+            },
+          );
+          if (!simulationResult.fee) {
+            throw new Error("missing_simulated_fee");
+          }
+
+          const payloadWithFee = appendFeeCallToPayload(
+            payload,
+            simulationResult.fee,
+            defaultChainId,
+          );
+          if (payloadWithFee === payload) {
+            throw new Error("missing_fee_payment_tx");
+          }
+
+          const result = await adapter.sendTransaction(payloadWithFee);
           await resolveWalletRequest(req.id, result);
           return;
         }
@@ -109,6 +167,7 @@ export function RuntimeTxHandler() {
     currentChainId,
     resolveWalletRequest,
     rejectWalletRequest,
+    simulateBatchTransactions,
   ]);
 
   return null;

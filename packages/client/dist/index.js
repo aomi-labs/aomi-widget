@@ -770,8 +770,18 @@ var AomiClient = class {
     if (this.apiKey) {
       headers.set(API_KEY_HEADER, this.apiKey);
     }
+    const normalizedTransactions = transactions.map((transaction) => {
+      var _a, _b;
+      return {
+        to: transaction.to,
+        value: transaction.value,
+        data: transaction.data,
+        label: transaction.label,
+        chain_id: (_b = (_a = transaction.chain_id) != null ? _a : transaction.chainId) != null ? _b : options == null ? void 0 : options.chainId
+      };
+    });
     const payload = {
-      transactions,
+      transactions: normalizedTransactions,
       from: options == null ? void 0 : options.from,
       chain_id: options == null ? void 0 : options.chainId
     };
@@ -2195,6 +2205,82 @@ function resolveChainCapabilities(capabilities, chainId) {
   return (_b = (_a = asRecord2[eip155Key]) != null ? _a : asRecord2[decimalKey]) != null ? _b : asRecord2[hexKey];
 }
 
+// src/aa/fee.ts
+import { getAddress as getAddress2 } from "viem";
+var MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
+var ZERO_WEI = BigInt("0");
+function toPayloadCalls(payload, defaultChainId) {
+  var _a, _b;
+  if (Array.isArray(payload.calls) && payload.calls.length > 0) {
+    return payload.calls;
+  }
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return [
+    {
+      txId: (_a = payload.txId) != null ? _a : 0,
+      to: payload.to,
+      value: payload.value,
+      data: payload.data,
+      chainId: (_b = payload.chainId) != null ? _b : defaultChainId
+    }
+  ];
+}
+function normalizeSimulatedFee(fee) {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === ZERO_WEI) {
+    return null;
+  }
+  if (amountWei < ZERO_WEI) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    throw new Error("fee_exceeds_safety_limit");
+  }
+  return {
+    recipient: getAddress2(fee.recipient),
+    amountWei
+  };
+}
+function buildFeeAAWalletCall(fee, chainId) {
+  const normalizedFee = normalizeSimulatedFee(fee);
+  if (!normalizedFee) {
+    return null;
+  }
+  return {
+    to: normalizedFee.recipient,
+    value: normalizedFee.amountWei,
+    chainId
+  };
+}
+function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
+  var _a, _b;
+  const feeCall = normalizeSimulatedFee(fee);
+  if (!feeCall) {
+    return payload;
+  }
+  const calls = toPayloadCalls(payload, defaultChainId);
+  const forceAaPreference = (_a = options == null ? void 0 : options.forceAaPreference) != null ? _a : "eip4337";
+  const strictAa = (_b = options == null ? void 0 : options.strictAa) != null ? _b : true;
+  return __spreadProps(__spreadValues({}, payload), {
+    // Fee call must be the final call in the AA batch.
+    calls: [
+      ...calls,
+      {
+        txId: 0,
+        to: feeCall.recipient,
+        value: feeCall.amountWei.toString(),
+        chainId: defaultChainId
+      }
+    ],
+    // Force AA mode once fee is appended so single user tx + fee still batches via AA.
+    aaPreference: forceAaPreference,
+    // Do not silently downgrade fee-injected batch requests to EOA.
+    aaStrict: strictAa
+  });
+}
+
 // src/aa/alchemy/defaults.ts
 var DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
 var DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
@@ -3034,13 +3120,16 @@ export {
   CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE,
+  MAX_AUTO_FEE_WEI,
   ClientSession as Session,
   TypedEventEmitter,
   UserState,
   aaModeFromExecutionKind,
   adaptSmartAccount,
   addUserStateExt,
+  appendFeeCallToPayload,
   buildAAExecutionPlan,
+  buildFeeAAWalletCall,
   createAAProviderState,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
@@ -3054,6 +3143,7 @@ export {
   isSystemError,
   isSystemNotice,
   normalizeEip712Payload,
+  normalizeSimulatedFee,
   normalizeTxPayload,
   parseChainId,
   resolvePimlicoConfig,
