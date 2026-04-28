@@ -641,6 +641,8 @@ export class AomiClient {
       value?: string;
       data?: string;
       label?: string;
+      chain_id?: number;
+      chainId?: number;
     }>,
     options?: { from?: string; chainId?: number },
   ): Promise<AomiSimulateResponse> {
@@ -652,8 +654,16 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, this.apiKey);
     }
 
+    const normalizedTransactions = transactions.map((transaction) => ({
+      to: transaction.to,
+      value: transaction.value,
+      data: transaction.data,
+      label: transaction.label,
+      chain_id: transaction.chain_id ?? transaction.chainId ?? options?.chainId,
+    }));
+
     const payload = {
-      transactions,
+      transactions: normalizedTransactions,
       from: options?.from,
       chain_id: options?.chainId,
     };

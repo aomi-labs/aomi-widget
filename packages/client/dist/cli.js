@@ -1015,8 +1015,18 @@ var init_client = __esm({
         if (this.apiKey) {
           headers.set(API_KEY_HEADER, this.apiKey);
         }
+        const normalizedTransactions = transactions.map((transaction) => {
+          var _a3, _b;
+          return {
+            to: transaction.to,
+            value: transaction.value,
+            data: transaction.data,
+            label: transaction.label,
+            chain_id: (_b = (_a3 = transaction.chain_id) != null ? _a3 : transaction.chainId) != null ? _b : options == null ? void 0 : options.chainId
+          };
+        });
         const payload = {
-          transactions,
+          transactions: normalizedTransactions,
           from: options == null ? void 0 : options.from,
           chain_id: options == null ? void 0 : options.chainId
         };
@@ -3542,6 +3552,44 @@ var init_execute = __esm({
   }
 });
 
+// src/aa/fee.ts
+import { getAddress as getAddress3 } from "viem";
+function normalizeSimulatedFee(fee) {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === ZERO_WEI) {
+    return null;
+  }
+  if (amountWei < ZERO_WEI) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    throw new Error("fee_exceeds_safety_limit");
+  }
+  return {
+    recipient: getAddress3(fee.recipient),
+    amountWei
+  };
+}
+function buildFeeAAWalletCall(fee, chainId) {
+  const normalizedFee = normalizeSimulatedFee(fee);
+  if (!normalizedFee) {
+    return null;
+  }
+  return {
+    to: normalizedFee.recipient,
+    value: normalizedFee.amountWei,
+    chainId
+  };
+}
+var MAX_AUTO_FEE_WEI, ZERO_WEI;
+var init_fee = __esm({
+  "src/aa/fee.ts"() {
+    "use strict";
+    MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
+    ZERO_WEI = BigInt("0");
+  }
+});
+
 // src/aa/alchemy/defaults.ts
 function trimToUndefined(value) {
   const trimmed = value == null ? void 0 : value.trim();
@@ -4315,6 +4363,7 @@ var init_aa = __esm({
     "use strict";
     init_types2();
     init_execute();
+    init_fee();
     init_alchemy();
     init_pimlico();
     init_adapt();
@@ -4528,37 +4577,6 @@ __export(wallet_exports, {
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
 import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 import * as viemChains from "viem/chains";
-import { getAddress as getAddress3 } from "viem";
-function validateAndBuildFeeCall(fee, chainId) {
-  const amountWei = BigInt(fee.amount_wei);
-  if (amountWei === /* @__PURE__ */ BigInt("0")) {
-    return null;
-  }
-  if (amountWei < /* @__PURE__ */ BigInt("0")) {
-    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
-  }
-  let recipient;
-  try {
-    recipient = getAddress3(fee.recipient);
-  } catch (e) {
-    throw new Error(
-      `Invalid fee recipient address from backend: ${fee.recipient}`
-    );
-  }
-  if (amountWei > MAX_AUTO_FEE_WEI) {
-    const feeEth2 = (Number(amountWei) / 1e18).toFixed(6);
-    throw new Error(
-      `Fee of ${feeEth2} ETH exceeds safety limit of ${Number(MAX_AUTO_FEE_WEI) / 1e18} ETH. Aborting.`
-    );
-  }
-  const feeEth = (Number(amountWei) / 1e18).toFixed(6);
-  console.log(`Fee:     ${feeEth} ETH \u2192 ${recipient}`);
-  return toAAWalletCall({
-    to: recipient,
-    value: fee.amount_wei,
-    chainId
-  });
-}
 async function txCommand() {
   const cli = CliSession.load();
   if (!cli) {
@@ -4730,13 +4748,14 @@ async function signCommand(config, txIds) {
       try {
         const simResponse = await session.client.simulateBatch(
           cli.sessionId,
-          pendingTxs.map((tx) => {
+          pendingTxs.map((tx, index) => {
             var _a4, _b2;
             return {
               to: (_a4 = tx.to) != null ? _a4 : "",
               value: tx.value,
               data: tx.data,
-              label: (_b2 = tx.description) != null ? _b2 : tx.id
+              label: (_b2 = tx.description) != null ? _b2 : tx.id,
+              chain_id: resolvedChainIds[index]
             };
           }),
           {
@@ -4759,7 +4778,12 @@ async function signCommand(config, txIds) {
         );
       }
       if (simFee) {
-        const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
+        const normalizedFee = normalizeSimulatedFee(simFee);
+        if (normalizedFee) {
+          const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
+          console.log(`Fee:     ${feeEth} ETH \u2192 ${normalizedFee.recipient}`);
+        }
+        const feeCall = buildFeeAAWalletCall(simFee, primaryChainId);
         if (feeCall) {
           callList.push(feeCall);
         }
@@ -4919,7 +4943,6 @@ Use \`--eoa\` to sign without account abstraction.`
     session.close();
   }
 }
-var MAX_AUTO_FEE_WEI;
 var init_wallet = __esm({
   "src/cli/commands/wallet.ts"() {
     "use strict";
@@ -4932,7 +4955,6 @@ var init_wallet = __esm({
     init_transactions();
     init_chains();
     init_defaults();
-    MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
   }
 });
 
@@ -4970,12 +4992,13 @@ async function simulateCommand(txIds) {
     apiKey: cli.apiKey
   });
   const transactions = pendingTxs.map((tx) => {
-    var _a4, _b2;
+    var _a4, _b2, _c2;
     return {
       to: (_a4 = tx.to) != null ? _a4 : "",
       value: tx.value,
       data: tx.data,
-      label: (_b2 = tx.description) != null ? _b2 : tx.id
+      label: (_b2 = tx.description) != null ? _b2 : tx.id,
+      chain_id: (_c2 = tx.chainId) != null ? _c2 : cli.chainId
     };
   });
   const response = await client.simulateBatch(

@@ -696,6 +696,11 @@ export function useAomiAuthAdapter(): AomiAuthAdapter {
               }
 
               if (!execution) {
+                if (payload.aaStrict) {
+                  throw new Error(
+                    finalFallbackReason ?? "aa_required_execution_failed",
+                  );
+                }
                 console.warn(
                   "[aomi-auth-adapter] All AA attempts failed; falling back to EOA",
                   {

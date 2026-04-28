@@ -99,6 +99,10 @@ export {
   buildAAExecutionPlan,
   getWalletExecutorReady,
   executeWalletCalls,
+  MAX_AUTO_FEE_WEI,
+  normalizeSimulatedFee,
+  buildFeeAAWalletCall,
+  appendFeeCallToPayload,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   adaptSmartAccount,
@@ -132,4 +136,5 @@ export type {
   PimlicoResolvedConfig,
   AAOwner,
   CreateAAStateOptions,
+  NormalizedSimulatedFee,
 } from "./aa";
