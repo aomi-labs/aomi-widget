@@ -222,7 +222,7 @@ describe("CLI execution controls", () => {
   });
 
   // -------------------------------------------------------------------------
-  // resolveCliExecutionDecision — proxy default
+  // resolveCliExecutionDecision — default Alchemy key
   // -------------------------------------------------------------------------
 
   it("defaults to direct EOA for single-call auto mode", () => {
@@ -236,7 +236,7 @@ describe("CLI execution controls", () => {
     expect(describeExecutionDecision(decision)).toBe("eoa");
   });
 
-  it("defaults to proxy AA for multi-call batches when no env vars are set", () => {
+  it("defaults to Alchemy direct AA for multi-call batches when no env vars are set", () => {
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
@@ -247,10 +247,10 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
-      proxy: true,
+      apiKey: "72eIUle_3rfixX00QJVwk",
     });
     expect(describeExecutionDecision(decision)).toBe(
-      "aa (alchemy, 7702, proxy)",
+      "aa (alchemy, 7702)",
     );
   });
 

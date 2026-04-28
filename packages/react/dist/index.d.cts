@@ -1,5 +1,5 @@
-import { AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult } from '@aomi-labs/client';
-export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, UserState, WalletEip712Payload, WalletRequest, WalletRequestResult, WalletTxPayload, aaModeFromExecutionKind, executeWalletCalls, hydrateTxPayloadFromUserState, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
+export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, UserState, WalletEip712Payload, WalletRequest, WalletRequestResult, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -213,6 +213,18 @@ type AomiRuntimeApi = {
     resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
     /** Fail a wallet request after the backend acknowledges the error */
     rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+    /** Simulate a batch against the current thread session context. */
+    simulateBatchTransactions: (transactions: Array<{
+        to: string;
+        value?: string;
+        data?: string;
+        label?: string;
+        chain_id?: number;
+        chainId?: number;
+    }>, options?: {
+        from?: string;
+        chainId?: number;
+    }) => Promise<AomiSimulateResponse["result"]>;
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
     subscribe: (type: string, callback: EventSubscriber) => () => void;
     /** Send a system command to the backend */
