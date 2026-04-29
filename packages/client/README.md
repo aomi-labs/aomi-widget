@@ -114,9 +114,13 @@ unsub(); // stop listening
 
 ## CLI
 
-The package includes an `aomi` CLI for scripting and Claude Code skills.
-When installed globally or in a project, the executable name is `aomi`.
-For one-off usage, run commands via `npx @aomi-labs/client ...`.
+The package includes an `aomi` CLI for scripting. When installed globally or
+in a project, the executable name is `aomi`. For one-off usage, run commands
+via `npx @aomi-labs/client ...`.
+
+Claude Code / Codex skills that drive this CLI live in the separate
+[`aomi-labs/skills`](https://github.com/aomi-labs/skills) repository — that
+repo is the single source of truth for skill content.
 
 ```bash
 npx @aomi-labs/client --version                         # print installed CLI version
