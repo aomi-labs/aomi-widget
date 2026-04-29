@@ -415,7 +415,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA 7702 provider state via SDK when API key is set", async () => {
+  it("creates Alchemy AA 7702 provider state via Wallets API when API key is set", async () => {
     const providerState = await createCliProviderState({
       decision: {
         execution: "aa",
@@ -430,16 +430,8 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    // 7702 bypasses wallet-apis in BYOK mode.
-    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
-    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: "alchemy-key",
-        chain: mainnet,
-        rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
-      }),
-    );
+    expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
@@ -464,8 +456,7 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    // 7702 bypasses wallet-apis, uses raw viem
-    expect(alchemyWalletTransportMock).not.toHaveBeenCalled();
+    expect(alchemyWalletTransportMock).toHaveBeenCalledTimes(1);
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",

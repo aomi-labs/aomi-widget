@@ -155,6 +155,26 @@ function normalizeAddress(value: unknown): string | undefined {
   }
 }
 
+function normalizePendingTxData(
+  pendingEntry: UnknownRecord,
+): string | undefined {
+  const data =
+    typeof pendingEntry.data === "string" ? pendingEntry.data : undefined;
+  if (!data) {
+    return undefined;
+  }
+
+  const kind = typeof pendingEntry.kind === "string"
+    ? pendingEntry.kind.toLowerCase()
+    : undefined;
+
+  if (kind === "native_transfer") {
+    return undefined;
+  }
+
+  return data;
+}
+
 // =============================================================================
 // Normalization
 // =============================================================================
@@ -241,7 +261,7 @@ export function hydrateTxPayloadFromUserState(
       txId,
       to,
       value: parseValue(pendingEntry.value),
-      data: typeof pendingEntry.data === "string" ? pendingEntry.data : undefined,
+      data: normalizePendingTxData(pendingEntry),
       chainId:
         parseChainId(pendingEntry.chain_id) ??
         parseChainId(pendingEntry.chainId) ??
