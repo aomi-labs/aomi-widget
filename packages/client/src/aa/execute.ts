@@ -367,7 +367,7 @@ function shouldFallbackFromAAError(
   error: unknown,
   providerState: AAState,
 ): boolean {
-  if (!providerState.resolved) {
+  if (!providerState.resolved || !providerState.resolved.fallbackToEoa) {
     return false;
   }
 

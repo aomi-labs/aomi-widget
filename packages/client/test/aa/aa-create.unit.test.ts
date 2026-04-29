@@ -146,7 +146,9 @@ describe("createAAProviderState", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("creates an Alchemy 7702 provider state via SDK for direct owners", async () => {
+  it("creates an Alchemy 7702 provider state via Wallets API for direct owners", async () => {
+    process.env.ALCHEMY_GAS_POLICY_ID = "policy-7702";
+
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -157,16 +159,13 @@ describe("createAAProviderState", () => {
       apiKey: "alchemy-key",
     });
 
-    // 7702 bypasses @alchemy/wallet-apis in direct-owner mode.
-    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
-    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
+    expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
+    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        apiKey: "alchemy-key",
-        chain: mainnet,
-        rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
+        paymaster: { policyId: "policy-7702" },
       }),
     );
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
 
     expect(state.resolved).toMatchObject({
       provider: "alchemy",
@@ -174,9 +173,9 @@ describe("createAAProviderState", () => {
       fallbackToEoa: false,
     });
     expect(state.account).toMatchObject({
-      provider: "ALCHEMY",
+      provider: "alchemy",
       mode: "7702",
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      AAAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
       delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
     });
     expect(state.error).toBeNull();
@@ -206,6 +205,7 @@ describe("createAAProviderState", () => {
         paymaster: expect.anything(),
       }),
     );
+    expect(requestAccountMock).toHaveBeenCalledWith();
     expect(requestAccountMock).toHaveBeenCalledTimes(1);
     expect(state.resolved).toMatchObject({
       sponsorship: "disabled",
@@ -270,7 +270,7 @@ describe("createAAProviderState", () => {
     expect(state.resolved).not.toBeNull();
   });
 
-  it("creates 7702 state without wallet-apis", async () => {
+  it("creates 7702 state with wallet-apis", async () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -281,17 +281,10 @@ describe("createAAProviderState", () => {
       apiKey: "key",
     });
 
-    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
-    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: "key",
-        chain: mainnet,
-        rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
-      }),
-    );
+    expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
     expect(state.account).toMatchObject({
-      provider: "ALCHEMY",
+      provider: "alchemy",
       mode: "7702",
     });
     expect(state.error).toBeNull();
@@ -360,7 +353,7 @@ describe("createAAProviderState owner modes", () => {
     expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
       expect.objectContaining({
         apiKey: "alchemy-key",
-        gasPolicyId: undefined,
+        gasPolicyId: "policy-1",
         para: PARA,
         chain: mainnet,
         rpcUrl: "https://example-rpc.invalid",

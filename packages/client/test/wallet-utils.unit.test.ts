@@ -120,6 +120,50 @@ describe("wallet payload normalization", () => {
     });
   });
 
+  it("strips stray calldata from hydrated native transfers", () => {
+    const hydrated = hydrateTxPayloadFromUserState(
+      {
+        txId: 9,
+        txIds: [9],
+        aaPreference: "auto",
+      },
+      {
+        pending_txs: {
+          9: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x8a4068dd",
+            kind: "native_transfer",
+            chain_id: 1,
+          },
+        },
+      },
+      { strict: true },
+    );
+
+    expect(hydrated).toEqual({
+      txId: 9,
+      txIds: [9],
+      aaPreference: "auto",
+      to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+      value: "0",
+      data: undefined,
+      chainId: 1,
+      calls: [
+        {
+          txId: 9,
+          to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+          value: "0",
+          data: undefined,
+          chainId: 1,
+          from: undefined,
+          gas: undefined,
+          description: undefined,
+        },
+      ],
+    });
+  });
+
   it("throws pending_tx_not_found when strict hydration misses tx id", () => {
     expect(() =>
       hydrateTxPayloadFromUserState(
