@@ -278,7 +278,7 @@ describe("CLI execution controls", () => {
     expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
-  it("prefers 7702 for multi-call batches when chain default mode is 4337", () => {
+  it("uses 7702 for multi-call batches on Polygon (all chains default to 7702)", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
 
     const decision = resolveCliExecutionDecision({
@@ -347,9 +347,8 @@ describe("CLI execution controls", () => {
   // ERC-20 auto-switch
   // -------------------------------------------------------------------------
 
-  it("auto-switches default 4337 ERC-20 calls to 7702 when supported", () => {
+  it("uses 7702 for ERC-20 calls in auto AA mode (7702 is the chain default)", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const decision = resolveCliExecutionDecision({
       config: {
@@ -367,13 +366,9 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       aaMode: "7702",
     });
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Switching to 7702"),
-    );
-    logSpy.mockRestore();
   });
 
-  it("warns but preserves explicit 4337 mode for ERC-20 calls", () => {
+  it("warns and preserves explicit 4337 mode for ERC-20 calls", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -439,7 +434,6 @@ describe("CLI execution controls", () => {
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
-      fallbackToEoa: false,
     });
     expect(providerState.account).toBeTruthy();
     expect(providerState.error).toBeNull();

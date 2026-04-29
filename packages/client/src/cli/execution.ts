@@ -29,40 +29,18 @@ function callsContainTokenOperations(calls: AAWalletCall[]): boolean {
 }
 
 /**
- * When 4337 is used with ERC-20 token operations, the calls execute from a
- * separate smart-account contract that doesn't hold the user's tokens.
- * If 7702 is available on the chain, auto-switch and warn.
+ * Warn when 4337 is explicitly used with ERC-20 token operations.
+ * 4337 executes from a separate smart-account contract that doesn't hold the
+ * user's EOA tokens, so the batch is likely to revert.
  */
-function maybeOverride4337ForTokenOps(params: {
-  mode: CliAAMode;
-  callList: AAWalletCall[];
-  chain: Chain;
-  explicitMode: boolean;
-}): { mode: CliAAMode; warned: boolean } {
-  const { mode, callList, chain, explicitMode } = params;
-  if (mode !== "4337" || !callsContainTokenOperations(callList)) {
-    return { mode, warned: false };
-  }
-
-  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
-    [chain.id]: chain,
-  });
-
-  if (chainConfig?.supportedModes.includes("7702") && !explicitMode) {
-    console.log(
-      "⚠️  4337 batch contains ERC-20 calls but tokens are in your EOA, not the 4337 smart account.",
-    );
-    console.log("   Switching to 7702 (EOA keeps smart-account capabilities, no token transfer needed).");
-    return { mode: "7702", warned: true };
-  }
-
+function warnIfTokenOpsIn4337(mode: CliAAMode, callList: AAWalletCall[]): void {
+  if (mode !== "4337" || !callsContainTokenOperations(callList)) return;
   console.log(
     "⚠️  4337 batch contains ERC-20 calls. Tokens must be in the smart account, not your EOA.",
   );
   console.log(
     "   This batch may revert. Consider transferring tokens to the smart account first.",
   );
-  return { mode, warned: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -84,29 +62,14 @@ export type CliExecutionDecision =
 
 /**
  * Resolve the AA mode for a given chain from DEFAULT_AA_CONFIG.
+ * All chains default to 7702; falls back to 4337 only when explicitly requested.
  */
 function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliAAMode): CliAAMode {
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
   });
-  let baseMode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
-
-  // For multi-call batches, prefer 7702 first when available.
-  if (
-    !explicitMode &&
-    callList.length > 1 &&
-    chainConfig?.supportedModes.includes("7702")
-  ) {
-    baseMode = "7702";
-  }
-
-  const { mode } = maybeOverride4337ForTokenOps({
-    mode: baseMode,
-    callList,
-    chain,
-    explicitMode: Boolean(explicitMode),
-  });
-
+  const mode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
+  warnIfTokenOpsIn4337(mode, callList);
   return mode;
 }
 

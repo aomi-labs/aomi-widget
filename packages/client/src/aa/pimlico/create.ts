@@ -47,7 +47,8 @@ export async function createPimlicoAAState(
     throw new Error(`AA is not configured for chain ${chain.id}.`);
   }
 
-  const effectiveMode = mode ?? chainConfig.defaultMode;
+  // Pimlico only supports 4337. Ignore any 7702 default from chain config.
+  const effectiveMode: AAMode = "4337";
   const plan = buildAAExecutionPlan(
     { ...DEFAULT_AA_CONFIG, provider: "pimlico" },
     { ...chainConfig, defaultMode: effectiveMode },
@@ -61,7 +62,6 @@ export async function createPimlicoAAState(
   const execution = {
     ...plan,
     mode: effectiveMode,
-    fallbackToEoa: false,
   } as AAState["resolved"];
 
   const ownerParams = getOwnerParams(owner);

@@ -1806,55 +1806,53 @@ function buildAAExecutionPlan(config, chainConfig) {
     chainId: chainConfig.chainId,
     mode,
     batchingEnabled: chainConfig.allowBatching,
-    sponsorship: chainConfig.sponsorship,
-    fallbackToEoa: config.fallbackToEoa
+    sponsorship: chainConfig.sponsorship
   };
 }
 function getWalletExecutorReady(providerState) {
-  return !providerState.resolved || !providerState.pending && (Boolean(providerState.account) || Boolean(providerState.error) || providerState.resolved.fallbackToEoa);
+  return !providerState.resolved || !providerState.pending && (Boolean(providerState.account) || Boolean(providerState.error));
 }
 var DEFAULT_AA_CONFIG = {
   enabled: true,
   provider: "alchemy",
-  fallbackToEoa: true,
   chains: [
     {
       chainId: 1,
       enabled: true,
       defaultMode: "7702",
-      supportedModes: ["4337", "7702"],
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional"
     },
     {
       chainId: 137,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional"
     },
     {
       chainId: 42161,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional"
     },
     {
       chainId: 10,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional"
     },
     {
       chainId: 8453,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional"
     }
@@ -1901,45 +1899,9 @@ async function executeWalletCalls(params) {
     getPreferredRpcUrl
   } = params;
   if (providerState.resolved && providerState.account) {
-    try {
-      return await executeViaAA(callList, providerState);
-    } catch (error) {
-      if (!shouldFallbackFromAAError(error, providerState)) {
-        throw error;
-      }
-      const errorKind = classifyAAFallbackError(error);
-      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
-        provider: providerState.account.provider,
-        mode: providerState.resolved.mode,
-        chainId: providerState.resolved.chainId,
-        callCount: callList.length,
-        errorKind,
-        error: toErrorMessage(error)
-      });
-      if (errorKind === "simulation_revert") {
-        console.warn(
-          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA."
-        );
-      }
-      if (errorKind === "insufficient_prefund") {
-        console.warn(
-          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account."
-        );
-      }
-      return executeViaEoa({
-        callList,
-        currentChainId,
-        capabilities,
-        localPrivateKey,
-        sendCallsSyncAsync,
-        sendTransactionAsync,
-        switchChainAsync,
-        chainsById,
-        getPreferredRpcUrl
-      });
-    }
+    return executeViaAA(callList, providerState, getPreferredRpcUrl);
   }
-  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
+  if (providerState.resolved && providerState.error) {
     throw providerState.error;
   }
   return executeViaEoa({
@@ -1954,7 +1916,7 @@ async function executeWalletCalls(params) {
     getPreferredRpcUrl
   });
 }
-async function executeViaAA(callList, providerState) {
+async function executeViaAA(callList, providerState, getPreferredRpcUrl) {
   var _a;
   const account = providerState.account;
   const resolved = providerState.resolved;
@@ -1964,7 +1926,7 @@ async function executeViaAA(callList, providerState) {
   const callsPayload = callList.map(({ to, value, data }) => ({
     to,
     value,
-    data
+    data: normalizeRpcCallData(data)
   }));
   const sendAARequest = async () => {
     return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
@@ -2007,7 +1969,7 @@ async function executeViaAA(callList, providerState) {
   const providerPrefix = account.provider.toLowerCase();
   let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
   if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(txHash, callList);
+    delegationAddress = await resolve7702Delegation(txHash, callList, getPreferredRpcUrl);
   }
   return {
     txHash,
@@ -2019,14 +1981,15 @@ async function executeViaAA(callList, providerState) {
     delegationAddress
   };
 }
-async function resolve7702Delegation(txHash, callList) {
+async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl) {
   var _a, _b, _c, _d;
   try {
     const chainId = (_a = callList[0]) == null ? void 0 : _a.chainId;
     if (!chainId) return void 0;
     const chain = CHAINS_BY_ID[chainId];
     if (!chain) return void 0;
-    const client = createPublicClient({ chain, transport: http() });
+    const rpcUrl = getPreferredRpcUrl(chain);
+    const client = createPublicClient({ chain, transport: http(rpcUrl) });
     const tx = await client.getTransaction({ hash: txHash });
     const authList = tx.authorizationList;
     const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
@@ -2157,44 +2120,10 @@ function toErrorMessage(error) {
   }
   return String(error);
 }
-function shouldFallbackFromAAError(error, providerState) {
-  if (!providerState.resolved || !providerState.resolved.fallbackToEoa) {
-    return false;
-  }
-  if (providerState.resolved.mode === "7702") {
-    return true;
-  }
-  if (providerState.resolved.mode !== "4337") {
-    return false;
-  }
-  return isRetryableBundlerSubmissionError(error) || isAASimulationRevertError(error) || isAAInsufficientPrefundError(error);
-}
 function isRetryableBundlerSubmissionError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
   return lowered.includes("bundle id is unknown") || lowered.includes("bundle id unknown") || lowered.includes("has not been submitted") || lowered.includes("userop") && lowered.includes("not found") || lowered.includes("user operation") && lowered.includes("not found");
-}
-function isAASimulationRevertError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted") || lowered.includes("wallet_preparecalls") && (lowered.includes("aa23 reverted") || lowered.includes("validation reverted"));
-}
-function isAAInsufficientPrefundError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("sender balance and deposit together") || lowered.includes("precheck failed") && lowered.includes("must be at least");
-}
-function classifyAAFallbackError(error) {
-  if (isRetryableBundlerSubmissionError(error)) {
-    return "retryable_bundler";
-  }
-  if (isAAInsufficientPrefundError(error)) {
-    return "insufficient_prefund";
-  }
-  if (isAASimulationRevertError(error)) {
-    return "simulation_revert";
-  }
-  return "other";
 }
 function resolveChainCapabilities(capabilities, chainId) {
   var _a, _b;
@@ -2524,17 +2453,9 @@ async function createAlchemySdkState(params) {
   };
 }
 async function createAlchemyAAState(options) {
-  const {
-    chain,
-    owner,
-    callList,
-    mode,
-    sponsored = true
-  } = options;
+  var _a;
+  const { chain, owner, callList, mode } = options;
   const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
-  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
-    gasPolicyId: options.gasPolicyId
-  });
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
@@ -2546,12 +2467,11 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : void 0;
-  const gasPolicyId = requestedGasPolicyId;
+  const sponsored = (_a = options.sponsored) != null ? _a : effectiveMode === "4337";
+  const gasPolicyId = sponsored ? resolveAlchemyGasPolicyId({ gasPolicyId: options.gasPolicyId }) : void 0;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
-    sponsorship: gasPolicyId ? plan.sponsorship : "disabled",
-    fallbackToEoa: false
+    sponsorship: gasPolicyId ? plan.sponsorship : "disabled"
   });
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
@@ -2818,7 +2738,7 @@ async function createPimlicoAAState(options) {
   if (!chainConfig) {
     throw new Error(`AA is not configured for chain ${chain.id}.`);
   }
-  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
+  const effectiveMode = "4337";
   const plan = buildAAExecutionPlan(
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
@@ -2828,8 +2748,7 @@ async function createPimlicoAAState(options) {
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }
   const execution = __spreadProps(__spreadValues({}, plan), {
-    mode: effectiveMode,
-    fallbackToEoa: false
+    mode: effectiveMode
   });
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
