@@ -227,7 +227,7 @@ export async function executeAdapterTransaction({
     }
 
     if (!execution) {
-      if (payload.aaStrict && lastAAError) {
+      if (payload.aaStrict) {
         throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
       }
       console.warn(
