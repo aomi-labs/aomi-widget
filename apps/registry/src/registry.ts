@@ -54,7 +54,7 @@ export const registry: RegistryComponent[] = [
       "lib/aomi-auth-adapter/runtime-user-sync.tsx",
       "lib/auth-identity.ts",
     ],
-    dependencies: ["@aomi-labs/react"],
+    dependencies: ["@aomi-labs/react", "viem"],
     description:
       "Generic Aomi auth adapter context and runtime user-state sync.",
   },

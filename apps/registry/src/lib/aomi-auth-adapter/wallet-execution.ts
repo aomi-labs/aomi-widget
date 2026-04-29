@@ -27,7 +27,9 @@ export type WalletExecutionAdapterState = {
   sendTransactionAsync?: Parameters<
     typeof executeWalletCalls
   >[0]["sendTransactionAsync"];
-  switchChainAsync?: Parameters<typeof executeWalletCalls>[0]["switchChainAsync"];
+  switchChainAsync?: Parameters<
+    typeof executeWalletCalls
+  >[0]["switchChainAsync"];
   chainsById: Record<number, Chain>;
   getPreferredRpcUrl?: (chain: Chain) => string;
 };
@@ -87,6 +89,10 @@ export function normalizeAtomicCapabilities(
   }
 
   return normalized as Parameters<typeof executeWalletCalls>[0]["capabilities"];
+}
+
+function hasResolvedAAProvider(providerState: WalletProviderState): boolean {
+  return Boolean(providerState.resolved && providerState.account);
 }
 
 function buildAaAttempts(
@@ -197,6 +203,10 @@ export async function executeAdapterTransaction({
         finalFallbackReason = attemptState.fallbackReason;
       }
 
+      if (!hasResolvedAAProvider(attemptState.providerState)) {
+        continue;
+      }
+
       try {
         execution = await executeWithProviderState(attemptState.providerState);
         if (
@@ -217,7 +227,7 @@ export async function executeAdapterTransaction({
     }
 
     if (!execution) {
-      if (payload.aaStrict) {
+      if (payload.aaStrict && lastAAError) {
         throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
       }
       console.warn(
