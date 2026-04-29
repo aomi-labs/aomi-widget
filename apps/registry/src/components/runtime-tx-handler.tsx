@@ -109,6 +109,7 @@ export function RuntimeTxHandler() {
             payload,
             simulationResult.fee,
             defaultChainId,
+            { strictAa: false },
           );
           if (payloadWithFee === payload) {
             throw new Error("missing_fee_payment_tx");
