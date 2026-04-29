@@ -51,27 +51,36 @@ __export(index_exports, {
   CLIENT_TYPE_TS_CLI: () => CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI: () => CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG: () => DEFAULT_AA_CONFIG,
+  DISABLED_PROVIDER_STATE: () => DISABLED_PROVIDER_STATE,
+  MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
   UserState: () => UserState,
+  aaModeFromExecutionKind: () => aaModeFromExecutionKind,
   adaptSmartAccount: () => adaptSmartAccount,
   addUserStateExt: () => addUserStateExt,
+  appendFeeCallToPayload: () => appendFeeCallToPayload,
   buildAAExecutionPlan: () => buildAAExecutionPlan,
+  buildFeeAAWalletCall: () => buildFeeAAWalletCall,
   createAAProviderState: () => createAAProviderState,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
   executeWalletCalls: () => executeWalletCalls,
   getAAChainConfig: () => getAAChainConfig,
   getWalletExecutorReady: () => getWalletExecutorReady,
+  hydrateTxPayloadFromUserState: () => hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError: () => isAlchemySponsorshipLimitError,
   isAsyncCallback: () => isAsyncCallback,
   isInlineCall: () => isInlineCall,
   isSystemError: () => isSystemError,
   isSystemNotice: () => isSystemNotice,
   normalizeEip712Payload: () => normalizeEip712Payload,
+  normalizeSimulatedFee: () => normalizeSimulatedFee,
   normalizeTxPayload: () => normalizeTxPayload,
+  parseChainId: () => parseChainId,
   resolvePimlicoConfig: () => resolvePimlicoConfig,
   toAAWalletCall: () => toAAWalletCall,
+  toAAWalletCalls: () => toAAWalletCalls,
   toViemSignTypedDataArgs: () => toViemSignTypedDataArgs,
   unwrapSystemEvent: () => unwrapSystemEvent
 });
@@ -89,7 +98,7 @@ var USER_STATE_KEY_ALIASES = {
   nextId: "next_id"
 };
 function parseUserStateChainId(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
   }
   if (typeof value !== "string") {
@@ -99,8 +108,15 @@ function parseUserStateChainId(value) {
   if (!trimmed) {
     return void 0;
   }
+  if (trimmed.startsWith("0x")) {
+    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
+    return Number.isInteger(parsedHex) && parsedHex > 0 ? parsedHex : void 0;
+  }
   const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function normalizeAddressForComparison(value) {
+  return typeof value === "string" ? value.toLowerCase() : void 0;
 }
 var UserState;
 ((UserState2) => {
@@ -120,6 +136,34 @@ var UserState;
     return normalized;
   }
   UserState2.normalize = normalize;
+  function reconcile(previousUserState, incomingUserState) {
+    const incoming = normalize(incomingUserState);
+    if (!incoming) {
+      return void 0;
+    }
+    const previous = normalize(previousUserState);
+    const reconciled = __spreadValues({}, incoming);
+    const previousAddress = address(previous);
+    const incomingAddress = address(incoming);
+    const incomingConnected = isConnected(incoming);
+    const incomingChainId = chainId(incoming);
+    const canPreserveConnectedWalletContext = incomingConnected !== false;
+    const sameAddress = normalizeAddressForComparison(previousAddress) !== void 0 && normalizeAddressForComparison(previousAddress) === normalizeAddressForComparison(incomingAddress);
+    if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
+      reconciled.address = previousAddress;
+    }
+    if (incomingChainId === void 0 && canPreserveConnectedWalletContext && previous && chainId(previous) !== void 0) {
+      const canPreserveChain = sameAddress || !incomingAddress && !!previousAddress;
+      if (canPreserveChain) {
+        reconciled.chain_id = chainId(previous);
+      }
+    }
+    if (isConnected(reconciled) === true && chainId(reconciled) === void 0) {
+      delete reconciled.is_connected;
+    }
+    return reconciled;
+  }
+  UserState2.reconcile = reconcile;
   function address(userState) {
     const normalized = normalize(userState);
     const address2 = normalized == null ? void 0 : normalized.address;
@@ -794,8 +838,18 @@ var AomiClient = class {
     if (this.apiKey) {
       headers.set(API_KEY_HEADER, this.apiKey);
     }
+    const normalizedTransactions = transactions.map((transaction) => {
+      var _a, _b;
+      return {
+        to: transaction.to,
+        value: transaction.value,
+        data: transaction.data,
+        label: transaction.label,
+        chain_id: (_b = (_a = transaction.chain_id) != null ? _a : transaction.chainId) != null ? _b : options == null ? void 0 : options.chainId
+      };
+    });
     const payload = {
-      transactions,
+      transactions: normalizedTransactions,
       from: options == null ? void 0 : options.from,
       chain_id: options == null ? void 0 : options.chainId
     };
@@ -923,6 +977,13 @@ function parseChainId(value) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : void 0;
 }
+function parseTxIds(value) {
+  if (!Array.isArray(value)) return [];
+  const parsed = value.map((entry) => parsePendingId(entry)).filter((entry) => typeof entry === "number");
+  const unique = Array.from(new Set(parsed));
+  unique.sort((left, right) => left - right);
+  return unique;
+}
 function parsePendingId(value) {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
@@ -932,6 +993,21 @@ function parsePendingId(value) {
   if (!trimmed) return void 0;
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function parseValue(value) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return void 0;
+}
+function normalizeAaPreference(value) {
+  if (typeof value !== "string") return void 0;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "auto" || normalized === "eip4337" || normalized === "eip7702" || normalized === "none") {
+    return normalized;
+  }
+  return void 0;
 }
 function normalizeAddress(value) {
   if (typeof value !== "string") return void 0;
@@ -947,18 +1023,82 @@ function normalizeAddress(value) {
   }
 }
 function normalizeTxPayload(payload) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
+  const txIds = parseTxIds((_a = args.tx_ids) != null ? _a : args.txIds);
+  if (txIds.length === 0) return null;
   const to = normalizeAddress(args.to);
-  if (!to) return null;
-  const valueRaw = args.value;
-  const value = typeof valueRaw === "string" ? valueRaw : typeof valueRaw === "number" && Number.isFinite(valueRaw) ? String(Math.trunc(valueRaw)) : void 0;
+  const value = parseValue(args.value);
   const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId = (_c = (_b = (_a = parseChainId(args.chainId)) != null ? _a : parseChainId(args.chain_id)) != null ? _b : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.userChainId);
-  const txId = (_e = (_d = parsePendingId(args.txId)) != null ? _d : parsePendingId(args.pending_tx_id)) != null ? _e : parsePendingId(args.pendingTxId);
-  return { to, value, data, chainId, txId };
+  const chainId = (_d = (_c = (_b = parseChainId(args.chainId)) != null ? _b : parseChainId(args.chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _d : parseChainId(ctx == null ? void 0 : ctx.userChainId);
+  const requestId = typeof args.tx_id === "string" ? args.tx_id : typeof args.txId === "string" ? args.txId : void 0;
+  const aaPreference = (_f = normalizeAaPreference((_e = args.aa_preference) != null ? _e : args.aaPreference)) != null ? _f : "auto";
+  const txId = txIds.length === 1 ? txIds[0] : void 0;
+  return { to, value, data, chainId, txId, txIds, aaPreference, requestId };
+}
+function hydrateTxPayloadFromUserState(payload, userState, options) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const strict = (options == null ? void 0 : options.strict) === true;
+  const txIds = Array.isArray(payload.txIds) && payload.txIds.length > 0 ? payload.txIds : payload.txId !== void 0 ? [payload.txId] : [];
+  if (txIds.length === 0) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const normalizedUserState = asRecord(userState);
+  const pendingTxsRaw = asRecord(normalizedUserState == null ? void 0 : normalizedUserState.pending_txs);
+  if (!pendingTxsRaw) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const calls = [];
+  for (const txId of txIds) {
+    const pendingEntry = asRecord(pendingTxsRaw[String(txId)]);
+    if (!pendingEntry) {
+      if (strict) {
+        throw new Error("pending_tx_not_found");
+      }
+      continue;
+    }
+    const to = normalizeAddress(pendingEntry.to);
+    if (!to) {
+      if (strict) {
+        throw new Error("pending_transaction_missing_call_data");
+      }
+      continue;
+    }
+    calls.push({
+      txId,
+      to,
+      value: parseValue(pendingEntry.value),
+      data: typeof pendingEntry.data === "string" ? pendingEntry.data : void 0,
+      chainId: (_b = (_a = parseChainId(pendingEntry.chain_id)) != null ? _a : parseChainId(pendingEntry.chainId)) != null ? _b : parseChainId(payload.chainId),
+      from: typeof pendingEntry.from === "string" ? pendingEntry.from : void 0,
+      gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : void 0,
+      description: typeof pendingEntry.label === "string" ? pendingEntry.label : typeof pendingEntry.description === "string" ? pendingEntry.description : void 0
+    });
+  }
+  if (calls.length === 0) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const first = calls[0];
+  return __spreadProps(__spreadValues({}, payload), {
+    txIds,
+    txId: (_c = payload.txId) != null ? _c : first.txId,
+    to: (_d = payload.to) != null ? _d : first.to,
+    value: (_e = payload.value) != null ? _e : first.value,
+    data: (_f = payload.data) != null ? _f : first.data,
+    chainId: (_g = payload.chainId) != null ? _g : first.chainId,
+    calls
+  });
 }
 function normalizeEip712Payload(payload) {
   var _a, _b, _c, _d;
@@ -981,14 +1121,32 @@ function normalizeEip712Payload(payload) {
   const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
   return { typed_data: typedData, description, eip712Id };
 }
-function toAAWalletCall(payload, defaultChainId = 1) {
+function toAAWalletCalls(payload, defaultChainId = 1) {
   var _a, _b;
-  return {
-    to: payload.to,
-    value: BigInt((_a = payload.value) != null ? _a : "0"),
-    data: payload.data ? payload.data : void 0,
-    chainId: (_b = payload.chainId) != null ? _b : defaultChainId
-  };
+  const calls = ((_a = payload.calls) == null ? void 0 : _a.length) ? payload.calls : payload.to ? [
+    {
+      txId: (_b = payload.txId) != null ? _b : 0,
+      to: payload.to,
+      value: payload.value,
+      data: payload.data,
+      chainId: payload.chainId
+    }
+  ] : [];
+  if (calls.length === 0) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return calls.map((call) => {
+    var _a2, _b2, _c;
+    return {
+      to: call.to,
+      value: BigInt((_a2 = call.value) != null ? _a2 : "0"),
+      data: call.data ? call.data : void 0,
+      chainId: (_c = (_b2 = call.chainId) != null ? _b2 : payload.chainId) != null ? _c : defaultChainId
+    };
+  });
+}
+function toAAWalletCall(payload, defaultChainId = 1) {
+  return toAAWalletCalls(payload, defaultChainId)[0];
 }
 function toViemSignTypedDataArgs(payload) {
   var _a;
@@ -1050,9 +1208,30 @@ function isSubsetMatch(expected, actual) {
   }
   return expected === actual;
 }
+function txIdsFromPayload(payload) {
+  if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
+    return [...payload.txIds];
+  }
+  if (typeof payload.txId === "number") {
+    return [payload.txId];
+  }
+  return [];
+}
+function aaRequestedModeFromPreference(preference) {
+  if (preference === "none") return "none";
+  if (preference === "eip7702") return "7702";
+  return "4337";
+}
+function aaModeFromExecutionKind(executionKind) {
+  if (!executionKind) return void 0;
+  if (executionKind.endsWith("_4337")) return "4337";
+  if (executionKind.endsWith("_7702")) return "7702";
+  if (executionKind === "eoa") return "none";
+  return void 0;
+}
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     super();
     // Internal state
     this.pollTimer = null;
@@ -1070,10 +1249,11 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    const initialUserState = UserState.normalize(sessionOptions == null ? void 0 : sessionOptions.userState);
+    const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
     this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
+    this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
+    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1143,18 +1323,31 @@ var ClientSession = class extends TypedEventEmitter {
    * Sends the result to the backend and resumes polling.
    */
   async resolve(requestId, result) {
-    var _a;
+    var _a, _b, _c, _d, _e, _f;
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
       const txPayload = req.payload;
-      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
-        txHash: (_a = result.txHash) != null ? _a : "",
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(txPayload.aaPreference);
+      const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
+      await this.sendSystemEvent("wallet:tx_complete", {
+        txHash: (_d = result.txHash) != null ? _d : "",
         status: "success",
-        amount: result.amount
-      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
+        amount: result.amount,
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: resolvedMode,
+        aa_fallback_reason: result.aaFallbackReason,
+        execution_kind: result.executionKind,
+        batched: (_e = result.batched) != null ? _e : pendingTxIds.length > 1,
+        call_count: (_f = result.callCount) != null ? _f : pendingTxIds.length,
+        sponsored: result.sponsored,
+        smart_account_address: result.smartAccountAddress,
+        delegation_address: result.delegationAddress
+      });
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
@@ -1178,11 +1371,23 @@ var ClientSession = class extends TypedEventEmitter {
     }
     if (req.kind === "transaction") {
       const txPayload = req.payload;
-      await this.sendSystemEvent("wallet:tx_complete", __spreadValues({
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
+      await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
-        error: reason != null ? reason : "Request rejected"
-      }, txPayload.txId !== void 0 ? { pending_tx_id: txPayload.txId } : {}));
+        error: reason != null ? reason : "Request rejected",
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: requestedMode,
+        aa_fallback_reason: void 0,
+        execution_kind: void 0,
+        batched: pendingTxIds.length > 1,
+        call_count: pendingTxIds.length,
+        sponsored: void 0,
+        smart_account_address: void 0,
+        delegation_address: void 0
+      });
     } else {
       const eip712Payload = req.payload;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
@@ -1246,8 +1451,18 @@ var ClientSession = class extends TypedEventEmitter {
   getIsProcessing() {
     return this._isProcessing;
   }
+  syncRuntimeOptions(options) {
+    var _a;
+    this.app = options.app;
+    this.publicKey = options.publicKey;
+    this.apiKey = options.apiKey;
+    this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
+    if (options.userState) {
+      this.resolveUserState(options.userState);
+    }
+  }
   resolveUserState(userState) {
-    this.userState = UserState.normalize(userState);
+    this.userState = UserState.reconcile(this.userState, userState);
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
     if (address && isConnected !== false) {
@@ -1401,7 +1616,8 @@ var ClientSession = class extends TypedEventEmitter {
       const unwrapped = unwrapSystemEvent(event);
       if (!unwrapped) continue;
       if (unwrapped.type === "wallet_tx_request") {
-        const payload = normalizeTxPayload(unwrapped.payload);
+        const normalizedPayload = normalizeTxPayload(unwrapped.payload);
+        const payload = normalizedPayload ? hydrateTxPayloadFromUserState(normalizedPayload, this.userState) : null;
         if (payload) {
           const req = this.enqueueWalletRequest("transaction", payload);
           this.emit("wallet_tx_request", req);
@@ -1445,6 +1661,22 @@ var ClientSession = class extends TypedEventEmitter {
       timestamp: (_a = existing == null ? void 0 : existing.timestamp) != null ? _a : Date.now()
     };
     this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    if (kind === "transaction") {
+      const nextTxIds = txIdsFromPayload(payload);
+      if (nextTxIds.length > 1) {
+        const nextTxIdSet = new Set(nextTxIds);
+        this.walletRequests = this.walletRequests.filter((request) => {
+          if (request.id === id || request.kind !== "transaction") {
+            return true;
+          }
+          const requestTxIds = txIdsFromPayload(request.payload);
+          if (requestTxIds.length === 0) {
+            return true;
+          }
+          return !requestTxIds.every((txId) => nextTxIdSet.has(txId));
+        });
+      }
+    }
     this.emit("wallet_requests_changed", this.getPendingRequests());
     return req;
   }
@@ -1476,7 +1708,10 @@ var ClientSession = class extends TypedEventEmitter {
   }
   assertUserStateAligned(actualUserState) {
     const expectedUserState = UserState.normalize(this.userState);
-    const normalizedActualUserState = UserState.normalize(actualUserState);
+    const normalizedActualUserState = UserState.reconcile(
+      expectedUserState,
+      actualUserState
+    );
     if (!expectedUserState || !normalizedActualUserState) {
       return;
     }
@@ -1490,9 +1725,13 @@ var ClientSession = class extends TypedEventEmitter {
   }
   getWalletRequestId(kind, payload) {
     if (kind === "transaction") {
-      const txId = payload.txId;
-      if (typeof txId === "number") {
-        return `tx-${txId}`;
+      const txPayload = payload;
+      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
+        return `txreq-${txPayload.requestId}`;
+      }
+      const txIds = txIdsFromPayload(txPayload);
+      if (txIds.length > 0) {
+        return `tx-${txIds.join("-")}`;
       }
     } else {
       const eip712Id = payload.eip712Id;
@@ -1507,22 +1746,65 @@ var ClientSession = class extends TypedEventEmitter {
     const nextRequests = [];
     const pendingTxs = isRecord((_a = this.userState) == null ? void 0 : _a.pending_txs) ? (_b = this.userState) == null ? void 0 : _b.pending_txs : void 0;
     const pendingEip712s = isRecord((_c = this.userState) == null ? void 0 : _c.pending_eip712s) ? (_d = this.userState) == null ? void 0 : _d.pending_eip712s : void 0;
-    for (const [id, raw] of Object.entries(pendingTxs != null ? pendingTxs : {}).sort(
-      (left, right) => Number(left[0]) - Number(right[0])
-    )) {
-      const payload = normalizeTxPayload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
-        pending_tx_id: Number(id)
-      }));
-      if (!payload) {
+    const pendingTxEntries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
+    const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
+    const coveredPendingTxIds = /* @__PURE__ */ new Set();
+    const existingTxRequests = this.walletRequests.filter(
+      (request) => request.kind === "transaction"
+    ).map((request) => ({
+      request,
+      txIds: txIdsFromPayload(request.payload)
+    })).filter(
+      ({ txIds }) => txIds.length > 0 && txIds.every((txId) => pendingTxIdSet.has(txId))
+    ).sort((left, right) => {
+      if (left.txIds.length !== right.txIds.length) {
+        return right.txIds.length - left.txIds.length;
+      }
+      return left.request.timestamp - right.request.timestamp;
+    });
+    for (const { request, txIds } of existingTxRequests) {
+      if (txIds.some((txId) => coveredPendingTxIds.has(txId))) {
         continue;
       }
+      const payload = hydrateTxPayloadFromUserState(
+        request.payload,
+        { pending_txs: pendingTxs != null ? pendingTxs : {} }
+      );
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
         kind: "transaction",
         payload,
-        timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+        timestamp: request.timestamp
       });
+      txIds.forEach((txId) => coveredPendingTxIds.add(txId));
+    }
+    if (this.syncPendingTxRequestsFromUserState) {
+      for (const [id, raw] of pendingTxEntries) {
+        const txId = Number(id);
+        if (coveredPendingTxIds.has(txId)) {
+          continue;
+        }
+        const payload = hydrateTxPayloadFromUserState(
+          {
+            txId,
+            txIds: [txId],
+            aaPreference: "auto"
+          },
+          {
+            pending_txs: {
+              [id]: isRecord(raw) ? raw : {}
+            }
+          }
+        );
+        const requestId = this.getWalletRequestId("transaction", payload);
+        nextRequests.push({
+          id: requestId,
+          kind: "transaction",
+          payload,
+          timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+        });
+      }
     }
     for (const [id, raw] of Object.entries(pendingEip712s != null ? pendingEip712s : {}).sort(
       (left, right) => Number(left[0]) - Number(right[0])
@@ -1635,6 +1917,16 @@ var DEFAULT_AA_CONFIG = {
     }
   ]
 };
+var DISABLED_PROVIDER_STATE = {
+  resolved: null,
+  account: void 0,
+  pending: false,
+  error: null
+};
+
+// src/aa/execute.ts
+var import_viem2 = require("viem");
+var import_accounts = require("viem/accounts");
 
 // src/chains.ts
 var import_chains = require("viem/chains");
@@ -1657,6 +1949,9 @@ var CHAINS_BY_ID = {
 };
 
 // src/aa/execute.ts
+function normalizeRpcCallData(data) {
+  return data === "0x" ? void 0 : data;
+}
 async function executeWalletCalls(params) {
   const {
     callList,
@@ -1671,7 +1966,43 @@ async function executeWalletCalls(params) {
     getPreferredRpcUrl
   } = params;
   if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState);
+    try {
+      return await executeViaAA(callList, providerState);
+    } catch (error) {
+      if (!shouldFallbackFromAAError(error, providerState)) {
+        throw error;
+      }
+      const errorKind = classifyAAFallbackError(error);
+      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
+        provider: providerState.account.provider,
+        mode: providerState.resolved.mode,
+        chainId: providerState.resolved.chainId,
+        callCount: callList.length,
+        errorKind,
+        error: toErrorMessage(error)
+      });
+      if (errorKind === "simulation_revert") {
+        console.warn(
+          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA."
+        );
+      }
+      if (errorKind === "insufficient_prefund") {
+        console.warn(
+          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account."
+        );
+      }
+      return executeViaEoa({
+        callList,
+        currentChainId,
+        capabilities,
+        localPrivateKey,
+        sendCallsSyncAsync,
+        sendTransactionAsync,
+        switchChainAsync,
+        chainsById,
+        getPreferredRpcUrl
+      });
+    }
   }
   if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
     throw providerState.error;
@@ -1695,8 +2026,48 @@ async function executeViaAA(callList, providerState) {
   if (!account || !resolved) {
     throw (_a = providerState.error) != null ? _a : new Error("smart_account_unavailable");
   }
-  const callsPayload = callList.map(({ to, value, data }) => ({ to, value, data }));
-  const receipt = callList.length > 1 ? await account.sendBatchTransaction(callsPayload) : await account.sendTransaction(callsPayload[0]);
+  const callsPayload = callList.map(({ to, value, data }) => ({
+    to,
+    value,
+    data
+  }));
+  const sendAARequest = async () => {
+    return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
+  };
+  let receipt;
+  try {
+    receipt = await sendAARequest();
+  } catch (error) {
+    if (!isRetryableBundlerSubmissionError(error)) {
+      throw error;
+    }
+    console.warn(
+      "[aomi][aa] transient bundler submission error; retrying once",
+      {
+        provider: account.provider,
+        mode: account.mode,
+        chainId: resolved.chainId,
+        callCount: callList.length,
+        error: toErrorMessage(error)
+      }
+    );
+    try {
+      receipt = await sendAARequest();
+    } catch (retryError) {
+      console.error(
+        "[aomi][aa] AA retry failed after transient bundler submission error",
+        {
+          provider: account.provider,
+          mode: account.mode,
+          chainId: resolved.chainId,
+          callCount: callList.length,
+          firstError: toErrorMessage(error),
+          retryError: toErrorMessage(retryError)
+        }
+      );
+      throw retryError;
+    }
+  }
   const txHash = receipt.transactionHash;
   const providerPrefix = account.provider.toLowerCase();
   let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
@@ -1716,12 +2087,11 @@ async function executeViaAA(callList, providerState) {
 async function resolve7702Delegation(txHash, callList) {
   var _a, _b, _c, _d;
   try {
-    const { createPublicClient, http } = await import("viem");
     const chainId = (_a = callList[0]) == null ? void 0 : _a.chainId;
     if (!chainId) return void 0;
     const chain = CHAINS_BY_ID[chainId];
     if (!chain) return void 0;
-    const client = createPublicClient({ chain, transport: http() });
+    const client = (0, import_viem2.createPublicClient)({ chain, transport: (0, import_viem2.http)() });
     const tx = await client.getTransaction({ hash: txHash });
     const authList = tx.authorizationList;
     const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
@@ -1744,11 +2114,12 @@ async function executeViaEoa({
   getPreferredRpcUrl
 }) {
   var _a, _b;
-  const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount: privateKeyToAccount4 } = await import("viem/accounts");
   const hashes = [];
+  const normalizedCalls = callList.map((call) => __spreadProps(__spreadValues({}, call), {
+    data: normalizeRpcCallData(call.data)
+  }));
   if (localPrivateKey) {
-    for (const call of callList) {
+    for (const call of normalizedCalls) {
       const chain = chainsById[call.chainId];
       if (!chain) {
         throw new Error(`Unsupported chain ${call.chainId}`);
@@ -1757,11 +2128,11 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount4(localPrivateKey);
-      const walletClient = createWalletClient({
+      const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
+      const walletClient = (0, import_viem2.createWalletClient)({
         account,
         chain,
-        transport: http(rpcUrl)
+        transport: (0, import_viem2.http)(rpcUrl)
       });
       const hash = await walletClient.sendTransaction({
         account,
@@ -1769,9 +2140,9 @@ async function executeViaEoa({
         value: call.value,
         data: call.data
       });
-      const publicClient = createPublicClient({
+      const publicClient = (0, import_viem2.createPublicClient)({
         chain,
-        transport: http(rpcUrl)
+        transport: (0, import_viem2.http)(rpcUrl)
       });
       await publicClient.waitForTransactionReceipt({ hash });
       hashes.push(hash);
@@ -1784,7 +2155,7 @@ async function executeViaEoa({
       sponsored: false
     };
   }
-  const chainIds = Array.from(new Set(callList.map((call) => call.chainId)));
+  const chainIds = Array.from(new Set(normalizedCalls.map((call) => call.chainId)));
   if (chainIds.length > 1) {
     throw new Error("mixed_chain_bundle_not_supported");
   }
@@ -1792,26 +2163,12 @@ async function executeViaEoa({
   if (currentChainId !== chainId) {
     await switchChainAsync({ chainId });
   }
-  const chainCaps = capabilities == null ? void 0 : capabilities[`eip155:${chainId}`];
+  const chainCaps = resolveChainCapabilities(capabilities, chainId);
   const atomicStatus = (_a = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a.status;
-  const canUseSendCalls = atomicStatus === "supported" || atomicStatus === "ready";
-  if (canUseSendCalls) {
-    const batchResult = await sendCallsSyncAsync({
-      calls: callList.map(({ to, value, data }) => ({ to, value, data })),
-      capabilities: {
-        atomic: {
-          required: true
-        }
-      }
-    });
-    const receipts = (_b = batchResult.receipts) != null ? _b : [];
-    for (const receipt of receipts) {
-      if (receipt.transactionHash) {
-        hashes.push(receipt.transactionHash);
-      }
-    }
-  } else {
-    for (const call of callList) {
+  const canUseSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
+  const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : void 0;
+  const sendSequentially = async () => {
+    for (const call of normalizedCalls) {
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
         to: call.to,
@@ -1820,6 +2177,30 @@ async function executeViaEoa({
       });
       hashes.push(hash);
     }
+  };
+  if (canUseSendCalls) {
+    try {
+      const batchResult = await sendCallsSyncAsync({
+        chainId,
+        calls: normalizedCalls.map(({ to, value, data }) => ({ to, value, data })),
+        capabilities: atomicCapabilityRequest ? {
+          atomic: atomicCapabilityRequest
+        } : void 0
+      });
+      const receipts = (_b = batchResult.receipts) != null ? _b : [];
+      for (const receipt of receipts) {
+        if (receipt.transactionHash) {
+          hashes.push(receipt.transactionHash);
+        }
+      }
+    } catch (error) {
+      if (!isUnsupportedAtomicCapabilityError(error)) {
+        throw error;
+      }
+      await sendSequentially();
+    }
+  } else {
+    await sendSequentially();
   }
   return {
     txHash: hashes[hashes.length - 1],
@@ -1829,20 +2210,186 @@ async function executeViaEoa({
     sponsored: false
   };
 }
+function isUnsupportedAtomicCapabilityError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("unsupported non-optional capabilities: atomic") || lowered.includes("unsupported") && lowered.includes("atomic") || lowered.includes("wallet does not support") && lowered.includes("capabilit");
+}
+function toErrorMessage(error) {
+  var _a;
+  if (error instanceof Error) {
+    return (_a = error.stack) != null ? _a : error.message;
+  }
+  return String(error);
+}
+function shouldFallbackFromAAError(error, providerState) {
+  if (!providerState.resolved) {
+    return false;
+  }
+  if (providerState.resolved.mode === "7702") {
+    return true;
+  }
+  if (providerState.resolved.mode !== "4337") {
+    return false;
+  }
+  return isRetryableBundlerSubmissionError(error) || isAASimulationRevertError(error) || isAAInsufficientPrefundError(error);
+}
+function isRetryableBundlerSubmissionError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("bundle id is unknown") || lowered.includes("bundle id unknown") || lowered.includes("has not been submitted") || lowered.includes("userop") && lowered.includes("not found") || lowered.includes("user operation") && lowered.includes("not found");
+}
+function isAASimulationRevertError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted") || lowered.includes("wallet_preparecalls") && (lowered.includes("aa23 reverted") || lowered.includes("validation reverted"));
+}
+function isAAInsufficientPrefundError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("sender balance and deposit together") || lowered.includes("precheck failed") && lowered.includes("must be at least");
+}
+function classifyAAFallbackError(error) {
+  if (isRetryableBundlerSubmissionError(error)) {
+    return "retryable_bundler";
+  }
+  if (isAAInsufficientPrefundError(error)) {
+    return "insufficient_prefund";
+  }
+  if (isAASimulationRevertError(error)) {
+    return "simulation_revert";
+  }
+  return "other";
+}
+function resolveChainCapabilities(capabilities, chainId) {
+  var _a, _b;
+  if (!capabilities) {
+    return void 0;
+  }
+  const asRecord2 = capabilities;
+  const eip155Key = `eip155:${chainId}`;
+  const decimalKey = String(chainId);
+  const hexKey = `0x${chainId.toString(16)}`;
+  return (_b = (_a = asRecord2[eip155Key]) != null ? _a : asRecord2[decimalKey]) != null ? _b : asRecord2[hexKey];
+}
+
+// src/aa/fee.ts
+var import_viem3 = require("viem");
+var MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
+var ZERO_WEI = BigInt("0");
+function toPayloadCalls(payload, defaultChainId) {
+  var _a, _b;
+  if (Array.isArray(payload.calls) && payload.calls.length > 0) {
+    return payload.calls;
+  }
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return [
+    {
+      txId: (_a = payload.txId) != null ? _a : 0,
+      to: payload.to,
+      value: payload.value,
+      data: payload.data,
+      chainId: (_b = payload.chainId) != null ? _b : defaultChainId
+    }
+  ];
+}
+function normalizeSimulatedFee(fee) {
+  const amountWei = BigInt(fee.amount_wei);
+  if (amountWei === ZERO_WEI) {
+    return null;
+  }
+  if (amountWei < ZERO_WEI) {
+    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
+  }
+  if (amountWei > MAX_AUTO_FEE_WEI) {
+    throw new Error("fee_exceeds_safety_limit");
+  }
+  return {
+    recipient: (0, import_viem3.getAddress)(fee.recipient),
+    amountWei
+  };
+}
+function buildFeeAAWalletCall(fee, chainId) {
+  const normalizedFee = normalizeSimulatedFee(fee);
+  if (!normalizedFee) {
+    return null;
+  }
+  return {
+    to: normalizedFee.recipient,
+    value: normalizedFee.amountWei,
+    chainId
+  };
+}
+function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
+  var _a, _b;
+  const feeCall = normalizeSimulatedFee(fee);
+  if (!feeCall) {
+    return payload;
+  }
+  const calls = toPayloadCalls(payload, defaultChainId);
+  const forceAaPreference = (_a = options == null ? void 0 : options.forceAaPreference) != null ? _a : "eip4337";
+  const strictAa = (_b = options == null ? void 0 : options.strictAa) != null ? _b : true;
+  return __spreadProps(__spreadValues({}, payload), {
+    // Fee call must be the final call in the AA batch.
+    calls: [
+      ...calls,
+      {
+        txId: 0,
+        to: feeCall.recipient,
+        value: feeCall.amountWei.toString(),
+        chainId: defaultChainId
+      }
+    ],
+    // Force AA mode once fee is appended so single user tx + fee still batches via AA.
+    aaPreference: forceAaPreference,
+    // Do not silently downgrade fee-injected batch requests to EOA.
+    aaStrict: strictAa
+  });
+}
+
+// src/aa/alchemy/defaults.ts
+var DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
+var DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
+function trimToUndefined(value) {
+  const trimmed = value == null ? void 0 : value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function resolveAlchemyApiKey(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_API_KEY;
+}
+function resolveAlchemyGasPolicyId(options) {
+  const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
+  if (explicit) return explicit;
+  if (!(options == null ? void 0 : options.publicOnly)) {
+    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    if (privateEnv) return privateEnv;
+  }
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  if (publicEnv) return publicEnv;
+  return DEFAULT_ALCHEMY_GAS_POLICY_ID;
+}
 
 // src/aa/alchemy/provider.ts
 function resolveForHook(params) {
-  var _a, _b;
   const { calls, localPrivateKey, accountAbstractionConfig, chainsById, getPreferredRpcUrl } = params;
   if (!calls || localPrivateKey) return null;
   const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), { provider: "alchemy" });
   const chainConfig = getAAChainConfig(config, calls, chainsById);
   if (!chainConfig) return null;
-  const apiKey = (_a = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY) == null ? void 0 : _a.trim();
-  if (!apiKey) return null;
+  const apiKey = resolveAlchemyApiKey({ publicOnly: true });
   const chain = chainsById[chainConfig.chainId];
   if (!chain) return null;
-  const gasPolicyId = (_b = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _b.trim();
+  const gasPolicyId = resolveAlchemyGasPolicyId({ publicOnly: true });
   const resolved = buildAAExecutionPlan(config, chainConfig);
   return __spreadProps(__spreadValues({}, resolved), {
     apiKey,
@@ -1888,7 +2435,7 @@ function createAlchemyAAProvider({
 }
 
 // src/aa/alchemy/create.ts
-var import_accounts2 = require("viem/accounts");
+var import_accounts3 = require("viem/accounts");
 
 // src/aa/adapt.ts
 function adaptSmartAccount(account) {
@@ -1915,13 +2462,13 @@ function isAlchemySponsorshipLimitError(error) {
 }
 
 // src/aa/owner.ts
-var import_accounts = require("viem/accounts");
+var import_accounts2 = require("viem/accounts");
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: (0, import_accounts.privateKeyToAccount)(owner.privateKey)
+      signer: (0, import_accounts2.privateKeyToAccount)(owner.privateKey)
     }
   };
 }
@@ -2021,8 +2568,31 @@ function deriveAlchemy4337AccountId(address) {
     hex.slice(20, 32).join("")
   ].join("-");
 }
+async function createAlchemySdkState(params) {
+  const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
+  const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, params.ownerParams), {
+    apiKey: params.apiKey,
+    gasPolicyId: params.gasPolicyId,
+    chain: params.chain,
+    rpcUrl: params.rpcUrl,
+    mode: params.mode
+  }));
+  if (!smartAccount) {
+    return {
+      resolved: params.resolved,
+      account: null,
+      pending: false,
+      error: new Error("Alchemy AA account could not be initialized.")
+    };
+  }
+  return {
+    resolved: params.resolved,
+    account: adaptSmartAccount(smartAccount),
+    pending: false,
+    error: null
+  };
+}
 async function createAlchemyAAState(options) {
-  var _a, _b;
   const {
     chain,
     owner,
@@ -2030,6 +2600,10 @@ async function createAlchemyAAState(options) {
     mode,
     sponsored = true
   } = options;
+  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
+  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
+    gasPolicyId: options.gasPolicyId
+  });
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
@@ -2041,7 +2615,8 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const gasPolicyId = sponsored ? (_b = options.gasPolicyId) != null ? _b : (_a = process.env.ALCHEMY_GAS_POLICY_ID) == null ? void 0 : _a.trim() : void 0;
+  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : void 0;
+  const gasPolicyId = effectiveMode === "7702" ? void 0 : requestedGasPolicyId;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
     sponsorship: gasPolicyId ? plan.sponsorship : "disabled",
@@ -2059,11 +2634,22 @@ async function createAlchemyAAState(options) {
       resolved: execution,
       chain,
       privateKey: owner.privateKey,
-      apiKey: options.apiKey,
+      apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
       gasPolicyId
     };
     try {
+      if (execution.mode === "7702" && options.apiKey) {
+        return await createAlchemySdkState({
+          resolved: execution,
+          ownerParams: ownerParams.ownerParams,
+          chain,
+          rpcUrl: options.rpcUrl,
+          apiKey: options.apiKey,
+          mode: "7702",
+          gasPolicyId: void 0
+        });
+      }
       return await (execution.mode === "7702" ? createAlchemy7702State(directParams) : createAlchemy4337State(directParams));
     } catch (error) {
       return {
@@ -2074,7 +2660,7 @@ async function createAlchemyAAState(options) {
       };
     }
   }
-  if (!options.apiKey) {
+  if (!apiKey) {
     return {
       resolved: execution,
       account: null,
@@ -2085,28 +2671,15 @@ async function createAlchemyAAState(options) {
     };
   }
   try {
-    const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
-    const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey: options.apiKey,
-      gasPolicyId,
+    return await createAlchemySdkState({
+      resolved: execution,
+      ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
+      apiKey,
+      gasPolicyId,
       mode: execution.mode
-    }));
-    if (!smartAccount) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error("Alchemy AA account could not be initialized.")
-      };
-    }
-    return {
-      resolved: execution,
-      account: adaptSmartAccount(smartAccount),
-      pending: false,
-      error: null
-    };
+    });
   } catch (error) {
     return {
       resolved: execution,
@@ -2119,7 +2692,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemy4337State(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = (0, import_accounts2.privateKeyToAccount)(params.privateKey);
+  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -2208,7 +2781,7 @@ async function createAlchemy4337State(params) {
   };
 }
 async function createAlchemy7702State(params) {
-  const { createWalletClient, createPublicClient, http } = await import("viem");
+  const { createWalletClient: createWalletClient2, createPublicClient: createPublicClient2, http: http2 } = await import("viem");
   const { encodeExecuteData } = await import("viem/experimental/erc7821");
   if (params.gasPolicyId) {
     aaDebug(
@@ -2219,7 +2792,7 @@ async function createAlchemy7702State(params) {
       "\u26A0\uFE0F  Gas policy is not supported for raw EIP-7702 transactions. The signer's EOA pays gas directly."
     );
   }
-  const signer = (0, import_accounts2.privateKeyToAccount)(params.privateKey);
+  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
   const signerAddress = signer.address;
   let rpcUrl;
   if (params.proxyBaseUrl) {
@@ -2227,14 +2800,14 @@ async function createAlchemy7702State(params) {
   } else if (params.apiKey) {
     rpcUrl = alchemyRpcUrl(params.chain.id, params.apiKey);
   }
-  const walletClient = createWalletClient({
+  const walletClient = createWalletClient2({
     account: signer,
     chain: params.chain,
-    transport: http(rpcUrl)
+    transport: http2(rpcUrl)
   });
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient2({
     chain: params.chain,
-    transport: http(rpcUrl)
+    transport: http2(rpcUrl)
   });
   const send7702 = async (calls) => {
     aaDebug("7702:send:start", {
@@ -2406,7 +2979,7 @@ function createPimlicoAAProvider({
 }
 
 // src/aa/pimlico/create.ts
-var import_accounts3 = require("viem/accounts");
+var import_accounts4 = require("viem/accounts");
 var AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
@@ -2503,9 +3076,9 @@ async function createPimlicoDirectState(params) {
   const { createSmartAccountClient } = await import("permissionless");
   const { toSimpleSmartAccount } = await import("permissionless/accounts");
   const { createPimlicoClient } = await import("permissionless/clients/pimlico");
-  const { createPublicClient, http } = await import("viem");
+  const { createPublicClient: createPublicClient2, http: http2 } = await import("viem");
   const { entryPoint07Address } = await import("viem/account-abstraction");
-  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
+  const signer = (0, import_accounts4.privateKeyToAccount)(params.privateKey);
   const signerAddress = signer.address;
   const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
   pimDebug("4337:start", {
@@ -2513,13 +3086,13 @@ async function createPimlicoDirectState(params) {
     chainId: params.chain.id,
     pimlicoRpcUrl: pimlicoRpcUrl.replace(params.apiKey, "***")
   });
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient2({
     chain: params.chain,
-    transport: http(params.rpcUrl)
+    transport: http2(params.rpcUrl)
   });
   const paymasterClient = createPimlicoClient({
     entryPoint: { address: entryPoint07Address, version: "0.7" },
-    transport: http(pimlicoRpcUrl)
+    transport: http2(pimlicoRpcUrl)
   });
   const smartAccount = await toSimpleSmartAccount({
     client: publicClient,
@@ -2535,7 +3108,7 @@ async function createPimlicoDirectState(params) {
     account: smartAccount,
     chain: params.chain,
     paymaster: paymasterClient,
-    bundlerTransport: http(pimlicoRpcUrl),
+    bundlerTransport: http2(pimlicoRpcUrl),
     userOperation: {
       estimateFeesPerGas: async () => {
         const gasPrice = await paymasterClient.getUserOperationGasPrice();
@@ -2615,27 +3188,36 @@ async function createAAProviderState(options) {
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG,
+  DISABLED_PROVIDER_STATE,
+  MAX_AUTO_FEE_WEI,
   Session,
   TypedEventEmitter,
   UserState,
+  aaModeFromExecutionKind,
   adaptSmartAccount,
   addUserStateExt,
+  appendFeeCallToPayload,
   buildAAExecutionPlan,
+  buildFeeAAWalletCall,
   createAAProviderState,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,
+  hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
   isSystemNotice,
   normalizeEip712Payload,
+  normalizeSimulatedFee,
   normalizeTxPayload,
+  parseChainId,
   resolvePimlicoConfig,
   toAAWalletCall,
+  toAAWalletCalls,
   toViemSignTypedDataArgs,
   unwrapSystemEvent
 });

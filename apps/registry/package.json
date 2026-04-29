@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "1.2.7",
+  "version": "1.2.10",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
   "main": "./src/index.ts",
@@ -25,6 +25,7 @@
     "clean:dist": "rm -rf dist"
   },
   "dependencies": {
+    "@aomi-labs/client": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",

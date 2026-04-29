@@ -10,6 +10,7 @@ import {
 } from "../aa";
 import { ALCHEMY_CHAIN_SLUGS } from "../chains";
 import type { CliAAProvider, CliAAMode, CliConfig } from "./types";
+import { resolveAlchemyApiKey } from "../aa/alchemy/defaults";
 
 // ---------------------------------------------------------------------------
 // ERC-20 Call Detection
@@ -87,7 +88,16 @@ function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliA
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
   });
-  const baseMode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
+  let baseMode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
+
+  // For multi-call batches, prefer 7702 first when available.
+  if (
+    !explicitMode &&
+    callList.length > 1 &&
+    chainConfig?.supportedModes.includes("7702")
+  ) {
+    baseMode = "7702";
+  }
 
   const { mode } = maybeOverride4337ForTokenOps({
     mode: baseMode,
@@ -104,8 +114,8 @@ function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliA
  *
  * - `--eoa`  → EOA, always.
  * - PIMLICO_API_KEY + --aa-provider pimlico → Pimlico direct
- * - ALCHEMY_API_KEY set → Alchemy BYOK
- * - (default) → Alchemy proxy via backend (zero-config)
+ * - Alchemy key resolved (env or built-in default) → Alchemy direct
+ * - (fallback) → Alchemy proxy via backend
  */
 export function resolveCliExecutionDecision(params: {
   config: CliConfig;
@@ -119,8 +129,13 @@ export function resolveCliExecutionDecision(params: {
     return { execution: "eoa" };
   }
 
+  // Auto mode: use direct EOA signing for single-call executions.
+  if (config.execution !== "aa" && callList.length === 1) {
+    return { execution: "eoa" };
+  }
+
   const pimlicoKey = process.env.PIMLICO_API_KEY?.trim();
-  const alchemyKey = process.env.ALCHEMY_API_KEY?.trim();
+  const alchemyKey = resolveAlchemyApiKey();
 
   // Pimlico BYOK (only when explicitly requested)
   if (pimlicoKey && config.aaProvider === "pimlico") {
@@ -128,7 +143,7 @@ export function resolveCliExecutionDecision(params: {
     return { execution: "aa", provider: "pimlico", aaMode, apiKey: pimlicoKey };
   }
 
-  // Alchemy BYOK
+  // Alchemy direct (user key or built-in default)
   if (alchemyKey) {
     const aaMode = resolveMode(chain, callList, config.aaMode);
     return { execution: "aa", provider: "alchemy", aaMode, apiKey: alchemyKey };
@@ -172,12 +187,17 @@ export async function createCliProviderState(params: {
   const proxyBaseUrl = decision.proxy && chainSlug
     ? `${baseUrl}/aa/v1/${chainSlug}`
     : undefined;
+  const resolvedRpcUrl =
+    rpcUrl ||
+    chain.rpcUrls.default.http[0] ||
+    chain.rpcUrls.public?.http[0] ||
+    "";
 
   return createAAProviderState({
     provider: decision.provider,
     chain,
     owner: { kind: "direct", privateKey },
-    rpcUrl,
+    rpcUrl: resolvedRpcUrl,
     callList,
     mode: decision.aaMode,
     apiKey: decision.apiKey,

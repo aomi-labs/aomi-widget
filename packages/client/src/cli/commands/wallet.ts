@@ -2,17 +2,16 @@ import { type Chain, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
+  buildFeeAAWalletCall,
+  normalizeSimulatedFee,
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
 import {
-  toAAWalletCall,
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
 import type { AomiSimulateFee } from "../../types";
-import type { AAWalletCall } from "../../aa";
-import { getAddress } from "viem";
 import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import {
@@ -31,51 +30,8 @@ import {
   toSignedTransactionRecord,
 } from "../transactions";
 import type { CliConfig } from "../types";
-
-// ---------------------------------------------------------------------------
-// Fee Validation
-// ---------------------------------------------------------------------------
-
-/** Max fee the CLI will auto-inject without aborting (0.05 ETH). */
-const MAX_AUTO_FEE_WEI = BigInt("50000000000000000"); // 0.05 ETH
-
-function validateAndBuildFeeCall(
-  fee: AomiSimulateFee,
-  chainId: number,
-): AAWalletCall | null {
-  const amountWei = BigInt(fee.amount_wei);
-  if (amountWei === 0n) {
-    return null;
-  }
-  if (amountWei < 0n) {
-    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
-  }
-
-  let recipient: string;
-  try {
-    recipient = getAddress(fee.recipient);
-  } catch {
-    throw new Error(
-      `Invalid fee recipient address from backend: ${fee.recipient}`,
-    );
-  }
-
-  if (amountWei > MAX_AUTO_FEE_WEI) {
-    const feeEth = (Number(amountWei) / 1e18).toFixed(6);
-    throw new Error(
-      `Fee of ${feeEth} ETH exceeds safety limit of ${Number(MAX_AUTO_FEE_WEI) / 1e18} ETH. Aborting.`,
-    );
-  }
-
-  const feeEth = (Number(amountWei) / 1e18).toFixed(6);
-  console.log(`Fee:     ${feeEth} ETH → ${recipient}`);
-
-  return toAAWalletCall({
-    to: recipient,
-    value: fee.amount_wei,
-    chainId,
-  });
-}
+import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
+import { resolveAlchemyApiKey } from "../../aa/alchemy/defaults";
 
 export async function txCommand(): Promise<void> {
   const cli = CliSession.load();
@@ -152,8 +108,17 @@ function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
 }
 
 function getPreferredRpcUrl(chain: Chain, override?: string): string {
+  if (override) {
+    return override;
+  }
+
+  const alchemyApiKey = resolveAlchemyApiKey();
+  const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
+  if (alchemyApiKey && alchemyChainSlug) {
+    return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
+  }
+
   return (
-    override ??
     chain.rpcUrls.default.http[0] ??
     chain.rpcUrls.public?.http[0] ??
     ""
@@ -281,11 +246,12 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       try {
         const simResponse = await session.client.simulateBatch(
           cli.sessionId,
-          pendingTxs.map((tx) => ({
+          pendingTxs.map((tx, index) => ({
             to: tx.to ?? "",
             value: tx.value,
             data: tx.data,
             label: tx.description ?? tx.id,
+            chain_id: resolvedChainIds[index],
           })),
           {
             from: account.address,
@@ -310,7 +276,12 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       // Fee validation is outside the try/catch so failures abort instead
       // of being silently swallowed.
       if (simFee) {
-        const feeCall = validateAndBuildFeeCall(simFee, primaryChainId);
+        const normalizedFee = normalizeSimulatedFee(simFee);
+        if (normalizedFee) {
+          const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
+          console.log(`Fee:     ${feeEth} ETH → ${normalizedFee.recipient}`);
+        }
+        const feeCall = buildFeeAAWalletCall(simFee, primaryChainId);
         if (feeCall) {
           callList.push(feeCall);
         }
@@ -323,7 +294,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      // Execute with AA mode fallback (e.g. 7702 → 4337)
+      // Execute with AA fallback chain in auto mode:
+      // 7702 -> 4337 -> EOA per-call
       let finalDecision: CliExecutionDecision = decision;
       let execution: ExecutionResult;
 
@@ -332,8 +304,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           decision: d,
           chain,
           privateKey: privateKey as `0x${string}`,
-          rpcUrl: rpcUrl ?? "",
+          rpcUrl: resolvedRpcUrl,
           callList,
+          baseUrl: cli.baseUrl,
         });
         return executeCliTransaction({
           privateKey: privateKey as `0x${string}`,
@@ -360,12 +333,21 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           finalDecision = alt;
         } catch (retryError) {
           const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          fatal(
-            `❌ AA execution failed with both modes.\n` +
-            `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
-            `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
-            `Use \`--eoa\` to sign without account abstraction.`,
-          );
+          if (config.execution === "aa") {
+            fatal(
+              `❌ AA execution failed with both modes.\n` +
+              `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
+              `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
+              `Use \`--eoa\` to sign without account abstraction.`,
+            );
+          }
+
+          console.log(`AA ${alt.execution === "aa" ? alt.aaMode : "execution"} failed: ${retryMsg}`);
+          console.log("Retrying with eoa...");
+
+          const eoaDecision: CliExecutionDecision = { execution: "eoa" };
+          execution = await runWithDecision(eoaDecision);
+          finalDecision = eoaDecision;
         }
       }
 
@@ -383,6 +365,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         console.log(`Deleg:   ${execution.delegationAddress}`);
       }
 
+      const executionUsedAA =
+        finalDecision.execution === "aa" && execution.executionKind !== "eoa";
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -390,8 +374,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           account.address,
           resolvedChainIds[index],
           Date.now(),
-          finalDecision.execution === "aa" ? finalDecision.provider : undefined,
-          finalDecision.execution === "aa" ? finalDecision.aaMode : undefined,
+          executionUsedAA ? finalDecision.provider : undefined,
+          executionUsedAA ? finalDecision.aaMode : undefined,
         ),
       );
       backendNotifications = pendingTxs.map((tx) => ({
@@ -399,7 +383,13 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         payload: {
           txHash: execution.txHash,
           status: "success",
-          ...(tx.txId !== undefined ? { pending_tx_id: tx.txId } : {}),
+          pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
+          execution_kind: execution.executionKind,
+          batched: execution.batched,
+          call_count: execution.txHashes.length,
+          sponsored: execution.sponsored,
+          smart_account_address: execution.AAAddress,
+          delegation_address: execution.delegationAddress,
         },
       }));
     } else {

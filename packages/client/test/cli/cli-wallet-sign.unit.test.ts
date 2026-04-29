@@ -42,9 +42,15 @@ vi.mock("../../src/session", () => ({
   },
 }));
 
-vi.mock("../../src/aa", () => ({
-  executeWalletCalls: mocks.executeWalletCalls,
-}));
+vi.mock("../../src/aa", async () => {
+  const actual = await vi.importActual<typeof import("../../src/aa")>(
+    "../../src/aa",
+  );
+  return {
+    ...actual,
+    executeWalletCalls: mocks.executeWalletCalls,
+  };
+});
 
 vi.mock("../../src/cli/execution", async () => {
   const actual = await vi.importActual<typeof import("../../src/cli/execution")>(
@@ -251,6 +257,7 @@ describe("CLI wallet sign simulation integration", () => {
           value: "0",
           data: "0x",
           label: "send zero",
+          chain_id: 1,
         },
       ],
       {
@@ -261,6 +268,7 @@ describe("CLI wallet sign simulation integration", () => {
 
     expect(mocks.createCliProviderState).toHaveBeenCalledWith(
       expect.objectContaining({
+        baseUrl: "http://127.0.0.1:8080",
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",
@@ -309,6 +317,7 @@ describe("CLI wallet sign simulation integration", () => {
 
     expect(mocks.createCliProviderState).toHaveBeenCalledWith(
       expect.objectContaining({
+        baseUrl: "http://127.0.0.1:8080",
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",

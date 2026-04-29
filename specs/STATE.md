@@ -2,9 +2,17 @@
 
 ## Last Updated
 
-2026-04-12 - AA Proxy: Delete client-side complexity
+2026-04-27 - Release version bumps for publish
 
 ## Recent Changes
+
+### Release version bumps for publish (2026-04-27)
+
+- **Bumped package versions** for the three publish targets:
+  - `@aomi-labs/client`: `0.1.28` -> `0.1.29`
+  - `@aomi-labs/react`: `0.3.12` -> `0.3.13`
+  - `@aomi-labs/widget-lib`: `1.2.8` -> `1.2.9`
+- **Updated files:** `packages/client/package.json`, `packages/react/package.json`, `apps/registry/package.json`
 
 ### CLI root-shape alignment with Rust CLI (2026-04-19)
 

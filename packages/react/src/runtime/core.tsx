@@ -20,6 +20,7 @@ import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
 import { initThreadControl } from "../state/thread-store";
 import { useWalletHandler } from "../handlers/wallet-handler";
+import { RuntimeUserStateProvider } from "./user-state-provider";
 
 // =============================================================================
 // Core Props
@@ -458,6 +459,27 @@ export function AomiRuntimeCore({
     [threadContext.allThreadsMetadata, threadListAdapter],
   );
 
+  const simulateBatchTransactions = useCallback<
+    AomiRuntimeApi["simulateBatchTransactions"]
+  >(
+    async (transactions, options) => {
+      const session =
+        sessionManagerRef.current?.get(threadContext.currentThreadId) ??
+        getSession(threadContext.currentThreadId);
+      if (!session) {
+        throw new Error("runtime_session_unavailable");
+      }
+
+      const response = await session.client.simulateBatch(
+        session.sessionId,
+        transactions,
+        options,
+      );
+      return response.result;
+    },
+    [getSession, threadContext.currentThreadId],
+  );
+
   const aomiRuntimeApi: AomiRuntimeApi = useMemo(
     () => ({
       // User API
@@ -496,6 +518,7 @@ export function AomiRuntimeCore({
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
+      simulateBatchTransactions,
 
       // Event API
       subscribe: eventContext.subscribe,
@@ -519,15 +542,22 @@ export function AomiRuntimeCore({
       cancelGeneration,
       notificationContext,
       walletHandler,
+      simulateBatchTransactions,
       eventContext,
     ],
   );
 
   return (
     <AomiRuntimeApiProvider value={aomiRuntimeApi}>
-      <AssistantRuntimeProvider runtime={runtime}>
-        {children}
-      </AssistantRuntimeProvider>
+      <RuntimeUserStateProvider
+        sessionManager={sessionManager}
+        getUserState={userContext.getUserState}
+        onUserStateChange={userContext.onUserStateChange}
+      >
+        <AssistantRuntimeProvider runtime={runtime}>
+          {children}
+        </AssistantRuntimeProvider>
+      </RuntimeUserStateProvider>
     </AomiRuntimeApiProvider>
   );
 }

@@ -15,6 +15,10 @@ import {
   type AAOwner,
 } from "../owner";
 import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
+import {
+  resolveAlchemyApiKey,
+  resolveAlchemyGasPolicyId,
+} from "./defaults";
 
 const ALCHEMY_7702_DELEGATION_ADDRESS =
   "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
@@ -72,6 +76,47 @@ interface AlchemyDirectOwnerParams {
   gasPolicyId?: string;
 }
 
+type ReadyOwnerParams = Extract<
+  ReturnType<typeof getOwnerParams>,
+  { kind: "ready" }
+>["ownerParams"];
+
+async function createAlchemySdkState(params: {
+  resolved: NonNullable<AAState["resolved"]>;
+  ownerParams: ReadyOwnerParams;
+  chain: Chain;
+  rpcUrl: string;
+  apiKey: string;
+  mode: AAMode;
+  gasPolicyId?: string;
+}): Promise<AAState> {
+  const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
+  const smartAccount = await createAlchemySmartAccount({
+    ...params.ownerParams,
+    apiKey: params.apiKey,
+    gasPolicyId: params.gasPolicyId,
+    chain: params.chain,
+    rpcUrl: params.rpcUrl,
+    mode: params.mode,
+  });
+
+  if (!smartAccount) {
+    return {
+      resolved: params.resolved,
+      account: null,
+      pending: false,
+      error: new Error("Alchemy AA account could not be initialized."),
+    };
+  }
+
+  return {
+    resolved: params.resolved,
+    account: adaptSmartAccount(smartAccount),
+    pending: false,
+    error: null,
+  };
+}
+
 export interface CreateAlchemyAAStateOptions {
   chain: Chain;
   owner: AAOwner;
@@ -96,6 +141,10 @@ export async function createAlchemyAAState(
     mode,
     sponsored = true,
   } = options;
+  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
+  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
+    gasPolicyId: options.gasPolicyId,
+  });
 
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
@@ -110,9 +159,8 @@ export async function createAlchemyAAState(
     { ...chainConfig, defaultMode: effectiveMode },
   );
 
-  const gasPolicyId = sponsored
-    ? (options.gasPolicyId ?? process.env.ALCHEMY_GAS_POLICY_ID?.trim())
-    : undefined;
+  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : undefined;
+  const gasPolicyId = effectiveMode === "7702" ? undefined : requestedGasPolicyId;
 
   const execution = {
     ...plan,
@@ -134,11 +182,23 @@ export async function createAlchemyAAState(
       resolved: execution!,
       chain,
       privateKey: owner.privateKey,
-      apiKey: options.apiKey,
+      apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
       gasPolicyId,
     };
     try {
+      if (execution!.mode === "7702" && options.apiKey) {
+        return await createAlchemySdkState({
+          resolved: execution!,
+          ownerParams: ownerParams.ownerParams,
+          chain,
+          rpcUrl: options.rpcUrl,
+          apiKey: options.apiKey,
+          mode: "7702",
+          gasPolicyId: undefined,
+        });
+      }
+
       return await (execution!.mode === "7702"
         ? createAlchemy7702State(directParams)
         : createAlchemy4337State(directParams));
@@ -153,7 +213,7 @@ export async function createAlchemyAAState(
   }
 
   // Session/adapter path — requires a real API key (no proxy support)
-  if (!options.apiKey) {
+  if (!apiKey) {
     return {
       resolved: execution,
       account: null,
@@ -165,31 +225,15 @@ export async function createAlchemyAAState(
   }
 
   try {
-    const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
-    const smartAccount = await createAlchemySmartAccount({
-      ...ownerParams.ownerParams,
-      apiKey: options.apiKey,
-      gasPolicyId,
+    return await createAlchemySdkState({
+      resolved: execution!,
+      ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
+      apiKey,
+      gasPolicyId,
       mode: execution!.mode,
     });
-
-    if (!smartAccount) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error("Alchemy AA account could not be initialized."),
-      };
-    }
-
-    return {
-      resolved: execution,
-      account: adaptSmartAccount(smartAccount),
-      pending: false,
-      error: null,
-    };
   } catch (error) {
     return {
       resolved: execution,

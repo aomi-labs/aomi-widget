@@ -56,6 +56,7 @@ export const registry: RegistryComponent[] = [
       "lib/auth-identity.ts",
     ],
     dependencies: [
+      "@aomi-labs/client",
       "@aomi-labs/react",
       "@getpara/react-sdk",
       "lucide-react",
@@ -160,7 +161,12 @@ export const registry: RegistryComponent[] = [
       "lib/aomi-auth-adapter.ts",
       "lib/auth-identity.ts",
     ],
-    dependencies: ["@aomi-labs/react", "wagmi"],
+    dependencies: [
+      "@aomi-labs/client",
+      "@aomi-labs/react",
+      "@getpara/react-sdk",
+      "wagmi",
+    ],
     description:
       "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
   },
