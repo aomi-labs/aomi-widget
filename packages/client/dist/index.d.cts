@@ -406,7 +406,6 @@ interface AAChainConfig {
 interface AAConfig {
     enabled: boolean;
     provider: AAProvider;
-    fallbackToEoa: boolean;
     chains: AAChainConfig[];
 }
 interface AAResolvedConfig {
@@ -415,7 +414,6 @@ interface AAResolvedConfig {
     mode: AAMode;
     batchingEnabled: boolean;
     sponsorship: AASponsorship;
-    fallbackToEoa: boolean;
 }
 /** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
 type AACallPayload = Omit<AAWalletCall, "chainId">;

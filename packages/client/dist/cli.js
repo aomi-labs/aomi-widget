@@ -3166,8 +3166,7 @@ function buildAAExecutionPlan(config, chainConfig) {
     chainId: chainConfig.chainId,
     mode,
     batchingEnabled: chainConfig.allowBatching,
-    sponsorship: chainConfig.sponsorship,
-    fallbackToEoa: config.fallbackToEoa
+    sponsorship: chainConfig.sponsorship
   };
 }
 var DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE;
@@ -3177,45 +3176,44 @@ var init_types2 = __esm({
     DEFAULT_AA_CONFIG = {
       enabled: true,
       provider: "alchemy",
-      fallbackToEoa: true,
       chains: [
         {
           chainId: 1,
           enabled: true,
           defaultMode: "7702",
-          supportedModes: ["4337", "7702"],
+          supportedModes: ["7702", "4337"],
           allowBatching: true,
           sponsorship: "optional"
         },
         {
           chainId: 137,
           enabled: true,
-          defaultMode: "4337",
-          supportedModes: ["4337", "7702"],
+          defaultMode: "7702",
+          supportedModes: ["7702", "4337"],
           allowBatching: true,
           sponsorship: "optional"
         },
         {
           chainId: 42161,
           enabled: true,
-          defaultMode: "4337",
-          supportedModes: ["4337", "7702"],
+          defaultMode: "7702",
+          supportedModes: ["7702", "4337"],
           allowBatching: true,
           sponsorship: "optional"
         },
         {
           chainId: 10,
           enabled: true,
-          defaultMode: "4337",
-          supportedModes: ["4337", "7702"],
+          defaultMode: "7702",
+          supportedModes: ["7702", "4337"],
           allowBatching: true,
           sponsorship: "optional"
         },
         {
           chainId: 8453,
           enabled: true,
-          defaultMode: "4337",
-          supportedModes: ["4337", "7702"],
+          defaultMode: "7702",
+          supportedModes: ["7702", "4337"],
           allowBatching: true,
           sponsorship: "optional"
         }
@@ -3250,45 +3248,9 @@ async function executeWalletCalls(params) {
     getPreferredRpcUrl: getPreferredRpcUrl2
   } = params;
   if (providerState.resolved && providerState.account) {
-    try {
-      return await executeViaAA(callList, providerState);
-    } catch (error) {
-      if (!shouldFallbackFromAAError(error, providerState)) {
-        throw error;
-      }
-      const errorKind = classifyAAFallbackError(error);
-      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
-        provider: providerState.account.provider,
-        mode: providerState.resolved.mode,
-        chainId: providerState.resolved.chainId,
-        callCount: callList.length,
-        errorKind,
-        error: toErrorMessage(error)
-      });
-      if (errorKind === "simulation_revert") {
-        console.warn(
-          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA."
-        );
-      }
-      if (errorKind === "insufficient_prefund") {
-        console.warn(
-          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account."
-        );
-      }
-      return executeViaEoa({
-        callList,
-        currentChainId,
-        capabilities,
-        localPrivateKey,
-        sendCallsSyncAsync,
-        sendTransactionAsync,
-        switchChainAsync,
-        chainsById,
-        getPreferredRpcUrl: getPreferredRpcUrl2
-      });
-    }
+    return executeViaAA(callList, providerState, getPreferredRpcUrl2);
   }
-  if (providerState.resolved && providerState.error && !providerState.resolved.fallbackToEoa) {
+  if (providerState.resolved && providerState.error) {
     throw providerState.error;
   }
   return executeViaEoa({
@@ -3303,7 +3265,7 @@ async function executeWalletCalls(params) {
     getPreferredRpcUrl: getPreferredRpcUrl2
   });
 }
-async function executeViaAA(callList, providerState) {
+async function executeViaAA(callList, providerState, getPreferredRpcUrl2) {
   var _a3;
   const account = providerState.account;
   const resolved = providerState.resolved;
@@ -3313,7 +3275,7 @@ async function executeViaAA(callList, providerState) {
   const callsPayload = callList.map(({ to, value, data }) => ({
     to,
     value,
-    data
+    data: normalizeRpcCallData(data)
   }));
   const sendAARequest = async () => {
     return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
@@ -3356,7 +3318,7 @@ async function executeViaAA(callList, providerState) {
   const providerPrefix = account.provider.toLowerCase();
   let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
   if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(txHash, callList);
+    delegationAddress = await resolve7702Delegation(txHash, callList, getPreferredRpcUrl2);
   }
   return {
     txHash,
@@ -3368,14 +3330,15 @@ async function executeViaAA(callList, providerState) {
     delegationAddress
   };
 }
-async function resolve7702Delegation(txHash, callList) {
+async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl2) {
   var _a3, _b, _c, _d;
   try {
     const chainId = (_a3 = callList[0]) == null ? void 0 : _a3.chainId;
     if (!chainId) return void 0;
     const chain = CHAINS_BY_ID[chainId];
     if (!chain) return void 0;
-    const client = createPublicClient({ chain, transport: http() });
+    const rpcUrl = getPreferredRpcUrl2(chain);
+    const client = createPublicClient({ chain, transport: http(rpcUrl) });
     const tx = await client.getTransaction({ hash: txHash });
     const authList = tx.authorizationList;
     const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
@@ -3506,44 +3469,10 @@ function toErrorMessage(error) {
   }
   return String(error);
 }
-function shouldFallbackFromAAError(error, providerState) {
-  if (!providerState.resolved || !providerState.resolved.fallbackToEoa) {
-    return false;
-  }
-  if (providerState.resolved.mode === "7702") {
-    return true;
-  }
-  if (providerState.resolved.mode !== "4337") {
-    return false;
-  }
-  return isRetryableBundlerSubmissionError(error) || isAASimulationRevertError(error) || isAAInsufficientPrefundError(error);
-}
 function isRetryableBundlerSubmissionError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
   return lowered.includes("bundle id is unknown") || lowered.includes("bundle id unknown") || lowered.includes("has not been submitted") || lowered.includes("userop") && lowered.includes("not found") || lowered.includes("user operation") && lowered.includes("not found");
-}
-function isAASimulationRevertError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted") || lowered.includes("wallet_preparecalls") && (lowered.includes("aa23 reverted") || lowered.includes("validation reverted"));
-}
-function isAAInsufficientPrefundError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("sender balance and deposit together") || lowered.includes("precheck failed") && lowered.includes("must be at least");
-}
-function classifyAAFallbackError(error) {
-  if (isRetryableBundlerSubmissionError(error)) {
-    return "retryable_bundler";
-  }
-  if (isAAInsufficientPrefundError(error)) {
-    return "insufficient_prefund";
-  }
-  if (isAASimulationRevertError(error)) {
-    return "simulation_revert";
-  }
-  return "other";
 }
 function resolveChainCapabilities(capabilities, chainId) {
   var _a3, _b;
@@ -3802,17 +3731,9 @@ async function createAlchemySdkState(params) {
   };
 }
 async function createAlchemyAAState(options) {
-  const {
-    chain,
-    owner,
-    callList,
-    mode,
-    sponsored = true
-  } = options;
+  var _a3;
+  const { chain, owner, callList, mode } = options;
   const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
-  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
-    gasPolicyId: options.gasPolicyId
-  });
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
@@ -3824,12 +3745,11 @@ async function createAlchemyAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : void 0;
-  const gasPolicyId = requestedGasPolicyId;
+  const sponsored = (_a3 = options.sponsored) != null ? _a3 : effectiveMode === "4337";
+  const gasPolicyId = sponsored ? resolveAlchemyGasPolicyId({ gasPolicyId: options.gasPolicyId }) : void 0;
   const execution = __spreadProps(__spreadValues({}, plan), {
     mode: effectiveMode,
-    sponsorship: gasPolicyId ? plan.sponsorship : "disabled",
-    fallbackToEoa: false
+    sponsorship: gasPolicyId ? plan.sponsorship : "disabled"
   });
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
@@ -4040,7 +3960,7 @@ async function createPimlicoAAState(options) {
   if (!chainConfig) {
     throw new Error(`AA is not configured for chain ${chain.id}.`);
   }
-  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
+  const effectiveMode = "4337";
   const plan = buildAAExecutionPlan(
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
@@ -4050,8 +3970,7 @@ async function createPimlicoAAState(options) {
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }
   const execution = __spreadProps(__spreadValues({}, plan), {
-    mode: effectiveMode,
-    fallbackToEoa: false
+    mode: effectiveMode
   });
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
@@ -4272,44 +4191,22 @@ function callsContainTokenOperations(calls) {
     (call) => call.data && ERC20_SELECTORS.has(call.data.slice(0, 10).toLowerCase())
   );
 }
-function maybeOverride4337ForTokenOps(params) {
-  const { mode, callList, chain, explicitMode } = params;
-  if (mode !== "4337" || !callsContainTokenOperations(callList)) {
-    return { mode, warned: false };
-  }
-  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
-    [chain.id]: chain
-  });
-  if ((chainConfig == null ? void 0 : chainConfig.supportedModes.includes("7702")) && !explicitMode) {
-    console.log(
-      "\u26A0\uFE0F  4337 batch contains ERC-20 calls but tokens are in your EOA, not the 4337 smart account."
-    );
-    console.log("   Switching to 7702 (EOA keeps smart-account capabilities, no token transfer needed).");
-    return { mode: "7702", warned: true };
-  }
+function warnIfTokenOpsIn4337(mode, callList) {
+  if (mode !== "4337" || !callsContainTokenOperations(callList)) return;
   console.log(
     "\u26A0\uFE0F  4337 batch contains ERC-20 calls. Tokens must be in the smart account, not your EOA."
   );
   console.log(
     "   This batch may revert. Consider transferring tokens to the smart account first."
   );
-  return { mode, warned: true };
 }
 function resolveMode(chain, callList, explicitMode) {
   var _a3;
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain
   });
-  let baseMode = (_a3 = explicitMode != null ? explicitMode : chainConfig == null ? void 0 : chainConfig.defaultMode) != null ? _a3 : "7702";
-  if (!explicitMode && callList.length > 1 && (chainConfig == null ? void 0 : chainConfig.supportedModes.includes("7702"))) {
-    baseMode = "7702";
-  }
-  const { mode } = maybeOverride4337ForTokenOps({
-    mode: baseMode,
-    callList,
-    chain,
-    explicitMode: Boolean(explicitMode)
-  });
+  const mode = (_a3 = explicitMode != null ? explicitMode : chainConfig == null ? void 0 : chainConfig.defaultMode) != null ? _a3 : "7702";
+  warnIfTokenOpsIn4337(mode, callList);
   return mode;
 }
 function resolveCliExecutionDecision(params) {
@@ -4707,8 +4604,10 @@ async function signCommand(config, txIds) {
         callList: decisionCallList
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
-      let finalDecision = decision;
-      let execution;
+      const strategies = [decision];
+      const altDecision = getAlternativeAAMode(decision);
+      if (altDecision) strategies.push(altDecision);
+      if (config.execution !== "aa") strategies.push({ execution: "eoa" });
       const runWithDecision = async (d) => {
         var _a4;
         const ps = await createCliProviderState({
@@ -4719,12 +4618,13 @@ async function signCommand(config, txIds) {
           callList: decisionCallList,
           baseUrl: cli.baseUrl
         });
-        const executionCallList = autoFeeCall && d.execution === "aa" && ((_a4 = ps.resolved) == null ? void 0 : _a4.sponsorship) !== "disabled" ? (() => {
+        let executionCallList = decisionCallList;
+        if (autoFeeCall && d.execution === "aa" && ((_a4 = ps.resolved) == null ? void 0 : _a4.sponsorship) !== "disabled") {
           console.log(
             `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`
           );
-          return baseCallList;
-        })() : decisionCallList;
+          executionCallList = baseCallList;
+        }
         return executeCliTransaction({
           privateKey,
           currentChainId: primaryChainId,
@@ -4734,32 +4634,31 @@ async function signCommand(config, txIds) {
           callList: executionCallList
         });
       };
-      try {
-        execution = await runWithDecision(decision);
-      } catch (primaryError) {
-        const alt = getAlternativeAAMode(decision);
-        if (!alt) throw primaryError;
-        const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
-        console.log(`AA ${decision.execution === "aa" ? decision.aaMode : "execution"} failed: ${primaryMsg}`);
-        console.log(`Retrying with ${alt.execution === "aa" ? alt.aaMode : "eoa"}...`);
+      let finalDecision = decision;
+      let execution;
+      const failures = [];
+      for (const strategy of strategies) {
+        if (failures.length > 0) {
+          const prev = strategies[failures.length - 1];
+          console.log(`${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1].message}`);
+          console.log(`Retrying with ${describeExecutionDecision(strategy)}...`);
+        }
         try {
-          execution = await runWithDecision(alt);
-          finalDecision = alt;
-        } catch (retryError) {
-          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          if (config.execution === "aa") {
-            fatal(
-              `\u274C AA execution failed with both modes.
-  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}
-  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}
-Use \`--eoa\` to sign without account abstraction.`
-            );
+          execution = await runWithDecision(strategy);
+          finalDecision = strategy;
+          break;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          failures.push({ decision: strategy, message });
+          if (strategy === strategies[strategies.length - 1]) {
+            if (config.execution === "aa") {
+              fatal(
+                `\u274C AA execution failed with all modes.
+` + failures.map((f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`).join("\n") + "\nUse `--eoa` to sign without account abstraction."
+              );
+            }
+            throw error;
           }
-          console.log(`AA ${alt.execution === "aa" ? alt.aaMode : "execution"} failed: ${retryMsg}`);
-          console.log("Retrying with eoa...");
-          const eoaDecision = { execution: "eoa" };
-          execution = await runWithDecision(eoaDecision);
-          finalDecision = eoaDecision;
         }
       }
       console.log(`\u2705 Sent! Hash: ${execution.txHash}`);

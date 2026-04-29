@@ -129,17 +129,8 @@ export interface CreateAlchemyAAStateOptions {
 export async function createAlchemyAAState(
   options: CreateAlchemyAAStateOptions,
 ): Promise<AAState> {
-  const {
-    chain,
-    owner,
-    callList,
-    mode,
-    sponsored = true,
-  } = options;
+  const { chain, owner, callList, mode } = options;
   const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
-  const resolvedGasPolicyId = resolveAlchemyGasPolicyId({
-    gasPolicyId: options.gasPolicyId,
-  });
 
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
@@ -154,14 +145,19 @@ export async function createAlchemyAAState(
     { ...chainConfig, defaultMode: effectiveMode },
   );
 
-  const requestedGasPolicyId = sponsored ? resolvedGasPolicyId : undefined;
-  const gasPolicyId = requestedGasPolicyId;
+  // 7702 executes from the EOA (no separate smart account), so the user's
+  // existing balance covers gas — no paymaster needed.
+  // 4337 uses a separate smart account contract that starts with zero balance,
+  // so gas sponsorship is required to avoid prefund failures.
+  const sponsored = options.sponsored ?? effectiveMode === "4337";
+  const gasPolicyId = sponsored
+    ? resolveAlchemyGasPolicyId({ gasPolicyId: options.gasPolicyId })
+    : undefined;
 
   const execution = {
     ...plan,
     mode: effectiveMode,
     sponsorship: gasPolicyId ? plan.sponsorship : "disabled",
-    fallbackToEoa: false,
   } as AAState["resolved"];
 
   const ownerParams = getOwnerParams(owner);

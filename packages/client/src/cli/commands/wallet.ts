@@ -300,10 +300,13 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      // Execute with AA fallback chain in auto mode:
-      // 7702 -> 4337 -> EOA per-call
-      let finalDecision: CliExecutionDecision = decision;
-      let execution: ExecutionResult;
+      // Build ordered list of strategies to attempt.
+      // With --aa: [primary, alt] — fatal if both fail, no EOA.
+      // Auto mode: [primary, alt, eoa] — transparently fall through to EOA.
+      const strategies: CliExecutionDecision[] = [decision];
+      const altDecision = getAlternativeAAMode(decision);
+      if (altDecision) strategies.push(altDecision);
+      if (config.execution !== "aa") strategies.push({ execution: "eoa" });
 
       const runWithDecision = async (d: CliExecutionDecision) => {
         const ps = await createCliProviderState({
@@ -314,17 +317,15 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           callList: decisionCallList,
           baseUrl: cli.baseUrl,
         });
-        const executionCallList =
-          autoFeeCall &&
-          d.execution === "aa" &&
-          ps.resolved?.sponsorship !== "disabled"
-            ? (() => {
-                console.log(
-                  `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`,
-                );
-                return baseCallList;
-              })()
-            : decisionCallList;
+
+        let executionCallList = decisionCallList;
+        if (autoFeeCall && d.execution === "aa" && ps.resolved?.sponsorship !== "disabled") {
+          console.log(
+            `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`,
+          );
+          executionCallList = baseCallList;
+        }
+
         return executeCliTransaction({
           privateKey: privateKey as `0x${string}`,
           currentChainId: primaryChainId,
@@ -335,36 +336,33 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         });
       };
 
-      try {
-        execution = await runWithDecision(decision);
-      } catch (primaryError) {
-        const alt = getAlternativeAAMode(decision);
-        if (!alt) throw primaryError;
+      let finalDecision: CliExecutionDecision = decision;
+      let execution!: ExecutionResult;
+      const failures: Array<{ decision: CliExecutionDecision; message: string }> = [];
 
-        const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
-        console.log(`AA ${decision.execution === "aa" ? decision.aaMode : "execution"} failed: ${primaryMsg}`);
-        console.log(`Retrying with ${alt.execution === "aa" ? alt.aaMode : "eoa"}...`);
-
+      for (const strategy of strategies) {
+        if (failures.length > 0) {
+          const prev = strategies[failures.length - 1]!;
+          console.log(`${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1]!.message}`);
+          console.log(`Retrying with ${describeExecutionDecision(strategy)}...`);
+        }
         try {
-          execution = await runWithDecision(alt);
-          finalDecision = alt;
-        } catch (retryError) {
-          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          if (config.execution === "aa") {
-            fatal(
-              `❌ AA execution failed with both modes.\n` +
-              `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
-              `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
-              `Use \`--eoa\` to sign without account abstraction.`,
-            );
+          execution = await runWithDecision(strategy);
+          finalDecision = strategy;
+          break;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          failures.push({ decision: strategy, message });
+          if (strategy === strategies[strategies.length - 1]) {
+            if (config.execution === "aa") {
+              fatal(
+                `❌ AA execution failed with all modes.\n` +
+                failures.map((f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`).join("\n") +
+                "\nUse `--eoa` to sign without account abstraction.",
+              );
+            }
+            throw error;
           }
-
-          console.log(`AA ${alt.execution === "aa" ? alt.aaMode : "execution"} failed: ${retryMsg}`);
-          console.log("Retrying with eoa...");
-
-          const eoaDecision: CliExecutionDecision = { execution: "eoa" };
-          execution = await runWithDecision(eoaDecision);
-          finalDecision = eoaDecision;
         }
       }
 

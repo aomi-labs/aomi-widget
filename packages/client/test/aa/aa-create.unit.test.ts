@@ -147,7 +147,7 @@ describe("createAAProviderState", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("creates an Alchemy 7702 provider state via Wallets API for direct owners", async () => {
+  it("creates an Alchemy 7702 provider state via Wallets API for direct owners (no paymaster)", async () => {
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-7702";
 
     const state = await createAAProviderState({
@@ -161,17 +161,16 @@ describe("createAAProviderState", () => {
     });
 
     expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
-    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        paymaster: { policyId: "policy-7702" },
-      }),
+    // 7702 uses the EOA balance for gas — no paymaster attached
+    expect(createSmartWalletClientMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ paymaster: expect.anything() }),
     );
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
 
     expect(state.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
-      fallbackToEoa: false,
+      sponsorship: "disabled",
     });
     expect(state.account).toMatchObject({
       provider: "alchemy",
@@ -380,9 +379,8 @@ describe("createAAProviderState owner modes", () => {
   it("creates an Alchemy provider state for Para sessions", async () => {
     createAlchemySmartAccountMock.mockResolvedValue({
       provider: "ALCHEMY",
-      mode: "7702",
+      mode: "4337",
       smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       sendTransaction: vi.fn(),
       sendBatchTransaction: vi.fn(),
     });
@@ -400,7 +398,7 @@ describe("createAAProviderState owner modes", () => {
       rpcUrl: "https://example-rpc.invalid",
       apiKey: "alchemy-key",
       gasPolicyId: "policy-1",
-      mode: "7702",
+      mode: "4337",
     });
 
     expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
@@ -410,12 +408,12 @@ describe("createAAProviderState owner modes", () => {
         para: PARA,
         chain: mainnet,
         rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
+        mode: "4337",
       }),
     );
     expect(state.account).toMatchObject({
       provider: "ALCHEMY",
-      mode: "7702",
+      mode: "4337",
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
   });
