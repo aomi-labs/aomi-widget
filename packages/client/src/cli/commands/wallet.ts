@@ -231,13 +231,17 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       }
       console.log();
 
-      const callList = pendingTxs.flatMap((tx, index) =>
+      const baseCallList = pendingTxs.flatMap((tx, index) =>
         pendingTxToCallList({
           ...tx,
           chainId: resolvedChainIds[index],
         }),
       );
-      if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
+      if (
+        baseCallList.length > 1 &&
+        rpcUrl &&
+        new Set(baseCallList.map((call) => call.chainId)).size > 1
+      ) {
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
       }
 
@@ -275,22 +279,24 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
       // Fee validation is outside the try/catch so failures abort instead
       // of being silently swallowed.
+      let autoFeeCall: ReturnType<typeof buildFeeAAWalletCall> = null;
       if (simFee) {
         const normalizedFee = normalizeSimulatedFee(simFee);
         if (normalizedFee) {
           const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
           console.log(`Fee:     ${feeEth} ETH → ${normalizedFee.recipient}`);
         }
-        const feeCall = buildFeeAAWalletCall(simFee, primaryChainId);
-        if (feeCall) {
-          callList.push(feeCall);
-        }
+        autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
+
+      const decisionCallList = autoFeeCall
+        ? [...baseCallList, autoFeeCall]
+        : baseCallList;
 
       const decision = resolveCliExecutionDecision({
         config,
         chain,
-        callList,
+        callList: decisionCallList,
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
@@ -305,16 +311,27 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           chain,
           privateKey: privateKey as `0x${string}`,
           rpcUrl: resolvedRpcUrl,
-          callList,
+          callList: decisionCallList,
           baseUrl: cli.baseUrl,
         });
+        const executionCallList =
+          autoFeeCall &&
+          d.execution === "aa" &&
+          ps.resolved?.sponsorship !== "disabled"
+            ? (() => {
+                console.log(
+                  `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`,
+                );
+                return baseCallList;
+              })()
+            : decisionCallList;
         return executeCliTransaction({
           privateKey: privateKey as `0x${string}`,
           currentChainId: primaryChainId,
           chainsById,
           rpcUrl,
           providerState: ps,
-          callList,
+          callList: executionCallList,
         });
       };
 

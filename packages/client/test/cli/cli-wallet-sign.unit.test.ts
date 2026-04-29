@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   syncPendingTxsFromUserState: vi.fn(),
   writeState: vi.fn(),
   addSignedTx: vi.fn(),
+  describeExecutionDecision: vi.fn(() => "EOA"),
+  resolveCliExecutionDecision: vi.fn(() => ({ execution: "eoa" })),
 }));
 
 vi.mock("viem/accounts", async () => {
@@ -59,8 +61,8 @@ vi.mock("../../src/cli/execution", async () => {
   return {
     ...actual,
     createCliProviderState: mocks.createCliProviderState,
-    describeExecutionDecision: vi.fn(() => "EOA"),
-    resolveCliExecutionDecision: vi.fn(() => ({ execution: "eoa" })),
+    describeExecutionDecision: mocks.describeExecutionDecision,
+    resolveCliExecutionDecision: mocks.resolveCliExecutionDecision,
   };
 });
 
@@ -130,6 +132,8 @@ describe("CLI wallet sign simulation integration", () => {
       },
     });
     mocks.createCliProviderState.mockResolvedValue({ providerState: "mock" });
+    mocks.describeExecutionDecision.mockReturnValue("EOA");
+    mocks.resolveCliExecutionDecision.mockReturnValue({ execution: "eoa" });
     mocks.syncPendingTxsFromUserState.mockImplementation((state) => state.pendingTxs ?? []);
     mocks.executeWalletCalls.mockResolvedValue({
       txHash: "0xabc",
@@ -343,5 +347,111 @@ describe("CLI wallet sign simulation integration", () => {
     );
 
     expect(mocks.executeWalletCalls).toHaveBeenCalled();
+  });
+
+  it("skips the native fee transfer for sponsored AA execution", async () => {
+    mocks.describeExecutionDecision.mockReturnValue("aa (alchemy, 4337)");
+    mocks.resolveCliExecutionDecision.mockReturnValue({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "4337",
+      apiKey: "alchemy-key",
+    });
+    mocks.createCliProviderState.mockResolvedValue({
+      resolved: {
+        sponsorship: "optional",
+      },
+      account: {
+        AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      pending: false,
+      error: null,
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        execution: "aa",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    expect(mocks.createCliProviderState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callList: [
+          {
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            data: "0x",
+            chainId: 1,
+          },
+          {
+            to: "0x9C7a99480c59955a635123EDa064456393e519f5",
+            value: 1000000000000n,
+            chainId: 1,
+          },
+        ],
+      }),
+    );
+    expect(mocks.executeWalletCalls).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callList: [
+          {
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            data: "0x",
+            chainId: 1,
+          },
+        ],
+      }),
+    );
+  });
+
+  it("does not retry with 4337 when 7702 was explicitly requested", async () => {
+    mocks.describeExecutionDecision.mockReturnValue("aa (alchemy, 7702)");
+    mocks.resolveCliExecutionDecision.mockReturnValue({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+      apiKey: "alchemy-key",
+      modeExplicit: true,
+    });
+    mocks.createCliProviderState.mockResolvedValue({
+      resolved: {
+        sponsorship: "optional",
+      },
+      account: {
+        AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      pending: false,
+      error: null,
+    });
+    mocks.executeWalletCalls.mockRejectedValue(
+      new Error("wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted"),
+    );
+
+    await expect(
+      signCommand(
+        {
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          baseUrl: "http://127.0.0.1:8080",
+          app: "default",
+          apiKey: "test-key",
+          execution: "aa",
+          aaMode: "7702",
+          secrets: {},
+        },
+        ["tx-1"],
+      ),
+    ).rejects.toThrow();
+
+    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(1);
+    expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(1);
   });
 });
