@@ -3743,6 +3743,32 @@ var init_owner = __esm({
 
 // src/aa/alchemy/create.ts
 import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+function extractExistingAccountAddress(error) {
+  var _a3;
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(
+    /Account with address (0x[a-fA-F0-9]{40}) already exists/
+  );
+  return (_a3 = match == null ? void 0 : match[1]) != null ? _a3 : null;
+}
+function deriveAlchemy4337AccountId(address) {
+  var _a3;
+  const hex = address.toLowerCase().slice(2).padEnd(32, "0").slice(0, 32).split("");
+  const namespace = ["4", "3", "3", "7", "5", "a", "a", "b"];
+  for (let index = 0; index < namespace.length; index += 1) {
+    hex[index] = namespace[index];
+  }
+  hex[12] = "4";
+  const variant = Number.parseInt((_a3 = hex[16]) != null ? _a3 : "0", 16);
+  hex[16] = (variant & 3 | 8).toString(16);
+  return [
+    hex.slice(0, 8).join(""),
+    hex.slice(8, 12).join(""),
+    hex.slice(12, 16).join(""),
+    hex.slice(16, 20).join(""),
+    hex.slice(20, 32).join("")
+  ].join("-");
+}
 function aaDebug(message, fields) {
   if (!AA_DEBUG_ENABLED) return;
   if (fields) {
@@ -3873,13 +3899,37 @@ async function createAlchemyWalletApisState(params) {
   const signerAddress = signer.address;
   let accountAddress = signerAddress;
   if (params.resolved.mode === "4337") {
+    const accountId = deriveAlchemy4337AccountId(signerAddress);
     aaDebug("4337:requestAccount:start", {
       signerAddress,
       chainId: params.chain.id,
+      accountId,
       hasGasPolicyId: Boolean(params.gasPolicyId)
     });
-    const account = await alchemyClient.requestAccount();
-    accountAddress = account.address;
+    try {
+      const account = await alchemyClient.requestAccount({
+        signerAddress,
+        id: accountId,
+        creationHint: {
+          accountType: "sma-b",
+          createAdditional: true
+        }
+      });
+      accountAddress = account.address;
+    } catch (error) {
+      const existingAccountAddress = extractExistingAccountAddress(error);
+      if (!existingAccountAddress) {
+        throw error;
+      }
+      aaDebug("4337:requestAccount:existing-account", {
+        signerAddress,
+        existingAccountAddress
+      });
+      const account = await alchemyClient.requestAccount({
+        accountAddress: existingAccountAddress
+      });
+      accountAddress = account.address;
+    }
     aaDebug("4337:requestAccount:done", { signerAddress, accountAddress });
   }
   const sendCalls = async (calls) => {
@@ -4275,17 +4325,36 @@ function resolveCliExecutionDecision(params) {
   const alchemyKey = resolveAlchemyApiKey();
   if (pimlicoKey && config.aaProvider === "pimlico") {
     const aaMode2 = resolveMode(chain, callList, config.aaMode);
-    return { execution: "aa", provider: "pimlico", aaMode: aaMode2, apiKey: pimlicoKey };
+    return {
+      execution: "aa",
+      provider: "pimlico",
+      aaMode: aaMode2,
+      modeExplicit: Boolean(config.aaMode),
+      apiKey: pimlicoKey
+    };
   }
   if (alchemyKey) {
     const aaMode2 = resolveMode(chain, callList, config.aaMode);
-    return { execution: "aa", provider: "alchemy", aaMode: aaMode2, apiKey: alchemyKey };
+    return {
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: aaMode2,
+      modeExplicit: Boolean(config.aaMode),
+      apiKey: alchemyKey
+    };
   }
   const aaMode = resolveMode(chain, callList, config.aaMode);
-  return { execution: "aa", provider: "alchemy", aaMode, proxy: true };
+  return {
+    execution: "aa",
+    provider: "alchemy",
+    aaMode,
+    modeExplicit: Boolean(config.aaMode),
+    proxy: true
+  };
 }
 function getAlternativeAAMode(decision) {
   if (decision.execution !== "aa") return null;
+  if (decision.modeExplicit) return null;
   const alt = decision.aaMode === "7702" ? "4337" : "7702";
   return __spreadProps(__spreadValues({}, decision), { aaMode: alt });
 }
@@ -4581,12 +4650,12 @@ async function signCommand(config, txIds) {
         }
       }
       console.log();
-      const callList = pendingTxs.flatMap(
+      const baseCallList = pendingTxs.flatMap(
         (tx, index) => pendingTxToCallList(__spreadProps(__spreadValues({}, tx), {
           chainId: resolvedChainIds[index]
         }))
       );
-      if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
+      if (baseCallList.length > 1 && rpcUrl && new Set(baseCallList.map((call) => call.chainId)).size > 1) {
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
       }
       let simFee;
@@ -4622,41 +4691,47 @@ async function signCommand(config, txIds) {
           `${DIM}Simulation unavailable, skipping fee injection.${RESET}`
         );
       }
+      let autoFeeCall = null;
       if (simFee) {
         const normalizedFee = normalizeSimulatedFee(simFee);
         if (normalizedFee) {
           const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
           console.log(`Fee:     ${feeEth} ETH \u2192 ${normalizedFee.recipient}`);
         }
-        const feeCall = buildFeeAAWalletCall(simFee, primaryChainId);
-        if (feeCall) {
-          callList.push(feeCall);
-        }
+        autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
+      const decisionCallList = autoFeeCall ? [...baseCallList, autoFeeCall] : baseCallList;
       const decision = resolveCliExecutionDecision({
         config,
         chain,
-        callList
+        callList: decisionCallList
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
       let finalDecision = decision;
       let execution;
       const runWithDecision = async (d) => {
+        var _a4;
         const ps = await createCliProviderState({
           decision: d,
           chain,
           privateKey,
           rpcUrl: resolvedRpcUrl,
-          callList,
+          callList: decisionCallList,
           baseUrl: cli.baseUrl
         });
+        const executionCallList = autoFeeCall && d.execution === "aa" && ((_a4 = ps.resolved) == null ? void 0 : _a4.sponsorship) !== "disabled" ? (() => {
+          console.log(
+            `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`
+          );
+          return baseCallList;
+        })() : decisionCallList;
         return executeCliTransaction({
           privateKey,
           currentChainId: primaryChainId,
           chainsById,
           rpcUrl,
           providerState: ps,
-          callList
+          callList: executionCallList
         });
       };
       try {

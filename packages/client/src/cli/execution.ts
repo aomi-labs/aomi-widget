@@ -77,6 +77,7 @@ export type CliExecutionDecision =
       execution: "aa";
       provider: CliAAProvider;
       aaMode: CliAAMode;
+      modeExplicit?: boolean;
       apiKey?: string;
       proxy?: boolean;
     };
@@ -140,18 +141,36 @@ export function resolveCliExecutionDecision(params: {
   // Pimlico BYOK (only when explicitly requested)
   if (pimlicoKey && config.aaProvider === "pimlico") {
     const aaMode = resolveMode(chain, callList, config.aaMode);
-    return { execution: "aa", provider: "pimlico", aaMode, apiKey: pimlicoKey };
+    return {
+      execution: "aa",
+      provider: "pimlico",
+      aaMode,
+      modeExplicit: Boolean(config.aaMode),
+      apiKey: pimlicoKey,
+    };
   }
 
   // Alchemy direct (user key or built-in default)
   if (alchemyKey) {
     const aaMode = resolveMode(chain, callList, config.aaMode);
-    return { execution: "aa", provider: "alchemy", aaMode, apiKey: alchemyKey };
+    return {
+      execution: "aa",
+      provider: "alchemy",
+      aaMode,
+      modeExplicit: Boolean(config.aaMode),
+      apiKey: alchemyKey,
+    };
   }
 
   // Default: Alchemy proxy (zero-config)
   const aaMode = resolveMode(chain, callList, config.aaMode);
-  return { execution: "aa", provider: "alchemy", aaMode, proxy: true };
+  return {
+    execution: "aa",
+    provider: "alchemy",
+    aaMode,
+    modeExplicit: Boolean(config.aaMode),
+    proxy: true,
+  };
 }
 
 /**
@@ -161,6 +180,7 @@ export function getAlternativeAAMode(
   decision: CliExecutionDecision,
 ): CliExecutionDecision | null {
   if (decision.execution !== "aa") return null;
+  if (decision.modeExplicit) return null;
   const alt: CliAAMode = decision.aaMode === "7702" ? "4337" : "7702";
   return { ...decision, aaMode: alt };
 }

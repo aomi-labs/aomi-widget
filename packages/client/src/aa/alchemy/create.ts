@@ -20,6 +20,38 @@ const ALCHEMY_7702_DELEGATION_ADDRESS =
   "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
 const AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
 
+function extractExistingAccountAddress(error: unknown): Hex | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(
+    /Account with address (0x[a-fA-F0-9]{40}) already exists/,
+  );
+  return (match?.[1] as Hex | undefined) ?? null;
+}
+
+function deriveAlchemy4337AccountId(address: Hex): string {
+  const hex = address
+    .toLowerCase()
+    .slice(2)
+    .padEnd(32, "0")
+    .slice(0, 32)
+    .split("");
+  const namespace = ["4", "3", "3", "7", "5", "a", "a", "b"];
+  for (let index = 0; index < namespace.length; index += 1) {
+    hex[index] = namespace[index];
+  }
+  hex[12] = "4";
+  const variant = Number.parseInt(hex[16] ?? "0", 16);
+  hex[16] = ((variant & 0x3) | 0x8).toString(16);
+
+  return [
+    hex.slice(0, 8).join(""),
+    hex.slice(8, 12).join(""),
+    hex.slice(12, 16).join(""),
+    hex.slice(16, 20).join(""),
+    hex.slice(20, 32).join(""),
+  ].join("-");
+}
+
 function aaDebug(message: string, fields?: Record<string, unknown>): void {
   if (!AA_DEBUG_ENABLED) return;
   if (fields) {
@@ -225,14 +257,38 @@ async function createAlchemyWalletApisState(
   let accountAddress = signerAddress;
 
   if (params.resolved.mode === "4337") {
+    const accountId = deriveAlchemy4337AccountId(signerAddress);
     aaDebug("4337:requestAccount:start", {
       signerAddress,
       chainId: params.chain.id,
+      accountId,
       hasGasPolicyId: Boolean(params.gasPolicyId),
     });
 
-    const account = await alchemyClient.requestAccount();
-    accountAddress = account.address as Hex;
+    try {
+      const account = await alchemyClient.requestAccount({
+        signerAddress,
+        id: accountId,
+        creationHint: {
+          accountType: "sma-b",
+          createAdditional: true,
+        },
+      });
+      accountAddress = account.address as Hex;
+    } catch (error) {
+      const existingAccountAddress = extractExistingAccountAddress(error);
+      if (!existingAccountAddress) {
+        throw error;
+      }
+      aaDebug("4337:requestAccount:existing-account", {
+        signerAddress,
+        existingAccountAddress,
+      });
+      const account = await alchemyClient.requestAccount({
+        accountAddress: existingAccountAddress,
+      });
+      accountAddress = account.address as Hex;
+    }
     aaDebug("4337:requestAccount:done", { signerAddress, accountAddress });
   }
 

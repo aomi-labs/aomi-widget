@@ -86,6 +86,7 @@ import { createAAProviderState } from "../../src/aa/create";
 
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
+const DIRECT_OWNER_ADDRESS = "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c";
 const SIGNER = { id: "external-wallet" } as const;
 const PARA = { id: "para-session" } as const;
 const CALL_LIST = [
@@ -205,7 +206,16 @@ describe("createAAProviderState", () => {
         paymaster: expect.anything(),
       }),
     );
-    expect(requestAccountMock).toHaveBeenCalledWith();
+    expect(requestAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerAddress: DIRECT_OWNER_ADDRESS,
+        id: expect.any(String),
+        creationHint: {
+          accountType: "sma-b",
+          createAdditional: true,
+        },
+      }),
+    );
     expect(requestAccountMock).toHaveBeenCalledTimes(1);
     expect(state.resolved).toMatchObject({
       sponsorship: "disabled",
@@ -214,6 +224,49 @@ describe("createAAProviderState", () => {
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       mode: "4337",
     });
+  });
+
+  it("reuses the existing 4337 account when Alchemy reports it already exists", async () => {
+    requestAccountMock
+      .mockRejectedValueOnce(
+        new Error(
+          "Account with address 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb already exists",
+        ),
+      )
+      .mockResolvedValueOnce({
+        address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        type: "json-rpc",
+      });
+
+    const state = await createAAProviderState({
+      provider: "alchemy",
+      chain: mainnet,
+      owner: { kind: "direct", privateKey: PRIVATE_KEY },
+      rpcUrl: "https://example-rpc.invalid",
+      callList: [...CALL_LIST],
+      mode: "4337",
+      apiKey: "alchemy-key",
+    });
+
+    expect(requestAccountMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        signerAddress: DIRECT_OWNER_ADDRESS,
+        id: expect.any(String),
+        creationHint: {
+          accountType: "sma-b",
+          createAdditional: true,
+        },
+      }),
+    );
+    expect(requestAccountMock).toHaveBeenNthCalledWith(2, {
+      accountAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    });
+    expect(state.account).toMatchObject({
+      AAAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      mode: "4337",
+    });
+    expect(state.error).toBeNull();
   });
 
   it("creates a Pimlico provider state", async () => {

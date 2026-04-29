@@ -247,6 +247,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "72eIUle_3rfixX00QJVwk",
     });
     expect(describeExecutionDecision(decision)).toBe(
@@ -271,6 +272,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "alchemy-key",
     });
     expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
@@ -292,6 +294,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "alchemy-key",
     });
   });
@@ -315,6 +318,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "pimlico",
       aaMode: "4337",
+      modeExplicit: true,
       apiKey: "pimlico-key",
     });
   });
@@ -526,6 +530,17 @@ describe("CLI execution controls", () => {
 
   it("getAlternativeAAMode returns null for EOA decisions", () => {
     expect(getAlternativeAAMode({ execution: "eoa" })).toBeNull();
+  });
+
+  it("getAlternativeAAMode returns null when the AA mode was explicitly requested", () => {
+    expect(
+      getAlternativeAAMode({
+        execution: "aa",
+        provider: "alchemy",
+        aaMode: "7702",
+        modeExplicit: true,
+      }),
+    ).toBeNull();
   });
 
 });
