@@ -148,6 +148,7 @@ export function useSafeSendCallsSync(): {
           calls,
           capabilities,
           chainId,
+          timeout: 0,
         });
       },
     };

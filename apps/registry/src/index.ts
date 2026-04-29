@@ -31,10 +31,11 @@ export {
   useAomiAuthAdapter,
 } from "./lib/aomi-auth-adapter";
 export { AomiBaseAccountProvider } from "./lib/aomi-auth-adapter/providers/base-account";
-export type {
-  AomiAuthIdentity,
-  AomiAuthStatus,
-} from "./lib/aomi-auth-adapter";
+export {
+  AomiParaAdapterProvider,
+  AomiParaProvider,
+} from "./lib/aomi-auth-adapter/providers/para";
+export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/aomi-auth-adapter";
 export {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
