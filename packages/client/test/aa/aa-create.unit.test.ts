@@ -268,16 +268,18 @@ describe("createAAProviderState", () => {
     expect(state.error).toBeNull();
   });
 
-  it("creates a Pimlico provider state", async () => {
+  it("creates a Pimlico provider state always in 4337 mode regardless of chain default", async () => {
     process.env.PIMLICO_API_KEY = "pimlico-key";
 
+    // Pimlico does not support 7702. Even though the chain config now defaults
+    // to 7702, Pimlico must always produce a 4337 state.
     const state = await createAAProviderState({
       provider: "pimlico",
       chain: polygon,
       owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...POLYGON_CALLS],
-      mode: "4337",
+      // mode intentionally omitted — should NOT pick up 7702 from chain default
     });
 
     expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();

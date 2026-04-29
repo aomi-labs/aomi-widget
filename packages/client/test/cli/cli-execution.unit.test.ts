@@ -463,7 +463,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA provider state for 4337 mode", async () => {
+  it("creates Alchemy AA provider state for 4337 mode with gas sponsorship", async () => {
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     const providerState = await createCliProviderState({
@@ -480,10 +480,14 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    expect(createSmartWalletClientMock).toHaveBeenCalled();
+    // 4337 smart account has zero balance — paymaster must be attached
+    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
+      expect.objectContaining({ paymaster: { policyId: "policy-1" } }),
+    );
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "4337",
+      sponsorship: "optional",
     });
   });
 
