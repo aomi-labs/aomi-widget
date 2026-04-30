@@ -1,0 +1,71 @@
+# Aomi
+
+> Agentic AI infrastructure for blockchain. Embed a chat widget that simulates and signs transactions through the user's own wallet, build custom UIs on the headless React library, or add your product's API as a callable AI tool. Non-custodial by design — Aomi never holds keys.
+
+The fastest entry point for an agent is `/agents.md` — it routes the user's intent to the right install path. The full corpus is `/llms-full.txt` (every doc plus both skill files concatenated, for one-fetch ingestion).
+
+## Start here
+
+- [Agent onboarding](https://aomi.dev/agents.md): Routes user intent to one of three paths — transact via CLI, embed UI, or add a new tool. Read this first.
+- [Build an Aomi app](https://aomi.dev/agents/build.md): Self-contained guide for "build an Aomi app for our REST API at <url>" prompts. Inlines the aomi-build skill, SDK patterns, spec-to-tools rubric, and how to wire up a chat frontend. One fetch — no skill install required.
+- [Transact with Aomi](https://aomi.dev/agents/transact.md): Self-contained guide for "swap X for Y" / "send N to <addr>" prompts. Inlines the aomi-transact skill, AA signing internals, app catalog, end-to-end examples, sessions, and troubleshooting. One fetch.
+- [Full corpus](https://aomi.dev/llms-full.txt): All docs and skills concatenated. Use when you need everything in one fetch.
+
+## For agents acting on a wallet
+
+Use these when the user wants to read prices/balances or build/sign transactions.
+
+- [aomi-transact skill](https://github.com/aomi-labs/skills/blob/main/aomi-transact/SKILL.md): The canonical operating procedure for driving the `aomi` CLI — chat, simulate, sign. Includes hard rules on credentials and signing.
+- [CLI reference](https://aomi.dev/docs/reference/cli.md): Full command list with flags. Read after the skill if you need a flag the skill didn't show.
+- [Account abstraction](https://aomi.dev/docs/reference/account-abstraction.md): AA-first signing, mode fallback (7702 vs 4337), provider selection, sponsorship, per-chain RPC guidance.
+- [Simulation](https://aomi.dev/docs/reference/simulation.md): How forked-chain simulation works and when to require it.
+
+## For agents embedding Aomi UI
+
+Use these when the user wants to add an Aomi chat widget to their own app.
+
+- [Quickstart](https://aomi.dev/docs/build/quickstart.md): Install the widget into a Next.js app via one shadcn command. Start here.
+- [Integration guide](https://aomi.dev/docs/build/integration-guide.md): Decide between the bundled widget and the headless React library.
+- [Headless: install](https://aomi.dev/docs/build/ui/headless/install.md): Install `@aomi-labs/react` and wire up the runtime.
+- [Headless: runtime provider](https://aomi.dev/docs/build/ui/headless/runtime-provider.md): The provider that holds backend connection, session, and tool state.
+- [Headless: hooks](https://aomi.dev/docs/build/ui/headless/hooks.md): React hooks for chat, tools, sessions, control state.
+- [Headless: build custom UI](https://aomi.dev/docs/build/ui/headless/build-custom-ui.md): Patterns for composers, message lists, tool views.
+- [Widget: AomiFrame](https://aomi.dev/docs/build/ui/widget/aomi-frame.md): The bundled chat component and its props.
+- [Widget: components](https://aomi.dev/docs/build/ui/widget/components.md): The composable widget pieces (header, composer, control bar).
+- [Widget: configuration](https://aomi.dev/docs/build/ui/widget/configuration.md): App, model, theme, control surface options.
+- [Widget: theming](https://aomi.dev/docs/build/ui/widget/theming.md): Color tokens, fonts, spacing.
+- [Wallet integration](https://aomi.dev/docs/build/services/wallet-integration.md): Para and wagmi setup; how the widget gets a signer.
+
+## For agents extending Aomi with new tools
+
+Use these when the user wants to add their product or API as something Aomi can call.
+
+- [aomi-build skill](https://github.com/aomi-labs/skills/blob/main/aomi-build/SKILL.md): The canonical procedure for converting an OpenAPI/SDK/repo into an Aomi SDK app crate. Includes tool design rules and validation steps.
+- [Building apps](https://aomi.dev/docs/build/services/building-apps.md): Aomi App architecture — what an app is, how it's invoked, what it returns.
+- [Namespaces](https://aomi.dev/docs/build/namespaces.md): Tool naming conventions and when to use which.
+- [API reference](https://aomi.dev/docs/build/services/api-reference.md): The HTTP API the backend exposes.
+- [Sessions (backend)](https://aomi.dev/docs/build/services/sessions.md): How conversation state, tool calls, and tx state persist across turns.
+- [SDK reference](https://aomi.dev/docs/reference/sdk.md): The React SDK surface — components, hooks, types.
+
+## Concepts and architecture
+
+Read for context, not as the entry point.
+
+- [Overview](https://aomi.dev/docs/build/overview.md): What Aomi is and how the parts fit together.
+- [How it works](https://aomi.dev/docs/build/how-it-works.md): The simulation-first transaction pipeline, end-to-end.
+- [Architecture](https://aomi.dev/docs/reference/architecture.md): System diagram and component boundaries.
+- [Runtime](https://aomi.dev/docs/reference/runtime.md): The hosted backend that runs Aomi Apps.
+
+## Channels (humans, not agents)
+
+Background context for understanding how end-users actually reach Aomi.
+
+- [Telegram bot](https://aomi.dev/docs/use-aomi/telegram/overview.md): Aomi as a Telegram trading bot.
+- [Web chat](https://aomi.dev/docs/use-aomi/web/overview.md): The hosted aomi.dev playground.
+- [FAQ](https://aomi.dev/docs/use-aomi/faq.md): Common end-user questions.
+
+## Source
+
+- Skills: https://github.com/aomi-labs/skills
+- Widget + landing: https://github.com/aomi-labs/aomi-widget
+- npm package: https://www.npmjs.com/package/@aomi-labs/client
