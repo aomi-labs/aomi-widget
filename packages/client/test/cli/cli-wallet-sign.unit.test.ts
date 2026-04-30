@@ -454,6 +454,18 @@ describe("CLI wallet sign simulation integration", () => {
     // First call with 7702, second with 4337
     expect(mocks.createCliProviderState).toHaveBeenCalledTimes(2);
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
+    expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.sendSystemMessage.mock.calls[0]?.[0]).toBe("session-1");
+    expect(JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string)).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        pending_tx_ids: [1],
+        execution_kind: "alchemy_4337",
+        aa_requested_mode: "7702",
+        aa_resolved_mode: "4337",
+        aa_fallback_reason: "requested_7702_fallback_4337",
+      },
+    });
   });
 
   it("raises a fatal error when --aa is explicit and both 7702 and 4337 fail", async () => {

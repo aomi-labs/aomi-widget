@@ -8,6 +8,9 @@ import {
   type ExecutionResult,
 } from "../../aa";
 import {
+  aaModeFromExecutionKind,
+} from "../../aa/policy";
+import {
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
@@ -83,14 +86,17 @@ export async function txCommand(): Promise<void> {
 }
 
 function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
+  const knownChain = Object.values(viemChains).find((candidate) => {
+    return (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      "id" in candidate &&
+      (candidate as { id: number }).id === targetChainId
+    );
+  });
+
   return (
-    Object.values(viemChains).find(
-      (candidate): candidate is Chain =>
-        typeof candidate === "object" &&
-        candidate !== null &&
-        "id" in candidate &&
-        (candidate as { id: number }).id === targetChainId,
-    ) ?? {
+    (knownChain as Chain | undefined) ?? {
       id: targetChainId,
       name: `Chain ${targetChainId}`,
       nativeCurrency: {
@@ -123,6 +129,37 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
     chain.rpcUrls.public?.http[0] ??
     ""
   );
+}
+
+function buildCliTxCompletionMetadata(params: {
+  requestedDecision: CliExecutionDecision;
+  finalDecision: CliExecutionDecision;
+  execution: ExecutionResult;
+}): {
+  aa_requested_mode: "4337" | "7702" | "none";
+  aa_resolved_mode: "4337" | "7702" | "none";
+  aa_fallback_reason: string | undefined;
+} {
+  const requestedMode =
+    params.requestedDecision.execution === "aa"
+      ? params.requestedDecision.aaMode
+      : "none";
+  const resolvedMode =
+    aaModeFromExecutionKind(params.execution.executionKind) ??
+    (params.finalDecision.execution === "aa" ? params.finalDecision.aaMode : "none");
+
+  let fallbackReason: string | undefined;
+  if (requestedMode === "7702" && resolvedMode === "4337") {
+    fallbackReason = "requested_7702_fallback_4337";
+  } else if (requestedMode !== "none" && resolvedMode === "none") {
+    fallbackReason = "aa_failed_fallback_eoa";
+  }
+
+  return {
+    aa_requested_mode: requestedMode,
+    aa_resolved_mode: resolvedMode,
+    aa_fallback_reason: fallbackReason,
+  };
 }
 
 async function executeCliTransaction(params: {
@@ -389,16 +426,26 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           account.address,
           resolvedChainIds[index],
           Date.now(),
-          executionUsedAA ? finalDecision.provider : undefined,
-          executionUsedAA ? finalDecision.aaMode : undefined,
+          executionUsedAA && finalDecision.execution === "aa"
+            ? finalDecision.provider
+            : undefined,
+          executionUsedAA && finalDecision.execution === "aa"
+            ? finalDecision.aaMode
+            : undefined,
         ),
       );
+      const completionMetadata = buildCliTxCompletionMetadata({
+        requestedDecision: decision,
+        finalDecision,
+        execution,
+      });
       backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
         payload: {
           txHash: execution.txHash,
           status: "success",
           pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
+          ...completionMetadata,
           execution_kind: execution.executionKind,
           batched: execution.batched,
           call_count: execution.txHashes.length,

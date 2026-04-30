@@ -93,11 +93,6 @@ export function resolveCliExecutionDecision(params: {
     return { execution: "eoa" };
   }
 
-  // Auto mode: use direct EOA signing for single-call executions.
-  if (config.execution !== "aa" && callList.length === 1) {
-    return { execution: "eoa" };
-  }
-
   const pimlicoKey = process.env.PIMLICO_API_KEY?.trim();
   const alchemyKey = resolveAlchemyApiKey();
 

@@ -126,6 +126,16 @@ function parseValue(value: unknown): string | undefined {
   return undefined;
 }
 
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  return undefined;
+}
+
 function normalizeAaPreference(value: unknown): WalletTxAaPreference | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
@@ -155,7 +165,7 @@ function normalizeAddress(value: unknown): string | undefined {
   }
 }
 
-function normalizePendingTxData(
+export function normalizePendingTxData(
   pendingEntry: UnknownRecord,
 ): string | undefined {
   const data =
@@ -206,9 +216,20 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
         : undefined;
   const aaPreference =
     normalizeAaPreference(args.aa_preference ?? args.aaPreference) ?? "auto";
+  const aaStrict = parseBoolean(args.aa_strict ?? args.aaStrict);
   const txId = txIds.length === 1 ? txIds[0] : undefined;
 
-  return { to, value, data, chainId, txId, txIds, aaPreference, requestId };
+  return {
+    to,
+    value,
+    data,
+    chainId,
+    txId,
+    txIds,
+    aaPreference,
+    aaStrict,
+    requestId,
+  };
 }
 
 export function hydrateTxPayloadFromUserState(
