@@ -50,8 +50,7 @@ function make7702ProviderState(
       chainId: 1,
       mode: "7702",
       batchingEnabled: true,
-      sponsorship: "optional",
-      fallbackToEoa: false,
+      sponsorship: "disabled",
     },
     account: {
       provider: "ALCHEMY",
@@ -76,7 +75,6 @@ function make4337ProviderState(
       mode: "4337",
       batchingEnabled: true,
       sponsorship: "optional",
-      fallbackToEoa: false,
     },
     account: {
       provider: "ALCHEMY",
@@ -131,6 +129,26 @@ describe("executeWalletCalls AA execution", () => {
     });
   });
 
+  it("passes the preferred RPC URL when fetching the 7702 delegation", async () => {
+    getTransactionMock.mockResolvedValue({ authorizationList: [] });
+    const getPreferredRpcUrl = vi.fn().mockReturnValue("https://my-rpc.invalid");
+
+    await executeWalletCalls({
+      callList: [...CALL_LIST],
+      currentChainId: 1,
+      capabilities: undefined,
+      localPrivateKey: null,
+      providerState: make7702ProviderState(),
+      sendCallsSyncAsync: vi.fn(),
+      sendTransactionAsync: vi.fn(),
+      switchChainAsync: vi.fn(),
+      chainsById: { [mainnet.id]: mainnet },
+      getPreferredRpcUrl,
+    });
+
+    expect(getPreferredRpcUrl).toHaveBeenCalledWith(mainnet);
+  });
+
   it("does not fetch the transaction when the AA object already has a 7702 delegation address", async () => {
     const result = await executeWalletCalls({
       callList: [...CALL_LIST],
@@ -153,75 +171,61 @@ describe("executeWalletCalls AA execution", () => {
     );
   });
 
-  it("falls back to EOA execution when 4337 bundler submission repeatedly fails", async () => {
+  it("retries once on transient bundler submission errors then propagates", async () => {
     const providerState = make4337ProviderState({
       sendBatchTransaction: vi.fn().mockRejectedValue(
         new Error("This bundle id is unknown / has not been submitted."),
       ),
     });
-    const sendTransactionAsync = vi
-      .fn()
-      .mockResolvedValueOnce("0x111")
-      .mockResolvedValueOnce("0x222");
+    const sendTransactionAsync = vi.fn();
 
-    const result = await executeWalletCalls({
-      callList: BATCH_CALL_LIST,
-      currentChainId: 1,
-      capabilities: undefined,
-      localPrivateKey: null,
-      providerState,
-      sendCallsSyncAsync: vi.fn(),
-      sendTransactionAsync,
-      switchChainAsync: vi.fn(),
-      chainsById: { [mainnet.id]: mainnet },
-      getPreferredRpcUrl: () => "https://example-rpc.invalid",
-    });
+    await expect(
+      executeWalletCalls({
+        callList: BATCH_CALL_LIST,
+        currentChainId: 1,
+        capabilities: undefined,
+        localPrivateKey: null,
+        providerState,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+        getPreferredRpcUrl: () => "https://example-rpc.invalid",
+      }),
+    ).rejects.toThrow("This bundle id is unknown / has not been submitted.");
 
     expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(2);
-    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
-    expect(result).toMatchObject({
-      executionKind: "eoa",
-      txHashes: ["0x111", "0x222"],
-      batched: true,
-      sponsored: false,
-    });
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 
-  it("falls back to EOA execution when 4337 gas estimation reverts", async () => {
+  it("propagates 4337 gas estimation revert without falling back to EOA", async () => {
     const providerState = make4337ProviderState({
       sendBatchTransaction: vi.fn().mockRejectedValue(
         new Error("eth_estimateUserOperationGas failed: execution reverted"),
       ),
     });
-    const sendTransactionAsync = vi
-      .fn()
-      .mockResolvedValueOnce("0x333")
-      .mockResolvedValueOnce("0x444");
+    const sendTransactionAsync = vi.fn();
 
-    const result = await executeWalletCalls({
-      callList: BATCH_CALL_LIST,
-      currentChainId: 1,
-      capabilities: undefined,
-      localPrivateKey: null,
-      providerState,
-      sendCallsSyncAsync: vi.fn(),
-      sendTransactionAsync,
-      switchChainAsync: vi.fn(),
-      chainsById: { [mainnet.id]: mainnet },
-      getPreferredRpcUrl: () => "https://example-rpc.invalid",
-    });
+    await expect(
+      executeWalletCalls({
+        callList: BATCH_CALL_LIST,
+        currentChainId: 1,
+        capabilities: undefined,
+        localPrivateKey: null,
+        providerState,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+        getPreferredRpcUrl: () => "https://example-rpc.invalid",
+      }),
+    ).rejects.toThrow("eth_estimateUserOperationGas failed: execution reverted");
 
     expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(1);
-    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
-    expect(result).toMatchObject({
-      executionKind: "eoa",
-      txHashes: ["0x333", "0x444"],
-      batched: true,
-      sponsored: false,
-    });
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 
-  it("falls back to EOA execution when wallet_prepareCalls returns AA23", async () => {
+  it("propagates wallet_prepareCalls AA23 validation error without falling back to EOA", async () => {
     const providerState = make4337ProviderState({
       sendBatchTransaction: vi.fn().mockRejectedValue(
         new Error(
@@ -229,31 +233,24 @@ describe("executeWalletCalls AA execution", () => {
         ),
       ),
     });
-    const sendTransactionAsync = vi
-      .fn()
-      .mockResolvedValueOnce("0x555")
-      .mockResolvedValueOnce("0x666");
+    const sendTransactionAsync = vi.fn();
 
-    const result = await executeWalletCalls({
-      callList: BATCH_CALL_LIST,
-      currentChainId: 1,
-      capabilities: undefined,
-      localPrivateKey: null,
-      providerState,
-      sendCallsSyncAsync: vi.fn(),
-      sendTransactionAsync,
-      switchChainAsync: vi.fn(),
-      chainsById: { [mainnet.id]: mainnet },
-      getPreferredRpcUrl: () => "https://example-rpc.invalid",
-    });
+    await expect(
+      executeWalletCalls({
+        callList: BATCH_CALL_LIST,
+        currentChainId: 1,
+        capabilities: undefined,
+        localPrivateKey: null,
+        providerState,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+        getPreferredRpcUrl: () => "https://example-rpc.invalid",
+      }),
+    ).rejects.toThrow("wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted");
 
     expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(1);
-    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
-    expect(result).toMatchObject({
-      executionKind: "eoa",
-      txHashes: ["0x555", "0x666"],
-      batched: true,
-      sponsored: false,
-    });
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 });

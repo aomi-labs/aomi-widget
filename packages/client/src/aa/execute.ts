@@ -1,6 +1,6 @@
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import type { Hex } from "viem";
+import type { Chain, Hex } from "viem";
 import { CHAINS_BY_ID } from "../chains";
 
 import type {
@@ -37,50 +37,10 @@ export async function executeWalletCalls(
   } = params;
 
   if (providerState.resolved && providerState.account) {
-    try {
-      return await executeViaAA(callList, providerState);
-    } catch (error) {
-      if (!shouldFallbackFromAAError(error, providerState)) {
-        throw error;
-      }
-      const errorKind = classifyAAFallbackError(error);
-      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
-        provider: providerState.account.provider,
-        mode: providerState.resolved.mode,
-        chainId: providerState.resolved.chainId,
-        callCount: callList.length,
-        errorKind,
-        error: toErrorMessage(error),
-      });
-      if (errorKind === "simulation_revert") {
-        console.warn(
-          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA.",
-        );
-      }
-      if (errorKind === "insufficient_prefund") {
-        console.warn(
-          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account.",
-        );
-      }
-      return executeViaEoa({
-        callList,
-        currentChainId,
-        capabilities,
-        localPrivateKey,
-        sendCallsSyncAsync,
-        sendTransactionAsync,
-        switchChainAsync,
-        chainsById,
-        getPreferredRpcUrl,
-      });
-    }
+    return executeViaAA(callList, providerState, getPreferredRpcUrl);
   }
 
-  if (
-    providerState.resolved &&
-    providerState.error &&
-    !providerState.resolved.fallbackToEoa
-  ) {
+  if (providerState.resolved && providerState.error) {
     throw providerState.error;
   }
 
@@ -104,6 +64,7 @@ export async function executeWalletCalls(
 async function executeViaAA(
   callList: AAWalletCall[],
   providerState: AAState,
+  getPreferredRpcUrl: (chain: Chain) => string,
 ): Promise<ExecutionResult> {
   const account = providerState.account;
   const resolved = providerState.resolved;
@@ -115,7 +76,7 @@ async function executeViaAA(
   const callsPayload: AACallPayload[] = callList.map(({ to, value, data }) => ({
     to,
     value,
-    data,
+    data: normalizeRpcCallData(data),
   }));
   const sendAARequest = async () => {
     return callList.length > 1
@@ -167,7 +128,7 @@ async function executeViaAA(
     account.mode === "7702" ? account.delegationAddress : undefined;
 
   if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(txHash, callList);
+    delegationAddress = await resolve7702Delegation(txHash, callList, getPreferredRpcUrl);
   }
 
   return {
@@ -189,6 +150,7 @@ async function executeViaAA(
 async function resolve7702Delegation(
   txHash: string,
   callList: AAWalletCall[],
+  getPreferredRpcUrl: (chain: Chain) => string,
 ): Promise<Hex | undefined> {
   try {
     const chainId = callList[0]?.chainId;
@@ -197,7 +159,8 @@ async function resolve7702Delegation(
     const chain = CHAINS_BY_ID[chainId];
     if (!chain) return undefined;
 
-    const client = createPublicClient({ chain, transport: http() });
+    const rpcUrl = getPreferredRpcUrl(chain);
+    const client = createPublicClient({ chain, transport: http(rpcUrl) });
     const tx = await client.getTransaction({ hash: txHash as Hex });
     const authList = (
       tx as unknown as {
@@ -363,30 +326,6 @@ function toErrorMessage(error: unknown): string {
   return String(error);
 }
 
-function shouldFallbackFromAAError(
-  error: unknown,
-  providerState: AAState,
-): boolean {
-  if (!providerState.resolved) {
-    return false;
-  }
-
-  // 7702 is additive over EOA — any execution failure is safe to fallback
-  if (providerState.resolved.mode === "7702") {
-    return true;
-  }
-
-  if (providerState.resolved.mode !== "4337") {
-    return false;
-  }
-
-  return (
-    isRetryableBundlerSubmissionError(error) ||
-    isAASimulationRevertError(error) ||
-    isAAInsufficientPrefundError(error)
-  );
-}
-
 function isRetryableBundlerSubmissionError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
@@ -398,46 +337,6 @@ function isRetryableBundlerSubmissionError(error: unknown): boolean {
     (lowered.includes("userop") && lowered.includes("not found")) ||
     (lowered.includes("user operation") && lowered.includes("not found"))
   );
-}
-
-function isAASimulationRevertError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return (
-    (lowered.includes("eth_estimateuseroperationgas") &&
-      lowered.includes("execution reverted")) ||
-    (lowered.includes("wallet_preparecalls") &&
-      (lowered.includes("aa23 reverted") || lowered.includes("validation reverted")))
-  );
-}
-
-function isAAInsufficientPrefundError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return (
-    lowered.includes("sender balance and deposit together") ||
-    (lowered.includes("precheck failed") &&
-      lowered.includes("must be at least"))
-  );
-}
-
-function classifyAAFallbackError(
-  error: unknown,
-):
-  | "retryable_bundler"
-  | "simulation_revert"
-  | "insufficient_prefund"
-  | "other" {
-  if (isRetryableBundlerSubmissionError(error)) {
-    return "retryable_bundler";
-  }
-  if (isAAInsufficientPrefundError(error)) {
-    return "insufficient_prefund";
-  }
-  if (isAASimulationRevertError(error)) {
-    return "simulation_revert";
-  }
-  return "other";
 }
 
 function resolveChainCapabilities(

@@ -15,7 +15,6 @@ function makeProviderState(params: {
       mode: params.mode,
       batchingEnabled: true,
       sponsorship: "optional",
-      fallbackToEoa: false,
     },
     account: {
       provider: "ALCHEMY",
@@ -79,12 +78,12 @@ describe("executeWalletCalls via AA", () => {
       {
         to: "0x0000000000000000000000000000000000000000",
         value: 0n,
-        data: "0x",
+        data: undefined,
       },
       {
         to: "0x0000000000000000000000000000000000000000",
         value: 0n,
-        data: "0x",
+        data: undefined,
       },
     ]);
     expect(result).toEqual({

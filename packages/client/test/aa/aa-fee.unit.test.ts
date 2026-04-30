@@ -16,7 +16,7 @@ function makeFee(amountWei: string): AomiSimulateFee {
 }
 
 describe("aa fee helpers", () => {
-  it("appends fee as final payload call and forces AA strict mode", () => {
+  it("appends fee as final payload call and forces 7702-first AA strict mode", () => {
     const payload: WalletTxPayload = {
       to: "0x2222222222222222222222222222222222222222",
       value: "1",
@@ -27,7 +27,7 @@ describe("aa fee helpers", () => {
 
     const next = appendFeeCallToPayload(payload, makeFee("1000000000000000"), 1);
 
-    expect(next.aaPreference).toBe("eip4337");
+    expect(next.aaPreference).toBe("eip7702");
     expect(next.aaStrict).toBe(true);
     expect(next.calls).toHaveLength(2);
     expect(next.calls?.[0]).toMatchObject({

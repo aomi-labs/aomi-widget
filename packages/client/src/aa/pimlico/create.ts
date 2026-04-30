@@ -1,13 +1,13 @@
-import type { Chain, Hex } from "viem";
+import type { Chain, Hex, LocalAccount, WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { adaptSmartAccount } from "../adapt";
 import type { AAState, SmartAccount, AAMode, AAWalletCall } from "../types";
 import {
   DEFAULT_AA_CONFIG,
   getAAChainConfig,
   buildAAExecutionPlan,
 } from "../types";
+import { resolveAASponsorship } from "../policy";
 import {
   getMissingOwnerState,
   getOwnerParams,
@@ -61,7 +61,7 @@ export async function createPimlicoAAState(
   const execution = {
     ...plan,
     mode: effectiveMode,
-    fallbackToEoa: false,
+    sponsorship: resolveAASponsorship(effectiveMode, plan.sponsorship),
   } as AAState["resolved"];
 
   const ownerParams = getOwnerParams(owner);
@@ -72,29 +72,32 @@ export async function createPimlicoAAState(
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
 
-  // Direct owner path — build pimlico client from permissionless directly
-  if (owner.kind === "direct") {
-    try {
-      return await createPimlicoDirectState({
+  const localSessionSigner =
+    owner.kind === "session"
+      ? resolvePimlicoSessionSigner(ownerParams.ownerParams)
+      : null;
+
+  try {
+    const signer =
+      owner.kind === "direct"
+        ? privateKeyToAccount(owner.privateKey)
+        : localSessionSigner;
+
+    if (signer) {
+      return await createPimlicoPermissionlessState({
         resolved: execution!,
         chain,
-        privateKey: owner.privateKey,
+        signer,
+        externalSigner:
+          owner.kind === "session" && "signer" in ownerParams.ownerParams
+            ? ownerParams.ownerParams.signer
+            : undefined,
         rpcUrl: options.rpcUrl,
         apiKey,
         mode: effectiveMode,
       });
-    } catch (error) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
     }
-  }
 
-  // Session/adapter path — use @getpara/aa-pimlico SDK
-  try {
     const { createPimlicoSmartAccount } = await import("@getpara/aa-pimlico");
     const smartAccount = await createPimlicoSmartAccount({
       ...ownerParams.ownerParams,
@@ -113,9 +116,10 @@ export async function createPimlicoAAState(
       };
     }
 
+    const account = adaptPimlicoSdkAccount(smartAccount);
     return {
       resolved: execution,
-      account: adaptSmartAccount(smartAccount),
+      account,
       pending: false,
       error: null,
     };
@@ -138,27 +142,139 @@ function buildPimlicoRpcUrl(chain: Chain, apiKey: string): string {
   return `https://api.pimlico.io/v2/${slug}/rpc?apikey=${apiKey}`;
 }
 
-async function createPimlicoDirectState(params: {
+function isExternalWalletSigner(signer: unknown): signer is WalletClient {
+  return !!signer && typeof signer === "object" && "transport" in signer && "account" in signer;
+}
+
+function resolvePimlicoSessionSigner(
+  ownerParams: Extract<
+    ReturnType<typeof getOwnerParams>,
+    { kind: "ready" }
+  >["ownerParams"],
+) {
+  if (!("signer" in ownerParams) || !ownerParams.signer) {
+    return null;
+  }
+
+  if (!isExternalWalletSigner(ownerParams.signer)) {
+    return ownerParams.signer as LocalAccount;
+  }
+
+  const account = ownerParams.signer.account;
+  if (!account?.address) {
+    throw new Error(
+      "[resolvePimlicoSessionSigner] WalletClient must have an account set.",
+    );
+  }
+
+  const externalSigner = ownerParams.signer as WalletClient;
+  return {
+    address: account.address,
+    publicKey: "0x",
+    source: "custom",
+    type: "local",
+    sign: async ({ hash }) =>
+      externalSigner.signMessage({
+        account: account.address,
+        message: { raw: hash },
+      } as never),
+    signMessage: async ({ message }) =>
+      externalSigner.signMessage({
+        account: account.address,
+        message,
+      } as never),
+    signTransaction: async (tx) =>
+      externalSigner.signTransaction({
+        ...tx,
+        account,
+      } as never),
+    signTypedData: async (typedData) =>
+      externalSigner.signTypedData({
+        ...typedData,
+        account: account.address,
+      } as never),
+    signAuthorization: async () => {
+      throw new Error(
+        "EIP-7702 account delegation (signAuthorization) is not supported with external wallets.",
+      );
+    },
+  } satisfies LocalAccount;
+}
+
+async function ensureExternalWalletChain(
+  signer: unknown,
+  chain: Chain,
+): Promise<void> {
+  if (!isExternalWalletSigner(signer)) return;
+  const currentChainId = await signer.getChainId();
+  if (currentChainId !== chain.id) {
+    throw new Error(
+      `External wallet is on chain ${currentChainId} but smart account targets chain ${chain.id} (${chain.name}).`,
+    );
+  }
+}
+
+function rejectExternalWallet7702(signer: unknown): void {
+  if (!isExternalWalletSigner(signer)) return;
+  throw new Error(
+    "EIP-7702 mode is not supported with external wallets. Use an embedded wallet or 4337 mode.",
+  );
+}
+
+function adaptPimlicoSdkAccount(account: {
+  provider: string;
+  mode: AAMode;
+  smartAccountAddress: Hex;
+  delegationAddress?: Hex;
+  sendTransaction: (
+    call: { to: Hex; value: bigint; data?: Hex },
+    options?: unknown,
+  ) => Promise<{ transactionHash: string }>;
+  sendBatchTransaction: (
+    calls: Array<{ to: Hex; value: bigint; data?: Hex }>,
+    options?: unknown,
+  ) => Promise<{ transactionHash: string }>;
+}): SmartAccount {
+  return {
+    provider: account.provider,
+    mode: account.mode,
+    AAAddress: account.smartAccountAddress,
+    delegationAddress: account.delegationAddress,
+    sendTransaction: async (call) => account.sendTransaction(call),
+    sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls),
+  };
+}
+
+async function createPimlicoPermissionlessState(params: {
   resolved: NonNullable<AAState["resolved"]>;
   chain: Chain;
-  privateKey: `0x${string}`;
+  signer: LocalAccount;
+  externalSigner?: unknown;
   rpcUrl: string;
   apiKey: string;
   mode: AAMode;
 }): Promise<AAState> {
   const { createSmartAccountClient } = await import("permissionless");
-  const { toSimpleSmartAccount } = await import("permissionless/accounts");
+  const { toSimpleSmartAccount, to7702SimpleSmartAccount } = await import(
+    "permissionless/accounts"
+  );
   const { createPimlicoClient } = await import("permissionless/clients/pimlico");
   const { createPublicClient, http } = await import("viem");
-  const { entryPoint07Address } = await import("viem/account-abstraction");
+  const { entryPoint07Address, entryPoint08Address, prepareUserOperation } =
+    await import("viem/account-abstraction");
 
-  const signer = privateKeyToAccount(params.privateKey);
-  const signerAddress = signer.address as Hex;
+  const signerAddress = params.signer.address as Hex;
   const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
+  const sponsored = params.resolved.sponsorship !== "disabled";
+  const entryPoint =
+    params.mode === "7702"
+      ? { address: entryPoint08Address, version: "0.8" as const }
+      : { address: entryPoint07Address, version: "0.7" as const };
 
-  pimDebug("4337:start", {
+  pimDebug(`${params.mode}:start`, {
     signerAddress,
     chainId: params.chain.id,
+    sponsored,
     pimlicoRpcUrl: pimlicoRpcUrl.replace(params.apiKey, "***"),
   });
 
@@ -167,70 +283,118 @@ async function createPimlicoDirectState(params: {
     transport: http(params.rpcUrl),
   });
 
-  const paymasterClient = createPimlicoClient({
-    entryPoint: { address: entryPoint07Address, version: "0.7" },
-    transport: http(pimlicoRpcUrl),
-  });
+  if (params.mode === "7702") {
+    rejectExternalWallet7702(params.externalSigner);
+  }
 
-  const smartAccount = await toSimpleSmartAccount({
-    client: publicClient,
-    owner: signer,
-    entryPoint: { address: entryPoint07Address, version: "0.7" },
-  });
+  const paymasterClient = sponsored
+    ? createPimlicoClient({
+        entryPoint,
+        transport: http(pimlicoRpcUrl),
+      })
+    : undefined;
 
+  const smartAccount =
+    params.mode === "7702"
+      ? await to7702SimpleSmartAccount({
+          client: publicClient,
+          owner: params.signer,
+          entryPoint: entryPoint as { address: Hex; version: "0.8" },
+        })
+      : await toSimpleSmartAccount({
+          client: publicClient,
+          owner: params.signer,
+          entryPoint: entryPoint as { address: Hex; version: "0.7" },
+        });
+
+  if (params.mode === "7702") {
+    (smartAccount as { isDeployed?: () => Promise<boolean> }).isDeployed = async () => false;
+  }
   const accountAddress = smartAccount.address;
-  pimDebug("4337:account-created", {
+  pimDebug(`${params.mode}:account-created`, {
     signerAddress,
     accountAddress,
   });
 
+  const userOperation = {
+    ...(paymasterClient
+      ? {
+          estimateFeesPerGas: async () => {
+            const gasPrice = await paymasterClient.getUserOperationGasPrice();
+            return (gasPrice as {
+              fast: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
+            }).fast;
+          },
+        }
+      : {}),
+    ...(params.mode === "7702"
+      ? {
+          prepareUserOperation: async (
+            client: Parameters<typeof prepareUserOperation>[0],
+            args: Parameters<typeof prepareUserOperation>[1],
+          ) => {
+            const prepared = await prepareUserOperation(client, args);
+            if (prepared.authorization && params.signer.signAuthorization) {
+              prepared.authorization = await params.signer.signAuthorization({
+                contractAddress: prepared.authorization.address,
+                chainId: prepared.authorization.chainId,
+                nonce: prepared.authorization.nonce,
+              });
+            }
+            return prepared;
+          },
+        }
+      : {}),
+  };
+
   const smartAccountClient = createSmartAccountClient({
     account: smartAccount,
     chain: params.chain,
-    paymaster: paymasterClient,
     bundlerTransport: http(pimlicoRpcUrl),
-    userOperation: {
-      estimateFeesPerGas: async () => {
-        const gasPrice = await paymasterClient.getUserOperationGasPrice();
-        return (gasPrice as { fast: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } }).fast;
-      },
-    },
+    ...(paymasterClient ? { paymaster: paymasterClient } : {}),
+    userOperation,
   });
 
   const sendCalls = async (
     calls: Array<{ to: Hex; value: bigint; data?: Hex }>,
   ): Promise<{ transactionHash: string }> => {
-    pimDebug("4337:send:start", {
+    pimDebug(`${params.mode}:send:start`, {
       accountAddress,
       chainId: params.chain.id,
       callCount: calls.length,
     });
 
-    const hash = await smartAccountClient.sendTransaction({
-      account: smartAccount,
-      calls: calls.map((c) => ({
-        to: c.to,
-        value: c.value,
-        data: c.data ?? ("0x" as Hex),
-      })),
-    } as Parameters<typeof smartAccountClient.sendTransaction>[0]);
+    await ensureExternalWalletChain(params.externalSigner, params.chain);
 
-    pimDebug("4337:send:userOpHash", { hash });
+    try {
+      const hash = await smartAccountClient.sendTransaction({
+        account: smartAccount,
+        calls: calls.map((c) => ({
+          to: c.to,
+          value: c.value,
+          data: c.data ?? ("0x" as Hex),
+        })),
+      } as Parameters<typeof smartAccountClient.sendTransaction>[0]);
 
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    });
-    pimDebug("4337:send:confirmed", {
-      transactionHash: receipt.transactionHash,
-      status: receipt.status,
-    });
+      pimDebug(`${params.mode}:send:userOpHash`, { hash });
 
-    return { transactionHash: receipt.transactionHash };
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash,
+      });
+      pimDebug(`${params.mode}:send:confirmed`, {
+        transactionHash: receipt.transactionHash,
+        status: receipt.status,
+      });
+
+      return { transactionHash: receipt.transactionHash };
+    } catch (error) {
+      throw error instanceof Error ? error : new Error(String(error));
+    }
   };
 
   const account: SmartAccount = {
     provider: "pimlico",
-    mode: "4337",
+    mode: params.mode,
     AAAddress: accountAddress,
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls),

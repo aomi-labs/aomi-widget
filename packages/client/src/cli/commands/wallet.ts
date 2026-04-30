@@ -8,6 +8,9 @@ import {
   type ExecutionResult,
 } from "../../aa";
 import {
+  aaModeFromExecutionKind,
+} from "../../aa/policy";
+import {
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
@@ -83,14 +86,17 @@ export async function txCommand(): Promise<void> {
 }
 
 function resolveChain(targetChainId: number, rpcUrl?: string): Chain {
+  const knownChain = Object.values(viemChains).find((candidate) => {
+    return (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      "id" in candidate &&
+      (candidate as { id: number }).id === targetChainId
+    );
+  });
+
   return (
-    Object.values(viemChains).find(
-      (candidate): candidate is Chain =>
-        typeof candidate === "object" &&
-        candidate !== null &&
-        "id" in candidate &&
-        (candidate as { id: number }).id === targetChainId,
-    ) ?? {
+    (knownChain as Chain | undefined) ?? {
       id: targetChainId,
       name: `Chain ${targetChainId}`,
       nativeCurrency: {
@@ -123,6 +129,37 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
     chain.rpcUrls.public?.http[0] ??
     ""
   );
+}
+
+function buildCliTxCompletionMetadata(params: {
+  requestedDecision: CliExecutionDecision;
+  finalDecision: CliExecutionDecision;
+  execution: ExecutionResult;
+}): {
+  aa_requested_mode: "4337" | "7702" | "none";
+  aa_resolved_mode: "4337" | "7702" | "none";
+  aa_fallback_reason: string | undefined;
+} {
+  const requestedMode =
+    params.requestedDecision.execution === "aa"
+      ? params.requestedDecision.aaMode
+      : "none";
+  const resolvedMode =
+    aaModeFromExecutionKind(params.execution.executionKind) ??
+    (params.finalDecision.execution === "aa" ? params.finalDecision.aaMode : "none");
+
+  let fallbackReason: string | undefined;
+  if (requestedMode === "7702" && resolvedMode === "4337") {
+    fallbackReason = "requested_7702_fallback_4337";
+  } else if (requestedMode !== "none" && resolvedMode === "none") {
+    fallbackReason = "aa_failed_fallback_eoa";
+  }
+
+  return {
+    aa_requested_mode: requestedMode,
+    aa_resolved_mode: resolvedMode,
+    aa_fallback_reason: fallbackReason,
+  };
 }
 
 async function executeCliTransaction(params: {
@@ -231,13 +268,17 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       }
       console.log();
 
-      const callList = pendingTxs.flatMap((tx, index) =>
+      const baseCallList = pendingTxs.flatMap((tx, index) =>
         pendingTxToCallList({
           ...tx,
           chainId: resolvedChainIds[index],
         }),
       );
-      if (callList.length > 1 && rpcUrl && new Set(callList.map((call) => call.chainId)).size > 1) {
+      if (
+        baseCallList.length > 1 &&
+        rpcUrl &&
+        new Set(baseCallList.map((call) => call.chainId)).size > 1
+      ) {
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
       }
 
@@ -275,29 +316,34 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
       // Fee validation is outside the try/catch so failures abort instead
       // of being silently swallowed.
+      let autoFeeCall: ReturnType<typeof buildFeeAAWalletCall> = null;
       if (simFee) {
         const normalizedFee = normalizeSimulatedFee(simFee);
         if (normalizedFee) {
           const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
           console.log(`Fee:     ${feeEth} ETH → ${normalizedFee.recipient}`);
         }
-        const feeCall = buildFeeAAWalletCall(simFee, primaryChainId);
-        if (feeCall) {
-          callList.push(feeCall);
-        }
+        autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
+
+      const decisionCallList = autoFeeCall
+        ? [...baseCallList, autoFeeCall]
+        : baseCallList;
 
       const decision = resolveCliExecutionDecision({
         config,
         chain,
-        callList,
+        callList: decisionCallList,
       });
       console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      // Execute with AA fallback chain in auto mode:
-      // 7702 -> 4337 -> EOA per-call
-      let finalDecision: CliExecutionDecision = decision;
-      let execution: ExecutionResult;
+      // Build ordered list of strategies to attempt.
+      // With --aa: [primary, alt] — fatal if both fail, no EOA.
+      // Auto mode: [primary, alt, eoa] — transparently fall through to EOA.
+      const strategies: CliExecutionDecision[] = [decision];
+      const altDecision = getAlternativeAAMode(decision);
+      if (altDecision) strategies.push(altDecision);
+      if (config.execution !== "aa") strategies.push({ execution: "eoa" });
 
       const runWithDecision = async (d: CliExecutionDecision) => {
         const ps = await createCliProviderState({
@@ -305,49 +351,55 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           chain,
           privateKey: privateKey as `0x${string}`,
           rpcUrl: resolvedRpcUrl,
-          callList,
+          callList: decisionCallList,
           baseUrl: cli.baseUrl,
         });
+
+        let executionCallList = decisionCallList;
+        if (autoFeeCall && d.execution === "aa" && ps.resolved?.sponsorship !== "disabled") {
+          console.log(
+            `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`,
+          );
+          executionCallList = baseCallList;
+        }
+
         return executeCliTransaction({
           privateKey: privateKey as `0x${string}`,
           currentChainId: primaryChainId,
           chainsById,
           rpcUrl,
           providerState: ps,
-          callList,
+          callList: executionCallList,
         });
       };
 
-      try {
-        execution = await runWithDecision(decision);
-      } catch (primaryError) {
-        const alt = getAlternativeAAMode(decision);
-        if (!alt) throw primaryError;
+      let finalDecision: CliExecutionDecision = decision;
+      let execution!: ExecutionResult;
+      const failures: Array<{ decision: CliExecutionDecision; message: string }> = [];
 
-        const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
-        console.log(`AA ${decision.execution === "aa" ? decision.aaMode : "execution"} failed: ${primaryMsg}`);
-        console.log(`Retrying with ${alt.execution === "aa" ? alt.aaMode : "eoa"}...`);
-
+      for (const strategy of strategies) {
+        if (failures.length > 0) {
+          const prev = strategies[failures.length - 1]!;
+          console.log(`${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1]!.message}`);
+          console.log(`Retrying with ${describeExecutionDecision(strategy)}...`);
+        }
         try {
-          execution = await runWithDecision(alt);
-          finalDecision = alt;
-        } catch (retryError) {
-          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          if (config.execution === "aa") {
-            fatal(
-              `❌ AA execution failed with both modes.\n` +
-              `  ${decision.execution === "aa" ? decision.aaMode : ""}: ${primaryMsg}\n` +
-              `  ${alt.execution === "aa" ? alt.aaMode : ""}: ${retryMsg}\n` +
-              `Use \`--eoa\` to sign without account abstraction.`,
-            );
+          execution = await runWithDecision(strategy);
+          finalDecision = strategy;
+          break;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          failures.push({ decision: strategy, message });
+          if (strategy === strategies[strategies.length - 1]) {
+            if (config.execution === "aa") {
+              fatal(
+                `❌ AA execution failed with all modes.\n` +
+                failures.map((f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`).join("\n") +
+                "\nUse `--eoa` to sign without account abstraction.",
+              );
+            }
+            throw error;
           }
-
-          console.log(`AA ${alt.execution === "aa" ? alt.aaMode : "execution"} failed: ${retryMsg}`);
-          console.log("Retrying with eoa...");
-
-          const eoaDecision: CliExecutionDecision = { execution: "eoa" };
-          execution = await runWithDecision(eoaDecision);
-          finalDecision = eoaDecision;
         }
       }
 
@@ -374,16 +426,26 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           account.address,
           resolvedChainIds[index],
           Date.now(),
-          executionUsedAA ? finalDecision.provider : undefined,
-          executionUsedAA ? finalDecision.aaMode : undefined,
+          executionUsedAA && finalDecision.execution === "aa"
+            ? finalDecision.provider
+            : undefined,
+          executionUsedAA && finalDecision.execution === "aa"
+            ? finalDecision.aaMode
+            : undefined,
         ),
       );
+      const completionMetadata = buildCliTxCompletionMetadata({
+        requestedDecision: decision,
+        finalDecision,
+        execution,
+      });
       backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
         payload: {
           txHash: execution.txHash,
           status: "success",
           pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
+          ...completionMetadata,
           execution_kind: execution.executionKind,
           batched: execution.batched,
           call_count: execution.txHashes.length,
