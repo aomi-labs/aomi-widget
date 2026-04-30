@@ -166,3 +166,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================
+   Mobile / iOS Safari fixes
+   ============================================ */
+
+/* Hide scrollbar on inline control bar (mobile swipe) */
+.aui-composer-action-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.aui-composer-action-scroll {
+  scrollbar-width: none;
+}
+
+/* Prevent iOS from zooming on input focus (font-size >= 16px) */
+@media screen and (max-width: 767px) {
+  .aui-composer-input {
+    font-size: 16px;
+  }
+}

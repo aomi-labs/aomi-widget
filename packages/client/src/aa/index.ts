@@ -28,6 +28,13 @@ export {
 } from "./types";
 
 export { executeWalletCalls } from "./execute";
+export {
+  MAX_AUTO_FEE_WEI,
+  normalizeSimulatedFee,
+  buildFeeAAWalletCall,
+  appendFeeCallToPayload,
+  type NormalizedSimulatedFee,
+} from "./fee";
 
 export {
   type AlchemyHookParams,

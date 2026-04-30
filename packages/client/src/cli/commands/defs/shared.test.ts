@@ -10,6 +10,8 @@ describe("buildCliConfig", () => {
   afterEach(() => {
     delete process.env.PRIVATE_KEY;
     delete process.env.AOMI_PUBLIC_KEY;
+    delete process.env.AOMI_BACKEND_URL;
+    delete process.env.AOMI_APP;
     vi.restoreAllMocks();
   });
 
@@ -33,5 +35,22 @@ describe("buildCliConfig", () => {
     ).toThrow(CliExit);
 
     expect(stderr).toHaveBeenCalled();
+  });
+
+  it("does not force default backend/app when neither args nor env provide them", () => {
+    const config = buildCliConfig({});
+
+    expect(config.baseUrl).toBeUndefined();
+    expect(config.app).toBeUndefined();
+  });
+
+  it("reads backend/app overrides from environment", () => {
+    process.env.AOMI_BACKEND_URL = "http://127.0.0.1:8080";
+    process.env.AOMI_APP = "wallet";
+
+    const config = buildCliConfig({});
+
+    expect(config.baseUrl).toBe("http://127.0.0.1:8080");
+    expect(config.app).toBe("wallet");
   });
 });

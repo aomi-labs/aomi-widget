@@ -59,36 +59,61 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
     new Set(),
   );
 
+  const notifyStateChange = useCallback((next: UserState) => {
+    queueMicrotask(() => {
+      StateChangeCallbacks.current.forEach((callback) => {
+        callback(next);
+      });
+    });
+  }, []);
+
+  const pruneUndefined = useCallback((state: UserState): UserState => {
+    return Object.fromEntries(
+      Object.entries(state).filter(([, value]) => value !== undefined),
+    );
+  }, []);
+
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
-      const normalizedData = UserState.normalize(data) ?? {};
+      const normalizedData = pruneUndefined(UserState.normalize(data) ?? {});
+      const nextPartial: UserState = { ...normalizedData };
+
+      // Guard against a transient "connected-without-chain" payload:
+      // keep the previous chain if present; otherwise, delay flipping
+      // `is_connected` until a concrete chain arrives.
+      if (
+        nextPartial.is_connected === true &&
+        nextPartial.chain_id === undefined
+      ) {
+        if (prev.chain_id !== undefined) {
+          nextPartial.chain_id = prev.chain_id;
+        } else {
+          delete nextPartial.is_connected;
+        }
+      }
+
       const next: UserState =
-        normalizedData.is_connected === false
+        nextPartial.is_connected === false
           ? {
-              ...(UserState.normalize({ ...prev, ...normalizedData }) ?? prev),
+              ...(UserState.normalize({ ...prev, ...nextPartial }) ?? prev),
               address: undefined,
               chain_id: undefined,
               ens_name: undefined,
             }
-          : (UserState.normalize({ ...prev, ...normalizedData }) ?? prev);
-
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+          : (UserState.normalize({ ...prev, ...nextPartial }) ?? prev);
+      notifyStateChange(next);
 
       return next;
     });
-  }, []);
+  }, [notifyStateChange, pruneUndefined]);
 
   const addExtValue = useCallback((key: string, value: unknown) => {
     setUserState((prev) => {
       const next = UserState.withExt(prev, key, value);
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
 
   const removeExtValue = useCallback((key: string) => {
     setUserState((prev) => {
@@ -107,12 +132,10 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
         ...prev,
         ext: Object.keys(nextExt).length > 0 ? nextExt : undefined,
       };
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
+      notifyStateChange(next);
       return next;
     });
-  }, []);
+  }, [notifyStateChange]);
 
   // Stable getters that runtime classes can call
   const getUserState = useCallback(() => userRef.current, []);

@@ -1,6 +1,7 @@
 import { Hero } from "./sections/hero";
 import { Technology } from "./sections/technology";
 import { Solution } from "./sections/solution";
+import { Apps } from "./sections/apps";
 import { Resources } from "./sections/resources";
 import { LandingEffects } from "./landing-effects";
 
@@ -27,6 +28,7 @@ export default function HomePage() {
         <Hero />
         <Technology />
         <Solution />
+        <Apps />
         <Resources />
       </main>
       <LandingEffects />

@@ -13,12 +13,34 @@
 import { type Hex, getAddress } from "viem";
 import type { AAWalletCall } from "./aa/types";
 
-export type WalletTxPayload = {
+export type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
+
+export type WalletTxCallPayload = {
+  txId: number;
   to: string;
   value?: string;
   data?: string;
   chainId?: number;
+  from?: string;
+  gas?: string;
+  description?: string;
+};
+
+export type WalletTxPayload = {
+  to?: string;
+  value?: string;
+  data?: string;
+  chainId?: number;
   txId?: number;
+  txIds?: number[];
+  aaPreference?: WalletTxAaPreference;
+  aaStrict?: boolean;
+  requestId?: string;
+  calls?: WalletTxCallPayload[];
+};
+
+type HydrateTxPayloadOptions = {
+  strict?: boolean;
 };
 
 export type WalletEip712Payload = {
@@ -57,7 +79,7 @@ function getToolArgs(payload: unknown): UnknownRecord {
   return nestedArgs ?? root ?? {};
 }
 
-function parseChainId(value: unknown): number | undefined {
+export function parseChainId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
 
@@ -73,6 +95,16 @@ function parseChainId(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function parseTxIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const parsed = value
+    .map((entry) => parsePendingId(entry))
+    .filter((entry): entry is number => typeof entry === "number");
+  const unique = Array.from(new Set(parsed));
+  unique.sort((left, right) => left - right);
+  return unique;
+}
+
 function parsePendingId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
@@ -84,6 +116,38 @@ function parsePendingId(value: unknown): number | undefined {
 
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseValue(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return undefined;
+}
+
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  return undefined;
+}
+
+function normalizeAaPreference(value: unknown): WalletTxAaPreference | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "auto" ||
+    normalized === "eip4337" ||
+    normalized === "eip7702" ||
+    normalized === "none"
+  ) {
+    return normalized;
+  }
+  return undefined;
 }
 
 function normalizeAddress(value: unknown): string | undefined {
@@ -101,42 +165,156 @@ function normalizeAddress(value: unknown): string | undefined {
   }
 }
 
+export function normalizePendingTxData(
+  pendingEntry: UnknownRecord,
+): string | undefined {
+  const data =
+    typeof pendingEntry.data === "string" ? pendingEntry.data : undefined;
+  if (!data) {
+    return undefined;
+  }
+
+  const kind = typeof pendingEntry.kind === "string"
+    ? pendingEntry.kind.toLowerCase()
+    : undefined;
+
+  if (kind === "native_transfer") {
+    return undefined;
+  }
+
+  return data;
+}
+
 // =============================================================================
 // Normalization
 // =============================================================================
 
 /**
  * Normalize a wallet_tx_request payload into a consistent shape.
- * Returns `null` if the payload is missing the required `to` field.
+ * Hard cutover contract: requires `tx_ids`.
  */
 export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root?.ctx);
+  const txIds = parseTxIds(args.tx_ids ?? args.txIds);
+  if (txIds.length === 0) return null;
 
   const to = normalizeAddress(args.to);
-  if (!to) return null;
-
-  const valueRaw = args.value;
-  const value =
-    typeof valueRaw === "string"
-      ? valueRaw
-      : typeof valueRaw === "number" && Number.isFinite(valueRaw)
-        ? String(Math.trunc(valueRaw))
-        : undefined;
-
+  const value = parseValue(args.value);
   const data = typeof args.data === "string" ? args.data : undefined;
   const chainId =
     parseChainId(args.chainId) ??
     parseChainId(args.chain_id) ??
     parseChainId(ctx?.user_chain_id) ??
     parseChainId(ctx?.userChainId);
-  const txId =
-    parsePendingId(args.txId) ??
-    parsePendingId(args.pending_tx_id) ??
-    parsePendingId(args.pendingTxId);
+  const requestId =
+    typeof args.tx_id === "string"
+      ? args.tx_id
+      : typeof args.txId === "string"
+        ? args.txId
+        : undefined;
+  const aaPreference =
+    normalizeAaPreference(args.aa_preference ?? args.aaPreference) ?? "auto";
+  const aaStrict = parseBoolean(args.aa_strict ?? args.aaStrict);
+  const txId = txIds.length === 1 ? txIds[0] : undefined;
 
-  return { to, value, data, chainId, txId };
+  return {
+    to,
+    value,
+    data,
+    chainId,
+    txId,
+    txIds,
+    aaPreference,
+    aaStrict,
+    requestId,
+  };
+}
+
+export function hydrateTxPayloadFromUserState(
+  payload: WalletTxPayload,
+  userState: unknown,
+  options?: HydrateTxPayloadOptions,
+): WalletTxPayload {
+  const strict = options?.strict === true;
+  const txIds =
+    Array.isArray(payload.txIds) && payload.txIds.length > 0
+      ? payload.txIds
+      : payload.txId !== undefined
+        ? [payload.txId]
+        : [];
+  if (txIds.length === 0) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+
+  const normalizedUserState = asRecord(userState);
+  const pendingTxsRaw = asRecord(normalizedUserState?.pending_txs);
+  if (!pendingTxsRaw) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+
+  const calls: WalletTxCallPayload[] = [];
+  for (const txId of txIds) {
+    const pendingEntry = asRecord(pendingTxsRaw[String(txId)]);
+    if (!pendingEntry) {
+      if (strict) {
+        throw new Error("pending_tx_not_found");
+      }
+      continue;
+    }
+
+    const to = normalizeAddress(pendingEntry.to);
+    if (!to) {
+      if (strict) {
+        throw new Error("pending_transaction_missing_call_data");
+      }
+      continue;
+    }
+
+    calls.push({
+      txId,
+      to,
+      value: parseValue(pendingEntry.value),
+      data: normalizePendingTxData(pendingEntry),
+      chainId:
+        parseChainId(pendingEntry.chain_id) ??
+        parseChainId(pendingEntry.chainId) ??
+        parseChainId(payload.chainId),
+      from: typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
+      gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : undefined,
+      description:
+        typeof pendingEntry.label === "string"
+          ? pendingEntry.label
+          : typeof pendingEntry.description === "string"
+            ? pendingEntry.description
+            : undefined,
+    });
+  }
+  if (calls.length === 0) {
+    if (strict) {
+      throw new Error("pending_tx_not_found");
+    }
+    return payload;
+  }
+  const first = calls[0];
+
+  return {
+    ...payload,
+    txIds,
+    txId: payload.txId ?? first.txId,
+    to: payload.to ?? first.to,
+    value: payload.value ?? first.value,
+    data: payload.data ?? first.data,
+    chainId: payload.chainId ?? first.chainId,
+    calls,
+  };
 }
 
 /**
@@ -178,19 +356,42 @@ export function normalizeEip712Payload(
 }
 
 /**
- * Convert a normalized WalletTxPayload into an AAWalletCall.
+ * Convert a normalized WalletTxPayload into AAWalletCalls.
  * This is the single boundary conversion point from backend payloads to AA-ready calls.
  */
+export function toAAWalletCalls(
+  payload: WalletTxPayload,
+  defaultChainId = 1,
+): AAWalletCall[] {
+  const calls = payload.calls?.length
+    ? payload.calls
+    : payload.to
+      ? [
+          {
+            txId: payload.txId ?? 0,
+            to: payload.to,
+            value: payload.value,
+            data: payload.data,
+            chainId: payload.chainId,
+          } satisfies WalletTxCallPayload,
+        ]
+      : [];
+  if (calls.length === 0) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return calls.map((call) => ({
+    to: call.to as Hex,
+    value: BigInt(call.value ?? "0"),
+    data: call.data ? (call.data as Hex) : undefined,
+    chainId: call.chainId ?? payload.chainId ?? defaultChainId,
+  }));
+}
+
 export function toAAWalletCall(
   payload: WalletTxPayload,
   defaultChainId = 1,
 ): AAWalletCall {
-  return {
-    to: payload.to as Hex,
-    value: BigInt(payload.value ?? "0"),
-    data: payload.data ? (payload.data as Hex) : undefined,
-    chainId: payload.chainId ?? defaultChainId,
-  };
+  return toAAWalletCalls(payload, defaultChainId)[0];
 }
 
 /**
