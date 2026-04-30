@@ -20,6 +20,12 @@
       "port": 3002
     },
     {
+      "name": "landing-auto",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "landing", "dev"],
+      "autoPort": true
+    },
+    {
       "name": "landing-staging",
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", "NEXT_PUBLIC_BACKEND_URL=https://staging.api.aomi.dev AOMI_PROXY_BACKEND_URL=https://staging.api.aomi.dev pnpm --filter landing dev"],
