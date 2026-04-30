@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { getChainIcon } from "@/components/icons";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export type NetworkSelectProps = {
@@ -32,6 +33,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
 
   const currentChain = getChainInfo(chainId);
   const displayName = currentChain?.ticker ?? "Network";
+  const CurrentChainIcon = chainId ? getChainIcon(chainId) : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -42,43 +44,66 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           aria-expanded={open}
           disabled={isPending || !switchChain}
           className={cn(
-            "h-8 w-auto min-w-[80px] justify-between rounded-full px-3 text-xs",
+            "h-8 w-auto min-w-[80px] justify-between gap-1.5 rounded-full px-3 text-xs",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             (isPending || !switchChain) && "cursor-not-allowed opacity-50",
             className,
           )}
         >
+          {CurrentChainIcon && (
+            <CurrentChainIcon className="h-3 w-3 shrink-0 opacity-60" />
+          )}
           <span className="truncate">{displayName}</span>
-          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDownIcon className="ml-1 h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="center"
-        sideOffset={-40}
-        className="w-[180px] rounded-3xl p-1 shadow-none"
+        align="start"
+        sideOffset={4}
+        className="w-[200px] rounded-xl p-1"
       >
         <div className="flex flex-col gap-0.5">
-          {chains.map((chain) => (
-            <button
-              key={chain.id}
-              disabled={isPending || !switchChain}
-              onClick={() => {
-                if (isPending || chain.id === chainId || !switchChain) return;
-                void switchChain(chain.id);
-                setOpen(false);
-              }}
-              className={cn(
-                "flex w-full items-center justify-between gap-2 rounded-full px-3 py-2 text-sm outline-none",
-                "hover:bg-accent hover:text-accent-foreground",
-                "focus:bg-accent focus:text-accent-foreground",
-                chainId === chain.id && "bg-accent",
-                (isPending || !switchChain) && "cursor-not-allowed opacity-50",
-              )}
-            >
-              <span>{chain.name}</span>
-              {chainId === chain.id && <CheckIcon className="h-4 w-4" />}
-            </button>
-          ))}
+          {chains.map((chain) => {
+            const ChainIcon = getChainIcon(chain.id);
+            return (
+              <button
+                key={chain.id}
+                disabled={isPending || !switchChain}
+                onClick={() => {
+                  if (isPending || chain.id === chainId || !switchChain) return;
+                  void switchChain(chain.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-none transition-colors",
+                  "hover:bg-accent hover:text-accent-foreground",
+                  "focus:bg-accent focus:text-accent-foreground",
+                  chainId === chain.id && "bg-accent",
+                  (isPending || !switchChain) && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                    "bg-muted text-muted-foreground",
+                    chainId === chain.id && "bg-primary/10 text-primary",
+                  )}
+                >
+                  {ChainIcon ? (
+                    <ChainIcon className="h-4 w-4" />
+                  ) : (
+                    <span className="text-[10px] font-medium">
+                      {chain.ticker.slice(0, 2)}
+                    </span>
+                  )}
+                </span>
+                <span className="flex-1 truncate text-left">{chain.name}</span>
+                {chainId === chain.id && (
+                  <CheckIcon className="h-4 w-4 shrink-0 text-primary" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </PopoverContent>
     </Popover>

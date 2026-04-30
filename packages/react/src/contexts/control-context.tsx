@@ -48,11 +48,17 @@ export type ControlContextApi = {
   /** Update global state (apiKey only) */
   setApiKey: (apiKey: string | null) => void;
   /** Ingest secrets into the backend vault, returns opaque handles */
-  ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
+  ingestSecrets: (
+    secrets: Record<string, string>,
+  ) => Promise<Record<string, string>>;
   /** Clear all secrets from the backend vault */
   clearSecrets: () => Promise<void>;
   /** Store a provider API key (BYOK) in localStorage and ingest into backend vault */
-  setProviderKey: (provider: string, apiKey: string, label?: string) => Promise<void>;
+  setProviderKey: (
+    provider: string,
+    apiKey: string,
+    label?: string,
+  ) => Promise<void>;
   /** Remove a provider API key from localStorage and backend vault */
   removeProviderKey: (provider: string) => Promise<void>;
   /** Get all stored provider keys (metadata only — keys are in state.providerKeys) */
@@ -98,7 +104,9 @@ const PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
 
 function getOrCreateClientId(): string {
   try {
-    const storedClientId = globalThis.localStorage?.getItem(CLIENT_ID_STORAGE_KEY);
+    const storedClientId = globalThis.localStorage?.getItem(
+      CLIENT_ID_STORAGE_KEY,
+    );
     if (storedClientId && storedClientId.trim().length > 0) {
       return storedClientId;
     }
@@ -117,6 +125,30 @@ function getOrCreateClientId(): string {
 
 function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
+}
+
+/** Models preferred as default, in priority order (cheaper + good performance). */
+const PREFERRED_DEFAULT_MODELS: RegExp[] = [
+  /^claude-4\.5-haiku/i,
+  /^claude.*haiku/i,
+  /^gpt-4o-mini/i,
+  /^gemini.*flash/i,
+];
+
+/**
+ * Pick the best default model from a list.
+ * Prefers cheaper models with good performance over expensive ones.
+ * Falls back to the first model if no preferred match.
+ */
+function pickDefaultModel(models: string[]): string | null {
+  if (models.length === 0) return null;
+
+  for (const pattern of PREFERRED_DEFAULT_MODELS) {
+    const match = models.find((m) => pattern.test(m));
+    if (match) return match;
+  }
+
+  return models[0] ?? null;
 }
 
 function resolveAuthorizedApp(
@@ -286,22 +318,21 @@ export function ControlContextProvider({
       secrets[`${PROVIDER_KEY_SECRET_PREFIX}${provider}`] = entry.apiKey;
     }
 
-    void aomiClientRef.current.ingestSecrets(state.clientId, secrets).catch((err: unknown) => {
-      console.error("Failed to auto-ingest provider keys:", err);
-    });
+    void aomiClientRef.current
+      .ingestSecrets(state.clientId, secrets)
+      .catch((err: unknown) => {
+        console.error("Failed to auto-ingest provider keys:", err);
+      });
   }, [state.clientId, state.providerKeys]);
 
   // Fetch apps whenever the auth context changes
   useEffect(() => {
     const fetchApps = async () => {
       try {
-        const apps = await aomiClientRef.current.getApps(
-          sessionIdRef.current,
-          {
-            publicKey: publicKeyRef.current,
-            apiKey: stateRef.current.apiKey ?? undefined,
-          },
-        );
+        const apps = await aomiClientRef.current.getApps(sessionIdRef.current, {
+          publicKey: publicKeyRef.current,
+          apiKey: stateRef.current.apiKey ?? undefined,
+        });
         const defaultApp = getDefaultApp(apps);
         setStateInternal((prev) => ({
           ...prev,
@@ -330,7 +361,7 @@ export function ControlContextProvider({
         setStateInternal((prev) => ({
           ...prev,
           availableModels: models,
-          defaultModel: models[0] ?? null,
+          defaultModel: pickDefaultModel(models),
         }));
       } catch (error) {
         console.error("Failed to fetch models:", error);
@@ -354,7 +385,9 @@ export function ControlContextProvider({
   // Secrets
   // ---------------------------------------------------------------------------
   const ingestSecrets = useCallback(
-    async (secrets: Record<string, string>): Promise<Record<string, string>> => {
+    async (
+      secrets: Record<string, string>,
+    ): Promise<Record<string, string>> => {
       const clientId = stateRef.current.clientId;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
@@ -435,14 +468,11 @@ export function ControlContextProvider({
     [],
   );
 
-  const hasProviderKey = useCallback(
-    (provider?: string): boolean => {
-      const keys = stateRef.current.providerKeys;
-      if (provider) return provider in keys;
-      return Object.keys(keys).length > 0;
-    },
-    [],
-  );
+  const hasProviderKey = useCallback((provider?: string): boolean => {
+    const keys = stateRef.current.providerKeys;
+    if (provider) return provider in keys;
+    return Object.keys(keys).length > 0;
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Fetch available options
@@ -455,7 +485,7 @@ export function ControlContextProvider({
       setStateInternal((prev) => ({
         ...prev,
         availableModels: models,
-        defaultModel: prev.defaultModel ?? models[0] ?? null,
+        defaultModel: prev.defaultModel ?? pickDefaultModel(models),
       }));
       return models;
     } catch (error) {
@@ -466,13 +496,10 @@ export function ControlContextProvider({
 
   const getAuthorizedApps = useCallback(async (): Promise<string[]> => {
     try {
-      const apps = await aomiClientRef.current.getApps(
-        sessionIdRef.current,
-        {
-          publicKey: publicKeyRef.current,
-          apiKey: stateRef.current.apiKey ?? undefined,
-        },
-      );
+      const apps = await aomiClientRef.current.getApps(sessionIdRef.current, {
+        publicKey: publicKeyRef.current,
+        apiKey: stateRef.current.apiKey ?? undefined,
+      });
       const defaultApp = getDefaultApp(apps);
       setStateInternal((prev) => ({
         ...prev,
@@ -524,11 +551,6 @@ export function ControlContextProvider({
       threadId,
     });
 
-    if (isProcessing) {
-      console.warn("[control-context] Cannot switch model while processing");
-      return;
-    }
-
     const app =
       resolveAuthorizedApp(
         currentControl.app,
@@ -561,15 +583,11 @@ export function ControlContextProvider({
     });
 
     try {
-      const result = await aomiClientRef.current.setModel(
-        threadId,
-        model,
-        {
-          app,
-          apiKey: stateRef.current.apiKey ?? undefined,
-          clientId: stateRef.current.clientId ?? undefined,
-        },
-      );
+      const result = await aomiClientRef.current.setModel(threadId, model, {
+        app,
+        apiKey: stateRef.current.apiKey ?? undefined,
+        clientId: stateRef.current.clientId ?? undefined,
+      });
       console.log("[control-context] onModelSelect backend result", result);
     } catch (err) {
       console.error("[control-context] setModel failed:", err);
@@ -588,13 +606,6 @@ export function ControlContextProvider({
       isProcessing,
       threadId,
     });
-
-    if (isProcessing) {
-      console.warn(
-        "[control-context] Cannot switch app while processing",
-      );
-      return;
-    }
 
     if (
       stateRef.current.authorizedApps.length > 0 &&
