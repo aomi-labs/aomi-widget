@@ -552,6 +552,8 @@ declare function toAAWalletCall(payload: WalletTxPayload, defaultChainId?: numbe
  */
 declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSignTypedDataArgs | null;
 
+declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
+
 type WalletRequestKind = "transaction" | "eip712_sign";
 type WalletRequest = {
     id: string;
@@ -578,7 +580,7 @@ type SendResult = {
     messages: AomiMessage[];
     title?: string;
 };
-declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
+
 type SessionOptions = {
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;

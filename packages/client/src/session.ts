@@ -28,10 +28,13 @@ import { UserState, type UserState as UserStateShape } from "./types";
 import { TypedEventEmitter } from "./event";
 import { unwrapSystemEvent } from "./event";
 import {
+  aaModeFromExecutionKind,
+  aaRequestedModeFromPreference,
+} from "./aa/policy";
+import {
   normalizeTxPayload,
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
-  type WalletTxAaPreference,
   type WalletTxPayload,
   type WalletEip712Payload,
 } from "./wallet-utils";
@@ -131,23 +134,7 @@ function txIdsFromPayload(payload: WalletTxPayload): number[] {
   return [];
 }
 
-function aaRequestedModeFromPreference(
-  preference: WalletTxAaPreference | undefined,
-): "4337" | "7702" | "none" {
-  if (preference === "none") return "none";
-  if (preference === "eip7702") return "7702";
-  return "4337";
-}
-
-export function aaModeFromExecutionKind(
-  executionKind: string | undefined,
-): "4337" | "7702" | "none" | undefined {
-  if (!executionKind) return undefined;
-  if (executionKind.endsWith("_4337")) return "4337";
-  if (executionKind.endsWith("_7702")) return "7702";
-  if (executionKind === "eoa") return "none";
-  return undefined;
-}
+export { aaModeFromExecutionKind } from "./aa/policy";
 
 export type SessionOptions = {
   /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */

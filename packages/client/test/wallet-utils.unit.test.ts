@@ -34,11 +34,13 @@ describe("wallet payload normalization", () => {
       normalizeTxPayload({
         tx_ids: ["17"],
         aa_preference: "eip4337",
+        aa_strict: true,
       }),
     ).toEqual({
       txIds: [17],
       txId: 17,
       aaPreference: "eip4337",
+      aaStrict: true,
       requestId: undefined,
       to: undefined,
       value: undefined,
@@ -52,6 +54,7 @@ describe("wallet payload normalization", () => {
       normalizeTxPayload({
         tx_ids: [22],
         aa_preference: "eip7702",
+        aaStrict: true,
         to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
         value: "1000",
         data: "0x1234",
@@ -60,6 +63,7 @@ describe("wallet payload normalization", () => {
       txIds: [22],
       txId: 22,
       aaPreference: "eip7702",
+      aaStrict: true,
       requestId: undefined,
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "1000",

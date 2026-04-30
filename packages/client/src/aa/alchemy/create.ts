@@ -8,6 +8,7 @@ import {
   getAAChainConfig,
   buildAAExecutionPlan,
 } from "../types";
+import { resolveAASponsorship } from "../policy";
 import {
   getMissingOwnerState,
   getOwnerParams,
@@ -149,7 +150,7 @@ export async function createAlchemyAAState(
   // existing balance covers gas — no paymaster needed.
   // 4337 uses a separate smart account contract that starts with zero balance,
   // so gas sponsorship is required to avoid prefund failures.
-  const sponsored = options.sponsored ?? effectiveMode === "4337";
+  const sponsored = effectiveMode === "4337";
   const gasPolicyId = sponsored
     ? resolveAlchemyGasPolicyId({ gasPolicyId: options.gasPolicyId })
     : undefined;
@@ -157,7 +158,9 @@ export async function createAlchemyAAState(
   const execution = {
     ...plan,
     mode: effectiveMode,
-    sponsorship: gasPolicyId ? plan.sponsorship : "disabled",
+    sponsorship: gasPolicyId
+      ? resolveAASponsorship(effectiveMode, plan.sponsorship)
+      : "disabled",
   } as AAState["resolved"];
 
   const ownerParams = getOwnerParams(owner);

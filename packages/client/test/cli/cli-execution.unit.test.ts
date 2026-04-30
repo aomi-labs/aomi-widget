@@ -225,15 +225,21 @@ describe("CLI execution controls", () => {
   // resolveCliExecutionDecision — default Alchemy key
   // -------------------------------------------------------------------------
 
-  it("defaults to direct EOA for single-call auto mode", () => {
+  it("defaults to 7702 AA for single-call auto mode", () => {
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
       callList: [...CALL_LIST],
     });
 
-    expect(decision).toEqual({ execution: "eoa" });
-    expect(describeExecutionDecision(decision)).toBe("eoa");
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+      modeExplicit: false,
+      apiKey: "72eIUle_3rfixX00QJVwk",
+    });
+    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
   it("defaults to Alchemy direct AA for multi-call batches when no env vars are set", () => {
