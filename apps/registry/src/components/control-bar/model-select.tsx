@@ -35,12 +35,14 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   className,
   placeholder = "Select model",
 }) => {
-  const { state, getAvailableModels, getCurrentThreadControl, onModelSelect } =
-    useControl();
+  const {
+    state,
+    getAvailableModels,
+    getCurrentThreadControl,
+    onModelSelect,
+    isProcessing,
+  } = useControl();
   const [open, setOpen] = useState(false);
-  // Track auto mode locally — backend only sees the resolved model string.
-  // Starts true (default state), set to false when user picks a specific model.
-  const [isAutoMode, setIsAutoMode] = useState(true);
 
   useEffect(() => {
     void getAvailableModels();
@@ -48,11 +50,12 @@ export const ModelSelect: FC<ModelSelectProps> = ({
 
   const threadControl = getCurrentThreadControl();
   const rawSelected = threadControl.model;
+  const modelMode =
+    threadControl.modelMode ?? (rawSelected === null ? "auto" : "manual");
   const models = state.availableModels;
 
   const autoBackendModel = resolveAutoModel(models);
-  // Auto when: local flag says so, OR no model selected yet (fresh thread)
-  const isAuto = isAutoMode || rawSelected === null;
+  const isAuto = modelMode === "auto";
   const selectedModel = isAuto
     ? autoBackendModel
     : (rawSelected ?? state.defaultModel ?? models[0]);
@@ -79,18 +82,17 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   const triggerLabel = isAuto ? AUTO_MODE_LABEL : selectedModel || placeholder;
 
   const handleSelect = (model: string) => {
-    setIsAutoMode(false);
+    if (isProcessing) return;
     setOpen(false);
-    void onModelSelect(model).catch((err) => {
+    void onModelSelect(model, { mode: "manual" }).catch((err) => {
       console.error("[ModelSelect] onModelSelect failed:", err);
     });
   };
 
   const handleAutoSelect = () => {
-    if (!autoBackendModel) return;
-    setIsAutoMode(true);
+    if (!autoBackendModel || isProcessing) return;
     setOpen(false);
-    void onModelSelect(autoBackendModel).catch((err) => {
+    void onModelSelect(autoBackendModel, { mode: "auto" }).catch((err) => {
       console.error("[ModelSelect] auto onModelSelect failed:", err);
     });
   };
@@ -102,9 +104,11 @@ export const ModelSelect: FC<ModelSelectProps> = ({
           variant="ghost"
           role="combobox"
           aria-expanded={open}
+          disabled={isProcessing}
           className={cn(
             "h-8 w-auto min-w-[100px] justify-between rounded-full px-3 text-xs",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            isProcessing && "cursor-not-allowed opacity-50",
             className,
           )}
         >
@@ -116,7 +120,8 @@ export const ModelSelect: FC<ModelSelectProps> = ({
               if (selectedModel) {
                 const vendor = getVendorForModel(selectedModel);
                 const VIcon = getVendorIcon(vendor.id);
-                if (VIcon) return <VIcon className="h-3 w-3 shrink-0 opacity-60" />;
+                if (VIcon)
+                  return <VIcon className="h-3 w-3 shrink-0 opacity-60" />;
               }
               return null;
             })()}
@@ -139,6 +144,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
             <CommandGroup>
               <CommandItem
                 value="auto"
+                disabled={isProcessing}
                 onSelect={handleAutoSelect}
                 className="flex items-center justify-between gap-2"
               >
@@ -176,6 +182,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
                     <CommandItem
                       key={model}
                       value={model}
+                      disabled={isProcessing}
                       onSelect={() => handleSelect(model)}
                       className="flex items-center justify-between gap-2"
                     >

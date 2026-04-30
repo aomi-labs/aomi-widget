@@ -43,15 +43,23 @@ export function AomiRuntimeCore({
   const eventContext = useEventContext();
   const notificationContext = useNotification();
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const {
+    getControlState,
+    getCurrentThreadApp,
+    getPreferredThreadControl,
+    syncCurrentThreadControl,
+  } = useControl();
 
   // ---------------------------------------------------------------------------
   // Wallet handler (receives requests from orchestrator)
   // ---------------------------------------------------------------------------
-  const sessionManagerRef = useRef<ReturnType<typeof useRuntimeOrchestrator>["sessionManager"] | null>(null);
+  const sessionManagerRef = useRef<
+    ReturnType<typeof useRuntimeOrchestrator>["sessionManager"] | null
+  >(null);
 
   const walletHandler = useWalletHandler({
-    getSession: () => sessionManagerRef.current?.get(threadContext.currentThreadId),
+    getSession: () =>
+      sessionManagerRef.current?.get(threadContext.currentThreadId),
   });
 
   // ---------------------------------------------------------------------------
@@ -163,19 +171,16 @@ export function AomiRuntimeCore({
   // Respond to user_state_request from backend
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const unsubscribe = eventContext.subscribe(
-      "user_state_request",
-      () => {
-        const session =
-          sessionManagerRef.current?.get(threadContext.currentThreadId) ??
-          getSession(threadContext.currentThreadId);
-        eventContext.sendOutboundSystem({
-          type: "user_state_response",
-          sessionId: threadContext.currentThreadId,
-          payload: session.getUserState() ?? getUserState(),
-        });
-      },
-    );
+    const unsubscribe = eventContext.subscribe("user_state_request", () => {
+      const session =
+        sessionManagerRef.current?.get(threadContext.currentThreadId) ??
+        getSession(threadContext.currentThreadId);
+      eventContext.sendOutboundSystem({
+        type: "user_state_response",
+        sessionId: threadContext.currentThreadId,
+        payload: session.getUserState() ?? getUserState(),
+      });
+    });
     return unsubscribe;
   }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
 
@@ -231,8 +236,7 @@ export function AomiRuntimeCore({
 
     const fetchThreadList = async () => {
       try {
-        const threadList =
-          await aomiClientRef.current.listThreads(userAddress);
+        const threadList = await aomiClientRef.current.listThreads(userAddress);
         const currentContext = threadContextRef.current;
         const remoteThreadIds = new Set<string>();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
@@ -294,9 +298,11 @@ export function AomiRuntimeCore({
         aomiClientRef,
         threadContext,
         setIsRunning,
+        getInitialControl: getPreferredThreadControl,
       }),
     [
       aomiClientRef,
+      getPreferredThreadControl,
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
@@ -378,6 +384,7 @@ export function AomiRuntimeCore({
         .map((part) => part.text)
         .join("\n");
       if (text) {
+        await syncCurrentThreadControl();
         await orchestratorSendMessage(text, threadContext.currentThreadId);
       }
     },
@@ -404,9 +411,14 @@ export function AomiRuntimeCore({
 
   const sendMessage = useCallback(
     async (text: string) => {
+      await syncCurrentThreadControl();
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
-    [orchestratorSendMessage, threadContext.currentThreadId],
+    [
+      orchestratorSendMessage,
+      syncCurrentThreadControl,
+      threadContext.currentThreadId,
+    ],
   );
 
   const cancelGeneration = useCallback(() => {

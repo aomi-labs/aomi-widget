@@ -47,7 +47,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/index.ts
+// packages/react/src/index.ts
 var index_exports = {};
 __export(index_exports, {
   AomiClient: () => import_client7.AomiClient,
@@ -91,14 +91,14 @@ module.exports = __toCommonJS(index_exports);
 var import_client7 = require("@aomi-labs/client");
 var import_client8 = require("@aomi-labs/client");
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_react12 = require("react");
 var import_client6 = require("@aomi-labs/client");
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_react = require("react");
 
-// src/utils/uuid.ts
+// packages/react/src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -110,7 +110,7 @@ function generateUUID() {
   });
 }
 
-// src/state/thread-store.ts
+// packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -126,6 +126,7 @@ var logThreadMetadataChange = (source, threadId, prev, next) => {
 function initThreadControl() {
   return {
     model: null,
+    modelMode: "auto",
     app: null,
     controlDirty: false,
     isProcessing: false
@@ -269,11 +270,12 @@ var ThreadStore = class {
   }
 };
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
+var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
 var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
 function getOrCreateClientId() {
   var _a, _b, _c, _d, _e;
@@ -311,6 +313,46 @@ function pickDefaultModel(models) {
     if (match) return match;
   }
   return (_a = models[0]) != null ? _a : null;
+}
+function readStoredModelPreference() {
+  var _a;
+  try {
+    const raw = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(MODEL_SELECTION_STORAGE_KEY);
+    if (!raw) return { mode: "auto", model: null };
+    const parsed = JSON.parse(raw);
+    return {
+      mode: parsed.mode === "manual" ? "manual" : "auto",
+      model: typeof parsed.model === "string" ? parsed.model : null
+    };
+  } catch (e) {
+    return { mode: "auto", model: null };
+  }
+}
+function writeStoredModelPreference(preference) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(
+      MODEL_SELECTION_STORAGE_KEY,
+      JSON.stringify(preference)
+    );
+  } catch (e) {
+  }
+}
+function resolvePreferredModelSelection(preference, models, defaultModel) {
+  var _a, _b, _c, _d;
+  if (preference.mode === "manual" && preference.model && (models.length === 0 || models.includes(preference.model))) {
+    return preference;
+  }
+  if (preference.mode === "auto") {
+    return {
+      mode: "auto",
+      model: (_b = (_a = pickDefaultModel(models)) != null ? _a : preference.model) != null ? _b : defaultModel
+    };
+  }
+  return {
+    mode: "auto",
+    model: (_d = (_c = defaultModel != null ? defaultModel : pickDefaultModel(models)) != null ? _c : models[0]) != null ? _d : null
+  };
 }
 function resolveAuthorizedApp(app, authorizedApps, defaultApp) {
   if (app && authorizedApps.includes(app)) {
@@ -592,6 +634,19 @@ function ControlContextProvider({
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
     return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : initThreadControl();
   }, []);
+  const getPreferredThreadControl = (0, import_react.useCallback)(() => {
+    const preference = readStoredModelPreference();
+    const selection = resolvePreferredModelSelection(
+      preference,
+      stateRef.current.availableModels,
+      stateRef.current.defaultModel
+    );
+    return __spreadProps(__spreadValues({}, initThreadControl()), {
+      model: selection.model,
+      modelMode: selection.mode,
+      controlDirty: selection.model !== null
+    });
+  }, []);
   const getCurrentThreadApp = (0, import_react.useCallback)(() => {
     var _a2, _b2, _c;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
@@ -601,52 +656,72 @@ function ControlContextProvider({
       stateRef.current.defaultApp
     )) != null ? _c : "default";
   }, []);
-  const onModelSelect = (0, import_react.useCallback)(async (model) => {
-    var _a2, _b2, _c, _d, _e;
-    const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    const isProcessing2 = currentControl.isProcessing;
-    console.log("[control-context] onModelSelect called", {
-      model,
-      isProcessing: isProcessing2,
-      threadId
-    });
-    const app = (_c = resolveAuthorizedApp(
-      currentControl.app,
-      stateRef.current.authorizedApps,
-      stateRef.current.defaultApp
-    )) != null ? _c : "default";
-    console.log("[control-context] onModelSelect updating metadata", {
-      threadId,
-      model,
-      app,
-      currentControl
-    });
-    updateThreadMetadataRef.current(threadId, {
-      control: __spreadProps(__spreadValues({}, currentControl), {
+  const onModelSelect = (0, import_react.useCallback)(
+    async (model, options) => {
+      var _a2, _b2, _c, _d, _e, _f, _g, _h;
+      const threadId = sessionIdRef.current;
+      const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+      const isProcessing2 = currentControl.isProcessing;
+      const modelMode = (_c = options == null ? void 0 : options.mode) != null ? _c : "manual";
+      console.log("[control-context] onModelSelect called", {
+        model,
+        modelMode,
+        isProcessing: isProcessing2,
+        threadId
+      });
+      if (isProcessing2) {
+        console.warn("[control-context] Cannot switch model while processing");
+        return;
+      }
+      const app = (_d = resolveAuthorizedApp(
+        currentControl.app,
+        stateRef.current.authorizedApps,
+        stateRef.current.defaultApp
+      )) != null ? _d : "default";
+      console.log("[control-context] onModelSelect updating metadata", {
+        threadId,
         model,
         app,
-        controlDirty: true
-      })
-    });
-    console.log("[control-context] onModelSelect calling backend setModel", {
-      threadId,
-      model,
-      app,
-      backendUrl: aomiClientRef.current
-    });
-    try {
-      const result = await aomiClientRef.current.setModel(threadId, model, {
-        app,
-        apiKey: (_d = stateRef.current.apiKey) != null ? _d : void 0,
-        clientId: (_e = stateRef.current.clientId) != null ? _e : void 0
+        currentControl
       });
-      console.log("[control-context] onModelSelect backend result", result);
-    } catch (err) {
-      console.error("[control-context] setModel failed:", err);
-      throw err;
-    }
-  }, []);
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          model,
+          modelMode,
+          app,
+          controlDirty: true
+        })
+      });
+      console.log("[control-context] onModelSelect calling backend setModel", {
+        threadId,
+        model,
+        app,
+        backendUrl: aomiClientRef.current
+      });
+      try {
+        const result = await aomiClientRef.current.setModel(threadId, model, {
+          app,
+          apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0,
+          clientId: (_f = stateRef.current.clientId) != null ? _f : void 0
+        });
+        console.log("[control-context] onModelSelect backend result", result);
+        writeStoredModelPreference({ mode: modelMode, model });
+        const latestControl = (_h = (_g = getThreadMetadataRef.current(threadId)) == null ? void 0 : _g.control) != null ? _h : currentControl;
+        if (latestControl.model === model) {
+          updateThreadMetadataRef.current(threadId, {
+            control: __spreadProps(__spreadValues({}, latestControl), {
+              modelMode,
+              controlDirty: false
+            })
+          });
+        }
+      } catch (err) {
+        console.error("[control-context] setModel failed:", err);
+        throw err;
+      }
+    },
+    []
+  );
   const onAppSelect = (0, import_react.useCallback)((app) => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
@@ -657,6 +732,10 @@ function ControlContextProvider({
       isProcessing: isProcessing2,
       threadId
     });
+    if (isProcessing2) {
+      console.warn("[control-context] Cannot switch app while processing");
+      return;
+    }
     if (stateRef.current.authorizedApps.length > 0 && !stateRef.current.authorizedApps.includes(app)) {
       console.warn("[control-context] Cannot select unauthorized app", { app });
       return;
@@ -686,6 +765,52 @@ function ControlContextProvider({
       });
     }
   }, []);
+  const syncCurrentThreadControl = (0, import_react.useCallback)(async () => {
+    var _a2, _b2, _c, _d, _e, _f, _g;
+    const threadId = sessionIdRef.current;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    if (!currentControl.controlDirty || currentControl.isProcessing || !currentControl.model) {
+      return;
+    }
+    const app = (_c = resolveAuthorizedApp(
+      currentControl.app,
+      stateRef.current.authorizedApps,
+      stateRef.current.defaultApp
+    )) != null ? _c : "default";
+    await aomiClientRef.current.setModel(threadId, currentControl.model, {
+      app,
+      apiKey: (_d = stateRef.current.apiKey) != null ? _d : void 0,
+      clientId: (_e = stateRef.current.clientId) != null ? _e : void 0
+    });
+    const latestControl = (_g = (_f = getThreadMetadataRef.current(threadId)) == null ? void 0 : _f.control) != null ? _g : currentControl;
+    if (latestControl.model === currentControl.model) {
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, latestControl), {
+          app,
+          controlDirty: false
+        })
+      });
+    }
+  }, []);
+  (0, import_react.useEffect)(() => {
+    const threadId = sessionIdRef.current;
+    const metadata = getThreadMetadataRef.current(threadId);
+    if (!metadata || metadata.control.model !== null) return;
+    const preferred = getPreferredThreadControl();
+    if (!preferred.model) return;
+    updateThreadMetadataRef.current(threadId, {
+      control: __spreadProps(__spreadValues({}, metadata.control), {
+        model: preferred.model,
+        modelMode: preferred.modelMode,
+        controlDirty: true
+      })
+    });
+  }, [
+    getPreferredThreadControl,
+    sessionId,
+    state.availableModels,
+    state.defaultModel
+  ]);
   const getControlState = (0, import_react.useCallback)(() => stateRef.current, []);
   const onControlStateChange = (0, import_react.useCallback)(
     (callback) => {
@@ -728,6 +853,8 @@ function ControlContextProvider({
         onAppSelect,
         isProcessing,
         markControlSynced,
+        syncCurrentThreadControl,
+        getPreferredThreadControl,
         getControlState,
         onControlStateChange,
         setState
@@ -737,7 +864,7 @@ function ControlContextProvider({
   );
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 var import_react2 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var EventContextState = (0, import_react2.createContext)(null);
@@ -807,7 +934,7 @@ function EventContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(EventContextState.Provider, { value: contextValue, children });
 }
 
-// src/contexts/notification-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 var import_react3 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 var NotificationContext = (0, import_react3.createContext)(null);
@@ -852,7 +979,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotificationContext.Provider, { value, children });
 }
 
-// src/contexts/thread-context.tsx
+// packages/react/src/contexts/thread-context.tsx
 var import_react4 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var ThreadContextState = (0, import_react4.createContext)(null);
@@ -896,7 +1023,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// src/contexts/user-context.tsx
+// packages/react/src/contexts/user-context.tsx
 var import_react5 = require("react");
 var import_client = require("@aomi-labs/client");
 var import_client2 = require("@aomi-labs/client");
@@ -1010,16 +1137,16 @@ function UserContextProvider({ children }) {
   );
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_react10 = require("react");
 var import_react11 = require("@assistant-ui/react");
 var import_client5 = require("@aomi-labs/client");
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var import_react6 = require("react");
 var import_client4 = require("@aomi-labs/client");
 
-// src/runtime/session-manager.ts
+// packages/react/src/runtime/session-manager.ts
 var import_client3 = require("@aomi-labs/client");
 var SessionManager = class {
   constructor(clientFactory) {
@@ -1058,7 +1185,7 @@ var SessionManager = class {
   }
 };
 
-// src/runtime/utils.ts
+// packages/react/src/runtime/utils.ts
 var import_clsx = require("clsx");
 var import_tailwind_merge = require("tailwind-merge");
 function cn(...inputs) {
@@ -1160,7 +1287,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = (0, import_react6.useRef)(threadContext);
@@ -1336,7 +1463,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// src/runtime/threadlist-adapter.ts
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1365,7 +1492,8 @@ function buildThreadLists(threadMetadata) {
 function buildThreadListAdapter({
   aomiClientRef,
   threadContext,
-  setIsRunning
+  setIsRunning,
+  getInitialControl = initThreadControl
 }) {
   const { regularThreads, archivedThreads } = buildThreadLists(
     threadContext.allThreadsMetadata
@@ -1381,7 +1509,7 @@ function buildThreadListAdapter({
           title: "New Chat",
           status: "regular",
           lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-          control: initThreadControl()
+          control: getInitialControl()
         })
       );
       threadContext.setThreadMessages(threadId, []);
@@ -1453,7 +1581,7 @@ function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-                control: initThreadControl()
+                control: getInitialControl()
               })
             );
             threadContext.setThreadMessages(defaultId, []);
@@ -1468,7 +1596,7 @@ function buildThreadListAdapter({
   };
 }
 
-// src/interface.tsx
+// packages/react/src/interface.tsx
 var import_react7 = require("react");
 var AomiRuntimeContext = (0, import_react7.createContext)(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1482,7 +1610,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
 var import_react8 = require("react");
 function useWalletHandler({
   getSession
@@ -1572,7 +1700,7 @@ function useWalletHandler({
   };
 }
 
-// src/runtime/user-state-provider.tsx
+// packages/react/src/runtime/user-state-provider.tsx
 var import_react9 = require("react");
 var import_jsx_runtime6 = require("react/jsx-runtime");
 function stableStateString(state) {
@@ -1605,7 +1733,7 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children });
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function AomiRuntimeCore({
   children,
@@ -1615,7 +1743,12 @@ function AomiRuntimeCore({
   const eventContext = useEventContext();
   const notificationContext = useNotification();
   const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const {
+    getControlState,
+    getCurrentThreadApp,
+    getPreferredThreadControl,
+    syncCurrentThreadControl
+  } = useControl();
   const sessionManagerRef = (0, import_react10.useRef)(null);
   const walletHandler = useWalletHandler({
     getSession: () => {
@@ -1701,18 +1834,15 @@ function AomiRuntimeCore({
     [aomiClientRef, getUserState]
   );
   (0, import_react10.useEffect)(() => {
-    const unsubscribe = eventContext.subscribe(
-      "user_state_request",
-      () => {
-        var _a, _b, _c;
-        const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
-        eventContext.sendOutboundSystem({
-          type: "user_state_response",
-          sessionId: threadContext.currentThreadId,
-          payload: (_c = session.getUserState()) != null ? _c : getUserState()
-        });
-      }
-    );
+    const unsubscribe = eventContext.subscribe("user_state_request", () => {
+      var _a, _b, _c;
+      const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
+      eventContext.sendOutboundSystem({
+        type: "user_state_response",
+        sessionId: threadContext.currentThreadId,
+        payload: (_c = session.getUserState()) != null ? _c : getUserState()
+      });
+    });
     return unsubscribe;
   }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
   (0, import_react10.useEffect)(() => {
@@ -1801,10 +1931,12 @@ function AomiRuntimeCore({
     () => buildThreadListAdapter({
       aomiClientRef,
       threadContext,
-      setIsRunning
+      setIsRunning,
+      getInitialControl: getPreferredThreadControl
     }),
     [
       aomiClientRef,
+      getPreferredThreadControl,
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
@@ -1850,6 +1982,7 @@ function AomiRuntimeCore({
         (part) => part.type === "text"
       ).map((part) => part.text).join("\n");
       if (text) {
+        await syncCurrentThreadControl();
         await orchestratorSendMessage(text, threadContext.currentThreadId);
       }
     },
@@ -1867,9 +2000,14 @@ function AomiRuntimeCore({
   const userContext = useUser();
   const sendMessage = (0, import_react10.useCallback)(
     async (text) => {
+      await syncCurrentThreadControl();
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
-    [orchestratorSendMessage, threadContext.currentThreadId]
+    [
+      orchestratorSendMessage,
+      syncCurrentThreadControl,
+      threadContext.currentThreadId
+    ]
   );
   const cancelGeneration = (0, import_react10.useCallback)(() => {
     void orchestratorCancel(threadContext.currentThreadId);
@@ -2002,7 +2140,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function AomiRuntimeProvider({
   children,
@@ -2038,7 +2176,7 @@ function AomiRuntimeInner({
   );
 }
 
-// src/handlers/notification-handler.ts
+// packages/react/src/handlers/notification-handler.ts
 var import_react13 = require("react");
 var notificationIdCounter2 = 0;
 function generateNotificationId() {

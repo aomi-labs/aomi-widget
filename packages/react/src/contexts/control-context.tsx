@@ -10,7 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import type { AomiClient } from "@aomi-labs/client";
-import type { ThreadMetadata, ThreadControlState } from "../state/thread-store";
+import type {
+  ModelSelectionMode,
+  ThreadMetadata,
+  ThreadControlState,
+} from "../state/thread-store";
 import { initThreadControl } from "../state/thread-store";
 
 // =============================================================================
@@ -22,6 +26,11 @@ export type StoredProviderKey = {
   apiKey: string;
   keyPrefix: string;
   label?: string;
+};
+
+export type StoredModelPreference = {
+  mode: ModelSelectionMode;
+  model: string | null;
 };
 
 /** Global control state (shared across all threads) */
@@ -74,13 +83,20 @@ export type ControlContextApi = {
   /** Get the current thread's effective app after auth fallback */
   getCurrentThreadApp: () => string;
   /** Select a model for the current thread (updates metadata + calls backend) */
-  onModelSelect: (model: string) => Promise<void>;
+  onModelSelect: (
+    model: string,
+    options?: { mode?: ModelSelectionMode },
+  ) => Promise<void>;
   /** Select an app for the current thread (updates metadata only) */
   onAppSelect: (app: string) => void;
   /** Whether the current thread is processing (disables control switching) */
   isProcessing: boolean;
   /** Mark control state as synced (called after chat starts) */
   markControlSynced: () => void;
+  /** Sync pending control state to the backend before sending */
+  syncCurrentThreadControl: () => Promise<void>;
+  /** Build initial control state for new local threads */
+  getPreferredThreadControl: () => ThreadControlState;
   /** Get global control state */
   getControlState: () => ControlState;
   /** Subscribe to global state changes */
@@ -100,6 +116,7 @@ export type ControlContextApi = {
 const API_KEY_STORAGE_KEY = "aomi_api_key";
 const CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 const PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
+const MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
 const PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
 
 function getOrCreateClientId(): string {
@@ -149,6 +166,57 @@ function pickDefaultModel(models: string[]): string | null {
   }
 
   return models[0] ?? null;
+}
+
+function readStoredModelPreference(): StoredModelPreference {
+  try {
+    const raw = globalThis.localStorage?.getItem(MODEL_SELECTION_STORAGE_KEY);
+    if (!raw) return { mode: "auto", model: null };
+    const parsed = JSON.parse(raw) as Partial<StoredModelPreference>;
+    return {
+      mode: parsed.mode === "manual" ? "manual" : "auto",
+      model: typeof parsed.model === "string" ? parsed.model : null,
+    };
+  } catch {
+    return { mode: "auto", model: null };
+  }
+}
+
+function writeStoredModelPreference(preference: StoredModelPreference): void {
+  try {
+    globalThis.localStorage?.setItem(
+      MODEL_SELECTION_STORAGE_KEY,
+      JSON.stringify(preference),
+    );
+  } catch {
+    // localStorage not available
+  }
+}
+
+function resolvePreferredModelSelection(
+  preference: StoredModelPreference,
+  models: string[],
+  defaultModel: string | null,
+): StoredModelPreference {
+  if (
+    preference.mode === "manual" &&
+    preference.model &&
+    (models.length === 0 || models.includes(preference.model))
+  ) {
+    return preference;
+  }
+
+  if (preference.mode === "auto") {
+    return {
+      mode: "auto",
+      model: pickDefaultModel(models) ?? preference.model ?? defaultModel,
+    };
+  }
+
+  return {
+    mode: "auto",
+    model: defaultModel ?? pickDefaultModel(models) ?? models[0] ?? null,
+  };
 }
 
 function resolveAuthorizedApp(
@@ -526,6 +594,21 @@ export function ControlContextProvider({
     return metadata?.control ?? initThreadControl();
   }, []);
 
+  const getPreferredThreadControl = useCallback((): ThreadControlState => {
+    const preference = readStoredModelPreference();
+    const selection = resolvePreferredModelSelection(
+      preference,
+      stateRef.current.availableModels,
+      stateRef.current.defaultModel,
+    );
+    return {
+      ...initThreadControl(),
+      model: selection.model,
+      modelMode: selection.mode,
+      controlDirty: selection.model !== null,
+    };
+  }, []);
+
   const getCurrentThreadApp = useCallback((): string => {
     const currentControl =
       getThreadMetadataRef.current(sessionIdRef.current)?.control ??
@@ -539,61 +622,84 @@ export function ControlContextProvider({
     );
   }, []);
 
-  const onModelSelect = useCallback(async (model: string) => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-    const isProcessing = currentControl.isProcessing;
+  const onModelSelect = useCallback(
+    async (model: string, options?: { mode?: ModelSelectionMode }) => {
+      const threadId = sessionIdRef.current;
+      const currentControl =
+        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
+      const isProcessing = currentControl.isProcessing;
+      const modelMode = options?.mode ?? "manual";
 
-    console.log("[control-context] onModelSelect called", {
-      model,
-      isProcessing,
-      threadId,
-    });
+      console.log("[control-context] onModelSelect called", {
+        model,
+        modelMode,
+        isProcessing,
+        threadId,
+      });
 
-    const app =
-      resolveAuthorizedApp(
-        currentControl.app,
-        stateRef.current.authorizedApps,
-        stateRef.current.defaultApp,
-      ) ?? "default";
+      if (isProcessing) {
+        console.warn("[control-context] Cannot switch model while processing");
+        return;
+      }
 
-    console.log("[control-context] onModelSelect updating metadata", {
-      threadId,
-      model,
-      app,
-      currentControl,
-    });
+      const app =
+        resolveAuthorizedApp(
+          currentControl.app,
+          stateRef.current.authorizedApps,
+          stateRef.current.defaultApp,
+        ) ?? "default";
 
-    // Update thread metadata with new model and mark as dirty
-    updateThreadMetadataRef.current(threadId, {
-      control: {
-        ...currentControl,
+      console.log("[control-context] onModelSelect updating metadata", {
+        threadId,
         model,
         app,
-        controlDirty: true,
-      },
-    });
-
-    console.log("[control-context] onModelSelect calling backend setModel", {
-      threadId,
-      model,
-      app,
-      backendUrl: aomiClientRef.current,
-    });
-
-    try {
-      const result = await aomiClientRef.current.setModel(threadId, model, {
-        app,
-        apiKey: stateRef.current.apiKey ?? undefined,
-        clientId: stateRef.current.clientId ?? undefined,
+        currentControl,
       });
-      console.log("[control-context] onModelSelect backend result", result);
-    } catch (err) {
-      console.error("[control-context] setModel failed:", err);
-      throw err;
-    }
-  }, []);
+
+      // Update thread metadata with new model and mark as dirty
+      updateThreadMetadataRef.current(threadId, {
+        control: {
+          ...currentControl,
+          model,
+          modelMode,
+          app,
+          controlDirty: true,
+        },
+      });
+
+      console.log("[control-context] onModelSelect calling backend setModel", {
+        threadId,
+        model,
+        app,
+        backendUrl: aomiClientRef.current,
+      });
+
+      try {
+        const result = await aomiClientRef.current.setModel(threadId, model, {
+          app,
+          apiKey: stateRef.current.apiKey ?? undefined,
+          clientId: stateRef.current.clientId ?? undefined,
+        });
+        console.log("[control-context] onModelSelect backend result", result);
+        writeStoredModelPreference({ mode: modelMode, model });
+        const latestControl =
+          getThreadMetadataRef.current(threadId)?.control ?? currentControl;
+        if (latestControl.model === model) {
+          updateThreadMetadataRef.current(threadId, {
+            control: {
+              ...latestControl,
+              modelMode,
+              controlDirty: false,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("[control-context] setModel failed:", err);
+        throw err;
+      }
+    },
+    [],
+  );
 
   const onAppSelect = useCallback((app: string) => {
     const threadId = sessionIdRef.current;
@@ -606,6 +712,11 @@ export function ControlContextProvider({
       isProcessing,
       threadId,
     });
+
+    if (isProcessing) {
+      console.warn("[control-context] Cannot switch app while processing");
+      return;
+    }
 
     if (
       stateRef.current.authorizedApps.length > 0 &&
@@ -647,6 +758,68 @@ export function ControlContextProvider({
       });
     }
   }, []);
+
+  const syncCurrentThreadControl = useCallback(async () => {
+    const threadId = sessionIdRef.current;
+    const currentControl =
+      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
+
+    if (
+      !currentControl.controlDirty ||
+      currentControl.isProcessing ||
+      !currentControl.model
+    ) {
+      return;
+    }
+
+    const app =
+      resolveAuthorizedApp(
+        currentControl.app,
+        stateRef.current.authorizedApps,
+        stateRef.current.defaultApp,
+      ) ?? "default";
+
+    await aomiClientRef.current.setModel(threadId, currentControl.model, {
+      app,
+      apiKey: stateRef.current.apiKey ?? undefined,
+      clientId: stateRef.current.clientId ?? undefined,
+    });
+
+    const latestControl =
+      getThreadMetadataRef.current(threadId)?.control ?? currentControl;
+    if (latestControl.model === currentControl.model) {
+      updateThreadMetadataRef.current(threadId, {
+        control: {
+          ...latestControl,
+          app,
+          controlDirty: false,
+        },
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const threadId = sessionIdRef.current;
+    const metadata = getThreadMetadataRef.current(threadId);
+    if (!metadata || metadata.control.model !== null) return;
+
+    const preferred = getPreferredThreadControl();
+    if (!preferred.model) return;
+
+    updateThreadMetadataRef.current(threadId, {
+      control: {
+        ...metadata.control,
+        model: preferred.model,
+        modelMode: preferred.modelMode,
+        controlDirty: true,
+      },
+    });
+  }, [
+    getPreferredThreadControl,
+    sessionId,
+    state.availableModels,
+    state.defaultModel,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Global state access
@@ -701,6 +874,8 @@ export function ControlContextProvider({
         onAppSelect,
         isProcessing,
         markControlSynced,
+        syncCurrentThreadControl,
+        getPreferredThreadControl,
         getControlState,
         onControlStateChange,
         setState,

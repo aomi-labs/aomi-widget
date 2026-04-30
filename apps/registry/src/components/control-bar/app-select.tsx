@@ -33,8 +33,13 @@ export const AppSelect: FC<AppSelectProps> = ({
   className,
   placeholder = "Select App",
 }) => {
-  const { state, getAuthorizedApps, getCurrentThreadApp, onAppSelect } =
-    useControl();
+  const {
+    state,
+    getAuthorizedApps,
+    getCurrentThreadApp,
+    onAppSelect,
+    isProcessing,
+  } = useControl();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -75,9 +80,11 @@ export const AppSelect: FC<AppSelectProps> = ({
           variant="ghost"
           role="combobox"
           aria-expanded={open}
+          disabled={isProcessing}
           className={cn(
             "h-8 w-auto min-w-[80px] justify-between gap-1.5 rounded-full px-3 text-xs",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            isProcessing && "cursor-not-allowed opacity-50",
             className,
           )}
         >
@@ -104,7 +111,9 @@ export const AppSelect: FC<AppSelectProps> = ({
                 <CommandGroup>
                   <CommandItem
                     value="all apps default"
+                    disabled={isProcessing}
                     onSelect={() => {
+                      if (isProcessing) return;
                       onAppSelect(ALL_APPS_ID);
                       setOpen(false);
                     }}
@@ -147,7 +156,9 @@ export const AppSelect: FC<AppSelectProps> = ({
                     <CommandItem
                       key={app.id}
                       value={`${app.displayName} ${app.category.label} ${app.id}`}
+                      disabled={isProcessing}
                       onSelect={() => {
+                        if (isProcessing) return;
                         onAppSelect(app.id);
                         setOpen(false);
                       }}
