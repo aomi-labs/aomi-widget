@@ -3,6 +3,7 @@
   "pages": [
     "overview",
     "getting-started",
+    "build-and-deploy-external-app",
     "integration-guide",
     "ui",
     "services"

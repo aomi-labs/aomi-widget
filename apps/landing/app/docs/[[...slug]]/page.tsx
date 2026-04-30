@@ -32,7 +32,7 @@ export default async function Page(props: {
     "configuration": "/docs/build/ui/widget/configuration",
     "examples": "/examples/polymarket",
     "runtime": "/docs/reference/runtime",
-    "aomi-apps": "/docs/build/services/building-apps",
+    "aomi-apps": "/docs/build/services/app-backend-reference",
     "script-generation": "/docs/advanced/script-generation",
     "execution": "/docs/advanced/execution",
     "evals": "/docs/advanced/evals",
@@ -46,7 +46,7 @@ export default async function Page(props: {
     "core-concepts/namespaces": "/docs/build/namespaces",
     "core-concepts/api-reference": "/docs/build/services/api-reference",
     "core-concepts/sessions": "/docs/build/services/sessions",
-    "core-concepts/building-apps": "/docs/build/services/building-apps",
+    "core-concepts/building-apps": "/docs/build/services/app-backend-reference",
     "integration/overview": "/docs/build/overview",
     "integration/widget/install": "/docs/build/quickstart",
     "integration/widget/aomi-frame": "/docs/build/ui/widget/aomi-frame",
@@ -76,10 +76,13 @@ export default async function Page(props: {
     "build/headless/hooks": "/docs/build/ui/headless/hooks",
     "build/headless/build-custom-ui": "/docs/build/ui/headless/build-custom-ui",
     "build/sessions": "/docs/build/services/sessions",
-    "build/building-apps": "/docs/build/services/building-apps",
+    "build/building-apps": "/docs/build/services/app-backend-reference",
+    "build/services/building-apps": "/docs/build/services/app-backend-reference",
     "build/api-reference": "/docs/build/services/api-reference",
     "build/wallet-integration": "/docs/build/services/wallet-integration",
     "build/telegram-bot": "/docs/build/services/telegram-bot",
+    "build/build-your-own-frontend": "/docs/build/build-and-deploy-external-app",
+    "build/build-your-own-app": "/docs/build/build-and-deploy-external-app",
   };
 
   if (slugPath in legacyRedirects) {

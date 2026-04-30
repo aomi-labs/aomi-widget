@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 type AppMetadata = {
   title: string;
   description: string;
@@ -13,9 +15,9 @@ const RESOLVED_CHAT_PORTAL_URL =
     ? LOCAL_CHAT_PORTAL_URL
     : CHAT_PORTAL_URL);
 const APP_DEEP_LINKS_ENABLED =
-  process.env.NEXT_PUBLIC_ENABLE_APP_DEEP_LINKS === "true" ||
-  (process.env.NEXT_PUBLIC_ENABLE_APP_DEEP_LINKS == null &&
-    process.env.NODE_ENV === "development");
+  process.env.NEXT_PUBLIC_ENABLE_APP_DEEP_LINKS !== "false";
+const BUILD_YOUR_OWN_APP_GUIDE_HREF =
+  "/docs/build/build-and-deploy-external-app";
 
 const APP_METADATA: Record<string, AppMetadata> = {
   default: {
@@ -325,6 +327,50 @@ export async function Apps() {
               </a>
             );
           })}
+
+          <Link
+            href={BUILD_YOUR_OWN_APP_GUIDE_HREF}
+            className="group flex min-h-[220px] flex-col rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_20px_60px_rgba(28,25,23,0.06)] transition-transform duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(28,25,23,0.1)]"
+          >
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <span className="font-geist rounded-full bg-stone-900 px-3 py-1 text-[11px] font-medium tracking-wide text-white">
+                Build
+              </span>
+              <span className="font-geist rounded-full bg-sky-100 px-3 py-1 text-[11px] font-medium tracking-wide text-sky-900">
+                Guide
+              </span>
+            </div>
+
+            <div className="flex flex-1 flex-col">
+              <div className="mb-2 flex items-start justify-between gap-4">
+                <h3 className="font-serif text-2xl tracking-tight text-stone-900">
+                  Build your own app
+                </h3>
+                <span className="font-geist rounded-full border border-stone-200 px-2.5 py-1 text-[11px] font-medium text-stone-500">
+                  fullstack
+                </span>
+              </div>
+
+              <p className="font-geist text-sm leading-relaxed text-stone-600">
+                Learn how to shape the backend app lib with{" "}
+                <span className="font-medium text-stone-800">aomi-build</span>,
+                deploy it, and connect a custom frontend to the active Aomi
+                backend.
+              </p>
+
+              <div className="font-geist mt-4 text-xs text-stone-500">
+                Covers tool design, preambles, deployment flow, and the client
+                plus React layers for your frontend.
+              </div>
+
+              <div className="font-geist mt-auto pt-6 text-sm font-semibold text-stone-900">
+                Read guide
+                <span className="ml-2 inline-block transition-transform duration-300 group-hover:translate-x-1">
+                  {"->"}
+                </span>
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
     </section>
