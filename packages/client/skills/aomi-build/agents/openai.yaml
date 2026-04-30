@@ -1,4 +1,0 @@
-interface:
-  display_name: "Aomi Build"
-  short_description: "Build Aomi apps from APIs and specs"
-  default_prompt: "Use $aomi-build to turn this API, OpenAPI spec, or product brief into an Aomi SDK app/plugin with a clean tool surface, preamble, and validation plan."
