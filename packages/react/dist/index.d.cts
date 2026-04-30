@@ -56,9 +56,12 @@ declare function useCurrentThreadMessages(): ThreadMessageLike[];
 declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
 
 type ThreadStatus = "regular" | "archived";
+type ModelSelectionMode = "auto" | "manual";
 type ThreadControlState = {
     /** Selected model for this thread (human-readable label) */
     model: string | null;
+    /** Whether the selected model should be displayed as auto or explicit */
+    modelMode?: ModelSelectionMode;
     /** Selected app for this thread */
     app: string | null;
     /** Whether control state has changed but chat hasn't started yet */
@@ -333,6 +336,10 @@ type StoredProviderKey = {
     keyPrefix: string;
     label?: string;
 };
+type StoredModelPreference = {
+    mode: ModelSelectionMode;
+    model: string | null;
+};
 /** Global control state (shared across all threads) */
 type ControlState = {
     /** API key for authenticated requests */
@@ -376,13 +383,19 @@ type ControlContextApi = {
     /** Get the current thread's effective app after auth fallback */
     getCurrentThreadApp: () => string;
     /** Select a model for the current thread (updates metadata + calls backend) */
-    onModelSelect: (model: string) => Promise<void>;
+    onModelSelect: (model: string, options?: {
+        mode?: ModelSelectionMode;
+    }) => Promise<void>;
     /** Select an app for the current thread (updates metadata only) */
     onAppSelect: (app: string) => void;
     /** Whether the current thread is processing (disables control switching) */
     isProcessing: boolean;
     /** Mark control state as synced (called after chat starts) */
     markControlSynced: () => void;
+    /** Sync pending control state to the backend before sending */
+    syncCurrentThreadControl: () => Promise<void>;
+    /** Build initial control state for new local threads */
+    getPreferredThreadControl: () => ThreadControlState;
     /** Get global control state */
     getControlState: () => ControlState;
     /** Subscribe to global state changes */
@@ -406,4 +419,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredProviderKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestKind, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredModelPreference, type StoredProviderKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestKind, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };

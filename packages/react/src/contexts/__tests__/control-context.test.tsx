@@ -7,6 +7,10 @@ import {
   useControl,
   type ControlContextApi,
 } from "../control-context";
+import {
+  initThreadControl,
+  type ThreadMetadata,
+} from "../../state/thread-store";
 
 type HarnessHandle = {
   control: ControlContextApi;
@@ -20,11 +24,15 @@ const Harness = forwardRef<HarnessHandle>((_, ref) => {
 
 Harness.displayName = "Harness";
 
-const renderControlContext = (clientOverrides?: Record<string, unknown>) => {
+const renderControlContext = (
+  clientOverrides?: Record<string, unknown>,
+  threadMetadata = new Map<string, ThreadMetadata>(),
+) => {
   const ref = React.createRef<HarnessHandle>();
   const aomiClient = {
     getApps: vi.fn(async () => ["default"]),
     getModels: vi.fn(async () => []),
+    setModel: vi.fn(async () => ({})),
     ingestSecrets: vi.fn(async () => ({ handles: {} })),
     deleteSecret: vi.fn(async () => ({ deleted: true })),
     ...clientOverrides,
@@ -34,8 +42,12 @@ const renderControlContext = (clientOverrides?: Record<string, unknown>) => {
     <ControlContextProvider
       aomiClient={aomiClient as never}
       sessionId="session-1"
-      getThreadMetadata={() => undefined}
-      updateThreadMetadata={() => {}}
+      getThreadMetadata={(threadId) => threadMetadata.get(threadId)}
+      updateThreadMetadata={(threadId, updates) => {
+        const previous = threadMetadata.get(threadId);
+        if (!previous) return;
+        threadMetadata.set(threadId, { ...previous, ...updates });
+      }}
     >
       <Harness ref={ref} />
     </ControlContextProvider>,
@@ -49,8 +61,21 @@ const renderControlContext = (clientOverrides?: Record<string, unknown>) => {
     ...result,
     aomiClient,
     getControl: () => ref.current!.control,
+    threadMetadata,
   };
 };
+
+const createThreadMetadata = () =>
+  new Map<string, ThreadMetadata>([
+    [
+      "session-1",
+      {
+        title: "New Chat",
+        status: "regular",
+        control: initThreadControl(),
+      },
+    ],
+  ]);
 
 beforeEach(() => {
   const store = new Map<string, string>();
@@ -89,7 +114,9 @@ describe("ControlContextProvider", () => {
     });
 
     const firstClientId = first.getControl().state.clientId!;
-    expect(globalThis.localStorage.getItem("aomi_client_id")).toBe(firstClientId);
+    expect(globalThis.localStorage.getItem("aomi_client_id")).toBe(
+      firstClientId,
+    );
 
     first.unmount();
 
@@ -114,7 +141,9 @@ describe("ControlContextProvider", () => {
     });
 
     await waitFor(() => {
-      expect(getControl().state.providerKeys.openai?.apiKey).toBe("sk-openai-123");
+      expect(getControl().state.providerKeys.openai?.apiKey).toBe(
+        "sk-openai-123",
+      );
     });
 
     await act(async () => {
@@ -154,6 +183,91 @@ describe("ControlContextProvider", () => {
       expect(ingestSecrets).toHaveBeenCalledWith("client-stored", {
         "PROVIDER_KEY:openai": "sk-openai-abc",
       });
+    });
+  });
+
+  it("remembers a manually selected model for fresh threads", async () => {
+    const threadMetadata = createThreadMetadata();
+    const setModel = vi.fn(async () => ({}));
+    const { getControl } = renderControlContext(
+      {
+        getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
+        setModel,
+      },
+      threadMetadata,
+    );
+
+    await waitFor(() => {
+      expect(getControl().state.availableModels).toContain("gpt-5");
+    });
+
+    await act(async () => {
+      await getControl().onModelSelect("gpt-5", { mode: "manual" });
+    });
+
+    expect(setModel).toHaveBeenCalledWith(
+      "session-1",
+      "gpt-5",
+      expect.objectContaining({ app: "default" }),
+    );
+    expect(
+      JSON.parse(globalThis.localStorage.getItem("aomi_model_selection")!),
+    ).toMatchObject({ mode: "manual", model: "gpt-5" });
+    expect(getControl().getPreferredThreadControl()).toMatchObject({
+      model: "gpt-5",
+      modelMode: "manual",
+    });
+  });
+
+  it("can switch back to auto mode after a manual model selection", async () => {
+    const threadMetadata = createThreadMetadata();
+    const { getControl } = renderControlContext(
+      {
+        getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
+      },
+      threadMetadata,
+    );
+
+    await waitFor(() => {
+      expect(getControl().state.availableModels).toContain("gpt-4o-mini");
+    });
+
+    await act(async () => {
+      await getControl().onModelSelect("gpt-5", { mode: "manual" });
+      await getControl().onModelSelect("gpt-4o-mini", { mode: "auto" });
+    });
+
+    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+      model: "gpt-4o-mini",
+      modelMode: "auto",
+      controlDirty: false,
+    });
+    expect(
+      JSON.parse(globalThis.localStorage.getItem("aomi_model_selection")!),
+    ).toMatchObject({ mode: "auto", model: "gpt-4o-mini" });
+  });
+
+  it("does not update controls while the current thread is processing", async () => {
+    const threadMetadata = createThreadMetadata();
+    threadMetadata.set("session-1", {
+      ...threadMetadata.get("session-1")!,
+      control: {
+        ...initThreadControl(),
+        isProcessing: true,
+      },
+    });
+    const setModel = vi.fn(async () => ({}));
+    const { getControl } = renderControlContext({ setModel }, threadMetadata);
+
+    await act(async () => {
+      await getControl().onModelSelect("gpt-5", { mode: "manual" });
+    });
+
+    expect(setModel).not.toHaveBeenCalled();
+    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+      model: null,
+      modelMode: "auto",
+      isProcessing: true,
     });
   });
 });
