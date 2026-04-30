@@ -4,11 +4,15 @@
 
 The fastest entry point for an agent is `/agents.md` — it routes the user's intent to the right install path. The full corpus is `/llms-full.txt` (every doc plus both skill files concatenated, for one-fetch ingestion).
 
+Safety mantra: Read by default. Simulate before sign. Credentials never round-trip.
+
 ## Start here
 
 - [Agent onboarding](https://aomi.dev/agents.md): Routes user intent to one of three paths — transact via CLI, embed UI, or add a new tool. Read this first.
-- [Build an Aomi app](https://aomi.dev/agents/build.md): Self-contained guide for "build an Aomi app for our REST API at <url>" prompts. Inlines the aomi-build skill, SDK patterns, spec-to-tools rubric, and how to wire up a chat frontend. One fetch — no skill install required.
-- [Transact with Aomi](https://aomi.dev/agents/transact.md): Self-contained guide for "swap X for Y" / "send N to <addr>" prompts. Inlines the aomi-transact skill, AA signing internals, app catalog, end-to-end examples, sessions, and troubleshooting. One fetch.
+- [Build an Aomi app](https://aomi.dev/agents/build): HTML agent landing page for app-building prompts.
+- [Transact with Aomi](https://aomi.dev/agents/transact): HTML agent landing page for transaction prompts.
+- [Build markdown mirror](https://aomi.dev/agents/build.md): Raw markdown mirror of the build guide.
+- [Transact markdown mirror](https://aomi.dev/agents/transact.md): Raw markdown mirror of the transact guide.
 - [Full corpus](https://aomi.dev/llms-full.txt): All docs and skills concatenated. Use when you need everything in one fetch.
 
 ## For agents acting on a wallet

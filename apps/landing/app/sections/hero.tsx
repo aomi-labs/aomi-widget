@@ -35,25 +35,19 @@ export function Hero() {
               href="#technology-section"
               className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
             >
-              Technology
-            </a>
-            <a
-              href="#workflow"
-              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
-            >
               Solutions
-            </a>
-            <a
-              href="#resources"
-              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
-            >
-              Resources
             </a>
             <a
               href="#apps-section"
               className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
             >
               Apps
+            </a>
+            <a
+              href="#faq"
+              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
+            >
+              Resources
             </a>
             <a
               href="/contact"
@@ -156,21 +150,7 @@ export function Hero() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
               >
-                Technology
-              </a>
-              <a
-                href="#workflow"
-                onClick={() => setMobileMenuOpen(false)}
-                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
-              >
                 Solutions
-              </a>
-              <a
-                href="#resources"
-                onClick={() => setMobileMenuOpen(false)}
-                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
-              >
-                Resources
               </a>
               <a
                 href="#apps-section"
@@ -178,6 +158,13 @@ export function Hero() {
                 className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
               >
                 Apps
+              </a>
+              <a
+                href="#faq"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
+                Resources
               </a>
               <a
                 href="/contact"
@@ -239,7 +226,7 @@ export function Hero() {
           <span className="font-pt-serif italic"> from action.</span>
         </p>
         <p className="font-geist mr-auto mb-10 ml-auto max-w-xl text-sm leading-relaxed font-light tracking-wide text-neutral-50 drop-shadow-lg md:text-base">
-          Empower your crypto journey with AI. Transact to universal protocoals,
+          Empower your crypto journey with AI. Transact across universal protocols,
           <br className="hidden md:block" />
           top-security, multi-chain. Land in seconds.
         </p>
@@ -286,19 +273,19 @@ export function Hero() {
               </LandingParaProvider>
             </div>
           ) : (
-            <div className="flex w-full justify-center">
+            <div className="mb-14 flex w-full justify-center">
               <div className="w-full max-w-[900px] rounded-[2rem] border border-white/20 bg-black/55 p-5 text-left text-white shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl md:p-7">
-                <h3 className="ml-2 mt-3 font-serif text-2xl leading-[1.1] tracking-tight text-white md:text-md">
+                <h3 className="mx-4 ml-2 mt-2 font-serif text-2xl leading-[1.1] tracking-tight text-white md:text-md">
                   Onboard your Agent to Aomi
                 </h3>
-                <div className="mt-4 rounded-xl border border-white/15 bg-black px-4 py-3">
+                <div className="mx-2 mt-4 rounded-xl border border-white/15 bg-black px-4 py-3">
                   <code className="font-geist-mono block text-xs leading-6 text-white">
-                    npx skills add aomi-labs/skills
+                    $ npx skills add aomi-labs/skills
                   </code>
                 </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2 md:gap-0">
-                  <div className="flex h-full flex-col rounded-[1.75rem] p-5 md:rounded-r-none md:pr-6">
+                <div className="mt-5 grid gap-4 md:grid-cols-2 md:gap-0">
+                  <div className="flex h-full flex-col rounded-[1.75rem] px-3 md:rounded-r-none md:pr-6">
                     <div className="font-geist text-bold font-medium text-white">
                       Build on Aomi
                     </div>
@@ -321,12 +308,12 @@ export function Hero() {
                       </p>
                     </blockquote>
                     <a
-                      href="https://aomi.dev/agents/build"
+                      href="https://aomi.dev/agents/build.md"
                       target="_blank"
                       rel="noreferrer"
                       className="font-geist mt-3 text-sm font-medium text-white/90 underline underline-offset-4 transition-colors hover:text-white"
                     >
-                      → aomi.dev/agents/build
+                      → aomi.dev/agents/build.md
                     </a>
 
                     <div className="font-geist text-bold mt-5 text-sm font-medium text-white">
@@ -353,7 +340,7 @@ export function Hero() {
                       </div>
                       <div className="mt-3 rounded-xl border border-white/15 bg-black px-4 py-2">
                         <code className="font-geist-mono block text-xs leading-6 text-white">
-                          npx shadcn add @aomi-labs/aomi-frame
+                          npx shadcn add https://aomi.dev/r/aomi-frame.json
                         </code>
                       </div>
                     </div>
@@ -375,7 +362,7 @@ export function Hero() {
 
                   </div>
 
-                  <div className="flex h-full flex-col rounded-[1.75rem] p-5 md:rounded-l-none md:border-l md:border-white/12 md:pl-6">
+                  <div className="flex h-full flex-col rounded-[1.75rem] p-3 md:rounded-l-none md:border-l md:border-white/12 md:pl-8">
                     <div className="font-geist text-bold font-medium text-white">
                       Transact with Aomi
                     </div>
@@ -383,7 +370,7 @@ export function Hero() {
                       Run on-chain operations from one chat. Swap, send, stake,
                       lend, sign EIP-712 - across any EVM protocol on Ethereum,
                       Base, Arbitrum, Polygon, Optimism, and Sepolia. Aomi
-                      handles the routing, simulation, and signing.
+                      handles the routing and simulation. You sign locally.
                     </p>
 
                     <p className="font-geist mt-5 text-sm leading-6 italic text-white/85">
@@ -397,12 +384,12 @@ export function Hero() {
                       </p>
                     </blockquote>
                     <a
-                      href="https://aomi.dev/agents/transact"
+                      href="https://aomi.dev/agents/transact.md"
                       target="_blank"
                       rel="noreferrer"
                       className="font-geist mt-3 text-sm font-medium text-white/90 underline underline-offset-4 transition-colors hover:text-white"
                     >
-                      → aomi.dev/agents/transact
+                      → aomi.dev/agents/transact.md
                     </a>
 
                     <div className="font-geist text-bold text-sm mt-5 font-medium text-white">
@@ -430,20 +417,20 @@ export function Hero() {
                     </div>
 
                     <p className="font-geist mt-3 text-sm leading-6 text-white/85">
-                      Aomi builds the transactions. You sign locally. The backend bundles and ships via account abstraction.
+                      Aomi builds and simulates the transaction. You sign locally — non-custodial by design. Account abstraction is on by default; bring a BYOK provider for gas sponsorship on L2s.
                     </p>
 
                   </div>
                 </div>
 
-                <div className="mt-6 border-t border-white/12 pt-4">
+                <div className="mx-3 mt-6 border-t border-white/12 pt-4">
                   <a
-                    href="https://aomi.dev/agents.md"
+                    href="https://github.com/aomi-labs"
                     target="_blank"
                     rel="noreferrer"
-                    className="font-geist text-sm font-medium text-white/85 transition-colors hover:text-white"
+                    className="font-geist text-sm font-medium text-white/85 underline underline-offset-4 transition-colors hover:text-white"
                   >
-                    Full agent context → aomi.dev/agents.md
+                    Or visit → github.com/aomi-labs
                   </a>
                 </div>
               </div>
@@ -452,9 +439,9 @@ export function Hero() {
         </div>
       </div>
 
-      <section className="relative z-10 bg-stone-100 pt-20" id="client-ticker">
+      <section className="relative z-10 bg-stone-100 pt-36" id="client-ticker">
         <div className="mr-auto ml-auto max-w-7xl pr-4 pl-4 sm:px-6 lg:px-8">
-          <div className="mb-12 text-center">
+          <div className="mb-22 text-center">
             <p className="font-geist text-xs font-medium tracking-wide text-stone-800 uppercase">
               Trusted by teams at
             </p>
@@ -489,35 +476,35 @@ export function Hero() {
               <div className="flex shrink-0 items-center gap-16 gap-x-16 gap-y-16">
                 <div className="flex items-center">
                   <img
-                    src="/assets/trusted/solana-sol-logo.png"
+                    src="/assets/logos/solana-sol-logo.png"
                     alt="Solana"
                     className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
-                    src="/assets/trusted/ethereum-eth-logo.png"
+                    src="/assets/logos/ethereum-eth-logo.png"
                     alt="Ethereum"
                     className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
-                    src="/assets/trusted/cosmos-atom-logo.png"
+                    src="/assets/logos/cosmos-atom-logo.png"
                     alt="Cosmos"
                     className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
-                    src="/assets/trusted/Metamask-Digital-Asset-Logo-PNG.png"
+                    src="/assets/logos/Metamask-Digital-Asset-Logo-PNG.png"
                     alt="MetaMask"
                     className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
                 </div>
                 <div className="flex items-center">
                   <img
-                    src="/assets/trusted/polymarket1671006384460.png"
+                    src="/assets/logos/polymarket.png"
                     alt="Polymarket"
                     className="h-[2.5rem] w-auto object-contain transition-opacity duration-300 hover:opacity-100"
                   />
