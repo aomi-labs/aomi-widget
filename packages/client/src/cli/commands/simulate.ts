@@ -42,6 +42,7 @@ export async function simulateCommand(txIds: string[]): Promise<void> {
     value: tx.value,
     data: tx.data,
     label: tx.description ?? tx.id,
+    chain_id: tx.chainId ?? cli.chainId,
   }));
 
   const response = await client.simulateBatch(

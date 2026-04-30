@@ -28,7 +28,12 @@ import { UserState, type UserState as UserStateShape } from "./types";
 import { TypedEventEmitter } from "./event";
 import { unwrapSystemEvent } from "./event";
 import {
+  aaModeFromExecutionKind,
+  aaRequestedModeFromPreference,
+} from "./aa/policy";
+import {
   normalizeTxPayload,
+  hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   type WalletTxPayload,
   type WalletEip712Payload,
@@ -52,6 +57,15 @@ export type WalletRequestResult = {
   signature?: string;
   amount?: string;
   error?: string;
+  aaRequestedMode?: "4337" | "7702" | "none";
+  aaResolvedMode?: "4337" | "7702" | "none";
+  aaFallbackReason?: string;
+  executionKind?: string;
+  batched?: boolean;
+  callCount?: number;
+  sponsored?: boolean;
+  smartAccountAddress?: string;
+  delegationAddress?: string;
 };
 
 export type SendResult = {
@@ -110,6 +124,18 @@ function isSubsetMatch(expected: unknown, actual: unknown): boolean {
   return expected === actual;
 }
 
+function txIdsFromPayload(payload: WalletTxPayload): number[] {
+  if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
+    return [...payload.txIds];
+  }
+  if (typeof payload.txId === "number") {
+    return [payload.txId];
+  }
+  return [];
+}
+
+export { aaModeFromExecutionKind } from "./aa/policy";
+
 export type SessionOptions = {
   /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
   sessionId?: string;
@@ -125,10 +151,24 @@ export type SessionOptions = {
   clientType?: AomiClientType;
   /** Stable client ID used for secret-vault association. */
   clientId?: string;
+  /**
+   * When true (default), synthesize pending transaction wallet requests from
+   * `user_state.pending_txs` during state sync. Web UI should disable this and
+   * rely on explicit `wallet_tx_request` events from `send_transaction_to_wallet`.
+   */
+  syncPendingTxRequestsFromUserState?: boolean;
   /** Polling interval in ms. Default: 500 */
   pollIntervalMs?: number;
   /** Logger for debug output. Pass `console` for verbose logging. */
   logger?: { debug: (...args: unknown[]) => void };
+};
+
+export type SessionRuntimeOptions = {
+  app: string;
+  publicKey?: string;
+  apiKey?: string;
+  clientId?: string;
+  userState?: UserStateShape;
 };
 
 /** Events emitted by Session. */
@@ -185,6 +225,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private apiKey?: string;
   private userState?: UserStateShape;
   private clientId: string;
+  private syncPendingTxRequestsFromUserState: boolean;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
 
@@ -217,11 +258,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
-    const initialUserState = UserState.normalize(sessionOptions?.userState);
+    const initialUserState = UserState.reconcile(undefined, sessionOptions?.userState);
     this.userState = sessionOptions?.clientType
       ? UserState.withExt(initialUserState ?? {}, "client_type", sessionOptions.clientType)
       : initialUserState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
+    this.syncPendingTxRequestsFromUserState =
+      sessionOptions?.syncPendingTxRequestsFromUserState ?? true;
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
 
@@ -315,13 +358,26 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction") {
       const txPayload = req.payload as WalletTxPayload;
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = result.aaRequestedMode ?? aaRequestedModeFromPreference(txPayload.aaPreference);
+      const resolvedMode =
+        result.aaResolvedMode ??
+        aaModeFromExecutionKind(result.executionKind) ??
+        requestedMode;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash ?? "",
         status: "success",
         amount: result.amount,
-        ...(txPayload.txId !== undefined
-          ? { pending_tx_id: txPayload.txId }
-          : {}),
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: resolvedMode,
+        aa_fallback_reason: result.aaFallbackReason,
+        execution_kind: result.executionKind,
+        batched: result.batched ?? pendingTxIds.length > 1,
+        call_count: result.callCount ?? pendingTxIds.length,
+        sponsored: result.sponsored,
+        smart_account_address: result.smartAccountAddress,
+        delegation_address: result.delegationAddress,
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -353,13 +409,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction") {
       const txPayload = req.payload as WalletTxPayload;
+      const pendingTxIds = txIdsFromPayload(txPayload);
+      const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
         error: reason ?? "Request rejected",
-        ...(txPayload.txId !== undefined
-          ? { pending_tx_id: txPayload.txId }
-          : {}),
+        pending_tx_ids: pendingTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: requestedMode,
+        aa_fallback_reason: undefined,
+        execution_kind: undefined,
+        batched: pendingTxIds.length > 1,
+        call_count: pendingTxIds.length,
+        sponsored: undefined,
+        smart_account_address: undefined,
+        delegation_address: undefined,
       });
     } else {
       const eip712Payload = req.payload as WalletEip712Payload;
@@ -437,8 +502,19 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     return this._isProcessing;
   }
 
+  syncRuntimeOptions(options: SessionRuntimeOptions): void {
+    this.app = options.app;
+    this.publicKey = options.publicKey;
+    this.apiKey = options.apiKey;
+    this.clientId = options.clientId ?? this.clientId;
+
+    if (options.userState) {
+      this.resolveUserState(options.userState);
+    }
+  }
+
   resolveUserState(userState: UserStateShape): void {
-    this.userState = UserState.normalize(userState);
+    this.userState = UserState.reconcile(this.userState, userState);
 
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
@@ -631,7 +707,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       if (!unwrapped) continue;
 
       if (unwrapped.type === "wallet_tx_request") {
-        const payload = normalizeTxPayload(unwrapped.payload);
+        const normalizedPayload = normalizeTxPayload(unwrapped.payload);
+        const payload = normalizedPayload
+          ? hydrateTxPayloadFromUserState(normalizedPayload, this.userState)
+          : null;
         if (payload) {
           const req = this.enqueueWalletRequest("transaction", payload);
           this.emit("wallet_tx_request", req);
@@ -688,6 +767,24 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.walletRequests = existing
       ? this.walletRequests.map((request) => (request.id === id ? req : request))
       : [...this.walletRequests, req];
+
+    if (kind === "transaction") {
+      const nextTxIds = txIdsFromPayload(payload as WalletTxPayload);
+      if (nextTxIds.length > 1) {
+        const nextTxIdSet = new Set(nextTxIds);
+        this.walletRequests = this.walletRequests.filter((request) => {
+          if (request.id === id || request.kind !== "transaction") {
+            return true;
+          }
+          const requestTxIds = txIdsFromPayload(request.payload as WalletTxPayload);
+          if (requestTxIds.length === 0) {
+            return true;
+          }
+          return !requestTxIds.every((txId) => nextTxIdSet.has(txId));
+        });
+      }
+    }
+
     this.emit("wallet_requests_changed", this.getPendingRequests());
     return req;
   }
@@ -728,7 +825,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   private assertUserStateAligned(actualUserState?: UserStateShape | null): void {
     const expectedUserState = UserState.normalize(this.userState);
-    const normalizedActualUserState = UserState.normalize(actualUserState);
+    const normalizedActualUserState = UserState.reconcile(
+      expectedUserState,
+      actualUserState,
+    );
 
     if (!expectedUserState || !normalizedActualUserState) {
       return;
@@ -748,9 +848,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     payload: WalletTxPayload | WalletEip712Payload,
   ): string {
     if (kind === "transaction") {
-      const txId = (payload as WalletTxPayload).txId;
-      if (typeof txId === "number") {
-        return `tx-${txId}`;
+      const txPayload = payload as WalletTxPayload;
+      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
+        return `txreq-${txPayload.requestId}`;
+      }
+      const txIds = txIdsFromPayload(txPayload);
+      if (txIds.length > 0) {
+        return `tx-${txIds.join("-")}`;
       }
     } else {
       const eip712Id = (payload as WalletEip712Payload).eip712Id;
@@ -771,26 +875,78 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       ? this.userState?.pending_eip712s
       : undefined;
 
-    for (const [id, raw] of Object.entries(pendingTxs ?? {}).sort((left, right) =>
-      Number(left[0]) - Number(right[0]),
-    )) {
-      const payload = normalizeTxPayload({
-        ...(isRecord(raw) ? raw : {}),
-        pending_tx_id: Number(id),
+    const pendingTxEntries = Object.entries(pendingTxs ?? {})
+      .filter(([id]) => Number.isInteger(Number(id)))
+      .sort((left, right) => Number(left[0]) - Number(right[0]));
+    const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
+    const coveredPendingTxIds = new Set<number>();
+
+    const existingTxRequests = this.walletRequests
+      .filter((request): request is WalletRequest & { kind: "transaction" } =>
+        request.kind === "transaction",
+      )
+      .map((request) => ({
+        request,
+        txIds: txIdsFromPayload(request.payload as WalletTxPayload),
+      }))
+      .filter(
+        ({ txIds }) =>
+          txIds.length > 0 && txIds.every((txId) => pendingTxIdSet.has(txId)),
+      )
+      .sort((left, right) => {
+        if (left.txIds.length !== right.txIds.length) {
+          return right.txIds.length - left.txIds.length;
+        }
+        return left.request.timestamp - right.request.timestamp;
       });
-      if (!payload) {
+
+    for (const { request, txIds } of existingTxRequests) {
+      if (txIds.some((txId) => coveredPendingTxIds.has(txId))) {
         continue;
       }
-
+      const payload = hydrateTxPayloadFromUserState(
+        request.payload as WalletTxPayload,
+        { pending_txs: pendingTxs ?? {} },
+      );
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
         kind: "transaction",
         payload,
-        timestamp:
-          this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+        timestamp: request.timestamp,
       });
+      txIds.forEach((txId) => coveredPendingTxIds.add(txId));
+    }
+
+    if (this.syncPendingTxRequestsFromUserState) {
+      for (const [id, raw] of pendingTxEntries) {
+        const txId = Number(id);
+        if (coveredPendingTxIds.has(txId)) {
+          continue;
+        }
+        const payload = hydrateTxPayloadFromUserState(
+          {
+            txId,
+            txIds: [txId],
+            aaPreference: "auto",
+          },
+          {
+            pending_txs: {
+              [id]: isRecord(raw) ? raw : {},
+            },
+          },
+        );
+
+        const requestId = this.getWalletRequestId("transaction", payload);
+        nextRequests.push({
+          id: requestId,
+          kind: "transaction",
+          payload,
+          timestamp:
+            this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
+            Date.now(),
+        });
+      }
     }
 
     for (const [id, raw] of Object.entries(pendingEip712s ?? {}).sort(

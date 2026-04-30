@@ -4,6 +4,7 @@ import {
 } from "../types";
 import { getAddress } from "viem";
 import type { PendingTx } from "./state";
+import { normalizePendingTxData } from "../wallet-utils";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -72,11 +73,14 @@ export function buildCliUserState(
 
   if (publicKey !== undefined) {
     userState.address = publicKey;
-    userState.is_connected = true;
   }
 
   if (chainId !== undefined) {
     userState.chain_id = chainId;
+  }
+
+  if (publicKey !== undefined && chainId !== undefined) {
+    userState.is_connected = true;
   }
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
@@ -109,13 +113,14 @@ export function pendingTxsFromBackendUserState(
       continue;
     }
 
+    const data = normalizePendingTxData(tx);
     nextPendingTxs.push({
       id,
       kind: "transaction",
       txId: pendingId,
       to,
       value: parseOptionalString(tx.value),
-      data: parseOptionalString(tx.data),
+      data,
       chainId: parseChainId(tx.chain_id),
       description: parseOptionalString(tx.label),
       timestamp: txTimestamp(existingById, id, fallbackNow),
@@ -124,7 +129,7 @@ export function pendingTxsFromBackendUserState(
         txId: pendingId,
         to,
         value: parseOptionalString(tx.value),
-        data: parseOptionalString(tx.data),
+        data,
         chain_id: parseChainId(tx.chain_id),
         chainId: parseChainId(tx.chain_id),
         description: parseOptionalString(tx.label),
