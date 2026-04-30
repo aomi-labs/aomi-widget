@@ -35,7 +35,8 @@ export async function GET() {
     `# Aomi — full agent corpus\n\n` +
       `Generated from https://aomi.dev. ` +
       `This file concatenates the agent onboarding page, every documentation page, ` +
-      `and the canonical aomi-labs/skills SKILL.md files for one-fetch ingestion.\n`,
+      `and the canonical aomi-labs/skills SKILL.md files for one-fetch ingestion.\n\n` +
+      `Safety mantra: Read by default. Simulate before sign. Credentials never round-trip.\n`,
   );
 
   parts.push(section("AGENT ONBOARDING — /agents.md"));

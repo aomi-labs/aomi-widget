@@ -6,13 +6,23 @@ source: https://aomi.dev/agents.md
 
 # Aomi for Agents
 
+Turn your platform into an agentic application with Aomi's wallet-aware transaction runtime, embeddable chat surfaces, and tool-based app model.
+
 Aomi is agentic AI infrastructure for blockchain. This page tells an AI agent how to satisfy three common user intents using Aomi.
 
 > **TL;DR for the agent reading this:** Pick one of the three paths below based on what the user asked for. Each path has a one-line install and a primary entry point. Don't read everything — read the path you need.
 
+## Safety mantra
+
+- Read by default.
+- Simulate before sign.
+- Credentials never round-trip.
+
 ## Decide which path you need
 
 The user's request maps to one of three paths.
+
+## TRANSACT
 
 ### Path 1 — The user wants to act on a wallet
 
@@ -38,6 +48,8 @@ If `aomi` is not on PATH, replace `aomi` with `npx @aomi-labs/client` everywhere
 - Never echo a credential value back after using it.
 - Always run `aomi tx simulate` before `aomi tx sign` for multi-step batches (approve → swap, etc.).
 - Default to `--new-session` on the first command of a fresh task.
+
+## EMBED
 
 ### Path 2 — The user wants to embed an Aomi chat widget in their app
 
@@ -73,6 +85,8 @@ Set `NEXT_PUBLIC_BACKEND_URL=https://api.aomi.dev` in `.env.local`.
 - https://aomi.dev/docs/build/ui/headless/build-custom-ui.md
 
 **Decision: widget vs headless?** Use the widget when you want chat-shaped UX out of the box. Use headless when you need a different layout (sidebar, fullscreen, embedded inline) or your own components. Read https://aomi.dev/docs/build/integration-guide.md.
+
+## BUILD
 
 ### Path 3 — The user wants to add their product/API to Aomi as a callable AI tool
 
