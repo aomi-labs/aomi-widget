@@ -219,6 +219,13 @@ function resolvePreferredModelSelection(
   };
 }
 
+function getFallbackModel(
+  models: string[],
+  defaultModel: string | null,
+): string | null {
+  return defaultModel ?? pickDefaultModel(models) ?? models[0] ?? null;
+}
+
 function resolveAuthorizedApp(
   app: string | null | undefined,
   authorizedApps: string[],
@@ -801,18 +808,56 @@ export function ControlContextProvider({
   useEffect(() => {
     const threadId = sessionIdRef.current;
     const metadata = getThreadMetadataRef.current(threadId);
-    if (!metadata || metadata.control.model !== null) return;
+    if (!metadata || metadata.control.isProcessing) return;
 
-    const preferred = getPreferredThreadControl();
-    if (!preferred.model) return;
+    const currentControl = metadata.control;
+    let nextControl: ThreadControlState | null = null;
 
-    updateThreadMetadataRef.current(threadId, {
-      control: {
-        ...metadata.control,
+    if (currentControl.model === null) {
+      const preferred = getPreferredThreadControl();
+      if (!preferred.model) return;
+      nextControl = {
+        ...currentControl,
         model: preferred.model,
         modelMode: preferred.modelMode,
         controlDirty: true,
-      },
+      };
+    } else if (state.availableModels.length > 0) {
+      const currentMode = currentControl.modelMode ?? "manual";
+
+      if (currentMode === "auto") {
+        const autoModel = getFallbackModel(
+          state.availableModels,
+          state.defaultModel,
+        );
+        if (autoModel && currentControl.model !== autoModel) {
+          nextControl = {
+            ...currentControl,
+            model: autoModel,
+            modelMode: "auto",
+            controlDirty: true,
+          };
+        }
+      } else if (!state.availableModels.includes(currentControl.model)) {
+        const fallbackModel = getFallbackModel(
+          state.availableModels,
+          state.defaultModel,
+        );
+        if (fallbackModel) {
+          nextControl = {
+            ...currentControl,
+            model: fallbackModel,
+            modelMode: "auto",
+            controlDirty: true,
+          };
+        }
+      }
+    }
+
+    if (!nextControl) return;
+
+    updateThreadMetadataRef.current(threadId, {
+      control: nextControl,
     });
   }, [
     getPreferredThreadControl,

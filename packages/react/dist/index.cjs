@@ -354,6 +354,10 @@ function resolvePreferredModelSelection(preference, models, defaultModel) {
     model: (_d = (_c = defaultModel != null ? defaultModel : pickDefaultModel(models)) != null ? _c : models[0]) != null ? _d : null
   };
 }
+function getFallbackModel(models, defaultModel) {
+  var _a, _b;
+  return (_b = (_a = defaultModel != null ? defaultModel : pickDefaultModel(models)) != null ? _a : models[0]) != null ? _b : null;
+}
 function resolveAuthorizedApp(app, authorizedApps, defaultApp) {
   if (app && authorizedApps.includes(app)) {
     return app;
@@ -793,17 +797,51 @@ function ControlContextProvider({
     }
   }, []);
   (0, import_react.useEffect)(() => {
+    var _a2;
     const threadId = sessionIdRef.current;
     const metadata = getThreadMetadataRef.current(threadId);
-    if (!metadata || metadata.control.model !== null) return;
-    const preferred = getPreferredThreadControl();
-    if (!preferred.model) return;
-    updateThreadMetadataRef.current(threadId, {
-      control: __spreadProps(__spreadValues({}, metadata.control), {
+    if (!metadata || metadata.control.isProcessing) return;
+    const currentControl = metadata.control;
+    let nextControl = null;
+    if (currentControl.model === null) {
+      const preferred = getPreferredThreadControl();
+      if (!preferred.model) return;
+      nextControl = __spreadProps(__spreadValues({}, currentControl), {
         model: preferred.model,
         modelMode: preferred.modelMode,
         controlDirty: true
-      })
+      });
+    } else if (state.availableModels.length > 0) {
+      const currentMode = (_a2 = currentControl.modelMode) != null ? _a2 : "manual";
+      if (currentMode === "auto") {
+        const autoModel = getFallbackModel(
+          state.availableModels,
+          state.defaultModel
+        );
+        if (autoModel && currentControl.model !== autoModel) {
+          nextControl = __spreadProps(__spreadValues({}, currentControl), {
+            model: autoModel,
+            modelMode: "auto",
+            controlDirty: true
+          });
+        }
+      } else if (!state.availableModels.includes(currentControl.model)) {
+        const fallbackModel = getFallbackModel(
+          state.availableModels,
+          state.defaultModel
+        );
+        if (fallbackModel) {
+          nextControl = __spreadProps(__spreadValues({}, currentControl), {
+            model: fallbackModel,
+            modelMode: "auto",
+            controlDirty: true
+          });
+        }
+      }
+    }
+    if (!nextControl) return;
+    updateThreadMetadataRef.current(threadId, {
+      control: nextControl
     });
   }, [
     getPreferredThreadControl,
