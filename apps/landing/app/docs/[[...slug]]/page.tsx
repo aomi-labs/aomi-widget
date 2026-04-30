@@ -133,5 +133,10 @@ export async function generateMetadata(props: {
   return {
     title: page.data.title,
     description: page.data.description ?? null,
+    alternates: {
+      types: {
+        "text/markdown": `${page.url}.md`,
+      },
+    },
   };
 }
