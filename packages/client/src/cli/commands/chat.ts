@@ -31,12 +31,18 @@ function normalizeAddress(address: string | undefined): string | undefined {
   return address?.toLowerCase();
 }
 
+function extractMentionedTxIds(content: string | undefined): string[] {
+  if (!content) return [];
+  const matches = content.match(/\btx-\d+\b/gi) ?? [];
+  return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
+}
+
 export function shouldBroadcastWalletStateChange(
   config: CliConfig,
   previous: WalletSnapshot | null,
   next: WalletSnapshot,
 ): boolean {
-  if (!config.privateKey || !next.publicKey) {
+  if (!config.privateKey || !next.publicKey || next.chainId === undefined) {
     return false;
   }
 
@@ -66,11 +72,9 @@ export async function syncWalletStateForChat(
 
   const payload: Record<string, unknown> = {
     address: next.publicKey,
+    chainId: next.chainId,
     isConnected: true,
   };
-  if (next.chainId !== undefined) {
-    payload.chainId = next.chainId;
-  }
 
   await session.client.sendSystemMessage(
     cli.sessionId,
@@ -246,6 +250,16 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
         console.log(last.content);
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
+      }
+
+      if (newPendingTxs.length === 0) {
+        const mentionedTxIds = extractMentionedTxIds(last?.content);
+        if (mentionedTxIds.length > 0) {
+          console.log(
+            `\n${YELLOW}⚠️ Assistant referenced ${mentionedTxIds.join(", ")}, but backend returned no pending wallet requests.${RESET}`,
+          );
+          console.log("   These IDs are not signable from this session.");
+        }
       }
     }
 

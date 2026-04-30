@@ -48,7 +48,7 @@ export {
 // Session (high-level orchestrated client)
 // =============================================================================
 
-export { ClientSession as Session } from "./session";
+export { ClientSession as Session, aaModeFromExecutionKind } from "./session";
 
 export type {
   SessionOptions,
@@ -72,13 +72,18 @@ export { unwrapSystemEvent, type UnwrappedEvent } from "./event";
 
 export {
   normalizeTxPayload,
+  hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   toViemSignTypedDataArgs,
+  toAAWalletCalls,
   toAAWalletCall,
+  parseChainId,
 } from "./wallet-utils";
 
 export type {
   WalletTxPayload,
+  WalletTxCallPayload,
+  WalletTxAaPreference,
   WalletEip712Payload,
   ViemSignTypedDataArgs,
 } from "./wallet-utils";
@@ -89,10 +94,15 @@ export type {
 
 export {
   DEFAULT_AA_CONFIG,
+  DISABLED_PROVIDER_STATE,
   getAAChainConfig,
   buildAAExecutionPlan,
   getWalletExecutorReady,
   executeWalletCalls,
+  MAX_AUTO_FEE_WEI,
+  normalizeSimulatedFee,
+  buildFeeAAWalletCall,
+  appendFeeCallToPayload,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   adaptSmartAccount,
@@ -126,4 +136,5 @@ export type {
   PimlicoResolvedConfig,
   AAOwner,
   CreateAAStateOptions,
+  NormalizedSimulatedFee,
 } from "./aa";

@@ -7,8 +7,9 @@
  * - 7702: defaults to the signer address as the executing account
  * - 4337: requests a non-7702 smart account first, then sends from that account
  *
- * By default the calls are self-calls with 0 value. That is enough to create a real
- * sponsored AA operation that shows up in Gas Manager / Wallets usage.
+ * By default the calls target WETH `totalSupply()` with 0 value. This avoids selector
+ * validation failures from empty calldata on some account setups while still producing
+ * a real sponsored AA operation visible in Gas Manager / Wallets usage.
  *
  * Usage:
  *   ALCHEMY_API_KEY=... \
@@ -21,7 +22,10 @@
  *   7702 | 4337 | both
  *
  * Optional:
- *   ACCOUNT_ID=custom-id    optional account id for the 4337 requestAccount flow
+ *   ACCOUNT_ID=<uuid>       optional account id for the 4337 requestAccount flow
+ *   CALL_TO=0x...           call target (default: WETH on mainnet)
+ *   CALL_DATA=0x...         call data (default: totalSupply())
+ *   CALL_VALUE_WEI=0        call value in wei
  */
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
@@ -36,7 +40,11 @@ const API_KEY = process.env.ALCHEMY_API_KEY;
 const GAS_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
 const MODE = (process.env.MODE ?? "7702").toLowerCase();
 const ACCOUNT_ID = process.env.ACCOUNT_ID;
-const SELF_VALUE_WEI = 0n;
+const CALL_TO =
+  (process.env.CALL_TO ??
+    "0xc02aaA39b223FE8D0A0E5C4F27eAD9083C756Cc2").toLowerCase();
+const CALL_DATA = (process.env.CALL_DATA ?? "0x18160ddd").toLowerCase();
+const CALL_VALUE_WEI = BigInt(process.env.CALL_VALUE_WEI ?? "0");
 
 if (!PRIVATE_KEY || !API_KEY || !GAS_POLICY_ID) {
   console.error("Required: PRIVATE_KEY, ALCHEMY_API_KEY, ALCHEMY_GAS_POLICY_ID");
@@ -76,24 +84,24 @@ async function runMode(mode) {
   }
 
   const senderAddress = account?.address ?? signer.address;
-  const recipient = senderAddress;
   const senderBalanceBefore = await publicClient.getBalance({ address: senderAddress });
-  const recipientBalanceBefore = await publicClient.getBalance({ address: recipient });
+  const recipientBalanceBefore = await publicClient.getBalance({ address: CALL_TO });
 
   console.log("");
   console.log(`mode: ${mode}`);
   console.log(`chain: ${chain.name} (${chain.id})`);
   console.log(`signer: ${signer.address}`);
   console.log(`sender: ${senderAddress}`);
-  console.log(`recipient: ${recipient}`);
-  console.log(`value per call: ${SELF_VALUE_WEI.toString()} wei`);
+  console.log(`target: ${CALL_TO}`);
+  console.log(`data: ${CALL_DATA}`);
+  console.log(`value per call: ${CALL_VALUE_WEI.toString()} wei`);
   console.log("sending 2-call batch...");
 
   const result = await walletClient.sendCalls({
     ...(account ? { account: account.address } : {}),
     calls: [
-      { to: recipient, data: "0x", value: SELF_VALUE_WEI },
-      { to: recipient, data: "0x", value: SELF_VALUE_WEI },
+      { to: CALL_TO, data: CALL_DATA, value: CALL_VALUE_WEI },
+      { to: CALL_TO, data: CALL_DATA, value: CALL_VALUE_WEI },
     ],
   });
 
@@ -108,7 +116,7 @@ async function runMode(mode) {
   }
 
   const senderBalanceAfter = await publicClient.getBalance({ address: senderAddress });
-  const recipientBalanceAfter = await publicClient.getBalance({ address: recipient });
+  const recipientBalanceAfter = await publicClient.getBalance({ address: CALL_TO });
 
   console.log(`tx hash: ${receipt.transactionHash}`);
   console.log(`block: ${receipt.blockNumber}`);
@@ -123,7 +131,7 @@ async function runMode(mode) {
     callId: result.id,
     txHash: receipt.transactionHash,
     senderAddress,
-    recipient,
+    recipient: CALL_TO,
   };
 }
 

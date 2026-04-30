@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { UserState } from "@aomi-labs/client";
+import type { AomiSimulateResponse, UserState } from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
 import type {
   EventSubscriber,
@@ -13,10 +13,8 @@ import type {
   Notification,
   NotificationData,
 } from "./contexts/notification-context";
-import type {
-  WalletRequest,
-  WalletRequestResult,
-} from "./handlers/wallet-handler";
+import type { WalletRequest } from "./handlers/wallet-handler";
+import type { WalletRequestResult } from "@aomi-labs/client";
 
 // =============================================================================
 // AomiRuntimeApi Type
@@ -90,12 +88,27 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   /** All queued wallet requests (tx + eip712 signing) */
   pendingWalletRequests: WalletRequest[];
-  /** Mark a wallet request as being processed */
+  /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
   startWalletRequest: (id: string) => void;
-  /** Complete a wallet request — dequeues + sends response to backend */
-  resolveWalletRequest: (id: string, result: WalletRequestResult) => void;
-  /** Fail a wallet request — dequeues + sends error to backend */
-  rejectWalletRequest: (id: string, error?: string) => void;
+  /** Complete a wallet request after the backend acknowledges the response */
+  resolveWalletRequest: (
+    id: string,
+    result: WalletRequestResult,
+  ) => Promise<void>;
+  /** Fail a wallet request after the backend acknowledges the error */
+  rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+  /** Simulate a batch against the current thread session context. */
+  simulateBatchTransactions: (
+    transactions: Array<{
+      to: string;
+      value?: string;
+      data?: string;
+      label?: string;
+      chain_id?: number;
+      chainId?: number;
+    }>,
+    options?: { from?: string; chainId?: number },
+  ) => Promise<AomiSimulateResponse["result"]>;
 
   // -------------------------------------------------------------------------
   // EVENT API

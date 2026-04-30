@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import {
+  appendFeeCallToPayload,
+  hydrateTxPayloadFromUserState,
+  parseChainId,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletEip712Payload,
@@ -10,18 +13,39 @@ import {
 } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
 
-function parseChainId(value: number | string | undefined): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return undefined;
+function hasHydratedCalls(payload: WalletTxPayload): boolean {
+  return Array.isArray(payload.calls) && payload.calls.length > 0;
+}
 
-  const trimmed = value.trim();
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : undefined;
+function toSimulationTransactions(payload: WalletTxPayload): Array<{
+  to: string;
+  value?: string;
+  data?: string;
+  label?: string;
+  chain_id?: number;
+}> {
+  if (Array.isArray(payload.calls) && payload.calls.length > 0) {
+    return payload.calls.map((call) => ({
+      to: call.to,
+      value: call.value,
+      data: call.data,
+      label: call.description,
+      chain_id: call.chainId,
+    }));
   }
 
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  if (!payload.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+
+  return [
+    {
+      to: payload.to,
+      value: payload.value,
+      data: payload.data,
+      chain_id: payload.chainId,
+    },
+  ];
 }
 
 /**
@@ -32,10 +56,11 @@ function parseChainId(value: number | string | undefined): number | undefined {
  */
 export function RuntimeTxHandler() {
   const {
+    user,
     pendingWalletRequests,
-    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
+    simulateBatchTransactions,
   } = useAomiRuntime();
   const adapter = useAomiAuthAdapter();
   const { chainId: currentChainId } = adapter.identity;
@@ -47,8 +72,6 @@ export function RuntimeTxHandler() {
     if (!next || processingRef.current) return;
 
     processingRef.current = true;
-    startWalletRequest(next.id);
-
     processRequest(next).finally(() => {
       processingRef.current = false;
     });
@@ -56,33 +79,48 @@ export function RuntimeTxHandler() {
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "transaction") {
-          const payload = req.payload as WalletTxPayload;
+          const initialPayload = req.payload as WalletTxPayload;
+          const payload = hasHydratedCalls(initialPayload)
+            ? initialPayload
+            : hydrateTxPayloadFromUserState(initialPayload, user, { strict: true });
 
           if (!adapter.sendTransaction) {
-            rejectWalletRequest(req.id, "Wallet provider is not ready");
+            await rejectWalletRequest(req.id, "Wallet provider is not ready");
             return;
           }
 
-          if (
-            payload.chainId &&
-            currentChainId &&
-            payload.chainId !== currentChainId &&
-            adapter.switchChain
-          ) {
-            await adapter.switchChain(payload.chainId);
+          const defaultChainId =
+            payload.chainId ??
+            payload.calls?.[0]?.chainId ??
+            currentChainId ??
+            1;
+          const simulationResult = await simulateBatchTransactions(
+            toSimulationTransactions(payload),
+            {
+              from: typeof user.address === "string" ? user.address : undefined,
+              chainId: defaultChainId,
+            },
+          );
+          if (!simulationResult.fee) {
+            throw new Error("missing_simulated_fee");
           }
 
-          const result = await adapter.sendTransaction(payload);
+          const payloadWithFee = appendFeeCallToPayload(
+            payload,
+            simulationResult.fee,
+            defaultChainId,
+          );
+          if (payloadWithFee === payload) {
+            throw new Error("missing_fee_payment_tx");
+          }
 
-          resolveWalletRequest(req.id, {
-            txHash: result.txHash,
-            amount: result.amount,
-          });
+          const result = await adapter.sendTransaction(payloadWithFee);
+          await resolveWalletRequest(req.id, result);
           return;
         }
 
         if (!adapter.signTypedData) {
-          rejectWalletRequest(req.id, "Wallet provider is not ready");
+          await rejectWalletRequest(req.id, "Wallet provider is not ready");
           return;
         }
 
@@ -90,7 +128,7 @@ export function RuntimeTxHandler() {
         const signArgs = toViemSignTypedDataArgs(payload);
 
         if (!signArgs) {
-          rejectWalletRequest(req.id, "Missing typed_data payload");
+          await rejectWalletRequest(req.id, "Missing typed_data payload");
           return;
         }
 
@@ -113,10 +151,10 @@ export function RuntimeTxHandler() {
           typed_data: signArgs,
         };
         const result = await adapter.signTypedData(signaturePayload);
-        resolveWalletRequest(req.id, result);
+        await resolveWalletRequest(req.id, result);
       } catch (error) {
         console.error("[RuntimeTxHandler] Request failed:", error);
-        rejectWalletRequest(
+        await rejectWalletRequest(
           req.id,
           error instanceof Error ? error.message : "Request failed",
         );
@@ -124,11 +162,12 @@ export function RuntimeTxHandler() {
     }
   }, [
     adapter,
+    user,
     pendingWalletRequests,
     currentChainId,
-    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
+    simulateBatchTransactions,
   ]);
 
   return null;

@@ -8,7 +8,10 @@ import {
 } from "node:fs";
 import { basename, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
-import type { UserState } from "../types";
+import {
+  UserState as UserStateHelpers,
+  type UserState,
+} from "../types";
 import {
   pendingTxsFromBackendUserState,
   walletSnapshotFromUserState,
@@ -476,11 +479,24 @@ export function syncPendingTxsFromUserState(
   state: CliSessionState,
   userState: UserState | null | undefined,
 ): PendingTx[] {
-  const walletSnapshot = walletSnapshotFromUserState(userState);
-  state.publicKey = walletSnapshot.publicKey;
-  state.chainId = walletSnapshot.chainId;
+  const normalizedUserState = UserStateHelpers.normalize(userState);
+  const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
+  const isConnected = UserStateHelpers.isConnected(normalizedUserState);
+
+  if (walletSnapshot.publicKey !== undefined) {
+    state.publicKey = walletSnapshot.publicKey;
+  } else if (isConnected === false) {
+    state.publicKey = undefined;
+  }
+
+  if (walletSnapshot.chainId !== undefined) {
+    state.chainId = walletSnapshot.chainId;
+  } else if (isConnected === false) {
+    state.chainId = undefined;
+  }
+
   state.pendingTxs = pendingTxsFromBackendUserState(
-    userState,
+    normalizedUserState,
     state.pendingTxs ?? [],
   );
   writeState(state);

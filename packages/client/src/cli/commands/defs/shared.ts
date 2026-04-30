@@ -120,15 +120,13 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   return {
     baseUrl:
       str(args["backend-url"]) ??
-      process.env.AOMI_BACKEND_URL ??
-      "https://api.aomi.dev",
+      process.env.AOMI_BACKEND_URL,
     apiKey:
       str(args["api-key"]) ??
       process.env.AOMI_API_KEY,
     app:
       str(args.app) ??
-      process.env.AOMI_APP ??
-      "default",
+      process.env.AOMI_APP,
     model:
       str(args.model) ??
       process.env.AOMI_MODEL,

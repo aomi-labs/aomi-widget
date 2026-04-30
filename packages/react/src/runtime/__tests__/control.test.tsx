@@ -39,6 +39,7 @@ describe("Control context", () => {
     await act(async () => {
       api.setUser({
         address: "0xabc",
+        chainId: 1,
         isConnected: true,
       });
       await flushPromises();
@@ -87,6 +88,7 @@ describe("Control context", () => {
     await act(async () => {
       api.setUser({
         address: "0xabc",
+        chainId: 1,
         isConnected: true,
       });
       await flushPromises();
@@ -128,6 +130,7 @@ describe("Control context", () => {
     await act(async () => {
       api.setUser({
         address: "0xabc",
+        chainId: 1,
         isConnected: true,
       });
       await flushPromises();
@@ -152,6 +155,50 @@ describe("Control context", () => {
 
     expect(getApps.mock.calls[2]?.[1]).toMatchObject({
       publicKey: undefined,
+    });
+  });
+
+  it("resends with the updated app on an existing thread session", async () => {
+    const sendMessage = vi.fn(
+      async (): Promise<AomiChatResponse> => ({
+        is_processing: false,
+        messages: [],
+      }),
+    );
+
+    setAomiClientConfig({
+      getApps: async () => ["default", "special"],
+      getModels: async () => [],
+      sendMessage,
+    });
+
+    const { getApi, getControl } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toEqual(["default", "special"]);
+    });
+
+    await act(async () => {
+      await getApi().sendMessage("first");
+    });
+
+    act(() => {
+      getControl().onAppSelect("special");
+    });
+
+    await act(async () => {
+      await getApi().sendMessage("second");
+    });
+
+    await waitFor(() => {
+      expect(sendMessage).toHaveBeenCalledTimes(2);
+    });
+
+    expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
+      app: "default",
+    });
+    expect(sendMessage.mock.calls[1]?.[2]).toMatchObject({
+      app: "special",
     });
   });
 });

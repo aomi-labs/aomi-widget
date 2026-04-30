@@ -1,11 +1,13 @@
+import type { AAMode } from "../aa/types";
+
 export type CliExecutionMode = "aa" | "eoa";
 export type CliAAProvider = "alchemy" | "pimlico";
-export type CliAAMode = "4337" | "7702";
+export type CliAAMode = AAMode;
 
 export type CliConfig = {
-  baseUrl: string;
+  baseUrl?: string;
   apiKey?: string;
-  app: string;
+  app?: string;
   model?: string;
   freshSession?: boolean;
   publicKey?: string;

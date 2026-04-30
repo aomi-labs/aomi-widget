@@ -9,6 +9,7 @@ const {
   createPimlicoClientMock,
   getUserOperationGasPriceMock,
   toSimpleSmartAccountMock,
+  to7702SimpleSmartAccountMock,
   alchemyWalletTransportMock,
   requestAccountMock,
   sendCallsMock,
@@ -27,6 +28,7 @@ const {
     fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
   }),
   toSimpleSmartAccountMock: vi.fn(),
+  to7702SimpleSmartAccountMock: vi.fn(),
   alchemyWalletTransportMock: vi.fn(() => ({ transport: "alchemy-wallet" })),
   requestAccountMock: vi.fn(),
   sendCallsMock: vi.fn(),
@@ -56,6 +58,7 @@ vi.mock("permissionless", () => ({
 
 vi.mock("permissionless/accounts", () => ({
   toSimpleSmartAccount: toSimpleSmartAccountMock,
+  to7702SimpleSmartAccount: to7702SimpleSmartAccountMock,
 }));
 
 vi.mock("permissionless/clients/pimlico", () => ({
@@ -86,7 +89,18 @@ import { createAAProviderState } from "../../src/aa/create";
 
 const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
-const SIGNER = { id: "external-wallet" } as const;
+const DIRECT_OWNER_ADDRESS = "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c";
+const SIGNER = {
+  address: "0x1234567890123456789012345678901234567890",
+  publicKey: "0x",
+  source: "custom",
+  type: "local",
+  sign: vi.fn(),
+  signMessage: vi.fn(),
+  signTransaction: vi.fn(),
+  signTypedData: vi.fn(),
+  signAuthorization: vi.fn(),
+} as const;
 const PARA = { id: "para-session" } as const;
 const CALL_LIST = [
   { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 1 },
@@ -132,13 +146,26 @@ describe("createAAProviderState", () => {
     toSimpleSmartAccountMock.mockResolvedValue({
       address: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
+    to7702SimpleSmartAccountMock.mockResolvedValue({
+      address: DIRECT_OWNER_ADDRESS,
+    });
+    createAlchemySmartAccountMock.mockResolvedValue({
+      provider: "ALCHEMY",
+      mode: "7702",
+      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
+      sendTransaction: vi.fn(),
+      sendBatchTransaction: vi.fn(),
+    });
   });
 
   afterEach(() => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("creates an Alchemy 7702 provider state via raw viem", async () => {
+  it("creates an Alchemy 7702 provider state via Wallets API for direct owners (no paymaster)", async () => {
+    process.env.ALCHEMY_GAS_POLICY_ID = "policy-7702";
+
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -149,25 +176,28 @@ describe("createAAProviderState", () => {
       apiKey: "alchemy-key",
     });
 
-    // 7702 bypasses @alchemy/wallet-apis entirely
-    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
+    expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
+    // 7702 uses the EOA balance for gas — no paymaster attached
+    expect(createSmartWalletClientMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ paymaster: expect.anything() }),
+    );
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
 
     expect(state.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
-      fallbackToEoa: false,
+      sponsorship: "disabled",
     });
     expect(state.account).toMatchObject({
       provider: "alchemy",
       mode: "7702",
-      AAAddress: expect.stringMatching(/^0x[a-fA-F0-9]{40}$/),
+      AAAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
       delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
     });
     expect(state.error).toBeNull();
   });
 
-  it("creates an unsponsored Alchemy provider state", async () => {
+  it("keeps 4337 sponsored even when an unsponsored override is requested", async () => {
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     requestAccountMock.mockResolvedValue({
@@ -187,13 +217,23 @@ describe("createAAProviderState", () => {
     });
 
     expect(createSmartWalletClientMock).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        paymaster: expect.anything(),
+      expect.objectContaining({
+        paymaster: { policyId: "policy-1" },
+      }),
+    );
+    expect(requestAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerAddress: DIRECT_OWNER_ADDRESS,
+        id: expect.any(String),
+        creationHint: {
+          accountType: "sma-b",
+          createAdditional: true,
+        },
       }),
     );
     expect(requestAccountMock).toHaveBeenCalledTimes(1);
     expect(state.resolved).toMatchObject({
-      sponsorship: "disabled",
+      sponsorship: "optional",
     });
     expect(state.account).toMatchObject({
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -201,7 +241,50 @@ describe("createAAProviderState", () => {
     });
   });
 
-  it("creates a Pimlico provider state", async () => {
+  it("reuses the existing 4337 account when Alchemy reports it already exists", async () => {
+    requestAccountMock
+      .mockRejectedValueOnce(
+        new Error(
+          "Account with address 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb already exists",
+        ),
+      )
+      .mockResolvedValueOnce({
+        address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        type: "json-rpc",
+      });
+
+    const state = await createAAProviderState({
+      provider: "alchemy",
+      chain: mainnet,
+      owner: { kind: "direct", privateKey: PRIVATE_KEY },
+      rpcUrl: "https://example-rpc.invalid",
+      callList: [...CALL_LIST],
+      mode: "4337",
+      apiKey: "alchemy-key",
+    });
+
+    expect(requestAccountMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        signerAddress: DIRECT_OWNER_ADDRESS,
+        id: expect.any(String),
+        creationHint: {
+          accountType: "sma-b",
+          createAdditional: true,
+        },
+      }),
+    );
+    expect(requestAccountMock).toHaveBeenNthCalledWith(2, {
+      accountAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    });
+    expect(state.account).toMatchObject({
+      AAAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      mode: "4337",
+    });
+    expect(state.error).toBeNull();
+  });
+
+  it("creates a Pimlico 7702 provider state by default on 7702-first chains", async () => {
     process.env.PIMLICO_API_KEY = "pimlico-key";
 
     const state = await createAAProviderState({
@@ -210,26 +293,27 @@ describe("createAAProviderState", () => {
       owner: { kind: "direct", privateKey: PRIVATE_KEY },
       rpcUrl: "https://example-rpc.invalid",
       callList: [...POLYGON_CALLS],
-      mode: "4337",
     });
 
     expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
-    expect(createPimlicoClientMock).toHaveBeenCalledTimes(1);
+    expect(createPimlicoClientMock).not.toHaveBeenCalled();
     expect(createPermissionlessSmartAccountClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chain: polygon,
-        paymaster: expect.any(Object),
+      expect.not.objectContaining({
+        paymaster: expect.anything(),
       }),
     );
-    expect(toSimpleSmartAccountMock).toHaveBeenCalledTimes(1);
+    expect(toSimpleSmartAccountMock).not.toHaveBeenCalled();
+    expect(to7702SimpleSmartAccountMock).toHaveBeenCalledTimes(1);
 
     expect(state.resolved).toMatchObject({
       provider: "pimlico",
-      mode: "4337",
+      mode: "7702",
+      sponsorship: "disabled",
     });
     expect(state.account).toMatchObject({
       provider: "pimlico",
-      AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+      mode: "7702",
+      AAAddress: DIRECT_OWNER_ADDRESS,
     });
     expect(state.error).toBeNull();
   });
@@ -255,8 +339,7 @@ describe("createAAProviderState", () => {
     expect(state.resolved).not.toBeNull();
   });
 
-  it("creates 7702 state even without wallet-apis", async () => {
-    // 7702 uses raw viem, so wallet-apis mock state doesn't matter
+  it("creates 7702 state with wallet-apis", async () => {
     const state = await createAAProviderState({
       provider: "alchemy",
       chain: mainnet,
@@ -267,6 +350,8 @@ describe("createAAProviderState", () => {
       apiKey: "key",
     });
 
+    expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
     expect(state.account).toMatchObject({
       provider: "alchemy",
       mode: "7702",
@@ -306,14 +391,16 @@ describe("createAAProviderState owner modes", () => {
     toSimpleSmartAccountMock.mockResolvedValue({
       address: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
+    to7702SimpleSmartAccountMock.mockResolvedValue({
+      address: DIRECT_OWNER_ADDRESS,
+    });
   });
 
   it("creates an Alchemy provider state for Para sessions", async () => {
     createAlchemySmartAccountMock.mockResolvedValue({
       provider: "ALCHEMY",
-      mode: "7702",
+      mode: "4337",
       smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       sendTransaction: vi.fn(),
       sendBatchTransaction: vi.fn(),
     });
@@ -331,7 +418,7 @@ describe("createAAProviderState owner modes", () => {
       rpcUrl: "https://example-rpc.invalid",
       apiKey: "alchemy-key",
       gasPolicyId: "policy-1",
-      mode: "7702",
+      mode: "4337",
     });
 
     expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
@@ -341,25 +428,17 @@ describe("createAAProviderState owner modes", () => {
         para: PARA,
         chain: mainnet,
         rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
+        mode: "4337",
       }),
     );
     expect(state.account).toMatchObject({
       provider: "ALCHEMY",
-      mode: "7702",
+      mode: "4337",
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
   });
 
-  it("creates a Pimlico provider state for an external signer", async () => {
-    createPimlicoSmartAccountMock.mockResolvedValue({
-      provider: "PIMLICO",
-      mode: "4337",
-      smartAccountAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
-      sendTransaction: vi.fn(),
-      sendBatchTransaction: vi.fn(),
-    });
-
+  it("creates a Pimlico provider state for a session signer with the shared permissionless path", async () => {
     const state = await createAAProviderState({
       provider: "pimlico",
       owner: {
@@ -375,17 +454,20 @@ describe("createAAProviderState owner modes", () => {
       mode: "4337",
     });
 
-    expect(createPimlicoSmartAccountMock).toHaveBeenCalledWith(
+    expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
+    expect(createPimlicoClientMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        apiKey: "pimlico-key",
-        signer: SIGNER,
+        entryPoint: expect.objectContaining({ version: "0.7" }),
+      }),
+    );
+    expect(createPermissionlessSmartAccountClientMock).toHaveBeenCalledWith(
+      expect.objectContaining({
         chain: polygon,
-        rpcUrl: "https://example-rpc.invalid",
-        mode: "4337",
+        paymaster: expect.any(Object),
       }),
     );
     expect(state.account).toMatchObject({
-      provider: "PIMLICO",
+      provider: "pimlico",
       mode: "4337",
       AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
     });

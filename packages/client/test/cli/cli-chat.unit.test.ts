@@ -42,6 +42,14 @@ describe("CLI chat wallet sync", () => {
         { publicKey: "0x111", chainId: 1 },
       ),
     ).toBe(false);
+
+    expect(
+      shouldBroadcastWalletStateChange(
+        config,
+        { publicKey: "0x111", chainId: 1 },
+        { publicKey: "0x111" },
+      ),
+    ).toBe(false);
   });
 
   it("syncs user_state and emits wallet:state_changed before chat", async () => {
@@ -78,5 +86,27 @@ describe("CLI chat wallet sync", () => {
         isConnected: true,
       },
     });
+  });
+
+  it("does not sync or emit wallet:state_changed when chainId is missing", async () => {
+    const resolveUserState = vi.fn();
+    const syncUserState = vi.fn().mockResolvedValue(undefined);
+    const sendSystemMessage = vi.fn().mockResolvedValue(undefined);
+
+    await syncWalletStateForChat(
+      createConfig({ privateKey: "0xabc" }),
+      { publicKey: "0xold", chainId: 1 },
+      { publicKey: "0xnew" },
+      { sessionId: "session-1" } as never,
+      {
+        resolveUserState,
+        syncUserState,
+        client: { sendSystemMessage },
+      },
+    );
+
+    expect(resolveUserState).not.toHaveBeenCalled();
+    expect(syncUserState).not.toHaveBeenCalled();
+    expect(sendSystemMessage).not.toHaveBeenCalled();
   });
 });

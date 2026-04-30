@@ -153,7 +153,7 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0x123", isConnected: true });
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
         await flushPromises();
       });
 
@@ -178,7 +178,7 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0x456", isConnected: true });
+        api.setUser({ address: "0x456", chainId: 1, isConnected: true });
         await flushPromises();
       });
 
@@ -201,7 +201,7 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0x789", isConnected: true });
+        api.setUser({ address: "0x789", chainId: 1, isConnected: true });
         await flushPromises();
       });
 
@@ -249,7 +249,7 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0xabc", isConnected: true });
+        api.setUser({ address: "0xabc", chainId: 1, isConnected: true });
         await flushPromises();
       });
 
