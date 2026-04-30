@@ -90,7 +90,7 @@ export function appendFeeCallToPayload(
   }
 
   const calls = toPayloadCalls(payload, defaultChainId);
-  const forceAaPreference = options?.forceAaPreference ?? "eip4337";
+  const forceAaPreference = options?.forceAaPreference ?? "eip7702";
   const strictAa = options?.strictAa ?? true;
 
   return {

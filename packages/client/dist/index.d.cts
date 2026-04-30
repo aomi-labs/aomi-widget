@@ -406,7 +406,6 @@ interface AAChainConfig {
 interface AAConfig {
     enabled: boolean;
     provider: AAProvider;
-    fallbackToEoa: boolean;
     chains: AAChainConfig[];
 }
 interface AAResolvedConfig {
@@ -415,7 +414,6 @@ interface AAResolvedConfig {
     mode: AAMode;
     batchingEnabled: boolean;
     sponsorship: AASponsorship;
-    fallbackToEoa: boolean;
 }
 /** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
 type AACallPayload = Omit<AAWalletCall, "chainId">;
@@ -554,6 +552,8 @@ declare function toAAWalletCall(payload: WalletTxPayload, defaultChainId?: numbe
  */
 declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSignTypedDataArgs | null;
 
+declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
+
 type WalletRequestKind = "transaction" | "eip712_sign";
 type WalletRequest = {
     id: string;
@@ -580,7 +580,7 @@ type SendResult = {
     messages: AomiMessage[];
     title?: string;
 };
-declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
+
 type SessionOptions = {
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;

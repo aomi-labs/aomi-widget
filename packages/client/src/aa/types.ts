@@ -41,7 +41,6 @@ export interface AAChainConfig {
 export interface AAConfig {
   enabled: boolean;
   provider: AAProvider;
-  fallbackToEoa: boolean;
   chains: AAChainConfig[];
 }
 
@@ -55,7 +54,6 @@ export interface AAResolvedConfig {
   mode: AAMode;
   batchingEnabled: boolean;
   sponsorship: AASponsorship;
-  fallbackToEoa: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +191,6 @@ export function buildAAExecutionPlan(
     mode,
     batchingEnabled: chainConfig.allowBatching,
     sponsorship: chainConfig.sponsorship,
-    fallbackToEoa: config.fallbackToEoa,
   };
 }
 
@@ -207,9 +204,7 @@ export function getWalletExecutorReady(
   return (
     !providerState.resolved ||
     (!providerState.pending &&
-      (Boolean(providerState.account) ||
-        Boolean(providerState.error) ||
-        providerState.resolved.fallbackToEoa))
+      (Boolean(providerState.account) || Boolean(providerState.error)))
   );
 }
 
@@ -220,45 +215,44 @@ export function getWalletExecutorReady(
 export const DEFAULT_AA_CONFIG: AAConfig = {
   enabled: true,
   provider: "alchemy",
-  fallbackToEoa: true,
   chains: [
     {
       chainId: 1,
       enabled: true,
       defaultMode: "7702",
-      supportedModes: ["4337", "7702"],
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional",
     },
     {
       chainId: 137,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional",
     },
     {
       chainId: 42161,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional",
     },
     {
       chainId: 10,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional",
     },
     {
       chainId: 8453,
       enabled: true,
-      defaultMode: "4337",
-      supportedModes: ["4337", "7702"],
+      defaultMode: "7702",
+      supportedModes: ["7702", "4337"],
       allowBatching: true,
       sponsorship: "optional",
     },

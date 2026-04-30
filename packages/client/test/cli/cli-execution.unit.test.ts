@@ -225,15 +225,21 @@ describe("CLI execution controls", () => {
   // resolveCliExecutionDecision — default Alchemy key
   // -------------------------------------------------------------------------
 
-  it("defaults to direct EOA for single-call auto mode", () => {
+  it("defaults to 7702 AA for single-call auto mode", () => {
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
       callList: [...CALL_LIST],
     });
 
-    expect(decision).toEqual({ execution: "eoa" });
-    expect(describeExecutionDecision(decision)).toBe("eoa");
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+      modeExplicit: false,
+      apiKey: "72eIUle_3rfixX00QJVwk",
+    });
+    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
   it("defaults to Alchemy direct AA for multi-call batches when no env vars are set", () => {
@@ -247,6 +253,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "72eIUle_3rfixX00QJVwk",
     });
     expect(describeExecutionDecision(decision)).toBe(
@@ -271,12 +278,13 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "alchemy-key",
     });
     expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
-  it("prefers 7702 for multi-call batches when chain default mode is 4337", () => {
+  it("uses 7702 for multi-call batches on Polygon (all chains default to 7702)", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
 
     const decision = resolveCliExecutionDecision({
@@ -292,6 +300,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "alchemy-key",
     });
   });
@@ -315,6 +324,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "pimlico",
       aaMode: "4337",
+      modeExplicit: true,
       apiKey: "pimlico-key",
     });
   });
@@ -343,9 +353,8 @@ describe("CLI execution controls", () => {
   // ERC-20 auto-switch
   // -------------------------------------------------------------------------
 
-  it("auto-switches default 4337 ERC-20 calls to 7702 when supported", () => {
+  it("uses 7702 for ERC-20 calls in auto AA mode (7702 is the chain default)", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const decision = resolveCliExecutionDecision({
       config: {
@@ -363,13 +372,9 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       aaMode: "7702",
     });
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Switching to 7702"),
-    );
-    logSpy.mockRestore();
   });
 
-  it("warns but preserves explicit 4337 mode for ERC-20 calls", () => {
+  it("warns and preserves explicit 4337 mode for ERC-20 calls", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -415,7 +420,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA 7702 provider state via SDK when API key is set", async () => {
+  it("creates Alchemy AA 7702 provider state via Wallets API when API key is set", async () => {
     const providerState = await createCliProviderState({
       decision: {
         execution: "aa",
@@ -430,20 +435,11 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    // 7702 bypasses wallet-apis in BYOK mode.
-    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
-    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: "alchemy-key",
-        chain: mainnet,
-        rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
-      }),
-    );
+    expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
-      fallbackToEoa: false,
     });
     expect(providerState.account).toBeTruthy();
     expect(providerState.error).toBeNull();
@@ -464,8 +460,7 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    // 7702 bypasses wallet-apis, uses raw viem
-    expect(alchemyWalletTransportMock).not.toHaveBeenCalled();
+    expect(alchemyWalletTransportMock).toHaveBeenCalledTimes(1);
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
@@ -474,7 +469,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA provider state for 4337 mode", async () => {
+  it("creates Alchemy AA provider state for 4337 mode with gas sponsorship", async () => {
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     const providerState = await createCliProviderState({
@@ -491,10 +486,14 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    expect(createSmartWalletClientMock).toHaveBeenCalled();
+    // 4337 smart account has zero balance — paymaster must be attached
+    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
+      expect.objectContaining({ paymaster: { policyId: "policy-1" } }),
+    );
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "4337",
+      sponsorship: "optional",
     });
   });
 
@@ -535,6 +534,17 @@ describe("CLI execution controls", () => {
 
   it("getAlternativeAAMode returns null for EOA decisions", () => {
     expect(getAlternativeAAMode({ execution: "eoa" })).toBeNull();
+  });
+
+  it("getAlternativeAAMode returns null when the AA mode was explicitly requested", () => {
+    expect(
+      getAlternativeAAMode({
+        execution: "aa",
+        provider: "alchemy",
+        aaMode: "7702",
+        modeExplicit: true,
+      }),
+    ).toBeNull();
   });
 
 });
