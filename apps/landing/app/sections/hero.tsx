@@ -396,7 +396,7 @@ export function Hero() {
                       Installation
                     </div>
                     <p className="font-geist mt-2 text-sm leading-6 text-white/85">
-                      Get Aomi's TypeScript cli client
+                      Get Aomi&apos;s TypeScript cli client
                     </p>
 
                     <div className="mt-3 rounded-xl border border-white/15 bg-black px-4 py-3">
