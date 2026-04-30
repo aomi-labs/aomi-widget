@@ -2,6 +2,10 @@
   "title": "Build with Aomi",
   "pages": [
     "overview",
+    "cli",
+    "frontend-setup",
+    "widget-installation",
+    "headless-library",
     "getting-started",
     "integration-guide",
     "ui",
