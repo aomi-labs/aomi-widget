@@ -3,7 +3,8 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Build an Aomi App",
-  description: "Agent-facing HTML entry point for building Aomi apps.",
+  description:
+    "Turn your platform into an agentic application. Convert any API, SDK, or repo into an Aomi App hosted on our runtime — the tool-extending half of the blockchain harness for agentic AI.",
   alternates: {
     types: {
       "text/markdown": "https://aomi.dev/agents/build.md",
@@ -21,8 +22,12 @@ export default function AgentsBuildPage() {
         Build an Aomi app from an API, SDK, or repo.
       </h1>
       <p className="text-base leading-7 text-muted-foreground">
-        This HTML surface exists so agent crawlers and humans have a stable
-        entry point. The complete instruction set lives in the markdown guide.
+        Turn your platform into an agentic application. Bring an OpenAPI spec,
+        REST endpoint, SDK, or repo — your agent converts it into intent-shaped
+        tools, packaged as an Aomi App hosted on our runtime and callable from
+        any Aomi-compatible client. This is the tool-extending half of the
+        blockchain harness for agentic AI; the complete instruction set lives
+        in the markdown guide.
       </p>
       <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-muted-foreground">
         <li>Install skills with <code>npx skills add aomi-labs/skills</code>.</li>

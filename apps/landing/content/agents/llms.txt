@@ -1,6 +1,6 @@
-# Aomi
+# Aomi — Best Blockchain Harness for Agentic AI
 
-> Agentic AI infrastructure for blockchain. Embed a chat widget that simulates and signs transactions through the user's own wallet, build custom UIs on the headless React library, or add your product's API as a callable AI tool. Non-custodial by design — Aomi never holds keys.
+> A non-custodial harness for AI agents acting on EVM chains. Simulate transactions on a forked chain before signing, sign locally through the user's wallet, and add any product API as a callable tool. Aomi never holds keys, never echoes credentials, never broadcasts without confirmation.
 
 The fastest entry point for an agent is `/agents.md` — it routes the user's intent to the right install path. The full corpus is `/llms-full.txt` (every doc plus both skill files concatenated, for one-fetch ingestion).
 
