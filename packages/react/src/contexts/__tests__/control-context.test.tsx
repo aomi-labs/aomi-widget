@@ -219,6 +219,47 @@ describe("ControlContextProvider", () => {
     });
   });
 
+  it("revalidates a stale stored model after models load", async () => {
+    globalThis.localStorage.setItem(
+      "aomi_model_selection",
+      JSON.stringify({ mode: "manual", model: "old-model" }),
+    );
+    const threadMetadata = createThreadMetadata();
+    const setModel = vi.fn(async () => ({}));
+    const { getControl } = renderControlContext(
+      {
+        getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
+        setModel,
+      },
+      threadMetadata,
+    );
+
+    await waitFor(() => {
+      expect(getControl().state.availableModels).toContain("gpt-4o-mini");
+    });
+
+    await waitFor(() => {
+      expect(threadMetadata.get("session-1")?.control).toMatchObject({
+        model: "gpt-4o-mini",
+        modelMode: "auto",
+        controlDirty: true,
+      });
+    });
+
+    await act(async () => {
+      await getControl().syncCurrentThreadControl();
+    });
+
+    expect(setModel).toHaveBeenCalledWith(
+      "session-1",
+      "gpt-4o-mini",
+      expect.objectContaining({ app: "default" }),
+    );
+    expect(
+      setModel.mock.calls.some(([, model]) => model === "old-model"),
+    ).toBe(false);
+  });
+
   it("can switch back to auto mode after a manual model selection", async () => {
     const threadMetadata = createThreadMetadata();
     const { getControl } = renderControlContext(
