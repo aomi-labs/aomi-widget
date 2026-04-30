@@ -453,6 +453,40 @@ export async function Apps() {
               </a>
             );
           })}
+
+          <a
+            href="https://aomi.dev/agents/build"
+            className="group flex min-h-[220px] flex-col rounded-[2rem] bg-white p-6 text-stone-900 transition-transform duration-300 hover:-translate-y-1"
+          >
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <span className="font-geist rounded-full bg-stone-900 px-3 py-1 text-[11px] font-medium tracking-wide text-white">
+                Build
+              </span>
+              <span className="font-geist rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-medium tracking-wide text-emerald-900">
+                Open access
+              </span>
+            </div>
+
+            <div className="flex flex-1 flex-col">
+              <div className="mb-2 flex items-center gap-3">
+                <h3 className="font-serif text-2xl tracking-tight text-stone-900">
+                  Build your own app
+                </h3>
+              </div>
+
+              <p className="font-geist text-sm leading-relaxed text-stone-600">
+                Turn your API, protocol, or product into an Aomi app with a
+                wallet-aware runtime and agent-ready tool surface.
+              </p>
+
+              <div className="font-geist mt-auto pt-6 text-sm font-semibold text-stone-900">
+                Open build guide
+                <span className="ml-2 inline-block transition-transform duration-300 group-hover:translate-x-1">
+                  {"->"}
+                </span>
+              </div>
+            </div>
+          </a>
         </div>
       </div>
     </section>

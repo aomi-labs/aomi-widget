@@ -6,21 +6,15 @@ source: https://aomi.dev/agents.md
 
 # Aomi for Agents
 
-Turn your platform into an agentic application with Aomi's wallet-aware transaction runtime, embeddable chat surfaces, and tool-based app model.
+Aomi is the blockchain harness for agentic AI. Three guarantees define the harness:
 
-Aomi is agentic AI infrastructure for blockchain. This page tells an AI agent how to satisfy three common user intents using Aomi.
+- **Read by default.** Chat, prices, balances, and simulations require no signing key.
+- **Simulate before sign.** Every transaction is dry-run on a forked chain before it can be signed.
+- **Credentials never round-trip.** Private keys stay on the user's machine; the agent never sees them.
 
-> **TL;DR for the agent reading this:** Pick one of the three paths below based on what the user asked for. Each path has a one-line install and a primary entry point. Don't read everything — read the path you need.
+This page routes you to one of three install paths based on the user's intent.
 
-## Safety mantra
-
-- Read by default.
-- Simulate before sign.
-- Credentials never round-trip.
-
-## Decide which path you need
-
-The user's request maps to one of three paths.
+> **TL;DR:** pick one of the three paths below based on what the user asked for. Each path has a one-line install and a primary entry point. Read the path you need, not everything.
 
 ## TRANSACT
 
