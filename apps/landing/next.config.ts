@@ -57,6 +57,13 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveAlias: turbopackAliases,
   },
+  async rewrites() {
+    return [
+      // Markdown mirrors of /docs/* — agent-friendly plain text views.
+      // /docs/build/overview.md → /api/docs-md/build/overview
+      { source: "/docs/:slug+.md", destination: "/api/docs-md/:slug+" },
+    ];
+  },
   // Webpack aliases (production builds)
   webpack: (config) => {
     config.resolve.alias = {
