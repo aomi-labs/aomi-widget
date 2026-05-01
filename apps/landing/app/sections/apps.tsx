@@ -368,8 +368,8 @@ export async function Apps() {
     >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-4">
         <div className="max-w-6xl">
-          <div className="mb-4 inline-flex w-fit items-center rounded-full border border-stone-200 bg-white px-3 py-1 shadow-sm">
-            <span className="font-geist text-[10px] font-semibold tracking-[0.24em] text-stone-700 uppercase">
+          <div className="mb-4 inline-flex w-fit items-center rounded-full border border-stone-200 bg-stone-100 pt-1 pr-3 pb-1 pl-3 ring-1 ring-stone-200">
+            <span className="font-geist mt-1 mb-1 text-[10px] font-semibold tracking-wider text-stone-800 uppercase">
               Apps
             </span>
           </div>
@@ -453,6 +453,46 @@ export async function Apps() {
               </a>
             );
           })}
+
+          <div className="group flex min-h-[220px] flex-col rounded-[2rem] bg-white p-6 text-stone-900 transition-transform duration-300 hover:-translate-y-1">
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <span className="font-geist rounded-full bg-stone-900 px-3 py-1 text-[11px] font-medium tracking-wide text-white">
+                Build
+              </span>
+              <span className="font-geist rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-medium tracking-wide text-emerald-900">
+                Open access
+              </span>
+            </div>
+
+            <div className="flex flex-1 flex-col">
+              <div className="mb-2 flex items-center gap-3">
+                <h3 className="font-serif text-2xl tracking-tight text-stone-900">
+                  Build your own app
+                </h3>
+              </div>
+
+              <p className="font-geist text-sm leading-relaxed text-stone-600">
+                Turn your API, protocol, or product into an Aomi app with a
+                wallet-aware runtime and agent-ready tool surface.
+              </p>
+
+              <a
+                href="/agents/build"
+                className="font-geist mt-auto w-fit pt-6 text-sm font-semibold text-stone-900 underline underline-offset-4 transition-colors hover:text-stone-700"
+              >
+                Build with agent
+              </a>
+              <a
+                href="https://aomi.dev/docs/build/overview"
+                className="font-geist mt-3 w-fit text-sm font-semibold text-stone-900 transition-colors hover:text-stone-700"
+              >
+                Open build guide
+                <span className="ml-2 inline-block transition-transform duration-300 group-hover:translate-x-1">
+                  {"->"}
+                </span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </section>
