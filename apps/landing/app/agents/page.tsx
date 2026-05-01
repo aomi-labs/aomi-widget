@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Aomi for Agents",
   description:
-    "Agent-facing Aomi entry point for transaction execution, UI embedding, and app-building workflows.",
+    "Aomi is the blockchain harness for agentic AI. Pick a path: transact on wallets, embed a chat surface, or expose your product as callable AI tools.",
   alternates: {
     types: {
       "text/markdown": "https://aomi.dev/agents.md",
@@ -20,20 +20,36 @@ export default function AgentsPage() {
           Aomi for Agents
         </p>
         <h1 className="text-4xl font-semibold tracking-tight">
-          Turn your platform into an agentic application.
+          The blockchain harness for agentic AI.
         </h1>
         <p className="max-w-3xl text-base leading-7 text-muted-foreground">
           Use Aomi to transact on wallets, embed a chat surface, or expose your
-          product as callable AI tools.
+          product as callable AI tools — non-custodial by design, with
+          simulation and local signing built in.
         </p>
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Safety mantra</h2>
+        <h2 className="text-xl font-semibold">
+          Three guarantees define the harness
+        </h2>
         <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-muted-foreground">
-          <li>Read by default.</li>
-          <li>Simulate before sign.</li>
-          <li>Credentials never round-trip.</li>
+          <li>
+            <strong className="text-foreground">Read by default.</strong> Chat,
+            prices, balances, and simulations require no signing key.
+          </li>
+          <li>
+            <strong className="text-foreground">Simulate before sign.</strong>{" "}
+            Every transaction is dry-run on a forked chain before it can be
+            signed.
+          </li>
+          <li>
+            <strong className="text-foreground">
+              Credentials never round-trip.
+            </strong>{" "}
+            Private keys stay on the user&apos;s machine; the agent never sees
+            them.
+          </li>
         </ul>
       </section>
 
