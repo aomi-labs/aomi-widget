@@ -44,6 +44,12 @@ export function Hero() {
               Apps
             </a>
             <a
+              href="/docs/build/overview"
+              className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
+            >
+              Documentation
+            </a>
+            <a
               href="#faq"
               className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
             >
@@ -158,6 +164,13 @@ export function Hero() {
                 className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
               >
                 Apps
+              </a>
+              <a
+                href="/docs/build/overview"
+                onClick={() => setMobileMenuOpen(false)}
+                className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              >
+                Documentation
               </a>
               <a
                 href="#faq"
