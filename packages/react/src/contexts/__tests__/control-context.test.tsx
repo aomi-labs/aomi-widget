@@ -77,6 +77,14 @@ const createThreadMetadata = () =>
     ],
   ]);
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
+
 beforeEach(() => {
   const store = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
@@ -255,9 +263,57 @@ describe("ControlContextProvider", () => {
       "gpt-4o-mini",
       expect.objectContaining({ app: "default" }),
     );
-    expect(
-      setModel.mock.calls.some(([, model]) => model === "old-model"),
-    ).toBe(false);
+    expect(setModel.mock.calls.some(([, model]) => model === "old-model")).toBe(
+      false,
+    );
+  });
+
+  it("does not seed fresh threads with a stored manual model before models load", async () => {
+    globalThis.localStorage.setItem(
+      "aomi_model_selection",
+      JSON.stringify({ mode: "manual", model: "old-model" }),
+    );
+
+    const models = createDeferred<string[]>();
+    const threadMetadata = createThreadMetadata();
+    const setModel = vi.fn(async () => ({}));
+    const { getControl } = renderControlContext(
+      {
+        getModels: vi.fn(() => models.promise),
+        setModel,
+      },
+      threadMetadata,
+    );
+
+    expect(getControl().getPreferredThreadControl()).toMatchObject({
+      model: null,
+      modelMode: "auto",
+      controlDirty: false,
+    });
+
+    await act(async () => {
+      await getControl().syncCurrentThreadControl();
+    });
+
+    expect(setModel).not.toHaveBeenCalled();
+    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+      model: null,
+      modelMode: "auto",
+      controlDirty: false,
+    });
+
+    await act(async () => {
+      models.resolve(["gpt-4o-mini", "gpt-5"]);
+      await models.promise;
+    });
+
+    await waitFor(() => {
+      expect(threadMetadata.get("session-1")?.control).toMatchObject({
+        model: "gpt-4o-mini",
+        modelMode: "auto",
+        controlDirty: true,
+      });
+    });
   });
 
   it("can switch back to auto mode after a manual model selection", async () => {
@@ -285,7 +341,138 @@ describe("ControlContextProvider", () => {
     });
     expect(
       JSON.parse(globalThis.localStorage.getItem("aomi_model_selection")!),
-    ).toMatchObject({ mode: "auto", model: "gpt-4o-mini" });
+    ).toMatchObject({ mode: "auto", model: null });
+  });
+
+  it("updates auto threads when a newly available model becomes preferred", async () => {
+    const threadMetadata = createThreadMetadata();
+    const getModels = vi
+      .fn<() => Promise<string[]>>()
+      .mockResolvedValueOnce(["gpt-4o", "gpt-4o-mini"])
+      .mockResolvedValueOnce(["claude-4.5-haiku", "gpt-4o", "gpt-4o-mini"]);
+
+    const { getControl } = renderControlContext({ getModels }, threadMetadata);
+
+    await waitFor(() => {
+      expect(threadMetadata.get("session-1")?.control).toMatchObject({
+        model: "gpt-4o-mini",
+        modelMode: "auto",
+        controlDirty: true,
+      });
+    });
+
+    await act(async () => {
+      await getControl().getAvailableModels();
+    });
+
+    await waitFor(() => {
+      expect(threadMetadata.get("session-1")?.control).toMatchObject({
+        model: "claude-4.5-haiku",
+        modelMode: "auto",
+        controlDirty: true,
+      });
+    });
+  });
+
+  it("keeps model selection dirty when the app changes during backend sync", async () => {
+    const setModelResult = createDeferred<Record<string, never>>();
+    const threadMetadata = createThreadMetadata();
+    const setModel = vi.fn(() => setModelResult.promise);
+    const { getControl } = renderControlContext(
+      {
+        getApps: vi.fn(async () => ["default", "docs"]),
+        getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
+        setModel,
+      },
+      threadMetadata,
+    );
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toContain("docs");
+      expect(getControl().state.availableModels).toContain("gpt-5");
+    });
+
+    let selectionPromise!: Promise<void>;
+    await act(async () => {
+      selectionPromise = getControl().onModelSelect("gpt-5", {
+        mode: "manual",
+      });
+    });
+
+    expect(setModel).toHaveBeenCalledWith(
+      "session-1",
+      "gpt-5",
+      expect.objectContaining({ app: "default" }),
+    );
+
+    await act(async () => {
+      getControl().onAppSelect("docs");
+    });
+
+    await act(async () => {
+      setModelResult.resolve({});
+      await selectionPromise;
+    });
+
+    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+      model: "gpt-5",
+      app: "docs",
+      controlDirty: true,
+    });
+  });
+
+  it("keeps pending thread control dirty when the app changes during sync", async () => {
+    const setModelResult = createDeferred<Record<string, never>>();
+    const threadMetadata = createThreadMetadata();
+    threadMetadata.set("session-1", {
+      ...threadMetadata.get("session-1")!,
+      control: {
+        ...initThreadControl(),
+        model: "gpt-5",
+        modelMode: "manual",
+        controlDirty: true,
+      },
+    });
+
+    const setModel = vi.fn(() => setModelResult.promise);
+    const { getControl } = renderControlContext(
+      {
+        getApps: vi.fn(async () => ["default", "docs"]),
+        getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
+        setModel,
+      },
+      threadMetadata,
+    );
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toContain("docs");
+    });
+
+    let syncPromise!: Promise<void>;
+    await act(async () => {
+      syncPromise = getControl().syncCurrentThreadControl();
+    });
+
+    expect(setModel).toHaveBeenCalledWith(
+      "session-1",
+      "gpt-5",
+      expect.objectContaining({ app: "default" }),
+    );
+
+    await act(async () => {
+      getControl().onAppSelect("docs");
+    });
+
+    await act(async () => {
+      setModelResult.resolve({});
+      await syncPromise;
+    });
+
+    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+      model: "gpt-5",
+      app: "docs",
+      controlDirty: true,
+    });
   });
 
   it("does not update controls while the current thread is processing", async () => {

@@ -3,6 +3,8 @@
  * Maps raw backend strings to vendor info, display names, and icons.
  */
 
+export { resolveAutoModel } from "@aomi-labs/react";
+
 // =============================================================================
 // Vendor definitions
 // =============================================================================
@@ -95,24 +97,6 @@ export function groupModelsByVendor(models: string[]): ModelGroup[] {
 
 /** The display label shown in the trigger when auto mode is active. */
 export const AUTO_MODE_LABEL = "Auto";
-
-/**
- * Resolve the actual backend model for auto mode.
- * Picks the cheapest performant model from the available list.
- */
-export function resolveAutoModel(models: string[]): string | null {
-  const preferred = [
-    /^claude-4\.5-haiku/i,
-    /^claude.*haiku/i,
-    /^gpt-4o-mini/i,
-    /^gemini.*flash/i,
-  ];
-  for (const pattern of preferred) {
-    const match = models.find((m) => pattern.test(m));
-    if (match) return match;
-  }
-  return models[0] ?? null;
-}
 
 // =============================================================================
 // App metadata
@@ -297,7 +281,7 @@ const APP_ALIASES: Record<string, string> = {
   "dune-analytics": "dune",
   getpara: "para",
   "para-customer": "para",
-  "para_consumer": "para-consumer",
+  para_consumer: "para-consumer",
   polymarket_rewards: "polymarket-rewards",
   twitter: "x",
 };

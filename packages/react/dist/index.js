@@ -234,6 +234,23 @@ var ThreadStore = class {
   }
 };
 
+// packages/react/src/utils/model-selection.ts
+var PREFERRED_DEFAULT_MODEL_PATTERNS = [
+  /^claude-4\.5-haiku/i,
+  /^claude.*haiku/i,
+  /^gpt-4o-mini/i,
+  /^gemini.*flash/i
+];
+function resolveAutoModel(models) {
+  var _a;
+  if (models.length === 0) return null;
+  for (const pattern of PREFERRED_DEFAULT_MODEL_PATTERNS) {
+    const match = models.find((model) => pattern.test(model));
+    if (match) return match;
+  }
+  return (_a = models[0]) != null ? _a : null;
+}
+
 // packages/react/src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_api_key";
@@ -263,21 +280,6 @@ function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
 }
-var PREFERRED_DEFAULT_MODELS = [
-  /^claude-4\.5-haiku/i,
-  /^claude.*haiku/i,
-  /^gpt-4o-mini/i,
-  /^gemini.*flash/i
-];
-function pickDefaultModel(models) {
-  var _a;
-  if (models.length === 0) return null;
-  for (const pattern of PREFERRED_DEFAULT_MODELS) {
-    const match = models.find((m) => pattern.test(m));
-    if (match) return match;
-  }
-  return (_a = models[0]) != null ? _a : null;
-}
 function readStoredModelPreference() {
   var _a;
   try {
@@ -303,24 +305,23 @@ function writeStoredModelPreference(preference) {
   }
 }
 function resolvePreferredModelSelection(preference, models, defaultModel) {
-  var _a, _b, _c, _d;
-  if (preference.mode === "manual" && preference.model && (models.length === 0 || models.includes(preference.model))) {
+  var _a;
+  if (preference.mode === "manual" && preference.model && models.includes(preference.model)) {
     return preference;
   }
   if (preference.mode === "auto") {
     return {
       mode: "auto",
-      model: (_b = (_a = pickDefaultModel(models)) != null ? _a : preference.model) != null ? _b : defaultModel
+      model: (_a = resolveAutoModel(models)) != null ? _a : defaultModel
     };
   }
   return {
     mode: "auto",
-    model: (_d = (_c = defaultModel != null ? defaultModel : pickDefaultModel(models)) != null ? _c : models[0]) != null ? _d : null
+    model: defaultModel != null ? defaultModel : resolveAutoModel(models)
   };
 }
 function getFallbackModel(models, defaultModel) {
-  var _a, _b;
-  return (_b = (_a = defaultModel != null ? defaultModel : pickDefaultModel(models)) != null ? _a : models[0]) != null ? _b : null;
+  return defaultModel != null ? defaultModel : resolveAutoModel(models);
 }
 function resolveAuthorizedApp(app, authorizedApps, defaultApp) {
   if (app && authorizedApps.includes(app)) {
@@ -468,7 +469,7 @@ function ControlContextProvider({
         );
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
           availableModels: models,
-          defaultModel: pickDefaultModel(models)
+          defaultModel: resolveAutoModel(models)
         }));
       } catch (error) {
         console.error("Failed to fetch models:", error);
@@ -562,13 +563,10 @@ function ControlContextProvider({
       const models = await aomiClientRef.current.getModels(
         sessionIdRef.current
       );
-      setStateInternal((prev) => {
-        var _a2;
-        return __spreadProps(__spreadValues({}, prev), {
-          availableModels: models,
-          defaultModel: (_a2 = prev.defaultModel) != null ? _a2 : pickDefaultModel(models)
-        });
-      });
+      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
+        availableModels: models,
+        defaultModel: resolveAutoModel(models)
+      }));
       return models;
     } catch (error) {
       console.error("Failed to fetch models:", error);
@@ -673,9 +671,12 @@ function ControlContextProvider({
           clientId: (_f = stateRef.current.clientId) != null ? _f : void 0
         });
         console.log("[control-context] onModelSelect backend result", result);
-        writeStoredModelPreference({ mode: modelMode, model });
+        writeStoredModelPreference({
+          mode: modelMode,
+          model: modelMode === "manual" ? model : null
+        });
         const latestControl = (_h = (_g = getThreadMetadataRef.current(threadId)) == null ? void 0 : _g.control) != null ? _h : currentControl;
-        if (latestControl.model === model) {
+        if (latestControl.model === model && latestControl.app === app) {
           updateThreadMetadataRef.current(threadId, {
             control: __spreadProps(__spreadValues({}, latestControl), {
               modelMode,
@@ -751,7 +752,7 @@ function ControlContextProvider({
       clientId: (_e = stateRef.current.clientId) != null ? _e : void 0
     });
     const latestControl = (_g = (_f = getThreadMetadataRef.current(threadId)) == null ? void 0 : _f.control) != null ? _g : currentControl;
-    if (latestControl.model === currentControl.model) {
+    if (latestControl.model === currentControl.model && latestControl.app === currentControl.app) {
       updateThreadMetadataRef.current(threadId, {
         control: __spreadProps(__spreadValues({}, latestControl), {
           app,
@@ -2268,6 +2269,7 @@ export {
   initThreadControl,
   normalizeSimulatedFee,
   parseChainId,
+  resolveAutoModel,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignTypedDataArgs,

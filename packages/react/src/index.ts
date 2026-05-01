@@ -117,6 +117,7 @@ export {
   SUPPORTED_CHAINS,
   type ChainInfo,
 } from "./runtime/utils";
+export { resolveAutoModel } from "./utils/model-selection";
 
 // =============================================================================
 // Notification Context (for toast UI)
