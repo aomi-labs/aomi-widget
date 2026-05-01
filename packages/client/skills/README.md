@@ -2,6 +2,12 @@
 
 Agent skills for interacting with the [Aomi](https://aomi.dev) on-chain AI transaction builder.
 
+## Paste-ready prompt
+
+```text
+Install Aomi Skills with `npx skills add aomi-labs/skills`, install the CLI with `npm install -g @aomi-labs/client`, then use Aomi to read prices, simulate a transaction, or scaffold an Aomi app from an API spec.
+```
+
 ## Skills
 
 | Skill | Description |

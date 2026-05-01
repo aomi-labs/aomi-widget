@@ -172,8 +172,8 @@ export function Resources() {
                 </span>
               </div>
               <p className="font-geist max-w-xs text-xs leading-relaxed text-neutral-100">
-                The interface for the agentic web. Automating complex blockchain
-                interactions with simple natural language.
+                The Best Blockchain Harness for Agentic Web. Top-security,
+                multi-chain. Land in seconds.
               </p>
             </div>
             <div className="flex gap-x-16 gap-y-16">
