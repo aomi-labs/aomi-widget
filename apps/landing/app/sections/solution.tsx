@@ -105,7 +105,7 @@ export function Solution() {
                           <h3 className="font-geist text-lg font-semibold text-stone-800">
                             Managed Orchestration
                           </h3>
-                          <p className="font-geist mt-2 text-sm leading-relaxed text-stone-600 md:text-base">
+                          <p className="font-geist mt-2 text-sm leading-relaxed font-light text-stone-600">
                             In production, we host the LLM infrastructure
                             including agentic orchestration, allowing you to
                             focus purely on your backend logic.

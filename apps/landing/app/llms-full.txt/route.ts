@@ -42,6 +42,9 @@ export async function GET() {
   parts.push(section("AGENT ONBOARDING — /agents.md"));
   parts.push(await readAgentFile("agents.md"));
 
+  parts.push(section("FAQ — /faq.md"));
+  parts.push(await readAgentFile("faq.md"));
+
   parts.push(section("DOCUMENTATION — /docs/**"));
   const params = source.generateParams();
   for (const { slug } of params) {
