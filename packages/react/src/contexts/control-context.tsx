@@ -16,6 +16,7 @@ import type {
   ThreadControlState,
 } from "../state/thread-store";
 import { initThreadControl } from "../state/thread-store";
+import { resolveAutoModel } from "../utils/model-selection";
 
 // =============================================================================
 // Types
@@ -144,30 +145,6 @@ function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
 }
 
-/** Models preferred as default, in priority order (cheaper + good performance). */
-const PREFERRED_DEFAULT_MODELS: RegExp[] = [
-  /^claude-4\.5-haiku/i,
-  /^claude.*haiku/i,
-  /^gpt-4o-mini/i,
-  /^gemini.*flash/i,
-];
-
-/**
- * Pick the best default model from a list.
- * Prefers cheaper models with good performance over expensive ones.
- * Falls back to the first model if no preferred match.
- */
-function pickDefaultModel(models: string[]): string | null {
-  if (models.length === 0) return null;
-
-  for (const pattern of PREFERRED_DEFAULT_MODELS) {
-    const match = models.find((m) => pattern.test(m));
-    if (match) return match;
-  }
-
-  return models[0] ?? null;
-}
-
 function readStoredModelPreference(): StoredModelPreference {
   try {
     const raw = globalThis.localStorage?.getItem(MODEL_SELECTION_STORAGE_KEY);
@@ -201,7 +178,7 @@ function resolvePreferredModelSelection(
   if (
     preference.mode === "manual" &&
     preference.model &&
-    (models.length === 0 || models.includes(preference.model))
+    models.includes(preference.model)
   ) {
     return preference;
   }
@@ -209,13 +186,13 @@ function resolvePreferredModelSelection(
   if (preference.mode === "auto") {
     return {
       mode: "auto",
-      model: pickDefaultModel(models) ?? preference.model ?? defaultModel,
+      model: resolveAutoModel(models) ?? defaultModel,
     };
   }
 
   return {
     mode: "auto",
-    model: defaultModel ?? pickDefaultModel(models) ?? models[0] ?? null,
+    model: defaultModel ?? resolveAutoModel(models),
   };
 }
 
@@ -223,7 +200,7 @@ function getFallbackModel(
   models: string[],
   defaultModel: string | null,
 ): string | null {
-  return defaultModel ?? pickDefaultModel(models) ?? models[0] ?? null;
+  return defaultModel ?? resolveAutoModel(models);
 }
 
 function resolveAuthorizedApp(
@@ -436,7 +413,7 @@ export function ControlContextProvider({
         setStateInternal((prev) => ({
           ...prev,
           availableModels: models,
-          defaultModel: pickDefaultModel(models),
+          defaultModel: resolveAutoModel(models),
         }));
       } catch (error) {
         console.error("Failed to fetch models:", error);
@@ -560,7 +537,7 @@ export function ControlContextProvider({
       setStateInternal((prev) => ({
         ...prev,
         availableModels: models,
-        defaultModel: prev.defaultModel ?? pickDefaultModel(models),
+        defaultModel: resolveAutoModel(models),
       }));
       return models;
     } catch (error) {
@@ -688,10 +665,13 @@ export function ControlContextProvider({
           clientId: stateRef.current.clientId ?? undefined,
         });
         console.log("[control-context] onModelSelect backend result", result);
-        writeStoredModelPreference({ mode: modelMode, model });
+        writeStoredModelPreference({
+          mode: modelMode,
+          model: modelMode === "manual" ? model : null,
+        });
         const latestControl =
           getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-        if (latestControl.model === model) {
+        if (latestControl.model === model && latestControl.app === app) {
           updateThreadMetadataRef.current(threadId, {
             control: {
               ...latestControl,
@@ -794,7 +774,10 @@ export function ControlContextProvider({
 
     const latestControl =
       getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-    if (latestControl.model === currentControl.model) {
+    if (
+      latestControl.model === currentControl.model &&
+      latestControl.app === currentControl.app
+    ) {
       updateThreadMetadataRef.current(threadId, {
         control: {
           ...latestControl,
