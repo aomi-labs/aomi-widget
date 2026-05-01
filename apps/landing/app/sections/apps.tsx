@@ -17,9 +17,7 @@ const RESOLVED_CHAT_PORTAL_URL =
     ? LOCAL_CHAT_PORTAL_URL
     : CHAT_PORTAL_URL);
 const APP_DEEP_LINKS_ENABLED =
-  process.env.NEXT_PUBLIC_ENABLE_APP_DEEP_LINKS === "true" ||
-  (process.env.NEXT_PUBLIC_ENABLE_APP_DEEP_LINKS == null &&
-    process.env.NODE_ENV === "development");
+  process.env.NEXT_PUBLIC_ENABLE_APP_DEEP_LINKS !== "false";
 
 const APP_METADATA: Record<string, AppMetadata> = {
   binance: {
