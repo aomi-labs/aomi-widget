@@ -16,7 +16,7 @@ This page routes you to one of three install paths based on the user's intent.
 
 > **TL;DR:** pick one of the three paths below based on what the user asked for. Each path has a one-line install and a primary entry point. Read the path you need, not everything.
 
-## TRANSACT
+## Transact
 
 ### Path 1 — The user wants to act on a wallet
 
@@ -43,7 +43,7 @@ If `aomi` is not on PATH, replace `aomi` with `npx @aomi-labs/client` everywhere
 - Always run `aomi tx simulate` before `aomi tx sign` for multi-step batches (approve → swap, etc.).
 - Default to `--new-session` on the first command of a fresh task.
 
-## EMBED
+## Embed
 
 ### Path 2 — The user wants to embed an Aomi chat widget in their app
 
@@ -80,7 +80,7 @@ Set `NEXT_PUBLIC_BACKEND_URL=https://api.aomi.dev` in `.env.local`.
 
 **Decision: widget vs headless?** Use the widget when you want chat-shaped UX out of the box. Use headless when you need a different layout (sidebar, fullscreen, embedded inline) or your own components. Read https://aomi.dev/docs/build/integration-guide.md.
 
-## BUILD
+## Build
 
 ### Path 3 — The user wants to add their product/API to Aomi as a callable AI tool
 

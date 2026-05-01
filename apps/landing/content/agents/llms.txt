@@ -9,6 +9,7 @@ Safety mantra: Read by default. Simulate before sign. Credentials never round-tr
 ## Start here
 
 - [Agent onboarding](https://aomi.dev/agents.md): Routes user intent to one of three paths — transact via CLI, embed UI, or add a new tool. Read this first.
+- [FAQ](https://aomi.dev/faq.md): Four canonical questions and answers — how Aomi compares to personal agents (OpenClaw, Claude Code, Cursor), how to build on Aomi vs. raw SDKs, how simulation prevents bad transactions, how signing and wallet security work.
 - [Build an Aomi app](https://aomi.dev/agents/build): HTML agent landing page for app-building prompts.
 - [Transact with Aomi](https://aomi.dev/agents/transact): HTML agent landing page for transaction prompts.
 - [Build markdown mirror](https://aomi.dev/agents/build.md): Raw markdown mirror of the build guide.
