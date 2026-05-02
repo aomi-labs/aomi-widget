@@ -143,12 +143,27 @@ export function useSafeSendCallsSync(): {
   try {
     const { sendCallsSyncAsync } = useSendCallsSync();
     return {
-      sendCallsSyncAsync: async ({ calls, capabilities, chainId }) => {
+      sendCallsSyncAsync: async ({
+        calls,
+        capabilities,
+        chainId,
+        forceAtomic,
+        pollingInterval,
+        status,
+        throwOnFailure,
+        timeout,
+        version,
+      }) => {
         return sendCallsSyncAsync({
           calls,
           capabilities,
           chainId,
-          timeout: 0,
+          forceAtomic,
+          pollingInterval,
+          status,
+          throwOnFailure,
+          timeout,
+          version,
         });
       },
     };
