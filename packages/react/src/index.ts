@@ -13,6 +13,10 @@ export type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  NativeWalletExecutionPolicy,
+  NativeWalletSponsorship,
+  SponsorshipPaymasterServiceContext,
+  WalletCapabilities,
 } from "@aomi-labs/client";
 export {
   toViemSignTypedDataArgs,
@@ -83,10 +87,7 @@ export type {
 // =============================================================================
 // User Context (wallet/user state)
 // =============================================================================
-export {
-  useUser,
-  UserContextProvider,
-} from "./contexts/user-context";
+export { useUser, UserContextProvider } from "./contexts/user-context";
 export type { UserState } from "@aomi-labs/client";
 
 // User config type (for render prop pattern)

@@ -1,7 +1,11 @@
 "use client";
 
 import type { Chain } from "viem";
-import type { WalletTxPayload } from "@aomi-labs/react";
+import type {
+  NativeWalletExecutionPolicy as ClientNativeWalletExecutionPolicy,
+  SponsorshipPaymasterServiceContext,
+  WalletTxPayload,
+} from "@aomi-labs/react";
 import {
   DISABLED_PROVIDER_STATE,
   aaModeFromExecutionKind,
@@ -21,6 +25,7 @@ export type WalletExecutionCallList = Parameters<
 export type WalletExecutionAdapterState = {
   currentChainId?: number;
   capabilities?: Parameters<typeof executeWalletCalls>[0]["capabilities"];
+  nativeWalletExecution?: NativeWalletExecutionPolicy;
   sendCallsSyncAsync?: Parameters<
     typeof executeWalletCalls
   >[0]["sendCallsSyncAsync"];
@@ -32,6 +37,28 @@ export type WalletExecutionAdapterState = {
   >[0]["switchChainAsync"];
   chainsById: Record<number, Chain>;
   getPreferredRpcUrl?: (chain: Chain) => string;
+};
+
+export type NativeWalletExecutionPolicy = Omit<
+  ClientNativeWalletExecutionPolicy,
+  "sponsorship"
+> & {
+  sponsorship?:
+    | { mode: "disabled" }
+    | {
+        mode: "optional";
+        getPaymasterServiceContext?: (
+          chainId: number,
+        ) => SponsorshipPaymasterServiceContext | undefined;
+        getPaymasterServiceUrl?: (chainId: number) => string | undefined;
+      }
+    | {
+        mode: "required";
+        getPaymasterServiceContext?: (
+          chainId: number,
+        ) => SponsorshipPaymasterServiceContext | undefined;
+        getPaymasterServiceUrl?: (chainId: number) => string | undefined;
+      };
 };
 
 export type ResolveAAProviderState = (params: {
@@ -119,6 +146,41 @@ function buildAaAttempts(
   return [];
 }
 
+function resolveNativeWalletExecutionPolicy({
+  policy,
+  chainId,
+  requiresAtomicForBatch,
+}: {
+  policy?: NativeWalletExecutionPolicy;
+  chainId: number;
+  requiresAtomicForBatch: boolean;
+}): ClientNativeWalletExecutionPolicy | undefined {
+  if (!policy && !requiresAtomicForBatch) {
+    return undefined;
+  }
+
+  const sponsorship =
+    policy?.sponsorship?.mode === "optional" ||
+    policy?.sponsorship?.mode === "required"
+      ? {
+          mode: policy.sponsorship.mode,
+          paymasterServiceContext:
+            policy.sponsorship.getPaymasterServiceContext?.(chainId),
+          paymasterServiceUrl:
+            policy.sponsorship.getPaymasterServiceUrl?.(chainId),
+        }
+      : policy?.sponsorship;
+
+  return {
+    executionKind: policy?.executionKind,
+    requiresAtomicForBatch:
+      requiresAtomicForBatch || policy?.requiresAtomicForBatch,
+    sendCallsTimeoutMs: policy?.sendCallsTimeoutMs,
+    sendCallsVersion: policy?.sendCallsVersion,
+    sponsorship,
+  };
+}
+
 export async function executeAdapterTransaction({
   payload,
   state,
@@ -145,6 +207,17 @@ export async function executeAdapterTransaction({
   );
   const isBatch = callList.length > 1;
   const aaRequestedMode = resolveRequestedAAMode(payload, isBatch);
+  const requiresAtomicForBatch = isBatch && payload.aaStrict === true;
+  const requiresNativeWalletExecution =
+    aaRequestedMode !== "none" ||
+    state.nativeWalletExecution?.sponsorship?.mode === "required";
+  const nativeWalletExecution = resolveNativeWalletExecutionPolicy({
+    policy: requiresNativeWalletExecution
+      ? state.nativeWalletExecution
+      : undefined,
+    chainId: callList[0]?.chainId ?? state.currentChainId ?? 1,
+    requiresAtomicForBatch,
+  });
 
   const executeWithProviderState = async (providerState: WalletProviderState) =>
     executeWalletCalls({
@@ -152,13 +225,12 @@ export async function executeAdapterTransaction({
       currentChainId: state.currentChainId ?? callList[0]?.chainId ?? 1,
       capabilities: state.capabilities,
       localPrivateKey: null,
+      nativeWalletExecution,
       providerState,
       sendCallsSyncAsync: state.sendCallsSyncAsync
-        ? async ({ calls, capabilities, chainId }) => {
+        ? async (args) => {
             return state.sendCallsSyncAsync?.({
-              calls,
-              capabilities,
-              chainId,
+              ...args,
             });
           }
         : async () => {
