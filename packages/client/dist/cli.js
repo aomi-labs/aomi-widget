@@ -3303,44 +3303,7 @@ async function executeWalletCalls(params) {
     getPreferredRpcUrl: getPreferredRpcUrl2
   } = params;
   if (providerState.resolved && providerState.account) {
-    try {
-      return await executeViaAA(callList, providerState, getPreferredRpcUrl2);
-    } catch (error) {
-      if (!shouldFallbackFromAAError(error, providerState)) {
-        throw error;
-      }
-      const errorKind = classifyAAFallbackError(error);
-      console.error("[aomi][aa] AA execution failed; falling back to EOA", {
-        provider: providerState.account.provider,
-        mode: providerState.resolved.mode,
-        chainId: providerState.resolved.chainId,
-        callCount: callList.length,
-        errorKind,
-        error: toErrorMessage(error)
-      });
-      if (errorKind === "simulation_revert") {
-        console.warn(
-          "[aomi][aa] 4337 simulation reverted. This often means the smart account context (balance/allowance/state) differs from EOA."
-        );
-      }
-      if (errorKind === "insufficient_prefund") {
-        console.warn(
-          "[aomi][aa] 4337 precheck indicates insufficient sender balance/deposit. Configure sponsorship or fund the smart account."
-        );
-      }
-      return executeViaEoa({
-        callList,
-        currentChainId,
-        capabilities,
-        localPrivateKey,
-        nativeWalletExecution,
-        sendCallsSyncAsync,
-        sendTransactionAsync,
-        switchChainAsync,
-        chainsById,
-        getPreferredRpcUrl: getPreferredRpcUrl2
-      });
-    }
+    return executeViaAA(callList, providerState, getPreferredRpcUrl2);
   }
   if (providerState.resolved && providerState.error) {
     throw providerState.error;
@@ -3673,44 +3636,10 @@ function toErrorMessage(error) {
   }
   return String(error);
 }
-function shouldFallbackFromAAError(error, providerState) {
-  if (!providerState.resolved) {
-    return false;
-  }
-  if (providerState.resolved.mode === "7702") {
-    return true;
-  }
-  if (providerState.resolved.mode !== "4337") {
-    return false;
-  }
-  return isRetryableBundlerSubmissionError(error) || isAASimulationRevertError(error) || isAAInsufficientPrefundError(error);
-}
 function isRetryableBundlerSubmissionError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
   return lowered.includes("bundle id is unknown") || lowered.includes("bundle id unknown") || lowered.includes("has not been submitted") || lowered.includes("userop") && lowered.includes("not found") || lowered.includes("user operation") && lowered.includes("not found");
-}
-function isAASimulationRevertError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("eth_estimateuseroperationgas") && lowered.includes("execution reverted") || lowered.includes("wallet_preparecalls") && (lowered.includes("aa23 reverted") || lowered.includes("validation reverted"));
-}
-function isAAInsufficientPrefundError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("sender balance and deposit together") || lowered.includes("precheck failed") && lowered.includes("must be at least");
-}
-function classifyAAFallbackError(error) {
-  if (isRetryableBundlerSubmissionError(error)) {
-    return "retryable_bundler";
-  }
-  if (isAAInsufficientPrefundError(error)) {
-    return "insufficient_prefund";
-  }
-  if (isAASimulationRevertError(error)) {
-    return "simulation_revert";
-  }
-  return "other";
 }
 function resolveChainCapabilities(capabilities, chainId) {
   var _a3, _b;
