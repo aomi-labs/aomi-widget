@@ -218,6 +218,8 @@ export async function executeAdapterTransaction({
     chainId: callList[0]?.chainId ?? state.currentChainId ?? 1,
     requiresAtomicForBatch,
   });
+  const requiresSponsoredExecution =
+    nativeWalletExecution?.sponsorship?.mode === "required";
 
   const executeWithProviderState = async (providerState: WalletProviderState) =>
     executeWalletCalls({
@@ -299,7 +301,7 @@ export async function executeAdapterTransaction({
     }
 
     if (!execution) {
-      if (payload.aaStrict) {
+      if (payload.aaStrict || requiresSponsoredExecution) {
         throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
       }
       console.warn(
