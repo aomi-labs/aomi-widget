@@ -83,10 +83,7 @@ export type {
 // =============================================================================
 // User Context (wallet/user state)
 // =============================================================================
-export {
-  useUser,
-  UserContextProvider,
-} from "./contexts/user-context";
+export { useUser, UserContextProvider } from "./contexts/user-context";
 export type { UserState } from "@aomi-labs/client";
 
 // User config type (for render prop pattern)
@@ -102,7 +99,11 @@ export {
   ThreadContextProvider,
 } from "./contexts/thread-context";
 export type { ThreadContext } from "./contexts/thread-context";
-export type { ThreadMetadata, ThreadControlState } from "./state/thread-store";
+export type {
+  ModelSelectionMode,
+  ThreadMetadata,
+  ThreadControlState,
+} from "./state/thread-store";
 export { initThreadControl } from "./state/thread-store";
 
 // =============================================================================
@@ -116,6 +117,7 @@ export {
   SUPPORTED_CHAINS,
   type ChainInfo,
 } from "./runtime/utils";
+export { resolveAutoModel } from "./utils/model-selection";
 
 // =============================================================================
 // Notification Context (for toast UI)
@@ -139,5 +141,6 @@ export {
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
+  type StoredModelPreference,
   type StoredProviderKey,
 } from "./contexts/control-context";

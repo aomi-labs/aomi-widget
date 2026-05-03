@@ -113,7 +113,7 @@ const ThreadWelcome: FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="aui-thread-welcome-message-motion-1 text-2xl font-semibold"
+            className="aui-thread-welcome-message-motion-1 text-2xl font-semibold text-muted-foreground/45"
           >
             Hello there!
           </m.div>
@@ -122,7 +122,7 @@ const ThreadWelcome: FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ delay: 0.1 }}
-            className="aui-thread-welcome-message-motion-2 text-muted-foreground/65 text-2xl"
+            className="aui-thread-welcome-message-motion-2 text-muted-foreground/70 text-2xl"
           >
             How can I help you today?
           </m.div>
@@ -135,7 +135,7 @@ const ThreadWelcome: FC = () => {
 
 const ThreadSuggestions: FC = () => {
   return (
-    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 pb-4">
+    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 pb-4 opacity-70">
       {[
         {
           title: "Show my wallet balances",
@@ -176,10 +176,10 @@ const ThreadSuggestions: FC = () => {
               className="aui-thread-welcome-suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm font-normal"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1">
+              <span className="aui-thread-welcome-suggestion-text-1 text-foreground">
                 {suggestedAction.title}
               </span>
-              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground">
+              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/80">
                 {suggestedAction.label}
               </span>
             </Button>
