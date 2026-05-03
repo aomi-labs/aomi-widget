@@ -3,6 +3,7 @@
 import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
 import { cn, SUPPORTED_CHAINS, getChainInfo } from "@aomi-labs/react";
+import type { Chain } from "viem";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -15,20 +16,21 @@ import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 export type NetworkSelectProps = {
   className?: string;
   /** Override the default chain list from the lib */
-  chains?: typeof SUPPORTED_CHAINS;
+  chains?: readonly Chain[];
 };
 
 export const NetworkSelect: FC<NetworkSelectProps> = ({
   className,
-  chains = SUPPORTED_CHAINS,
+  chains,
 }) => {
   const adapter = useAomiAuthAdapter();
   const { chainId, isConnected } = adapter.identity;
   const switchChain = adapter.switchChain;
   const isPending = adapter.isSwitchingChain;
+  const selectableChains =
+    chains ?? adapter.supportedChains ?? SUPPORTED_CHAINS;
   const [open, setOpen] = useState(false);
 
-  // Show only when wallet is connected.
   if (!isConnected) return null;
 
   const currentChain = getChainInfo(chainId);
@@ -63,8 +65,12 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
         className="w-[200px] rounded-xl p-1"
       >
         <div className="flex flex-col gap-0.5">
-          {chains.map((chain) => {
+          {selectableChains.map((chain) => {
             const ChainIcon = getChainIcon(chain.id);
+            const fallbackTicker =
+              "nativeCurrency" in chain ? chain.nativeCurrency.symbol : chain.name;
+            const chainInfo = getChainInfo(chain.id);
+            const chainTicker = chainInfo?.ticker ?? fallbackTicker;
             return (
               <button
                 key={chain.id}
@@ -93,7 +99,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                     <ChainIcon className="h-4 w-4" />
                   ) : (
                     <span className="text-[10px] font-medium">
-                      {chain.ticker.slice(0, 2)}
+                      {chainTicker.slice(0, 2)}
                     </span>
                   )}
                 </span>

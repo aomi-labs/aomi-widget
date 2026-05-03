@@ -82,7 +82,9 @@ export function RuntimeTxHandler() {
           const initialPayload = req.payload as WalletTxPayload;
           const payload = hasHydratedCalls(initialPayload)
             ? initialPayload
-            : hydrateTxPayloadFromUserState(initialPayload, user, { strict: true });
+            : hydrateTxPayloadFromUserState(initialPayload, user, {
+                strict: true,
+              });
 
           if (!adapter.sendTransaction) {
             await rejectWalletRequest(req.id, "Wallet provider is not ready");

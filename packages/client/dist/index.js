@@ -1823,7 +1823,9 @@ function getAAChainConfig(config, calls, chainsById) {
 function buildAAExecutionPlan(config, chainConfig) {
   const mode = chainConfig.supportedModes.includes(chainConfig.defaultMode) ? chainConfig.defaultMode : chainConfig.supportedModes[0];
   if (!mode) {
-    throw new Error(`No smart account mode configured for chain ${chainConfig.chainId}`);
+    throw new Error(
+      `No smart account mode configured for chain ${chainConfig.chainId}`
+    );
   }
   return {
     provider: config.provider,
@@ -1906,8 +1908,29 @@ var CHAINS_BY_ID = {
 };
 
 // src/aa/execute.ts
+var ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
+var AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
+}
+function isAADebugEnabled() {
+  const debugGlobal = globalThis;
+  if (debugGlobal.__AOMI_DEBUG_AA === true) {
+    return true;
+  }
+  try {
+    return AA_DEBUG_STORAGE_KEYS.some((key) => {
+      var _a;
+      const value = (_a = debugGlobal.localStorage) == null ? void 0 : _a.getItem(key);
+      return value === "1" || value === "true";
+    });
+  } catch (e) {
+    return false;
+  }
+}
+function debugAA(label, data) {
+  if (!isAADebugEnabled()) return;
+  console.info(`[aomi][aa][debug] ${label}`, data);
 }
 async function executeWalletCalls(params) {
   const {
@@ -1915,6 +1938,7 @@ async function executeWalletCalls(params) {
     currentChainId,
     capabilities,
     localPrivateKey,
+    nativeWalletExecution,
     providerState,
     sendCallsSyncAsync,
     sendTransactionAsync,
@@ -1933,6 +1957,7 @@ async function executeWalletCalls(params) {
     currentChainId,
     capabilities,
     localPrivateKey,
+    nativeWalletExecution,
     sendCallsSyncAsync,
     sendTransactionAsync,
     switchChainAsync,
@@ -1993,7 +2018,11 @@ async function executeViaAA(callList, providerState, getPreferredRpcUrl) {
   const providerPrefix = account.provider.toLowerCase();
   let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
   if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(txHash, callList, getPreferredRpcUrl);
+    delegationAddress = await resolve7702Delegation(
+      txHash,
+      callList,
+      getPreferredRpcUrl
+    );
   }
   return {
     txHash,
@@ -2029,18 +2058,29 @@ async function executeViaEoa({
   currentChainId,
   capabilities,
   localPrivateKey,
+  nativeWalletExecution,
   sendCallsSyncAsync,
   sendTransactionAsync,
   switchChainAsync,
   chainsById,
   getPreferredRpcUrl
 }) {
-  var _a, _b;
+  var _a, _b, _c;
   const hashes = [];
   const normalizedCalls = callList.map((call) => __spreadProps(__spreadValues({}, call), {
     data: normalizeRpcCallData(call.data)
   }));
+  const requiresAtomicForBatch = Boolean(nativeWalletExecution == null ? void 0 : nativeWalletExecution.requiresAtomicForBatch) && normalizedCalls.length > 1;
+  const nativeExecutionKind = (_a = nativeWalletExecution == null ? void 0 : nativeWalletExecution.executionKind) != null ? _a : "eoa";
+  const sponsorship = nativeWalletExecution == null ? void 0 : nativeWalletExecution.sponsorship;
+  const requiresSponsoredSendCalls = (sponsorship == null ? void 0 : sponsorship.mode) === "required";
   if (localPrivateKey) {
+    if (requiresSponsoredSendCalls) {
+      throw new Error("wallet_sponsorship_requires_send_calls");
+    }
+    if (requiresAtomicForBatch) {
+      throw new Error("wallet_atomic_batch_required");
+    }
     for (const call of normalizedCalls) {
       const chain = chainsById[call.chainId];
       if (!chain) {
@@ -2073,11 +2113,13 @@ async function executeViaEoa({
       txHash: hashes[hashes.length - 1],
       txHashes: hashes,
       executionKind: "eoa",
-      batched: hashes.length > 1,
+      batched: normalizedCalls.length > 1,
       sponsored: false
     };
   }
-  const chainIds = Array.from(new Set(normalizedCalls.map((call) => call.chainId)));
+  const chainIds = Array.from(
+    new Set(normalizedCalls.map((call) => call.chainId))
+  );
   if (chainIds.length > 1) {
     throw new Error("mixed_chain_bundle_not_supported");
   }
@@ -2086,10 +2128,30 @@ async function executeViaEoa({
     await switchChainAsync({ chainId });
   }
   const chainCaps = resolveChainCapabilities(capabilities, chainId);
-  const atomicStatus = (_a = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _a.status;
-  const canUseSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
-  const atomicCapabilityRequest = canUseSendCalls ? { optional: true } : void 0;
+  const atomicStatus = (_b = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _b.status;
+  const canUseAtomicSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
+  const canUseSendCalls = canUseAtomicSendCalls || requiresSponsoredSendCalls;
+  const sendCallsCapabilities = buildSendCallsCapabilities({
+    chainCaps,
+    nativeWalletExecution,
+    requiresAtomicForBatch,
+    canUseAtomicSendCalls
+  });
+  debugAA("native-wallet-sendCalls-plan", {
+    callCount: normalizedCalls.length,
+    chainId,
+    chainCaps,
+    canUseAtomicSendCalls,
+    canUseSendCalls,
+    nativeExecutionKind,
+    requiresAtomicForBatch,
+    sponsorshipMode: (_c = sponsorship == null ? void 0 : sponsorship.mode) != null ? _c : "disabled",
+    sendCallsCapabilities
+  });
   const sendSequentially = async () => {
+    if (requiresAtomicForBatch) {
+      throw new Error("wallet_atomic_batch_required");
+    }
     for (const call of normalizedCalls) {
       const hash = await sendTransactionAsync({
         chainId: call.chainId,
@@ -2100,24 +2162,36 @@ async function executeViaEoa({
       hashes.push(hash);
     }
   };
+  let usedPaymasterService = false;
+  let usedSendCalls = false;
   if (canUseSendCalls) {
     try {
-      const batchResult = await sendCallsSyncAsync({
+      const sendCallsArgs = {
         chainId,
-        calls: normalizedCalls.map(({ to, value, data }) => ({ to, value, data })),
-        capabilities: atomicCapabilityRequest ? {
-          atomic: atomicCapabilityRequest
-        } : void 0
-      });
-      const receipts = (_b = batchResult.receipts) != null ? _b : [];
-      for (const receipt of receipts) {
-        if (receipt.transactionHash) {
-          hashes.push(receipt.transactionHash);
-        }
-      }
+        calls: normalizedCalls.map(({ to, value, data }) => ({
+          to,
+          value,
+          data
+        })),
+        capabilities: sendCallsCapabilities,
+        forceAtomic: requiresAtomicForBatch,
+        status: (result) => (result == null ? void 0 : result.status) === "success",
+        throwOnFailure: true,
+        timeout: nativeWalletExecution == null ? void 0 : nativeWalletExecution.sendCallsTimeoutMs,
+        version: nativeWalletExecution == null ? void 0 : nativeWalletExecution.sendCallsVersion
+      };
+      debugAA("native-wallet-sendCalls-args", sendCallsArgs);
+      const batchResult = await sendCallsSyncAsync(__spreadValues({}, sendCallsArgs));
+      debugAA("native-wallet-sendCalls-result", batchResult);
+      hashes.push(...extractBatchTransactionHashes(batchResult));
+      usedPaymasterService = Boolean(sendCallsCapabilities == null ? void 0 : sendCallsCapabilities.paymasterService);
+      usedSendCalls = true;
     } catch (error) {
       if (!isUnsupportedAtomicCapabilityError(error)) {
         throw error;
+      }
+      if (requiresSponsoredSendCalls) {
+        throw new Error("wallet_sponsorship_required");
       }
       await sendSequentially();
     }
@@ -2127,10 +2201,76 @@ async function executeViaEoa({
   return {
     txHash: hashes[hashes.length - 1],
     txHashes: hashes,
-    executionKind: "eoa",
-    batched: hashes.length > 1,
-    sponsored: false
+    executionKind: usedSendCalls ? nativeExecutionKind : "eoa",
+    batched: normalizedCalls.length > 1,
+    sponsored: usedPaymasterService
   };
+}
+function extractBatchTransactionHashes(batchResult) {
+  var _a;
+  const receipts = (_a = batchResult.receipts) != null ? _a : [];
+  const hashes = receipts.flatMap((receipt) => {
+    var _a2;
+    const hash = (_a2 = receipt.transactionHash) != null ? _a2 : receipt.hash;
+    return hash ? [hash] : [];
+  });
+  if (hashes.length === 0) {
+    throw new Error("wallet_send_calls_missing_transaction_hash");
+  }
+  return hashes;
+}
+function buildSendCallsCapabilities({
+  chainCaps,
+  nativeWalletExecution,
+  requiresAtomicForBatch,
+  canUseAtomicSendCalls
+}) {
+  var _a, _b;
+  const capabilities = {};
+  if (canUseAtomicSendCalls) {
+    capabilities.atomic = requiresAtomicForBatch ? { required: true } : { optional: true };
+  }
+  const sponsorship = nativeWalletExecution == null ? void 0 : nativeWalletExecution.sponsorship;
+  if ((sponsorship == null ? void 0 : sponsorship.mode) === "required") {
+    if (!sponsorship.paymasterServiceUrl) {
+      throw new Error("wallet_paymaster_service_url_required");
+    }
+    if (((_a = chainCaps == null ? void 0 : chainCaps.paymasterService) == null ? void 0 : _a.supported) !== true) {
+      throw new Error("wallet_paymaster_service_unsupported");
+    }
+    const context = sanitizeSponsorshipPaymasterServiceContext(
+      sponsorship.paymasterServiceContext
+    );
+    capabilities.paymasterService = {
+      url: sponsorship.paymasterServiceUrl,
+      context: context != null ? context : {}
+    };
+  } else if ((sponsorship == null ? void 0 : sponsorship.mode) === "optional" && sponsorship.paymasterServiceUrl && ((_b = chainCaps == null ? void 0 : chainCaps.paymasterService) == null ? void 0 : _b.supported) === true) {
+    const context = sanitizeSponsorshipPaymasterServiceContext(
+      sponsorship.paymasterServiceContext
+    );
+    capabilities.paymasterService = __spreadValues({
+      url: sponsorship.paymasterServiceUrl,
+      optional: true
+    }, context ? { context } : {});
+  }
+  return Object.keys(capabilities).length > 0 ? capabilities : void 0;
+}
+function sanitizeSponsorshipPaymasterServiceContext(context) {
+  if (!context) return void 0;
+  const filteredEntries = Object.entries(context).filter(
+    ([key]) => !ERC20_PAYMENT_CONTEXT_KEYS.has(key)
+  );
+  if (filteredEntries.length === Object.keys(context).length) {
+    return context;
+  }
+  console.warn(
+    "[aomi][aa] Ignoring ERC20 paymaster payment context on a sponsorship request"
+  );
+  const filteredContext = Object.fromEntries(
+    filteredEntries
+  );
+  return Object.keys(filteredContext).length > 0 ? filteredContext : void 0;
 }
 function isUnsupportedAtomicCapabilityError(error) {
   const message = error instanceof Error ? error.message : String(error);

@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -23,34 +19,17 @@
       }
     ],
     "paths": {
-      "@/components/examples/*": [
-        "./content/components/examples/*"
-      ],
-      "@/*": [
-        "./src/*",
-        "../registry/src/*"
-      ],
-      "@/content/*": [
-        "./content/*"
-      ],
-      "@/.source/*": [
-        "./.source/*"
-      ],
-      "@/app/*": [
-        "./app/*"
-      ],
-      "@/lib/*": [
-        "./lib/*"
-      ],
-      "@docs/*": [
-        "./src/*"
-      ],
-      "@aomi-labs/react": [
-        "../../packages/react/src/index.ts"
-      ],
-      "@aomi-labs/react/*": [
-        "../../packages/react/src/*"
-      ]
+      "@/components/examples/*": ["./content/components/examples/*"],
+      "@/*": ["./src/*", "../registry/src/*"],
+      "@/content/*": ["./content/*"],
+      "@/.source/*": ["./.source/*"],
+      "@/app/*": ["./app/*"],
+      "@/lib/*": ["./lib/*"],
+      "@docs/*": ["./src/*"],
+      "@aomi-labs/react": ["../../packages/react/src/index.ts"],
+      "@aomi-labs/react/*": ["../../packages/react/src/*"],
+      "@aomi-labs/client": ["../../packages/client/src/index.ts"],
+      "@aomi-labs/client/*": ["../../packages/client/src/*"]
     }
   },
   "include": [
@@ -61,7 +40,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }
