@@ -25,14 +25,21 @@ export {
 export type { UserConfig } from "@aomi-labs/react";
 export { formatAddress, getNetworkName } from "@aomi-labs/react";
 export type { AomiAuthAdapter } from "./lib/aomi-auth-adapter";
-export { useAomiAuthAdapter } from "./lib/aomi-auth-adapter";
-export type {
-  AomiAuthIdentity,
-  AomiAuthStatus,
-} from "./lib/auth-identity";
+export {
+  AomiAuthAdapterProvider,
+  AomiAuthRuntimeUserSync,
+  useAomiAuthAdapter,
+} from "./lib/aomi-auth-adapter";
+export { AomiWalletProvider } from "./lib/aomi-auth-adapter/providers";
+export { AomiBaseAccountProvider } from "./lib/aomi-auth-adapter/providers/base-account";
+export {
+  AomiParaAdapterProvider,
+  AomiParaProvider,
+} from "./lib/aomi-auth-adapter/providers/para";
+export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/aomi-auth-adapter";
 export {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
   formatAuthProvider,
   inferAuthProvider,
-} from "./lib/auth-identity";
+} from "./lib/aomi-auth-adapter";
