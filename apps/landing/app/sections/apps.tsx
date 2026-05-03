@@ -120,9 +120,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
     category: "Cross-chain",
     requiresApiKey: false,
     websiteUrl: "https://li.fi/",
-    logoSrc: "/assets/logos/lifi.svg",
+    logoSrc: "/assets/logos/lifi.png",
     logoAlt: "LI.FI logo",
-    logoWrapperClassName: "bg-stone-900",
   },
   manifold: {
     title: "Manifold",
