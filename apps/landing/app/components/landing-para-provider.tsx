@@ -134,6 +134,12 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
 }
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
+  const content = paraApiKey ? (
+    <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+  ) : (
+    children
+  );
+
   return (
     <AomiWalletProvider
       provider="para"
@@ -149,7 +155,7 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
       externalWallets={adapterWallets}
       oAuthMethods={oAuthMethods}
     >
-      <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+      {content}
     </AomiWalletProvider>
   );
 }
