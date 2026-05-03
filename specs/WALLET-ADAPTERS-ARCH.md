@@ -4,7 +4,7 @@ This document describes the current widget wallet adapter architecture. It
 covers the registry auth adapter, provider implementations, runtime transaction
 bridge, and client AA executor.
 
-**Last Updated:** 2026-05-02
+**Last Updated:** 2026-05-03
 
 ---
 
@@ -23,7 +23,7 @@ The current architecture supports:
 - Provider-neutral transaction routing through `executeAdapterTransaction`.
 - Client-side execution through `executeWalletCalls`, including smart-account
   execution, native wallet `wallet_sendCalls`, atomic batching, paymaster
-  sponsorship, and strict fallback rules.
+  sponsorship, and native fallback rules.
 
 The UI layer is intentionally provider-agnostic. The active provider supplies
 the adapter, and the widget reads only the shared adapter contract.
@@ -49,11 +49,15 @@ The runtime no longer depends on `ConnectButton` being mounted in order to keep
 Transaction payload conversion, AA attempt ordering, native wallet fallback, and
 result metadata formatting are centralized in `wallet-execution.ts`.
 
-### Strict execution semantics
+### Fallback and sponsorship semantics
 
-Fee-injected, strict AA, and required sponsorship flows must not silently
-downgrade to user-paid sequential EOA sends. Required sponsorship and strict
-atomic batches fail closed when the required execution path is unavailable.
+AA-preferring batches first try the configured Para AA paths, then preserve the
+`origin/main` native fallback for unresolved AA provider setup. Strict AA still
+fails closed when a resolved AA execution path fails and no unresolved-provider
+fallback path remains. Required sponsorship also fails closed and never silently
+downgrades to user-paid sequential sends. Native atomic batching is optional by
+default and only becomes fail-closed when `requiresAtomicForBatch` is set by the
+execution policy, including required sponsored batch execution.
 
 ### Modular registry installation
 
@@ -660,7 +664,11 @@ Key detail: `appendFeeCallToPayload` defaults to:
 - `aaPreference: "eip7702"`
 - `aaStrict: true`
 
-So after fee injection, a single user transaction becomes a multi-call batch, and the batch should not quietly downgrade to direct sequential sends.
+So after fee injection, a single user transaction becomes a multi-call batch and
+prefers AA execution. If AA provider setup is unresolved, the adapter can still
+fall back to the native wallet path like `origin/main`; if a resolved AA
+execution path fails under `aaStrict`, the adapter fails closed unless an
+unresolved-provider fallback path remains.
 
 ### Shared transaction execution flow
 
@@ -672,22 +680,23 @@ flowchart TD
   Validate["Validate payload has call data"]
   Calls["toAAWalletCalls(payload, defaultChainId)"]
   RequestMode["resolveRequestedAAMode(payload, isBatch)"]
-  Strict["requiresAtomicForBatch = isBatch && aaStrict"]
+  RequiredSponsor["requiresSponsoredExecution = sponsorship required"]
+  AtomicRequired["requiresAtomicForBatch = isBatch && required sponsorship"]
   NativePolicy["resolveNativeWalletExecutionPolicy()"]
   Resolver{"resolveAAProviderState exists?"}
   Attempts["buildAaAttempts()"]
   NoAttempts["executeWalletCalls(DISABLED_PROVIDER_STATE)"]
   AttemptLoop["For each AA attempt"]
   ResolveAA["resolveAAProviderState()"]
-  HasAA{"providerState has resolved account?"}
+  HasAA{"providerState.resolved?"}
   ExecuteAA["executeWalletCalls(providerState)"]
   Failed{"No execution?"}
-  StrictFail{"aaStrict or required sponsorship?"}
+  StrictFail{"required sponsorship<br/>or aaStrict with resolved AA failure?"}
   Throw["throw aa_required_execution_failed or fallback reason"]
   Fallback["executeWalletCalls(DISABLED_PROVIDER_STATE)"]
   Result["Format AomiTxResult"]
 
-  Start --> Validate --> Calls --> RequestMode --> Strict --> NativePolicy --> Resolver
+  Start --> Validate --> Calls --> RequestMode --> RequiredSponsor --> AtomicRequired --> NativePolicy --> Resolver
   Resolver -- no --> NoAttempts --> Result
   Resolver -- yes --> Attempts --> AttemptLoop --> ResolveAA --> HasAA
   HasAA -- no --> AttemptLoop
@@ -746,14 +755,16 @@ sequenceDiagram
 
 Para fallback logic:
 
-| Situation                                         | Behavior                                                                                                                       |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Requested `7702`, Para internal signer            | Try 7702 first, then 4337 sponsored.                                                                                           |
-| Requested `7702`, external wallet signer          | Skip 7702 and try 4337 sponsored because the external signer path cannot use the Para session as a 7702 owner in the same way. |
-| Requested `4337`                                  | Try 4337 sponsored.                                                                                                            |
-| Requested `none`                                  | No AA attempts; use native wallet send path.                                                                                   |
-| AA provider unavailable and payload is strict     | Throw instead of falling back to EOA.                                                                                          |
-| AA provider unavailable and payload is not strict | Fall back to native wallet/EOA path.                                                                                           |
+| Situation                                                             | Behavior                                                                                                                       |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Requested `7702`, Para internal signer                                | Try 7702 first, then 4337 sponsored.                                                                                           |
+| Requested `7702`, external wallet signer                              | Skip 7702 and try 4337 sponsored because the external signer path cannot use the Para session as a 7702 owner in the same way. |
+| Requested `4337`                                                      | Try 4337 sponsored.                                                                                                            |
+| Requested `none`                                                      | No AA attempts; use native wallet send path.                                                                                   |
+| AA provider state is unresolved                                       | Skip that AA attempt. If no attempt executes, fall back once to native wallet/EOA execution.                                   |
+| AA attempt resolves but fails                                         | Try the next AA attempt. If all remaining paths are also resolved AA failures, `aaStrict` fails closed.                        |
+| Resolved AA attempt fails, then later AA provider state is unresolved | Fall back once to native wallet/EOA execution, matching the previous `origin/main` fallback shape.                             |
+| Payload has `aaStrict: true`                                          | Still prefers AA. It allows unresolved-provider fallback, but blocks native fallback after resolved AA execution failures.     |
 
 ### Base Account transaction flow
 
@@ -795,8 +806,9 @@ Base Account execution decisions:
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Single call, sponsorship disabled or optional           | Use normal `sendTransactionAsync`; optional sponsorship does not force `sendCalls`.                                                          |
 | Single call, sponsorship required                       | Use `sendCallsSyncAsync` with required `paymasterService`.                                                                                   |
-| Batch, atomic supported, `aaStrict` false               | Use `sendCallsSyncAsync` with `atomic: { optional: true }`; unsupported atomic can fall back to sequential sends.                            |
-| Batch, atomic supported, `aaStrict` true                | Use `sendCallsSyncAsync` with `atomic: { required: true }` and `forceAtomic: true`; unsupported atomic fails instead of sequential fallback. |
+| Batch, atomic supported, sponsorship disabled/optional  | Use `sendCallsSyncAsync` with `atomic: { optional: true }`; unsupported atomic can fall back to sequential sends, even when `aaStrict` true. |
+| Batch, required sponsorship                             | Use `sendCallsSyncAsync` with required `paymasterService`, `atomic: { required: true }`, and `forceAtomic: true`.                            |
+| Explicit `requiresAtomicForBatch` policy                | Use `sendCallsSyncAsync` with `atomic: { required: true }` and `forceAtomic: true`; unsupported atomic fails instead of sequential fallback. |
 | Required sponsorship with missing paymaster URL         | Throw `wallet_paymaster_service_url_required`.                                                                                               |
 | Required sponsorship with unsupported wallet capability | Throw `wallet_paymaster_service_unsupported`.                                                                                                |
 | Required sponsorship send-calls rejected                | Throw, do not silently charge user through regular sends.                                                                                    |
@@ -854,6 +866,7 @@ flowchart TD
   Extract["extractBatchTransactionHashes()"]
   Unsupported{"unsupported atomic error?"}
   Required{"required sponsorship or atomic required?"}
+  Throw["throw required sponsorship / atomic error"]
   Sequential["sendTransactionAsync per call"]
   Result["ExecutionResult<br/>executionKind = native kind when sendCalls used<br/>sponsored = paymaster used"]
 
@@ -865,7 +878,7 @@ flowchart TD
   CanSendCalls -- yes --> SendCalls --> Extract --> Result
   SendCalls --> Unsupported
   Unsupported -- yes --> Required
-  Required -- yes --> Result
+  Required -- yes --> Throw
   Required -- no --> Sequential --> Result
   CanSendCalls -- no --> Sequential --> Result
 ```
@@ -876,7 +889,7 @@ This client-side planner lives in `packages/client/src/aa/execute.ts`.
 
 ```mermaid
 flowchart TD
-  Inputs["Inputs:<br/>wallet capabilities<br/>nativeWalletExecution<br/>batch size<br/>aaStrict"]
+  Inputs["Inputs:<br/>wallet capabilities<br/>nativeWalletExecution<br/>batch size"]
   AtomicSupported{"atomic status supported or ready?"}
   AtomicRequired{"requiresAtomicForBatch?"}
   PaymasterMode{"sponsorship mode"}
@@ -1142,24 +1155,28 @@ graph TD
 
 ## Transaction Fallback Matrix
 
-| Provider     | Request shape                       | Preferred path                                                | Fallback path                                                     | Fail-closed condition                                              |
-| ------------ | ----------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Para         | Single call, no AA requested        | Native wallet `sendTransactionAsync`                          | None                                                              | Normal wallet errors bubble.                                       |
-| Para         | Batch, `aaPreference: "eip7702"`    | Para AA 7702 through Alchemy/Pimlico                          | Para AA 4337 sponsored, then native only if non-strict            | `aaStrict: true` and no AA execution.                              |
-| Para         | Batch, external signer, `eip7702`   | Para AA 4337 sponsored                                        | Native only if non-strict                                         | `aaStrict: true` and no AA execution.                              |
-| Para         | Batch, `eip4337`                    | Para AA 4337 sponsored                                        | Native only if non-strict                                         | `aaStrict: true` and no AA execution.                              |
-| Base Account | Single call, sponsorship disabled   | `sendTransactionAsync`                                        | None                                                              | Normal wallet errors bubble.                                       |
-| Base Account | Single call, sponsorship optional   | `sendTransactionAsync`                                        | None                                                              | Optional sponsorship does not force send-calls.                    |
-| Base Account | Single call, sponsorship required   | `sendCallsSyncAsync` with `paymasterService`                  | None                                                              | Missing URL, unsupported paymaster, rejected required sponsorship. |
-| Base Account | Batch, atomic supported, non-strict | `sendCallsSyncAsync` with `atomic.optional`                   | Sequential `sendTransactionAsync` if atomic unsupported           | Non-atomic wallet errors bubble.                                   |
-| Base Account | Batch, atomic supported, strict     | `sendCallsSyncAsync` with `atomic.required` and `forceAtomic` | None                                                              | Unsupported atomic throws `wallet_atomic_batch_required`.          |
-| Base Account | Batch, optional paymaster supported | `sendCallsSyncAsync` with optional `paymasterService`         | Sequential only if sponsorship not required and atomic not strict | Required sponsorship is never silently downgraded.                 |
+| Provider     | Request shape                                           | Preferred path                                                                     | Fallback path                                                            | Fail-closed condition                                              |
+| ------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Para         | Single call, no AA requested                            | Native wallet `sendTransactionAsync`                                               | None                                                                     | Normal wallet errors bubble.                                       |
+| Para         | Batch, `aaPreference: "eip7702"`                        | Para AA 7702 through Alchemy/Pimlico                                               | Para AA 4337 sponsored, then native wallet/EOA if AA setup is unresolved | `aaStrict: true` with only resolved AA execution failures.         |
+| Para         | Batch, external signer, `eip7702`                       | Para AA 4337 sponsored                                                             | Native wallet/EOA if AA setup is unresolved                              | `aaStrict: true` with only resolved AA execution failures.         |
+| Para         | Batch, `eip4337`                                        | Para AA 4337 sponsored                                                             | Native wallet/EOA if AA setup is unresolved                              | `aaStrict: true` with only resolved AA execution failures.         |
+| Base Account | Single call, sponsorship disabled                       | `sendTransactionAsync`                                                             | None                                                                     | Normal wallet errors bubble.                                       |
+| Base Account | Single call, sponsorship optional                       | `sendTransactionAsync`                                                             | None                                                                     | Optional sponsorship does not force send-calls.                    |
+| Base Account | Single call, sponsorship required                       | `sendCallsSyncAsync` with `paymasterService`                                       | None                                                                     | Missing URL, unsupported paymaster, rejected required sponsorship. |
+| Base Account | Batch, atomic supported, sponsorship disabled/optional  | `sendCallsSyncAsync` with `atomic.optional`                                        | Sequential `sendTransactionAsync` if atomic unsupported                  | Non-atomic wallet errors bubble.                                   |
+| Base Account | Batch, required sponsorship                             | `sendCallsSyncAsync` with `paymasterService`, `atomic.required`, and `forceAtomic` | None                                                                     | Required sponsorship is never silently downgraded.                 |
+| Base Account | Batch, explicit `requiresAtomicForBatch` policy         | `sendCallsSyncAsync` with `atomic.required` and `forceAtomic`                      | None                                                                     | Unsupported atomic throws `wallet_atomic_batch_required`.          |
+| Base Account | Batch, optional paymaster supported and atomic required | `sendCallsSyncAsync` with required atomic plus optional `paymasterService`         | None                                                                     | Unsupported required atomic throws.                                |
 
 ---
 
 ## Validation Coverage
 
-Primary test file: `packages/client/test/aa/aa-eoa-capabilities.unit.test.ts`
+Primary test files:
+
+- `packages/client/test/aa/aa-eoa-capabilities.unit.test.ts`
+- `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.test.ts`
 
 Coverage added:
 
@@ -1169,13 +1186,17 @@ Coverage added:
 - Required sponsorship fails when paymaster URL is missing.
 - Required sponsorship passes an explicit empty paymaster context when no context is supplied.
 - Required sponsorship fails when wallet capabilities do not support `paymasterService`.
-- Atomic batches request `atomic: { optional: true }` when not strict.
-- Atomic unsupported errors can fall back to sequential sends when non-strict.
+- Atomic batches request `atomic: { optional: true }` unless native policy explicitly requires atomic execution.
+- Atomic unsupported errors can fall back to sequential sends when atomic is optional.
 - Wallet-native execution reports `executionKind: "eoa"` if it fell back to sequential EOA sends.
-- Atomic-required batches send `atomic: { required: true }` and `forceAtomic: true`.
+- Atomic-required batches send `atomic: { required: true }` and `forceAtomic: true` when `requiresAtomicForBatch` is set.
 - Atomic-required batches do not sequentially send when atomic is unsupported.
 - Optional paymaster service is passed for wallet-native smart wallet execution.
 - ERC20 payment fields are stripped from paymaster service context.
+- Adapter-level unresolved AA provider states fall back to native wallet execution once.
+- Adapter-level `aaStrict` requests fail closed when resolved AA execution fails and no unresolved-provider fallback remains.
+- Adapter-level Base Account execution keeps atomic optional unless sponsorship is required.
+- Adapter-level timeout or wallet-native send-calls errors do not trigger a second native fallback submission.
 
 ---
 
@@ -1343,9 +1364,12 @@ Para:
 
    Base Account passes `executionKind: "base_account_4337"` so successful `wallet_sendCalls` executions are distinguishable from plain EOA sends.
 
-6. Strict AA now means stricter behavior.
+6. `aaStrict` matches the previous main fallback split.
 
-   If a fee-injected payload has `aaStrict: true` and AA/native atomic execution cannot happen, the code throws instead of silently sending sequential user-paid txs.
+   Fee-injected batches still request AA first. If Para AA provider setup is
+   unresolved, the adapter falls back to native wallet execution like
+   `origin/main`; if resolved AA execution fails and no unresolved-provider
+   fallback remains, the adapter throws instead of silently sending natively.
 
 7. Required sponsorship fails closed.
 
@@ -1414,9 +1438,9 @@ Default chains:
 - `wallet_paymaster_service_url_required`: required sponsorship was requested but no paymaster URL was available.
 - `wallet_paymaster_service_unsupported`: required sponsorship was requested but wallet capabilities do not advertise paymaster support.
 - `wallet_sponsorship_required`: required sponsorship could not be satisfied.
-- `wallet_atomic_batch_required`: strict atomic batch could not safely fall back to sequential sends.
+- `wallet_atomic_batch_required`: required atomic batch could not safely fall back to sequential sends.
 - `wallet_send_calls_missing_transaction_hash`: send-calls returned no usable tx hash.
-- `aa_required_execution_failed`: AA was required but all AA attempts failed.
+- `aa_required_execution_failed`: required sponsored execution failed, or `aaStrict` had only resolved AA execution failures.
 
 These errors prevent the widget from executing a transaction through a weaker
 path than the transaction policy required.

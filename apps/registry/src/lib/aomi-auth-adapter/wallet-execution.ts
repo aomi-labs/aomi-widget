@@ -250,6 +250,7 @@ export async function executeAdapterTransaction({
   let execution: Awaited<ReturnType<typeof executeWalletCalls>> | null = null;
   let finalFallbackReason: string | undefined;
   let lastAAError: unknown;
+  let sawUnresolvedAAProviderState = false;
   const aaStateResolver = resolveAAProviderState;
   const aaAttempts = aaStateResolver
     ? buildAaAttempts(aaRequestedMode, shouldUseExternalSigner)
@@ -275,6 +276,7 @@ export async function executeAdapterTransaction({
       }
 
       if (!hasResolvedAAProviderState(attemptState.providerState)) {
+        sawUnresolvedAAProviderState = true;
         continue;
       }
 
@@ -299,6 +301,9 @@ export async function executeAdapterTransaction({
 
     if (!execution) {
       if (requiresSponsoredExecution) {
+        throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
+      }
+      if (payload.aaStrict && lastAAError && !sawUnresolvedAAProviderState) {
         throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
       }
       console.warn(
