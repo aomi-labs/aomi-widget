@@ -97,6 +97,14 @@
         },
         {
           "type": "registry:component",
+          "path": "components/control-bar/model-metadata.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/app-metadata.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "components/control-bar/app-select.tsx"
         },
         {
@@ -114,16 +122,59 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/secret-input.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/auto-mode.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/app-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/vendor-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chain-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/apps/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/vendors/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chains/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
+        "@aomi-labs/client",
         "@aomi-labs/react",
-        "lucide-react"
+        "@getpara/react-sdk",
+        "lucide-react",
+        "wagmi"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json",
         "button",
         "popover",
+        "command",
         "dialog",
         "input",
         "label"

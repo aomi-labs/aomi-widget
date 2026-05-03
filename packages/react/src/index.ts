@@ -103,7 +103,11 @@ export {
   ThreadContextProvider,
 } from "./contexts/thread-context";
 export type { ThreadContext } from "./contexts/thread-context";
-export type { ThreadMetadata, ThreadControlState } from "./state/thread-store";
+export type {
+  ModelSelectionMode,
+  ThreadMetadata,
+  ThreadControlState,
+} from "./state/thread-store";
 export { initThreadControl } from "./state/thread-store";
 
 // =============================================================================
@@ -117,6 +121,7 @@ export {
   SUPPORTED_CHAINS,
   type ChainInfo,
 } from "./runtime/utils";
+export { resolveAutoModel } from "./utils/model-selection";
 
 // =============================================================================
 // Notification Context (for toast UI)
@@ -140,5 +145,6 @@ export {
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
+  type StoredModelPreference,
   type StoredProviderKey,
 } from "./contexts/control-context";

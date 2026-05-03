@@ -30,6 +30,7 @@ export {
   AomiAuthRuntimeUserSync,
   useAomiAuthAdapter,
 } from "./lib/aomi-auth-adapter";
+export { AomiWalletProvider } from "./lib/aomi-auth-adapter/providers";
 export { AomiBaseAccountProvider } from "./lib/aomi-auth-adapter/providers/base-account";
 export {
   AomiParaAdapterProvider,

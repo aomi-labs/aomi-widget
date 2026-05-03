@@ -35,12 +35,13 @@ export type AomiAuthAdapter = {
   isSwitchingChain: boolean;
 
   canConnect: boolean;
-  canManageAccount: boolean;
+  canOpenAccountUI: boolean;
+  canDisconnect: boolean;
 
   supportedChains?: readonly Chain[];
 
   connect: () => Promise<void>;
-  manageAccount: () => Promise<void>;
+  openAccountUI?: () => Promise<void>;
   disconnect?: () => Promise<void>;
 
   switchChain?: (chainId: number) => Promise<void>;

@@ -23,8 +23,12 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    if (identity.isConnected && adapter.canManageAccount) {
-      void adapter.manageAccount();
+    if (identity.isConnected && adapter.canOpenAccountUI && adapter.openAccountUI) {
+      void adapter.openAccountUI();
+      return;
+    }
+    if (identity.isConnected && adapter.canDisconnect && adapter.disconnect) {
+      void adapter.disconnect();
       return;
     }
     if (adapter.canConnect) {
@@ -40,7 +44,13 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     : undefined;
   const primaryLabel =
     identity.status === "disconnected" ? connectLabel : identity.primaryLabel;
-  const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
+  const ariaLabel = identity.isConnected
+    ? adapter.canOpenAccountUI
+      ? "Manage account"
+      : adapter.canDisconnect
+        ? "Disconnect account"
+        : "Connected account"
+    : "Connect account";
 
   return (
     <button
@@ -57,7 +67,11 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
         className,
       )}
       aria-label={ariaLabel}
-      disabled={!adapter.canManageAccount && !adapter.canConnect}
+      disabled={
+        !adapter.canOpenAccountUI &&
+        !adapter.canDisconnect &&
+        !adapter.canConnect
+      }
     >
       <span className="max-w-[180px] truncate">{primaryLabel}</span>
       {identity.isConnected && secondaryLabel && (
