@@ -18,7 +18,7 @@ import {
   CommandInput,
   CommandSeparator,
 } from "@/components/ui/command";
-import { getAppInfo, groupAppsByCategory } from "./model-metadata";
+import { getAppInfo, groupAppsByCategory } from "./app-metadata";
 import { AllAppsIcon, getAppIcon } from "@/components/icons";
 
 export type AppSelectProps = {
