@@ -58,7 +58,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
       resolveAAProviderState,
     });
 
-    expect(resolveAAProviderState).toHaveBeenCalledTimes(1);
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(2);
     expect(sendCallsSyncAsync).not.toHaveBeenCalled();
     expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({
@@ -122,5 +122,40 @@ describe("executeAdapterTransaction fallback behavior", () => {
       batched: true,
       sponsored: false,
     });
+  });
+
+  it("does not submit native wallet fallback twice when unresolved AA fallback times out", async () => {
+    const timeoutError = new Error(
+      'Timed out while waiting for call bundle with id "0x123" to be confirmed.',
+    );
+    const sendCallsSyncAsync = vi.fn().mockRejectedValue(timeoutError);
+    const sendTransactionAsync = vi.fn();
+    const resolveAAProviderState = vi.fn().mockResolvedValue({
+      providerState: DISABLED_PROVIDER_STATE,
+      resolvedMode: "4337",
+      fallbackReason: "aa_provider_not_configured_fallback_eoa",
+    });
+
+    await expect(
+      executeAdapterTransaction({
+        payload: strictFeeBatchPayload(),
+        state: {
+          currentChainId: 1,
+          capabilities: {
+            "eip155:1": { atomic: { status: "ready" } },
+          },
+          sendCallsSyncAsync,
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+        },
+        shouldUseExternalSigner: true,
+        resolveAAProviderState,
+      }),
+    ).rejects.toThrow("Timed out while waiting for call bundle");
+
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(1);
+    expect(sendCallsSyncAsync).toHaveBeenCalledTimes(1);
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 });

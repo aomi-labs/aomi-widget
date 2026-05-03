@@ -177,6 +177,12 @@ function resolveNativeWalletExecutionPolicy({
   };
 }
 
+function hasResolvedAAProviderState(
+  providerState: WalletProviderState,
+): boolean {
+  return Boolean(providerState.resolved);
+}
+
 export async function executeAdapterTransaction({
   payload,
   state,
@@ -266,6 +272,10 @@ export async function executeAdapterTransaction({
 
       if (attemptState.fallbackReason && !finalFallbackReason) {
         finalFallbackReason = attemptState.fallbackReason;
+      }
+
+      if (!hasResolvedAAProviderState(attemptState.providerState)) {
+        continue;
       }
 
       try {
