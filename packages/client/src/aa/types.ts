@@ -19,11 +19,17 @@ export type AAWalletCall = {
   chainId: number;
 };
 
-export type WalletAtomicCapability = {
+export type WalletCapabilities = {
   atomic?: {
     status?: string;
   };
+  paymasterService?: {
+    supported?: boolean;
+  };
+  [key: string]: unknown;
 };
+
+export type WalletAtomicCapability = WalletCapabilities;
 
 // ---------------------------------------------------------------------------
 // Config
@@ -68,8 +74,12 @@ export interface SmartAccount {
   mode: string;
   AAAddress?: Hex;
   delegationAddress?: Hex;
-  sendTransaction: (call: AACallPayload) => Promise<{ transactionHash: string }>;
-  sendBatchTransaction: (calls: AACallPayload[]) => Promise<{ transactionHash: string }>;
+  sendTransaction: (
+    call: AACallPayload,
+  ) => Promise<{ transactionHash: string }>;
+  sendBatchTransaction: (
+    calls: AACallPayload[],
+  ) => Promise<{ transactionHash: string }>;
 }
 
 export interface AAState<TAccount extends SmartAccount = SmartAccount> {
@@ -101,7 +111,47 @@ export interface AtomicBatchArgs {
       required?: boolean;
       optional?: boolean;
     };
+    paymasterService?: {
+      context?: Record<string, unknown>;
+      optional?: boolean;
+      url: string;
+    };
+    [key: string]: unknown;
   };
+  forceAtomic?: boolean;
+  pollingInterval?: number;
+  status?: (status: unknown) => boolean;
+  throwOnFailure?: boolean;
+  timeout?: number;
+  version?: string;
+}
+
+export type NativeWalletSponsorship =
+  | {
+      mode: "disabled";
+    }
+  | {
+      mode: "optional";
+      paymasterServiceUrl?: string;
+      paymasterServiceContext?: SponsorshipPaymasterServiceContext;
+    }
+  | {
+      mode: "required";
+      paymasterServiceUrl?: string;
+      paymasterServiceContext?: SponsorshipPaymasterServiceContext;
+    };
+
+export type SponsorshipPaymasterServiceContext = Record<string, unknown> & {
+  erc20?: never;
+  paymasterAddress?: never;
+};
+
+export interface NativeWalletExecutionPolicy {
+  executionKind?: string;
+  requiresAtomicForBatch?: boolean;
+  sendCallsTimeoutMs?: number;
+  sendCallsVersion?: string;
+  sponsorship?: NativeWalletSponsorship;
 }
 
 export interface ExecuteWalletCallsParams<
@@ -109,8 +159,9 @@ export interface ExecuteWalletCallsParams<
 > {
   callList: AAWalletCall[];
   currentChainId: number;
-  capabilities: Record<string, WalletAtomicCapability> | undefined;
+  capabilities: Record<string, WalletCapabilities> | undefined;
   localPrivateKey: `0x${string}` | null;
+  nativeWalletExecution?: NativeWalletExecutionPolicy;
   providerState: AAState<TAccount>;
   sendCallsSyncAsync: (args: AtomicBatchArgs) => Promise<unknown>;
   sendTransactionAsync: (args: {
@@ -182,7 +233,9 @@ export function buildAAExecutionPlan(
     : chainConfig.supportedModes[0];
 
   if (!mode) {
-    throw new Error(`No smart account mode configured for chain ${chainConfig.chainId}`);
+    throw new Error(
+      `No smart account mode configured for chain ${chainConfig.chainId}`,
+    );
   }
 
   return {
@@ -198,9 +251,7 @@ export function buildAAExecutionPlan(
 // Readiness Check
 // ---------------------------------------------------------------------------
 
-export function getWalletExecutorReady(
-  providerState: AAState,
-): boolean {
+export function getWalletExecutorReady(providerState: AAState): boolean {
   return (
     !providerState.resolved ||
     (!providerState.pending &&

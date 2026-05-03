@@ -13,6 +13,10 @@ export type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  NativeWalletExecutionPolicy,
+  NativeWalletSponsorship,
+  SponsorshipPaymasterServiceContext,
+  WalletCapabilities,
 } from "@aomi-labs/client";
 export {
   toViemSignTypedDataArgs,
