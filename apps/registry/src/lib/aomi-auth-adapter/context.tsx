@@ -9,9 +9,9 @@ const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
   isReady: true,
   isSwitchingChain: false,
   canConnect: false,
-  canManageAccount: false,
+  canOpenAccountUI: false,
+  canDisconnect: false,
   connect: async () => undefined,
-  manageAccount: async () => undefined,
 };
 
 const AomiAuthAdapterContext =

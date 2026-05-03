@@ -9,6 +9,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+  CommandInput,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
+  groupModelsByVendor,
+  getVendorForModel,
+  AUTO_MODE_LABEL,
+  resolveAutoModel,
+} from "./model-metadata";
+import { AutoModeIcon, getVendorIcon } from "@/components/icons";
 
 export type ModelSelectProps = {
   className?: string;
@@ -28,19 +44,22 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   } = useControl();
   const [open, setOpen] = useState(false);
 
-  // Fetch available models on mount
   useEffect(() => {
     void getAvailableModels();
   }, [getAvailableModels]);
 
-  // Get current thread's selected model (or fall back to default)
   const threadControl = getCurrentThreadControl();
-  const selectedModel =
-    threadControl.model ?? state.defaultModel ?? state.availableModels[0];
+  const rawSelected = threadControl.model;
+  const modelMode =
+    threadControl.modelMode ?? (rawSelected === null ? "auto" : "manual");
+  const models = state.availableModels;
 
-  const models = state.availableModels.length > 0 ? state.availableModels : [];
+  const autoBackendModel = resolveAutoModel(models);
+  const isAuto = modelMode === "auto";
+  const selectedModel = isAuto
+    ? autoBackendModel
+    : (rawSelected ?? state.defaultModel ?? models[0]);
 
-  // Don't render if no models available
   if (models.length === 0) {
     return (
       <Button
@@ -57,6 +76,27 @@ export const ModelSelect: FC<ModelSelectProps> = ({
     );
   }
 
+  const groups = groupModelsByVendor(models);
+
+  // Display label for the trigger button
+  const triggerLabel = isAuto ? AUTO_MODE_LABEL : selectedModel || placeholder;
+
+  const handleSelect = (model: string) => {
+    if (isProcessing) return;
+    setOpen(false);
+    void onModelSelect(model, { mode: "manual" }).catch((err) => {
+      console.error("[ModelSelect] onModelSelect failed:", err);
+    });
+  };
+
+  const handleAutoSelect = () => {
+    if (!autoBackendModel || isProcessing) return;
+    setOpen(false);
+    void onModelSelect(autoBackendModel, { mode: "auto" }).catch((err) => {
+      console.error("[ModelSelect] auto onModelSelect failed:", err);
+    });
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -66,46 +106,113 @@ export const ModelSelect: FC<ModelSelectProps> = ({
           aria-expanded={open}
           disabled={isProcessing}
           className={cn(
-            "h-8 w-auto min-w-[100px] justify-between rounded-full px-2 text-xs",
+            "h-8 w-auto min-w-[100px] justify-between rounded-full px-3 text-xs",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             isProcessing && "cursor-not-allowed opacity-50",
             className,
           )}
         >
-          <span className="truncate">{selectedModel || placeholder}</span>
-          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <div className="flex items-center gap-1.5">
+            {(() => {
+              if (isAuto) {
+                return <AutoModeIcon className="h-3 w-3 shrink-0 opacity-60" />;
+              }
+              if (selectedModel) {
+                const vendor = getVendorForModel(selectedModel);
+                const VIcon = getVendorIcon(vendor.id);
+                if (VIcon)
+                  return <VIcon className="h-3 w-3 shrink-0 opacity-60" />;
+              }
+              return null;
+            })()}
+            <span className="truncate">{triggerLabel}</span>
+          </div>
+          <ChevronDownIcon className="ml-2 h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="center"
-        sideOffset={-40}
-        className="w-[220px] rounded-3xl p-1 shadow-none"
+        align="start"
+        sideOffset={4}
+        className="w-[280px] overflow-hidden rounded-xl p-0"
       >
-        <div className="flex flex-col gap-0.5">
-          {models.map((model) => (
-            <button
-              key={model}
-              disabled={isProcessing}
-              onClick={() => {
-                if (isProcessing) return;
-                setOpen(false);
-                void onModelSelect(model).catch((err) => {
-                  console.error("[ModelSelect] onModelSelect failed:", err);
-                });
-              }}
-              className={cn(
-                "flex w-full items-center justify-between gap-2 rounded-full px-3 py-2 text-sm outline-none",
-                "hover:bg-accent hover:text-accent-foreground",
-                "focus:bg-accent focus:text-accent-foreground",
-                selectedModel === model && "bg-accent",
-                isProcessing && "cursor-not-allowed opacity-50",
-              )}
-            >
-              <span>{model}</span>
-              {selectedModel === model && <CheckIcon className="h-4 w-4" />}
-            </button>
-          ))}
-        </div>
+        <Command className="rounded-xl">
+          <CommandInput placeholder="Search models..." />
+          <CommandList>
+            <CommandEmpty>No models found.</CommandEmpty>
+
+            {/* Auto mode — pinned at top */}
+            <CommandGroup>
+              <CommandItem
+                value="auto"
+                disabled={isProcessing}
+                onSelect={handleAutoSelect}
+                className="flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+                      "bg-primary/10 text-primary",
+                    )}
+                  >
+                    <AutoModeIcon className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{AUTO_MODE_LABEL}</span>
+                    <span className="text-muted-foreground text-[11px]">
+                      Best balance of speed & cost
+                    </span>
+                  </div>
+                </div>
+                {isAuto && <CheckIcon className="h-4 w-4 shrink-0" />}
+              </CommandItem>
+            </CommandGroup>
+
+            <CommandSeparator />
+
+            {/* Vendor-grouped models */}
+            {groups.map((group) => {
+              const VendorIcon = getVendorIcon(group.vendor.id);
+              return (
+                <CommandGroup
+                  key={group.vendor.id}
+                  heading={group.vendor.label}
+                >
+                  {group.models.map((model) => (
+                    <CommandItem
+                      key={model}
+                      value={model}
+                      disabled={isProcessing}
+                      onSelect={() => handleSelect(model)}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+                            "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {VendorIcon ? (
+                            <VendorIcon className="h-3.5 w-3.5" />
+                          ) : (
+                            <span className="text-[10px] font-medium">
+                              {group.vendor.abbr}
+                            </span>
+                          )}
+                        </span>
+                        <span className="truncate">{model}</span>
+                      </div>
+                      {!isAuto && selectedModel === model && (
+                        <CheckIcon className="h-4 w-4 shrink-0" />
+                      )}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              );
+            })}
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );

@@ -379,12 +379,13 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
       isReady: !isBooting,
       isSwitchingChain: isPending,
       canConnect: Boolean(paraModal) && !identity.isConnected,
-      canManageAccount: Boolean(paraModal) && identity.isConnected,
+      canOpenAccountUI: Boolean(paraModal) && identity.isConnected,
+      canDisconnect: false,
       supportedChains: wagmiConfig.chains,
       connect: async () => {
         paraModal?.openModal({ step: "AUTH_MAIN" });
       },
-      manageAccount: async () => {
+      openAccountUI: async () => {
         paraModal?.openModal({ step: "ACCOUNT_MAIN" });
       },
       switchChain: switchChainAsync

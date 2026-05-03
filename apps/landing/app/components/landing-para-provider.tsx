@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   Environment,
-  ParaProvider,
   type TExternalWallet,
   type TOAuthMethod,
 } from "@getpara/react-sdk";
 import "@getpara/react-sdk/styles.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { defineChain, http, type Chain, type Transport } from "viem";
+import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
-import { AomiParaAdapterProvider } from "../../../registry/src/lib/aomi-auth-adapter/providers/para";
+import { AomiWalletProvider } from "../../../registry/src";
 import {
   arbitrum,
   base,
@@ -69,13 +67,6 @@ const defaultNetworks = [
 const networks = (
   useAnvilForWallet ? [localhost, ...defaultNetworks] : [...defaultNetworks]
 ) as readonly [Chain, ...Chain[]];
-
-const transports = Object.fromEntries(
-  networks.map((network) => [
-    network.id,
-    http(network.rpcUrls.default.http[0]),
-  ]),
-) as Record<number, Transport>;
 
 const externalWallets: TExternalWallet[] = [
   "WALLETCONNECT",
@@ -143,57 +134,22 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
 }
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
-
-  const paraModalConfig = useMemo(
-    () => ({
-      disableEmailLogin: true,
-      oAuthMethods,
-    }),
-    [],
-  );
-
-  const externalWalletConfig = useMemo(
-    () => ({
-      appDescription: "Interactive Aomi widget demo",
-      appUrl:
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "https://aomi.dev",
-      wallets: adapterWallets,
-      ...(walletConnectProjectId
-        ? { walletConnect: { projectId: walletConnectProjectId } }
-        : {}),
-      evmConnector: {
-        config: {
-          chains: networks,
-          transports,
-          ssr: true,
-        },
-      },
-    }),
-    [],
-  );
-
   return (
-    <QueryClientProvider client={queryClient}>
-      {paraApiKey ? (
-        <ParaProvider
-          paraClientConfig={{
-            apiKey: paraApiKey,
-            env: paraEnvironment,
-          }}
-          config={{ appName: "Aomi Labs" }}
-          paraModalConfig={paraModalConfig}
-          externalWalletConfig={externalWalletConfig}
-        >
-          <AomiParaAdapterProvider>
-            <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
-          </AomiParaAdapterProvider>
-        </ParaProvider>
-      ) : (
-        <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
-      )}
-    </QueryClientProvider>
+    <AomiWalletProvider
+      provider="para"
+      apiKey={paraApiKey}
+      environment={paraEnvironment}
+      appName="Aomi Labs"
+      appDescription="Interactive Aomi widget demo"
+      appUrl={
+        typeof window !== "undefined" ? window.location.origin : "https://aomi.dev"
+      }
+      walletConnectProjectId={walletConnectProjectId}
+      networks={networks}
+      externalWallets={adapterWallets}
+      oAuthMethods={oAuthMethods}
+    >
+      <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+    </AomiWalletProvider>
   );
 }

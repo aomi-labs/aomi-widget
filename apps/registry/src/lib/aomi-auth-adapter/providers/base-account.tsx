@@ -196,10 +196,10 @@ function BaseAccountAdapterInner({
       isSwitchingChain: isSwitchingChain || isConnecting || isDisconnecting,
       canConnect:
         Boolean(connectAsync && baseConnector) && !identity.isConnected,
-      canManageAccount: Boolean(disconnectAsync) && identity.isConnected,
+      canOpenAccountUI: false,
+      canDisconnect: Boolean(disconnectAsync) && identity.isConnected,
       supportedChains: wagmiConfig.chains,
       connect,
-      manageAccount: disconnect,
       disconnect,
       switchChain: switchChainAsync
         ? async (nextChainId: number) => {
