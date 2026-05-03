@@ -158,4 +158,93 @@ describe("executeAdapterTransaction fallback behavior", () => {
     expect(sendCallsSyncAsync).toHaveBeenCalledTimes(1);
     expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
+
+  it("fails closed for aaStrict when resolved AA execution fails without an unresolved-provider fallback", async () => {
+    const sendTransactionAsync = vi.fn();
+    const resolveAAProviderState = vi.fn().mockResolvedValue({
+      providerState: {
+        resolved: {
+          provider: "alchemy",
+          chainId: 1,
+          mode: "4337",
+          batchingEnabled: true,
+          sponsorship: "required",
+        },
+        account: null,
+        pending: false,
+        error: new Error("aa execution failed"),
+      },
+      resolvedMode: "4337",
+    });
+
+    await expect(
+      executeAdapterTransaction({
+        payload: {
+          ...strictFeeBatchPayload(),
+          aaPreference: "eip4337",
+        },
+        state: {
+          currentChainId: 1,
+          sendCallsSyncAsync: vi.fn(),
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+        },
+        resolveAAProviderState,
+      }),
+    ).rejects.toThrow("aa_required_execution_failed");
+
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(1);
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
+  });
+
+  it("keeps native fallback when a resolved AA failure is followed by unresolved AA setup", async () => {
+    const sendTransactionAsync = vi
+      .fn()
+      .mockResolvedValueOnce("0x111")
+      .mockResolvedValueOnce("0x222");
+    const resolveAAProviderState = vi
+      .fn()
+      .mockResolvedValueOnce({
+        providerState: {
+          resolved: {
+            provider: "alchemy",
+            chainId: 1,
+            mode: "7702",
+            batchingEnabled: true,
+            sponsorship: "disabled",
+          },
+          account: null,
+          pending: false,
+          error: new Error("aa execution failed"),
+        },
+        resolvedMode: "7702",
+      })
+      .mockResolvedValueOnce({
+        providerState: DISABLED_PROVIDER_STATE,
+        resolvedMode: "4337",
+        fallbackReason: "aa_provider_not_configured_fallback_eoa",
+      });
+
+    const result = await executeAdapterTransaction({
+      payload: strictFeeBatchPayload(),
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+      },
+      resolveAAProviderState,
+    });
+
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(2);
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      txHash: "0x222",
+      aaResolvedMode: "none",
+      executionKind: "eoa",
+      batched: true,
+    });
+  });
 });
