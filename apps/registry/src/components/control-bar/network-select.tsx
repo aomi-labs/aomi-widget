@@ -26,7 +26,8 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const { chainId, isConnected } = adapter.identity;
   const switchChain = adapter.switchChain;
   const isPending = adapter.isSwitchingChain;
-  const selectableChains = chains ?? adapter.supportedChains ?? SUPPORTED_CHAINS;
+  const selectableChains =
+    chains ?? adapter.supportedChains ?? SUPPORTED_CHAINS;
   const [open, setOpen] = useState(false);
 
   // Show only when wallet is connected.

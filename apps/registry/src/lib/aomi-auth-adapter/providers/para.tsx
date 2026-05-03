@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Environment,
   ParaProvider,
@@ -298,11 +294,7 @@ async function resolveParaAAProviderState({
   }
 }
 
-export function AomiParaAdapterProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
   const paraModal = useSafeParaModal();
@@ -469,12 +461,11 @@ export function AomiParaProvider({
   appDescription = "Aomi widget",
   appUrl,
   apiKey = process.env.NEXT_PUBLIC_PARA_API_KEY,
-  environment =
-    (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
-    Environment.BETA,
+  environment = (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as
+    | Environment
+    | undefined) ?? Environment.BETA,
   networks = defaultNetworks,
-  walletConnectProjectId =
-    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
+  walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
     process.env.NEXT_PUBLIC_PROJECT_ID,
   externalWallets = defaultExternalWallets,
   oAuthMethods = ["GOOGLE"],

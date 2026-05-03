@@ -1,13 +1,7 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  type ReactNode,
-} from "react";
-import {
-  AOMI_AUTH_DISCONNECTED_IDENTITY,
-} from "./identity";
+import { createContext, useContext, type ReactNode } from "react";
+import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "./identity";
 import type { AomiAuthAdapter } from "./types";
 
 const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
