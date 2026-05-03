@@ -27,10 +27,13 @@ const logThreadMetadataChange = (
 };
 
 export type ThreadStatus = "regular" | "archived";
+export type ModelSelectionMode = "auto" | "manual";
 
 export type ThreadControlState = {
   /** Selected model for this thread (human-readable label) */
   model: string | null;
+  /** Whether the selected model should be displayed as auto or explicit */
+  modelMode?: ModelSelectionMode;
   /** Selected app for this thread */
   app: string | null;
   /** Whether control state has changed but chat hasn't started yet */
@@ -51,6 +54,7 @@ export type ThreadMetadata = {
 export function initThreadControl(): ThreadControlState {
   return {
     model: null,
+    modelMode: "auto",
     app: null,
     controlDirty: false,
     isProcessing: false,
