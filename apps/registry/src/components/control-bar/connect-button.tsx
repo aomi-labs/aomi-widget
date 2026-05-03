@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type FC } from "react";
-import { cn, getChainInfo, useUser } from "@aomi-labs/react";
+import { cn, getChainInfo } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export type ConnectButtonProps = {
@@ -16,30 +16,24 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   onConnectionChange,
 }) => {
   const adapter = useAomiAuthAdapter();
-  const { setUser } = useUser();
   const identity = adapter.identity;
 
   useEffect(() => {
-    setUser({
-      address: identity.address ?? undefined,
-      chainId: identity.chainId ?? undefined,
-      isConnected: identity.isConnected,
-    });
     onConnectionChange?.(identity.isConnected);
-  }, [
-    identity.address,
-    identity.chainId,
-    identity.isConnected,
-    setUser,
-    onConnectionChange,
-  ]);
+  }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    if (identity.isConnected) {
-      void adapter.manageAccount();
+    if (identity.isConnected && adapter.canOpenAccountUI && adapter.openAccountUI) {
+      void adapter.openAccountUI();
       return;
     }
-    void adapter.connect();
+    if (identity.isConnected && adapter.canDisconnect && adapter.disconnect) {
+      void adapter.disconnect();
+      return;
+    }
+    if (adapter.canConnect) {
+      void adapter.connect();
+    }
   };
 
   const ticker = identity.chainId
@@ -48,10 +42,15 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   const secondaryLabel = identity.isConnected
     ? (identity.secondaryLabel ?? ticker)
     : undefined;
-  const primaryLabel = identity.status === "disconnected"
-    ? connectLabel
-    : identity.primaryLabel;
-  const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
+  const primaryLabel =
+    identity.status === "disconnected" ? connectLabel : identity.primaryLabel;
+  const ariaLabel = identity.isConnected
+    ? adapter.canOpenAccountUI
+      ? "Manage account"
+      : adapter.canDisconnect
+        ? "Disconnect account"
+        : "Connected account"
+    : "Connect account";
 
   return (
     <button
@@ -68,7 +67,11 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
         className,
       )}
       aria-label={ariaLabel}
-      disabled={!adapter.canManageAccount && !adapter.canConnect}
+      disabled={
+        !adapter.canOpenAccountUI &&
+        !adapter.canDisconnect &&
+        !adapter.canConnect
+      }
     >
       <span className="max-w-[180px] truncate">{primaryLabel}</span>
       {identity.isConnected && secondaryLabel && (

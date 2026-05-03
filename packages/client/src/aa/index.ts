@@ -8,7 +8,11 @@ export {
   type AAChainConfig,
   type AAConfig,
   type AAResolvedConfig,
+  type WalletCapabilities,
   type WalletAtomicCapability,
+  type NativeWalletExecutionPolicy,
+  type NativeWalletSponsorship,
+  type SponsorshipPaymasterServiceContext,
   type SmartAccount,
   type AAState,
   type ExecutionResult,
@@ -57,10 +61,7 @@ export {
 // Adapt
 // ---------------------------------------------------------------------------
 
-export {
-  adaptSmartAccount,
-  isAlchemySponsorshipLimitError,
-} from "./adapt";
+export { adaptSmartAccount, isAlchemySponsorshipLimitError } from "./adapt";
 
 // ---------------------------------------------------------------------------
 // Create (async smart account creation)
