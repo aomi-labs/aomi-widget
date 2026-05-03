@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Environment,
   ParaProvider,
@@ -28,8 +23,7 @@ import {
   sepolia,
 } from "wagmi/chains";
 
-const useAnvilForWallet =
-  process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
+const useAnvilForWallet = process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
 const LOCALHOST_CHAIN_ID = 31337;
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY;
@@ -72,12 +66,15 @@ const defaultNetworks = [
   lineaSepolia,
 ] as const;
 
-const networks = (useAnvilForWallet
-  ? [localhost, ...defaultNetworks]
-  : [...defaultNetworks]) as readonly [Chain, ...Chain[]];
+const networks = (
+  useAnvilForWallet ? [localhost, ...defaultNetworks] : [...defaultNetworks]
+) as readonly [Chain, ...Chain[]];
 
 const transports = Object.fromEntries(
-  networks.map((network) => [network.id, http(network.rpcUrls.default.http[0])]),
+  networks.map((network) => [
+    network.id,
+    http(network.rpcUrls.default.http[0]),
+  ]),
 ) as Record<number, Transport>;
 
 const externalWallets: TExternalWallet[] = [

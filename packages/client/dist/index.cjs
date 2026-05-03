@@ -2086,7 +2086,11 @@ async function executeViaAA(callList, providerState, getPreferredRpcUrl) {
   const providerPrefix = account.provider.toLowerCase();
   let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
   if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(txHash, callList, getPreferredRpcUrl);
+    delegationAddress = await resolve7702Delegation(
+      txHash,
+      callList,
+      getPreferredRpcUrl
+    );
   }
   return {
     txHash,

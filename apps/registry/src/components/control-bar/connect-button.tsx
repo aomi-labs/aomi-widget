@@ -38,9 +38,8 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   const secondaryLabel = identity.isConnected
     ? (identity.secondaryLabel ?? ticker)
     : undefined;
-  const primaryLabel = identity.status === "disconnected"
-    ? connectLabel
-    : identity.primaryLabel;
+  const primaryLabel =
+    identity.status === "disconnected" ? connectLabel : identity.primaryLabel;
   const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
 
   return (

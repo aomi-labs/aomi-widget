@@ -105,7 +105,7 @@ const Root: FC<RootProps> = ({
 
   return (
     <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
-      <SidebarProvider className="h-full min-h-0!">
+      <SidebarProvider className="min-h-0! h-full">
         <div
           className={cn(
             "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
@@ -113,9 +113,7 @@ const Root: FC<RootProps> = ({
           )}
           style={frameStyle}
         >
-          {showSidebar && (
-            <ThreadListSidebar walletPosition={walletPosition} />
-          )}
+          {showSidebar && <ThreadListSidebar walletPosition={walletPosition} />}
           <SidebarInset className="relative flex min-h-0 flex-col">
             {children}
           </SidebarInset>
@@ -223,7 +221,10 @@ const DefaultLayout: FC<DefaultLayoutProps> = ({
       <Header
         withControl
         showSidebarTrigger={showSidebar}
-        controlBarProps={{ hideWallet: hideWalletInControlBar, hideNetwork: false }}
+        controlBarProps={{
+          hideWallet: hideWalletInControlBar,
+          hideNetwork: false,
+        }}
       />
       <Composer />
     </Root>

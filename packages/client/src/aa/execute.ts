@@ -161,7 +161,11 @@ async function executeViaAA(
     account.mode === "7702" ? account.delegationAddress : undefined;
 
   if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(txHash, callList, getPreferredRpcUrl);
+    delegationAddress = await resolve7702Delegation(
+      txHash,
+      callList,
+      getPreferredRpcUrl,
+    );
   }
 
   return {
