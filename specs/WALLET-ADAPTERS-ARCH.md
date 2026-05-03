@@ -182,6 +182,8 @@ graph TD
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `apps/registry/src/registry.ts` | Adds registry entries for `aomi-auth-adapter`, `aomi-para-provider`, and `aomi-base-account-provider`; updates dependencies. |
 | `apps/registry/dist/*.json`     | Regenerated registry output reflecting the current component/provider graph.                                                 |
+| `packages/client/package.json`  | Bumps client package version from `0.1.31` to `0.1.32`.                                                                      |
+| `packages/react/package.json`   | Bumps React package version from `0.3.14` to `0.3.15`.                                                                       |
 | `apps/registry/package.json`    | Bumps widget registry package version from `1.2.10` to `1.2.11`.                                                             |
 | `packages/client/dist/*`        | Built client artifacts updated to match source changes.                                                                      |
 | `packages/react/dist/*`         | React package declaration/source map artifacts updated to match source changes.                                              |
