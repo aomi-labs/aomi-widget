@@ -5,6 +5,7 @@ import type { ExternalStoreThreadData } from "@assistant-ui/react";
 import type { AomiClient } from "@aomi-labs/client";
 import type { ThreadContext } from "../contexts/thread-context";
 import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
+import type { ThreadControlState } from "../state/thread-store";
 import { isPlaceholderTitle, parseTimestamp } from "./utils";
 
 // =============================================================================
@@ -58,12 +59,14 @@ export type ThreadListAdapterConfig = {
   aomiClientRef: MutableRefObject<AomiClient>;
   threadContext: ThreadContext;
   setIsRunning: (running: boolean) => void;
+  getInitialControl?: () => ThreadControlState;
 };
 
 export function buildThreadListAdapter({
   aomiClientRef,
   threadContext,
   setIsRunning,
+  getInitialControl = initThreadControl,
 }: ThreadListAdapterConfig) {
   const { regularThreads, archivedThreads } = buildThreadLists(
     threadContext.allThreadsMetadata,
@@ -81,7 +84,7 @@ export function buildThreadListAdapter({
           title: "New Chat",
           status: "regular",
           lastActiveAt: new Date().toISOString(),
-          control: initThreadControl(),
+          control: getInitialControl(),
         }),
       );
       threadContext.setThreadMessages(threadId, []);
@@ -164,7 +167,7 @@ export function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: new Date().toISOString(),
-                control: initThreadControl(),
+                control: getInitialControl(),
               }),
             );
             threadContext.setThreadMessages(defaultId, []);
