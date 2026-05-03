@@ -118,10 +118,6 @@ export function normalizeAtomicCapabilities(
   return normalized as Parameters<typeof executeWalletCalls>[0]["capabilities"];
 }
 
-function hasResolvedAAProvider(providerState: WalletProviderState): boolean {
-  return Boolean(providerState.resolved && providerState.account);
-}
-
 function buildAaAttempts(
   aaRequestedMode: RequestedAAMode,
   shouldUseExternalSigner: boolean,
@@ -207,19 +203,14 @@ export async function executeAdapterTransaction({
   );
   const isBatch = callList.length > 1;
   const aaRequestedMode = resolveRequestedAAMode(payload, isBatch);
-  const requiresAtomicForBatch = isBatch && payload.aaStrict === true;
-  const requiresNativeWalletExecution =
-    aaRequestedMode !== "none" ||
+  const requiresSponsoredExecution =
     state.nativeWalletExecution?.sponsorship?.mode === "required";
+  const requiresAtomicForBatch = isBatch && requiresSponsoredExecution;
   const nativeWalletExecution = resolveNativeWalletExecutionPolicy({
-    policy: requiresNativeWalletExecution
-      ? state.nativeWalletExecution
-      : undefined,
+    policy: state.nativeWalletExecution,
     chainId: callList[0]?.chainId ?? state.currentChainId ?? 1,
     requiresAtomicForBatch,
   });
-  const requiresSponsoredExecution =
-    nativeWalletExecution?.sponsorship?.mode === "required";
 
   const executeWithProviderState = async (providerState: WalletProviderState) =>
     executeWalletCalls({
@@ -277,10 +268,6 @@ export async function executeAdapterTransaction({
         finalFallbackReason = attemptState.fallbackReason;
       }
 
-      if (!hasResolvedAAProvider(attemptState.providerState)) {
-        continue;
-      }
-
       try {
         execution = await executeWithProviderState(attemptState.providerState);
         if (
@@ -301,7 +288,7 @@ export async function executeAdapterTransaction({
     }
 
     if (!execution) {
-      if (payload.aaStrict || requiresSponsoredExecution) {
+      if (requiresSponsoredExecution) {
         throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
       }
       console.warn(
