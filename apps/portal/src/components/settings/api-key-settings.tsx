@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { settingsApiFetch } from "@/lib/settings-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAccountIdentity } from "@/lib/use-account-identity";
+import { useAomiAuthAdapter } from "@/lib/aomi-auth-adapter";
 
 type OwnedApiKey = {
   key_hash: string;
@@ -33,7 +33,7 @@ function formatTs(ts?: number | null): string {
 }
 
 export function ApiKeySettings() {
-  const identity = useAccountIdentity();
+  const { identity } = useAomiAuthAdapter();
   const [apiKeys, setApiKeys] = useState<OwnedApiKey[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
@@ -43,15 +43,21 @@ export function ApiKeySettings() {
   const [labelInput, setLabelInput] = useState("");
   const [manualKeyInput, setManualKeyInput] = useState("");
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
-  const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [status, setStatus] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [createdApiKey, setCreatedApiKey] = useState<string | null>(null);
 
   const ensureBoundSession = useCallback(async () => {
     if (!identity.address) return;
-    await settingsApiFetch<{ session_id: string; title?: string | null }>("/api/sessions", {
-      method: "POST",
-      body: JSON.stringify({ public_key: identity.address }),
-    });
+    await settingsApiFetch<{ session_id: string; title?: string | null }>(
+      "/api/sessions",
+      {
+        method: "POST",
+        body: JSON.stringify({ public_key: identity.address }),
+      },
+    );
   }, [identity.address]);
 
   const loadApiKeys = useCallback(async () => {
@@ -64,12 +70,15 @@ export function ApiKeySettings() {
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await settingsApiFetch<ApiKeysResponse>("/api/settings/api-keys");
+      const data = await settingsApiFetch<ApiKeysResponse>(
+        "/api/settings/api-keys",
+      );
       setApiKeys(data.api_keys ?? []);
     } catch (error) {
       setStatus({
         type: "error",
-        text: error instanceof Error ? error.message : "Failed to load API keys",
+        text:
+          error instanceof Error ? error.message : "Failed to load API keys",
       });
     } finally {
       setLoadingKeys(false);
@@ -83,7 +92,9 @@ export function ApiKeySettings() {
         ? `/api/control/apps?public_key=${encodeURIComponent(identity.address)}`
         : "/api/control/apps";
       const data = await settingsApiFetch<string[]>(path);
-      const normalized = [...new Set((data ?? []).map((app) => app.toLowerCase()))];
+      const normalized = [
+        ...new Set((data ?? []).map((app) => app.toLowerCase())),
+      ];
       setAvailableApps(normalized);
       setSelectedApps((previous) => {
         const filtered = previous.filter((ns) => normalized.includes(ns));
@@ -133,10 +144,13 @@ export function ApiKeySettings() {
         label: labelInput.trim() || undefined,
         api_key: manualKeyInput.trim() || undefined,
       };
-      const data = await settingsApiFetch<CreateApiKeyResponse>("/api/settings/api-keys", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const data = await settingsApiFetch<CreateApiKeyResponse>(
+        "/api/settings/api-keys",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+      );
       setCreatedApiKey(data.api_key);
       setLabelInput("");
       setManualKeyInput("");
@@ -145,7 +159,8 @@ export function ApiKeySettings() {
     } catch (error) {
       setStatus({
         type: "error",
-        text: error instanceof Error ? error.message : "Failed to create API key",
+        text:
+          error instanceof Error ? error.message : "Failed to create API key",
       });
     } finally {
       setCreating(false);
@@ -179,7 +194,8 @@ export function ApiKeySettings() {
       } catch (error) {
         setStatus({
           type: "error",
-          text: error instanceof Error ? error.message : "Failed to remove API key",
+          text:
+            error instanceof Error ? error.message : "Failed to remove API key",
         });
       } finally {
         setDeletingHash(null);
@@ -191,12 +207,13 @@ export function ApiKeySettings() {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-semibold text-foreground mb-4">API Keys</h3>
-        <p className="text-sm text-muted-foreground">
-          Manage your keys for authenticated API access. Newly generated keys are shown only once.
+        <h3 className="text-foreground mb-4 text-lg font-semibold">API Keys</h3>
+        <p className="text-muted-foreground text-sm">
+          Manage your keys for authenticated API access. Newly generated keys
+          are shown only once.
         </p>
         {!identity.address && (
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-2 text-sm">
             Connect a wallet account to manage owned API keys.
           </p>
         )}
@@ -206,19 +223,22 @@ export function ApiKeySettings() {
         <div
           className={`rounded-2xl p-3 text-sm ${
             status.type === "success"
-              ? "bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-400"
-              : "bg-destructive/10 border border-destructive/20 text-destructive"
+              ? "border border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
+              : "bg-destructive/10 border-destructive/20 text-destructive border"
           }`}
         >
           {status.text}
         </div>
       )}
 
-      <div className="rounded-3xl border border-input bg-background p-5 space-y-4">
-        <h4 className="text-base font-semibold text-foreground">Add API Key</h4>
+      <div className="border-input bg-background space-y-4 rounded-3xl border p-5">
+        <h4 className="text-foreground text-base font-semibold">Add API Key</h4>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <label htmlFor="api-key-label" className="block text-sm font-medium text-foreground">
+            <label
+              htmlFor="api-key-label"
+              className="text-foreground block text-sm font-medium"
+            >
               Label (optional)
             </label>
             <Input
@@ -227,11 +247,14 @@ export function ApiKeySettings() {
               value={labelInput}
               onChange={(event) => setLabelInput(event.target.value)}
               placeholder="Trading bot key"
-              className="rounded-full px-5 py-3 h-11"
+              className="h-11 rounded-full px-5 py-3"
             />
           </div>
           <div>
-            <label htmlFor="manual-api-key-input" className="block text-sm font-medium text-foreground mb-2">
+            <label
+              htmlFor="manual-api-key-input"
+              className="text-foreground mb-2 block text-sm font-medium"
+            >
               API Key Value (optional)
             </label>
             <Input
@@ -240,21 +263,21 @@ export function ApiKeySettings() {
               value={manualKeyInput}
               onChange={(event) => setManualKeyInput(event.target.value)}
               placeholder="Leave empty to auto-generate"
-              className="rounded-full px-5 py-3 h-11"
+              className="h-11 rounded-full px-5 py-3"
             />
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-2 text-sm">
               Leave blank to create a secure generated key.
             </p>
           </div>
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-foreground">Apps</p>
+          <p className="text-foreground mb-2 text-sm font-medium">Apps</p>
           {loadingApps && (
-            <p className="text-sm text-muted-foreground">Loading apps...</p>
+            <p className="text-muted-foreground text-sm">Loading apps...</p>
           )}
           {!loadingApps && availableApps.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               No apps available for this session.
             </p>
           )}
@@ -267,7 +290,7 @@ export function ApiKeySettings() {
                     key={app}
                     type="button"
                     onClick={() => toggleApp(app)}
-                    className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
                       selected
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-background text-foreground border-input hover:bg-accent"
@@ -295,9 +318,11 @@ export function ApiKeySettings() {
         </div>
 
         {createdApiKey && (
-          <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-4 space-y-2">
-            <p className="text-sm font-medium text-foreground">New key</p>
-            <p className="text-sm font-mono break-all text-foreground">{createdApiKey}</p>
+          <div className="space-y-2 rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
+            <p className="text-foreground text-sm font-medium">New key</p>
+            <p className="text-foreground break-all font-mono text-sm">
+              {createdApiKey}
+            </p>
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -322,10 +347,10 @@ export function ApiKeySettings() {
         )}
       </div>
 
-      <div className="rounded-3xl border border-input bg-background p-2 overflow-x-auto">
+      <div className="border-input bg-background overflow-x-auto rounded-3xl border p-2">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="text-left text-muted-foreground">
+            <tr className="text-muted-foreground text-left">
               <th className="px-3 py-2">Key</th>
               <th className="px-3 py-2">Label</th>
               <th className="px-3 py-2">Apps</th>
@@ -337,28 +362,36 @@ export function ApiKeySettings() {
           <tbody>
             {loadingKeys && (
               <tr>
-                <td className="px-3 py-4 text-muted-foreground" colSpan={6}>
+                <td className="text-muted-foreground px-3 py-4" colSpan={6}>
                   Loading API keys...
                 </td>
               </tr>
             )}
             {!loadingKeys && apiKeys.length === 0 && (
               <tr>
-                <td className="px-3 py-4 text-muted-foreground" colSpan={6}>
+                <td className="text-muted-foreground px-3 py-4" colSpan={6}>
                   No API keys found.
                 </td>
               </tr>
             )}
             {!loadingKeys &&
               apiKeys.map((key) => (
-                <tr key={key.key_hash} className="border-t border-border">
-                  <td className="px-3 py-2 text-foreground font-mono">{key.key_prefix}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{key.label || "-"}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{key.apps.join(", ")}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
+                <tr key={key.key_hash} className="border-border border-t">
+                  <td className="text-foreground px-3 py-2 font-mono">
+                    {key.key_prefix}
+                  </td>
+                  <td className="text-muted-foreground px-3 py-2">
+                    {key.label || "-"}
+                  </td>
+                  <td className="text-muted-foreground px-3 py-2">
+                    {key.apps.join(", ")}
+                  </td>
+                  <td className="text-muted-foreground px-3 py-2">
                     {key.is_active ? "Active" : "Inactive"}
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{formatTs(key.last_used_at)}</td>
+                  <td className="text-muted-foreground px-3 py-2">
+                    {formatTs(key.last_used_at)}
+                  </td>
                   <td className="px-3 py-2 text-right">
                     <Button
                       type="button"

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useModal } from "@getpara/react-sdk";
 import { getChainInfo } from "@aomi-labs/react";
-import { useAccountIdentity } from "@/lib/use-account-identity";
+import {
+  formatAuthProvider,
+  useAomiAuthAdapter,
+} from "@/lib/aomi-auth-adapter";
 import { settingsApiFetch } from "@/lib/settings-api";
 
 type AccountProfile = {
@@ -43,8 +45,8 @@ function formatNumber(n?: number): string {
 }
 
 export function GeneralSettings() {
-  const { openModal } = useModal();
-  const identity = useAccountIdentity();
+  const adapter = useAomiAuthAdapter();
+  const identity = adapter.identity;
   const [account, setAccount] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,10 +56,13 @@ export function GeneralSettings() {
     : undefined;
 
   const identityType = useMemo(() => {
-    if (identity.kind === "social") return identity.secondaryLabel ?? "Social";
-    if (identity.kind === "wallet") return "Wallet";
-    return "Disconnected";
-  }, [identity.kind, identity.secondaryLabel]);
+    if (identity.status !== "connected") return "Disconnected";
+    return (
+      identity.secondaryLabel ??
+      formatAuthProvider(identity.authProvider) ??
+      "Wallet"
+    );
+  }, [identity.authProvider, identity.secondaryLabel, identity.status]);
 
   useEffect(() => {
     const run = async () => {
@@ -85,32 +90,42 @@ export function GeneralSettings() {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-semibold text-foreground mb-6">Account</h3>
-        <div className="rounded-3xl border border-input bg-background p-5">
+        <h3 className="text-foreground mb-6 text-lg font-semibold">Account</h3>
+        <div className="border-input bg-background rounded-3xl border p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">Identity</p>
-              <p className="text-sm text-muted-foreground">Type: {identityType}</p>
-              <p className="text-sm text-muted-foreground">
-                Primary: {identity.kind === "disconnected" ? "Not connected" : identity.primaryLabel}
+              <p className="text-foreground text-sm font-medium">Identity</p>
+              <p className="text-muted-foreground text-sm">
+                Type: {identityType}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Primary:{" "}
+                {identity.status === "disconnected"
+                  ? "Not connected"
+                  : identity.primaryLabel}
               </p>
               {identity.address && (
-                <p className="text-sm text-muted-foreground">Wallet: {identity.address}</p>
+                <p className="text-muted-foreground text-sm">
+                  Wallet: {identity.address}
+                </p>
               )}
               {networkTicker && (
-                <p className="text-sm text-muted-foreground">Network: {networkTicker}</p>
+                <p className="text-muted-foreground text-sm">
+                  Network: {networkTicker}
+                </p>
               )}
             </div>
             <button
               type="button"
               onClick={() => {
-                if (identity.isConnected) {
-                  openModal({ step: "ACCOUNT_MAIN" });
+                if (identity.isConnected && adapter.openAccountUI) {
+                  void adapter.openAccountUI();
                   return;
                 }
-                openModal({ step: "AUTH_MAIN" });
+                void adapter.connect();
               }}
-              className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-full hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background transition-colors"
+              disabled={!adapter.canOpenAccountUI && !adapter.canConnect}
+              className="text-primary-foreground bg-primary hover:bg-primary/90 focus:ring-ring focus:ring-offset-background rounded-full px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
             >
               {identity.isConnected ? "Manage account" : "Connect account"}
             </button>
@@ -119,33 +134,56 @@ export function GeneralSettings() {
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-foreground mb-4">Subscription and Usage</h3>
-        <div className="rounded-3xl border border-input bg-background p-5 space-y-3">
-          {loading && <p className="text-sm text-muted-foreground">Loading account overview...</p>}
+        <h3 className="text-foreground mb-4 text-lg font-semibold">
+          Subscription and Usage
+        </h3>
+        <div className="border-input bg-background space-y-3 rounded-3xl border p-5">
+          {loading && (
+            <p className="text-muted-foreground text-sm">
+              Loading account overview...
+            </p>
+          )}
           {!loading && error && (
-            <p className="text-sm text-destructive">Failed to load account overview: {error}</p>
+            <p className="text-destructive text-sm">
+              Failed to load account overview: {error}
+            </p>
           )}
           {!loading && !error && !account && (
-            <p className="text-sm text-muted-foreground">Connect your wallet to load account details.</p>
+            <p className="text-muted-foreground text-sm">
+              Connect your wallet to load account details.
+            </p>
           )}
           {!loading && !error && account && (
             <>
-              <p className="text-sm text-muted-foreground">User ID: {account.account.user_id}</p>
-              <p className="text-sm text-muted-foreground">Tier: {account.account.tier}</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
+                User ID: {account.account.user_id}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Tier: {account.account.tier}
+              </p>
+              <p className="text-muted-foreground text-sm">
                 Verified email: {account.account.verified_email ?? "-"}
               </p>
-              <p className="text-sm text-muted-foreground">Status: {account.account.status}</p>
-              <p className="text-sm text-muted-foreground">Month: {account.usage.period_utc_month}</p>
-              <p className="text-sm text-muted-foreground">
-                Credits: {formatNumber(account.usage.credit_used)} / {formatNumber(account.usage.credit_paid)}
+              <p className="text-muted-foreground text-sm">
+                Status: {account.account.status}
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
+                Month: {account.usage.period_utc_month}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Credits: {formatNumber(account.usage.credit_used)} /{" "}
+                {formatNumber(account.usage.credit_paid)}
+              </p>
+              <p className="text-muted-foreground text-sm">
                 Tokens: in {formatNumber(account.usage.input_tokens)} | out{" "}
                 {formatNumber(account.usage.output_tokens)}
               </p>
-              <p className="text-sm text-muted-foreground">Created at: {formatTs(account.account.created_at)}</p>
-              <p className="text-sm text-muted-foreground">Last seen: {formatTs(account.account.last_seen_at)}</p>
+              <p className="text-muted-foreground text-sm">
+                Created at: {formatTs(account.account.created_at)}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Last seen: {formatTs(account.account.last_seen_at)}
+              </p>
             </>
           )}
         </div>

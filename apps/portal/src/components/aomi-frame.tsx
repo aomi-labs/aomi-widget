@@ -26,6 +26,7 @@ import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar"
 import { AppSelectUrlSync } from "@/components/control-bar/app-select-url-sync";
 import { NotificationToaster } from "@/components/ui/notification";
 import { WalletTxHandler } from "@/components/wallet-tx-handler";
+import { AomiAuthRuntimeUserSync } from "@/lib/aomi-auth-adapter";
 import {
   SidebarInset,
   SidebarProvider,
@@ -198,8 +199,8 @@ const Root: FC<RootProps> = ({
       backendUrl={resolvedBackendUrl}
       clientOptions={runtimeClientOptions}
     >
-      <SidebarProvider className="h-full min-h-0!">
-      <AppSelectUrlSync />
+      <SidebarProvider className="min-h-0! h-full">
+        <AppSelectUrlSync />
         <div
           className={cn(
             "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
@@ -212,6 +213,7 @@ const Root: FC<RootProps> = ({
             {children}
           </SidebarInset>
           <NotificationToaster />
+          <AomiAuthRuntimeUserSync />
           <WalletTxHandler />
         </div>
       </SidebarProvider>
@@ -307,7 +309,10 @@ const DefaultLayout: FC<DefaultLayoutProps> = ({
     <Root walletPosition={walletPosition} {...props}>
       <Header
         withControl
-        controlBarProps={{ hideWallet: hideWalletInControlBar, hideNetwork: false }}
+        controlBarProps={{
+          hideWallet: hideWalletInControlBar,
+          hideNetwork: false,
+        }}
       />
       <Composer />
     </Root>
