@@ -1530,6 +1530,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(true);
+      }
       try {
         await ((_b = (_a = optionsRef.current).prepareThreadForSend) == null ? void 0 : _b.call(_a, threadId));
         const session = getSession(threadId);
@@ -1542,6 +1545,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
         );
         (_d = (_c = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _d.call(_c, session.getPendingRequests());
       } catch (error) {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(false);
+        }
         updateOptimisticMessage(
           threadContextRef.current,
           threadId,

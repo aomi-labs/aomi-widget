@@ -270,6 +270,12 @@ export function useRuntimeOrchestrator(
         lastActiveAt: new Date().toISOString(),
       });
 
+      // Immediately show "generating" state so the UI switches to the stop
+      // button and displays a loading indicator while the message is in flight.
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(true);
+      }
+
       try {
         await optionsRef.current.prepareThreadForSend?.(threadId);
         const session = getSession(threadId);
@@ -282,6 +288,9 @@ export function useRuntimeOrchestrator(
         );
         optionsRef.current.onPendingRequestsChange?.(session.getPendingRequests());
       } catch (error) {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(false);
+        }
         updateOptimisticMessage(
           threadContextRef.current,
           threadId,
