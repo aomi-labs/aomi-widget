@@ -310,7 +310,7 @@ async function createPimlicoPermissionlessState(params: {
   if (params.mode === "7702") {
     (smartAccount as { isDeployed?: () => Promise<boolean> }).isDeployed = async () => false;
   }
-  const accountAddress = smartAccount.address;
+  const accountAddress = smartAccount.address as Hex;
   pimDebug(`${params.mode}:account-created`, {
     signerAddress,
     accountAddress,
