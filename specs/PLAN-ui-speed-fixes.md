@@ -174,31 +174,31 @@ SSE "title_changed" → orchestrator listener → updateThreadMetadata({title})
 - [ ] Verify SSE title update still works as primary
 - [ ] Verify title updates even if SSE connection drops
 
+### Note
+Deferred for now. Manual no-wallet checks through the landing proxy showed both `/api/chat` and `/api/state` returning `"title":"New Chat"` after completed responses, with no title event emitted. Frontend hydration can only apply backend-provided titles; revisit after backend title generation is confirmed, or decide whether to add a frontend fallback title from the first user message.
+
 ---
 
 ## 7. Improve pending-send UX
 
 **Problem**: When user hits send, the composer clears immediately but there's no feedback until the backend accepts and first message appears. If network is slow, user sees empty chat.
 
-**Fix** (optimistic bubble approach):
+**Fix** (optimistic bubble approach, minimal):
 - On send, immediately add a user message bubble with "sending" status to the thread.
 - Keep composer cleared (standard chat UX).
-- When `/api/chat` accepts (2xx): transition bubble to normal state.
-- On failure: show error state on bubble with retry/remove options.
+- Keep the user bubble visually identical to a normal sent message.
+- When `/api/chat` accepts (2xx): transition the optimistic metadata to normal state and let backend messages replace it when available.
 - This aligns with the DOMAIN.md rule: "Optimistic UI updates + backend confirm".
 
 **Files**:
 - `packages/react/src/runtime/orchestrator.ts` - add optimistic message on send
-- `packages/react/src/runtime/message-controller.ts` - handle send failure state
-- `apps/registry/src/components/` - render "sending" state on message bubble
 
 ### Checklist
-- [ ] On `orchestratorSendMessage`, add user message to ThreadStore immediately with `status: "sending"`
-- [ ] On successful `/api/chat` response, update status to `"sent"`
-- [ ] On failure, update status to `"failed"` with retry action
-- [ ] Add subtle visual indicator for "sending" state (opacity or spinner)
-- [ ] Verify retry works after failure
-- [ ] Verify no duplicate messages on success
+- [x] On `orchestratorSendMessage`, add user message to ThreadStore immediately with `status: "sending"`
+- [x] On successful `/api/chat` response, update status to `"sent"`
+- [x] On failure, update status to `"failed"` internally without creating a second visible message variant
+- [x] Verify pending backend snapshots do not erase the optimistic user bubble
+- [x] Verify no duplicate messages on success
 
 ---
 
