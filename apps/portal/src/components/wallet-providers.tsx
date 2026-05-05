@@ -1,13 +1,11 @@
 "use client";
 
-import "@getpara/react-sdk/styles.css";
 import {
   Environment,
-  ParaProvider,
   type TOAuthMethod,
   type TExternalWallet,
 } from "@getpara/react-sdk";
-import { type ReactNode, useState, useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
   mainnet,
@@ -19,8 +17,8 @@ import {
   linea,
   lineaSepolia,
 } from "wagmi/chains";
-import { defineChain, http, type Chain, type Transport } from "viem";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { defineChain, type Chain } from "viem";
+import { AomiWalletProvider } from "@/lib/aomi-auth-adapter";
 
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
@@ -70,13 +68,9 @@ const defaultNetworks = [
   lineaSepolia,
 ] as const;
 
-export const networks = (useLocalhost
-  ? [localhost, ...defaultNetworks]
-  : [...defaultNetworks]) as readonly [Chain, ...Chain[]];
-
-const transports = Object.fromEntries(
-  networks.map((network) => [network.id, http(network.rpcUrls.default.http[0])]),
-) as Record<number, Transport>;
+export const networks = (
+  useLocalhost ? [localhost, ...defaultNetworks] : [...defaultNetworks]
+) as readonly [Chain, ...Chain[]];
 
 const externalWallets: TExternalWallet[] = [
   "WALLETCONNECT",
@@ -109,7 +103,10 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
         const provider = await connector?.getProvider();
         if (provider && typeof provider === "object" && "request" in provider) {
           const ethProvider = provider as {
-            request: (args: { method: string; params: unknown[] }) => Promise<unknown>;
+            request: (args: {
+              method: string;
+              params: unknown[];
+            }) => Promise<unknown>;
           };
           try {
             await ethProvider.request({
@@ -128,13 +125,19 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
               ],
             });
           } catch (addError) {
-            console.log("[LocalhostNetworkEnforcer] Chain add result:", addError);
+            console.log(
+              "[LocalhostNetworkEnforcer] Chain add result:",
+              addError,
+            );
           }
         }
 
         switchChain({ chainId: LOCALHOST_CHAIN_ID });
       } catch (error) {
-        console.error("[LocalhostNetworkEnforcer] Failed to switch network:", error);
+        console.error(
+          "[LocalhostNetworkEnforcer] Failed to switch network:",
+          error,
+        );
       }
     };
 
@@ -150,57 +153,30 @@ type Props = {
 };
 
 export function WalletProviders({ children }: Props) {
-  const [queryClient] = useState(() => new QueryClient());
-  const paraEnvMissing = !paraApiKey;
-  const walletConnectEnvMissing = !walletConnectProjectId;
-
-  if (paraEnvMissing || walletConnectEnvMissing) {
-    console.warn(
-      "[wallet-providers] Para wallet config is incomplete; rendering without ParaProvider",
-      {
-        missingParaApiKey: paraEnvMissing,
-        missingWalletConnectProjectId: walletConnectEnvMissing,
-      },
-    );
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  }
+  const content = paraApiKey ? (
+    <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
+  ) : (
+    children
+  );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ParaProvider
-        paraClientConfig={{
-          apiKey: paraApiKey,
-          env: paraEnvironment,
-        }}
-        config={{
-          appName: "Aomi Labs",
-        }}
-        paraModalConfig={{
-          disableEmailLogin: true,
-          oAuthMethods,
-        }}
-        externalWalletConfig={{
-          appDescription: "AI-powered blockchain operations assistant",
-          appUrl:
-            typeof window !== "undefined" ? window.location.origin : "https://aomi.dev",
-          appIcon: "/assets/images/aomi-logo.svg",
-          wallets: externalWallets,
-          walletConnect: {
-            projectId: walletConnectProjectId,
-          },
-          evmConnector: {
-            config: {
-              chains: networks,
-              transports,
-              ssr: true,
-            },
-          },
-        }}
-      >
-        <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
-      </ParaProvider>
-    </QueryClientProvider>
+    <AomiWalletProvider
+      provider="para"
+      apiKey={paraApiKey}
+      environment={paraEnvironment}
+      appName="Aomi Labs"
+      appDescription="AI-powered blockchain operations assistant"
+      appUrl={
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "https://aomi.dev"
+      }
+      walletConnectProjectId={walletConnectProjectId}
+      networks={networks}
+      externalWallets={externalWallets}
+      oAuthMethods={oAuthMethods}
+    >
+      {content}
+    </AomiWalletProvider>
   );
 }

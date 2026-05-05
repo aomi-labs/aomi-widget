@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAccountIdentity } from "@/lib/use-account-identity";
-import { getSettingsApiKey, setSettingsApiKey, settingsApiFetch } from "@/lib/settings-api";
+import { useAomiAuthAdapter } from "@/lib/aomi-auth-adapter";
+import {
+  getSettingsApiKey,
+  setSettingsApiKey,
+  settingsApiFetch,
+} from "@/lib/settings-api";
 import { defaultUsageDateRange } from "@/lib/usage-range";
 
 type AppRow = {
@@ -39,10 +43,14 @@ function formatNumber(n?: number): string {
 }
 
 export function AppsSettings() {
-  const identity = useAccountIdentity();
+  const { identity } = useAomiAuthAdapter();
   const [overview, setOverview] = useState<AppOverview | null>(null);
-  const [fromDate, setFromDate] = useState<string>(() => defaultUsageDateRange().fromDate);
-  const [toDate, setToDate] = useState<string>(() => defaultUsageDateRange().toDate);
+  const [fromDate, setFromDate] = useState<string>(
+    () => defaultUsageDateRange().fromDate,
+  );
+  const [toDate, setToDate] = useState<string>(
+    () => defaultUsageDateRange().toDate,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
@@ -73,7 +81,9 @@ export function AppsSettings() {
       );
       setOverview(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load apps overview");
+      setError(
+        err instanceof Error ? err.message : "Failed to load apps overview",
+      );
     } finally {
       setLoading(false);
     }
@@ -121,15 +131,25 @@ export function AppsSettings() {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-semibold text-foreground mb-4">Apps</h3>
-        <div className="rounded-3xl border border-input bg-background p-5 space-y-4">
+        <h3 className="text-foreground mb-4 text-lg font-semibold">Apps</h3>
+        <div className="border-input bg-background space-y-4 rounded-3xl border p-5">
           {!identity.address && (
-            <p className="text-sm text-muted-foreground">Connect a wallet to view app access.</p>
+            <p className="text-muted-foreground text-sm">
+              Connect a wallet to view app access.
+            </p>
           )}
-          {loading && <p className="text-sm text-muted-foreground">Loading app usage...</p>}
-          {error && <p className="text-sm text-destructive">Failed to load usage: {error}</p>}
+          {loading && (
+            <p className="text-muted-foreground text-sm">
+              Loading app usage...
+            </p>
+          )}
+          {error && (
+            <p className="text-destructive text-sm">
+              Failed to load usage: {error}
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm text-muted-foreground">
+            <label className="text-muted-foreground block text-sm">
               From
               <input
                 type="date"
@@ -142,10 +162,10 @@ export function AppsSettings() {
                     setToDate(next);
                   }
                 }}
-                className="mt-1 w-full px-3 py-2 border border-input rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-background text-foreground"
+                className="border-input focus:ring-ring focus:border-ring bg-background text-foreground mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2"
               />
             </label>
-            <label className="block text-sm text-muted-foreground">
+            <label className="text-muted-foreground block text-sm">
               To
               <input
                 type="date"
@@ -158,20 +178,22 @@ export function AppsSettings() {
                     setFromDate(next);
                   }
                 }}
-                className="mt-1 w-full px-3 py-2 border border-input rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-background text-foreground"
+                className="border-input focus:ring-ring focus:border-ring bg-background text-foreground mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2"
               />
             </label>
           </div>
           {!loading && overview && (
             <>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Range: {overview.period_utc_from} to {overview.period_utc_to}
               </p>
-              <p className="text-sm text-muted-foreground">
-                Credits: {formatNumber(overview.overall.credit_used)} / {formatNumber(overview.overall.credit_paid)}
+              <p className="text-muted-foreground text-sm">
+                Credits: {formatNumber(overview.overall.credit_used)} /{" "}
+                {formatNumber(overview.overall.credit_paid)}
               </p>
-              <p className="text-sm text-muted-foreground">
-                Tokens: in {formatNumber(overview.overall.input_tokens)} | out {formatNumber(overview.overall.output_tokens)}
+              <p className="text-muted-foreground text-sm">
+                Tokens: in {formatNumber(overview.overall.input_tokens)} | out{" "}
+                {formatNumber(overview.overall.output_tokens)}
               </p>
             </>
           )}
@@ -179,9 +201,14 @@ export function AppsSettings() {
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-foreground mb-4">App API Key</h3>
-        <div className="rounded-3xl border border-input bg-background p-5 space-y-3">
-          <label htmlFor="app-api-key" className="block text-sm font-medium text-foreground">
+        <h3 className="text-foreground mb-4 text-lg font-semibold">
+          App API Key
+        </h3>
+        <div className="border-input bg-background space-y-3 rounded-3xl border p-5">
+          <label
+            htmlFor="app-api-key"
+            className="text-foreground block text-sm font-medium"
+          >
             API key
           </label>
           <input
@@ -190,10 +217,11 @@ export function AppsSettings() {
             value={keyInput}
             onChange={(e) => setKeyInput(e.target.value)}
             placeholder="Enter API key (optional)"
-            className="w-full px-5 py-3 border border-input rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-background text-foreground"
+            className="border-input focus:ring-ring focus:border-ring bg-background text-foreground w-full rounded-full border px-5 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
           />
-          <p className="text-xs text-muted-foreground">
-            API keys expand app access per request and are not bound to your account profile.
+          <p className="text-muted-foreground text-xs">
+            API keys expand app access per request and are not bound to your
+            account profile.
           </p>
           <div className="flex justify-end gap-2">
             <button
@@ -202,7 +230,7 @@ export function AppsSettings() {
                 setKeyInput("");
               }}
               disabled={applyingKey}
-              className="px-5 py-2.5 text-sm font-medium text-foreground bg-secondary rounded-full hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-foreground bg-secondary hover:bg-secondary/80 rounded-full px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               Clear input
             </button>
@@ -212,21 +240,23 @@ export function AppsSettings() {
                 void onApplyKey();
               }}
               disabled={applyDisabled}
-              className="px-5 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-full hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-primary-foreground bg-primary hover:bg-primary/90 rounded-full px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               {applyingKey ? "Applying..." : "Apply key"}
             </button>
           </div>
-          {status && <p className="text-sm text-muted-foreground">{status}</p>}
+          {status && <p className="text-muted-foreground text-sm">{status}</p>}
         </div>
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-foreground mb-4">Available Apps</h3>
-        <div className="rounded-3xl border border-input bg-background p-2 overflow-x-auto">
+        <h3 className="text-foreground mb-4 text-lg font-semibold">
+          Available Apps
+        </h3>
+        <div className="border-input bg-background overflow-x-auto rounded-3xl border p-2">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-left text-muted-foreground">
+              <tr className="text-muted-foreground text-left">
                 <th className="px-3 py-2">App</th>
                 <th className="px-3 py-2">Source</th>
                 <th className="px-3 py-2">Credits</th>
@@ -236,19 +266,26 @@ export function AppsSettings() {
             </thead>
             <tbody>
               {overview?.apps?.map((row) => (
-                <tr key={row.app} className="border-t border-border">
-                  <td className="px-3 py-2 text-foreground">{row.app}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{row.source}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {formatNumber(row.credits_used)} / {formatNumber(row.credit_paid)}
+                <tr key={row.app} className="border-border border-t">
+                  <td className="text-foreground px-3 py-2">{row.app}</td>
+                  <td className="text-muted-foreground px-3 py-2">
+                    {row.source}
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{formatNumber(row.input_tokens)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{formatNumber(row.output_tokens)}</td>
+                  <td className="text-muted-foreground px-3 py-2">
+                    {formatNumber(row.credits_used)} /{" "}
+                    {formatNumber(row.credit_paid)}
+                  </td>
+                  <td className="text-muted-foreground px-3 py-2">
+                    {formatNumber(row.input_tokens)}
+                  </td>
+                  <td className="text-muted-foreground px-3 py-2">
+                    {formatNumber(row.output_tokens)}
+                  </td>
                 </tr>
               ))}
               {!overview?.apps?.length && (
                 <tr>
-                  <td className="px-3 py-4 text-muted-foreground" colSpan={5}>
+                  <td className="text-muted-foreground px-3 py-4" colSpan={5}>
                     No apps found.
                   </td>
                 </tr>

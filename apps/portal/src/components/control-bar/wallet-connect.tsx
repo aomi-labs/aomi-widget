@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, type FC } from "react";
-import { useModal } from "@getpara/react-sdk";
-import { cn, getChainInfo, useUser } from "@aomi-labs/react";
-import { useAccountIdentity } from "@/lib/use-account-identity";
+import { cn, getChainInfo } from "@aomi-labs/react";
+import { useAomiAuthAdapter } from "@/lib/aomi-auth-adapter";
 
 export type WalletConnectProps = {
   className?: string;
@@ -16,39 +15,55 @@ export const WalletConnect: FC<WalletConnectProps> = ({
   connectLabel = "Connect Account",
   onConnectionChange,
 }) => {
-  const { openModal } = useModal();
-  const { setUser } = useUser();
-  const identity = useAccountIdentity();
+  const adapter = useAomiAuthAdapter();
+  const identity = adapter.identity;
 
   useEffect(() => {
-    setUser({
-      address: identity.address ?? undefined,
-      chainId: identity.chainId ?? undefined,
-      isConnected: identity.isConnected,
-    });
     onConnectionChange?.(identity.isConnected);
-  }, [
-    identity.address,
-    identity.chainId,
-    identity.isConnected,
-    setUser,
-    onConnectionChange,
-  ]);
+  }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    if (identity.isConnected) {
-      openModal({ step: "ACCOUNT_MAIN" });
+    if (
+      identity.isConnected &&
+      adapter.canOpenAccountUI &&
+      adapter.openAccountUI
+    ) {
+      void adapter.openAccountUI();
       return;
     }
-    openModal({ step: "AUTH_MAIN" });
+    if (identity.isConnected && adapter.canDisconnect && adapter.disconnect) {
+      void adapter.disconnect();
+      return;
+    }
+    if (adapter.canConnect) {
+      void adapter.connect();
+      return;
+    }
+    console.warn(
+      "[wallet-connect] Wallet provider is unavailable. Set NEXT_PUBLIC_PARA_API_KEY for Para login.",
+    );
   };
 
-  const ticker = identity.chainId ? getChainInfo(identity.chainId)?.ticker : undefined;
-  const secondaryLabel = identity.kind === "social" ? identity.secondaryLabel : ticker;
-  const primaryLabel = identity.kind === "disconnected"
-    ? connectLabel
-    : identity.primaryLabel;
-  const ariaLabel = identity.isConnected ? "Manage account" : "Connect account";
+  const ticker = identity.chainId
+    ? getChainInfo(identity.chainId)?.ticker
+    : undefined;
+  const secondaryLabel = identity.isConnected
+    ? (identity.secondaryLabel ?? ticker)
+    : undefined;
+  const primaryLabel =
+    identity.status === "disconnected" ? connectLabel : identity.primaryLabel;
+  const ariaLabel = identity.isConnected
+    ? adapter.canOpenAccountUI
+      ? "Manage account"
+      : adapter.canDisconnect
+        ? "Disconnect account"
+        : "Connected account"
+    : "Connect account";
+  const isBooting = identity.status === "booting" && !adapter.canConnect;
+  const unavailableReason =
+    !identity.isConnected && !adapter.canConnect
+      ? "Wallet provider is not configured. Set NEXT_PUBLIC_PARA_API_KEY for Para login."
+      : undefined;
 
   return (
     <button
@@ -56,21 +71,20 @@ export const WalletConnect: FC<WalletConnectProps> = ({
       onClick={handleClick}
       className={cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium",
-        "rounded-full px-5 py-2.5",
-        "bg-neutral-900 text-white",
-        "hover:bg-neutral-800",
-        "dark:bg-white dark:text-black",
-        "dark:hover:bg-neutral-200",
+        "rounded-3xl px-5 py-2.5",
+        "bg-primary text-primary-foreground",
+        "hover:bg-primary/90",
         "transition-colors",
         "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
         className,
       )}
       aria-label={ariaLabel}
+      aria-disabled={isBooting || Boolean(unavailableReason)}
+      disabled={isBooting}
+      title={unavailableReason}
     >
-      <span className="max-w-[180px] truncate">
-        {primaryLabel}
-      </span>
+      <span className="max-w-[180px] truncate">{primaryLabel}</span>
       {identity.isConnected && secondaryLabel && (
         <span className="opacity-50">{secondaryLabel}</span>
       )}
