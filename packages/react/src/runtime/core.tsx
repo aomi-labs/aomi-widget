@@ -83,6 +83,10 @@ export function AomiRuntimeCore({
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
+    prepareThreadForSend: async (threadId) => {
+      await ensureBackendThread(threadId);
+      await syncCurrentThreadControl();
+    },
     onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event),
   });
@@ -415,8 +419,6 @@ export function AomiRuntimeCore({
         .map((part) => part.text)
         .join("\n");
       if (text) {
-        await ensureBackendThread(threadContext.currentThreadId);
-        await syncCurrentThreadControl();
         await orchestratorSendMessage(text, threadContext.currentThreadId);
       }
     },
@@ -443,14 +445,10 @@ export function AomiRuntimeCore({
 
   const sendMessage = useCallback(
     async (text: string) => {
-      await ensureBackendThread(threadContext.currentThreadId);
-      await syncCurrentThreadControl();
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
     [
-      ensureBackendThread,
       orchestratorSendMessage,
-      syncCurrentThreadControl,
       threadContext.currentThreadId,
     ],
   );

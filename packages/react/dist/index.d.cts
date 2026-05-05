@@ -46,6 +46,7 @@ type ThreadContext = {
     setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+    resetToDefault: () => void;
 };
 type ThreadContextProviderProps = {
     children: ReactNode;
