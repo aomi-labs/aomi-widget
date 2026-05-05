@@ -46,20 +46,27 @@ const ThreadListItems: FC = () => {
 };
 
 const ThreadListSkeleton: FC = () => {
+  const widths = ["72%", "54%", "66%", "46%", "61%"];
+
   return (
-    <>
-      {Array.from({ length: 5 }, (_, i) => (
+    <div
+      role="status"
+      aria-label="Loading threads"
+      aria-live="polite"
+      className="aui-thread-list-skeleton-root flex flex-col gap-1"
+    >
+      {widths.map((width, i) => (
         <div
           key={i}
-          role="status"
-          aria-label="Loading threads"
-          aria-live="polite"
-          className="aui-thread-list-skeleton-wrapper flex items-center gap-2 rounded-md px-3 py-2"
+          className="aui-thread-list-skeleton-wrapper flex h-9 items-center rounded-3xl px-4"
         >
-          <Skeleton className="aui-thread-list-skeleton h-[22px] flex-grow" />
+          <Skeleton
+            className="aui-thread-list-skeleton h-3"
+            style={{ width }}
+          />
         </div>
       ))}
-    </>
+    </div>
   );
 };
 

@@ -33,6 +33,7 @@
         "https://aomi.dev/r/aomi-theme.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
+        "https://aomi.dev/r/aomi-auth-adapter.json",
         "https://aomi.dev/r/control-bar.json",
         "https://aomi.dev/r/notification.json",
         "https://aomi.dev/r/runtime-tx-handler.json",
@@ -40,6 +41,46 @@
         "breadcrumb",
         "sidebar"
       ]
+    },
+    {
+      "name": "aomi-auth-adapter",
+      "type": "registry:component",
+      "description": "Generic Aomi auth adapter context and runtime user-state sync.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/context.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/types.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/identity.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime-user-sync.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/auth-identity.ts"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "viem"
+      ],
+      "registryDependencies": []
     },
     {
       "name": "control-bar",
@@ -53,6 +94,14 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/model-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/model-metadata.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/app-metadata.ts"
         },
         {
           "type": "registry:component",
@@ -76,6 +125,38 @@
         },
         {
           "type": "registry:component",
+          "path": "components/icons/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/auto-mode.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/app-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/vendor-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chain-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/apps/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/vendors/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chains/index.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter.ts"
         },
         {
@@ -84,6 +165,7 @@
         }
       ],
       "dependencies": [
+        "@aomi-labs/client",
         "@aomi-labs/react",
         "@getpara/react-sdk",
         "lucide-react",
@@ -92,6 +174,7 @@
       "registryDependencies": [
         "button",
         "popover",
+        "command",
         "dialog",
         "input",
         "label"
@@ -120,7 +203,8 @@
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "https://aomi.dev/r/attachment.json",
         "https://aomi.dev/r/assistant-tool-fallback.json",
-        "button"
+        "button",
+        "skeleton"
       ]
     },
     {
@@ -238,26 +322,78 @@
     {
       "name": "runtime-tx-handler",
       "type": "registry:component",
-      "description": "Executes wallet transaction and EIP-712 signing requests from the AI backend through wagmi.",
+      "description": "Executes wallet transaction and EIP-712 signing requests from the AI backend through the active auth adapter.",
       "files": [
         {
           "type": "registry:component",
           "path": "components/runtime-tx-handler.tsx"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
+        "@aomi-labs/react"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-auth-adapter.json"
+      ]
+    },
+    {
+      "name": "aomi-para-provider",
+      "type": "registry:component",
+      "description": "Para-backed Aomi auth adapter provider with the existing Aomi AA path.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/wallet-execution.ts"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/client",
         "@aomi-labs/react",
+        "@getpara/react-sdk",
+        "@tanstack/react-query",
+        "viem",
         "wagmi"
       ],
-      "registryDependencies": []
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-auth-adapter.json"
+      ]
+    },
+    {
+      "name": "aomi-base-account-provider",
+      "type": "registry:component",
+      "description": "Base Account-backed Aomi auth adapter provider using wagmi native wallet execution.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/base-account.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/wallet-execution.ts"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/client",
+        "@aomi-labs/react",
+        "@tanstack/react-query",
+        "viem",
+        "wagmi"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-auth-adapter.json"
+      ]
     },
     {
       "name": "button",

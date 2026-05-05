@@ -27,6 +27,7 @@ import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
 
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
@@ -38,7 +39,11 @@ import { AppSelect } from "@/components/control-bar/app-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
-import { useAssistantApi, useMessage } from "@assistant-ui/react";
+import {
+  useAssistantApi,
+  useAssistantState,
+  useMessage,
+} from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
 
@@ -68,6 +73,8 @@ export const Thread: FC = () => {
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
+
+            <ThreadLoadingSkeleton />
 
             <ThreadPrimitive.Messages
               components={{
@@ -278,7 +285,65 @@ const MessageError: FC = () => {
   );
 };
 
+const ThreadLoadingSkeleton: FC = () => {
+  const isLoading = useAssistantState(({ thread }) => thread.isLoading);
+
+  if (!isLoading) return null;
+
+  return (
+    <div
+      role="status"
+      aria-label="Loading conversation"
+      aria-live="polite"
+      className="aui-thread-loading-skeleton mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-6 px-2 py-5"
+    >
+      <AssistantMessageSkeleton widths={["76%", "58%", "68%"]} />
+      <UserMessageSkeleton width="44%" />
+      <AssistantMessageSkeleton widths={["82%", "71%", "38%"]} />
+      <UserMessageSkeleton width="56%" />
+      <AssistantMessageSkeleton widths={["64%", "46%"]} />
+    </div>
+  );
+};
+
+const AssistantMessageSkeleton: FC<{ widths?: string[] }> = ({
+  widths = ["72%", "56%", "64%"],
+}) => {
+  return (
+    <div className="aui-assistant-message-skeleton flex flex-col gap-2 px-2">
+      {widths.map((width, index) => (
+        <Skeleton
+          key={`${width}-${index}`}
+          className="aui-assistant-message-skeleton-line h-3 rounded-full"
+          style={{ width }}
+        />
+      ))}
+    </div>
+  );
+};
+
+const UserMessageSkeleton: FC<{ width?: string }> = ({ width = "48%" }) => {
+  return (
+    <div className="aui-user-message-skeleton flex justify-end px-2">
+      <Skeleton
+        className="aui-user-message-skeleton-bubble h-10 rounded-3xl"
+        style={{ width }}
+      />
+    </div>
+  );
+};
+
+const AssistantLoadingDot: FC = () => {
+  return (
+    <div className="aui-assistant-loading-dot-wrapper flex min-h-6 items-center px-1">
+      <span className="aui-assistant-loading-dot bg-foreground block size-2.5 animate-pulse rounded-full" />
+    </div>
+  );
+};
+
 const AssistantMessage: FC = () => {
+  const isEmpty = useMessage((state) => state.content.length === 0);
+
   return (
     <MessagePrimitive.Root asChild>
       <div
@@ -286,19 +351,25 @@ const AssistantMessage: FC = () => {
         data-role="assistant"
       >
         <div className="aui-assistant-message-content text-foreground mx-2 break-words text-sm leading-5">
-          <MessagePrimitive.Parts
-            components={{
-              Text: MarkdownText,
-              tools: { Fallback: ToolFallback },
-            }}
-          />
+          {isEmpty ? (
+            <AssistantLoadingDot />
+          ) : (
+            <MessagePrimitive.Parts
+              components={{
+                Text: MarkdownText,
+                tools: { Fallback: ToolFallback },
+              }}
+            />
+          )}
           <MessageError />
         </div>
 
-        <div className="aui-assistant-message-footer ml-2 mt-2 flex">
-          <BranchPicker />
-          <AssistantActionBar />
-        </div>
+        {!isEmpty && (
+          <div className="aui-assistant-message-footer ml-2 mt-2 flex">
+            <BranchPicker />
+            <AssistantActionBar />
+          </div>
+        )}
       </div>
     </MessagePrimitive.Root>
   );
@@ -332,6 +403,8 @@ const AssistantActionBar: FC = () => {
 };
 
 const UserMessage: FC = () => {
+  const isEmpty = useMessage((state) => state.content.length === 0);
+
   return (
     <MessagePrimitive.Root asChild>
       <div
@@ -340,11 +413,17 @@ const UserMessage: FC = () => {
       >
         <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
           <div className="aui-user-message-content bg-muted text-foreground break-words rounded-3xl px-5 py-2.5 text-sm">
-            <MessagePrimitive.Parts />
+            {isEmpty ? (
+              <Skeleton className="aui-user-message-content-skeleton h-4 w-28 rounded-full" />
+            ) : (
+              <MessagePrimitive.Parts />
+            )}
           </div>
-          <div className="aui-user-action-bar-wrapper absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 pr-2">
-            <UserActionBar />
-          </div>
+          {!isEmpty && (
+            <div className="aui-user-action-bar-wrapper absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 pr-2">
+              <UserActionBar />
+            </div>
+          )}
         </div>
 
         <BranchPicker className="aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" />

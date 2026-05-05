@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
@@ -149,6 +149,8 @@ export function AomiRuntimeCore({
   threadContextRef.current = threadContext;
   const remoteThreadIdsRef = useRef(new Set<string>());
   const warmedThreadIdsRef = useRef(new Set<string>());
+  const [isThreadLoading, setIsThreadLoading] = useState(false);
+  const [isThreadListLoading, setIsThreadListLoading] = useState(false);
 
   const warmThread = useCallback(
     async (threadId: string) => {
@@ -213,14 +215,24 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
-    if (!remoteThreadIdsRef.current.has(threadId)) return;
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      setIsThreadLoading(false);
+      return;
+    }
 
     let cancelled = false;
+    setIsThreadLoading(true);
 
     void (async () => {
-      await warmThread(threadId);
-      if (!cancelled) {
-        await ensureInitialState(threadId);
+      try {
+        await warmThread(threadId);
+        if (!cancelled) {
+          await ensureInitialState(threadId);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsThreadLoading(false);
+        }
       }
     })();
 
@@ -255,6 +267,7 @@ export function AomiRuntimeCore({
       ? UserState.address(user)
       : undefined;
     if (!userAddress) {
+      setIsThreadListLoading(false);
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
       sessionManager.closeAll();
@@ -262,9 +275,13 @@ export function AomiRuntimeCore({
       return;
     }
 
+    let cancelled = false;
+    setIsThreadListLoading(true);
+
     const fetchThreadList = async () => {
       try {
         const threadList = await aomiClientRef.current.listThreads(userAddress);
+        if (cancelled) return;
         const currentContext = threadContextRef.current;
         const remoteThreadIds = new Set<string>();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
@@ -306,15 +323,32 @@ export function AomiRuntimeCore({
         }
 
         if (remoteThreadIds.has(currentContext.currentThreadId)) {
-          await warmThread(currentContext.currentThreadId);
-          await ensureInitialState(currentContext.currentThreadId);
+          setIsThreadLoading(true);
+          try {
+            await warmThread(currentContext.currentThreadId);
+            if (!cancelled) {
+              await ensureInitialState(currentContext.currentThreadId);
+            }
+          } finally {
+            if (!cancelled) {
+              setIsThreadLoading(false);
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
+      } finally {
+        if (!cancelled) {
+          setIsThreadListLoading(false);
+        }
       }
     };
 
     void fetchThreadList();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, aomiClientRef, ensureInitialState, warmThread]);
 
   // ---------------------------------------------------------------------------
@@ -331,6 +365,7 @@ export function AomiRuntimeCore({
         aomiClientRef,
         threadContext,
         setIsRunning,
+        isLoading: isThreadListLoading,
         getInitialControl: getPreferredThreadControl,
         isRemoteThread,
       }),
@@ -338,10 +373,12 @@ export function AomiRuntimeCore({
       aomiClientRef,
       getPreferredThreadControl,
       isRemoteThread,
+      isThreadListLoading,
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
+      currentMessages,
     ],
   );
 
@@ -407,6 +444,7 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   const runtime = useExternalStoreRuntime({
     messages: currentMessages,
+    isLoading: isThreadLoading,
     setMessages: (msgs) =>
       threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
