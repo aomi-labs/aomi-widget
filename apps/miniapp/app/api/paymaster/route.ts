@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const ALLOWED_PAYMASTER_METHODS = new Set([
+  "pm_getAcceptedPaymentTokens",
   "pm_getPaymasterStubData",
   "pm_getPaymasterData",
 ]);
 
 const PIMLICO_PAYMASTER_URL = process.env.PIMLICO_PAYMASTER_URL;
+const PAYMASTER_ALLOWED_ORIGINS = new Set(
+  headerValues(process.env.PAYMASTER_ALLOWED_ORIGINS).map(normalizeOrigin),
+);
+const TRUST_FORWARDED_IP_HEADERS =
+  process.env.PAYMASTER_TRUST_FORWARDED_IP_HEADERS === "1" ||
+  process.env.PAYMASTER_TRUST_FORWARDED_IP_HEADERS === "true" ||
+  process.env.VERCEL === "1";
+const ALLOW_ORIGINLESS_REQUESTS =
+  process.env.PAYMASTER_ALLOW_ORIGINLESS_REQUESTS === "1" ||
+  process.env.PAYMASTER_ALLOW_ORIGINLESS_REQUESTS === "true";
 
 const SPONSOR_NAME =
   process.env.PAYMASTER_SPONSOR_NAME ??
@@ -38,15 +49,23 @@ type JsonRpcResponse = {
   error?: unknown;
 };
 
-function headerValues(value: string | null): string[] {
+function headerValues(value: string | null | undefined): string[] {
   return (value ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
+function normalizeOrigin(origin: string): string {
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return origin.trim().replace(/\/$/, "");
+  }
+}
+
 function requestOrigins(req: NextRequest): Set<string> {
-  const origins = new Set<string>([req.nextUrl.origin]);
+  const origins = new Set<string>([normalizeOrigin(req.nextUrl.origin)]);
   const hosts = [
     ...headerValues(req.headers.get("host")),
     ...headerValues(req.headers.get("x-forwarded-host")),
@@ -58,7 +77,7 @@ function requestOrigins(req: NextRequest): Set<string> {
 
   for (const host of hosts) {
     for (const protocol of protocols) {
-      origins.add(`${protocol}://${host}`);
+      origins.add(normalizeOrigin(`${protocol}://${host}`));
     }
   }
 
@@ -68,8 +87,13 @@ function requestOrigins(req: NextRequest): Set<string> {
 function allowedCorsOrigin(req: NextRequest): string | undefined {
   const origin = req.headers.get("origin");
   if (!origin) return undefined;
-  if (requestOrigins(req).has(origin) || TRUSTED_WALLET_ORIGINS.has(origin)) {
-    return origin;
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (
+    requestOrigins(req).has(normalizedOrigin) ||
+    TRUSTED_WALLET_ORIGINS.has(normalizedOrigin) ||
+    PAYMASTER_ALLOWED_ORIGINS.has(normalizedOrigin)
+  ) {
+    return normalizedOrigin;
   }
   return undefined;
 }
@@ -112,15 +136,20 @@ function validateRequestMethods(requests: JsonRpcRequest[]): boolean {
 
 function isAllowedOrigin(req: NextRequest): boolean {
   const origin = req.headers.get("origin");
-  return !origin || Boolean(allowedCorsOrigin(req));
+  if (!origin) return ALLOW_ORIGINLESS_REQUESTS;
+  return Boolean(allowedCorsOrigin(req));
 }
 
 function clientKey(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
+  if (TRUST_FORWARDED_IP_HEADERS) {
+    const forwardedIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip")?.trim();
+
+    if (forwardedIp) return `ip:${forwardedIp}`;
+  }
+
+  return `origin:${allowedCorsOrigin(req) ?? "unknown"}`;
 }
 
 function rateLimit(req: NextRequest): boolean {
