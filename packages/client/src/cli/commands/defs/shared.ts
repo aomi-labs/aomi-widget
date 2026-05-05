@@ -1,8 +1,14 @@
 import type { ArgsDef } from "citty";
 import { privateKeyToAccount } from "viem/accounts";
 import type { CliConfig, CliExecutionMode } from "../../types";
+import type { AomiPaymentMethod } from "../../../types";
 import { fatal } from "../../errors";
-import { parseChainId, normalizePrivateKey, parseAAProvider, parseAAMode } from "../../validation";
+import {
+  parseChainId,
+  normalizePrivateKey,
+  parseAAProvider,
+  parseAAMode,
+} from "../../validation";
 
 /**
  * Global flags shared across all commands.
@@ -24,6 +30,10 @@ export const globalArgs = {
   model: {
     type: "string",
     description: "Set the active model for this session",
+  },
+  "payment-method": {
+    type: "string",
+    description: "Payment method: auto, null, byok, mpp/tempo, x402/coinbase",
   },
   "new-session": {
     type: "boolean",
@@ -55,24 +65,68 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
-function derivePublicKeyFromPrivateKey(privateKey: string | undefined): string | undefined {
+function derivePublicKeyFromPrivateKey(
+  privateKey: string | undefined,
+): string | undefined {
   if (!privateKey) return undefined;
 
   try {
     return privateKeyToAccount(privateKey as `0x${string}`).address;
   } catch {
-    fatal("Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.");
+    fatal(
+      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.",
+    );
   }
 }
 
-function resolveExecution(args: Record<string, unknown>): CliExecutionMode | undefined {
+function parsePaymentMethod(
+  value: string | undefined,
+): AomiPaymentMethod | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "auto") {
+    return null;
+  }
+
+  if (
+    normalized === "null" ||
+    normalized === "byok" ||
+    normalized === "tempo" ||
+    normalized === "coinbase"
+  ) {
+    return normalized;
+  }
+
+  if (normalized === "mpp") {
+    return "tempo";
+  }
+
+  if (normalized === "x402") {
+    return "coinbase";
+  }
+
+  fatal(
+    "Invalid payment method. Use auto, null, byok, mpp/tempo, or x402/coinbase.",
+  );
+}
+
+function resolveExecution(
+  args: Record<string, unknown>,
+): CliExecutionMode | undefined {
   const flagAA = args.aa === true;
   const flagEoa = args.eoa === true;
   if (flagAA && flagEoa) {
     fatal("Choose only one of `--aa` or `--eoa`.");
   }
   if (flagEoa) return "eoa";
-  if (flagAA || str(args["aa-provider"]) !== undefined || str(args["aa-mode"]) !== undefined) {
+  if (
+    flagAA ||
+    str(args["aa-provider"]) !== undefined ||
+    str(args["aa-mode"]) !== undefined
+  ) {
     return "aa";
   }
   return undefined;
@@ -94,8 +148,7 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     str(args["private-key"]) ?? process.env.PRIVATE_KEY,
   );
   const configuredPublicKey =
-    str(args["public-key"]) ??
-    process.env.AOMI_PUBLIC_KEY;
+    str(args["public-key"]) ?? process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
 
   if (
@@ -103,39 +156,32 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     derivedPublicKey &&
     configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()
   ) {
-    fatal("`--public-key` does not match the address derived from `--private-key`.");
+    fatal(
+      "`--public-key` does not match the address derived from `--private-key`.",
+    );
   }
 
   const aaProvider = parseAAProvider(
     str(args["aa-provider"]) ?? process.env.AOMI_AA_PROVIDER,
   );
-  const aaMode = parseAAMode(
-    str(args["aa-mode"]) ?? process.env.AOMI_AA_MODE,
-  );
+  const aaMode = parseAAMode(str(args["aa-mode"]) ?? process.env.AOMI_AA_MODE);
 
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
 
   return {
-    baseUrl:
-      str(args["backend-url"]) ??
-      process.env.AOMI_BACKEND_URL,
-    apiKey:
-      str(args["api-key"]) ??
-      process.env.AOMI_API_KEY,
-    app:
-      str(args.app) ??
-      process.env.AOMI_APP,
-    model:
-      str(args.model) ??
-      process.env.AOMI_MODEL,
+    baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
+    apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
+    app: str(args.app) ?? process.env.AOMI_APP,
+    model: str(args.model) ?? process.env.AOMI_MODEL,
+    paymentMethod: parsePaymentMethod(
+      str(args["payment-method"]) ?? str(process.env.AOMI_PAYMENT_METHOD),
+    ),
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,
     privateKey,
-    chainRpcUrl:
-      str(args["rpc-url"]) ??
-      process.env.CHAIN_RPC_URL,
+    chainRpcUrl: str(args["rpc-url"]) ?? process.env.CHAIN_RPC_URL,
     chain: parseChainId(str(args.chain) ?? process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
@@ -157,5 +203,7 @@ export function getPositionals(args: Record<string, unknown>): string[] {
   if (!Array.isArray(positionals)) {
     return [];
   }
-  return positionals.filter((value): value is string => typeof value === "string");
+  return positionals.filter(
+    (value): value is string => typeof value === "string",
+  );
 }

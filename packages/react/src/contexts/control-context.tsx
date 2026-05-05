@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AomiClient } from "@aomi-labs/client";
+import type { AomiPaymentMethod } from "@aomi-labs/client";
 import type {
   ModelSelectionMode,
   ThreadMetadata,
@@ -83,6 +84,8 @@ export type ControlContextApi = {
   getCurrentThreadControl: () => ThreadControlState;
   /** Get the current thread's effective app after auth fallback */
   getCurrentThreadApp: () => string;
+  /** Get the current thread's selected payment method. */
+  getCurrentThreadPaymentMethod: () => AomiPaymentMethod | null;
   /** Select a model for the current thread (updates metadata + calls backend) */
   onModelSelect: (
     model: string,
@@ -90,6 +93,8 @@ export type ControlContextApi = {
   ) => Promise<void>;
   /** Select an app for the current thread (updates metadata only) */
   onAppSelect: (app: string) => void;
+  /** Select a payment method for the current thread (updates metadata only) */
+  onPaymentMethodSelect: (paymentMethod: AomiPaymentMethod | null) => void;
   /** Whether the current thread is processing (disables control switching) */
   isProcessing: boolean;
   /** Mark control state as synced (called after chat starts) */
@@ -606,6 +611,14 @@ export function ControlContextProvider({
     );
   }, []);
 
+  const getCurrentThreadPaymentMethod =
+    useCallback((): AomiPaymentMethod | null => {
+      const currentControl =
+        getThreadMetadataRef.current(sessionIdRef.current)?.control ??
+        initThreadControl();
+      return currentControl.paymentMethod ?? null;
+    }, []);
+
   const onModelSelect = useCallback(
     async (model: string, options?: { mode?: ModelSelectionMode }) => {
       const threadId = sessionIdRef.current;
@@ -730,6 +743,31 @@ export function ControlContextProvider({
 
     console.log("[control-context] onAppSelect metadata updated");
   }, []);
+
+  const onPaymentMethodSelect = useCallback(
+    (paymentMethod: AomiPaymentMethod | null) => {
+      const threadId = sessionIdRef.current;
+      const currentControl =
+        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
+      const isProcessing = currentControl.isProcessing;
+
+      if (isProcessing) {
+        console.warn(
+          "[control-context] Cannot switch payment method while processing",
+        );
+        return;
+      }
+
+      updateThreadMetadataRef.current(threadId, {
+        control: {
+          ...currentControl,
+          paymentMethod,
+          controlDirty: true,
+        },
+      });
+    },
+    [],
+  );
 
   const markControlSynced = useCallback(() => {
     const threadId = sessionIdRef.current;
@@ -898,8 +936,10 @@ export function ControlContextProvider({
         getAuthorizedApps,
         getCurrentThreadControl,
         getCurrentThreadApp,
+        getCurrentThreadPaymentMethod,
         onModelSelect,
         onAppSelect,
+        onPaymentMethodSelect,
         isProcessing,
         markControlSynced,
         syncCurrentThreadControl,

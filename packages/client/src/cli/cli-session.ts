@@ -61,6 +61,10 @@ export class CliSession {
       baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
+      paymentMethod:
+        config.paymentMethod !== undefined
+          ? config.paymentMethod
+          : seed?.paymentMethod,
       apiKey: config.apiKey ?? seed?.apiKey,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
@@ -87,6 +91,9 @@ export class CliSession {
   }
   get model(): string | undefined {
     return this.state.model;
+  }
+  get paymentMethod(): string | null | undefined {
+    return this.state.paymentMethod;
   }
   get apiKey(): string | undefined {
     return this.state.apiKey;
@@ -138,7 +145,17 @@ export class CliSession {
       this.state.apiKey = config.apiKey;
       changed = true;
     }
-    if (config.publicKey !== undefined && config.publicKey !== this.state.publicKey) {
+    if (
+      config.paymentMethod !== undefined &&
+      config.paymentMethod !== this.state.paymentMethod
+    ) {
+      this.state.paymentMethod = config.paymentMethod;
+      changed = true;
+    }
+    if (
+      config.publicKey !== undefined &&
+      config.publicKey !== this.state.publicKey
+    ) {
       this.state.publicKey = config.publicKey;
       changed = true;
     }
@@ -186,7 +203,10 @@ export class CliSession {
   }
 
   addSecretHandles(handles: Record<string, string>): void {
-    this.state.secretHandles = { ...(this.state.secretHandles ?? {}), ...handles };
+    this.state.secretHandles = {
+      ...(this.state.secretHandles ?? {}),
+      ...handles,
+    };
     this.save();
   }
 
@@ -241,7 +261,9 @@ export class CliSession {
     this.save();
   }
 
-  syncPendingFromUserState(userState: Parameters<typeof syncPendingTxsFromUserState>[1]): PendingTx[] {
+  syncPendingFromUserState(
+    userState: Parameters<typeof syncPendingTxsFromUserState>[1],
+  ): PendingTx[] {
     const pendingTxs = syncPendingTxsFromUserState(this.state, userState);
     this.reload();
     return pendingTxs;
@@ -262,7 +284,9 @@ export class CliSession {
   requirePendingTxs(txIds: string[]): PendingTx[] {
     const uniqueIds = Array.from(new Set(txIds));
     if (uniqueIds.length !== txIds.length) {
-      fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+      fatal(
+        "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.",
+      );
     }
     return uniqueIds.map((txId) => this.requirePendingTx(txId));
   }
@@ -279,11 +303,14 @@ export class CliSession {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
+        paymentMethod: this.state.paymentMethod ?? null,
         apiKey: this.state.apiKey,
         publicKey: this.state.publicKey,
       },
     );
-    session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId));
+    session.resolveUserState(
+      buildCliUserState(this.state.publicKey, this.state.chainId),
+    );
     return session;
   }
 

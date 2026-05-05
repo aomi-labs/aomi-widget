@@ -31,7 +31,7 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// packages/react/src/index.ts
+// src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
@@ -48,11 +48,11 @@ import {
   aaModeFromExecutionKind
 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
 import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import {
   createContext,
   useCallback,
@@ -62,7 +62,7 @@ import {
   useEffect
 } from "react";
 
-// packages/react/src/utils/uuid.ts
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -74,7 +74,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -92,6 +92,7 @@ function initThreadControl() {
     model: null,
     modelMode: "auto",
     app: null,
+    paymentMethod: null,
     controlDirty: false,
     isProcessing: false
   };
@@ -234,7 +235,7 @@ var ThreadStore = class {
   }
 };
 
-// packages/react/src/utils/model-selection.ts
+// src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude-4\.5-haiku/i,
   /^claude.*haiku/i,
@@ -251,7 +252,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
@@ -622,6 +623,11 @@ function ControlContextProvider({
       stateRef.current.defaultApp
     )) != null ? _c : "default";
   }, []);
+  const getCurrentThreadPaymentMethod = useCallback(() => {
+    var _a2, _b2, _c;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    return (_c = currentControl.paymentMethod) != null ? _c : null;
+  }, []);
   const onModelSelect = useCallback(
     async (model, options) => {
       var _a2, _b2, _c, _d, _e, _f, _g, _h;
@@ -722,6 +728,27 @@ function ControlContextProvider({
     });
     console.log("[control-context] onAppSelect metadata updated");
   }, []);
+  const onPaymentMethodSelect = useCallback(
+    (paymentMethod) => {
+      var _a2, _b2;
+      const threadId = sessionIdRef.current;
+      const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+      const isProcessing2 = currentControl.isProcessing;
+      if (isProcessing2) {
+        console.warn(
+          "[control-context] Cannot switch payment method while processing"
+        );
+        return;
+      }
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          paymentMethod,
+          controlDirty: true
+        })
+      });
+    },
+    []
+  );
   const markControlSynced = useCallback(() => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
@@ -852,8 +879,10 @@ function ControlContextProvider({
         getAuthorizedApps,
         getCurrentThreadControl,
         getCurrentThreadApp,
+        getCurrentThreadPaymentMethod,
         onModelSelect,
         onAppSelect,
+        onPaymentMethodSelect,
         isProcessing,
         markControlSynced,
         syncCurrentThreadControl,
@@ -867,7 +896,7 @@ function ControlContextProvider({
   );
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 import {
   createContext as createContext2,
   useCallback as useCallback2,
@@ -942,7 +971,7 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
   useCallback as useCallback3,
@@ -992,7 +1021,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -1042,7 +1071,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/user-context.tsx
+// src/contexts/user-context.tsx
 import {
   createContext as createContext5,
   useCallback as useCallback4,
@@ -1162,7 +1191,7 @@ function UserContextProvider({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8 } from "react";
 import {
   AssistantRuntimeProvider,
@@ -1170,11 +1199,11 @@ import {
 } from "@assistant-ui/react";
 import { UserState as UserState3 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
-// packages/react/src/runtime/session-manager.ts
+// src/runtime/session-manager.ts
 import { Session as ClientSession } from "@aomi-labs/client";
 var SessionManager = class {
   constructor(clientFactory) {
@@ -1213,7 +1242,7 @@ var SessionManager = class {
   }
 };
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/utils.ts
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1315,7 +1344,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef5(threadContext);
@@ -1331,17 +1360,19 @@ function useRuntimeOrchestrator(aomiClient, options) {
   const listenerCleanups = useRef5(/* @__PURE__ */ new Map());
   const getSession = useCallback5(
     (threadId) => {
-      var _a, _b, _c, _d, _e;
+      var _a, _b, _c, _d, _e, _f, _g;
       const manager = sessionManagerRef.current;
       const nextApp = options.getApp();
       const nextPublicKey = (_a = options.getPublicKey) == null ? void 0 : _a.call(options);
-      const nextApiKey = (_c = (_b = options.getApiKey) == null ? void 0 : _b.call(options)) != null ? _c : void 0;
-      const nextClientId = (_d = options.getClientId) == null ? void 0 : _d.call(options);
-      const nextUserState = (_e = options.getUserState) == null ? void 0 : _e.call(options);
+      const nextPaymentMethod = (_c = (_b = options.getPaymentMethod) == null ? void 0 : _b.call(options)) != null ? _c : null;
+      const nextApiKey = (_e = (_d = options.getApiKey) == null ? void 0 : _d.call(options)) != null ? _e : void 0;
+      const nextClientId = (_f = options.getClientId) == null ? void 0 : _f.call(options);
+      const nextUserState = (_g = options.getUserState) == null ? void 0 : _g.call(options);
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
+          paymentMethod: nextPaymentMethod,
           publicKey: nextPublicKey,
           apiKey: nextApiKey,
           clientId: nextClientId,
@@ -1351,6 +1382,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       }
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
+        paymentMethod: nextPaymentMethod,
         publicKey: nextPublicKey,
         apiKey: nextApiKey,
         clientId: nextClientId,
@@ -1397,10 +1429,13 @@ function useRuntimeOrchestrator(aomiClient, options) {
           threadContextRef.current.updateThreadMetadata(threadId, { title });
         })
       );
-      const forwardEvent = (type) => session.on(type, (payload) => {
-        var _a2;
-        (_a2 = options.onEvent) == null ? void 0 : _a2.call(options, { type, payload, sessionId: threadId });
-      });
+      const forwardEvent = (type) => session.on(
+        type,
+        (payload) => {
+          var _a2;
+          (_a2 = options.onEvent) == null ? void 0 : _a2.call(options, { type, payload, sessionId: threadId });
+        }
+      );
       cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
       cleanups.push(forwardEvent("system_notice"));
@@ -1459,16 +1494,13 @@ function useRuntimeOrchestrator(aomiClient, options) {
     },
     [getSession]
   );
-  const cancelGeneration = useCallback5(
-    async (threadId) => {
-      var _a;
-      const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
-      if (session) {
-        await session.interrupt();
-      }
-    },
-    []
-  );
+  const cancelGeneration = useCallback5(async (threadId) => {
+    var _a;
+    const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
+    if (session) {
+      await session.interrupt();
+    }
+  }, []);
   useEffect2(() => {
     return () => {
       var _a;
@@ -1491,7 +1523,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1624,7 +1656,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1638,7 +1670,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// packages/react/src/handlers/wallet-handler.ts
+// src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useRef as useRef6, useState as useState5 } from "react";
 function useWalletHandler({
   getSession
@@ -1728,7 +1760,7 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/user-state-provider.tsx
+// src/runtime/user-state-provider.tsx
 import { useEffect as useEffect3, useRef as useRef7 } from "react";
 import { Fragment, jsx as jsx6 } from "react/jsx-runtime";
 function stableStateString(state) {
@@ -1761,7 +1793,7 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ jsx6(Fragment, { children });
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
 function AomiRuntimeCore({
   children,
@@ -1774,7 +1806,9 @@ function AomiRuntimeCore({
   const {
     getControlState,
     getCurrentThreadApp,
+    getCurrentThreadPaymentMethod,
     getPreferredThreadControl,
+    onPaymentMethodSelect,
     syncCurrentThreadControl
   } = useControl();
   const sessionManagerRef = useRef8(null);
@@ -1797,6 +1831,7 @@ function AomiRuntimeCore({
     getPublicKey: () => UserState3.isConnected(getUserState()) ? UserState3.address(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
+    getPaymentMethod: getCurrentThreadPaymentMethod,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => {
       var _a;
@@ -2119,6 +2154,8 @@ function AomiRuntimeCore({
       isRunning,
       getMessages,
       sendMessage,
+      paymentMethod: getCurrentThreadPaymentMethod(),
+      setPaymentMethod: onPaymentMethodSelect,
       cancelGeneration,
       // Notification API
       notifications: notificationContext.notifications,
@@ -2150,6 +2187,8 @@ function AomiRuntimeCore({
       isRunning,
       getMessages,
       sendMessage,
+      getCurrentThreadPaymentMethod,
+      onPaymentMethodSelect,
       cancelGeneration,
       notificationContext,
       walletHandler,
@@ -2168,7 +2207,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
@@ -2204,7 +2243,7 @@ function AomiRuntimeInner({
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
+// src/handlers/notification-handler.ts
 import { useCallback as useCallback8, useEffect as useEffect5, useState as useState6 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {

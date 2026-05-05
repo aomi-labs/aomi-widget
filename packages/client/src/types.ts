@@ -17,6 +17,9 @@ export type AomiClientType = "ts_cli" | "web_ui" | (string & {});
 export const CLIENT_TYPE_TS_CLI: AomiClientType = "ts_cli";
 export const CLIENT_TYPE_WEB_UI: AomiClientType = "web_ui";
 
+/** Wire values accepted by `/api/chat?payment_method=...`. */
+export type AomiPaymentMethod = "null" | "byok" | "tempo" | "coinbase";
+
 const USER_STATE_KEY_ALIASES: Record<string, string> = {
   chainId: "chain_id",
   isConnected: "is_connected",
@@ -48,7 +51,9 @@ function parseUserStateChainId(value: unknown): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function normalizeAddressForComparison(value: string | undefined): string | undefined {
+function normalizeAddressForComparison(
+  value: string | undefined,
+): string | undefined {
   return typeof value === "string" ? value.toLowerCase() : undefined;
 }
 
@@ -57,7 +62,9 @@ export namespace UserState {
    * Canonicalize client-side user state to the backend's snake_case `UserState`.
    * Existing snake_case keys win when both forms are present.
    */
-  export function normalize(userState?: UserState | null): UserState | undefined {
+  export function normalize(
+    userState?: UserState | null,
+  ): UserState | undefined {
     if (!userState) {
       return undefined;
     }
@@ -101,7 +108,11 @@ export namespace UserState {
       normalizeAddressForComparison(previousAddress) ===
         normalizeAddressForComparison(incomingAddress);
 
-    if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
+    if (
+      !incomingAddress &&
+      canPreserveConnectedWalletContext &&
+      previousAddress
+    ) {
       reconciled.address = previousAddress;
     }
 
@@ -129,7 +140,9 @@ export namespace UserState {
   export function address(userState?: UserState | null): string | undefined {
     const normalized = normalize(userState);
     const address = normalized?.address;
-    return typeof address === "string" && address.length > 0 ? address : undefined;
+    return typeof address === "string" && address.length > 0
+      ? address
+      : undefined;
   }
 
   export function chainId(userState?: UserState | null): number | undefined {
@@ -137,7 +150,9 @@ export namespace UserState {
     return parseUserStateChainId(normalized?.chain_id);
   }
 
-  export function isConnected(userState?: UserState | null): boolean | undefined {
+  export function isConnected(
+    userState?: UserState | null,
+  ): boolean | undefined {
     const normalized = normalize(userState);
     const isConnected = normalized?.is_connected;
     return typeof isConnected === "boolean" ? isConnected : undefined;

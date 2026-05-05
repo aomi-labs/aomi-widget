@@ -46,7 +46,9 @@ export function AomiRuntimeCore({
   const {
     getControlState,
     getCurrentThreadApp,
+    getCurrentThreadPaymentMethod,
     getPreferredThreadControl,
+    onPaymentMethodSelect,
     syncCurrentThreadControl,
   } = useControl();
 
@@ -81,6 +83,7 @@ export function AomiRuntimeCore({
         : undefined,
     getUserState,
     getApp: getCurrentThreadApp,
+    getPaymentMethod: getCurrentThreadPaymentMethod,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     onPendingRequestsChange: walletHandler.setRequests,
@@ -517,6 +520,8 @@ export function AomiRuntimeCore({
       isRunning,
       getMessages,
       sendMessage,
+      paymentMethod: getCurrentThreadPaymentMethod(),
+      setPaymentMethod: onPaymentMethodSelect,
       cancelGeneration,
 
       // Notification API
@@ -551,6 +556,8 @@ export function AomiRuntimeCore({
       isRunning,
       getMessages,
       sendMessage,
+      getCurrentThreadPaymentMethod,
+      onPaymentMethodSelect,
       cancelGeneration,
       notificationContext,
       walletHandler,

@@ -2,6 +2,7 @@ import { generateUUID } from "../utils/uuid";
 import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import { ThreadContext } from "../contexts/thread-context";
+import type { AomiPaymentMethod } from "@aomi-labs/client";
 
 const shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 
@@ -36,6 +37,8 @@ export type ThreadControlState = {
   modelMode?: ModelSelectionMode;
   /** Selected app for this thread */
   app: string | null;
+  /** Selected payment method; null lets backend choose automatically */
+  paymentMethod: AomiPaymentMethod | null;
   /** Whether control state has changed but chat hasn't started yet */
   controlDirty: boolean;
   /** Whether this thread is currently processing (assistant generating) */
@@ -56,6 +59,7 @@ export function initThreadControl(): ThreadControlState {
     model: null,
     modelMode: "auto",
     app: null,
+    paymentMethod: null,
     controlDirty: false,
     isProcessing: false,
   };

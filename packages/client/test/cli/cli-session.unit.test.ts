@@ -27,6 +27,7 @@ describe("CLI session lifecycle", () => {
     const config = {
       baseUrl: "https://api.aomi.dev",
       app: "default",
+      paymentMethod: "coinbase" as const,
       execution: "eoa" as const,
       secrets: {},
     };
@@ -41,6 +42,7 @@ describe("CLI session lifecycle", () => {
 
     expect(reused.sessionId).toBe(first.sessionId);
     expect(reused.clientId).toBe(first.clientId);
+    expect(reused.paymentMethod).toBe("coinbase");
 
     const fresh = CliSession.create(config);
 
@@ -52,7 +54,8 @@ describe("CLI session lifecycle", () => {
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { newSessionCommand } = await import("../../src/cli/commands/sessions");
+    const { newSessionCommand } =
+      await import("../../src/cli/commands/sessions");
     const { readState } = await import("../../src/cli/state");
 
     const config = {
@@ -71,9 +74,8 @@ describe("CLI session lifecycle", () => {
   });
 
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
-    const { setWalletCommand, setChainCommand, setBackendCommand } = await import(
-      "../../src/cli/commands/preferences"
-    );
+    const { setWalletCommand, setChainCommand, setBackendCommand } =
+      await import("../../src/cli/commands/preferences");
     const { readState } = await import("../../src/cli/state");
 
     setWalletCommand(

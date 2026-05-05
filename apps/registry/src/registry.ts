@@ -66,6 +66,7 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/model-metadata.ts",
       "components/control-bar/app-metadata.ts",
       "components/control-bar/app-select.tsx",
+      "components/control-bar/payment-select.tsx",
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/connect-button.tsx",
       "components/control-bar/network-select.tsx",

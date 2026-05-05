@@ -1,5 +1,5 @@
-import { AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
-export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestResult, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiClient, SessionOptions, Session, UserState, AomiPaymentMethod, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
+export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPaymentMethod, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestResult, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -64,6 +64,8 @@ type ThreadControlState = {
     modelMode?: ModelSelectionMode;
     /** Selected app for this thread */
     app: string | null;
+    /** Selected payment method; null lets backend choose automatically */
+    paymentMethod: AomiPaymentMethod | null;
     /** Whether control state has changed but chat hasn't started yet */
     controlDirty: boolean;
     /** Whether this thread is currently processing (assistant generating) */
@@ -198,6 +200,10 @@ type AomiRuntimeApi = {
     getMessages: (threadId?: string) => ThreadMessageLike[];
     /** Send a message to the current thread */
     sendMessage: (text: string) => Promise<void>;
+    /** Selected payment method for the current thread; null means backend default/auto */
+    paymentMethod: AomiPaymentMethod | null;
+    /** Select payment method for future chat requests on the current thread */
+    setPaymentMethod: (paymentMethod: AomiPaymentMethod | null) => void;
     /** Cancel the current generation */
     cancelGeneration: () => void;
     /** All active notifications */
@@ -389,12 +395,16 @@ type ControlContextApi = {
     getCurrentThreadControl: () => ThreadControlState;
     /** Get the current thread's effective app after auth fallback */
     getCurrentThreadApp: () => string;
+    /** Get the current thread's selected payment method. */
+    getCurrentThreadPaymentMethod: () => AomiPaymentMethod | null;
     /** Select a model for the current thread (updates metadata + calls backend) */
     onModelSelect: (model: string, options?: {
         mode?: ModelSelectionMode;
     }) => Promise<void>;
     /** Select an app for the current thread (updates metadata only) */
     onAppSelect: (app: string) => void;
+    /** Select a payment method for the current thread (updates metadata only) */
+    onPaymentMethodSelect: (paymentMethod: AomiPaymentMethod | null) => void;
     /** Whether the current thread is processing (disables control switching) */
     isProcessing: boolean;
     /** Mark control state as synced (called after chat starts) */

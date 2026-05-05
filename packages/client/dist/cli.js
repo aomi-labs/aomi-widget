@@ -146,8 +146,31 @@ function derivePublicKeyFromPrivateKey(privateKey) {
   try {
     return privateKeyToAccount(privateKey).address;
   } catch (e) {
-    fatal("Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.");
+    fatal(
+      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`."
+    );
   }
+}
+function parsePaymentMethod(value) {
+  if (value === void 0) {
+    return void 0;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "auto") {
+    return null;
+  }
+  if (normalized === "null" || normalized === "byok" || normalized === "tempo" || normalized === "coinbase") {
+    return normalized;
+  }
+  if (normalized === "mpp") {
+    return "tempo";
+  }
+  if (normalized === "x402") {
+    return "coinbase";
+  }
+  fatal(
+    "Invalid payment method. Use auto, null, byok, mpp/tempo, or x402/coinbase."
+  );
 }
 function resolveExecution(args) {
   const flagAA = args.aa === true;
@@ -162,7 +185,7 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
@@ -170,14 +193,14 @@ function buildCliConfig(args) {
   const configuredPublicKey = (_b = str(args["public-key"])) != null ? _b : process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
   if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
-    fatal("`--public-key` does not match the address derived from `--private-key`.");
+    fatal(
+      "`--public-key` does not match the address derived from `--private-key`."
+    );
   }
   const aaProvider = parseAAProvider(
     (_c = str(args["aa-provider"])) != null ? _c : process.env.AOMI_AA_PROVIDER
   );
-  const aaMode = parseAAMode(
-    (_d = str(args["aa-mode"])) != null ? _d : process.env.AOMI_AA_MODE
-  );
+  const aaMode = parseAAMode((_d = str(args["aa-mode"])) != null ? _d : process.env.AOMI_AA_MODE);
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
@@ -186,11 +209,14 @@ function buildCliConfig(args) {
     apiKey: (_f = str(args["api-key"])) != null ? _f : process.env.AOMI_API_KEY,
     app: (_g = str(args.app)) != null ? _g : process.env.AOMI_APP,
     model: (_h = str(args.model)) != null ? _h : process.env.AOMI_MODEL,
+    paymentMethod: parsePaymentMethod(
+      (_i = str(args["payment-method"])) != null ? _i : str(process.env.AOMI_PAYMENT_METHOD)
+    ),
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
-    chainRpcUrl: (_i = str(args["rpc-url"])) != null ? _i : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_j = str(args.chain)) != null ? _j : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_j = str(args["rpc-url"])) != null ? _j : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_k = str(args.chain)) != null ? _k : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
@@ -202,7 +228,9 @@ function getPositionals(args) {
   if (!Array.isArray(positionals)) {
     return [];
   }
-  return positionals.filter((value) => typeof value === "string");
+  return positionals.filter(
+    (value) => typeof value === "string"
+  );
 }
 var globalArgs;
 var init_shared = __esm({
@@ -226,6 +254,10 @@ var init_shared = __esm({
       model: {
         type: "string",
         description: "Set the active model for this session"
+      },
+      "payment-method": {
+        type: "string",
+        description: "Payment method: auto, null, byok, mpp/tempo, x402/coinbase"
       },
       "new-session": {
         type: "boolean",
@@ -659,6 +691,9 @@ var init_client = __esm({
         if (options == null ? void 0 : options.clientId) {
           payload.client_id = options.clientId;
         }
+        if (options == null ? void 0 : options.paymentMethod) {
+          payload.payment_method = options.paymentMethod;
+        }
         return postState(
           this.baseUrl,
           "/api/chat",
@@ -1037,8 +1072,10 @@ var init_client = __esm({
         });
         if (!response.ok) {
           const body = await response.text().catch(() => "");
-          throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
-${body}` : ""}`);
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+          );
         }
         return await response.json();
       }
@@ -1473,7 +1510,7 @@ var init_session = __esm({
     init_policy();
     ClientSession = class extends TypedEventEmitter {
       constructor(clientOrOptions, sessionOptions) {
-        var _a3, _b, _c, _d, _e;
+        var _a3, _b, _c, _d, _e, _f;
         super();
         // Internal state
         this.pollTimer = null;
@@ -1489,13 +1526,21 @@ var init_session = __esm({
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
         this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+        this.paymentMethod = (_c = sessionOptions == null ? void 0 : sessionOptions.paymentMethod) != null ? _c : null;
         this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-        const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
-        this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-        this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
-        this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+        const initialUserState = UserState.reconcile(
+          void 0,
+          sessionOptions == null ? void 0 : sessionOptions.userState
+        );
+        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+          initialUserState != null ? initialUserState : {},
+          "client_type",
+          sessionOptions.clientType
+        ) : initialUserState;
+        this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
+        this.syncPendingTxRequestsFromUserState = (_e = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _e : true;
+        this.pollIntervalMs = (_f = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _f : 500;
         this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
         this.unsubscribeSSE = this.client.subscribeSSE(
           this.sessionId,
@@ -1521,7 +1566,8 @@ var init_session = __esm({
           publicKey: this.publicKey,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -1546,7 +1592,8 @@ var init_session = __esm({
           publicKey: this.publicKey,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -1614,7 +1661,9 @@ var init_session = __esm({
         if (req.kind === "transaction") {
           const txPayload = req.payload;
           const pendingTxIds = txIdsFromPayload(txPayload);
-          const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
+          const requestedMode = aaRequestedModeFromPreference(
+            txPayload.aaPreference
+          );
           await this.sendSystemEvent("wallet:tx_complete", {
             txHash: "",
             status: "failed",
@@ -1694,11 +1743,12 @@ var init_session = __esm({
         return this._isProcessing;
       }
       syncRuntimeOptions(options) {
-        var _a3;
+        var _a3, _b;
         this.app = options.app;
+        this.paymentMethod = (_a3 = options.paymentMethod) != null ? _a3 : null;
         this.publicKey = options.publicKey;
         this.apiKey = options.apiKey;
-        this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
+        this.clientId = (_b = options.clientId) != null ? _b : this.clientId;
         if (options.userState) {
           this.resolveUserState(options.userState);
         }
@@ -1716,7 +1766,9 @@ var init_session = __esm({
       }
       setClientType(clientType) {
         var _a3;
-        this.resolveUserState(UserState.withExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType));
+        this.resolveUserState(
+          UserState.withExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType)
+        );
       }
       addExtValue(key, value) {
         var _a3;
@@ -1751,7 +1803,11 @@ var init_session = __esm({
       }
       async syncUserState() {
         this.assertOpen();
-        const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
+        const state = await this.client.fetchState(
+          this.sessionId,
+          this.userState,
+          this.clientId
+        );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
         return state;
@@ -1902,7 +1958,9 @@ var init_session = __esm({
           payload,
           timestamp: (_a3 = existing == null ? void 0 : existing.timestamp) != null ? _a3 : Date.now()
         };
-        this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+        this.walletRequests = existing ? this.walletRequests.map(
+          (request) => request.id === id ? req : request
+        ) : [...this.walletRequests, req];
         if (kind === "transaction") {
           const nextTxIds = txIdsFromPayload(payload);
           if (nextTxIds.length > 1) {
@@ -1911,7 +1969,9 @@ var init_session = __esm({
               if (request.id === id || request.kind !== "transaction") {
                 return true;
               }
-              const requestTxIds = txIdsFromPayload(request.payload);
+              const requestTxIds = txIdsFromPayload(
+                request.payload
+              );
               if (requestTxIds.length === 0) {
                 return true;
               }
@@ -2254,7 +2314,10 @@ function parseSessionFileLocalId(filename) {
   return Number.isNaN(localId) ? null : localId;
 }
 function toSessionFilePath(localId) {
-  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+  return join(
+    SESSIONS_DIR,
+    `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`
+  );
 }
 function toCliSessionState(stored) {
   return {
@@ -2263,6 +2326,7 @@ function toCliSessionState(stored) {
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
+    paymentMethod: stored.paymentMethod,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
@@ -2287,6 +2351,7 @@ function readStoredSession(path) {
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
+      paymentMethod: parsed.paymentMethod,
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
@@ -2437,7 +2502,9 @@ function deleteStoredSession(selector) {
   }
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === target.localId) {
-    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    const remaining = readAllStoredSessions().sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
     writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
   }
   return toStoredSessionRecord(target);
@@ -2568,6 +2635,7 @@ var init_cli_session = __esm({
           baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : "https://api.aomi.dev",
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
+          paymentMethod: config.paymentMethod !== void 0 ? config.paymentMethod : seed == null ? void 0 : seed.paymentMethod,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
           publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
           privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
@@ -2592,6 +2660,9 @@ var init_cli_session = __esm({
       }
       get model() {
         return this.state.model;
+      }
+      get paymentMethod() {
+        return this.state.paymentMethod;
       }
       get apiKey() {
         return this.state.apiKey;
@@ -2641,6 +2712,10 @@ var init_cli_session = __esm({
         }
         if (config.apiKey !== void 0 && config.apiKey !== this.state.apiKey) {
           this.state.apiKey = config.apiKey;
+          changed = true;
+        }
+        if (config.paymentMethod !== void 0 && config.paymentMethod !== this.state.paymentMethod) {
+          this.state.paymentMethod = config.paymentMethod;
           changed = true;
         }
         if (config.publicKey !== void 0 && config.publicKey !== this.state.publicKey) {
@@ -2750,7 +2825,9 @@ Available: ${available}`);
       requirePendingTxs(txIds) {
         const uniqueIds = Array.from(new Set(txIds));
         if (uniqueIds.length !== txIds.length) {
-          fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+          fatal(
+            "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call."
+          );
         }
         return uniqueIds.map((txId) => this.requirePendingTx(txId));
       }
@@ -2759,17 +2836,21 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession() {
+        var _a3;
         const session = new ClientSession(
           { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
           {
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
+            paymentMethod: (_a3 = this.state.paymentMethod) != null ? _a3 : null,
             apiKey: this.state.apiKey,
             publicKey: this.state.publicKey
           }
         );
-        session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId));
+        session.resolveUserState(
+          buildCliUserState(this.state.publicKey, this.state.chainId)
+        );
         return session;
       }
       /** Snapshot of the raw state (for backward compat or serialization). */
@@ -6668,7 +6749,9 @@ function shouldPrintRootHelp(rawArgs) {
   return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
 }
 function printRootHelp() {
-  console.log(`CLI client for Aomi on-chain agent (aomi v${package_default.version})`);
+  console.log(
+    `CLI client for Aomi on-chain agent (aomi v${package_default.version})`
+  );
   console.log("");
   console.log("USAGE");
   console.log("");
@@ -6696,15 +6779,24 @@ function printRootHelp() {
   console.log("  --api-key <key>              API key for non-default apps");
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
+  console.log(
+    "  --payment-method <method>    auto, null, byok, mpp/tempo, x402/coinbase"
+  );
   console.log("  --new-session                Create a fresh active session");
-  console.log("  --chain <id>                 Active chain for chat/session context");
+  console.log(
+    "  --chain <id>                 Active chain for chat/session context"
+  );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for tx sign");
   console.log("  --rpc-url <url>              RPC URL for signing");
   console.log("  -p, --prompt <prompt>        Send a single prompt and exit");
-  console.log("  --show-tool                  Show tool output in root prompt/REPL mode");
+  console.log(
+    "  --show-tool                  Show tool output in root prompt/REPL mode"
+  );
   console.log("  --provider-key <provider:key>");
-  console.log("                               Save a BYOK provider key before running");
+  console.log(
+    "                               Save a BYOK provider key before running"
+  );
   console.log("");
   console.log("COMMANDS");
   console.log("");

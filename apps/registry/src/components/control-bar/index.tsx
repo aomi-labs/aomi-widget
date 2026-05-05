@@ -5,6 +5,7 @@ import { cn } from "@aomi-labs/react";
 import { NetworkSelect } from "./network-select";
 import { ModelSelect } from "./model-select";
 import { AppSelect } from "./app-select";
+import { PaymentSelect } from "./payment-select";
 import { ApiKeyInput } from "./api-key-input";
 import { ConnectButton } from "./connect-button";
 import { SecretInput } from "./secret-input";
@@ -21,6 +22,8 @@ export type ControlBarProps = {
   hideModel?: boolean;
   /** Hide the App selector */
   hideApp?: boolean;
+  /** Hide the payment method selector */
+  hidePayment?: boolean;
   /** Hide the API key input */
   hideApiKey?: boolean;
   /** Hide the wallet connect button (default: true) */
@@ -40,6 +43,7 @@ export const ControlBar: FC<ControlBarProps> = ({
   children,
   hideModel = false,
   hideApp = false,
+  hidePayment = false,
   hideApiKey = false,
   hideWallet = true,
   hideNetwork = false,
@@ -50,6 +54,7 @@ export const ControlBar: FC<ControlBarProps> = ({
       {!hideNetwork && <NetworkSelect />}
       {!hideModel && <ModelSelect />}
       {!hideApp && <AppSelect />}
+      {!hidePayment && <PaymentSelect />}
       {!hideWallet && <ConnectButton />}
       {!hideSecrets && <SecretInput />}
       {children}
@@ -64,10 +69,8 @@ export const ControlBar: FC<ControlBarProps> = ({
 
 export { ModelSelect, type ModelSelectProps } from "./model-select";
 export { AppSelect, type AppSelectProps } from "./app-select";
+export { PaymentSelect, type PaymentSelectProps } from "./payment-select";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
-export {
-  ConnectButton,
-  type ConnectButtonProps,
-} from "./connect-button";
+export { ConnectButton, type ConnectButtonProps } from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
 export { SecretInput, type SecretInputProps } from "./secret-input";

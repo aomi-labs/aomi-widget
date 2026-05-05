@@ -5,6 +5,7 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type {
   AomiClient,
+  AomiPaymentMethod,
   UserState,
   WalletRequest,
 } from "@aomi-labs/client";
@@ -21,10 +22,15 @@ type OrchestratorOptions = {
   getPublicKey?: () => string | undefined;
   getUserState?: () => UserState;
   getApp: () => string;
+  getPaymentMethod?: () => AomiPaymentMethod | null;
   getApiKey?: () => string | null;
   getClientId?: () => string | undefined;
   onPendingRequestsChange?: (requests: WalletRequest[]) => void;
-  onEvent?: (event: { type: string; payload: unknown; sessionId: string }) => void;
+  onEvent?: (event: {
+    type: string;
+    payload: unknown;
+    sessionId: string;
+  }) => void;
 };
 
 export function useRuntimeOrchestrator(
@@ -54,6 +60,7 @@ export function useRuntimeOrchestrator(
       const manager = sessionManagerRef.current!;
       const nextApp = options.getApp();
       const nextPublicKey = options.getPublicKey?.();
+      const nextPaymentMethod = options.getPaymentMethod?.() ?? null;
       const nextApiKey = options.getApiKey?.() ?? undefined;
       const nextClientId = options.getClientId?.();
       const nextUserState = options.getUserState?.();
@@ -61,6 +68,7 @@ export function useRuntimeOrchestrator(
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
+          paymentMethod: nextPaymentMethod,
           publicKey: nextPublicKey,
           apiKey: nextApiKey,
           clientId: nextClientId,
@@ -71,6 +79,7 @@ export function useRuntimeOrchestrator(
 
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
+        paymentMethod: nextPaymentMethod,
         publicKey: nextPublicKey,
         apiKey: nextApiKey,
         clientId: nextClientId,
@@ -125,9 +134,12 @@ export function useRuntimeOrchestrator(
 
       // Forward SSE/system events to the event relay
       const forwardEvent = (type: string) =>
-        session.on(type as keyof import("@aomi-labs/client").SessionEventMap, (payload: unknown) => {
-          options.onEvent?.({ type, payload, sessionId: threadId });
-        });
+        session.on(
+          type as keyof import("@aomi-labs/client").SessionEventMap,
+          (payload: unknown) => {
+            options.onEvent?.({ type, payload, sessionId: threadId });
+          },
+        );
 
       cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
@@ -176,7 +188,8 @@ export function useRuntimeOrchestrator(
       const session = getSession(threadId);
 
       // Add user message to thread immediately
-      const existingMessages = threadContextRef.current.getThreadMessages(threadId);
+      const existingMessages =
+        threadContextRef.current.getThreadMessages(threadId);
       const userMessage: ThreadMessageLike = {
         role: "user",
         content: [{ type: "text", text }],
@@ -197,15 +210,12 @@ export function useRuntimeOrchestrator(
   );
 
   /** Cancel the current generation on the given thread. */
-  const cancelGeneration = useCallback(
-    async (threadId: string) => {
-      const session = sessionManagerRef.current?.get(threadId);
-      if (session) {
-        await session.interrupt();
-      }
-    },
-    [],
-  );
+  const cancelGeneration = useCallback(async (threadId: string) => {
+    const session = sessionManagerRef.current?.get(threadId);
+    if (session) {
+      await session.interrupt();
+    }
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {

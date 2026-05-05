@@ -10,6 +10,7 @@ import type {
   AomiInterruptResponse,
   AomiListProviderKeysResponse,
   AomiProviderKeyEntry,
+  AomiPaymentMethod,
   AomiSaveProviderKeyResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
@@ -63,10 +64,7 @@ function toQueryString(payload: Record<string, unknown>): string {
   return qs ? `?${qs}` : "";
 }
 
-function withSessionHeader(
-  sessionId: string,
-  init?: HeadersInit,
-): HeadersInit {
+function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
@@ -166,6 +164,7 @@ export class AomiClient {
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
+      paymentMethod?: AomiPaymentMethod | null;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -181,6 +180,9 @@ export class AomiClient {
     }
     if (options?.clientId) {
       payload.client_id = options.clientId;
+    }
+    if (options?.paymentMethod) {
+      payload.payment_method = options.paymentMethod;
     }
 
     return postState<AomiChatResponse>(
@@ -676,7 +678,9 @@ export class AomiClient {
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`);
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`,
+      );
     }
 
     return (await response.json()) as AomiSimulateResponse;

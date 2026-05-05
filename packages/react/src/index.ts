@@ -2,7 +2,7 @@
 // API Client (re-exported from @aomi-labs/client)
 // =============================================================================
 export { AomiClient } from "@aomi-labs/client";
-export type { AomiClientOptions } from "@aomi-labs/client";
+export type { AomiClientOptions, AomiPaymentMethod } from "@aomi-labs/client";
 export type {
   AomiMessage,
   AomiChatResponse,

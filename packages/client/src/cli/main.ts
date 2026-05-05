@@ -31,7 +31,9 @@ function shouldPrintRootHelp(rawArgs: string[]): boolean {
 }
 
 function printRootHelp(): void {
-  console.log(`CLI client for Aomi on-chain agent (aomi v${packageJson.version})`);
+  console.log(
+    `CLI client for Aomi on-chain agent (aomi v${packageJson.version})`,
+  );
   console.log("");
   console.log("USAGE");
   console.log("");
@@ -42,7 +44,7 @@ function printRootHelp(): void {
   console.log("ROOT MODES");
   console.log("");
   console.log("  aomi                         Start the interactive REPL");
-  console.log("  aomi --prompt \"hello\"        Send one prompt and exit");
+  console.log('  aomi --prompt "hello"        Send one prompt and exit');
   console.log("");
   console.log("REPL COMMANDS");
   console.log("");
@@ -59,15 +61,24 @@ function printRootHelp(): void {
   console.log("  --api-key <key>              API key for non-default apps");
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
+  console.log(
+    "  --payment-method <method>    auto, null, byok, mpp/tempo, x402/coinbase",
+  );
   console.log("  --new-session                Create a fresh active session");
-  console.log("  --chain <id>                 Active chain for chat/session context");
+  console.log(
+    "  --chain <id>                 Active chain for chat/session context",
+  );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for tx sign");
   console.log("  --rpc-url <url>              RPC URL for signing");
   console.log("  -p, --prompt <prompt>        Send a single prompt and exit");
-  console.log("  --show-tool                  Show tool output in root prompt/REPL mode");
+  console.log(
+    "  --show-tool                  Show tool output in root prompt/REPL mode",
+  );
   console.log("  --provider-key <provider:key>");
-  console.log("                               Save a BYOK provider key before running");
+  console.log(
+    "                               Save a BYOK provider key before running",
+  );
   console.log("");
   console.log("COMMANDS");
   console.log("");

@@ -482,6 +482,9 @@ var AomiClient = class {
     if (options == null ? void 0 : options.clientId) {
       payload.client_id = options.clientId;
     }
+    if (options == null ? void 0 : options.paymentMethod) {
+      payload.payment_method = options.paymentMethod;
+    }
     return postState(
       this.baseUrl,
       "/api/chat",
@@ -860,8 +863,10 @@ var AomiClient = class {
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
-${body}` : ""}`);
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+      );
     }
     return await response.json();
   }
@@ -1266,7 +1271,7 @@ function txIdsFromPayload(payload) {
 }
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     super();
     // Internal state
     this.pollTimer = null;
@@ -1282,13 +1287,21 @@ var ClientSession = class extends TypedEventEmitter {
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+    this.paymentMethod = (_c = sessionOptions == null ? void 0 : sessionOptions.paymentMethod) != null ? _c : null;
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
-    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-    this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
-    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+    const initialUserState = UserState.reconcile(
+      void 0,
+      sessionOptions == null ? void 0 : sessionOptions.userState
+    );
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+      initialUserState != null ? initialUserState : {},
+      "client_type",
+      sessionOptions.clientType
+    ) : initialUserState;
+    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
+    this.syncPendingTxRequestsFromUserState = (_e = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _e : true;
+    this.pollIntervalMs = (_f = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _f : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
@@ -1314,7 +1327,8 @@ var ClientSession = class extends TypedEventEmitter {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1339,7 +1353,8 @@ var ClientSession = class extends TypedEventEmitter {
       publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -1407,7 +1422,9 @@ var ClientSession = class extends TypedEventEmitter {
     if (req.kind === "transaction") {
       const txPayload = req.payload;
       const pendingTxIds = txIdsFromPayload(txPayload);
-      const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
+      const requestedMode = aaRequestedModeFromPreference(
+        txPayload.aaPreference
+      );
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
@@ -1487,11 +1504,12 @@ var ClientSession = class extends TypedEventEmitter {
     return this._isProcessing;
   }
   syncRuntimeOptions(options) {
-    var _a;
+    var _a, _b;
     this.app = options.app;
+    this.paymentMethod = (_a = options.paymentMethod) != null ? _a : null;
     this.publicKey = options.publicKey;
     this.apiKey = options.apiKey;
-    this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
+    this.clientId = (_b = options.clientId) != null ? _b : this.clientId;
     if (options.userState) {
       this.resolveUserState(options.userState);
     }
@@ -1509,7 +1527,9 @@ var ClientSession = class extends TypedEventEmitter {
   }
   setClientType(clientType) {
     var _a;
-    this.resolveUserState(UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
+    this.resolveUserState(
+      UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType)
+    );
   }
   addExtValue(key, value) {
     var _a;
@@ -1544,7 +1564,11 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1695,7 +1719,9 @@ var ClientSession = class extends TypedEventEmitter {
       payload,
       timestamp: (_a = existing == null ? void 0 : existing.timestamp) != null ? _a : Date.now()
     };
-    this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    this.walletRequests = existing ? this.walletRequests.map(
+      (request) => request.id === id ? req : request
+    ) : [...this.walletRequests, req];
     if (kind === "transaction") {
       const nextTxIds = txIdsFromPayload(payload);
       if (nextTxIds.length > 1) {
@@ -1704,7 +1730,9 @@ var ClientSession = class extends TypedEventEmitter {
           if (request.id === id || request.kind !== "transaction") {
             return true;
           }
-          const requestTxIds = txIdsFromPayload(request.payload);
+          const requestTxIds = txIdsFromPayload(
+            request.payload
+          );
           if (requestTxIds.length === 0) {
             return true;
           }

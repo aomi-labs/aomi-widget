@@ -35,6 +35,7 @@ import { cn, useNotification, useThreadContext } from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
 import { ModelSelect } from "@/components/control-bar/model-select";
 import { AppSelect } from "@/components/control-bar/app-select";
+import { PaymentSelect } from "@/components/control-bar/payment-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
@@ -113,7 +114,7 @@ const ThreadWelcome: FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="aui-thread-welcome-message-motion-1 text-2xl font-semibold text-muted-foreground/45"
+            className="aui-thread-welcome-message-motion-1 text-muted-foreground/45 text-2xl font-semibold"
           >
             Hello there!
           </m.div>
@@ -213,6 +214,7 @@ const ComposerAction: FC = () => {
   const controlBarProps = composerControl.controlBarProps ?? {};
   const hideModel = controlBarProps.hideModel ?? false;
   const hideApp = controlBarProps.hideApp ?? false;
+  const hidePayment = controlBarProps.hidePayment ?? false;
   const hideApiKey = controlBarProps.hideApiKey ?? false;
   const hideWallet = controlBarProps.hideWallet ?? true;
   const hideNetwork = controlBarProps.hideNetwork ?? false;
@@ -225,6 +227,7 @@ const ComposerAction: FC = () => {
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
           {!hideApp && <AppSelect />}
+          {!hidePayment && <PaymentSelect />}
           {!hideWallet && <ConnectButton />}
           {!hideApiKey && <ApiKeyInput />}
         </div>

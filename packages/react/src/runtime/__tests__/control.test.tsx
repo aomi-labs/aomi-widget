@@ -201,4 +201,46 @@ describe("Control context", () => {
       app: "special",
     });
   });
+
+  it("resends with the updated payment method on an existing thread session", async () => {
+    const sendMessage = vi.fn(
+      async (): Promise<AomiChatResponse> => ({
+        is_processing: false,
+        messages: [],
+      }),
+    );
+
+    setAomiClientConfig({
+      getApps: async () => ["default"],
+      getModels: async () => [],
+      sendMessage,
+    });
+
+    const { getApi, getControl } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toEqual(["default"]);
+    });
+
+    await act(async () => {
+      await getApi().sendMessage("first");
+    });
+
+    act(() => {
+      getControl().onPaymentMethodSelect("coinbase");
+    });
+
+    await act(async () => {
+      await getApi().sendMessage("second");
+    });
+
+    await waitFor(() => {
+      expect(sendMessage).toHaveBeenCalledTimes(2);
+    });
+
+    expect(sendMessage.mock.calls[0]?.[2]?.paymentMethod).toBeNull();
+    expect(sendMessage.mock.calls[1]?.[2]).toMatchObject({
+      paymentMethod: "coinbase",
+    });
+  });
 });

@@ -109,6 +109,10 @@
         },
         {
           "type": "registry:component",
+          "path": "components/control-bar/payment-select.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/control-bar/api-key-input.tsx"
         },
         {

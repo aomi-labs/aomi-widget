@@ -12,6 +12,7 @@ describe("buildCliConfig", () => {
     delete process.env.AOMI_PUBLIC_KEY;
     delete process.env.AOMI_BACKEND_URL;
     delete process.env.AOMI_APP;
+    delete process.env.AOMI_PAYMENT_METHOD;
     vi.restoreAllMocks();
   });
 
@@ -25,7 +26,9 @@ describe("buildCliConfig", () => {
   });
 
   it("fails when the provided public key mismatches the derived signer address", () => {
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stderr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(() =>
       buildCliConfig({
@@ -52,5 +55,20 @@ describe("buildCliConfig", () => {
 
     expect(config.baseUrl).toBe("http://127.0.0.1:8080");
     expect(config.app).toBe("wallet");
+  });
+
+  it("normalizes payment method aliases", () => {
+    expect(buildCliConfig({ "payment-method": "x402" }).paymentMethod).toBe(
+      "coinbase",
+    );
+    expect(buildCliConfig({ "payment-method": "mpp" }).paymentMethod).toBe(
+      "tempo",
+    );
+    expect(
+      buildCliConfig({ "payment-method": "auto" }).paymentMethod,
+    ).toBeNull();
+    expect(buildCliConfig({ "payment-method": "null" }).paymentMethod).toBe(
+      "null",
+    );
   });
 });

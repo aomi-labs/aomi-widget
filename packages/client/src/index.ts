@@ -11,6 +11,7 @@ export { AomiClient } from "./client";
 export type {
   AomiClientType,
   AomiClientOptions,
+  AomiPaymentMethod,
   AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,
