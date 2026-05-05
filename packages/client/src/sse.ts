@@ -11,6 +11,7 @@ export type SseSubscriber = {
 export type SseSubscriberOptions = {
   backendUrl: string;
   getHeaders: (sessionId: string) => HeadersInit;
+  fetchImpl?: typeof fetch;
   logger?: Logger;
 };
 
@@ -73,6 +74,7 @@ async function readSseStream(
 export function createSseSubscriber({
   backendUrl,
   getHeaders,
+  fetchImpl = fetch,
   logger,
 }: SseSubscriberOptions): SseSubscriber {
   const subscriptions = new Map<string, SseSubscription>();
@@ -153,7 +155,7 @@ export function createSseSubscriber({
       const openedAt = Date.now();
 
       try {
-        const response = await fetch(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/updates`, {
           headers: getHeaders(sessionId),
           signal: controller.signal,
         });
