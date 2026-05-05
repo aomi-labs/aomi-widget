@@ -120,6 +120,7 @@ export const registry: RegistryComponent[] = [
       aomi("assistant-tool-fallback"),
       // shadcn primitives
       "button",
+      "skeleton",
     ],
     description: "Chat surface built on @assistant-ui primitives.",
   },

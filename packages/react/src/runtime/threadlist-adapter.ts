@@ -21,9 +21,13 @@ const sortByLastActiveDesc = (
   return tsB - tsA;
 };
 
-function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
+function buildThreadLists(
+  threadMetadata: Map<string, ThreadMetadata>,
+  shouldShowThread: (threadId: string) => boolean,
+) {
   const entries = Array.from(threadMetadata.entries()).filter(
-    ([, meta]) => !isPlaceholderTitle(meta.title),
+    ([threadId, meta]) =>
+      !isPlaceholderTitle(meta.title) && shouldShowThread(threadId),
   );
 
   const regularThreads = entries
@@ -59,6 +63,7 @@ export type ThreadListAdapterConfig = {
   aomiClientRef: MutableRefObject<AomiClient>;
   threadContext: ThreadContext;
   setIsRunning: (running: boolean) => void;
+  isLoading?: boolean;
   getInitialControl?: () => ThreadControlState;
   isRemoteThread?: (threadId: string) => boolean;
 };
@@ -67,11 +72,20 @@ export function buildThreadListAdapter({
   aomiClientRef,
   threadContext,
   setIsRunning,
+  isLoading = false,
   getInitialControl = initThreadControl,
   isRemoteThread = () => true,
 }: ThreadListAdapterConfig) {
+  const shouldShowThread = (threadId: string) => {
+    if (isRemoteThread(threadId)) return true;
+
+    return threadContext
+      .getThreadMessages(threadId)
+      .some((message) => message.role === "user");
+  };
   const { regularThreads, archivedThreads } = buildThreadLists(
     threadContext.allThreadsMetadata,
+    shouldShowThread,
   );
 
   /** Remove previous thread if it's local-only and has no messages. */
@@ -94,6 +108,7 @@ export function buildThreadListAdapter({
 
   return {
     threadId: threadContext.currentThreadId,
+    isLoading,
     threads: regularThreads,
     archivedThreads,
 

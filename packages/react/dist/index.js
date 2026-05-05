@@ -1187,7 +1187,7 @@ function UserContextProvider({ children }) {
 }
 
 // src/runtime/core.tsx
-import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8 } from "react";
+import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8, useState as useState6 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -1598,9 +1598,9 @@ var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsB = parseTimestamp(metaB.lastActiveAt);
   return tsB - tsA;
 };
-function buildThreadLists(threadMetadata) {
+function buildThreadLists(threadMetadata, shouldShowThread) {
   const entries = Array.from(threadMetadata.entries()).filter(
-    ([, meta]) => !isPlaceholderTitle(meta.title)
+    ([threadId, meta]) => !isPlaceholderTitle(meta.title) && shouldShowThread(threadId)
   );
   const regularThreads = entries.filter(([, meta]) => meta.status !== "archived").sort(sortByLastActiveDesc).map(
     ([id, meta]) => ({
@@ -1622,11 +1622,17 @@ function buildThreadListAdapter({
   aomiClientRef,
   threadContext,
   setIsRunning,
+  isLoading = false,
   getInitialControl = initThreadControl,
   isRemoteThread = () => true
 }) {
+  const shouldShowThread = (threadId) => {
+    if (isRemoteThread(threadId)) return true;
+    return threadContext.getThreadMessages(threadId).some((message) => message.role === "user");
+  };
   const { regularThreads, archivedThreads } = buildThreadLists(
-    threadContext.allThreadsMetadata
+    threadContext.allThreadsMetadata,
+    shouldShowThread
   );
   const cleanupEmptyLocalThread = () => {
     const prevId = threadContext.currentThreadId;
@@ -1646,6 +1652,7 @@ function buildThreadListAdapter({
   };
   return {
     threadId: threadContext.currentThreadId,
+    isLoading,
     threads: regularThreads,
     archivedThreads,
     onSwitchToNewThread: () => {
@@ -1971,6 +1978,8 @@ function AomiRuntimeCore({
   threadContextRef.current = threadContext;
   const remoteThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
   const warmedThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
+  const [isThreadLoading, setIsThreadLoading] = useState6(false);
+  const [isThreadListLoading, setIsThreadListLoading] = useState6(false);
   const warmThread = useCallback7(
     async (threadId) => {
       if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
@@ -2012,12 +2021,22 @@ function AomiRuntimeCore({
   );
   useEffect4(() => {
     const threadId = threadContext.currentThreadId;
-    if (!remoteThreadIdsRef.current.has(threadId)) return;
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      setIsThreadLoading(false);
+      return;
+    }
     let cancelled = false;
+    setIsThreadLoading(true);
     void (async () => {
-      await warmThread(threadId);
-      if (!cancelled) {
-        await ensureInitialState(threadId);
+      try {
+        await warmThread(threadId);
+        if (!cancelled) {
+          await ensureInitialState(threadId);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsThreadLoading(false);
+        }
       }
     })();
     return () => {
@@ -2041,16 +2060,20 @@ function AomiRuntimeCore({
   useEffect4(() => {
     const userAddress = UserState3.isConnected(user) ? UserState3.address(user) : void 0;
     if (!userAddress) {
+      setIsThreadListLoading(false);
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
       sessionManager.closeAll();
       threadContextRef.current.resetToDefault();
       return;
     }
+    let cancelled = false;
+    setIsThreadListLoading(true);
     const fetchThreadList = async () => {
       var _a, _b, _c;
       try {
         const threadList = await aomiClientRef.current.listThreads(userAddress);
+        if (cancelled) return;
         const currentContext = threadContextRef.current;
         const remoteThreadIds = /* @__PURE__ */ new Set();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
@@ -2086,14 +2109,30 @@ function AomiRuntimeCore({
           currentContext.setThreadCnt(maxChatNum);
         }
         if (remoteThreadIds.has(currentContext.currentThreadId)) {
-          await warmThread(currentContext.currentThreadId);
-          await ensureInitialState(currentContext.currentThreadId);
+          setIsThreadLoading(true);
+          try {
+            await warmThread(currentContext.currentThreadId);
+            if (!cancelled) {
+              await ensureInitialState(currentContext.currentThreadId);
+            }
+          } finally {
+            if (!cancelled) {
+              setIsThreadLoading(false);
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
+      } finally {
+        if (!cancelled) {
+          setIsThreadListLoading(false);
+        }
       }
     };
     void fetchThreadList();
+    return () => {
+      cancelled = true;
+    };
   }, [user, aomiClientRef, ensureInitialState, warmThread]);
   const isRemoteThread = useCallback7(
     (threadId) => remoteThreadIdsRef.current.has(threadId),
@@ -2104,6 +2143,7 @@ function AomiRuntimeCore({
       aomiClientRef,
       threadContext,
       setIsRunning,
+      isLoading: isThreadListLoading,
       getInitialControl: getPreferredThreadControl,
       isRemoteThread
     }),
@@ -2111,10 +2151,12 @@ function AomiRuntimeCore({
       aomiClientRef,
       getPreferredThreadControl,
       isRemoteThread,
+      isThreadListLoading,
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
-      threadContext.allThreadsMetadata
+      threadContext.allThreadsMetadata,
+      currentMessages
     ]
   );
   useEffect4(() => {
@@ -2149,6 +2191,7 @@ function AomiRuntimeCore({
   }, [eventContext, notificationContext]);
   const runtime = useExternalStoreRuntime({
     messages: currentMessages,
+    isLoading: isThreadLoading,
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
     onNew: async (message) => {
@@ -2352,7 +2395,7 @@ function AomiRuntimeInner({
 }
 
 // src/handlers/notification-handler.ts
-import { useCallback as useCallback8, useEffect as useEffect5, useState as useState6 } from "react";
+import { useCallback as useCallback8, useEffect as useEffect5, useState as useState7 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
   return `notif-${Date.now()}-${++notificationIdCounter2}`;
@@ -2361,7 +2404,7 @@ function useNotificationHandler({
   onNotification
 } = {}) {
   const { subscribe } = useEventContext();
-  const [notifications, setNotifications] = useState6([]);
+  const [notifications, setNotifications] = useState7([]);
   useEffect5(() => {
     const unsubscribe = subscribe("notification", (event) => {
       var _a, _b;

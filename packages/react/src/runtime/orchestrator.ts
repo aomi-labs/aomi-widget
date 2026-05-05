@@ -51,7 +51,7 @@ const withOptimisticStatus = (
   status: OptimisticSendStatus,
   error?: unknown,
 ): ThreadMessageLike => {
-  const custom = {
+  const custom: Record<string, unknown> = {
     ...(message.metadata?.custom ?? {}),
     aomiSendStatus: status,
   };
