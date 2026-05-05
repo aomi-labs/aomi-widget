@@ -54,7 +54,7 @@ export function normalizeSimulatedFee(
   }
 
   return {
-    recipient: getAddress(fee.recipient),
+    recipient: getAddress(fee.recipient) as Hex,
     amountWei,
   };
 }
