@@ -253,6 +253,8 @@ export function AomiRuntimeCore({
     if (!userAddress) {
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
+      sessionManager.closeAll();
+      threadContextRef.current.resetToDefault();
       return;
     }
 
