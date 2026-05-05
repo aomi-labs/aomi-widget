@@ -41,22 +41,6 @@ pushd "$PROJECT_ROOT" >/dev/null
 if [[ ! -f ".next/BUILD_ID" ]]; then
   pnpm run build
 fi
-pnpm exec next start --hostname 0.0.0.0 --port "$PORT" &
-APP_PID=$!
-popd >/dev/null
-
-echo "Starting app on http://${HOST}:${PORT}"
-for _ in $(seq 1 30); do
-  if curl -sf "http://${HOST}:${PORT}" >/dev/null; then
-    break
-  fi
-  sleep 1
-done
-
-if ! curl -sf "http://${HOST}:${PORT}" >/dev/null; then
-  echo "App did not become ready on http://${HOST}:${PORT}"
-  exit 1
-fi
 
 ngrok http "${PORT}" --log=stdout --log-format=json >/dev/null &
 NGROK_PID=$!
@@ -75,6 +59,33 @@ done
 
 if [[ -z "$NGROK_URL" ]]; then
   echo "Failed to acquire ngrok public URL"
+  exit 1
+fi
+
+PAYMASTER_ALLOWED_ORIGINS="$(
+  printf "%s,%s,%s,%s" \
+    "${PAYMASTER_ALLOWED_ORIGINS:-}" \
+    "http://${HOST}:${PORT}" \
+    "http://localhost:${PORT}" \
+    "$NGROK_URL" \
+    | sed 's/^,*//; s/,,*/,/g'
+)"
+export PAYMASTER_ALLOWED_ORIGINS
+
+pnpm exec next start --hostname 0.0.0.0 --port "$PORT" &
+APP_PID=$!
+popd >/dev/null
+
+echo "Starting app on http://${HOST}:${PORT}"
+for _ in $(seq 1 30); do
+  if curl -sf "http://${HOST}:${PORT}" >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+
+if ! curl -sf "http://${HOST}:${PORT}" >/dev/null; then
+  echo "App did not become ready on http://${HOST}:${PORT}"
   exit 1
 fi
 
