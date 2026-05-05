@@ -185,10 +185,32 @@ export function AomiRuntimeCore({
   }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
 
   // ---------------------------------------------------------------------------
-  // Initial state fetch on thread change
+  // Ensure backend thread exists (lazy creation on first message send)
+  // ---------------------------------------------------------------------------
+  const ensureBackendThread = useCallback(
+    async (threadId: string) => {
+      if (remoteThreadIdsRef.current.has(threadId)) return;
+
+      const userState = getUserState();
+      await aomiClientRef.current.createThread(
+        threadId,
+        UserState.isConnected(userState)
+          ? UserState.address(userState)
+          : undefined,
+      );
+      remoteThreadIdsRef.current.add(threadId);
+      warmedThreadIdsRef.current.add(threadId);
+    },
+    [aomiClientRef, getUserState],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Initial state fetch on thread change (skip for local-only threads)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
+    if (!remoteThreadIdsRef.current.has(threadId)) return;
+
     let cancelled = false;
 
     void (async () => {
@@ -292,6 +314,11 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   // Thread list adapter
   // ---------------------------------------------------------------------------
+  const isRemoteThread = useCallback(
+    (threadId: string) => remoteThreadIdsRef.current.has(threadId),
+    [],
+  );
+
   const threadListAdapter = useMemo(
     () =>
       buildThreadListAdapter({
@@ -299,10 +326,12 @@ export function AomiRuntimeCore({
         threadContext,
         setIsRunning,
         getInitialControl: getPreferredThreadControl,
+        isRemoteThread,
       }),
     [
       aomiClientRef,
       getPreferredThreadControl,
+      isRemoteThread,
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
@@ -384,6 +413,7 @@ export function AomiRuntimeCore({
         .map((part) => part.text)
         .join("\n");
       if (text) {
+        await ensureBackendThread(threadContext.currentThreadId);
         await syncCurrentThreadControl();
         await orchestratorSendMessage(text, threadContext.currentThreadId);
       }
@@ -411,10 +441,12 @@ export function AomiRuntimeCore({
 
   const sendMessage = useCallback(
     async (text: string) => {
+      await ensureBackendThread(threadContext.currentThreadId);
       await syncCurrentThreadControl();
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
     [
+      ensureBackendThread,
       orchestratorSendMessage,
       syncCurrentThreadControl,
       threadContext.currentThreadId,

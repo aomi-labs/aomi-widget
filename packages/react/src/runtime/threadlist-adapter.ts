@@ -60,6 +60,7 @@ export type ThreadListAdapterConfig = {
   threadContext: ThreadContext;
   setIsRunning: (running: boolean) => void;
   getInitialControl?: () => ThreadControlState;
+  isRemoteThread?: (threadId: string) => boolean;
 };
 
 export function buildThreadListAdapter({
@@ -67,10 +68,29 @@ export function buildThreadListAdapter({
   threadContext,
   setIsRunning,
   getInitialControl = initThreadControl,
+  isRemoteThread = () => true,
 }: ThreadListAdapterConfig) {
   const { regularThreads, archivedThreads } = buildThreadLists(
     threadContext.allThreadsMetadata,
   );
+
+  /** Remove previous thread if it's local-only and has no messages. */
+  const cleanupEmptyLocalThread = () => {
+    const prevId = threadContext.currentThreadId;
+    if (isRemoteThread(prevId)) return;
+    const msgs = threadContext.getThreadMessages(prevId);
+    if (msgs.length > 0) return;
+    threadContext.setThreadMetadata((prev) => {
+      const next = new Map(prev);
+      next.delete(prevId);
+      return next;
+    });
+    threadContext.setThreads((prev) => {
+      const next = new Map(prev);
+      next.delete(prevId);
+      return next;
+    });
+  };
 
   return {
     threadId: threadContext.currentThreadId,
@@ -78,6 +98,7 @@ export function buildThreadListAdapter({
     archivedThreads,
 
     onSwitchToNewThread: () => {
+      cleanupEmptyLocalThread();
       const threadId = generateUUID();
       threadContext.setThreadMetadata((prev) =>
         new Map(prev).set(threadId, {
@@ -94,6 +115,7 @@ export function buildThreadListAdapter({
     },
 
     onSwitchToThread: (threadId: string) => {
+      cleanupEmptyLocalThread();
       threadContext.setCurrentThreadId(threadId);
       threadContext.bumpThreadViewKey();
     },
