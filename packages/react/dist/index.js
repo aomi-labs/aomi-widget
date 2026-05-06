@@ -2211,9 +2211,13 @@ function AomiRuntimeCore({
 import { jsx as jsx8 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
-  backendUrl = "http://localhost:8080"
+  backendUrl = "http://localhost:8080",
+  clientOptions
 }) {
-  const aomiClient = useMemo3(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  const aomiClient = useMemo3(
+    () => new AomiClient(__spreadValues({ baseUrl: backendUrl }, clientOptions)),
+    [backendUrl, clientOptions]
+  );
   return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(UserContextProvider, { children: /* @__PURE__ */ jsx8(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
@@ -2296,6 +2300,7 @@ export {
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
+  UserState2 as UserState,
   aaModeFromExecutionKind,
   appendFeeCallToPayload,
   buildFeeAAWalletCall,

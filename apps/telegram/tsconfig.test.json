@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "outDir": ".tmp-test-dist",
+    "rootDir": "src",
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": false,
+    "declaration": false,
+    "resolveJsonModule": true,
+    "paths": {
+      "@aomi-labs/client": ["../../packages/client/src/index.ts"],
+      "@aomi-labs/client/*": ["../../packages/client/src/*"],
+      "@/*": ["./src/*"]
+    },
+    "baseUrl": "."
+  },
+  "include": [
+    "src/lib/constants.ts",
+    "src/lib/wallet-state/**/*.ts",
+    "src/app/api/operation/**/route.ts"
+  ]
+}

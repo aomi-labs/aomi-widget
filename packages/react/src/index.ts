@@ -87,8 +87,7 @@ export type {
 // =============================================================================
 // User Context (wallet/user state)
 // =============================================================================
-export { useUser, UserContextProvider } from "./contexts/user-context";
-export type { UserState } from "@aomi-labs/client";
+export { useUser, UserContextProvider, UserState } from "./contexts/user-context";
 
 // User config type (for render prop pattern)
 export type { UserConfig } from "./runtime/utils";

@@ -1,4 +1,4 @@
-import { AomiClient, SessionOptions, Session, UserState, AomiPaymentMethod, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
+import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiPaymentMethod, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
 export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPaymentMethod, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestResult, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
@@ -8,8 +8,9 @@ import { ClassValue } from 'clsx';
 type AomiRuntimeProviderProps = {
     children: ReactNode;
     backendUrl?: string;
+    clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, clientOptions, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 declare class SessionManager {
     private readonly clientFactory;

@@ -235,6 +235,8 @@ export type Logger = {
 export type AomiClientOptions = {
   /** Base URL of the Aomi backend (e.g. "https://api.aomi.dev" or "/" for same-origin proxying) */
   baseUrl: string;
+  /** Optional fetch implementation for payment-aware browser transports and tests. */
+  fetch?: typeof fetch;
   /** Default API key for non-default apps */
   apiKey?: string;
   /** Optional logger for debug output (default: silent) */

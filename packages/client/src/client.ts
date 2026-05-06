@@ -75,6 +75,7 @@ async function postState<T>(
   path: string,
   payload: Record<string, unknown>,
   sessionId: string,
+  fetchImpl: typeof fetch,
   apiKey?: string,
 ): Promise<T> {
   const query = toQueryString(payload);
@@ -85,7 +86,7 @@ async function postState<T>(
     headers.set(API_KEY_HEADER, apiKey);
   }
 
-  const response = await fetch(url, {
+  const response = await fetchImpl(url, {
     method: "POST",
     headers,
   });
@@ -104,6 +105,7 @@ async function postState<T>(
 export class AomiClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
+  private readonly fetchImpl: typeof fetch;
   private readonly logger?: Logger;
   private readonly sseSubscriber: SseSubscriber;
 
@@ -111,12 +113,14 @@ export class AomiClient {
     // Strip trailing slash
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.logger = options.logger;
 
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) =>
         withSessionHeader(sessionId, { Accept: "text/event-stream" }),
+      fetchImpl: this.fetchImpl,
       logger: this.logger,
     });
   }
@@ -141,7 +145,7 @@ export class AomiClient {
       client_id: clientId,
     });
 
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -190,6 +194,7 @@ export class AomiClient {
       "/api/chat",
       payload,
       sessionId,
+      this.fetchImpl,
       apiKey,
     );
   }
@@ -206,6 +211,7 @@ export class AomiClient {
       "/api/system",
       { message },
       sessionId,
+      this.fetchImpl,
     );
   }
 
@@ -218,6 +224,7 @@ export class AomiClient {
       "/api/interrupt",
       {},
       sessionId,
+      this.fetchImpl,
     );
   }
 
@@ -236,7 +243,7 @@ export class AomiClient {
     secrets: Record<string, string>,
   ): Promise<AomiIngestSecretsResponse> {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ client_id: clientId, secrets }),
@@ -256,7 +263,7 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/secrets", {
       client_id: clientId,
     });
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, { method: "DELETE" });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -279,7 +286,7 @@ export class AomiClient {
         client_id: clientId,
       },
     );
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, { method: "DELETE" });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -316,7 +323,7 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/sessions", {
       public_key: publicKey,
     });
-    const response = await fetch(url);
+    const response = await this.fetchImpl(url);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
@@ -333,7 +340,7 @@ export class AomiClient {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}`,
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -355,7 +362,7 @@ export class AomiClient {
     if (publicKey) body.public_key = publicKey;
 
     const url = buildApiUrl(this.baseUrl, "/api/sessions");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId, {
         "Content-Type": "application/json",
@@ -378,7 +385,7 @@ export class AomiClient {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}`,
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId),
     });
@@ -396,7 +403,7 @@ export class AomiClient {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}`,
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "PATCH",
       headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json",
@@ -417,7 +424,7 @@ export class AomiClient {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId),
     });
@@ -435,7 +442,7 @@ export class AomiClient {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`,
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId),
     });
@@ -459,7 +466,7 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/events", {
       count: count !== undefined ? String(count) : undefined,
     });
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -492,7 +499,7 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await fetch(url, { headers });
+    const response = await this.fetchImpl(url, { headers });
 
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
@@ -515,7 +522,7 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers,
     });
 
@@ -553,7 +560,14 @@ export class AomiClient {
       rig: string;
       baml: string;
       created: boolean;
-    }>(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+    }>(
+      this.baseUrl,
+      "/api/control/model",
+      payload,
+      sessionId,
+      this.fetchImpl,
+      apiKey,
+    );
   }
 
   /**
@@ -561,7 +575,7 @@ export class AomiClient {
    */
   async listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]> {
     const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
 
@@ -583,7 +597,7 @@ export class AomiClient {
     label?: string,
   ): Promise<AomiProviderKeyEntry> {
     const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json",
@@ -614,7 +628,7 @@ export class AomiClient {
       this.baseUrl,
       `/api/control/provider-keys/${encodeURIComponent(provider)}`,
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId),
     });
@@ -670,7 +684,7 @@ export class AomiClient {
       chain_id: options?.chainId,
     };
 
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),

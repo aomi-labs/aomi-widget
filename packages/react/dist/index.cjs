@@ -61,6 +61,7 @@ __export(index_exports, {
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   ThreadContextProvider: () => ThreadContextProvider,
   UserContextProvider: () => UserContextProvider,
+  UserState: () => import_client2.UserState,
   aaModeFromExecutionKind: () => import_client8.aaModeFromExecutionKind,
   appendFeeCallToPayload: () => import_client8.appendFeeCallToPayload,
   buildFeeAAWalletCall: () => import_client8.buildFeeAAWalletCall,
@@ -2223,9 +2224,13 @@ function AomiRuntimeCore({
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function AomiRuntimeProvider({
   children,
-  backendUrl = "http://localhost:8080"
+  backendUrl = "http://localhost:8080",
+  clientOptions
 }) {
-  const aomiClient = (0, import_react12.useMemo)(() => new import_client6.AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  const aomiClient = (0, import_react12.useMemo)(
+    () => new import_client6.AomiClient(__spreadValues({ baseUrl: backendUrl }, clientOptions)),
+    [backendUrl, clientOptions]
+  );
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(UserContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
@@ -2309,6 +2314,7 @@ function useNotificationHandler({
   SUPPORTED_CHAINS,
   ThreadContextProvider,
   UserContextProvider,
+  UserState,
   aaModeFromExecutionKind,
   appendFeeCallToPayload,
   buildFeeAAWalletCall,
