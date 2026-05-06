@@ -131,7 +131,7 @@ export function AomiRuntimeCore({
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
   const prefetchCancelRef = useRef<(() => void) | null>(null);
   const [isThreadLoading, setIsThreadLoading] = useState(false);
-  const [isThreadListLoading, setIsThreadListLoading] = useState(false);
+  const [isThreadListLoading, setIsThreadListLoading] = useState(true);
 
   // ---------------------------------------------------------------------------
   // Send wallet state changes to backend

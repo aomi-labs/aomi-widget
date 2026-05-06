@@ -1,6 +1,6 @@
 "use client";
 
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
@@ -9,12 +9,20 @@ import {
 import { PlusIcon, TrashIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const ThreadList: FC = () => {
   return (
-    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex list-none flex-col items-stretch gap-1 pl-2">
+    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-1 pl-2">
       <ThreadListNew />
       <div className="aui-thread-list-separator mx-4 my-1 border-t border-border/40" />
       <ThreadListItems />
@@ -46,20 +54,23 @@ const ThreadListItems: FC = () => {
   return <ThreadListPrimitive.Items components={{ ThreadListItem }} />;
 };
 
-const ThreadListSkeleton: FC = () => {
-  const widths = ["72%", "54%", "66%", "46%", "61%"];
+const SKELETON_WIDTHS = [
+  "85%", "72%", "90%", "68%", "78%", "95%", "74%", "82%", "70%", "88%",
+  "76%", "92%", "80%", "69%", "86%", "73%", "91%", "77%", "84%", "71%",
+];
 
+const ThreadListSkeleton: FC = () => {
   return (
     <div
       role="status"
       aria-label="Loading threads"
       aria-live="polite"
-      className="aui-thread-list-skeleton-root flex flex-col gap-1"
+      className="aui-thread-list-skeleton-root flex flex-1 flex-col gap-1 overflow-hidden"
     >
-      {widths.map((width, i) => (
+      {SKELETON_WIDTHS.map((width, i) => (
         <div
           key={i}
-          className="aui-thread-list-skeleton-wrapper flex h-9 items-center rounded-3xl px-4"
+          className="aui-thread-list-skeleton-wrapper flex h-9 shrink-0 items-center rounded-3xl px-4"
         >
           <Skeleton
             className="aui-thread-list-skeleton h-3"
@@ -91,24 +102,47 @@ const ThreadListItemTitle: FC = () => {
 };
 
 const ThreadListItemDelete: FC = () => {
+  const [open, setOpen] = useState(false);
+
   return (
-    <ThreadListItemPrimitive.Delete asChild>
-      <TooltipIconButton
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button
         className="aui-thread-list-item-delete text-foreground hover:text-primary ml-auto mr-3 size-4 p-0"
         variant="ghost"
-        tooltip="Delete thread"
+        size="icon"
+        aria-label="Delete thread"
         onClick={(event) => {
-          const confirmed = window.confirm(
-            "Delete this chat? This action cannot be undone.",
-          );
-          if (!confirmed) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
         }}
       >
         <TrashIcon />
-      </TooltipIconButton>
-    </ThreadListItemPrimitive.Delete>
+      </Button>
+      <DialogContent className="aui-thread-list-delete-dialog sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete chat?</DialogTitle>
+          <DialogDescription>
+            This will permanently delete this thread and its message history.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <ThreadListItemPrimitive.Delete asChild>
+            <Button
+              variant="default"
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+              }}
+            >
+              Delete
+            </Button>
+          </ThreadListItemPrimitive.Delete>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
