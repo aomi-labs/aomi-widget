@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type {
-  AomiClient,
-  UserState,
-  WalletRequest,
-} from "@aomi-labs/client";
+import type { AomiClient, UserState, WalletRequest } from "@aomi-labs/client";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 import { Session as ClientSession } from "@aomi-labs/client";
 import {
@@ -25,7 +21,11 @@ type OrchestratorOptions = {
   getClientId?: () => string | undefined;
   prepareThreadForSend?: (threadId: string) => Promise<void> | void;
   onPendingRequestsChange?: (requests: WalletRequest[]) => void;
-  onEvent?: (event: { type: string; payload: unknown; sessionId: string }) => void;
+  onEvent?: (event: {
+    type: string;
+    payload: unknown;
+    sessionId: string;
+  }) => void;
 };
 
 type OptimisticSendStatus = "sending" | "sent" | "failed";
@@ -114,6 +114,45 @@ export function useRuntimeOrchestrator(
   // Track event listener cleanup per thread
   const listenerCleanups = useRef<Map<string, () => void>>(new Map());
 
+  const cleanupSessionListeners = useCallback((threadId: string) => {
+    listenerCleanups.current.get(threadId)?.();
+    listenerCleanups.current.delete(threadId);
+  }, []);
+
+  const closeSession = useCallback(
+    (threadId: string) => {
+      cleanupSessionListeners(threadId);
+      pendingFetches.current.delete(threadId);
+      sessionManagerRef.current?.close(threadId);
+    },
+    [cleanupSessionListeners],
+  );
+
+  const closeIdleSessionsExcept = useCallback(
+    (activeThreadId: string) => {
+      const closedThreadIds =
+        sessionManagerRef.current?.closeIdleExcept(
+          activeThreadId,
+          cleanupSessionListeners,
+        ) ?? [];
+
+      for (const threadId of closedThreadIds) {
+        pendingFetches.current.delete(threadId);
+      }
+
+      return closedThreadIds;
+    },
+    [cleanupSessionListeners],
+  );
+
+  const closeAllSessions = useCallback(() => {
+    pendingFetches.current.clear();
+    for (const threadId of Array.from(listenerCleanups.current.keys())) {
+      cleanupSessionListeners(threadId);
+    }
+    sessionManagerRef.current?.closeAll();
+  }, [cleanupSessionListeners]);
+
   /** Get or create a ClientSession for a thread, wiring up event listeners. */
   const getSession = useCallback(
     (threadId: string): ClientSession => {
@@ -200,9 +239,16 @@ export function useRuntimeOrchestrator(
 
       // Forward SSE/system events to the event relay
       const forwardEvent = (type: string) =>
-        session.on(type as keyof import("@aomi-labs/client").SessionEventMap, (payload: unknown) => {
-          optionsRef.current.onEvent?.({ type, payload, sessionId: threadId });
-        });
+        session.on(
+          type as keyof import("@aomi-labs/client").SessionEventMap,
+          (payload: unknown) => {
+            optionsRef.current.onEvent?.({
+              type,
+              payload,
+              sessionId: threadId,
+            });
+          },
+        );
 
       cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
@@ -228,7 +274,9 @@ export function useRuntimeOrchestrator(
       try {
         const session = getSession(threadId);
         await session.fetchCurrentState();
-        optionsRef.current.onPendingRequestsChange?.(session.getPendingRequests());
+        optionsRef.current.onPendingRequestsChange?.(
+          session.getPendingRequests(),
+        );
 
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
@@ -248,7 +296,8 @@ export function useRuntimeOrchestrator(
   /** Send a message on the given thread. */
   const sendMessage = useCallback(
     async (text: string, threadId: string) => {
-      const existingMessages = threadContextRef.current.getThreadMessages(threadId);
+      const existingMessages =
+        threadContextRef.current.getThreadMessages(threadId);
       const optimisticMessageId = String(existingMessages.length);
       const userMessage: ThreadMessageLike = {
         id: optimisticMessageId,
@@ -286,7 +335,9 @@ export function useRuntimeOrchestrator(
           optimisticMessageId,
           "sent",
         );
-        optionsRef.current.onPendingRequestsChange?.(session.getPendingRequests());
+        optionsRef.current.onPendingRequestsChange?.(
+          session.getPendingRequests(),
+        );
       } catch (error) {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
@@ -305,26 +356,19 @@ export function useRuntimeOrchestrator(
   );
 
   /** Cancel the current generation on the given thread. */
-  const cancelGeneration = useCallback(
-    async (threadId: string) => {
-      const session = sessionManagerRef.current?.get(threadId);
-      if (session) {
-        await session.interrupt();
-      }
-    },
-    [],
-  );
+  const cancelGeneration = useCallback(async (threadId: string) => {
+    const session = sessionManagerRef.current?.get(threadId);
+    if (session) {
+      await session.interrupt();
+    }
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      sessionManagerRef.current?.closeAll();
-      for (const cleanup of listenerCleanups.current.values()) {
-        cleanup();
-      }
-      listenerCleanups.current.clear();
+      closeAllSessions();
     };
-  }, []);
+  }, [closeAllSessions]);
 
   return {
     sessionManager: sessionManagerRef.current!,
@@ -334,6 +378,9 @@ export function useRuntimeOrchestrator(
     ensureInitialState,
     sendMessage,
     cancelGeneration,
+    closeSession,
+    closeAllSessions,
+    closeIdleSessionsExcept,
     aomiClientRef,
   };
 }
