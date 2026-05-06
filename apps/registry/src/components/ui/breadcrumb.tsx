@@ -44,7 +44,7 @@ function BreadcrumbLink({
     <Comp
       data-slot="breadcrumb-link"
       className={cn("hover:text-foreground transition-colors", className)}
-      {...props}
+      {...(props as Record<string, unknown>)}
     />
   );
 }
