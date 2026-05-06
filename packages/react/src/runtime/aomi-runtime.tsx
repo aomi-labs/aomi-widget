@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { AomiClient, UserState } from "@aomi-labs/client";
+import { AomiClient, UserState, type AomiClientOptions } from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
@@ -21,6 +21,7 @@ import { AomiRuntimeCore } from "./core";
 export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
+  clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
 // =============================================================================
@@ -30,8 +31,12 @@ export type AomiRuntimeProviderProps = {
 export function AomiRuntimeProvider({
   children,
   backendUrl = "http://localhost:8080",
+  clientOptions,
 }: Readonly<AomiRuntimeProviderProps>) {
-  const aomiClient = useMemo(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  const aomiClient = useMemo(
+    () => new AomiClient({ baseUrl: backendUrl, ...clientOptions }),
+    [backendUrl, clientOptions],
+  );
 
   return (
     <ThreadContextProvider>

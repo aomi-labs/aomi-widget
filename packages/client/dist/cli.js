@@ -410,6 +410,7 @@ async function readSseStream(stream, signal, onMessage) {
 function createSseSubscriber({
   backendUrl,
   getHeaders,
+  fetchImpl = fetch,
   logger
 }) {
   const subscriptions = /* @__PURE__ */ new Map();
@@ -482,7 +483,7 @@ function createSseSubscriber({
       subscription.abortController = controller;
       const openedAt = Date.now();
       try {
-        const response = await fetch(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/updates`, {
           headers: getHeaders(sessionId),
           signal: controller.signal
         });
@@ -586,14 +587,14 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
-async function postState(baseUrl, path, payload, sessionId, apiKey) {
+async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   const query = toQueryString(payload);
   const url = `${baseUrl}${path}${query}`;
   const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
     headers.set(API_KEY_HEADER, apiKey);
   }
-  const response = await fetch(url, {
+  const response = await fetchImpl(url, {
     method: "POST",
     headers
   });
@@ -612,12 +613,15 @@ var init_client = __esm({
     API_KEY_HEADER = "X-API-Key";
     AomiClient = class {
       constructor(options) {
+        var _a3;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
+        this.fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
           getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
+          fetchImpl: this.fetchImpl,
           logger: this.logger
         });
       }
@@ -633,7 +637,7 @@ var init_client = __esm({
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
         });
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
@@ -664,6 +668,7 @@ var init_client = __esm({
           "/api/chat",
           payload,
           sessionId,
+          this.fetchImpl,
           apiKey
         );
       }
@@ -675,7 +680,8 @@ var init_client = __esm({
           this.baseUrl,
           "/api/system",
           { message },
-          sessionId
+          sessionId,
+          this.fetchImpl
         );
       }
       /**
@@ -686,7 +692,8 @@ var init_client = __esm({
           this.baseUrl,
           "/api/interrupt",
           {},
-          sessionId
+          sessionId,
+          this.fetchImpl
         );
       }
       // ===========================================================================
@@ -700,7 +707,7 @@ var init_client = __esm({
        */
       async ingestSecrets(clientId, secrets) {
         const url = joinApiPath(this.baseUrl, "/api/secrets");
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ client_id: clientId, secrets })
@@ -717,7 +724,7 @@ var init_client = __esm({
         const url = buildApiUrl(this.baseUrl, "/api/secrets", {
           client_id: clientId
         });
-        const response = await fetch(url, { method: "DELETE" });
+        const response = await this.fetchImpl(url, { method: "DELETE" });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -734,7 +741,7 @@ var init_client = __esm({
             client_id: clientId
           }
         );
-        const response = await fetch(url, { method: "DELETE" });
+        const response = await this.fetchImpl(url, { method: "DELETE" });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -761,7 +768,7 @@ var init_client = __esm({
         const url = buildApiUrl(this.baseUrl, "/api/sessions", {
           public_key: publicKey
         });
-        const response = await fetch(url);
+        const response = await this.fetchImpl(url);
         if (!response.ok) {
           throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
         }
@@ -775,7 +782,7 @@ var init_client = __esm({
           this.baseUrl,
           `/api/sessions/${encodeURIComponent(sessionId)}`
         );
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
@@ -790,7 +797,7 @@ var init_client = __esm({
         const body = {};
         if (publicKey) body.public_key = publicKey;
         const url = buildApiUrl(this.baseUrl, "/api/sessions");
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(threadId, {
             "Content-Type": "application/json"
@@ -810,7 +817,7 @@ var init_client = __esm({
           this.baseUrl,
           `/api/sessions/${encodeURIComponent(sessionId)}`
         );
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "DELETE",
           headers: withSessionHeader(sessionId)
         });
@@ -826,7 +833,7 @@ var init_client = __esm({
           this.baseUrl,
           `/api/sessions/${encodeURIComponent(sessionId)}`
         );
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "PATCH",
           headers: withSessionHeader(sessionId, {
             "Content-Type": "application/json"
@@ -845,7 +852,7 @@ var init_client = __esm({
           this.baseUrl,
           `/api/sessions/${encodeURIComponent(sessionId)}/archive`
         );
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId)
         });
@@ -861,7 +868,7 @@ var init_client = __esm({
           this.baseUrl,
           `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`
         );
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId)
         });
@@ -879,7 +886,7 @@ var init_client = __esm({
         const url = buildApiUrl(this.baseUrl, "/api/events", {
           count: count !== void 0 ? String(count) : void 0
         });
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
@@ -904,7 +911,7 @@ var init_client = __esm({
         if (apiKey) {
           headers.set(API_KEY_HEADER, apiKey);
         }
-        const response = await fetch(url, { headers });
+        const response = await this.fetchImpl(url, { headers });
         if (!response.ok) {
           throw new Error(`Failed to get apps: HTTP ${response.status}`);
         }
@@ -921,7 +928,7 @@ var init_client = __esm({
         if (apiKey) {
           headers.set(API_KEY_HEADER, apiKey);
         }
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           headers
         });
         if (!response.ok) {
@@ -942,7 +949,14 @@ var init_client = __esm({
         if (options == null ? void 0 : options.clientId) {
           payload.client_id = options.clientId;
         }
-        return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+        return postState(
+          this.baseUrl,
+          "/api/control/model",
+          payload,
+          sessionId,
+          this.fetchImpl,
+          apiKey
+        );
       }
       /**
        * List BYOK provider keys bound to the current session's client.
@@ -950,7 +964,7 @@ var init_client = __esm({
       async listProviderKeys(sessionId) {
         var _a3;
         const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
@@ -964,7 +978,7 @@ var init_client = __esm({
        */
       async saveProviderKey(sessionId, provider, apiKey, label) {
         const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId, {
             "Content-Type": "application/json"
@@ -989,7 +1003,7 @@ var init_client = __esm({
           this.baseUrl,
           `/api/control/provider-keys/${encodeURIComponent(provider)}`
         );
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "DELETE",
           headers: withSessionHeader(sessionId)
         });
@@ -1030,7 +1044,7 @@ var init_client = __esm({
           from: options == null ? void 0 : options.from,
           chain_id: options == null ? void 0 : options.chainId
         };
-        const response = await fetch(url, {
+        const response = await this.fetchImpl(url, {
           method: "POST",
           headers,
           body: JSON.stringify(payload)
