@@ -113,7 +113,7 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   return (
-    <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col">
+    <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col px-2">
       <div className="aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center">
         <div className="aui-thread-welcome-message flex size-full flex-col justify-center px-8">
           <m.div
@@ -142,7 +142,7 @@ const ThreadWelcome: FC = () => {
 
 const ThreadSuggestions: FC = () => {
   return (
-    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 pb-4 opacity-70">
+    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 px-1 pb-4 opacity-70">
       {[
         {
           title: "Show my wallet balances",
