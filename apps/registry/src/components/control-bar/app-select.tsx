@@ -82,7 +82,7 @@ export const AppSelect: FC<AppSelectProps> = ({
           aria-expanded={open}
           disabled={isProcessing}
           className={cn(
-            "h-8 w-auto min-w-[80px] justify-between gap-1.5 rounded-full px-3 text-xs",
+            "h-8 w-auto min-w-0 justify-between gap-px rounded-full px-0.5 text-xs md:min-w-[80px] md:gap-1.5 md:px-3",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             isProcessing && "cursor-not-allowed opacity-50",
             className,
