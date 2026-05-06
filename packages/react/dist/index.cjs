@@ -1230,6 +1230,9 @@ var SessionManager = class {
   get(threadId) {
     return this.sessions.get(threadId);
   }
+  get size() {
+    return this.sessions.size;
+  }
   forEach(callback) {
     for (const [threadId, session] of this.sessions) {
       callback(session, threadId);
@@ -1241,6 +1244,21 @@ var SessionManager = class {
       session.close();
       this.sessions.delete(threadId);
     }
+  }
+  closeIdleExcept(activeThreadId, onBeforeClose) {
+    const closedThreadIds = [];
+    for (const [threadId, session] of this.sessions) {
+      if (threadId === activeThreadId) continue;
+      if (session.getIsProcessing()) continue;
+      if (session.getIsPolling()) continue;
+      if (session.getPendingRequests().length > 0) continue;
+      closedThreadIds.push(threadId);
+    }
+    for (const threadId of closedThreadIds) {
+      onBeforeClose == null ? void 0 : onBeforeClose(threadId);
+      this.close(threadId);
+    }
+    return closedThreadIds;
   }
   closeAll() {
     for (const [threadId, session] of this.sessions) {
@@ -1406,6 +1424,42 @@ function useRuntimeOrchestrator(aomiClient, options) {
   }
   const pendingFetches = (0, import_react6.useRef)(/* @__PURE__ */ new Set());
   const listenerCleanups = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
+  const cleanupSessionListeners = (0, import_react6.useCallback)((threadId) => {
+    var _a;
+    (_a = listenerCleanups.current.get(threadId)) == null ? void 0 : _a();
+    listenerCleanups.current.delete(threadId);
+  }, []);
+  const closeSession = (0, import_react6.useCallback)(
+    (threadId) => {
+      var _a;
+      cleanupSessionListeners(threadId);
+      pendingFetches.current.delete(threadId);
+      (_a = sessionManagerRef.current) == null ? void 0 : _a.close(threadId);
+    },
+    [cleanupSessionListeners]
+  );
+  const closeIdleSessionsExcept = (0, import_react6.useCallback)(
+    (activeThreadId) => {
+      var _a, _b;
+      const closedThreadIds = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.closeIdleExcept(
+        activeThreadId,
+        cleanupSessionListeners
+      )) != null ? _b : [];
+      for (const threadId of closedThreadIds) {
+        pendingFetches.current.delete(threadId);
+      }
+      return closedThreadIds;
+    },
+    [cleanupSessionListeners]
+  );
+  const closeAllSessions = (0, import_react6.useCallback)(() => {
+    var _a;
+    pendingFetches.current.clear();
+    for (const threadId of Array.from(listenerCleanups.current.keys())) {
+      cleanupSessionListeners(threadId);
+    }
+    (_a = sessionManagerRef.current) == null ? void 0 : _a.closeAll();
+  }, [cleanupSessionListeners]);
   const getSession = (0, import_react6.useCallback)(
     (threadId) => {
       var _a, _b, _c, _d, _e;
@@ -1479,10 +1533,17 @@ function useRuntimeOrchestrator(aomiClient, options) {
           threadContextRef.current.updateThreadMetadata(threadId, { title });
         })
       );
-      const forwardEvent = (type) => session.on(type, (payload) => {
-        var _a2, _b2;
-        (_b2 = (_a2 = optionsRef.current).onEvent) == null ? void 0 : _b2.call(_a2, { type, payload, sessionId: threadId });
-      });
+      const forwardEvent = (type) => session.on(
+        type,
+        (payload) => {
+          var _a2, _b2;
+          (_b2 = (_a2 = optionsRef.current).onEvent) == null ? void 0 : _b2.call(_a2, {
+            type,
+            payload,
+            sessionId: threadId
+          });
+        }
+      );
       cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
       cleanups.push(forwardEvent("system_notice"));
@@ -1504,7 +1565,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
       try {
         const session = getSession(threadId);
         await session.fetchCurrentState();
-        (_b = (_a = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b.call(_a, session.getPendingRequests());
+        (_b = (_a = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b.call(
+          _a,
+          session.getPendingRequests()
+        );
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -1556,7 +1620,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
           optimisticMessageId,
           "sent"
         );
-        (_d = (_c = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _d.call(_c, session.getPendingRequests());
+        (_d = (_c = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _d.call(
+          _c,
+          session.getPendingRequests()
+        );
       } catch (error) {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
@@ -1573,26 +1640,18 @@ function useRuntimeOrchestrator(aomiClient, options) {
     },
     [getSession]
   );
-  const cancelGeneration = (0, import_react6.useCallback)(
-    async (threadId) => {
-      var _a;
-      const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
-      if (session) {
-        await session.interrupt();
-      }
-    },
-    []
-  );
+  const cancelGeneration = (0, import_react6.useCallback)(async (threadId) => {
+    var _a;
+    const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
+    if (session) {
+      await session.interrupt();
+    }
+  }, []);
   (0, import_react6.useEffect)(() => {
     return () => {
-      var _a;
-      (_a = sessionManagerRef.current) == null ? void 0 : _a.closeAll();
-      for (const cleanup of listenerCleanups.current.values()) {
-        cleanup();
-      }
-      listenerCleanups.current.clear();
+      closeAllSessions();
     };
-  }, []);
+  }, [closeAllSessions]);
   return {
     sessionManager: sessionManagerRef.current,
     getSession,
@@ -1601,6 +1660,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
     ensureInitialState,
     sendMessage,
     cancelGeneration,
+    closeSession,
+    closeAllSessions,
+    closeIdleSessionsExcept,
     aomiClientRef
   };
 }
@@ -1932,6 +1994,9 @@ function AomiRuntimeCore({
     ensureInitialState,
     sendMessage: orchestratorSendMessage,
     cancelGeneration: orchestratorCancel,
+    closeSession,
+    closeIdleSessionsExcept,
+    closeAllSessions,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
     getPublicKey: () => import_client5.UserState.isConnected(getUserState()) ? import_client5.UserState.address(getUserState()) : void 0,
@@ -2034,6 +2099,7 @@ function AomiRuntimeCore({
   );
   (0, import_react10.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
+    closeIdleSessionsExcept(threadId);
     if (!remoteThreadIdsRef.current.has(threadId)) {
       setIsThreadLoading(false);
       return;
@@ -2055,7 +2121,12 @@ function AomiRuntimeCore({
     return () => {
       cancelled = true;
     };
-  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
+  }, [
+    closeIdleSessionsExcept,
+    ensureInitialState,
+    threadContext.currentThreadId,
+    warmThread
+  ]);
   (0, import_react10.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
@@ -2073,11 +2144,15 @@ function AomiRuntimeCore({
   (0, import_react10.useEffect)(() => {
     const userAddress = import_client5.UserState.isConnected(user) ? import_client5.UserState.address(user) : void 0;
     if (!userAddress) {
+      const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
+      const hadSessions = sessionManager.size > 0;
       setIsThreadListLoading(false);
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
-      sessionManager.closeAll();
-      threadContextRef.current.resetToDefault();
+      closeAllSessions();
+      if (hadRemoteThreads || hadSessions) {
+        threadContextRef.current.resetToDefault();
+      }
       return;
     }
     let cancelled = false;
@@ -2223,18 +2298,15 @@ function AomiRuntimeCore({
   });
   (0, import_react10.useEffect)(() => {
     return () => {
-      sessionManager.closeAll();
+      closeAllSessions();
     };
-  }, [sessionManager]);
+  }, [closeAllSessions]);
   const userContext = useUser();
   const sendMessage = (0, import_react10.useCallback)(
     async (text) => {
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
-    [
-      orchestratorSendMessage,
-      threadContext.currentThreadId
-    ]
+    [orchestratorSendMessage, threadContext.currentThreadId]
   );
   const cancelGeneration = (0, import_react10.useCallback)(() => {
     void orchestratorCancel(threadContext.currentThreadId);
@@ -2252,10 +2324,10 @@ function AomiRuntimeCore({
   }, [threadListAdapter]);
   const deleteThread = (0, import_react10.useCallback)(
     async (threadId) => {
-      sessionManager.close(threadId);
+      closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
     },
-    [threadListAdapter, sessionManager]
+    [closeSession, threadListAdapter]
   );
   const renameThread = (0, import_react10.useCallback)(
     async (threadId, title) => {

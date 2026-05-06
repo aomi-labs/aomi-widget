@@ -73,6 +73,9 @@ export function AomiRuntimeCore({
     ensureInitialState,
     sendMessage: orchestratorSendMessage,
     cancelGeneration: orchestratorCancel,
+    closeSession,
+    closeIdleSessionsExcept,
+    closeAllSessions,
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
     getPublicKey: () =>
@@ -215,6 +218,8 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
+    closeIdleSessionsExcept(threadId);
+
     if (!remoteThreadIdsRef.current.has(threadId)) {
       setIsThreadLoading(false);
       return;
@@ -239,7 +244,12 @@ export function AomiRuntimeCore({
     return () => {
       cancelled = true;
     };
-  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
+  }, [
+    closeIdleSessionsExcept,
+    ensureInitialState,
+    threadContext.currentThreadId,
+    warmThread,
+  ]);
 
   // Sync isRunning to thread metadata for control context
   useEffect(() => {
@@ -267,11 +277,15 @@ export function AomiRuntimeCore({
       ? UserState.address(user)
       : undefined;
     if (!userAddress) {
+      const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
+      const hadSessions = sessionManager.size > 0;
       setIsThreadListLoading(false);
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
-      sessionManager.closeAll();
-      threadContextRef.current.resetToDefault();
+      closeAllSessions();
+      if (hadRemoteThreads || hadSessions) {
+        threadContextRef.current.resetToDefault();
+      }
       return;
     }
 
@@ -472,9 +486,9 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return () => {
-      sessionManager.closeAll();
+      closeAllSessions();
     };
-  }, [sessionManager]);
+  }, [closeAllSessions]);
 
   // ---------------------------------------------------------------------------
   // Build AomiRuntimeApi
@@ -485,10 +499,7 @@ export function AomiRuntimeCore({
     async (text: string) => {
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
-    [
-      orchestratorSendMessage,
-      threadContext.currentThreadId,
-    ],
+    [orchestratorSendMessage, threadContext.currentThreadId],
   );
 
   const cancelGeneration = useCallback(() => {
@@ -510,10 +521,10 @@ export function AomiRuntimeCore({
 
   const deleteThread = useCallback(
     async (threadId: string) => {
-      sessionManager.close(threadId);
+      closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
     },
-    [threadListAdapter, sessionManager],
+    [closeSession, threadListAdapter],
   );
 
   const renameThread = useCallback(
