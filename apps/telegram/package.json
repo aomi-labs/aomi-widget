@@ -2,6 +2,7 @@
   "name": "telegram",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "next dev --no-turbopack",
