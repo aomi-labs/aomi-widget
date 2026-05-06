@@ -343,29 +343,43 @@ const AssistantLoadingDot: FC = () => {
 
 const AssistantMessage: FC = () => {
   const isEmpty = useMessage((state) => state.content.length === 0);
+  const isRunning = useMessage((state) => state.status?.type === "running");
+  const isLast = useMessage((state) => state.isLast);
+  const showLoadingDot = isEmpty && isRunning && isLast;
+  const showFinishedEmptyMessage = isEmpty && !showLoadingDot;
 
   return (
     <MessagePrimitive.Root asChild>
       <div
-        className="aui-assistant-message-root animate-in fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-[var(--thread-max-width)] py-4 duration-150 ease-out"
+        className={cn(
+          "aui-assistant-message-root animate-in fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-[var(--thread-max-width)] duration-150 ease-out",
+          showFinishedEmptyMessage ? "-mt-3 py-0" : "py-4",
+        )}
         data-role="assistant"
       >
-        <div className="aui-assistant-message-content text-foreground mx-2 break-words text-sm leading-5">
-          {isEmpty ? (
-            <AssistantLoadingDot />
-          ) : (
-            <MessagePrimitive.Parts
-              components={{
-                Text: MarkdownText,
-                tools: { Fallback: ToolFallback },
-              }}
-            />
-          )}
-          <MessageError />
-        </div>
+        {!showFinishedEmptyMessage && (
+          <div className="aui-assistant-message-content text-foreground mx-2 break-words text-sm leading-5">
+            {showLoadingDot ? (
+              <AssistantLoadingDot />
+            ) : (
+              <MessagePrimitive.Parts
+                components={{
+                  Text: MarkdownText,
+                  tools: { Fallback: ToolFallback },
+                }}
+              />
+            )}
+            <MessageError />
+          </div>
+        )}
 
-        {!isEmpty && (
-          <div className="aui-assistant-message-footer ml-2 mt-2 flex">
+        {!showLoadingDot && (
+          <div
+            className={cn(
+              "aui-assistant-message-footer ml-2 flex",
+              showFinishedEmptyMessage ? "mt-0" : "mt-2",
+            )}
+          >
             <BranchPicker />
             <AssistantActionBar />
           </div>
