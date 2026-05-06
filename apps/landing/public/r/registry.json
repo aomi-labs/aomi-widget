@@ -224,6 +224,7 @@
       "registryDependencies": [
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "button",
+        "dialog",
         "skeleton"
       ]
     },

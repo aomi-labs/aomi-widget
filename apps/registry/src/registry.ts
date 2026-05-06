@@ -131,6 +131,7 @@ export const registry: RegistryComponent[] = [
     registryDependencies: [
       assistantUI("tooltip-icon-button"),
       "button",
+      "dialog",
       "skeleton",
     ],
     description: "Thread list wrapper wired to runtime adapter.",
