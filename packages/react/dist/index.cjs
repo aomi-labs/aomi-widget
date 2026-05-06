@@ -2071,7 +2071,7 @@ function AomiRuntimeCore({
   const warmPromisesRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
   const prefetchCancelRef = (0, import_react10.useRef)(null);
   const [isThreadLoading, setIsThreadLoading] = (0, import_react10.useState)(false);
-  const [isThreadListLoading, setIsThreadListLoading] = (0, import_react10.useState)(false);
+  const [isThreadListLoading, setIsThreadListLoading] = (0, import_react10.useState)(true);
   const walletSnapshot = (0, import_react10.useCallback)(
     (nextUser) => {
       var _a;

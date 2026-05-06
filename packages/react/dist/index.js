@@ -2060,7 +2060,7 @@ function AomiRuntimeCore({
   const warmPromisesRef = useRef8(/* @__PURE__ */ new Map());
   const prefetchCancelRef = useRef8(null);
   const [isThreadLoading, setIsThreadLoading] = useState6(false);
-  const [isThreadListLoading, setIsThreadListLoading] = useState6(false);
+  const [isThreadListLoading, setIsThreadListLoading] = useState6(true);
   const walletSnapshot = useCallback7(
     (nextUser) => {
       var _a;
