@@ -180,6 +180,29 @@
   scrollbar-width: none;
 }
 
+/* Thin, subtle scrollbar for command list dropdowns */
+.aui-command-list {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border) / 0.5) transparent;
+}
+
+.aui-command-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.aui-command-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.aui-command-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--border) / 0.5);
+  border-radius: 9999px;
+}
+
+.aui-command-list::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--border));
+}
+
 /* Prevent iOS from zooming on input focus (font-size >= 16px) */
 @media screen and (max-width: 767px) {
   .aui-composer-input {

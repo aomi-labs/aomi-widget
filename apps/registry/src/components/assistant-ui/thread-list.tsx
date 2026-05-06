@@ -16,6 +16,7 @@ export const ThreadList: FC = () => {
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex list-none flex-col items-stretch gap-1 pl-2">
       <ThreadListNew />
+      <div className="aui-thread-list-separator mx-4 my-1 border-t border-border/40" />
       <ThreadListItems />
     </ThreadListPrimitive.Root>
   );

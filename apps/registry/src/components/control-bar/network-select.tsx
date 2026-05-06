@@ -63,6 +63,11 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
         align="start"
         sideOffset={4}
         className="w-[200px] rounded-xl p-1"
+        onOpenAutoFocus={(e) => {
+          if (window.matchMedia("(max-width: 767px)").matches) {
+            e.preventDefault();
+          }
+        }}
       >
         <div className="flex flex-col gap-0.5">
           {selectableChains.map((chain) => {
