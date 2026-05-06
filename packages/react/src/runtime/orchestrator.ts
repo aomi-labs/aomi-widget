@@ -111,6 +111,8 @@ export function useRuntimeOrchestrator(
   }
 
   const pendingFetches = useRef<Set<string>>(new Set());
+  const initialStatePromises = useRef<Map<string, Promise<void>>>(new Map());
+  const hydratedThreadIds = useRef<Set<string>>(new Set());
   // Track event listener cleanup per thread
   const listenerCleanups = useRef<Map<string, () => void>>(new Map());
 
@@ -123,6 +125,8 @@ export function useRuntimeOrchestrator(
     (threadId: string) => {
       cleanupSessionListeners(threadId);
       pendingFetches.current.delete(threadId);
+      initialStatePromises.current.delete(threadId);
+      hydratedThreadIds.current.delete(threadId);
       sessionManagerRef.current?.close(threadId);
     },
     [cleanupSessionListeners],
@@ -138,6 +142,8 @@ export function useRuntimeOrchestrator(
 
       for (const threadId of closedThreadIds) {
         pendingFetches.current.delete(threadId);
+        initialStatePromises.current.delete(threadId);
+        hydratedThreadIds.current.delete(threadId);
       }
 
       return closedThreadIds;
@@ -147,6 +153,8 @@ export function useRuntimeOrchestrator(
 
   const closeAllSessions = useCallback(() => {
     pendingFetches.current.clear();
+    initialStatePromises.current.clear();
+    hydratedThreadIds.current.clear();
     for (const threadId of Array.from(listenerCleanups.current.keys())) {
       cleanupSessionListeners(threadId);
     }
@@ -268,27 +276,54 @@ export function useRuntimeOrchestrator(
 
   const ensureInitialState = useCallback(
     async (threadId: string) => {
-      if (pendingFetches.current.has(threadId)) return;
-      pendingFetches.current.add(threadId);
-
-      try {
-        const session = getSession(threadId);
-        await session.fetchCurrentState();
-        optionsRef.current.onPendingRequestsChange?.(
-          session.getPendingRequests(),
-        );
-
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(session.getIsProcessing());
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(false);
-        }
-      } finally {
-        pendingFetches.current.delete(threadId);
+      const existingPromise = initialStatePromises.current.get(threadId);
+      if (existingPromise) {
+        return existingPromise;
       }
+
+      const cachedMessages =
+        threadContextRef.current.getThreadMessages(threadId);
+      const existingSession = sessionManagerRef.current?.get(threadId);
+      if (
+        existingSession &&
+        (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)
+      ) {
+        optionsRef.current.onPendingRequestsChange?.(
+          existingSession.getPendingRequests(),
+        );
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(existingSession.getIsProcessing());
+        }
+        return;
+      }
+
+      const fetchPromise = (async () => {
+        pendingFetches.current.add(threadId);
+
+        try {
+          const session = getSession(threadId);
+          await session.fetchCurrentState();
+          hydratedThreadIds.current.add(threadId);
+          optionsRef.current.onPendingRequestsChange?.(
+            session.getPendingRequests(),
+          );
+
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(session.getIsProcessing());
+          }
+        } catch (error) {
+          console.error("Failed to fetch initial state:", error);
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(false);
+          }
+        } finally {
+          pendingFetches.current.delete(threadId);
+          initialStatePromises.current.delete(threadId);
+        }
+      })();
+
+      initialStatePromises.current.set(threadId, fetchPromise);
+      return fetchPromise;
     },
     [getSession],
   );
@@ -329,6 +364,9 @@ export function useRuntimeOrchestrator(
         await optionsRef.current.prepareThreadForSend?.(threadId);
         const session = getSession(threadId);
         await session.sendAsync(text);
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(session.getIsProcessing());
+        }
         updateOptimisticMessage(
           threadContextRef.current,
           threadId,

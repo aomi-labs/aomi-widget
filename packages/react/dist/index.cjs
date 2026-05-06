@@ -522,7 +522,7 @@ function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [state.apiKey, publicKey, sessionId]);
+  }, [state.apiKey, publicKey]);
   (0, import_react.useEffect)(() => {
     const fetchModels = async () => {
       try {
@@ -1423,6 +1423,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
     sessionManagerRef.current = new SessionManager(() => aomiClientRef.current);
   }
   const pendingFetches = (0, import_react6.useRef)(/* @__PURE__ */ new Set());
+  const initialStatePromises = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
+  const hydratedThreadIds = (0, import_react6.useRef)(/* @__PURE__ */ new Set());
   const listenerCleanups = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
   const cleanupSessionListeners = (0, import_react6.useCallback)((threadId) => {
     var _a;
@@ -1434,6 +1436,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
       var _a;
       cleanupSessionListeners(threadId);
       pendingFetches.current.delete(threadId);
+      initialStatePromises.current.delete(threadId);
+      hydratedThreadIds.current.delete(threadId);
       (_a = sessionManagerRef.current) == null ? void 0 : _a.close(threadId);
     },
     [cleanupSessionListeners]
@@ -1447,6 +1451,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
       )) != null ? _b : [];
       for (const threadId of closedThreadIds) {
         pendingFetches.current.delete(threadId);
+        initialStatePromises.current.delete(threadId);
+        hydratedThreadIds.current.delete(threadId);
       }
       return closedThreadIds;
     },
@@ -1455,6 +1461,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
   const closeAllSessions = (0, import_react6.useCallback)(() => {
     var _a;
     pendingFetches.current.clear();
+    initialStatePromises.current.clear();
+    hydratedThreadIds.current.clear();
     for (const threadId of Array.from(listenerCleanups.current.keys())) {
       cleanupSessionListeners(threadId);
     }
@@ -1559,27 +1567,49 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const ensureInitialState = (0, import_react6.useCallback)(
     async (threadId) => {
-      var _a, _b;
-      if (pendingFetches.current.has(threadId)) return;
-      pendingFetches.current.add(threadId);
-      try {
-        const session = getSession(threadId);
-        await session.fetchCurrentState();
-        (_b = (_a = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b.call(
-          _a,
-          session.getPendingRequests()
+      var _a, _b, _c;
+      const existingPromise = initialStatePromises.current.get(threadId);
+      if (existingPromise) {
+        return existingPromise;
+      }
+      const cachedMessages = threadContextRef.current.getThreadMessages(threadId);
+      const existingSession = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
+      if (existingSession && (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)) {
+        (_c = (_b = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _c.call(
+          _b,
+          existingSession.getPendingRequests()
         );
         if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(session.getIsProcessing());
+          setIsRunning(existingSession.getIsProcessing());
         }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(false);
-        }
-      } finally {
-        pendingFetches.current.delete(threadId);
+        return;
       }
+      const fetchPromise = (async () => {
+        var _a2, _b2;
+        pendingFetches.current.add(threadId);
+        try {
+          const session = getSession(threadId);
+          await session.fetchCurrentState();
+          hydratedThreadIds.current.add(threadId);
+          (_b2 = (_a2 = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b2.call(
+            _a2,
+            session.getPendingRequests()
+          );
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(session.getIsProcessing());
+          }
+        } catch (error) {
+          console.error("Failed to fetch initial state:", error);
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(false);
+          }
+        } finally {
+          pendingFetches.current.delete(threadId);
+          initialStatePromises.current.delete(threadId);
+        }
+      })();
+      initialStatePromises.current.set(threadId, fetchPromise);
+      return fetchPromise;
     },
     [getSession]
   );
@@ -1614,6 +1644,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
         await ((_b = (_a = optionsRef.current).prepareThreadForSend) == null ? void 0 : _b.call(_a, threadId));
         const session = getSession(threadId);
         await session.sendAsync(text);
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(session.getIsProcessing());
+        }
         updateOptimisticMessage(
           threadContextRef.current,
           threadId,
@@ -1965,6 +1998,22 @@ function RuntimeUserStateProvider({
 
 // src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
+var THREAD_PREFETCH_LIMIT = 5;
+var PREFETCH_IDLE_TIMEOUT_MS = 1500;
+function scheduleBackgroundTask(task) {
+  const runtimeGlobal = globalThis;
+  if (typeof runtimeGlobal.requestIdleCallback === "function") {
+    const idleId = runtimeGlobal.requestIdleCallback(task, {
+      timeout: PREFETCH_IDLE_TIMEOUT_MS
+    });
+    return () => {
+      var _a;
+      return (_a = runtimeGlobal.cancelIdleCallback) == null ? void 0 : _a.call(runtimeGlobal, idleId);
+    };
+  }
+  const timeoutId = runtimeGlobal.setTimeout(task, 0);
+  return () => runtimeGlobal.clearTimeout(timeoutId);
+}
 function AomiRuntimeCore({
   children,
   aomiClient
@@ -2019,6 +2068,8 @@ function AomiRuntimeCore({
   threadContextRef.current = threadContext;
   const remoteThreadIdsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
   const warmedThreadIdsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
+  const warmPromisesRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const prefetchCancelRef = (0, import_react10.useRef)(null);
   const [isThreadLoading, setIsThreadLoading] = (0, import_react10.useState)(false);
   const [isThreadListLoading, setIsThreadListLoading] = (0, import_react10.useState)(false);
   const walletSnapshot = (0, import_react10.useCallback)(
@@ -2066,14 +2117,61 @@ function AomiRuntimeCore({
       if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
         return;
       }
-      const userState = getUserState();
-      await aomiClientRef.current.createThread(
-        threadId,
-        import_client5.UserState.isConnected(userState) ? import_client5.UserState.address(userState) : void 0
-      );
-      warmedThreadIdsRef.current.add(threadId);
+      const existingPromise = warmPromisesRef.current.get(threadId);
+      if (existingPromise) {
+        return existingPromise;
+      }
+      const warmPromise = (async () => {
+        const userState = getUserState();
+        await aomiClientRef.current.createThread(
+          threadId,
+          import_client5.UserState.isConnected(userState) ? import_client5.UserState.address(userState) : void 0
+        );
+        warmedThreadIdsRef.current.add(threadId);
+      })();
+      warmPromisesRef.current.set(threadId, warmPromise);
+      try {
+        await warmPromise;
+      } finally {
+        warmPromisesRef.current.delete(threadId);
+      }
     },
     [aomiClientRef, getUserState]
+  );
+  const scheduleThreadPrefetch = (0, import_react10.useCallback)(
+    (threadIds) => {
+      var _a;
+      (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
+      const prefetchThreadIds = Array.from(new Set(threadIds)).filter((threadId) => remoteThreadIdsRef.current.has(threadId)).slice(0, THREAD_PREFETCH_LIMIT);
+      if (prefetchThreadIds.length === 0) {
+        prefetchCancelRef.current = null;
+        return;
+      }
+      let cancelled = false;
+      const cancelScheduledTask = scheduleBackgroundTask(() => {
+        void Promise.all(
+          prefetchThreadIds.map(async (threadId) => {
+            if (cancelled || !remoteThreadIdsRef.current.has(threadId)) return;
+            if (threadContextRef.current.getThreadMessages(threadId).length > 0) {
+              return;
+            }
+            try {
+              await warmThread(threadId);
+              if (cancelled || !remoteThreadIdsRef.current.has(threadId))
+                return;
+              await ensureInitialState(threadId);
+            } catch (error) {
+              console.debug("Failed to prefetch thread:", threadId, error);
+            }
+          })
+        );
+      });
+      prefetchCancelRef.current = () => {
+        cancelled = true;
+        cancelScheduledTask();
+      };
+    },
+    [ensureInitialState, warmThread]
   );
   (0, import_react10.useEffect)(() => {
     const unsubscribe = eventContext.subscribe("user_state_request", () => {
@@ -2145,13 +2243,17 @@ function AomiRuntimeCore({
     threadContext.currentThreadId
   );
   (0, import_react10.useEffect)(() => {
+    var _a;
     const userAddress = import_client5.UserState.isConnected(user) ? import_client5.UserState.address(user) : void 0;
     if (!userAddress) {
       const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
       const hadSessions = sessionManager.size > 0;
       setIsThreadListLoading(false);
+      (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
+      prefetchCancelRef.current = null;
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
+      warmPromisesRef.current.clear();
       closeAllSessions();
       if (hadRemoteThreads || hadSessions) {
         threadContextRef.current.resetToDefault();
@@ -2161,7 +2263,7 @@ function AomiRuntimeCore({
     let cancelled = false;
     setIsThreadListLoading(true);
     const fetchThreadList = async () => {
-      var _a, _b, _c;
+      var _a2, _b, _c;
       try {
         const threadList = await aomiClientRef.current.listThreads(userAddress);
         if (cancelled) return;
@@ -2171,7 +2273,7 @@ function AomiRuntimeCore({
         let maxChatNum = currentContext.threadCnt;
         for (const thread of threadList) {
           remoteThreadIds.add(thread.session_id);
-          const rawTitle = (_a = thread.title) != null ? _a : "";
+          const rawTitle = (_a2 = thread.title) != null ? _a2 : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const lastActive = ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
           const existingControl = (_c = newMetadata.get(thread.session_id)) == null ? void 0 : _c.control;
@@ -2199,6 +2301,7 @@ function AomiRuntimeCore({
         if (maxChatNum > currentContext.threadCnt) {
           currentContext.setThreadCnt(maxChatNum);
         }
+        scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
         if (remoteThreadIds.has(currentContext.currentThreadId)) {
           setIsThreadLoading(true);
           try {
@@ -2222,9 +2325,18 @@ function AomiRuntimeCore({
     };
     void fetchThreadList();
     return () => {
+      var _a2;
       cancelled = true;
+      (_a2 = prefetchCancelRef.current) == null ? void 0 : _a2.call(prefetchCancelRef);
+      prefetchCancelRef.current = null;
     };
-  }, [user, aomiClientRef, ensureInitialState, warmThread]);
+  }, [
+    user,
+    aomiClientRef,
+    ensureInitialState,
+    scheduleThreadPrefetch,
+    warmThread
+  ]);
   const isRemoteThread = (0, import_react10.useCallback)(
     (threadId) => remoteThreadIdsRef.current.has(threadId),
     []
@@ -2301,6 +2413,8 @@ function AomiRuntimeCore({
   });
   (0, import_react10.useEffect)(() => {
     return () => {
+      var _a;
+      (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
       closeAllSessions();
     };
   }, [closeAllSessions]);

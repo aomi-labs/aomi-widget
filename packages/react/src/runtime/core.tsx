@@ -22,6 +22,31 @@ import { initThreadControl } from "../state/thread-store";
 import { useWalletHandler } from "../handlers/wallet-handler";
 import { RuntimeUserStateProvider } from "./user-state-provider";
 
+const THREAD_PREFETCH_LIMIT = 5;
+const PREFETCH_IDLE_TIMEOUT_MS = 1500;
+
+type GlobalWithIdleCallback = typeof globalThis & {
+  requestIdleCallback?: (
+    callback: () => void,
+    options?: { timeout?: number },
+  ) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
+function scheduleBackgroundTask(task: () => void): () => void {
+  const runtimeGlobal = globalThis as GlobalWithIdleCallback;
+
+  if (typeof runtimeGlobal.requestIdleCallback === "function") {
+    const idleId = runtimeGlobal.requestIdleCallback(task, {
+      timeout: PREFETCH_IDLE_TIMEOUT_MS,
+    });
+    return () => runtimeGlobal.cancelIdleCallback?.(idleId);
+  }
+
+  const timeoutId = runtimeGlobal.setTimeout(task, 0);
+  return () => runtimeGlobal.clearTimeout(timeoutId);
+}
+
 // =============================================================================
 // Core Props
 // =============================================================================
@@ -103,6 +128,8 @@ export function AomiRuntimeCore({
   threadContextRef.current = threadContext;
   const remoteThreadIdsRef = useRef(new Set<string>());
   const warmedThreadIdsRef = useRef(new Set<string>());
+  const warmPromisesRef = useRef(new Map<string, Promise<void>>());
+  const prefetchCancelRef = useRef<(() => void) | null>(null);
   const [isThreadLoading, setIsThreadLoading] = useState(false);
   const [isThreadListLoading, setIsThreadListLoading] = useState(false);
 
@@ -167,16 +194,75 @@ export function AomiRuntimeCore({
         return;
       }
 
-      const userState = getUserState();
-      await aomiClientRef.current.createThread(
-        threadId,
-        UserState.isConnected(userState)
-          ? UserState.address(userState)
-          : undefined,
-      );
-      warmedThreadIdsRef.current.add(threadId);
+      const existingPromise = warmPromisesRef.current.get(threadId);
+      if (existingPromise) {
+        return existingPromise;
+      }
+
+      const warmPromise = (async () => {
+        const userState = getUserState();
+        await aomiClientRef.current.createThread(
+          threadId,
+          UserState.isConnected(userState)
+            ? UserState.address(userState)
+            : undefined,
+        );
+        warmedThreadIdsRef.current.add(threadId);
+      })();
+
+      warmPromisesRef.current.set(threadId, warmPromise);
+
+      try {
+        await warmPromise;
+      } finally {
+        warmPromisesRef.current.delete(threadId);
+      }
     },
     [aomiClientRef, getUserState],
+  );
+
+  const scheduleThreadPrefetch = useCallback(
+    (threadIds: string[]) => {
+      prefetchCancelRef.current?.();
+
+      const prefetchThreadIds = Array.from(new Set(threadIds))
+        .filter((threadId) => remoteThreadIdsRef.current.has(threadId))
+        .slice(0, THREAD_PREFETCH_LIMIT);
+
+      if (prefetchThreadIds.length === 0) {
+        prefetchCancelRef.current = null;
+        return;
+      }
+
+      let cancelled = false;
+      const cancelScheduledTask = scheduleBackgroundTask(() => {
+        void Promise.all(
+          prefetchThreadIds.map(async (threadId) => {
+            if (cancelled || !remoteThreadIdsRef.current.has(threadId)) return;
+            if (
+              threadContextRef.current.getThreadMessages(threadId).length > 0
+            ) {
+              return;
+            }
+
+            try {
+              await warmThread(threadId);
+              if (cancelled || !remoteThreadIdsRef.current.has(threadId))
+                return;
+              await ensureInitialState(threadId);
+            } catch (error) {
+              console.debug("Failed to prefetch thread:", threadId, error);
+            }
+          }),
+        );
+      });
+
+      prefetchCancelRef.current = () => {
+        cancelled = true;
+        cancelScheduledTask();
+      };
+    },
+    [ensureInitialState, warmThread],
   );
 
   // ---------------------------------------------------------------------------
@@ -283,8 +369,11 @@ export function AomiRuntimeCore({
       const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
       const hadSessions = sessionManager.size > 0;
       setIsThreadListLoading(false);
+      prefetchCancelRef.current?.();
+      prefetchCancelRef.current = null;
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
+      warmPromisesRef.current.clear();
       closeAllSessions();
       if (hadRemoteThreads || hadSessions) {
         threadContextRef.current.resetToDefault();
@@ -339,6 +428,8 @@ export function AomiRuntimeCore({
           currentContext.setThreadCnt(maxChatNum);
         }
 
+        scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
+
         if (remoteThreadIds.has(currentContext.currentThreadId)) {
           setIsThreadLoading(true);
           try {
@@ -365,8 +456,16 @@ export function AomiRuntimeCore({
 
     return () => {
       cancelled = true;
+      prefetchCancelRef.current?.();
+      prefetchCancelRef.current = null;
     };
-  }, [user, aomiClientRef, ensureInitialState, warmThread]);
+  }, [
+    user,
+    aomiClientRef,
+    ensureInitialState,
+    scheduleThreadPrefetch,
+    warmThread,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Thread list adapter
@@ -489,6 +588,7 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return () => {
+      prefetchCancelRef.current?.();
       closeAllSessions();
     };
   }, [closeAllSessions]);
