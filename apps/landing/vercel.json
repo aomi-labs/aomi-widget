@@ -1,5 +1,0 @@
-{
-  "installCommand": "pnpm -w install --frozen-lockfile",
-  "buildCommand": "pnpm -w run vercel-build",
-  "outputDirectory": ".next"
-}
