@@ -2,6 +2,7 @@
   "name": "aomi-miniapp",
   "version": "0.0.0",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "description": "Aomi",
   "scripts": {
     "dev": "next dev --webpack --disable-source-maps --hostname 0.0.0.0",

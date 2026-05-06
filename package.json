@@ -2,6 +2,7 @@
   "name": "aomi-widget",
   "version": "1.0.1",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "description": "AI-powered assistant UI widget library",
   "type": "module",
   "main": "./dist/index.cjs",
