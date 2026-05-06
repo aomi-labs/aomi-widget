@@ -324,6 +324,87 @@ describe("Thread API", () => {
       });
     });
 
+    it("prefetches the top five listed threads in the background", async () => {
+      const threadIds = Array.from(
+        { length: 7 },
+        (_, index) => `thread-${index + 1}`,
+      );
+      const fetchThreads = vi.fn(
+        async (): Promise<AomiThread[]> =>
+          threadIds.map((threadId, index) => ({
+            session_id: threadId,
+            title: `Thread ${index + 1}`,
+          })),
+      );
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const resolveFetches = new Map<string, () => void>();
+      const fetchState = vi.fn(
+        (sessionId: string): Promise<AomiStateResponse> =>
+          new Promise((resolve) => {
+            resolveFetches.set(sessionId, () =>
+              resolve({
+                is_processing: false,
+                messages: [
+                  {
+                    sender: "agent",
+                    content: `Prefetched ${sessionId}`,
+                  },
+                ],
+              }),
+            );
+          }),
+      );
+      setAomiClientConfig({ fetchThreads, createThread, fetchState });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ address: "0xprefetch", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("thread-1")?.title).toBe("Thread 1");
+      });
+      expect(getApi().getMessages("thread-1")).toEqual([]);
+
+      await waitFor(() => {
+        expect(fetchState).toHaveBeenCalledTimes(5);
+      });
+
+      expect(fetchState.mock.calls.map(([threadId]) => threadId)).toEqual(
+        threadIds.slice(0, 5),
+      );
+      expect(createThread.mock.calls.map(([threadId]) => threadId)).toEqual(
+        threadIds.slice(0, 5),
+      );
+      expect(resolveFetches.has("thread-6")).toBe(false);
+      expect(resolveFetches.has("thread-7")).toBe(false);
+
+      await act(async () => {
+        for (const threadId of threadIds.slice(0, 5)) {
+          resolveFetches.get(threadId)?.();
+        }
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getMessages("thread-1")).toEqual([
+          expect.objectContaining({
+            role: "assistant",
+            content: [
+              expect.objectContaining({
+                type: "text",
+                text: "Prefetched thread-1",
+              }),
+            ],
+          }),
+        ]);
+      });
+    });
+
     it("warms a listed thread before fetching its messages", async () => {
       let warmed = false;
       const fetchThreads = vi.fn(
