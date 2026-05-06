@@ -228,7 +228,7 @@ const ComposerAction: FC = () => {
     <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center gap-1">
       {/* Inline controls — horizontally scrollable on mobile */}
       {composerControl.enabled && (
-        <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto md:ml-2 md:gap-2">
+        <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-0 overflow-x-auto md:ml-2 md:gap-2">
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
           {!hideApp && <AppSelect />}
