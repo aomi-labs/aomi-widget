@@ -2004,6 +2004,12 @@ function AomiRuntimeCore({
     onEvent: (event) => eventContext.dispatch(event)
   });
   sessionManagerRef.current = sessionManager;
+  const threadContextRef = useRef8(threadContext);
+  threadContextRef.current = threadContext;
+  const remoteThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
+  const warmedThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
+  const [isThreadLoading, setIsThreadLoading] = useState6(false);
+  const [isThreadListLoading, setIsThreadListLoading] = useState6(false);
   const walletSnapshot = useCallback7(
     (nextUser) => {
       var _a;
@@ -2027,6 +2033,9 @@ function AomiRuntimeCore({
       }
       lastWalletStateRef.current = nextWalletState;
       const sessionId = threadContext.currentThreadId;
+      if (!remoteThreadIdsRef.current.has(sessionId)) {
+        return;
+      }
       const message = JSON.stringify({
         type: "wallet:state_changed",
         payload: nextWalletState
@@ -2041,12 +2050,6 @@ function AomiRuntimeCore({
     getUserState,
     walletSnapshot
   ]);
-  const threadContextRef = useRef8(threadContext);
-  threadContextRef.current = threadContext;
-  const remoteThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
-  const warmedThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
-  const [isThreadLoading, setIsThreadLoading] = useState6(false);
-  const [isThreadListLoading, setIsThreadListLoading] = useState6(false);
   const warmThread = useCallback7(
     async (threadId) => {
       if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {

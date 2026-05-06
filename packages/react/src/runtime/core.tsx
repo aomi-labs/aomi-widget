@@ -97,6 +97,16 @@ export function AomiRuntimeCore({
   sessionManagerRef.current = sessionManager;
 
   // ---------------------------------------------------------------------------
+  // Refs for stable access
+  // ---------------------------------------------------------------------------
+  const threadContextRef = useRef(threadContext);
+  threadContextRef.current = threadContext;
+  const remoteThreadIdsRef = useRef(new Set<string>());
+  const warmedThreadIdsRef = useRef(new Set<string>());
+  const [isThreadLoading, setIsThreadLoading] = useState(false);
+  const [isThreadListLoading, setIsThreadListLoading] = useState(false);
+
+  // ---------------------------------------------------------------------------
   // Send wallet state changes to backend
   // ---------------------------------------------------------------------------
   const walletSnapshot = useCallback(
@@ -129,6 +139,9 @@ export function AomiRuntimeCore({
 
       lastWalletStateRef.current = nextWalletState;
       const sessionId = threadContext.currentThreadId;
+      if (!remoteThreadIdsRef.current.has(sessionId)) {
+        return;
+      }
       const message = JSON.stringify({
         type: "wallet:state_changed",
         payload: nextWalletState,
@@ -144,16 +157,6 @@ export function AomiRuntimeCore({
     getUserState,
     walletSnapshot,
   ]);
-
-  // ---------------------------------------------------------------------------
-  // Refs for stable access
-  // ---------------------------------------------------------------------------
-  const threadContextRef = useRef(threadContext);
-  threadContextRef.current = threadContext;
-  const remoteThreadIdsRef = useRef(new Set<string>());
-  const warmedThreadIdsRef = useRef(new Set<string>());
-  const [isThreadLoading, setIsThreadLoading] = useState(false);
-  const [isThreadListLoading, setIsThreadListLoading] = useState(false);
 
   const warmThread = useCallback(
     async (threadId: string) => {
