@@ -7,7 +7,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, waitFor } from "@testing-library/react";
 
-import { renderRuntime, resetAomiClientMocks, setAomiClientConfig } from "./test-harness";
+import {
+  renderRuntime,
+  resetAomiClientMocks,
+  setAomiClientConfig,
+} from "./test-harness";
 import type { AomiChatResponse } from "@aomi-labs/client";
 
 beforeEach(() => {
@@ -260,10 +264,13 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        {
-          publicKey?: string;
-          userState?: Record<string, unknown>;
-        } | undefined,
+        (
+          | {
+              publicKey?: string;
+              userState?: Record<string, unknown>;
+            }
+          | undefined
+        ),
       ];
 
       expect(call[2]?.publicKey).toBeUndefined();
@@ -276,6 +283,12 @@ describe("Chat API", () => {
 
     it("hydrates pending wallet requests from backend user_state", async () => {
       setAomiClientConfig({
+        fetchThreads: async () => [
+          {
+            session_id: "thread-with-wallet-request",
+            title: "Wallet request",
+          },
+        ],
         fetchState: async () => ({
           is_processing: false,
           messages: [],
@@ -300,7 +313,25 @@ describe("Chat API", () => {
         }),
       });
 
-      const { getApi } = renderRuntime();
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
+        });
+      });
+
+      await waitFor(() => {
+        expect(
+          getApi().getThreadMetadata("thread-with-wallet-request"),
+        ).toBeDefined();
+      });
+
+      await act(async () => {
+        getApi().selectThread("thread-with-wallet-request");
+      });
 
       await waitFor(() => {
         expect(getApi().pendingWalletRequests).toEqual([
