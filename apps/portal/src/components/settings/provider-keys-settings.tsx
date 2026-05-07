@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useControl } from "@aomi-labs/react";
-import { Button } from "@aomi-labs/widget-lib";
-import { Input } from "@aomi-labs/widget-lib/components/ui/input";
+import { Button, Input } from "@aomi-labs/widget-lib";
 
 const PROVIDERS = [
   { id: "openai", label: "OpenAI" },

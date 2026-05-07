@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@aomi-labs/widget-lib";
-import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { Input } from "@aomi-labs/widget-lib/components/ui/input";
+import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 
 type OwnedApiKey = {

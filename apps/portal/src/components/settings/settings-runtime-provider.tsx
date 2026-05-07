@@ -24,11 +24,11 @@ function SettingsRuntimeInner({
   children,
   aomiClient,
   sessionId,
-}: Readonly<{
+}: {
   children: ReactNode;
   aomiClient: AomiClient;
   sessionId: string;
-}>) {
+}) {
   const threadContext = useThreadContext();
   const { user } = useUser();
 
@@ -47,10 +47,12 @@ function SettingsRuntimeInner({
 
 export function SettingsRuntimeProvider({
   children,
-}: Readonly<SettingsRuntimeProviderProps>) {
-  const backendUrl = getBackendUrl();
+}: SettingsRuntimeProviderProps) {
   const sessionId = getSettingsSessionId();
-  const aomiClient = useMemo(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  const aomiClient = useMemo(
+    () => new AomiClient({ baseUrl: getBackendUrl() }),
+    [],
+  );
 
   return (
     <ThreadContextProvider initialThreadId={sessionId}>
