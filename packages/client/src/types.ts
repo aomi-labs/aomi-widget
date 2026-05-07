@@ -372,6 +372,32 @@ export interface AomiDeleteProviderKeyResponse {
   deleted: boolean;
 }
 
+export interface AomiPaymentOverviewByokEntry {
+  provider: string;
+  label?: string | null;
+}
+
+export interface AomiPaymentOverviewStreamEntry {
+  method: string;
+  receipt_id: string;
+}
+
+export interface AomiPaymentOverviewResponse {
+  byok: AomiPaymentOverviewByokEntry[];
+  streams: AomiPaymentOverviewStreamEntry[];
+}
+
+export interface AomiSaveTempoPaymentResponse {
+  method: {
+    method: string;
+    receipt_id: string;
+  };
+}
+
+export interface AomiDeletePaymentResponse {
+  deleted: boolean;
+}
+
 // =============================================================================
 // SSE Event Types (/api/updates)
 // =============================================================================

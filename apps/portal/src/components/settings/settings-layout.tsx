@@ -5,7 +5,7 @@ import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
 import { ApiKeySettings } from "./api-key-settings";
-import { ProviderKeysSettings } from "./provider-keys-settings";
+import { PaymentSettings } from "./payment-settings";
 
 export function SettingsLayout() {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general");
@@ -18,8 +18,8 @@ export function SettingsLayout() {
         return <AppsSettings />;
       case "api-keys":
         return <ApiKeySettings />;
-      case "provider-keys":
-        return <ProviderKeysSettings />;
+      case "payment":
+        return <PaymentSettings />;
       default:
         return <GeneralSettings />;
     }

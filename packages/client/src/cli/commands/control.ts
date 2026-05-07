@@ -25,6 +25,7 @@ export async function statusCommand(config: CliConfig): Promise<void> {
           baseUrl: cli.baseUrl,
           app: cli.app,
           model: cli.model ?? null,
+          paymentMethod: cli.paymentMethod ?? null,
           chainId: cli.chainId ?? null,
           isProcessing: apiState.is_processing ?? false,
           messageCount: apiState.messages?.length ?? 0,

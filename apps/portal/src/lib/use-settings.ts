@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { AomiPaymentMethod } from "@aomi-labs/client";
 
 const SETTINGS_STORAGE_KEY = "aomi_settings";
 
@@ -11,6 +12,9 @@ export interface Settings {
   colorMode: ColorMode;
   chatFont: string;
   notifications: boolean;
+  preferredPaymentMethod: AomiPaymentMethod | null;
+  mppEnabled: boolean;
+  x402Enabled: boolean;
   fullName: string;
   preferredName: string;
   workFunction: string;
@@ -22,6 +26,9 @@ const defaultSettings: Settings = {
   colorMode: "auto",
   chatFont: "default",
   notifications: true,
+  preferredPaymentMethod: null,
+  mppEnabled: false,
+  x402Enabled: false,
   fullName: "",
   preferredName: "",
   workFunction: "",

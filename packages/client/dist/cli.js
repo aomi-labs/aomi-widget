@@ -1048,6 +1048,55 @@ var init_client = __esm({
         const data = await response.json();
         return data.deleted;
       }
+      /**
+       * List cached payment resources for the client bound to this session.
+       */
+      async getPaymentOverview(sessionId) {
+        const url = joinApiPath(this.baseUrl, "/api/payment");
+        const response = await this.fetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to get payment overview: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      /**
+       * Save or replace a cached Tempo payment channel for the current session.
+       */
+      async saveTempoPayment(sessionId, channelId, voucher) {
+        const url = joinApiPath(this.baseUrl, "/api/payment/tempo");
+        const response = await this.fetchImpl(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId, {
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({
+            channel_id: channelId,
+            voucher
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to save Tempo payment: HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return data.method;
+      }
+      /**
+       * Clear the cached Tempo payment channel for the current session.
+       */
+      async clearTempoPayment(sessionId) {
+        const url = joinApiPath(this.baseUrl, "/api/payment/tempo");
+        const response = await this.fetchImpl(url, {
+          method: "DELETE",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to clear Tempo payment: HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return data.deleted;
+      }
       // ===========================================================================
       // Batch Simulation
       // ===========================================================================
@@ -2769,6 +2818,10 @@ var init_cli_session = __esm({
       }
       setChainId(id) {
         this.state.chainId = id;
+        this.save();
+      }
+      setPaymentMethod(paymentMethod) {
+        this.state.paymentMethod = paymentMethod;
         this.save();
       }
       addSecretHandles(handles) {
@@ -5541,7 +5594,7 @@ __export(control_exports, {
   statusCommand: () => statusCommand
 });
 async function statusCommand(config) {
-  var _a3, _b, _c, _d, _e, _f;
+  var _a3, _b, _c, _d, _e, _f, _g;
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -5559,10 +5612,11 @@ async function statusCommand(config) {
           baseUrl: cli.baseUrl,
           app: cli.app,
           model: (_a3 = cli.model) != null ? _a3 : null,
-          chainId: (_b = cli.chainId) != null ? _b : null,
-          isProcessing: (_c = apiState.is_processing) != null ? _c : false,
-          messageCount: (_e = (_d = apiState.messages) == null ? void 0 : _d.length) != null ? _e : 0,
-          title: (_f = apiState.title) != null ? _f : null,
+          paymentMethod: (_b = cli.paymentMethod) != null ? _b : null,
+          chainId: (_c = cli.chainId) != null ? _c : null,
+          isProcessing: (_d = apiState.is_processing) != null ? _d : false,
+          messageCount: (_f = (_e = apiState.messages) == null ? void 0 : _e.length) != null ? _f : 0,
+          title: (_g = apiState.title) != null ? _g : null,
           pendingTxs: cli.pendingTxs.length,
           signedTxs: cli.signedTxs.length
         },
@@ -5908,6 +5962,127 @@ var init_preferences = __esm({
   }
 });
 
+// src/cli/commands/payment.ts
+var payment_exports = {};
+__export(payment_exports, {
+  paymentByokClearCommand: () => paymentByokClearCommand,
+  paymentByokSetCommand: () => paymentByokSetCommand,
+  paymentMethodsCommand: () => paymentMethodsCommand,
+  paymentStatusCommand: () => paymentStatusCommand,
+  paymentTempoClearCommand: () => paymentTempoClearCommand,
+  paymentTempoSetCommand: () => paymentTempoSetCommand
+});
+function loadOrCreatePaymentSession(config) {
+  const existing = CliSession.load();
+  if (existing) {
+    existing.mergeConfig(config);
+    return existing;
+  }
+  return CliSession.loadOrCreate(__spreadValues({
+    baseUrl: "https://api.aomi.dev",
+    app: "default",
+    secrets: {}
+  }, config));
+}
+async function createPaymentClient(config) {
+  const cli = loadOrCreatePaymentSession(config);
+  const client = new AomiClient({
+    baseUrl: cli.baseUrl,
+    apiKey: cli.apiKey
+  });
+  await client.fetchState(cli.sessionId, void 0, cli.ensureClientId());
+  return { cli, client };
+}
+async function paymentStatusCommand(config) {
+  var _a3, _b;
+  const { cli, client } = await createPaymentClient(config);
+  const overview = await client.getPaymentOverview(cli.sessionId);
+  console.log(`Session: ${cli.sessionId}`);
+  console.log(`Preferred method: ${(_a3 = cli.paymentMethod) != null ? _a3 : "auto"}`);
+  if (overview.byok.length === 0) {
+    console.log("BYOK: none");
+  } else {
+    console.log("BYOK:");
+    for (const key of overview.byok) {
+      const label = (_b = key.label) == null ? void 0 : _b.trim();
+      console.log(label ? `  - ${key.provider} (${label})` : `  - ${key.provider}`);
+    }
+  }
+  if (overview.streams.length === 0) {
+    console.log("MPP: none");
+  } else {
+    console.log("MPP:");
+    for (const stream of overview.streams) {
+      console.log(`  - ${stream.method}: ${stream.receipt_id}`);
+    }
+  }
+  printDataFileLocation();
+}
+function paymentMethodsCommand() {
+  console.log("Supported chat payment methods:");
+  console.log("  - auto: legacy backend fallback when payment_method is omitted");
+  console.log("  - null: use included Aomi credits when available");
+  console.log("  - byok: use a cached provider key");
+  console.log("  - tempo: use a cached Tempo / MPP channel");
+  console.log("  - coinbase: x402 exact-payment flow handled during chat");
+}
+async function paymentByokSetCommand(config, provider, apiKey, label) {
+  const normalizedProvider = provider.trim().toLowerCase();
+  if (!normalizedProvider || !apiKey.trim()) {
+    fatal("Usage: aomi payment byok set <provider> <api-key> [--label <label>]");
+  }
+  const { cli, client } = await createPaymentClient(config);
+  const saved = await client.saveProviderKey(
+    cli.sessionId,
+    normalizedProvider,
+    apiKey.trim(),
+    (label == null ? void 0 : label.trim()) || void 0
+  );
+  console.log(`Saved BYOK key for ${saved.provider}: ${saved.key_prefix}...`);
+  printDataFileLocation();
+}
+async function paymentByokClearCommand(config, provider) {
+  const normalizedProvider = provider.trim().toLowerCase();
+  if (!normalizedProvider) {
+    fatal("Usage: aomi payment byok clear <provider>");
+  }
+  const { cli, client } = await createPaymentClient(config);
+  const deleted = await client.deleteProviderKey(cli.sessionId, normalizedProvider);
+  console.log(
+    deleted ? `Cleared BYOK key for ${normalizedProvider}` : `No cached BYOK key for ${normalizedProvider}`
+  );
+  printDataFileLocation();
+}
+async function paymentTempoSetCommand(config, channelId, voucher) {
+  const trimmedChannelId = channelId.trim();
+  if (!trimmedChannelId) {
+    fatal("Usage: aomi payment tempo set <channel-id> [--voucher <voucher>]");
+  }
+  const { cli, client } = await createPaymentClient(config);
+  const saved = await client.saveTempoPayment(
+    cli.sessionId,
+    trimmedChannelId,
+    (voucher == null ? void 0 : voucher.trim()) || void 0
+  );
+  console.log(`Cached MPP channel ${saved.receipt_id} for ${saved.method}`);
+  printDataFileLocation();
+}
+async function paymentTempoClearCommand(config) {
+  const { cli, client } = await createPaymentClient(config);
+  const deleted = await client.clearTempoPayment(cli.sessionId);
+  console.log(deleted ? "Cleared cached MPP channel" : "No cached MPP channel");
+  printDataFileLocation();
+}
+var init_payment = __esm({
+  "src/cli/commands/payment.ts"() {
+    "use strict";
+    init_client();
+    init_cli_session();
+    init_errors();
+    init_output();
+  }
+});
+
 // src/cli/commands/secrets.ts
 var secrets_exports = {};
 __export(secrets_exports, {
@@ -6219,7 +6394,7 @@ var init_repl = __esm({
 import { runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand10 } from "citty";
+import { defineCommand as defineCommand11 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -6578,11 +6753,126 @@ var configDef = defineCommand8({
   }
 });
 
+// src/cli/commands/defs/payment.ts
+init_shared();
+import { defineCommand as defineCommand9 } from "citty";
+var paymentStatusDef = defineCommand9({
+  meta: { name: "status", description: "Show cached payment configuration" },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { paymentStatusCommand: paymentStatusCommand2 } = await Promise.resolve().then(() => (init_payment(), payment_exports));
+    await paymentStatusCommand2(buildCliConfig(args));
+  }
+});
+var paymentMethodsDef = defineCommand9({
+  meta: { name: "methods", description: "Show supported chat payment methods" },
+  args: {},
+  async run() {
+    const { paymentMethodsCommand: paymentMethodsCommand2 } = await Promise.resolve().then(() => (init_payment(), payment_exports));
+    paymentMethodsCommand2();
+  }
+});
+var paymentByokSetDef = defineCommand9({
+  meta: { name: "set", description: "Cache a BYOK provider key" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    provider: {
+      type: "positional",
+      description: "Provider identifier",
+      required: true
+    },
+    apiKey: {
+      type: "positional",
+      description: "Provider API key",
+      required: true
+    },
+    label: {
+      type: "string",
+      description: "Optional label"
+    }
+  }),
+  async run({ args }) {
+    const { paymentByokSetCommand: paymentByokSetCommand2 } = await Promise.resolve().then(() => (init_payment(), payment_exports));
+    await paymentByokSetCommand2(
+      buildCliConfig(args),
+      args.provider,
+      args.apiKey,
+      args.label
+    );
+  }
+});
+var paymentByokClearDef = defineCommand9({
+  meta: { name: "clear", description: "Clear a cached BYOK provider key" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    provider: {
+      type: "positional",
+      description: "Provider identifier",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { paymentByokClearCommand: paymentByokClearCommand2 } = await Promise.resolve().then(() => (init_payment(), payment_exports));
+    await paymentByokClearCommand2(buildCliConfig(args), args.provider);
+  }
+});
+var paymentByokDef = defineCommand9({
+  meta: { name: "byok", description: "Manage cached BYOK provider keys" },
+  subCommands: {
+    set: paymentByokSetDef,
+    clear: paymentByokClearDef
+  }
+});
+var paymentTempoSetDef = defineCommand9({
+  meta: { name: "set", description: "Cache a Tempo / MPP payment channel" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    channelId: {
+      type: "positional",
+      description: "Tempo channel id",
+      required: true
+    },
+    voucher: {
+      type: "string",
+      description: "Optional voucher blob"
+    }
+  }),
+  async run({ args }) {
+    const { paymentTempoSetCommand: paymentTempoSetCommand2 } = await Promise.resolve().then(() => (init_payment(), payment_exports));
+    await paymentTempoSetCommand2(
+      buildCliConfig(args),
+      args.channelId,
+      args.voucher
+    );
+  }
+});
+var paymentTempoClearDef = defineCommand9({
+  meta: { name: "clear", description: "Clear the cached Tempo / MPP channel" },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { paymentTempoClearCommand: paymentTempoClearCommand2 } = await Promise.resolve().then(() => (init_payment(), payment_exports));
+    await paymentTempoClearCommand2(buildCliConfig(args));
+  }
+});
+var paymentTempoDef = defineCommand9({
+  meta: { name: "tempo", description: "Manage cached Tempo / MPP channels" },
+  subCommands: {
+    set: paymentTempoSetDef,
+    clear: paymentTempoClearDef
+  }
+});
+var paymentDef = defineCommand9({
+  meta: { name: "payment", description: "Payment configuration" },
+  subCommands: {
+    status: paymentStatusDef,
+    methods: paymentMethodsDef,
+    byok: paymentByokDef,
+    tempo: paymentTempoDef
+  }
+});
+
 // src/cli/commands/defs/secret.ts
 init_errors();
 init_shared();
-import { defineCommand as defineCommand9 } from "citty";
-var secretListDef = defineCommand9({
+import { defineCommand as defineCommand10 } from "citty";
+var secretListDef = defineCommand10({
   meta: { name: "list", description: "List configured secrets for the active session" },
   args: {},
   async run() {
@@ -6590,7 +6880,7 @@ var secretListDef = defineCommand9({
     listSecretsCommand2();
   }
 });
-var secretClearDef = defineCommand9({
+var secretClearDef = defineCommand10({
   meta: { name: "clear", description: "Clear all secrets for the active session" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
@@ -6598,7 +6888,7 @@ var secretClearDef = defineCommand9({
     await clearSecretsCommand2(buildCliConfig(args));
   }
 });
-var secretAddDef = defineCommand9({
+var secretAddDef = defineCommand10({
   meta: { name: "add", description: "Add one or more secrets (NAME=value)" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     secret: {
@@ -6627,7 +6917,7 @@ Usage: aomi secret add NAME=value [NAME=value ...]`
     await ingestSecretsCommand2(config);
   }
 });
-var secretDef = defineCommand9({
+var secretDef = defineCommand10({
   meta: { name: "secret", description: "Secret management" },
   subCommands: {
     list: secretListDef,
@@ -6692,9 +6982,10 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "chain",
   "wallet",
   "config",
+  "payment",
   "secret"
 ]);
-var root = defineCommand10({
+var root = defineCommand11({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -6732,6 +7023,7 @@ var root = defineCommand10({
     chain: chainDef,
     wallet: walletDef,
     config: configDef,
+    payment: paymentDef,
     secret: secretDef
   }
 });
@@ -6747,6 +7039,7 @@ var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "chain",
   "wallet",
   "config",
+  "payment",
   "secret"
 ]);
 function isPnpmExecWrapper() {
@@ -6822,6 +7115,7 @@ function printRootHelp() {
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
   console.log("  config                       CLI configuration");
+  console.log("  payment                      Payment setup and inspection");
   console.log("  secret                       Secret management");
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");

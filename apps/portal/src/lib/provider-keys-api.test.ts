@@ -67,6 +67,10 @@ test("bindProviderKeysSession associates the current settings session with the b
   await bindProviderKeysSession();
 
   assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /\/api\/state\?client_id=client-123$/);
+  assert.match(calls[0].url, /\/api\/sessions$/);
+  assert.equal(calls[0].init?.method, "POST");
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+    client_id: "client-123",
+  });
   assert.equal(new Headers(calls[0].init?.headers).has("X-Session-Id"), true);
 });

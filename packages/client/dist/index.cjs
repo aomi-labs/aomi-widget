@@ -839,6 +839,55 @@ var AomiClient = class {
     const data = await response.json();
     return data.deleted;
   }
+  /**
+   * List cached payment resources for the client bound to this session.
+   */
+  async getPaymentOverview(sessionId) {
+    const url = joinApiPath(this.baseUrl, "/api/payment");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to get payment overview: HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+  /**
+   * Save or replace a cached Tempo payment channel for the current session.
+   */
+  async saveTempoPayment(sessionId, channelId, voucher) {
+    const url = joinApiPath(this.baseUrl, "/api/payment/tempo");
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        channel_id: channelId,
+        voucher
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save Tempo payment: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data.method;
+  }
+  /**
+   * Clear the cached Tempo payment channel for the current session.
+   */
+  async clearTempoPayment(sessionId) {
+    const url = joinApiPath(this.baseUrl, "/api/payment/tempo");
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to clear Tempo payment: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data.deleted;
+  }
   // ===========================================================================
   // Batch Simulation
   // ===========================================================================

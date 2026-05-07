@@ -1,9 +1,9 @@
 "use client";
 
-import { Settings, Layers, ArrowLeft, KeyRound, Unplug } from "lucide-react";
+import { Settings, Layers, ArrowLeft, KeyRound, CreditCard } from "lucide-react";
 import Link from "next/link";
 
-export type SettingsCategory = "general" | "apps" | "api-keys" | "provider-keys";
+export type SettingsCategory = "general" | "apps" | "api-keys" | "payment";
 
 interface SettingsSidebarProps {
   activeCategory: SettingsCategory;
@@ -18,7 +18,7 @@ const categories: Array<{
   { id: "general", label: "General", icon: Settings },
   { id: "apps", label: "Apps", icon: Layers },
   { id: "api-keys", label: "API Keys", icon: KeyRound },
-  { id: "provider-keys", label: "LLM Keys", icon: Unplug },
+  { id: "payment", label: "Payments", icon: CreditCard },
 ];
 
 const AomiLogo = ({ className }: { className?: string }) => (

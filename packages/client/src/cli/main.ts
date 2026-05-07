@@ -12,6 +12,7 @@ const ROOT_SUBCOMMANDS = new Set([
   "chain",
   "wallet",
   "config",
+  "payment",
   "secret",
 ]);
 
@@ -90,6 +91,7 @@ function printRootHelp(): void {
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
   console.log("  config                       CLI configuration");
+  console.log("  payment                      Payment setup and inspection");
   console.log("  secret                       Secret management");
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");

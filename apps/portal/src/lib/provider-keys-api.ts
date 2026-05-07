@@ -84,6 +84,24 @@ export function getOrCreateSettingsClientId(): string {
   return next;
 }
 
+export async function bindSettingsSession(options?: {
+  publicKey?: string;
+  chainId?: number | null;
+}): Promise<void> {
+  const clientId = getOrCreateSettingsClientId();
+  await settingsApiFetch<{ session_id: string; title?: string | null }>(
+    "/api/sessions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        client_id: clientId,
+        public_key: options?.publicKey,
+        chain_id: options?.chainId ?? undefined,
+      }),
+    },
+  );
+}
+
 function readStoredProviderKeys(): Record<string, StoredProviderKey> {
   if (typeof globalThis.localStorage === "undefined") {
     return {};
@@ -142,8 +160,7 @@ function removeStoredProviderKey(provider: string): void {
 }
 
 export async function bindProviderKeysSession(): Promise<void> {
-  const clientId = getOrCreateSettingsClientId();
-  await settingsApiFetch<unknown>(`/api/state?client_id=${encodeURIComponent(clientId)}`);
+  await bindSettingsSession();
 }
 
 export async function listProviderKeys(): Promise<ProviderKeyEntry[]> {

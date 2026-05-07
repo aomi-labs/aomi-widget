@@ -5,13 +5,16 @@ import type {
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
   AomiDeleteProviderKeyResponse,
+  AomiDeletePaymentResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiListProviderKeysResponse,
+  AomiPaymentOverviewResponse,
   AomiProviderKeyEntry,
   AomiPaymentMethod,
   AomiSaveProviderKeyResponse,
+  AomiSaveTempoPaymentResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
   AomiStateResponse,
@@ -638,6 +641,70 @@ export class AomiClient {
     }
 
     const data = (await response.json()) as AomiDeleteProviderKeyResponse;
+    return data.deleted;
+  }
+
+  /**
+   * List cached payment resources for the client bound to this session.
+   */
+  async getPaymentOverview(
+    sessionId: string,
+  ): Promise<AomiPaymentOverviewResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/payment");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get payment overview: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiPaymentOverviewResponse;
+  }
+
+  /**
+   * Save or replace a cached Tempo payment channel for the current session.
+   */
+  async saveTempoPayment(
+    sessionId: string,
+    channelId: string,
+    voucher?: string,
+  ): Promise<AomiSaveTempoPaymentResponse["method"]> {
+    const url = joinApiPath(this.baseUrl, "/api/payment/tempo");
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        channel_id: channelId,
+        voucher,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save Tempo payment: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiSaveTempoPaymentResponse;
+    return data.method;
+  }
+
+  /**
+   * Clear the cached Tempo payment channel for the current session.
+   */
+  async clearTempoPayment(sessionId: string): Promise<boolean> {
+    const url = joinApiPath(this.baseUrl, "/api/payment/tempo");
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to clear Tempo payment: HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as AomiDeletePaymentResponse;
     return data.deleted;
   }
 

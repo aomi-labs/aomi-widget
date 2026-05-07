@@ -6,21 +6,14 @@ import {
   type FC,
   createContext,
   useContext,
+  useEffect,
   useMemo,
 } from "react";
 import {
   AomiRuntimeProvider,
   cn,
   useAomiRuntime,
-  type AomiClientOptions,
 } from "@aomi-labs/react";
-import { x402Client } from "@x402/core/client";
-import { ExactEvmScheme } from "@x402/evm/exact/client";
-import { wrapFetchWithPayment } from "@x402/fetch";
-import { Mppx, tempo } from "mppx/client";
-import { useConfig } from "wagmi";
-import { useWalletClient } from "wagmi";
-import { getConnectorClient } from "wagmi/actions";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { AppSelectUrlSync } from "@/components/control-bar/app-select-url-sync";
@@ -39,6 +32,11 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+import {
+  type RuntimeClientOptions,
+  usePaymentAwareClientOptions,
+} from "@/lib/payment-client-options";
+import { useSettings } from "@/lib/use-settings";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -92,83 +90,19 @@ type ComposerProps = {
 };
 
 type FrameControlBarProps = ControlBarProps;
-type RuntimeClientOptions = Omit<AomiClientOptions, "baseUrl">;
+const PaymentPreferenceSync: FC = () => {
+  const { settings } = useSettings();
+  const { paymentMethod, setPaymentMethod } = useAomiRuntime();
 
-function useSafeWagmiConfig() {
-  try {
-    return useConfig();
-  } catch {
-    return null;
-  }
-}
-
-function useSafeWalletClient() {
-  try {
-    return useWalletClient();
-  } catch {
-    return null;
-  }
-}
-
-function usePaymentAwareClientOptions(
-  clientOptions?: RuntimeClientOptions,
-): RuntimeClientOptions | undefined {
-  const wagmiConfig = useSafeWagmiConfig();
-  const walletClient = useSafeWalletClient();
-
-  const mppClientOptions = useMemo(() => {
-    if (!wagmiConfig) {
-      return undefined;
+  useEffect(() => {
+    if (paymentMethod !== null || settings.preferredPaymentMethod === null) {
+      return;
     }
+    setPaymentMethod(settings.preferredPaymentMethod);
+  }, [paymentMethod, setPaymentMethod, settings.preferredPaymentMethod]);
 
-    const mppx = Mppx.create({
-      polyfill: false,
-      methods: [
-        tempo({
-          getClient: (parameters) =>
-            getConnectorClient(
-              wagmiConfig,
-              parameters as Parameters<typeof getConnectorClient>[1],
-            ),
-        }),
-      ],
-    });
-
-    return {
-      fetch: mppx.fetch,
-    };
-  }, [wagmiConfig]);
-
-  return useMemo(() => {
-    if (clientOptions?.fetch) {
-      return clientOptions;
-    }
-
-    const baseFetch = mppClientOptions?.fetch;
-    if (!baseFetch) {
-      return clientOptions;
-    }
-
-    const connectorClient = walletClient?.data;
-    if (!connectorClient) {
-      return {
-        ...clientOptions,
-        fetch: baseFetch,
-      };
-    }
-
-    const paymentClient = new x402Client();
-    paymentClient.register(
-      "eip155:*",
-      new ExactEvmScheme(connectorClient as never),
-    );
-
-    return {
-      ...clientOptions,
-      fetch: wrapFetchWithPayment(baseFetch, paymentClient),
-    };
-  }, [clientOptions, mppClientOptions, walletClient?.data]);
-}
+  return null;
+};
 
 // =============================================================================
 // Compound Components
@@ -214,6 +148,7 @@ const Root: FC<RootProps> = ({
           </SidebarInset>
           <NotificationToaster />
           <AomiAuthRuntimeUserSync />
+          <PaymentPreferenceSync />
           <WalletTxHandler />
         </div>
       </SidebarProvider>

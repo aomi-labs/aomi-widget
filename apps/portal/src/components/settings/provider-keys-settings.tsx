@@ -105,10 +105,11 @@ export function ProviderKeysSettings() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">LLM Keys</h1>
+        <h2 className="text-2xl font-semibold tracking-tight">BYOK</h2>
         <p className="text-sm text-muted-foreground">
-          Store your own provider API keys for OpenAI, Anthropic, or OpenRouter.
-          BYOK usage is recorded, but it does not consume Aomi credits.
+          Store your own provider API keys for OpenAI, Anthropic, or
+          OpenRouter. BYOK usage is recorded, but it does not consume Aomi
+          credits.
         </p>
       </div>
 

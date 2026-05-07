@@ -155,6 +155,27 @@ interface AomiProviderKeyEntry {
     label?: string | null;
     is_active: boolean;
 }
+interface AomiPaymentOverviewByokEntry {
+    provider: string;
+    label?: string | null;
+}
+interface AomiPaymentOverviewStreamEntry {
+    method: string;
+    receipt_id: string;
+}
+interface AomiPaymentOverviewResponse {
+    byok: AomiPaymentOverviewByokEntry[];
+    streams: AomiPaymentOverviewStreamEntry[];
+}
+interface AomiSaveTempoPaymentResponse {
+    method: {
+        method: string;
+        receipt_id: string;
+    };
+}
+interface AomiDeletePaymentResponse {
+    deleted: boolean;
+}
 /**
  * Base SSE event - all events have session_id and type
  */
@@ -343,6 +364,18 @@ declare class AomiClient {
      * Delete a BYOK provider key for the client bound to this session.
      */
     deleteProviderKey(sessionId: string, provider: string): Promise<boolean>;
+    /**
+     * List cached payment resources for the client bound to this session.
+     */
+    getPaymentOverview(sessionId: string): Promise<AomiPaymentOverviewResponse>;
+    /**
+     * Save or replace a cached Tempo payment channel for the current session.
+     */
+    saveTempoPayment(sessionId: string, channelId: string, voucher?: string): Promise<AomiSaveTempoPaymentResponse["method"]>;
+    /**
+     * Clear the cached Tempo payment channel for the current session.
+     */
+    clearTempoPayment(sessionId: string): Promise<boolean>;
     /**
      * Simulate transactions as an atomic batch.
      * Each tx sees state changes from previous txs (e.g., approve → swap).
@@ -947,4 +980,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiPaymentMethod, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, addUserStateExt, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeletePaymentResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiPaymentMethod, type AomiPaymentOverviewByokEntry, type AomiPaymentOverviewResponse, type AomiPaymentOverviewStreamEntry, type AomiSSEEvent, type AomiSSEEventType, type AomiSaveTempoPaymentResponse, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, addUserStateExt, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };

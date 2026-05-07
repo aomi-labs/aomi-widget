@@ -202,6 +202,11 @@ export class CliSession {
     this.save();
   }
 
+  setPaymentMethod(paymentMethod: string | null): void {
+    this.state.paymentMethod = paymentMethod;
+    this.save();
+  }
+
   addSecretHandles(handles: Record<string, string>): void {
     this.state.secretHandles = {
       ...(this.state.secretHandles ?? {}),
