@@ -129,6 +129,7 @@ export const registry: RegistryComponent[] = [
     file: "components/assistant-ui/thread-list.tsx",
     dependencies: ["@assistant-ui/react@~0.11.28", "lucide-react"],
     registryDependencies: [
+      aomi("aomi-auth-adapter"),
       assistantUI("tooltip-icon-button"),
       "button",
       "dialog",

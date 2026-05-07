@@ -19,12 +19,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAomiAuthAdapter } from "@/lib/aomi-auth-adapter";
 
 export const ThreadList: FC = () => {
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-1 pl-2">
       <ThreadListNew />
-      <div className="aui-thread-list-separator mx-4 my-1 border-t border-border/40" />
+      <div className="aui-thread-list-separator border-border/40 mx-4 my-1 border-t" />
       <ThreadListItems />
     </ThreadListPrimitive.Root>
   );
@@ -46,17 +47,49 @@ const ThreadListNew: FC = () => {
 
 const ThreadListItems: FC = () => {
   const isLoading = useAssistantState(({ threads }) => threads.isLoading);
+  const { identity } = useAomiAuthAdapter();
 
   if (isLoading) {
     return <ThreadListSkeleton />;
   }
 
-  return <ThreadListPrimitive.Items components={{ ThreadListItem }} />;
+  return (
+    <>
+      {!identity.isConnected && <ThreadListConnectHint />}
+      <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+    </>
+  );
+};
+
+const ThreadListConnectHint: FC = () => {
+  return (
+    <p className="aui-thread-list-connect-hint text-muted-foreground/60 px-4 py-8 text-center text-xs">
+      Connect wallet to see threads
+    </p>
+  );
 };
 
 const SKELETON_WIDTHS = [
-  "85%", "72%", "90%", "68%", "78%", "95%", "74%", "82%", "70%", "88%",
-  "76%", "92%", "80%", "69%", "86%", "73%", "91%", "77%", "84%", "71%",
+  "85%",
+  "72%",
+  "90%",
+  "68%",
+  "78%",
+  "95%",
+  "74%",
+  "82%",
+  "70%",
+  "88%",
+  "76%",
+  "92%",
+  "80%",
+  "69%",
+  "86%",
+  "73%",
+  "91%",
+  "77%",
+  "84%",
+  "71%",
 ];
 
 const ThreadListSkeleton: FC = () => {

@@ -112,6 +112,10 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const ThreadWelcome: FC = () => {
+  const isLoading = useAssistantState(({ thread }) => thread.isLoading);
+
+  if (isLoading) return null;
+
   return (
     <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col px-2">
       <div className="aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center">
@@ -120,7 +124,7 @@ const ThreadWelcome: FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="aui-thread-welcome-message-motion-1 text-2xl font-semibold text-muted-foreground/45"
+            className="aui-thread-welcome-message-motion-1 text-muted-foreground/45 text-2xl font-semibold"
           >
             Hello there!
           </m.div>
