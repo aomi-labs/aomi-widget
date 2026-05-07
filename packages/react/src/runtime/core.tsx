@@ -386,6 +386,7 @@ export function AomiRuntimeCore({
 
     const fetchThreadList = async () => {
       try {
+        const remoteThreadIdsAtFetchStart = new Set(remoteThreadIdsRef.current);
         const threadList = await aomiClientRef.current.listThreads(userAddress);
         if (cancelled) return;
         const currentContext = threadContextRef.current;
@@ -414,6 +415,12 @@ export function AomiRuntimeCore({
             if (num > maxChatNum) {
               maxChatNum = num;
             }
+          }
+        }
+
+        for (const threadId of remoteThreadIdsRef.current) {
+          if (!remoteThreadIdsAtFetchStart.has(threadId)) {
+            remoteThreadIds.add(threadId);
           }
         }
 

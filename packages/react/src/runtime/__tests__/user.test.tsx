@@ -17,6 +17,7 @@ import {
   setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
+import type { AomiThread } from "@aomi-labs/client";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -175,6 +176,65 @@ describe("User API", () => {
       expect(messageJson.payload.ext).toBeUndefined();
       expect(messageJson.payload.chain_id).toBe(137);
       expect(messageJson.payload.is_connected).toBe(true);
+    });
+
+    it("keeps a materialized thread remote after a stale list fetch resolves", async () => {
+      let resolveListThreads:
+        | ((threads: AomiThread[] | PromiseLike<AomiThread[]>) => void)
+        | undefined;
+      const listThreads = vi.fn(
+        () =>
+          new Promise<AomiThread[]>((resolve) => {
+            resolveListThreads = resolve;
+          }),
+      );
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+
+      setAomiClientConfig({
+        listThreads,
+        createThread,
+        postSystemMessage,
+      });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0x789",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(listThreads).toHaveBeenCalledWith("0x789");
+      });
+
+      await act(async () => {
+        await getApi().sendMessage("Materialize during list fetch");
+      });
+      const materializedThreadId = getApi().currentThreadId;
+
+      await act(async () => {
+        resolveListThreads?.([]);
+        await flushPromises();
+      });
+
+      await act(async () => {
+        getApi().setUser({ chainId: 137 });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(postSystemMessage).toHaveBeenCalledWith(
+          materializedThreadId,
+          expect.any(String),
+        );
+      });
     });
   });
 
