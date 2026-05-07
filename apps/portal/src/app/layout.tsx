@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { cookies } from "next/headers";
 import "./globals.css";
-import { WalletProviders } from "@/components/wallet-providers";
-import { SettingsProvider } from "@/components/settings-provider";
-import { GoogleAnalytics } from "@/components/google-analytics";
-import { CookieConsent } from "@/components/cookie-consent";
+import { CookieConsent } from "@portal/components/cookie-consent";
+import { GoogleAnalytics } from "@portal/components/google-analytics";
+import { SettingsProvider } from "@portal/components/settings-provider";
+import { WalletProviders } from "@portal/components/wallet-providers";
 
 const iaWriterMono = localFont({
   src: [

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSettings } from "@/lib/use-settings";
+import { useSettings } from "@portal/lib/use-settings";
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useSettings();

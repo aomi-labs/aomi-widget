@@ -5,6 +5,8 @@ import path from "node:path";
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
+const portalSrc = path.join(appRoot, "src");
+const widgetSrc = path.join(workspaceRoot, "apps/registry/src");
 
 const emptyModulePath = path.join(appRoot, "empty-module.js");
 const nobleHashesAssertCompatPath = path.join(
@@ -53,12 +55,18 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@aomi-labs/client",
     "@aomi-labs/react",
+    "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
   ],
   turbopack: {
     resolveAlias: {
+      "@portal": "./src",
+      "@/components": "../../apps/registry/src/components",
+      "@/hooks": "../../apps/registry/src/hooks",
+      "@/lib": "../../apps/registry/src/lib",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
+      "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
       "@noble/hashes/_assert": "./noble-hashes-assert-compat.js",
       "@tanstack/react-query": "./node_modules/@tanstack/react-query",
@@ -76,11 +84,16 @@ const nextConfig: NextConfig = {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),
+      "@portal": portalSrc,
+      "@/components": path.join(widgetSrc, "components"),
+      "@/hooks": path.join(widgetSrc, "hooks"),
+      "@/lib": path.join(widgetSrc, "lib"),
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",
       ),
       "@aomi-labs/react": path.join(workspaceRoot, "packages/react/src/index.ts"),
+      "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
       "@assistant-ui/react": path.join(appNodeModules, "@assistant-ui/react"),
       "@noble/hashes/_assert": nobleHashesAssertCompatPath,
       "@tanstack/react-query": path.join(

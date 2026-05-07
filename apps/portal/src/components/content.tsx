@@ -1,4 +1,4 @@
-import { BlogEntry } from "@/lib/utils";
+import { BlogEntry } from "@portal/lib/utils";
 
 export const blogs: BlogEntry[] = [
     {

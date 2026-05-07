@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { AomiFrame } from "./aomi-frame";
+import { PortalAomiFrame } from "@portal/components/portal-aomi-frame";
 
 export const Hero = () => {
   return (
@@ -17,10 +17,7 @@ export const Hero = () => {
       </Link>
 
       {/* Full-Screen Chat Container */}
-      <AomiFrame.Root height="100%" width="100%" walletPosition="footer">
-        <AomiFrame.Header />
-        <AomiFrame.Composer withControl/>
-      </AomiFrame.Root>
+      <PortalAomiFrame />
     </div>
   );
 };
