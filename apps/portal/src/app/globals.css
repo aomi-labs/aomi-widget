@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@aomi-labs/widget-lib/styles.css";
 @custom-variant dark (&:is(.dark *));
+
+@source "../../registry/src";
 
 /* ============================================
    Custom Font Faces - Bauhaus

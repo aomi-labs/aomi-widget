@@ -7,7 +7,12 @@ import {
   createContext,
   useContext,
 } from "react";
-import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
+import {
+  AomiRuntimeProvider,
+  cn,
+  useAomiRuntime,
+  type AomiClientOptions,
+} from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
@@ -56,6 +61,8 @@ type RootProps = {
   showSidebar?: boolean;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
+  /** Optional runtime client overrides. */
+  clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
 type HeaderProps = {
@@ -96,6 +103,7 @@ const Root: FC<RootProps> = ({
   walletPosition = "footer",
   showSidebar = true,
   backendUrl,
+  clientOptions,
 }) => {
   const resolvedBackendUrl =
     backendUrl ??
@@ -104,7 +112,10 @@ const Root: FC<RootProps> = ({
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
+    <AomiRuntimeProvider
+      backendUrl={resolvedBackendUrl}
+      clientOptions={clientOptions}
+    >
       <SidebarProvider className="min-h-0! h-full">
         <div
           className={cn(

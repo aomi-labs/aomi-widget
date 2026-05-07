@@ -1,5 +1,10 @@
-import { SettingsLayout } from "@/components/settings/settings-layout";
+import { SettingsLayout } from "@portal/components/settings/settings-layout";
+import { SettingsRuntimeProvider } from "@portal/components/settings/settings-runtime-provider";
 
 export default function SettingsPage() {
-  return <SettingsLayout />;
+  return (
+    <SettingsRuntimeProvider>
+      <SettingsLayout />
+    </SettingsRuntimeProvider>
+  );
 }

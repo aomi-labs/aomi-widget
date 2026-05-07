@@ -18,7 +18,7 @@ import {
   lineaSepolia,
 } from "wagmi/chains";
 import { defineChain, type Chain } from "viem";
-import { AomiWalletProvider } from "@/lib/aomi-auth-adapter";
+import { AomiWalletProvider } from "@aomi-labs/widget-lib";
 
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
