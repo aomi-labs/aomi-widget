@@ -343,19 +343,29 @@ const AssistantActionBar: FC = () => {
       className="aui-assistant-action-bar-root text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm col-start-3 row-start-2 -ml-1 flex gap-1"
     >
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Copy">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="aui-button-icon size-6 p-1"
+          aria-label="Copy"
+        >
           <MessagePrimitive.If copied>
             <CheckIcon />
           </MessagePrimitive.If>
           <MessagePrimitive.If copied={false}>
             <CopyIcon />
           </MessagePrimitive.If>
-        </TooltipIconButton>
+        </Button>
       </ActionBarPrimitive.Copy>
       <ActionBarPrimitive.Reload asChild>
-        <TooltipIconButton tooltip="Refresh">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="aui-button-icon size-6 p-1"
+          aria-label="Refresh"
+        >
           <RefreshCwIcon />
-        </TooltipIconButton>
+        </Button>
       </ActionBarPrimitive.Reload>
     </ActionBarPrimitive.Root>
   );
