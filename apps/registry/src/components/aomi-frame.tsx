@@ -18,7 +18,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -137,33 +136,40 @@ const Header: FC<HeaderProps> = ({
   className,
 }) => {
   const { currentThreadId, getThreadMetadata } = useAomiRuntime();
-  const currentTitle = getThreadMetadata(currentThreadId)?.title ?? "New Chat";
+  const meta = getThreadMetadata(currentThreadId);
+  const currentTitle =
+    meta?.title && meta.title !== "New Chat" ? meta.title : null;
 
   return (
-    <header
-      className={cn(
-        "mt-1 flex h-14 shrink-0 items-center gap-2 px-3",
-        className,
-      )}
-    >
-      {showSidebarTrigger && (
-        <>
-          <SidebarTrigger />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-        </>
-      )}
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem className="hidden md:block">
-            {currentTitle}
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="ml-auto flex items-center gap-2">
-        {withControl && <ControlBar {...controlBarProps} />}
-        {children}
-      </div>
-    </header>
+    <>
+      <header
+        className={cn(
+          "mt-1 flex h-14 shrink-0 items-center gap-2 px-3",
+          className,
+        )}
+      >
+        {showSidebarTrigger && (
+          <>
+            <SidebarTrigger />
+            {currentTitle && <div className="bg-border/50 mr-2 h-3.5 w-px" />}
+          </>
+        )}
+        <Breadcrumb>
+          <BreadcrumbList>
+            {currentTitle && (
+              <BreadcrumbItem className="hidden md:block">
+                {currentTitle}
+              </BreadcrumbItem>
+            )}
+          </BreadcrumbList>
+        </Breadcrumb>
+        <div className="ml-auto flex items-center gap-2">
+          {withControl && <ControlBar {...controlBarProps} />}
+          {children}
+        </div>
+      </header>
+      <div className="border-border/30 border-t" />
+    </>
   );
 };
 
