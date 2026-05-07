@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import {
-  type AomiClientOptions,
-  useControl,
-} from "@aomi-labs/react";
+import { type AomiClientOptions, useControl } from "@aomi-labs/react";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -26,25 +23,9 @@ function getRequestedAppFromSearch(search: string): string | null {
   return null;
 }
 
-function useSafeWagmiConfig() {
-  try {
-    return useConfig();
-  } catch {
-    return null;
-  }
-}
-
-function useSafeWalletClient() {
-  try {
-    return useWalletClient();
-  } catch {
-    return null;
-  }
-}
-
 function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefined {
-  const wagmiConfig = useSafeWagmiConfig();
-  const walletClient = useSafeWalletClient();
+  const wagmiConfig = useConfig();
+  const walletClient = useWalletClient();
 
   const mppClientOptions = useMemo(() => {
     if (!wagmiConfig) {
@@ -96,16 +77,15 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
 
 function AppSelectUrlBootstrap() {
   const { onAppSelect } = useControl();
-  const requestedAppRef = useRef<string | null>(null);
   const hasAppliedRequestedAppRef = useRef(false);
 
   useEffect(() => {
-    requestedAppRef.current = getRequestedAppFromSearch(window.location.search);
-  }, []);
+    if (hasAppliedRequestedAppRef.current) {
+      return;
+    }
 
-  useEffect(() => {
-    const requestedApp = requestedAppRef.current;
-    if (!requestedApp || hasAppliedRequestedAppRef.current) {
+    const requestedApp = getRequestedAppFromSearch(window.location.search);
+    if (!requestedApp) {
       return;
     }
 

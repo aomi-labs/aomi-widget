@@ -14,6 +14,25 @@ const nobleHashesAssertCompatPath = path.join(
   "noble-hashes-assert-compat.js",
 );
 
+// Portal-local code should import from `@portal/*`.
+// These `@/components|hooks|lib` aliases exist only so registry source imported
+// through `@aomi-labs/widget-lib` can resolve its own internal paths.
+const widgetTurbopackAliases = {
+  "@/components": "../../apps/registry/src/components",
+  "@/hooks": "../../apps/registry/src/hooks",
+  "@/lib": "../../apps/registry/src/lib",
+  "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
+} as const;
+
+// Keep these in sync with the corresponding `paths` entries in
+// `apps/portal/tsconfig.json`.
+const widgetWebpackAliases = {
+  "@/components": path.join(widgetSrc, "components"),
+  "@/hooks": path.join(widgetSrc, "hooks"),
+  "@/lib": path.join(widgetSrc, "lib"),
+  "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
+} as const;
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BACKEND_URL:
@@ -61,12 +80,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveAlias: {
       "@portal": "./src",
-      "@/components": "../../apps/registry/src/components",
-      "@/hooks": "../../apps/registry/src/hooks",
-      "@/lib": "../../apps/registry/src/lib",
+      ...widgetTurbopackAliases,
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
-      "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
       "@noble/hashes/_assert": "./noble-hashes-assert-compat.js",
       "@tanstack/react-query": "./node_modules/@tanstack/react-query",
@@ -85,15 +101,12 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),
       "@portal": portalSrc,
-      "@/components": path.join(widgetSrc, "components"),
-      "@/hooks": path.join(widgetSrc, "hooks"),
-      "@/lib": path.join(widgetSrc, "lib"),
+      ...widgetWebpackAliases,
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",
       ),
       "@aomi-labs/react": path.join(workspaceRoot, "packages/react/src/index.ts"),
-      "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
       "@assistant-ui/react": path.join(appNodeModules, "@assistant-ui/react"),
       "@noble/hashes/_assert": nobleHashesAssertCompatPath,
       "@tanstack/react-query": path.join(
