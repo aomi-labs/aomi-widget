@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAomiAuthAdapter } from "@/lib/aomi-auth-adapter";
+import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export const ThreadList: FC = () => {
   return (
