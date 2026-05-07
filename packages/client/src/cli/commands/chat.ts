@@ -98,7 +98,7 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       }
     : null;
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
 
   try {
     await ingestSecretsForSession(config, cli, session.client);

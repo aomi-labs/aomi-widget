@@ -65,6 +65,14 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function arg(
+  args: Record<string, unknown>,
+  kebabKey: string,
+  camelKey?: string,
+): string | undefined {
+  return str(args[kebabKey]) ?? (camelKey ? str(args[camelKey]) : undefined);
+}
+
 function derivePublicKeyFromPrivateKey(
   privateKey: string | undefined,
 ): string | undefined {
@@ -145,10 +153,10 @@ function resolveExecution(
 export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
-    str(args["private-key"]) ?? process.env.PRIVATE_KEY,
+    arg(args, "private-key", "privateKey") ?? process.env.PRIVATE_KEY,
   );
   const configuredPublicKey =
-    str(args["public-key"]) ?? process.env.AOMI_PUBLIC_KEY;
+    arg(args, "public-key", "publicKey") ?? process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
 
   if (
@@ -162,27 +170,30 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   }
 
   const aaProvider = parseAAProvider(
-    str(args["aa-provider"]) ?? process.env.AOMI_AA_PROVIDER,
+    arg(args, "aa-provider", "aaProvider") ?? process.env.AOMI_AA_PROVIDER,
   );
-  const aaMode = parseAAMode(str(args["aa-mode"]) ?? process.env.AOMI_AA_MODE);
+  const aaMode = parseAAMode(
+    arg(args, "aa-mode", "aaMode") ?? process.env.AOMI_AA_MODE,
+  );
 
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
 
   return {
-    baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
-    apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
-    app: str(args.app) ?? process.env.AOMI_APP,
-    model: str(args.model) ?? process.env.AOMI_MODEL,
+    baseUrl: arg(args, "backend-url", "backendUrl") ?? process.env.AOMI_BACKEND_URL,
+    apiKey: arg(args, "api-key", "apiKey") ?? process.env.AOMI_API_KEY,
+    app: arg(args, "app", "app") ?? process.env.AOMI_APP,
+    model: arg(args, "model", "model") ?? process.env.AOMI_MODEL,
     paymentMethod: parsePaymentMethod(
-      str(args["payment-method"]) ?? str(process.env.AOMI_PAYMENT_METHOD),
+      arg(args, "payment-method", "paymentMethod") ??
+        str(process.env.AOMI_PAYMENT_METHOD),
     ),
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,
     privateKey,
-    chainRpcUrl: str(args["rpc-url"]) ?? process.env.CHAIN_RPC_URL,
-    chain: parseChainId(str(args.chain) ?? process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: arg(args, "rpc-url", "rpcUrl") ?? process.env.CHAIN_RPC_URL,
+    chain: parseChainId(arg(args, "chain", "chain") ?? process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,

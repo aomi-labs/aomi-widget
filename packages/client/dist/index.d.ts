@@ -48,6 +48,8 @@ type AomiClientOptions = {
     fetch?: typeof fetch;
     /** Default API key for non-default apps */
     apiKey?: string;
+    /** Optional EVM private key used to auto-sign x402 coinbase payment challenges. */
+    x402PrivateKey?: string;
     /** Optional logger for debug output (default: silent) */
     logger?: Logger;
 };
@@ -246,7 +248,9 @@ declare function isAsyncCallback(event: AomiSystemEvent): event is {
 declare class AomiClient {
     private readonly baseUrl;
     private readonly apiKey?;
+    private readonly x402PrivateKey?;
     private readonly fetchImpl;
+    private readonly x402FetchImpl?;
     private readonly logger?;
     private readonly sseSubscriber;
     constructor(options: AomiClientOptions);

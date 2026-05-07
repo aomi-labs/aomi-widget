@@ -239,6 +239,8 @@ export type AomiClientOptions = {
   fetch?: typeof fetch;
   /** Default API key for non-default apps */
   apiKey?: string;
+  /** Optional EVM private key used to auto-sign x402 coinbase payment challenges. */
+  x402PrivateKey?: string;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };

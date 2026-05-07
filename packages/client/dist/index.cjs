@@ -386,6 +386,10 @@ function createSseSubscriber({
 }
 
 // src/client.ts
+var import_fetch = require("@x402/fetch");
+var import_client = require("@x402/core/client");
+var import_client2 = require("@x402/evm/exact/client");
+var import_accounts = require("viem/accounts");
 var SESSION_ID_HEADER = "X-Session-Id";
 var API_KEY_HEADER = "X-API-Key";
 function joinApiPath(baseUrl, path) {
@@ -418,6 +422,12 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
+function createX402Fetch(fetchImpl, privateKey) {
+  const signer = (0, import_accounts.privateKeyToAccount)(privateKey);
+  const client = new import_client.x402Client();
+  client.register("eip155:*", new import_client2.ExactEvmScheme(signer));
+  return (0, import_fetch.wrapFetchWithPayment)(fetchImpl, client);
+}
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   const query = toQueryString(payload);
   const url = `${baseUrl}${path}${query}`;
@@ -439,7 +449,9 @@ var AomiClient = class {
     var _a;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.x402PrivateKey = options.x402PrivateKey;
     this.fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
+    this.x402FetchImpl = this.x402PrivateKey ? createX402Fetch(this.fetchImpl, this.x402PrivateKey) : void 0;
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -476,6 +488,7 @@ var AomiClient = class {
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
+    const fetchImpl = (options == null ? void 0 : options.paymentMethod) === "coinbase" && this.x402FetchImpl ? this.x402FetchImpl : this.fetchImpl;
     const payload = { message, app };
     if (options == null ? void 0 : options.publicKey) {
       payload.public_key = options.publicKey;
@@ -494,7 +507,7 @@ var AomiClient = class {
       "/api/chat",
       payload,
       sessionId,
-      this.fetchImpl,
+      fetchImpl,
       apiKey
     );
   }
@@ -2052,7 +2065,7 @@ var DISABLED_PROVIDER_STATE = {
 
 // src/aa/execute.ts
 var import_viem2 = require("viem");
-var import_accounts = require("viem/accounts");
+var import_accounts2 = require("viem/accounts");
 
 // src/chains.ts
 var import_chains = require("viem/chains");
@@ -2249,7 +2262,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
+      const account = (0, import_accounts2.privateKeyToAccount)(localPrivateKey);
       const walletClient = (0, import_viem2.createWalletClient)({
         account,
         chain,
@@ -2622,7 +2635,7 @@ function createAlchemyAAProvider({
 }
 
 // src/aa/alchemy/create.ts
-var import_accounts3 = require("viem/accounts");
+var import_accounts4 = require("viem/accounts");
 
 // src/aa/adapt.ts
 function adaptSmartAccount(account) {
@@ -2649,13 +2662,13 @@ function isAlchemySponsorshipLimitError(error) {
 }
 
 // src/aa/owner.ts
-var import_accounts2 = require("viem/accounts");
+var import_accounts3 = require("viem/accounts");
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: (0, import_accounts2.privateKeyToAccount)(owner.privateKey)
+      signer: (0, import_accounts3.privateKeyToAccount)(owner.privateKey)
     }
   };
 }
@@ -2854,7 +2867,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
+  const signer = (0, import_accounts4.privateKeyToAccount)(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -3041,7 +3054,7 @@ function createPimlicoAAProvider({
 }
 
 // src/aa/pimlico/create.ts
-var import_accounts4 = require("viem/accounts");
+var import_accounts5 = require("viem/accounts");
 var AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
@@ -3082,7 +3095,7 @@ async function createPimlicoAAState(options) {
   }
   const localSessionSigner = owner.kind === "session" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? (0, import_accounts4.privateKeyToAccount)(owner.privateKey) : localSessionSigner;
+    const signer = owner.kind === "direct" ? (0, import_accounts5.privateKeyToAccount)(owner.privateKey) : localSessionSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,

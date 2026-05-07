@@ -25,6 +25,10 @@ import type {
 } from "./types";
 import { UserState, type UserState as UserStateShape } from "./types";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client } from "@x402/core/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
 
 // =============================================================================
 // Internal helpers
@@ -73,6 +77,16 @@ function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   return headers;
 }
 
+function createX402Fetch(
+  fetchImpl: typeof fetch,
+  privateKey: string,
+): typeof fetch {
+  const signer = privateKeyToAccount(privateKey as `0x${string}`);
+  const client = new x402Client();
+  client.register("eip155:*", new ExactEvmScheme(signer));
+  return wrapFetchWithPayment(fetchImpl, client);
+}
+
 async function postState<T>(
   baseUrl: string,
   path: string,
@@ -108,7 +122,9 @@ async function postState<T>(
 export class AomiClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
+  private readonly x402PrivateKey?: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly x402FetchImpl?: typeof fetch;
   private readonly logger?: Logger;
   private readonly sseSubscriber: SseSubscriber;
 
@@ -116,7 +132,11 @@ export class AomiClient {
     // Strip trailing slash
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.x402PrivateKey = options.x402PrivateKey;
     this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
+    this.x402FetchImpl = this.x402PrivateKey
+      ? createX402Fetch(this.fetchImpl, this.x402PrivateKey)
+      : undefined;
     this.logger = options.logger;
 
     this.sseSubscriber = createSseSubscriber({
@@ -177,6 +197,10 @@ export class AomiClient {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
     const normalizedUserState = UserState.normalize(options?.userState);
+    const fetchImpl =
+      options?.paymentMethod === "coinbase" && this.x402FetchImpl
+        ? this.x402FetchImpl
+        : this.fetchImpl;
 
     const payload: Record<string, unknown> = { message, app };
     if (options?.publicKey) {
@@ -197,7 +221,7 @@ export class AomiClient {
       "/api/chat",
       payload,
       sessionId,
-      this.fetchImpl,
+      fetchImpl,
       apiKey,
     );
   }

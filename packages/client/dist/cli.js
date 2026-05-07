@@ -141,6 +141,10 @@ import { privateKeyToAccount } from "viem/accounts";
 function str(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
+function arg(args, kebabKey, camelKey) {
+  var _a3;
+  return (_a3 = str(args[kebabKey])) != null ? _a3 : camelKey ? str(args[camelKey]) : void 0;
+}
 function derivePublicKeyFromPrivateKey(privateKey) {
   if (!privateKey) return void 0;
   try {
@@ -188,9 +192,9 @@ function buildCliConfig(args) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
-    (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
+    (_a3 = arg(args, "private-key", "privateKey")) != null ? _a3 : process.env.PRIVATE_KEY
   );
-  const configuredPublicKey = (_b = str(args["public-key"])) != null ? _b : process.env.AOMI_PUBLIC_KEY;
+  const configuredPublicKey = (_b = arg(args, "public-key", "publicKey")) != null ? _b : process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
   if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
     fatal(
@@ -198,25 +202,27 @@ function buildCliConfig(args) {
     );
   }
   const aaProvider = parseAAProvider(
-    (_c = str(args["aa-provider"])) != null ? _c : process.env.AOMI_AA_PROVIDER
+    (_c = arg(args, "aa-provider", "aaProvider")) != null ? _c : process.env.AOMI_AA_PROVIDER
   );
-  const aaMode = parseAAMode((_d = str(args["aa-mode"])) != null ? _d : process.env.AOMI_AA_MODE);
+  const aaMode = parseAAMode(
+    (_d = arg(args, "aa-mode", "aaMode")) != null ? _d : process.env.AOMI_AA_MODE
+  );
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
   return {
-    baseUrl: (_e = str(args["backend-url"])) != null ? _e : process.env.AOMI_BACKEND_URL,
-    apiKey: (_f = str(args["api-key"])) != null ? _f : process.env.AOMI_API_KEY,
-    app: (_g = str(args.app)) != null ? _g : process.env.AOMI_APP,
-    model: (_h = str(args.model)) != null ? _h : process.env.AOMI_MODEL,
+    baseUrl: (_e = arg(args, "backend-url", "backendUrl")) != null ? _e : process.env.AOMI_BACKEND_URL,
+    apiKey: (_f = arg(args, "api-key", "apiKey")) != null ? _f : process.env.AOMI_API_KEY,
+    app: (_g = arg(args, "app", "app")) != null ? _g : process.env.AOMI_APP,
+    model: (_h = arg(args, "model", "model")) != null ? _h : process.env.AOMI_MODEL,
     paymentMethod: parsePaymentMethod(
-      (_i = str(args["payment-method"])) != null ? _i : str(process.env.AOMI_PAYMENT_METHOD)
+      (_i = arg(args, "payment-method", "paymentMethod")) != null ? _i : str(process.env.AOMI_PAYMENT_METHOD)
     ),
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
-    chainRpcUrl: (_j = str(args["rpc-url"])) != null ? _j : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_k = str(args.chain)) != null ? _k : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_j = arg(args, "rpc-url", "rpcUrl")) != null ? _j : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_k = arg(args, "chain", "chain")) != null ? _k : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
@@ -589,6 +595,10 @@ var init_sse = __esm({
 });
 
 // src/client.ts
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client } from "@x402/core/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -619,6 +629,12 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
+function createX402Fetch(fetchImpl, privateKey) {
+  const signer = privateKeyToAccount2(privateKey);
+  const client = new x402Client();
+  client.register("eip155:*", new ExactEvmScheme(signer));
+  return wrapFetchWithPayment(fetchImpl, client);
+}
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   const query = toQueryString(payload);
   const url = `${baseUrl}${path}${query}`;
@@ -648,7 +664,9 @@ var init_client = __esm({
         var _a3;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
+        this.x402PrivateKey = options.x402PrivateKey;
         this.fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
+        this.x402FetchImpl = this.x402PrivateKey ? createX402Fetch(this.fetchImpl, this.x402PrivateKey) : void 0;
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
@@ -685,6 +703,7 @@ var init_client = __esm({
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
         const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
+        const fetchImpl = (options == null ? void 0 : options.paymentMethod) === "coinbase" && this.x402FetchImpl ? this.x402FetchImpl : this.fetchImpl;
         const payload = { message, app };
         if (options == null ? void 0 : options.publicKey) {
           payload.public_key = options.publicKey;
@@ -703,7 +722,7 @@ var init_client = __esm({
           "/api/chat",
           payload,
           sessionId,
-          this.fetchImpl,
+          fetchImpl,
           apiKey
         );
       }
@@ -2785,6 +2804,10 @@ var init_cli_session = __esm({
           this.state.publicKey = config.publicKey;
           changed = true;
         }
+        if (config.privateKey !== void 0 && config.privateKey !== this.state.privateKey) {
+          this.state.privateKey = config.privateKey;
+          changed = true;
+        }
         if (config.chain !== void 0 && config.chain !== this.state.chainId) {
           this.state.chainId = config.chain;
           changed = true;
@@ -2901,18 +2924,31 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       // Bridge to ClientSession
       // ---------------------------------------------------------------------------
-      /** Build a ClientSession from the current state. */
-      createClientSession() {
-        var _a3;
+      /**
+       * Build a ClientSession from the current state.
+       * Command-level overrides win so a stale persisted session cannot mask the
+       * flags passed on the current invocation.
+       */
+      createClientSession(overrides) {
+        var _a3, _b, _c, _d, _e, _f;
+        const paymentMethod = (_b = (_a3 = overrides == null ? void 0 : overrides.paymentMethod) != null ? _a3 : this.state.paymentMethod) != null ? _b : null;
+        const privateKey = (_c = overrides == null ? void 0 : overrides.privateKey) != null ? _c : this.state.privateKey;
+        const apiKey = (_d = overrides == null ? void 0 : overrides.apiKey) != null ? _d : this.state.apiKey;
+        const baseUrl = (_e = overrides == null ? void 0 : overrides.baseUrl) != null ? _e : this.state.baseUrl;
+        const publicKey = (_f = overrides == null ? void 0 : overrides.publicKey) != null ? _f : this.state.publicKey;
         const session = new ClientSession(
-          { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
+          {
+            baseUrl,
+            apiKey,
+            x402PrivateKey: privateKey
+          },
           {
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
-            paymentMethod: (_a3 = this.state.paymentMethod) != null ? _a3 : null,
-            apiKey: this.state.apiKey,
-            publicKey: this.state.publicKey
+            paymentMethod,
+            apiKey,
+            publicKey
           }
         );
         session.resolveUserState(
@@ -3155,7 +3191,7 @@ async function chatCommand(config, message, verbose) {
     chainId: previousCli.chainId
   } : null;
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
@@ -3413,7 +3449,7 @@ var init_types2 = __esm({
 
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -3594,7 +3630,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount2(localPrivateKey);
+      const account = privateKeyToAccount3(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -3922,13 +3958,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount3(owner.privateKey)
+      signer: privateKeyToAccount4(owner.privateKey)
     }
   };
 }
@@ -3993,7 +4029,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function extractExistingAccountAddress(error) {
   var _a3;
   const message = error instanceof Error ? error.message : String(error);
@@ -4131,7 +4167,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount4(params.privateKey);
+  const signer = privateKeyToAccount5(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -4264,7 +4300,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -4304,7 +4340,7 @@ async function createPimlicoAAState(options) {
   }
   const localSessionSigner = owner.kind === "session" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount5(owner.privateKey) : localSessionSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount6(owner.privateKey) : localSessionSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
@@ -4799,7 +4835,7 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand() {
   const cli = CliSession.load();
@@ -4940,7 +4976,7 @@ async function signCommand(config, txIds) {
     );
     cli.syncPendingFromUserState(initialState.user_state);
     const pendingTxs = cli.requirePendingTxs(txIds);
-    const account = privateKeyToAccount6(privateKey);
+    const account = privateKeyToAccount7(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -5911,7 +5947,7 @@ __export(preferences_exports, {
   setChainCommand: () => setChainCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -5926,7 +5962,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>");
   }
-  const account = privateKeyToAccount7(privateKey);
+  const account = privateKeyToAccount8(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`Wallet set to ${account.address}`);
@@ -6964,6 +7000,9 @@ var package_default = {
   },
   dependencies: {
     "@alchemy/wallet-apis": "5.0.0-beta.22",
+    "@x402/core": "2.11.0",
+    "@x402/evm": "2.11.0",
+    "@x402/fetch": "2.11.0",
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
     citty: "^0.2.2",
@@ -7007,8 +7046,8 @@ var root = defineCommand11({
     }
   }),
   async run({ args, rawArgs }) {
-    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-    if (firstToken && SUBCOMMAND_NAMES.has(firstToken)) {
+    const firstArg = Array.isArray(args._) ? args._.find((arg2) => typeof arg2 === "string") : void 0;
+    if (firstArg && SUBCOMMAND_NAMES.has(firstArg)) {
       return;
     }
     const { runRootCli: runRootCli2 } = await Promise.resolve().then(() => (init_repl(), repl_exports));
@@ -7052,7 +7091,7 @@ function shouldPrintRootHelp(rawArgs) {
   if (!rawArgs.includes("--help") && !rawArgs.includes("-h")) {
     return false;
   }
-  const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+  const firstToken = rawArgs.find((arg2) => !arg2.startsWith("-"));
   return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
 }
 function printRootHelp() {

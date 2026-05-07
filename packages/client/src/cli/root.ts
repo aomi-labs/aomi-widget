@@ -49,12 +49,14 @@ export const root = defineCommand({
   },
   async run({ args, rawArgs }) {
     // citty 0.2.2 quirk: when a subCommand is matched, it runs the subcommand
-    // AND still falls through to the parent's `run`. Bail out here if rawArgs
+    // AND still falls through to the parent's `run`. Bail out here if `args._`
     // contain a known subcommand token — otherwise every `aomi wallet set …`
     // or `aomi tx sign …` would spuriously try to start the REPL and exit 1
     // on non-TTY.
-    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-    if (firstToken && SUBCOMMAND_NAMES.has(firstToken)) {
+    const firstArg = Array.isArray(args._)
+      ? args._.find((arg): arg is string => typeof arg === "string")
+      : undefined;
+    if (firstArg && SUBCOMMAND_NAMES.has(firstArg)) {
       return;
     }
     const { runRootCli } = await import("./repl");

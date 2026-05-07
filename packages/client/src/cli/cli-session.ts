@@ -159,6 +159,13 @@ export class CliSession {
       this.state.publicKey = config.publicKey;
       changed = true;
     }
+    if (
+      config.privateKey !== undefined &&
+      config.privateKey !== this.state.privateKey
+    ) {
+      this.state.privateKey = config.privateKey;
+      changed = true;
+    }
     if (config.chain !== undefined && config.chain !== this.state.chainId) {
       this.state.chainId = config.chain;
       changed = true;
@@ -300,17 +307,30 @@ export class CliSession {
   // Bridge to ClientSession
   // ---------------------------------------------------------------------------
 
-  /** Build a ClientSession from the current state. */
-  createClientSession(): ClientSession {
+  /**
+   * Build a ClientSession from the current state.
+   * Command-level overrides win so a stale persisted session cannot mask the
+   * flags passed on the current invocation.
+   */
+  createClientSession(overrides?: Partial<CliConfig>): ClientSession {
+    const paymentMethod = overrides?.paymentMethod ?? this.state.paymentMethod ?? null;
+    const privateKey = overrides?.privateKey ?? this.state.privateKey;
+    const apiKey = overrides?.apiKey ?? this.state.apiKey;
+    const baseUrl = overrides?.baseUrl ?? this.state.baseUrl;
+    const publicKey = overrides?.publicKey ?? this.state.publicKey;
     const session = new ClientSession(
-      { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
+      {
+        baseUrl,
+        apiKey,
+        x402PrivateKey: privateKey,
+      },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
-        paymentMethod: this.state.paymentMethod ?? null,
-        apiKey: this.state.apiKey,
-        publicKey: this.state.publicKey,
+        paymentMethod,
+        apiKey,
+        publicKey,
       },
     );
     session.resolveUserState(

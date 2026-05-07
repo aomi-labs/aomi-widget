@@ -61,6 +61,9 @@ describe("buildCliConfig", () => {
     expect(buildCliConfig({ "payment-method": "x402" }).paymentMethod).toBe(
       "coinbase",
     );
+    expect(buildCliConfig({ paymentMethod: "x402" }).paymentMethod).toBe(
+      "coinbase",
+    );
     expect(buildCliConfig({ "payment-method": "mpp" }).paymentMethod).toBe(
       "tempo",
     );
