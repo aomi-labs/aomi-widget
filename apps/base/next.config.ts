@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
-const miniappNodeModules = path.join(appRoot, "node_modules");
+const baseNodeModules = path.join(appRoot, "node_modules");
 const widgetSrc = path.join(workspaceRoot, "apps/registry/src");
 const reactPkgSrc = path.join(workspaceRoot, "packages/react/src");
 const clientPkgSrc = path.join(workspaceRoot, "packages/client/src");
@@ -44,12 +44,12 @@ const nextConfig: NextConfig = {
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
       "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
       "@tanstack/react-query": path.join(
-        miniappNodeModules,
+        baseNodeModules,
         "@tanstack/react-query",
       ),
-      zustand: path.join(miniappNodeModules, "zustand"),
-      viem: path.join(miniappNodeModules, "viem"),
-      wagmi: path.join(miniappNodeModules, "wagmi"),
+      zustand: path.join(baseNodeModules, "zustand"),
+      viem: path.join(baseNodeModules, "viem"),
+      wagmi: path.join(baseNodeModules, "wagmi"),
     };
     return config;
   },

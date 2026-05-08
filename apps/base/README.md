@@ -1,6 +1,6 @@
-# Aomi Miniapp
+# Base
 
-Aomi Miniapp is a minimal Next.js shell for running the full-page Aomi widget as a standalone web app. It gives the widget a same-origin backend proxy, optional wallet gas sponsorship through a server-side paymaster proxy, and the styling/runtime glue needed for Base Account wallet flows.
+Base is a minimal Next.js shell for running the full-page Aomi widget as a standalone web app. It gives the widget a same-origin backend proxy, optional wallet gas sponsorship through a server-side paymaster proxy, and the styling/runtime glue needed for Base Account wallet flows.
 
 ## What It Does
 
@@ -20,7 +20,7 @@ Aomi Miniapp is a minimal Next.js shell for running the full-page Aomi widget as
 ```bash
 pnpm install
 cp .env.example .env.local
-pnpm run dev:miniapp
+pnpm run dev:base
 ```
 
 Open `http://localhost:3000`.
@@ -28,11 +28,11 @@ Open `http://localhost:3000`.
 Useful scripts:
 
 ```bash
-pnpm run dev:miniapp       # start the dev server
-pnpm run dev:miniapp:3000  # start on port 3000
-pnpm run build:miniapp     # production build with TypeScript validation
-pnpm --filter aomi-miniapp start  # serve the production build
-pnpm run lint:miniapp      # lint the app
+pnpm run dev:base       # start the dev server
+pnpm run dev:base:3000  # start on port 3000
+pnpm run build:base     # production build with TypeScript validation
+pnpm --filter base start  # serve the production build
+pnpm run lint:base      # lint the app
 ```
 
 ## Environment
@@ -79,4 +79,4 @@ The widget/runtime code is consumed through the normal package names, `@aomi-lab
 - Keep `AOMI_PROXY_BACKEND_URL` private to the server.
 - On Vercel, make sure `PIMLICO_PAYMASTER_URL` is set for the deployed environment (`Production` or the relevant `Preview` branch). If it is missing, sponsored transactions will fail instead of falling back to user-paid gas.
 - Configure Vercel's Git production branch to `prod`. Pushes to `prod` should create Production deployments; pushes to `main` and feature branches should create Preview deployments.
-- Run `pnpm run build:miniapp` and `pnpm run lint:miniapp` before deploying.
+- Run `pnpm run build:base` and `pnpm run lint:base` before deploying.

@@ -65,18 +65,18 @@ describe("paymaster route security gates", () => {
   });
 
   it("accepts explicitly configured paymaster origins", async () => {
-    process.env.PAYMASTER_ALLOWED_ORIGINS = "https://miniapp.test";
+    process.env.PAYMASTER_ALLOWED_ORIGINS = "https://base.test";
     const { POST } = await loadRoute();
 
     const response = await POST(
       paymasterRequest({
-        origin: "https://miniapp.test",
+        origin: "https://base.test",
       }),
     );
 
     expect(response.status).toBe(200);
     expect(response.headers.get("access-control-allow-origin")).toBe(
-      "https://miniapp.test",
+      "https://base.test",
     );
   });
 
