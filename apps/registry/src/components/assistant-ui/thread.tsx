@@ -10,6 +10,10 @@ import {
   PencilIcon,
   RefreshCwIcon,
   Square,
+  WalletIcon,
+  ArrowLeftRightIcon,
+  LayersIcon,
+  CableIcon,
 } from "lucide-react";
 
 import {
@@ -27,6 +31,7 @@ import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
 
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
@@ -38,7 +43,11 @@ import { AppSelect } from "@/components/control-bar/app-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
-import { useAssistantApi, useMessage } from "@assistant-ui/react";
+import {
+  useAssistantApi,
+  useAssistantState,
+  useMessage,
+} from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
 
@@ -64,10 +73,12 @@ export const Thread: FC = () => {
             ["--thread-max-width" as string]: "44rem",
           }}
         >
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll px-2">
+          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll px-2 [scrollbar-gutter:stable_both-edges]">
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
+
+            <ThreadLoadingSkeleton />
 
             <ThreadPrimitive.Messages
               components={{
@@ -105,15 +116,19 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const ThreadWelcome: FC = () => {
+  const isLoading = useAssistantState(({ thread }) => thread.isLoading);
+
+  if (isLoading) return null;
+
   return (
-    <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col">
+    <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col px-2">
       <div className="aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center">
         <div className="aui-thread-welcome-message flex size-full flex-col justify-center px-8">
           <m.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="aui-thread-welcome-message-motion-1 text-2xl font-semibold text-muted-foreground/45"
+            className="aui-thread-welcome-message-motion-1 text-2xl font-medium antialiased [color:var(--aomi-welcome-title,oklch(0.42_0.006_285.823))]"
           >
             Hello there!
           </m.div>
@@ -122,7 +137,7 @@ const ThreadWelcome: FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ delay: 0.1 }}
-            className="aui-thread-welcome-message-motion-2 text-muted-foreground/70 text-2xl"
+            className="aui-thread-welcome-message-motion-2 text-2xl antialiased [color:var(--aomi-welcome-subtitle,oklch(0.68_0.012_286))]"
           >
             How can I help you today?
           </m.div>
@@ -135,27 +150,31 @@ const ThreadWelcome: FC = () => {
 
 const ThreadSuggestions: FC = () => {
   return (
-    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 pb-4 opacity-70">
+    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 px-1 pb-4">
       {[
         {
           title: "Show my wallet balances",
           label: "and positions",
           action: "Show my wallet balances and positions",
+          icon: WalletIcon,
         },
         {
           title: "Swap 1 ETH to USDC",
           label: "with the best price",
           action: "Swap 1 ETH to USDC with the best price",
+          icon: ArrowLeftRightIcon,
         },
         {
           title: "Stake half of my ETH",
           label: "in the highest yield pool",
           action: "Stake half of my ETH in the highest yield pool",
+          icon: LayersIcon,
         },
         {
           title: "Bridge 100 USDC",
           label: "from Ethereum to Arbitrum",
           action: "Bridge 100 USDC from Ethereum to Arbitrum",
+          icon: CableIcon,
         },
       ].map((suggestedAction, index) => (
         <m.div
@@ -173,13 +192,14 @@ const ThreadSuggestions: FC = () => {
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm font-normal"
+              className="aui-thread-welcome-suggestion group/suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-col items-start justify-start gap-0.5 rounded-2xl border px-4 py-3 text-left text-sm font-normal transition-colors"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 text-foreground">
+              <span className="aui-thread-welcome-suggestion-text-1 text-foreground flex items-center gap-2">
+                <suggestedAction.icon className="text-muted-foreground/40 group-hover/suggestion:text-primary size-3.5 shrink-0 transition-colors" />
                 {suggestedAction.title}
               </span>
-              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/80">
+              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/60 ml-[22px]">
                 {suggestedAction.label}
               </span>
             </Button>
@@ -192,12 +212,12 @@ const ThreadSuggestions: FC = () => {
 
 const Composer: FC = () => {
   return (
-    <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
+    <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground relative flex w-full flex-col px-1 pt-2">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground border-border/30 relative flex w-full flex-col border px-1 pt-2">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input text-foreground placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm outline-none dark:text-white"
+          className="aui-composer-input text-foreground placeholder:text-muted-foreground/60 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-white"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -221,7 +241,7 @@ const ComposerAction: FC = () => {
     <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center gap-1">
       {/* Inline controls — horizontally scrollable on mobile */}
       {composerControl.enabled && (
-        <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto md:ml-2 md:gap-2">
+        <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-0 overflow-x-auto md:ml-2 md:gap-2">
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
           {!hideApp && <AppSelect />}
@@ -278,27 +298,105 @@ const MessageError: FC = () => {
   );
 };
 
+const ThreadLoadingSkeleton: FC = () => {
+  const isLoading = useAssistantState(({ thread }) => thread.isLoading);
+
+  if (!isLoading) return null;
+
+  return (
+    <div
+      role="status"
+      aria-label="Loading conversation"
+      aria-live="polite"
+      className="aui-thread-loading-skeleton mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-6 px-2 py-5"
+    >
+      <AssistantMessageSkeleton widths={["76%", "58%", "68%"]} />
+      <UserMessageSkeleton width="44%" />
+      <AssistantMessageSkeleton widths={["82%", "71%", "38%"]} />
+      <UserMessageSkeleton width="56%" />
+      <AssistantMessageSkeleton widths={["64%", "46%"]} />
+    </div>
+  );
+};
+
+const AssistantMessageSkeleton: FC<{ widths?: string[] }> = ({
+  widths = ["72%", "56%", "64%"],
+}) => {
+  return (
+    <div className="aui-assistant-message-skeleton flex flex-col gap-2 px-2">
+      {widths.map((width, index) => (
+        <Skeleton
+          key={`${width}-${index}`}
+          className="aui-assistant-message-skeleton-line h-3 rounded-full"
+          style={{ width }}
+        />
+      ))}
+    </div>
+  );
+};
+
+const UserMessageSkeleton: FC<{ width?: string }> = ({ width = "48%" }) => {
+  return (
+    <div className="aui-user-message-skeleton flex justify-end px-2">
+      <Skeleton
+        className="aui-user-message-skeleton-bubble h-10 rounded-3xl"
+        style={{ width }}
+      />
+    </div>
+  );
+};
+
+const AssistantLoadingDot: FC = () => {
+  return (
+    <div className="aui-assistant-loading-dot-wrapper flex min-h-6 items-center px-1">
+      <span className="aui-assistant-loading-dot bg-foreground block size-2.5 animate-pulse rounded-full" />
+    </div>
+  );
+};
+
 const AssistantMessage: FC = () => {
+  const isEmpty = useMessage((state) => state.content.length === 0);
+  const isRunning = useMessage((state) => state.status?.type === "running");
+  const isLast = useMessage((state) => state.isLast);
+  const showLoadingDot = isEmpty && isRunning && isLast;
+  const showFinishedEmptyMessage = isEmpty && !showLoadingDot;
+
   return (
     <MessagePrimitive.Root asChild>
       <div
-        className="aui-assistant-message-root animate-in fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-[var(--thread-max-width)] py-4 duration-150 ease-out"
+        className={cn(
+          "aui-assistant-message-root animate-in fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-[var(--thread-max-width)] duration-150 ease-out",
+          showFinishedEmptyMessage ? "-mt-3 py-0" : "py-4",
+        )}
         data-role="assistant"
       >
-        <div className="aui-assistant-message-content text-foreground mx-2 break-words text-sm leading-5">
-          <MessagePrimitive.Parts
-            components={{
-              Text: MarkdownText,
-              tools: { Fallback: ToolFallback },
-            }}
-          />
-          <MessageError />
-        </div>
+        {!showFinishedEmptyMessage && (
+          <div className="aui-assistant-message-content text-foreground mx-2 break-words text-sm leading-5">
+            {showLoadingDot ? (
+              <AssistantLoadingDot />
+            ) : (
+              <MessagePrimitive.Parts
+                components={{
+                  Text: MarkdownText,
+                  tools: { Fallback: ToolFallback },
+                }}
+              />
+            )}
+            <MessageError />
+          </div>
+        )}
 
-        <div className="aui-assistant-message-footer ml-2 mt-2 flex">
-          <BranchPicker />
-          <AssistantActionBar />
-        </div>
+        {!showLoadingDot && (
+          <div
+            className={cn(
+              "aui-assistant-message-footer ml-2 flex",
+              showFinishedEmptyMessage ? "mt-0" : "mt-2",
+            )}
+          >
+            <BranchPicker />
+            <AssistantActionBar />
+          </div>
+        )}
       </div>
     </MessagePrimitive.Root>
   );
@@ -313,25 +411,37 @@ const AssistantActionBar: FC = () => {
       className="aui-assistant-action-bar-root text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm col-start-3 row-start-2 -ml-1 flex gap-1"
     >
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Copy">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="aui-button-icon size-6 p-1"
+          aria-label="Copy"
+        >
           <MessagePrimitive.If copied>
             <CheckIcon />
           </MessagePrimitive.If>
           <MessagePrimitive.If copied={false}>
             <CopyIcon />
           </MessagePrimitive.If>
-        </TooltipIconButton>
+        </Button>
       </ActionBarPrimitive.Copy>
       <ActionBarPrimitive.Reload asChild>
-        <TooltipIconButton tooltip="Refresh">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="aui-button-icon size-6 p-1"
+          aria-label="Refresh"
+        >
           <RefreshCwIcon />
-        </TooltipIconButton>
+        </Button>
       </ActionBarPrimitive.Reload>
     </ActionBarPrimitive.Root>
   );
 };
 
 const UserMessage: FC = () => {
+  const isEmpty = useMessage((state) => state.content.length === 0);
+
   return (
     <MessagePrimitive.Root asChild>
       <div
@@ -340,11 +450,17 @@ const UserMessage: FC = () => {
       >
         <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
           <div className="aui-user-message-content bg-muted text-foreground break-words rounded-3xl px-5 py-2.5 text-sm">
-            <MessagePrimitive.Parts />
+            {isEmpty ? (
+              <Skeleton className="aui-user-message-content-skeleton h-4 w-28 rounded-full" />
+            ) : (
+              <MessagePrimitive.Parts />
+            )}
           </div>
-          <div className="aui-user-action-bar-wrapper absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 pr-2">
-            <UserActionBar />
-          </div>
+          {!isEmpty && (
+            <div className="aui-user-action-bar-wrapper absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 pr-2">
+              <UserActionBar />
+            </div>
+          )}
         </div>
 
         <BranchPicker className="aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" />

@@ -163,6 +163,7 @@ export class ThreadStore {
       setThreadMessages: this.setThreadMessages,
       getThreadMetadata: this.getThreadMetadata,
       updateThreadMetadata: this.updateThreadMetadata,
+      resetToDefault: this.resetToDefault,
     };
   }
 
@@ -219,6 +220,30 @@ export class ThreadStore {
 
   getThreadMetadata = (threadId: string): ThreadMetadata | undefined => {
     return this.state.threadMetadata.get(threadId);
+  };
+
+  /** Reset store to a single empty "New Chat" thread (e.g. on wallet disconnect). */
+  resetToDefault = () => {
+    const threadId = generateUUID();
+    this.state = {
+      currentThreadId: threadId,
+      threadViewKey: this.state.threadViewKey + 1,
+      threadCnt: 1,
+      threads: new Map([[threadId, []]]),
+      threadMetadata: new Map([
+        [
+          threadId,
+          {
+            title: "New Chat",
+            status: "regular",
+            lastActiveAt: new Date().toISOString(),
+            control: initThreadControl(),
+          },
+        ],
+      ]),
+    };
+    this.snapshot = this.buildSnapshot();
+    this.emit();
   };
 
   updateThreadMetadata = (
