@@ -128,7 +128,7 @@ const ThreadWelcome: FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="aui-thread-welcome-message-motion-1 text-foreground/70 text-2xl font-semibold"
+            className="aui-thread-welcome-message-motion-1 text-2xl font-medium antialiased [color:var(--aomi-welcome-title,oklch(0.42_0.006_285.823))]"
           >
             Hello there!
           </m.div>
@@ -137,7 +137,7 @@ const ThreadWelcome: FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ delay: 0.1 }}
-            className="aui-thread-welcome-message-motion-2 text-muted-foreground/60 text-2xl"
+            className="aui-thread-welcome-message-motion-2 text-2xl antialiased [color:var(--aomi-welcome-subtitle,oklch(0.68_0.012_286))]"
           >
             How can I help you today?
           </m.div>
@@ -214,7 +214,7 @@ const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground relative flex w-full flex-col border border-border/30 px-1 pt-2">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground border-border/30 relative flex w-full flex-col border px-1 pt-2">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
           className="aui-composer-input text-foreground placeholder:text-muted-foreground/60 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-white"
