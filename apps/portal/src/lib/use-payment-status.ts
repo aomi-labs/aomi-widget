@@ -6,13 +6,14 @@ import {
   type AomiPaymentOverviewResponse,
   type UserState,
 } from "@aomi-labs/client";
-import { useAomiAuthAdapter } from "./aomi-auth-adapter";
+import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { usePaymentAwareClientOptions } from "./payment-client-options";
 import {
   bindSettingsSession,
+  getBackendUrl,
   getOrCreateSettingsClientId,
-} from "./provider-keys-api";
-import { getBackendUrl, getSettingsSessionId } from "./settings-api";
+  getSettingsSessionId,
+} from "./settings-api";
 import { useSettings } from "./use-settings";
 
 type MppStatus =

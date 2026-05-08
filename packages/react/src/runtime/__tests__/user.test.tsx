@@ -17,6 +17,7 @@ import {
   setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
+import type { AomiThread } from "@aomi-labs/client";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -109,7 +110,30 @@ describe("User API", () => {
       });
     });
 
-    it("sends wallet state change to backend", async () => {
+    it("does not send wallet state changes to empty draft threads", async () => {
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+
+      setAomiClientConfig({ createThread, postSystemMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0x789",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      expect(createThread).not.toHaveBeenCalled();
+      expect(postSystemMessage).not.toHaveBeenCalled();
+    });
+
+    it("sends wallet state changes to materialized threads", async () => {
       const postSystemMessage = vi.fn(async () => ({ res: null }));
 
       setAomiClientConfig({ postSystemMessage });
@@ -122,6 +146,18 @@ describe("User API", () => {
           chainId: 1,
           isConnected: true,
         });
+        await flushPromises();
+      });
+
+      expect(postSystemMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await api.sendMessage("Materialize this thread");
+        await flushPromises();
+      });
+
+      await act(async () => {
+        api.setUser({ chainId: 137 });
         await flushPromises();
       });
 
@@ -138,8 +174,67 @@ describe("User API", () => {
       expect(messageJson.type).toBe("wallet:state_changed");
       expect(messageJson.payload.address).toBe("0x789");
       expect(messageJson.payload.ext).toBeUndefined();
-      expect(messageJson.payload.chain_id).toBe(1);
+      expect(messageJson.payload.chain_id).toBe(137);
       expect(messageJson.payload.is_connected).toBe(true);
+    });
+
+    it("keeps a materialized thread remote after a stale list fetch resolves", async () => {
+      let resolveListThreads:
+        | ((threads: AomiThread[] | PromiseLike<AomiThread[]>) => void)
+        | undefined;
+      const listThreads = vi.fn(
+        () =>
+          new Promise<AomiThread[]>((resolve) => {
+            resolveListThreads = resolve;
+          }),
+      );
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+
+      setAomiClientConfig({
+        listThreads,
+        createThread,
+        postSystemMessage,
+      });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0x789",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(listThreads).toHaveBeenCalledWith("0x789");
+      });
+
+      await act(async () => {
+        await getApi().sendMessage("Materialize during list fetch");
+      });
+      const materializedThreadId = getApi().currentThreadId;
+
+      await act(async () => {
+        resolveListThreads?.([]);
+        await flushPromises();
+      });
+
+      await act(async () => {
+        getApi().setUser({ chainId: 137 });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(postSystemMessage).toHaveBeenCalledWith(
+          materializedThreadId,
+          expect.any(String),
+        );
+      });
     });
   });
 

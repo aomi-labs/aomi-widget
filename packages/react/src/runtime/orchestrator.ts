@@ -25,12 +25,76 @@ type OrchestratorOptions = {
   getPaymentMethod?: () => AomiPaymentMethod | null;
   getApiKey?: () => string | null;
   getClientId?: () => string | undefined;
+  prepareThreadForSend?: (threadId: string) => Promise<void> | void;
   onPendingRequestsChange?: (requests: WalletRequest[]) => void;
   onEvent?: (event: {
     type: string;
     payload: unknown;
     sessionId: string;
   }) => void;
+};
+
+type OptimisticSendStatus = "sending" | "sent" | "failed";
+
+const toErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Message failed to send";
+
+const getOptimisticStatus = (message: ThreadMessageLike) => {
+  const status = message.metadata?.custom?.aomiSendStatus;
+  return status === "sending" || status === "sent" || status === "failed"
+    ? status
+    : undefined;
+};
+
+const hasUnhydratedOptimisticMessage = (messages: ThreadMessageLike[]) =>
+  messages.some((message) => {
+    const status = getOptimisticStatus(message);
+    return status === "sending" || status === "sent";
+  });
+
+const withOptimisticStatus = (
+  message: ThreadMessageLike,
+  status: OptimisticSendStatus,
+  error?: unknown,
+): ThreadMessageLike => {
+  const custom: Record<string, unknown> = {
+    ...(message.metadata?.custom ?? {}),
+    aomiSendStatus: status,
+  };
+
+  if (error) {
+    custom.aomiSendError = toErrorMessage(error);
+  } else {
+    delete custom.aomiSendError;
+  }
+
+  return {
+    ...message,
+    metadata: {
+      ...message.metadata,
+      custom,
+    },
+  };
+};
+
+const updateOptimisticMessage = (
+  threadContext: ThreadContext,
+  threadId: string,
+  messageId: string,
+  status: OptimisticSendStatus,
+  error?: unknown,
+) => {
+  const messages = threadContext.getThreadMessages(threadId);
+  let changed = false;
+  const nextMessages = messages.map((message) => {
+    if (message.id !== messageId) return message;
+    changed = true;
+    return withOptimisticStatus(message, status, error);
+  });
+
+  if (changed) {
+    threadContext.setThreadMessages(threadId, nextMessages);
+  }
 };
 
 export function useRuntimeOrchestrator(
@@ -42,6 +106,8 @@ export function useRuntimeOrchestrator(
   threadContextRef.current = threadContext;
   const aomiClientRef = useRef(aomiClient);
   aomiClientRef.current = aomiClient;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   const [isRunning, setIsRunning] = useState(false);
 
@@ -51,19 +117,67 @@ export function useRuntimeOrchestrator(
   }
 
   const pendingFetches = useRef<Set<string>>(new Set());
+  const initialStatePromises = useRef<Map<string, Promise<void>>>(new Map());
+  const hydratedThreadIds = useRef<Set<string>>(new Set());
   // Track event listener cleanup per thread
   const listenerCleanups = useRef<Map<string, () => void>>(new Map());
+
+  const cleanupSessionListeners = useCallback((threadId: string) => {
+    listenerCleanups.current.get(threadId)?.();
+    listenerCleanups.current.delete(threadId);
+  }, []);
+
+  const closeSession = useCallback(
+    (threadId: string) => {
+      cleanupSessionListeners(threadId);
+      pendingFetches.current.delete(threadId);
+      initialStatePromises.current.delete(threadId);
+      hydratedThreadIds.current.delete(threadId);
+      sessionManagerRef.current?.close(threadId);
+    },
+    [cleanupSessionListeners],
+  );
+
+  const closeIdleSessionsExcept = useCallback(
+    (activeThreadId: string) => {
+      const closedThreadIds =
+        sessionManagerRef.current?.closeIdleExcept(
+          activeThreadId,
+          cleanupSessionListeners,
+        ) ?? [];
+
+      for (const threadId of closedThreadIds) {
+        pendingFetches.current.delete(threadId);
+        initialStatePromises.current.delete(threadId);
+        hydratedThreadIds.current.delete(threadId);
+      }
+
+      return closedThreadIds;
+    },
+    [cleanupSessionListeners],
+  );
+
+  const closeAllSessions = useCallback(() => {
+    pendingFetches.current.clear();
+    initialStatePromises.current.clear();
+    hydratedThreadIds.current.clear();
+    for (const threadId of Array.from(listenerCleanups.current.keys())) {
+      cleanupSessionListeners(threadId);
+    }
+    sessionManagerRef.current?.closeAll();
+  }, [cleanupSessionListeners]);
 
   /** Get or create a ClientSession for a thread, wiring up event listeners. */
   const getSession = useCallback(
     (threadId: string): ClientSession => {
       const manager = sessionManagerRef.current!;
-      const nextApp = options.getApp();
-      const nextPublicKey = options.getPublicKey?.();
-      const nextPaymentMethod = options.getPaymentMethod?.() ?? null;
-      const nextApiKey = options.getApiKey?.() ?? undefined;
-      const nextClientId = options.getClientId?.();
-      const nextUserState = options.getUserState?.();
+      const nextOptions = optionsRef.current;
+      const nextApp = nextOptions.getApp();
+      const nextPublicKey = nextOptions.getPublicKey?.();
+      const nextPaymentMethod = nextOptions.getPaymentMethod?.() ?? null;
+      const nextApiKey = nextOptions.getApiKey?.() ?? undefined;
+      const nextClientId = nextOptions.getClientId?.();
+      const nextUserState = nextOptions.getUserState?.();
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
@@ -99,6 +213,14 @@ export function useRuntimeOrchestrator(
             const converted = toInboundMessage(msg);
             if (converted) threadMessages.push(converted);
           }
+          const existingMessages =
+            threadContextRef.current.getThreadMessages(threadId);
+          if (
+            threadMessages.length === 0 &&
+            hasUnhydratedOptimisticMessage(existingMessages)
+          ) {
+            return;
+          }
           threadContextRef.current.setThreadMessages(threadId, threadMessages);
         }),
       );
@@ -121,7 +243,7 @@ export function useRuntimeOrchestrator(
 
       cleanups.push(
         session.on("wallet_requests_changed", (requests) =>
-          options.onPendingRequestsChange?.(requests),
+          optionsRef.current.onPendingRequestsChange?.(requests),
         ),
       );
 
@@ -137,7 +259,11 @@ export function useRuntimeOrchestrator(
         session.on(
           type as keyof import("@aomi-labs/client").SessionEventMap,
           (payload: unknown) => {
-            options.onEvent?.({ type, payload, sessionId: threadId });
+            optionsRef.current.onEvent?.({
+              type,
+              payload,
+              sessionId: threadId,
+            });
           },
         );
 
@@ -159,25 +285,54 @@ export function useRuntimeOrchestrator(
 
   const ensureInitialState = useCallback(
     async (threadId: string) => {
-      if (pendingFetches.current.has(threadId)) return;
-      pendingFetches.current.add(threadId);
-
-      try {
-        const session = getSession(threadId);
-        await session.fetchCurrentState();
-        options.onPendingRequestsChange?.(session.getPendingRequests());
-
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(session.getIsProcessing());
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(false);
-        }
-      } finally {
-        pendingFetches.current.delete(threadId);
+      const existingPromise = initialStatePromises.current.get(threadId);
+      if (existingPromise) {
+        return existingPromise;
       }
+
+      const cachedMessages =
+        threadContextRef.current.getThreadMessages(threadId);
+      const existingSession = sessionManagerRef.current?.get(threadId);
+      if (
+        existingSession &&
+        (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)
+      ) {
+        optionsRef.current.onPendingRequestsChange?.(
+          existingSession.getPendingRequests(),
+        );
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(existingSession.getIsProcessing());
+        }
+        return;
+      }
+
+      const fetchPromise = (async () => {
+        pendingFetches.current.add(threadId);
+
+        try {
+          const session = getSession(threadId);
+          await session.fetchCurrentState();
+          hydratedThreadIds.current.add(threadId);
+          optionsRef.current.onPendingRequestsChange?.(
+            session.getPendingRequests(),
+          );
+
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(session.getIsProcessing());
+          }
+        } catch (error) {
+          console.error("Failed to fetch initial state:", error);
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(false);
+          }
+        } finally {
+          pendingFetches.current.delete(threadId);
+          initialStatePromises.current.delete(threadId);
+        }
+      })();
+
+      initialStatePromises.current.set(threadId, fetchPromise);
+      return fetchPromise;
     },
     [getSession],
   );
@@ -185,15 +340,20 @@ export function useRuntimeOrchestrator(
   /** Send a message on the given thread. */
   const sendMessage = useCallback(
     async (text: string, threadId: string) => {
-      const session = getSession(threadId);
-
-      // Add user message to thread immediately
       const existingMessages =
         threadContextRef.current.getThreadMessages(threadId);
+      const optimisticMessageId = String(existingMessages.length);
       const userMessage: ThreadMessageLike = {
+        id: optimisticMessageId,
         role: "user",
         content: [{ type: "text", text }],
         createdAt: new Date(),
+        metadata: {
+          custom: {
+            aomiOriginalText: text,
+            aomiSendStatus: "sending",
+          },
+        },
       };
       threadContextRef.current.setThreadMessages(threadId, [
         ...existingMessages,
@@ -203,8 +363,41 @@ export function useRuntimeOrchestrator(
         lastActiveAt: new Date().toISOString(),
       });
 
-      await session.sendAsync(text);
-      options.onPendingRequestsChange?.(session.getPendingRequests());
+      // Immediately show "generating" state so the UI switches to the stop
+      // button and displays a loading indicator while the message is in flight.
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(true);
+      }
+
+      try {
+        await optionsRef.current.prepareThreadForSend?.(threadId);
+        const session = getSession(threadId);
+        await session.sendAsync(text);
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(session.getIsProcessing());
+        }
+        updateOptimisticMessage(
+          threadContextRef.current,
+          threadId,
+          optimisticMessageId,
+          "sent",
+        );
+        optionsRef.current.onPendingRequestsChange?.(
+          session.getPendingRequests(),
+        );
+      } catch (error) {
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(false);
+        }
+        updateOptimisticMessage(
+          threadContextRef.current,
+          threadId,
+          optimisticMessageId,
+          "failed",
+          error,
+        );
+        throw error;
+      }
     },
     [getSession],
   );
@@ -220,13 +413,9 @@ export function useRuntimeOrchestrator(
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      sessionManagerRef.current?.closeAll();
-      for (const cleanup of listenerCleanups.current.values()) {
-        cleanup();
-      }
-      listenerCleanups.current.clear();
+      closeAllSessions();
     };
-  }, []);
+  }, [closeAllSessions]);
 
   return {
     sessionManager: sessionManagerRef.current!,
@@ -236,6 +425,9 @@ export function useRuntimeOrchestrator(
     ensureInitialState,
     sendMessage,
     cancelGeneration,
+    closeSession,
+    closeAllSessions,
+    closeIdleSessionsExcept,
     aomiClientRef,
   };
 }

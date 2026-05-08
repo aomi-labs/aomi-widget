@@ -55,6 +55,27 @@ describe("Control context", () => {
     });
   });
 
+  it("does not refetch authorized apps on thread changes", async () => {
+    const getApps = vi.fn(async () => ["default", "special"]);
+    setAomiClientConfig({
+      getApps,
+      getModels: async () => [],
+    });
+
+    const { api } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getApps).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      await api.createThread();
+      await flushPromises();
+    });
+
+    expect(getApps).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to the default app when a previous selection is no longer authorized", async () => {
     const sendMessage = vi.fn(
       async (): Promise<AomiChatResponse> => ({

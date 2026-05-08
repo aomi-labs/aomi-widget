@@ -1,9 +1,9 @@
 "use client";
 
 import type { AomiPaymentMethod } from "@aomi-labs/client";
-import { Button } from "@/components/ui/button";
-import { useSettings } from "@/lib/use-settings";
-import { usePaymentStatus } from "@/lib/use-payment-status";
+import { Button } from "@aomi-labs/widget-lib";
+import { useSettings } from "@portal/lib/use-settings";
+import { usePaymentStatus } from "@portal/lib/use-payment-status";
 import { ProviderKeysSettings } from "./provider-keys-settings";
 
 type PaymentOption = {
