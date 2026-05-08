@@ -18,8 +18,10 @@ declare class SessionManager {
     constructor(clientFactory: () => AomiClient);
     getOrCreate(threadId: string, opts: Omit<SessionOptions, "sessionId">): Session;
     get(threadId: string): Session | undefined;
+    get size(): number;
     forEach(callback: (session: Session, threadId: string) => void): void;
     close(threadId: string): void;
+    closeIdleExcept(activeThreadId: string, onBeforeClose?: (threadId: string) => void): string[];
     closeAll(): void;
 }
 
@@ -46,6 +48,7 @@ type ThreadContext = {
     setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+    resetToDefault: () => void;
 };
 type ThreadContextProviderProps = {
     children: ReactNode;

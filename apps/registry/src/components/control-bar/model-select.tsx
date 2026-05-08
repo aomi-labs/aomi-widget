@@ -106,13 +106,13 @@ export const ModelSelect: FC<ModelSelectProps> = ({
           aria-expanded={open}
           disabled={isProcessing}
           className={cn(
-            "h-8 w-auto min-w-[100px] justify-between rounded-full px-3 text-xs",
+            "h-8 w-auto min-w-0 justify-between rounded-full px-0.5 text-xs md:min-w-[100px] md:px-3",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             isProcessing && "cursor-not-allowed opacity-50",
             className,
           )}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-px md:gap-1.5">
             {(() => {
               if (isAuto) {
                 return <AutoModeIcon className="h-3 w-3 shrink-0 opacity-60" />;
@@ -127,13 +127,18 @@ export const ModelSelect: FC<ModelSelectProps> = ({
             })()}
             <span className="truncate">{triggerLabel}</span>
           </div>
-          <ChevronDownIcon className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+          <ChevronDownIcon className="ml-0 h-3 w-3 shrink-0 opacity-50 md:ml-2" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={4}
         className="w-[280px] overflow-hidden rounded-xl p-0"
+        onOpenAutoFocus={(e) => {
+          if (window.matchMedia("(max-width: 767px)").matches) {
+            e.preventDefault();
+          }
+        }}
       >
         <Command className="rounded-xl">
           <CommandInput placeholder="Search models..." />
