@@ -1,13 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  deleteProviderKey,
-  listProviderKeys,
-  saveProviderKey,
-} from "@/lib/provider-keys-api";
+import { useCallback, useMemo, useState } from "react";
+import { useControl } from "@aomi-labs/react";
+import { Button, Input } from "@aomi-labs/widget-lib";
 
 const PROVIDERS = [
   { id: "openai", label: "OpenAI" },
@@ -15,42 +10,23 @@ const PROVIDERS = [
   { id: "openrouter", label: "OpenRouter" },
 ] as const;
 
-type ProviderKeyEntry = {
-  provider: string;
-  key_prefix: string;
-  label?: string | null;
-  is_active: boolean;
-};
-
 export function ProviderKeysSettings() {
+  const { state, setProviderKey, removeProviderKey } = useControl();
   const [selectedProvider, setSelectedProvider] = useState<(typeof PROVIDERS)[number]["id"]>("openai");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [labelInput, setLabelInput] = useState("");
-  const [providerKeys, setProviderKeys] = useState<ProviderKeyEntry[]>([]);
-  const [loadingKeys, setLoadingKeys] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingProvider, setDeletingProvider] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  const loadProviderKeys = useCallback(async () => {
-    setLoadingKeys(true);
-    setStatus(null);
-    try {
-      const keys = await listProviderKeys();
-      setProviderKeys(keys);
-    } catch (error) {
-      setStatus({
-        type: "error",
-        text: error instanceof Error ? error.message : "Failed to load provider keys",
-      });
-    } finally {
-      setLoadingKeys(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadProviderKeys();
-  }, [loadProviderKeys]);
+  const providerKeys = useMemo(
+    () =>
+      Object.entries(state.providerKeys).map(([provider, entry]) => ({
+        provider,
+        keyPrefix: entry.keyPrefix,
+        label: entry.label,
+      })),
+    [state.providerKeys],
+  );
 
   const canSave = useMemo(
     () => !saving && apiKeyInput.trim().length > 0,
@@ -63,14 +39,13 @@ export function ProviderKeysSettings() {
     setSaving(true);
     setStatus(null);
     try {
-      await saveProviderKey(
+      await setProviderKey(
         selectedProvider,
         apiKeyInput.trim(),
         labelInput.trim() || undefined,
       );
       setApiKeyInput("");
       setLabelInput("");
-      await loadProviderKeys();
       setStatus({ type: "success", text: "Provider key saved." });
     } catch (error) {
       setStatus({
@@ -80,15 +55,14 @@ export function ProviderKeysSettings() {
     } finally {
       setSaving(false);
     }
-  }, [apiKeyInput, canSave, labelInput, loadProviderKeys, selectedProvider]);
+  }, [apiKeyInput, canSave, labelInput, selectedProvider, setProviderKey]);
 
   const handleDelete = useCallback(
     async (provider: string) => {
       setDeletingProvider(provider);
       setStatus(null);
       try {
-        await deleteProviderKey(provider);
-        await loadProviderKeys();
+        await removeProviderKey(provider);
         setStatus({ type: "success", text: `${provider} key removed.` });
       } catch (error) {
         setStatus({
@@ -99,7 +73,7 @@ export function ProviderKeysSettings() {
         setDeletingProvider(null);
       }
     },
-    [loadProviderKeys],
+    [removeProviderKey],
   );
 
   return (
@@ -173,13 +147,11 @@ export function ProviderKeysSettings() {
         <div className="space-y-2">
           <h2 className="text-lg font-medium">Stored Keys</h2>
           <p className="text-sm text-muted-foreground">
-            Keys are fetched from the backend vault and mirrored in your browser&apos;s local storage.
+            Keys are mirrored in local browser state and synchronized with the backend vault.
           </p>
         </div>
 
-        {loadingKeys ? (
-          <p className="text-sm text-muted-foreground">Loading provider keys...</p>
-        ) : providerKeys.length === 0 ? (
+        {providerKeys.length === 0 ? (
           <p className="text-sm text-muted-foreground">No provider keys saved.</p>
         ) : (
           <div className="space-y-3">
@@ -192,7 +164,7 @@ export function ProviderKeysSettings() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium capitalize">{key.provider}</span>
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {key.key_prefix}
+                      {key.keyPrefix}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">

@@ -5,12 +5,33 @@ import path from "node:path";
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
+const portalSrc = path.join(appRoot, "src");
+const widgetSrc = path.join(workspaceRoot, "apps/registry/src");
 
 const emptyModulePath = path.join(appRoot, "empty-module.js");
 const nobleHashesAssertCompatPath = path.join(
   appRoot,
   "noble-hashes-assert-compat.js",
 );
+
+// Portal-local code should import from `@portal/*`.
+// These `@/components|hooks|lib` aliases exist only so registry source imported
+// through `@aomi-labs/widget-lib` can resolve its own internal paths.
+const widgetTurbopackAliases = {
+  "@/components": "../../apps/registry/src/components",
+  "@/hooks": "../../apps/registry/src/hooks",
+  "@/lib": "../../apps/registry/src/lib",
+  "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
+} as const;
+
+// Keep these in sync with the corresponding `paths` entries in
+// `apps/portal/tsconfig.json`.
+const widgetWebpackAliases = {
+  "@/components": path.join(widgetSrc, "components"),
+  "@/hooks": path.join(widgetSrc, "hooks"),
+  "@/lib": path.join(widgetSrc, "lib"),
+  "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
+} as const;
 
 const nextConfig: NextConfig = {
   env: {
@@ -53,10 +74,13 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@aomi-labs/client",
     "@aomi-labs/react",
+    "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
   ],
   turbopack: {
     resolveAlias: {
+      "@portal": "./src",
+      ...widgetTurbopackAliases,
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
@@ -76,6 +100,8 @@ const nextConfig: NextConfig = {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),
+      "@portal": portalSrc,
+      ...widgetWebpackAliases,
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",

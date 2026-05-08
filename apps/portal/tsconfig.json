@@ -23,6 +23,24 @@
       }
     ],
     "paths": {
+      "@portal/*": [
+        "./src/*"
+      ],
+      "@aomi-labs/widget-lib": [
+        "../registry/src/index.ts"
+      ],
+      "@aomi-labs/widget-lib/*": [
+        "../registry/src/*"
+      ],
+      "@/components/*": [
+        "../registry/src/components/*"
+      ],
+      "@/hooks/*": [
+        "../registry/src/hooks/*"
+      ],
+      "@/lib/*": [
+        "../registry/src/lib/*"
+      ],
       "@aomi-labs/client": [
         "../../packages/client/src/index.ts"
       ],
@@ -64,9 +82,6 @@
       ],
       "wagmi/*": [
         "./node_modules/wagmi/*"
-      ],
-      "@/*": [
-        "./src/*"
       ]
     }
   },
