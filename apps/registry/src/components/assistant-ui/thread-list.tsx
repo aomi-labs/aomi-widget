@@ -25,7 +25,12 @@ export const ThreadList: FC = () => {
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-1 pl-2">
       <ThreadListNew />
-      <div className="aui-thread-list-separator border-border/40 mx-4 my-1 border-t" />
+      <div className="aui-thread-list-separator mx-4 my-2 flex items-center gap-2">
+        <span className="text-muted-foreground/40 text-[10px] font-medium uppercase tracking-widest">
+          Recent
+        </span>
+        <div className="border-border/30 flex-1 border-t" />
+      </div>
       <ThreadListItems />
     </ThreadListPrimitive.Root>
   );
@@ -117,8 +122,8 @@ const ThreadListSkeleton: FC = () => {
 
 const ThreadListItem: FC = () => {
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex items-center gap-2 rounded-3xl pl-4 transition-all focus-visible:outline-none">
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex-grow py-2 text-start">
+    <ThreadListItemPrimitive.Root className="aui-thread-list-item hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex w-full min-w-0 items-center rounded-3xl pl-4 transition-all focus-visible:outline-none">
+      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger min-w-0 flex-1 py-2 text-start">
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
       <ThreadListItemDelete />
@@ -128,7 +133,7 @@ const ThreadListItem: FC = () => {
 
 const ThreadListItemTitle: FC = () => {
   return (
-    <span className="aui-thread-list-item-title text-sm">
+    <span className="aui-thread-list-item-title block truncate text-sm">
       <ThreadListItemPrimitive.Title fallback="New Chat" />
     </span>
   );
@@ -140,7 +145,7 @@ const ThreadListItemDelete: FC = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button
-        className="aui-thread-list-item-delete text-foreground hover:text-primary ml-auto mr-3 size-4 p-0"
+        className="aui-thread-list-item-delete text-foreground hover:text-primary mr-3 size-4 shrink-0 p-0"
         variant="ghost"
         size="icon"
         aria-label="Delete thread"
