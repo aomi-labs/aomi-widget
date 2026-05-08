@@ -5,8 +5,8 @@ import { getChainInfo } from "@aomi-labs/react";
 import {
   formatAuthProvider,
   useAomiAuthAdapter,
-} from "@/lib/aomi-auth-adapter";
-import { settingsApiFetch } from "@/lib/settings-api";
+} from "@aomi-labs/widget-lib";
+import { settingsApiFetch } from "@portal/lib/settings-api";
 
 type AccountProfile = {
   user_id: string;

@@ -1,9 +1,5 @@
-import { Hero } from "@/components/hero";
+import { PortalAomiFrame } from "@portal/components/portal-aomi-frame";
 
 export default function Home() {
-  return (
-    <main className="w-full">
-      <Hero />
-    </main>
-  );
+  return <PortalAomiFrame />;
 }

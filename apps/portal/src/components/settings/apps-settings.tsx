@@ -1,13 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAomiAuthAdapter } from "@/lib/aomi-auth-adapter";
-import {
-  getSettingsApiKey,
-  setSettingsApiKey,
-  settingsApiFetch,
-} from "@/lib/settings-api";
-import { defaultUsageDateRange } from "@/lib/usage-range";
+import { useCallback, useEffect, useState } from "react";
+import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { settingsApiFetch } from "@portal/lib/settings-api";
+import { defaultUsageDateRange } from "@portal/lib/usage-range";
 
 type AppRow = {
   app: string;
@@ -53,9 +49,6 @@ export function AppsSettings() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [keyInput, setKeyInput] = useState("");
-  const [applyingKey, setApplyingKey] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
 
   const fetchOverview = useCallback(async () => {
     if (!identity.address) {
@@ -92,41 +85,6 @@ export function AppsSettings() {
   useEffect(() => {
     void fetchOverview();
   }, [fetchOverview]);
-
-  useEffect(() => {
-    setKeyInput(getSettingsApiKey() ?? "");
-  }, []);
-
-  const applyDisabled = useMemo(
-    () => applyingKey || !identity.address,
-    [applyingKey, identity.address],
-  );
-
-  const onApplyKey = useCallback(async () => {
-    if (applyDisabled) return;
-
-    setApplyingKey(true);
-    setStatus(null);
-    try {
-      const nextApiKey = keyInput.trim() || null;
-      setSettingsApiKey(nextApiKey);
-      await fetchOverview();
-      setStatus(
-        nextApiKey
-          ? "API key applied. App access refreshed."
-          : "API key cleared. App access refreshed.",
-      );
-      window.dispatchEvent(
-        new CustomEvent("aomi:apps-updated", {
-          detail: { apiKey: nextApiKey },
-        }),
-      );
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Failed to apply API key");
-    } finally {
-      setApplyingKey(false);
-    }
-  }, [applyDisabled, fetchOverview, keyInput]);
 
   return (
     <div className="space-y-8">
@@ -197,55 +155,6 @@ export function AppsSettings() {
               </p>
             </>
           )}
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">
-          App API Key
-        </h3>
-        <div className="border-input bg-background space-y-3 rounded-3xl border p-5">
-          <label
-            htmlFor="app-api-key"
-            className="text-foreground block text-sm font-medium"
-          >
-            API key
-          </label>
-          <input
-            id="app-api-key"
-            type="password"
-            value={keyInput}
-            onChange={(e) => setKeyInput(e.target.value)}
-            placeholder="Enter API key (optional)"
-            className="border-input focus:ring-ring focus:border-ring bg-background text-foreground w-full rounded-full border px-5 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
-          />
-          <p className="text-muted-foreground text-xs">
-            API keys expand app access per request and are not bound to your
-            account profile.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setKeyInput("");
-              }}
-              disabled={applyingKey}
-              className="text-foreground bg-secondary hover:bg-secondary/80 rounded-full px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Clear input
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void onApplyKey();
-              }}
-              disabled={applyDisabled}
-              className="text-primary-foreground bg-primary hover:bg-primary/90 rounded-full px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {applyingKey ? "Applying..." : "Apply key"}
-            </button>
-          </div>
-          {status && <p className="text-muted-foreground text-sm">{status}</p>}
         </div>
       </div>
 

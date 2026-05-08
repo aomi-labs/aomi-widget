@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
+import { AomiAuthRuntimeUserSync } from "@aomi-labs/widget-lib";
 import {
   AomiClient,
   ControlContextProvider,
@@ -10,7 +11,10 @@ import {
   useThreadContext,
   useUser,
 } from "@aomi-labs/react";
-import { getBackendUrl, getSettingsSessionId } from "@/lib/settings-api";
+import {
+  getBackendUrl,
+  getSettingsSessionId,
+} from "@portal/lib/settings-api";
 
 type SettingsRuntimeProviderProps = {
   children: ReactNode;
@@ -20,11 +24,11 @@ function SettingsRuntimeInner({
   children,
   aomiClient,
   sessionId,
-}: Readonly<{
+}: {
   children: ReactNode;
   aomiClient: AomiClient;
   sessionId: string;
-}>) {
+}) {
   const threadContext = useThreadContext();
   const { user } = useUser();
 
@@ -43,14 +47,17 @@ function SettingsRuntimeInner({
 
 export function SettingsRuntimeProvider({
   children,
-}: Readonly<SettingsRuntimeProviderProps>) {
-  const backendUrl = getBackendUrl();
+}: SettingsRuntimeProviderProps) {
   const sessionId = getSettingsSessionId();
-  const aomiClient = useMemo(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
+  const aomiClient = useMemo(
+    () => new AomiClient({ baseUrl: getBackendUrl() }),
+    [],
+  );
 
   return (
     <ThreadContextProvider initialThreadId={sessionId}>
       <UserContextProvider>
+        <AomiAuthRuntimeUserSync />
         <SettingsRuntimeInner
           aomiClient={aomiClient}
           sessionId={sessionId}
