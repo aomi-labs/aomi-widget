@@ -10,6 +10,10 @@ import {
   PencilIcon,
   RefreshCwIcon,
   Square,
+  WalletIcon,
+  ArrowLeftRightIcon,
+  LayersIcon,
+  CableIcon,
 } from "lucide-react";
 
 import {
@@ -124,7 +128,7 @@ const ThreadWelcome: FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="aui-thread-welcome-message-motion-1 text-muted-foreground/45 text-2xl font-semibold"
+            className="aui-thread-welcome-message-motion-1 text-foreground/70 text-2xl font-semibold"
           >
             Hello there!
           </m.div>
@@ -133,7 +137,7 @@ const ThreadWelcome: FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ delay: 0.1 }}
-            className="aui-thread-welcome-message-motion-2 text-muted-foreground/70 text-2xl"
+            className="aui-thread-welcome-message-motion-2 text-muted-foreground/60 text-2xl"
           >
             How can I help you today?
           </m.div>
@@ -146,27 +150,31 @@ const ThreadWelcome: FC = () => {
 
 const ThreadSuggestions: FC = () => {
   return (
-    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 px-1 pb-4 opacity-70">
+    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 px-1 pb-4">
       {[
         {
           title: "Show my wallet balances",
           label: "and positions",
           action: "Show my wallet balances and positions",
+          icon: WalletIcon,
         },
         {
           title: "Swap 1 ETH to USDC",
           label: "with the best price",
           action: "Swap 1 ETH to USDC with the best price",
+          icon: ArrowLeftRightIcon,
         },
         {
           title: "Stake half of my ETH",
           label: "in the highest yield pool",
           action: "Stake half of my ETH in the highest yield pool",
+          icon: LayersIcon,
         },
         {
           title: "Bridge 100 USDC",
           label: "from Ethereum to Arbitrum",
           action: "Bridge 100 USDC from Ethereum to Arbitrum",
+          icon: CableIcon,
         },
       ].map((suggestedAction, index) => (
         <m.div
@@ -184,13 +192,14 @@ const ThreadSuggestions: FC = () => {
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm font-normal"
+              className="aui-thread-welcome-suggestion group/suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full flex-col items-start justify-start gap-0.5 rounded-2xl border px-4 py-3 text-left text-sm font-normal transition-colors"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 text-foreground">
+              <span className="aui-thread-welcome-suggestion-text-1 text-foreground flex items-center gap-2">
+                <suggestedAction.icon className="text-muted-foreground/40 group-hover/suggestion:text-primary size-3.5 shrink-0 transition-colors" />
                 {suggestedAction.title}
               </span>
-              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/80">
+              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/60 ml-[22px]">
                 {suggestedAction.label}
               </span>
             </Button>
@@ -203,12 +212,12 @@ const ThreadSuggestions: FC = () => {
 
 const Composer: FC = () => {
   return (
-    <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
+    <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground relative flex w-full flex-col px-1 pt-2">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground relative flex w-full flex-col border border-border/30 px-1 pt-2">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input text-foreground placeholder:text-muted-foreground focus:outline-primary ml-3 mt-2 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pb-3 pt-1.5 text-sm outline-none dark:text-white"
+          className="aui-composer-input text-foreground placeholder:text-muted-foreground/60 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-white"
           rows={1}
           autoFocus
           aria-label="Message input"
