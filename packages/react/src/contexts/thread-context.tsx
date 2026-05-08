@@ -33,6 +33,7 @@ export type ThreadContext = {
     threadId: string,
     updates: Partial<ThreadMetadata>,
   ) => void;
+  resetToDefault: () => void;
 };
 
 export type ThreadContextProviderProps = {

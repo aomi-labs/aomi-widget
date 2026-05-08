@@ -2,17 +2,21 @@
 // SessionManager — manages one ClientSession per thread
 // =============================================================================
 
-import type { AomiClient, AomiClientOptions } from "@aomi-labs/client";
-import { Session as ClientSession, type SessionOptions } from "@aomi-labs/client";
+import type { AomiClient } from "@aomi-labs/client";
+import {
+  Session as ClientSession,
+  type SessionOptions,
+} from "@aomi-labs/client";
 
 export class SessionManager {
   private sessions = new Map<string, ClientSession>();
 
-  constructor(
-    private readonly clientFactory: () => AomiClient,
-  ) {}
+  constructor(private readonly clientFactory: () => AomiClient) {}
 
-  getOrCreate(threadId: string, opts: Omit<SessionOptions, "sessionId">): ClientSession {
+  getOrCreate(
+    threadId: string,
+    opts: Omit<SessionOptions, "sessionId">,
+  ): ClientSession {
     let session = this.sessions.get(threadId);
     if (session) return session;
 
@@ -28,6 +32,10 @@ export class SessionManager {
     return this.sessions.get(threadId);
   }
 
+  get size(): number {
+    return this.sessions.size;
+  }
+
   forEach(callback: (session: ClientSession, threadId: string) => void): void {
     for (const [threadId, session] of this.sessions) {
       callback(session, threadId);
@@ -40,6 +48,29 @@ export class SessionManager {
       session.close();
       this.sessions.delete(threadId);
     }
+  }
+
+  closeIdleExcept(
+    activeThreadId: string,
+    onBeforeClose?: (threadId: string) => void,
+  ): string[] {
+    const closedThreadIds: string[] = [];
+
+    for (const [threadId, session] of this.sessions) {
+      if (threadId === activeThreadId) continue;
+      if (session.getIsProcessing()) continue;
+      if (session.getIsPolling()) continue;
+      if (session.getPendingRequests().length > 0) continue;
+
+      closedThreadIds.push(threadId);
+    }
+
+    for (const threadId of closedThreadIds) {
+      onBeforeClose?.(threadId);
+      this.close(threadId);
+    }
+
+    return closedThreadIds;
   }
 
   closeAll(): void {

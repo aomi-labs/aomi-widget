@@ -377,7 +377,8 @@ export function ControlContextProvider({
       });
   }, [state.clientId, state.providerKeys]);
 
-  // Fetch apps whenever the auth context changes
+  // Fetch apps whenever the auth context changes. App authorization is scoped
+  // to auth/api-key state, so thread switches should not refetch it.
   useEffect(() => {
     const fetchApps = async () => {
       try {
@@ -401,7 +402,7 @@ export function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [state.apiKey, publicKey, sessionId]);
+  }, [state.apiKey, publicKey]);
 
   // Fetch models on mount
   useEffect(() => {
