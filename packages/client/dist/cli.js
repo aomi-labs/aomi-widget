@@ -162,7 +162,7 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
@@ -181,16 +181,18 @@ function buildCliConfig(args) {
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
+  const solanaPrivateKey = (_e = str(args["solana-private-key"])) != null ? _e : process.env.SOLANA_PRIVATE_KEY;
   return {
-    baseUrl: (_e = str(args["backend-url"])) != null ? _e : process.env.AOMI_BACKEND_URL,
-    apiKey: (_f = str(args["api-key"])) != null ? _f : process.env.AOMI_API_KEY,
-    app: (_g = str(args.app)) != null ? _g : process.env.AOMI_APP,
-    model: (_h = str(args.model)) != null ? _h : process.env.AOMI_MODEL,
+    baseUrl: (_f = str(args["backend-url"])) != null ? _f : process.env.AOMI_BACKEND_URL,
+    apiKey: (_g = str(args["api-key"])) != null ? _g : process.env.AOMI_API_KEY,
+    app: (_h = str(args.app)) != null ? _h : process.env.AOMI_APP,
+    model: (_i = str(args.model)) != null ? _i : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
-    chainRpcUrl: (_i = str(args["rpc-url"])) != null ? _i : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_j = str(args.chain)) != null ? _j : process.env.AOMI_CHAIN_ID),
+    solanaPrivateKey,
+    chainRpcUrl: (_j = str(args["rpc-url"])) != null ? _j : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_k = str(args.chain)) != null ? _k : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
@@ -243,6 +245,10 @@ var init_shared = __esm({
         type: "string",
         description: "Hex private key for signing"
       },
+      "solana-private-key": {
+        type: "string",
+        description: "Solana keypair secret (base58 secret key, or JSON byte array) for signing solana_sign requests"
+      },
       "rpc-url": {
         type: "string",
         description: "RPC URL for transaction submission"
@@ -294,8 +300,10 @@ var init_types = __esm({
       chainId: "chain_id",
       isConnected: "is_connected",
       ensName: "ens_name",
+      svmAddress: "svm_address",
       pendingTxs: "pending_txs",
       pendingEip712s: "pending_eip712s",
+      pendingSolanaTxs: "pending_solana_txs",
       nextId: "next_id"
     };
     ((UserState2) => {
@@ -331,6 +339,11 @@ var init_types = __esm({
         if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
           reconciled.address = previousAddress;
         }
+        const previousSvm = svmAddress(previous);
+        const incomingSvm = svmAddress(incoming);
+        if (!incomingSvm && canPreserveConnectedWalletContext && previousSvm) {
+          reconciled.svm_address = previousSvm;
+        }
         if (incomingChainId === void 0 && canPreserveConnectedWalletContext && previous && chainId(previous) !== void 0) {
           const canPreserveChain = sameAddress || !incomingAddress && !!previousAddress;
           if (canPreserveChain) {
@@ -349,6 +362,12 @@ var init_types = __esm({
         return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
       }
       UserState2.address = address;
+      function svmAddress(userState) {
+        const normalized = normalize(userState);
+        const value = normalized == null ? void 0 : normalized.svm_address;
+        return typeof value === "string" && value.length > 0 ? value : void 0;
+      }
+      UserState2.svmAddress = svmAddress;
       function chainId(userState) {
         const normalized = normalize(userState);
         return parseUserStateChainId(normalized == null ? void 0 : normalized.chain_id);
@@ -1352,6 +1371,17 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
     calls
   });
 }
+function normalizeSolanaSignPayload(payload) {
+  var _a3, _b;
+  const args = getToolArgs(payload);
+  const unsignedTxRaw = (_a3 = args.unsigned_tx) != null ? _a3 : args.unsignedTx;
+  const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
+  const description = typeof args.description === "string" ? args.description : void 0;
+  const clusterRaw = args.cluster;
+  const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
+  const pendingSolanaId = (_b = parsePendingId(args.pendingSolanaId)) != null ? _b : parsePendingId(args.pending_solana_id);
+  return { unsignedTx, description, cluster, pendingSolanaId };
+}
 function normalizeEip712Payload(payload) {
   var _a3, _b, _c, _d;
   const args = getToolArgs(payload);
@@ -1579,7 +1609,7 @@ var init_session = __esm({
        * Sends the result to the backend and resumes polling.
        */
       async resolve(requestId, result) {
-        var _a3, _b, _c, _d, _e, _f;
+        var _a3, _b, _c, _d, _e, _f, _g;
         const req = this.removeWalletRequest(requestId);
         if (!req) {
           throw new Error(`No pending wallet request with id "${requestId}"`);
@@ -1604,13 +1634,20 @@ var init_session = __esm({
             smart_account_address: result.smartAccountAddress,
             delegation_address: result.delegationAddress
           });
-        } else {
+        } else if (req.kind === "eip712_sign") {
           const eip712Payload = req.payload;
           await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "success",
             signature: result.signature,
             description: eip712Payload.description
           }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
+        } else {
+          const solanaPayload = req.payload;
+          await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
+            status: "signed",
+            signed_tx: (_g = result.signedTx) != null ? _g : "",
+            description: solanaPayload.description
+          }, solanaPayload.pendingSolanaId !== void 0 ? { pending_solana_id: solanaPayload.pendingSolanaId } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -1644,13 +1681,20 @@ var init_session = __esm({
             smart_account_address: void 0,
             delegation_address: void 0
           });
-        } else {
+        } else if (req.kind === "eip712_sign") {
           const eip712Payload = req.payload;
           await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "failed",
             error: reason != null ? reason : "Request rejected",
             description: eip712Payload.description
           }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
+        } else {
+          const solanaPayload = req.payload;
+          await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
+            status: "rejected",
+            error: reason != null ? reason : "Request rejected",
+            description: solanaPayload.description
+          }, solanaPayload.pendingSolanaId !== void 0 ? { pending_solana_id: solanaPayload.pendingSolanaId } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -1867,7 +1911,7 @@ var init_session = __esm({
         }
       }
       dispatchSystemEvents(events) {
-        var _a3;
+        var _a3, _b;
         for (const event of events) {
           const unwrapped = unwrapSystemEvent(event);
           if (!unwrapped) continue;
@@ -1882,6 +1926,10 @@ var init_session = __esm({
             const payload = normalizeEip712Payload((_a3 = unwrapped.payload) != null ? _a3 : {});
             const req = this.enqueueWalletRequest("eip712_sign", payload);
             this.emit("wallet_eip712_request", req);
+          } else if (unwrapped.type === "wallet::solana_sign_request") {
+            const payload = normalizeSolanaSignPayload((_b = unwrapped.payload) != null ? _b : {});
+            const req = this.enqueueWalletRequest("solana_sign", payload);
+            this.emit("wallet_solana_sign_request", req);
           } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
             this.emit(
               unwrapped.type,
@@ -1989,19 +2037,25 @@ var init_session = __esm({
           if (txIds.length > 0) {
             return `tx-${txIds.join("-")}`;
           }
-        } else {
+        } else if (kind === "eip712_sign") {
           const eip712Id = payload.eip712Id;
           if (typeof eip712Id === "number") {
             return `eip712-${eip712Id}`;
+          }
+        } else {
+          const pendingSolanaId = payload.pendingSolanaId;
+          if (typeof pendingSolanaId === "number") {
+            return `solana-${pendingSolanaId}`;
           }
         }
         return `wreq-${this.walletRequestNextId++}`;
       }
       syncWalletRequests() {
-        var _a3, _b, _c, _d, _e, _f, _g, _h;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
         const nextRequests = [];
         const pendingTxs = isRecord((_a3 = this.userState) == null ? void 0 : _a3.pending_txs) ? (_b = this.userState) == null ? void 0 : _b.pending_txs : void 0;
         const pendingEip712s = isRecord((_c = this.userState) == null ? void 0 : _c.pending_eip712s) ? (_d = this.userState) == null ? void 0 : _d.pending_eip712s : void 0;
+        const pendingSolanaTxs = isRecord((_e = this.userState) == null ? void 0 : _e.pending_solana_txs) ? (_f = this.userState) == null ? void 0 : _f.pending_solana_txs : void 0;
         const pendingTxEntries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
         const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
         const coveredPendingTxIds = /* @__PURE__ */ new Set();
@@ -2058,7 +2112,7 @@ var init_session = __esm({
               id: requestId,
               kind: "transaction",
               payload,
-              timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+              timestamp: (_h = (_g = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _g.timestamp) != null ? _h : Date.now()
             });
           }
         }
@@ -2073,7 +2127,21 @@ var init_session = __esm({
             id: requestId,
             kind: "eip712_sign",
             payload,
-            timestamp: (_h = (_g = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _g.timestamp) != null ? _h : Date.now()
+            timestamp: (_j = (_i = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _i.timestamp) != null ? _j : Date.now()
+          });
+        }
+        for (const [id, raw] of Object.entries(pendingSolanaTxs != null ? pendingSolanaTxs : {}).sort(
+          (left, right) => Number(left[0]) - Number(right[0])
+        )) {
+          const payload = normalizeSolanaSignPayload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+            pending_solana_id: Number(id)
+          }));
+          const requestId = this.getWalletRequestId("solana_sign", payload);
+          nextRequests.push({
+            id: requestId,
+            kind: "solana_sign",
+            payload,
+            timestamp: (_l = (_k = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _k.timestamp) != null ? _l : Date.now()
           });
         }
         if (nextRequests.length === this.walletRequests.length && nextRequests.every((request, index) => {
@@ -2223,6 +2291,52 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   });
   return nextPendingTxs;
 }
+function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []) {
+  var _a3, _b, _c;
+  const normalizedUserState = UserState.normalize(userState);
+  if (!normalizedUserState) {
+    return [];
+  }
+  const existingById = new Map(existingPendingSolTxs.map((tx) => [tx.id, tx]));
+  const fallbackNow = Date.now();
+  const next = [];
+  const pendingSolanaTxs = (_a3 = asRecord2(normalizedUserState.pending_solana_txs)) != null ? _a3 : {};
+  for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
+    const pendingId = parsePendingId2(rawId);
+    const request = asRecord2(rawValue);
+    if (!pendingId || !request) {
+      continue;
+    }
+    const unsignedTx = parseOptionalString(request.unsigned_tx);
+    if (!unsignedTx) {
+      continue;
+    }
+    const id = pendingDisplayId(pendingId);
+    const description = parseOptionalString(request.description);
+    const cluster = parseOptionalString(request.cluster);
+    const signer = parseOptionalString(request.signer);
+    next.push({
+      id,
+      solanaId: pendingId,
+      unsignedTx,
+      cluster,
+      signer,
+      description,
+      timestamp: (_c = (_b = existingById.get(id)) == null ? void 0 : _b.timestamp) != null ? _c : fallbackNow,
+      payload: {
+        pending_solana_id: pendingId,
+        pendingSolanaId: pendingId,
+        unsigned_tx: unsignedTx,
+        unsignedTx,
+        cluster,
+        description,
+        signer
+      }
+    });
+  }
+  next.sort((left, right) => left.solanaId - right.solanaId);
+  return next;
+}
 function walletSnapshotFromUserState(userState) {
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
@@ -2282,7 +2396,9 @@ function toCliSessionState(stored) {
     privateKey: stored.privateKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
+    pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
+    signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles
   };
 }
@@ -2306,7 +2422,9 @@ function readStoredSession(path) {
       privateKey: parsed.privateKey,
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
+      pendingSolTxs: parsed.pendingSolTxs,
       signedTxs: parsed.signedTxs,
+      signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
       createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
@@ -2498,8 +2616,11 @@ function clearState() {
   migrateLegacyStateIfNeeded();
   writeActiveLocalId(null);
 }
+function hasSameSolanaPendingId(existing, next) {
+  return existing.solanaId === next.solanaId;
+}
 function syncPendingTxsFromUserState(state, userState) {
-  var _a3;
+  var _a3, _b;
   const normalizedUserState = UserState.normalize(userState);
   const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
   const isConnected = UserState.isConnected(normalizedUserState);
@@ -2517,8 +2638,15 @@ function syncPendingTxsFromUserState(state, userState) {
     normalizedUserState,
     (_a3 = state.pendingTxs) != null ? _a3 : []
   );
+  state.pendingSolTxs = pendingSolTxsFromBackendUserState(
+    normalizedUserState,
+    (_b = state.pendingSolTxs) != null ? _b : []
+  );
   writeState(state);
-  return state.pendingTxs;
+  return {
+    pendingTxs: state.pendingTxs,
+    pendingSolTxs: state.pendingSolTxs
+  };
 }
 var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
 var init_state = __esm({
@@ -2625,6 +2753,14 @@ var init_cli_session = __esm({
       get pendingTxs() {
         var _a3;
         return (_a3 = this.state.pendingTxs) != null ? _a3 : [];
+      }
+      get pendingSolTxs() {
+        var _a3;
+        return (_a3 = this.state.pendingSolTxs) != null ? _a3 : [];
+      }
+      get signedSolTxs() {
+        var _a3;
+        return (_a3 = this.state.signedSolTxs) != null ? _a3 : [];
       }
       get signedTxs() {
         var _a3;
@@ -2743,10 +2879,47 @@ var init_cli_session = __esm({
         this.state.signedTxs.push(tx);
         this.save();
       }
+      /** Add a pending Solana tx with dedup on `solanaId`. */
+      addPendingSolTx(tx) {
+        if (!this.state.pendingSolTxs) this.state.pendingSolTxs = [];
+        const isDuplicate = this.state.pendingSolTxs.some(
+          (existing) => hasSameSolanaPendingId(existing, tx)
+        );
+        if (isDuplicate) return null;
+        const pending = __spreadProps(__spreadValues({}, tx), {
+          id: `tx-${tx.solanaId}`
+        });
+        this.state.pendingSolTxs.push(pending);
+        this.save();
+        return pending;
+      }
+      removePendingSolTx(id) {
+        if (!this.state.pendingSolTxs) return null;
+        const idx = this.state.pendingSolTxs.findIndex((tx) => tx.id === id);
+        if (idx === -1) return null;
+        const [removed] = this.state.pendingSolTxs.splice(idx, 1);
+        this.save();
+        return removed;
+      }
+      addSignedSolTx(tx) {
+        if (!this.state.signedSolTxs) this.state.signedSolTxs = [];
+        this.state.signedSolTxs.push(tx);
+        this.save();
+      }
       syncPendingFromUserState(userState) {
-        const pendingTxs = syncPendingTxsFromUserState(this.state, userState);
+        const result = syncPendingTxsFromUserState(this.state, userState);
         this.reload();
-        return pendingTxs;
+        return result;
+      }
+      /** Find a pending Solana tx by display id, or undefined if unknown. */
+      findPendingSolTx(txId) {
+        var _a3;
+        return ((_a3 = this.state.pendingSolTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
+      }
+      /** Find a pending EVM/EIP-712 tx by display id, or undefined. */
+      findPendingTx(txId) {
+        var _a3;
+        return ((_a3 = this.state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
       }
       /** Get a pending tx by ID, or fatal() if not found. */
       requirePendingTx(txId) {
@@ -2754,7 +2927,7 @@ var init_cli_session = __esm({
         const pending = (_a3 = this.state.pendingTxs) != null ? _a3 : [];
         const tx = pending.find((t) => t.id === txId);
         if (!tx) {
-          const available = pending.map((t) => t.id).join(", ") || "(none)";
+          const available = this.allDisplayIds().join(", ") || "(none)";
           fatal(`Transaction "${txId}" not found.
 Available: ${available}`);
         }
@@ -2767,6 +2940,23 @@ Available: ${available}`);
           fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
         }
         return uniqueIds.map((txId) => this.requirePendingTx(txId));
+      }
+      /** Get a pending Solana tx by ID, or fatal() if not found. */
+      requirePendingSolTx(txId) {
+        const tx = this.findPendingSolTx(txId);
+        if (!tx) {
+          const available = this.allDisplayIds().join(", ") || "(none)";
+          fatal(`Solana transaction "${txId}" not found.
+Available: ${available}`);
+        }
+        return tx;
+      }
+      allDisplayIds() {
+        var _a3, _b;
+        return [
+          ...((_a3 = this.state.pendingTxs) != null ? _a3 : []).map((tx) => tx.id),
+          ...((_b = this.state.pendingSolTxs) != null ? _b : []).map((tx) => tx.id)
+        ];
       }
       // ---------------------------------------------------------------------------
       // Bridge to ClientSession
@@ -4467,6 +4657,96 @@ var init_aa = __esm({
   }
 });
 
+// src/cli/solana-signer.ts
+import {
+  Keypair,
+  Transaction,
+  VersionedTransaction
+} from "@solana/web3.js";
+import bs58 from "bs58";
+function parseSolanaKeypairSecret(input2) {
+  const trimmed = input2.trim();
+  if (!trimmed) {
+    throw new Error("Solana keypair secret is empty.");
+  }
+  let bytes;
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+      throw new Error(
+        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
+      );
+    }
+    bytes = Uint8Array.from(parsed);
+  } else {
+    try {
+      bytes = bs58.decode(trimmed);
+    } catch (err) {
+      throw new Error(
+        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  if (bytes.length !== 64) {
+    throw new Error(
+      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
+    );
+  }
+  return Keypair.fromSecretKey(bytes);
+}
+function decodeBase64(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+function encodeBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+function signSolanaTransaction(unsignedTxBase64, keypair) {
+  const bytes = decodeBase64(unsignedTxBase64);
+  try {
+    const versioned = VersionedTransaction.deserialize(bytes);
+    versioned.sign([keypair]);
+    return {
+      signer: keypair.publicKey.toBase58(),
+      signedTxBase64: encodeBase64(versioned.serialize())
+    };
+  } catch (versionedErr) {
+    try {
+      const legacy = Transaction.from(bytes);
+      legacy.partialSign(keypair);
+      return {
+        signer: keypair.publicKey.toBase58(),
+        signedTxBase64: encodeBase64(legacy.serialize())
+      };
+    } catch (legacyErr) {
+      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
+      throw new Error(
+        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
+      );
+    }
+  }
+}
+var init_solana_signer = __esm({
+  "src/cli/solana-signer.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/execution.ts
 function callsContainTokenOperations(calls) {
   return calls.some(
@@ -4651,6 +4931,24 @@ function formatSignedTxLine(tx, prefix) {
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
+function formatPendingSolTxLine(tx, prefix) {
+  const parts = [`${prefix} ${tx.id}`, "solana"];
+  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
+  if (tx.description) parts.push(tx.description);
+  if (tx.signer) parts.push(`signer: ${tx.signer}`);
+  if (tx.unsignedTx) parts.push(`tx: ${tx.unsignedTx.slice(0, 20)}...`);
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+function formatSignedSolTxLine(tx, prefix) {
+  const parts = [`${prefix} ${tx.id}`, "solana"];
+  if (tx.signedTx) parts.push(`signed: ${tx.signedTx.slice(0, 20)}...`);
+  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
+  if (tx.signer) parts.push(`signer: ${tx.signer}`);
+  if (tx.description) parts.push(tx.description);
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
 var init_transactions = __esm({
   "src/cli/transactions.ts"() {
     "use strict";
@@ -4687,23 +4985,33 @@ async function txCommand() {
     session.close();
   }
   const pending = [...cli.pendingTxs];
+  const pendingSol = [...cli.pendingSolTxs];
   const signed = [...cli.signedTxs];
-  if (pending.length === 0 && signed.length === 0) {
+  const signedSol = [...cli.signedSolTxs];
+  const totalPending = pending.length + pendingSol.length;
+  const totalSigned = signed.length + signedSol.length;
+  if (totalPending === 0 && totalSigned === 0) {
     console.log("No transactions.");
     printDataFileLocation();
     return;
   }
-  if (pending.length > 0) {
-    console.log(`Pending (${pending.length}):`);
+  if (totalPending > 0) {
+    console.log(`Pending (${totalPending}):`);
     for (const tx of pending) {
       console.log(formatTxLine(tx, "  \u23F3"));
     }
+    for (const tx of pendingSol) {
+      console.log(formatPendingSolTxLine(tx, "  \u23F3"));
+    }
   }
-  if (signed.length > 0) {
-    if (pending.length > 0) console.log();
-    console.log(`Signed (${signed.length}):`);
+  if (totalSigned > 0) {
+    if (totalPending > 0) console.log();
+    console.log(`Signed (${totalSigned}):`);
     for (const tx of signed) {
       console.log(formatSignedTxLine(tx, "  \u2705"));
+    }
+    for (const tx of signedSol) {
+      console.log(formatSignedSolTxLine(tx, "  \u2705"));
     }
   }
   printDataFileLocation();
@@ -4755,6 +5063,69 @@ function buildCliTxCompletionMetadata(params) {
     aa_fallback_reason: fallbackReason
   };
 }
+async function signSolanaPending(params) {
+  var _a3;
+  const { cli, session, config, pendingTx } = params;
+  const secret = (_a3 = config.solanaPrivateKey) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
+  if (!secret) {
+    fatal(
+      [
+        "Solana keypair required for `aomi tx sign` on a solana_sign request.",
+        "Pass one of:",
+        "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
+        "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
+        "",
+        "Accepted formats:",
+        "  base58 of the 64-byte secret key (Phantom / Solflare export)",
+        "  JSON byte array `[1,2,...,64]` (solana-keygen output)"
+      ].join("\n")
+    );
+  }
+  let keypair;
+  try {
+    keypair = parseSolanaKeypairSecret(secret);
+  } catch (err) {
+    fatal(err instanceof Error ? err.message : String(err));
+  }
+  if (pendingTx.signer && pendingTx.signer !== keypair.publicKey.toBase58()) {
+    console.log(
+      `\u26A0\uFE0F  Local signer ${keypair.publicKey.toBase58()} differs from expected ${pendingTx.signer}`
+    );
+  }
+  console.log(`Kind:    solana_sign`);
+  console.log(`Tx:      ${pendingTx.id}`);
+  if (pendingTx.cluster) console.log(`Cluster: ${pendingTx.cluster}`);
+  if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
+  console.log(`Signer:  ${keypair.publicKey.toBase58()}`);
+  console.log();
+  const outcome = signSolanaTransaction(pendingTx.unsignedTx, keypair);
+  console.log(
+    `\u2705 Signed! signed_tx: ${outcome.signedTxBase64.slice(0, 24)}... (${outcome.signedTxBase64.length} chars)`
+  );
+  await session.client.sendSystemMessage(
+    cli.sessionId,
+    JSON.stringify({
+      type: "wallet::solana_sign_complete",
+      payload: {
+        status: "signed",
+        signed_tx: outcome.signedTxBase64,
+        description: pendingTx.description,
+        pending_solana_id: pendingTx.solanaId
+      }
+    })
+  );
+  const syncedState = await session.syncUserState();
+  cli.syncPendingFromUserState(syncedState.user_state);
+  cli.addSignedSolTx({
+    id: pendingTx.id,
+    signedTx: outcome.signedTxBase64,
+    signer: outcome.signer,
+    cluster: pendingTx.cluster,
+    description: pendingTx.description,
+    timestamp: Date.now()
+  });
+  console.log("Backend notified.");
+}
 async function executeCliTransaction(params) {
   const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
   const unsupportedWalletMethod = async () => {
@@ -4785,17 +5156,6 @@ async function signCommand(config, txIds) {
     fatal("No active session. Run `aomi chat` first.");
   }
   const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
-  if (!privateKey) {
-    fatal(
-      [
-        "Private key required for `aomi tx sign`.",
-        "Pass one of:",
-        "  aomi wallet set <hex-key>",
-        "  aomi tx sign --private-key <hex-key> <tx-id>",
-        "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>"
-      ].join("\n")
-    );
-  }
   cli.mergeConfig(config);
   const session = cli.createClientSession();
   try {
@@ -4805,7 +5165,40 @@ async function signCommand(config, txIds) {
       cli.clientId
     );
     cli.syncPendingFromUserState(initialState.user_state);
+    const solanaIds = txIds.filter((id) => cli.findPendingSolTx(id) !== void 0);
+    const evmIds = txIds.filter((id) => cli.findPendingTx(id) !== void 0);
+    if (solanaIds.length > 0 && evmIds.length > 0) {
+      fatal(
+        "Cannot mix Solana and EVM/EIP-712 requests in the same `aomi tx sign` invocation."
+      );
+    }
+    if (solanaIds.length > 0) {
+      if (solanaIds.length > 1) {
+        fatal(
+          "Solana signing is singular \u2014 pass exactly one tx-id at a time."
+        );
+      }
+      const solanaTx = cli.requirePendingSolTx(solanaIds[0]);
+      await signSolanaPending({
+        cli,
+        session,
+        config,
+        pendingTx: solanaTx
+      });
+      return;
+    }
     const pendingTxs = cli.requirePendingTxs(txIds);
+    if (!privateKey) {
+      fatal(
+        [
+          "Private key required for `aomi tx sign`.",
+          "Pass one of:",
+          "  aomi wallet set <hex-key>",
+          "  aomi tx sign --private-key <hex-key> <tx-id>",
+          "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>"
+        ].join("\n")
+      );
+    }
     const account = privateKeyToAccount6(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
@@ -5071,6 +5464,7 @@ var init_wallet = __esm({
     init_wallet_utils();
     init_cli_session();
     init_errors();
+    init_solana_signer();
     init_execution();
     init_output();
     init_transactions();
@@ -6595,6 +6989,8 @@ var package_default = {
     "@alchemy/wallet-apis": "5.0.0-beta.22",
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
+    "@solana/web3.js": "^1.98.4",
+    bs58: "^6.0.0",
     citty: "^0.2.2",
     permissionless: "^0.3.5",
     viem: "^2.47.11"
@@ -6713,7 +7109,8 @@ function printRootHelp() {
   console.log("  --new-session                Create a fresh active session");
   console.log("  --chain <id>                 Active chain for chat/session context");
   console.log("  --public-key <address>       Wallet address for chat context");
-  console.log("  --private-key <hex>          Signing key for tx sign");
+  console.log("  --private-key <hex>          Signing key for EVM tx sign");
+  console.log("  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)");
   console.log("  --rpc-url <url>              RPC URL for signing");
   console.log("  -p, --prompt <prompt>        Send a single prompt and exit");
   console.log("  --show-tool                  Show tool output in root prompt/REPL mode");

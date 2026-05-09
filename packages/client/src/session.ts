@@ -35,26 +35,35 @@ import {
   normalizeTxPayload,
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaSignPayload,
   type WalletTxPayload,
   type WalletEip712Payload,
+  type WalletSolanaSignPayload,
 } from "./wallet-utils";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export type WalletRequestKind = "transaction" | "eip712_sign";
+export type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
 
 export type WalletRequest = {
   id: string;
   kind: WalletRequestKind;
-  payload: WalletTxPayload | WalletEip712Payload;
+  payload: WalletTxPayload | WalletEip712Payload | WalletSolanaSignPayload;
   timestamp: number;
 };
 
 export type WalletRequestResult = {
   txHash?: string;
   signature?: string;
+  /**
+   * Base64-encoded full signed Solana transaction. Set on `solana_sign`
+   * resolutions; the SDK forwards it to the backend as
+   * `wallet::solana_sign_complete.signed_tx`, which apps splice into
+   * `submit_*` continuations via `bind_as("signed_tx")`.
+   */
+  signedTx?: string;
   amount?: string;
   error?: string;
   aaRequestedMode?: "4337" | "7702" | "none";
@@ -177,6 +186,13 @@ export type SessionEventMap = {
   wallet_tx_request: WalletRequest;
   /** An EIP-712 signing request arrived from the backend. */
   wallet_eip712_request: WalletRequest;
+  /**
+   * A Solana signing request arrived from the backend. Singular by design:
+   * one request per call (no batching). The wallet adapter signs and
+   * returns a base64-encoded full signed transaction via
+   * `Session.resolve(id, { signedTx })`.
+   */
+  wallet_solana_sign_request: WalletRequest;
   /** A system notice from the backend. */
   system_notice: { message: string };
   /** A system error from the backend. */
@@ -379,7 +395,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         smart_account_address: result.smartAccountAddress,
         delegation_address: result.delegationAddress,
       });
-    } else {
+    } else if (req.kind === "eip712_sign") {
       const eip712Payload = req.payload as WalletEip712Payload;
       await this.sendSystemEvent("wallet_eip712_response", {
         status: "success",
@@ -387,6 +403,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         description: eip712Payload.description,
         ...(eip712Payload.eip712Id !== undefined
           ? { pending_eip712_id: eip712Payload.eip712Id }
+          : {}),
+      });
+    } else {
+      const solanaPayload = req.payload as WalletSolanaSignPayload;
+      await this.sendSystemEvent("wallet::solana_sign_complete", {
+        status: "signed",
+        signed_tx: result.signedTx ?? "",
+        description: solanaPayload.description,
+        ...(solanaPayload.pendingSolanaId !== undefined
+          ? { pending_solana_id: solanaPayload.pendingSolanaId }
           : {}),
       });
     }
@@ -426,7 +452,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         smart_account_address: undefined,
         delegation_address: undefined,
       });
-    } else {
+    } else if (req.kind === "eip712_sign") {
       const eip712Payload = req.payload as WalletEip712Payload;
       await this.sendSystemEvent("wallet_eip712_response", {
         status: "failed",
@@ -434,6 +460,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         description: eip712Payload.description,
         ...(eip712Payload.eip712Id !== undefined
           ? { pending_eip712_id: eip712Payload.eip712Id }
+          : {}),
+      });
+    } else {
+      const solanaPayload = req.payload as WalletSolanaSignPayload;
+      await this.sendSystemEvent("wallet::solana_sign_complete", {
+        status: "rejected",
+        error: reason ?? "Request rejected",
+        description: solanaPayload.description,
+        ...(solanaPayload.pendingSolanaId !== undefined
+          ? { pending_solana_id: solanaPayload.pendingSolanaId }
           : {}),
       });
     }
@@ -719,6 +755,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         const payload = normalizeEip712Payload(unwrapped.payload ?? {});
         const req = this.enqueueWalletRequest("eip712_sign", payload);
         this.emit("wallet_eip712_request", req);
+      } else if (unwrapped.type === "wallet::solana_sign_request") {
+        const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
+        const req = this.enqueueWalletRequest("solana_sign", payload);
+        this.emit("wallet_solana_sign_request", req);
       } else if (
         unwrapped.type === "system_notice" ||
         unwrapped.type === "system_error" ||
@@ -845,7 +885,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   private getWalletRequestId(
     kind: WalletRequestKind,
-    payload: WalletTxPayload | WalletEip712Payload,
+    payload: WalletTxPayload | WalletEip712Payload | WalletSolanaSignPayload,
   ): string {
     if (kind === "transaction") {
       const txPayload = payload as WalletTxPayload;
@@ -856,10 +896,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       if (txIds.length > 0) {
         return `tx-${txIds.join("-")}`;
       }
-    } else {
+    } else if (kind === "eip712_sign") {
       const eip712Id = (payload as WalletEip712Payload).eip712Id;
       if (typeof eip712Id === "number") {
         return `eip712-${eip712Id}`;
+      }
+    } else {
+      const pendingSolanaId = (payload as WalletSolanaSignPayload).pendingSolanaId;
+      if (typeof pendingSolanaId === "number") {
+        return `solana-${pendingSolanaId}`;
       }
     }
 
@@ -873,6 +918,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       : undefined;
     const pendingEip712s = isRecord(this.userState?.pending_eip712s)
       ? this.userState?.pending_eip712s
+      : undefined;
+    const pendingSolanaTxs = isRecord(this.userState?.pending_solana_txs)
+      ? this.userState?.pending_solana_txs
       : undefined;
 
     const pendingTxEntries = Object.entries(pendingTxs ?? {})
@@ -960,6 +1008,24 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       nextRequests.push({
         id: requestId,
         kind: "eip712_sign",
+        payload,
+        timestamp:
+          this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
+          Date.now(),
+      });
+    }
+
+    for (const [id, raw] of Object.entries(pendingSolanaTxs ?? {}).sort(
+      (left, right) => Number(left[0]) - Number(right[0]),
+    )) {
+      const payload = normalizeSolanaSignPayload({
+        ...(isRecord(raw) ? raw : {}),
+        pending_solana_id: Number(id),
+      });
+      const requestId = this.getWalletRequestId("solana_sign", payload);
+      nextRequests.push({
+        id: requestId,
+        kind: "solana_sign",
         payload,
         timestamp:
           this.walletRequests.find((request) => request.id === requestId)?.timestamp ??

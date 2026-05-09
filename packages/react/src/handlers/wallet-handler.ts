@@ -3,16 +3,25 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignPayload,
   WalletTxPayload,
   WalletRequest,
+  WalletRequestKind,
   WalletRequestResult,
 } from "@aomi-labs/client";
 import type { Session as ClientSession } from "@aomi-labs/client";
 
-// Re-export types consumers need
-export type { WalletRequest, WalletTxPayload, WalletEip712Payload, WalletRequestResult };
+// Re-export types consumers need. The source of truth for `WalletRequestKind`
+// is `@aomi-labs/client` — Solana adds a third arm there.
+export type {
+  WalletRequest,
+  WalletRequestKind,
+  WalletRequestResult,
+  WalletTxPayload,
+  WalletEip712Payload,
+  WalletSolanaSignPayload,
+};
 
-export type WalletRequestKind = "transaction" | "eip712_sign";
 export type WalletRequestStatus = "pending" | "processing";
 
 export type WalletHandlerConfig = {

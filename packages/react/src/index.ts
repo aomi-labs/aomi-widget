@@ -73,6 +73,7 @@ export type {
   WalletRequest,
   WalletTxPayload,
   WalletEip712Payload,
+  WalletSolanaSignPayload,
   WalletRequestKind,
   WalletRequestStatus,
   WalletRequestResult,

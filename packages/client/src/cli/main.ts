@@ -62,7 +62,8 @@ function printRootHelp(): void {
   console.log("  --new-session                Create a fresh active session");
   console.log("  --chain <id>                 Active chain for chat/session context");
   console.log("  --public-key <address>       Wallet address for chat context");
-  console.log("  --private-key <hex>          Signing key for tx sign");
+  console.log("  --private-key <hex>          Signing key for EVM tx sign");
+  console.log("  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)");
   console.log("  --rpc-url <url>              RPC URL for signing");
   console.log("  -p, --prompt <prompt>        Send a single prompt and exit");
   console.log("  --show-tool                  Show tool output in root prompt/REPL mode");
