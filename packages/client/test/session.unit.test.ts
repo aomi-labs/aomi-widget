@@ -508,7 +508,10 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("queue tx");
     const request = await requestPromise;
 
-    await session.resolve((request as { id: string }).id, { txHash: "0xabc" });
+    await session.resolve((request as { id: string }).id, {
+      kind: "transaction",
+      txHash: "0xabc",
+    });
 
     expect(sendSystemMessage).toHaveBeenCalledWith(
       "session-unit-8",
@@ -656,7 +659,10 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("sign solana");
     const request = (await requestPromise) as { id: string };
 
-    await session.resolve(request.id, { signedTx: "SIGNED:AQAA" });
+    await session.resolve(request.id, {
+      kind: "solana_sign",
+      signedTx: "SIGNED:AQAA",
+    });
 
     expect(sendSystemMessage).toHaveBeenCalledWith(
       "session-solana-2",
