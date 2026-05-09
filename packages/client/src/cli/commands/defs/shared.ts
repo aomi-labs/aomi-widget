@@ -41,6 +41,11 @@ export const globalArgs = {
     type: "string",
     description: "Hex private key for signing",
   },
+  "solana-private-key": {
+    type: "string",
+    description:
+      "Solana keypair secret (base58 secret key, or JSON byte array) for signing solana_sign requests",
+  },
   "rpc-url": {
     type: "string",
     description: "RPC URL for transaction submission",
@@ -117,6 +122,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
 
+  const solanaPrivateKey =
+    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY;
+
   return {
     baseUrl:
       str(args["backend-url"]) ??
@@ -133,6 +141,7 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,
     privateKey,
+    solanaPrivateKey,
     chainRpcUrl:
       str(args["rpc-url"]) ??
       process.env.CHAIN_RPC_URL,

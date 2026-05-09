@@ -12,6 +12,14 @@ export type CliConfig = {
   freshSession?: boolean;
   publicKey?: string;
   privateKey?: string;
+  /**
+   * Solana keypair secret. Accepts:
+   *  - base58 of the 64-byte secret key (Phantom / Solflare export format)
+   *  - JSON array of bytes (`[1,2,...,64]`, the `solana-keygen` format)
+   * EVM-only sessions can leave this unset — `aomi tx sign` only requires it
+   * when the targeted pending tx is `solana_sign` kind.
+   */
+  solanaPrivateKey?: string;
   chainRpcUrl?: string;
   chain?: number;
   secrets: Record<string, string>;

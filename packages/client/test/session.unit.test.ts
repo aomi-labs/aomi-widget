@@ -583,4 +583,189 @@ describe("ClientSession ext helpers", () => {
 
     session.close();
   });
+
+  it("emits wallet_solana_sign_request from a wallet::solana_sign_request InlineCall", async () => {
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-solana-1" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "QkFTRTY0VFhCWVRFUw",
+            description: "swap 1 USDC for SOL",
+            cluster: "solana:devnet",
+            pending_solana_id: 7,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_sign_request", resolve);
+    });
+
+    await session.sendAsync("queue solana signature");
+    const request = (await requestPromise) as {
+      id: string;
+      kind: string;
+      payload: {
+        unsignedTx?: string;
+        description?: string;
+        cluster?: string;
+        pendingSolanaId?: number;
+      };
+    };
+
+    expect(request.id).toBe("solana-7");
+    expect(request.kind).toBe("solana_sign");
+    expect(request.payload.unsignedTx).toBe("QkFTRTY0VFhCWVRFUw");
+    expect(request.payload.description).toBe("swap 1 USDC for SOL");
+    expect(request.payload.cluster).toBe("solana:devnet");
+    expect(request.payload.pendingSolanaId).toBe(7);
+
+    session.close();
+  });
+
+  it("posts wallet::solana_sign_complete with signed_tx on resolve", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-solana-2" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "AQAA",
+            description: "claim rewards",
+            pending_solana_id: 3,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_sign_request", resolve);
+    });
+
+    await session.sendAsync("sign solana");
+    const request = (await requestPromise) as { id: string };
+
+    await session.resolve(request.id, { signedTx: "SIGNED:AQAA" });
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-solana-2",
+      JSON.stringify({
+        type: "wallet::solana_sign_complete",
+        payload: {
+          status: "signed",
+          signed_tx: "SIGNED:AQAA",
+          description: "claim rewards",
+          pending_solana_id: 3,
+        },
+      }),
+    );
+
+    session.close();
+  });
+
+  it("posts wallet::solana_sign_complete rejected on reject", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-solana-3" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "AQAA",
+            description: "claim rewards",
+            pending_solana_id: 4,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_sign_request", resolve);
+    });
+
+    await session.sendAsync("sign solana");
+    const request = (await requestPromise) as { id: string };
+
+    await session.reject(request.id, "User cancelled in Phantom");
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-solana-3",
+      JSON.stringify({
+        type: "wallet::solana_sign_complete",
+        payload: {
+          status: "rejected",
+          error: "User cancelled in Phantom",
+          description: "claim rewards",
+          pending_solana_id: 4,
+        },
+      }),
+    );
+
+    session.close();
+  });
+
+  it("rebuilds solana_sign requests from user_state.pending_solana_txs", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-solana-4",
+      userState: {
+        address: "0xabc",
+        chainId: 1,
+        isConnected: true,
+        svmAddress: "So1aBcExampleSigner",
+      },
+    });
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        address: "0xabc",
+        chain_id: 1,
+        is_connected: true,
+        svm_address: "So1aBcExampleSigner",
+        pending_solana_txs: {
+          12: {
+            signer: "So1aBcExampleSigner",
+            cluster: "solana:mainnet",
+            description: "byreal swap",
+            unsigned_tx: "AQABAg",
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    const changedPromise = new Promise<unknown>((resolve) => {
+      session.once("wallet_requests_changed", resolve);
+    });
+
+    await session.fetchCurrentState();
+    const requests = (await changedPromise) as Array<{
+      id: string;
+      kind: string;
+      payload: { unsignedTx?: string; pendingSolanaId?: number };
+    }>;
+
+    const solana = requests.find((r) => r.kind === "solana_sign");
+    expect(solana).toBeDefined();
+    expect(solana?.id).toBe("solana-12");
+    expect(solana?.payload.unsignedTx).toBe("AQABAg");
+    expect(solana?.payload.pendingSolanaId).toBe(12);
+
+    session.close();
+  });
 });
