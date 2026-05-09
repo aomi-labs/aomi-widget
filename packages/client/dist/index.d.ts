@@ -632,24 +632,50 @@ declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSign
 declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
 
 type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
+/**
+ * Tagged union of in-flight wallet requests. The `kind` field is the
+ * discriminator — narrowing on it auto-narrows `payload` to the matching
+ * chain-specific shape, so consumers don't need `as` casts.
+ *
+ * The id namespace is shared (the backend assigns ids out of one
+ * monotonic sequence), but the request shapes diverge per kind. Keeping
+ * this as a real discriminated union (rather than a `kind` + flat union
+ * `payload`) is the cheapest way to keep type information flowing from
+ * the SDK up to consumer apps.
+ */
 type WalletRequest = {
     id: string;
-    kind: WalletRequestKind;
-    payload: WalletTxPayload | WalletEip712Payload | WalletSolanaSignPayload;
+    kind: "transaction";
+    payload: WalletTxPayload;
+    timestamp: number;
+} | {
+    id: string;
+    kind: "eip712_sign";
+    payload: WalletEip712Payload;
+    timestamp: number;
+} | {
+    id: string;
+    kind: "solana_sign";
+    payload: WalletSolanaSignPayload;
     timestamp: number;
 };
+/**
+ * Tagged union of results passed to `Session.resolve(id, result)`. The
+ * `kind` field is the discriminator — set it to match the originating
+ * request's kind, and the result shape narrows to exactly the artifact
+ * the backend expects:
+ *   - "transaction"  → `txHash` (+ optional AA metadata)
+ *   - "eip712_sign"  → `signature`
+ *   - "solana_sign"  → `signedTx` (base64 of the full signed bytes)
+ *
+ * `Session.resolve` runtime-checks that `result.kind` matches the
+ * originating `request.kind`, so a kind mismatch fails fast instead of
+ * silently posting an empty artifact to the backend.
+ */
 type WalletRequestResult = {
-    txHash?: string;
-    signature?: string;
-    /**
-     * Base64-encoded full signed Solana transaction. Set on `solana_sign`
-     * resolutions; the SDK forwards it to the backend as
-     * `wallet::solana_sign_complete.signed_tx`, which apps splice into
-     * `submit_*` continuations via `bind_as("signed_tx")`.
-     */
-    signedTx?: string;
+    kind: "transaction";
+    txHash: string;
     amount?: string;
-    error?: string;
     aaRequestedMode?: "4337" | "7702" | "none";
     aaResolvedMode?: "4337" | "7702" | "none";
     aaFallbackReason?: string;
@@ -659,6 +685,13 @@ type WalletRequestResult = {
     sponsored?: boolean;
     smartAccountAddress?: string;
     delegationAddress?: string;
+} | {
+    kind: "eip712_sign";
+    signature: string;
+} | {
+    kind: "solana_sign";
+    /** Base64 of the full signed Solana transaction bytes. */
+    signedTx: string;
 };
 type SendResult = {
     messages: AomiMessage[];
@@ -795,8 +828,11 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      */
     sendAsync(message: string): Promise<AomiChatResponse>;
     /**
-     * Resolve a pending wallet request (transaction or EIP-712 signing).
-     * Sends the result to the backend and resumes polling.
+     * Resolve a pending wallet request (transaction, EIP-712, or Solana
+     * sign). The `result.kind` discriminator must match the originating
+     * request's kind — sending a `transaction` result for an `eip712_sign`
+     * request would post the wrong wire event with empty fields, so we
+     * fail fast at runtime instead.
      */
     resolve(requestId: string, result: WalletRequestResult): Promise<void>;
     /**

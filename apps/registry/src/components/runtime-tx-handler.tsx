@@ -117,7 +117,7 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.sendTransaction(payloadWithFee);
-          await resolveWalletRequest(req.id, result);
+          await resolveWalletRequest(req.id, { kind: "transaction", ...result });
           return;
         }
 
@@ -153,7 +153,7 @@ export function RuntimeTxHandler() {
           typed_data: signArgs,
         };
         const result = await adapter.signTypedData(signaturePayload);
-        await resolveWalletRequest(req.id, result);
+        await resolveWalletRequest(req.id, { kind: "eip712_sign", ...result });
       } catch (error) {
         console.error("[RuntimeTxHandler] Request failed:", error);
         await rejectWalletRequest(

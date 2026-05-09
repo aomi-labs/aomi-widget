@@ -1605,22 +1605,29 @@ var init_session = __esm({
       // Public API — Wallet Request Resolution
       // ===========================================================================
       /**
-       * Resolve a pending wallet request (transaction or EIP-712 signing).
-       * Sends the result to the backend and resumes polling.
+       * Resolve a pending wallet request (transaction, EIP-712, or Solana
+       * sign). The `result.kind` discriminator must match the originating
+       * request's kind — sending a `transaction` result for an `eip712_sign`
+       * request would post the wrong wire event with empty fields, so we
+       * fail fast at runtime instead.
        */
       async resolve(requestId, result) {
-        var _a3, _b, _c, _d, _e, _f, _g;
+        var _a3, _b, _c, _d, _e;
         const req = this.removeWalletRequest(requestId);
         if (!req) {
           throw new Error(`No pending wallet request with id "${requestId}"`);
         }
-        if (req.kind === "transaction") {
-          const txPayload = req.payload;
-          const pendingTxIds = txIdsFromPayload(txPayload);
-          const requestedMode = (_a3 = result.aaRequestedMode) != null ? _a3 : aaRequestedModeFromPreference(txPayload.aaPreference);
+        if (result.kind !== req.kind) {
+          throw new Error(
+            `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`
+          );
+        }
+        if (req.kind === "transaction" && result.kind === "transaction") {
+          const pendingTxIds = txIdsFromPayload(req.payload);
+          const requestedMode = (_a3 = result.aaRequestedMode) != null ? _a3 : aaRequestedModeFromPreference(req.payload.aaPreference);
           const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
           await this.sendSystemEvent("wallet:tx_complete", {
-            txHash: (_d = result.txHash) != null ? _d : "",
+            txHash: result.txHash,
             status: "success",
             amount: result.amount,
             pending_tx_ids: pendingTxIds,
@@ -1628,26 +1635,24 @@ var init_session = __esm({
             aa_resolved_mode: resolvedMode,
             aa_fallback_reason: result.aaFallbackReason,
             execution_kind: result.executionKind,
-            batched: (_e = result.batched) != null ? _e : pendingTxIds.length > 1,
-            call_count: (_f = result.callCount) != null ? _f : pendingTxIds.length,
+            batched: (_d = result.batched) != null ? _d : pendingTxIds.length > 1,
+            call_count: (_e = result.callCount) != null ? _e : pendingTxIds.length,
             sponsored: result.sponsored,
             smart_account_address: result.smartAccountAddress,
             delegation_address: result.delegationAddress
           });
-        } else if (req.kind === "eip712_sign") {
-          const eip712Payload = req.payload;
+        } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
           await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "success",
             signature: result.signature,
-            description: eip712Payload.description
-          }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
-        } else {
-          const solanaPayload = req.payload;
+            description: req.payload.description
+          }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
+        } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
           await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
             status: "signed",
-            signed_tx: (_g = result.signedTx) != null ? _g : "",
-            description: solanaPayload.description
-          }, solanaPayload.pendingSolanaId !== void 0 ? { pending_solana_id: solanaPayload.pendingSolanaId } : {}));
+            signed_tx: result.signedTx,
+            description: req.payload.description
+          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -1663,9 +1668,8 @@ var init_session = __esm({
           throw new Error(`No pending wallet request with id "${requestId}"`);
         }
         if (req.kind === "transaction") {
-          const txPayload = req.payload;
-          const pendingTxIds = txIdsFromPayload(txPayload);
-          const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
+          const pendingTxIds = txIdsFromPayload(req.payload);
+          const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
           await this.sendSystemEvent("wallet:tx_complete", {
             txHash: "",
             status: "failed",
@@ -1682,19 +1686,17 @@ var init_session = __esm({
             delegation_address: void 0
           });
         } else if (req.kind === "eip712_sign") {
-          const eip712Payload = req.payload;
           await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "failed",
             error: reason != null ? reason : "Request rejected",
-            description: eip712Payload.description
-          }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
+            description: req.payload.description
+          }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
         } else {
-          const solanaPayload = req.payload;
           await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
             status: "rejected",
             error: reason != null ? reason : "Request rejected",
-            description: solanaPayload.description
-          }, solanaPayload.pendingSolanaId !== void 0 ? { pending_solana_id: solanaPayload.pendingSolanaId } : {}));
+            description: req.payload.description
+          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -1951,22 +1953,37 @@ var init_session = __esm({
           this.emit("tool_complete", event);
         }
       }
-      // ===========================================================================
-      // Internal — Wallet Request Queue
-      // ===========================================================================
       enqueueWalletRequest(kind, payload) {
         var _a3;
         const id = this.getWalletRequestId(kind, payload);
         const existing = this.walletRequests.find((request) => request.id === id);
-        const req = {
-          id,
-          kind,
-          payload,
-          timestamp: (_a3 = existing == null ? void 0 : existing.timestamp) != null ? _a3 : Date.now()
-        };
-        this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+        const timestamp = (_a3 = existing == null ? void 0 : existing.timestamp) != null ? _a3 : Date.now();
+        let req;
         if (kind === "transaction") {
-          const nextTxIds = txIdsFromPayload(payload);
+          req = {
+            id,
+            kind,
+            payload,
+            timestamp
+          };
+        } else if (kind === "eip712_sign") {
+          req = {
+            id,
+            kind,
+            payload,
+            timestamp
+          };
+        } else {
+          req = {
+            id,
+            kind,
+            payload,
+            timestamp
+          };
+        }
+        this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+        if (req.kind === "transaction") {
+          const nextTxIds = txIdsFromPayload(req.payload);
           if (nextTxIds.length > 1) {
             const nextTxIdSet = new Set(nextTxIds);
             this.walletRequests = this.walletRequests.filter((request) => {
@@ -2038,12 +2055,12 @@ var init_session = __esm({
             return `tx-${txIds.join("-")}`;
           }
         } else if (kind === "eip712_sign") {
-          const eip712Id = payload.eip712Id;
+          const { eip712Id } = payload;
           if (typeof eip712Id === "number") {
             return `eip712-${eip712Id}`;
           }
         } else {
-          const pendingSolanaId = payload.pendingSolanaId;
+          const { pendingSolanaId } = payload;
           if (typeof pendingSolanaId === "number") {
             return `solana-${pendingSolanaId}`;
           }
