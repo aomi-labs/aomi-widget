@@ -7,7 +7,6 @@ import {
   parseChainId,
   toViemSignTypedDataArgs,
   useAomiRuntime,
-  type WalletEip712Payload,
   type WalletRequest,
   type WalletTxPayload,
 } from "@aomi-labs/react";
@@ -79,10 +78,10 @@ export function RuntimeTxHandler() {
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "transaction") {
-          const initialPayload = req.payload as WalletTxPayload;
-          const payload = hasHydratedCalls(initialPayload)
-            ? initialPayload
-            : hydrateTxPayloadFromUserState(initialPayload, user, {
+          // `req.payload` narrows to WalletTxPayload via the discriminated union.
+          const payload = hasHydratedCalls(req.payload)
+            ? req.payload
+            : hydrateTxPayloadFromUserState(req.payload, user, {
                 strict: true,
               });
 
@@ -117,18 +116,38 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.sendTransaction(payloadWithFee);
-          await resolveWalletRequest(req.id, result);
+          await resolveWalletRequest(req.id, { kind: "transaction", ...result });
           return;
         }
 
+        if (req.kind === "solana_sign") {
+          // No simulation, no fee injection, no chain switching — host
+          // doesn't have a Solana fork simulator and apps own RPC routing.
+          // Just sign the base64 unsigned tx and return base64 signed bytes.
+          if (!adapter.signSolanaTransaction) {
+            await rejectWalletRequest(
+              req.id,
+              "Solana wallet provider is not ready",
+            );
+            return;
+          }
+          if (!req.payload.unsignedTx) {
+            await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
+            return;
+          }
+
+          const result = await adapter.signSolanaTransaction(req.payload);
+          await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
+          return;
+        }
+
+        // req.kind === "eip712_sign"
         if (!adapter.signTypedData) {
           await rejectWalletRequest(req.id, "Wallet provider is not ready");
           return;
         }
 
-        const payload = req.payload as WalletEip712Payload;
-        const signArgs = toViemSignTypedDataArgs(payload);
-
+        const signArgs = toViemSignTypedDataArgs(req.payload);
         if (!signArgs) {
           await rejectWalletRequest(req.id, "Missing typed_data payload");
           return;
@@ -148,12 +167,11 @@ export function RuntimeTxHandler() {
           await adapter.switchChain(requestChainId);
         }
 
-        const signaturePayload: WalletEip712Payload = {
-          ...payload,
+        const result = await adapter.signTypedData({
+          ...req.payload,
           typed_data: signArgs,
-        };
-        const result = await adapter.signTypedData(signaturePayload);
-        await resolveWalletRequest(req.id, result);
+        });
+        await resolveWalletRequest(req.id, { kind: "eip712_sign", ...result });
       } catch (error) {
         console.error("[RuntimeTxHandler] Request failed:", error);
         await rejectWalletRequest(

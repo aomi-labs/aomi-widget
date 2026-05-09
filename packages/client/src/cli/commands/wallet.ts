@@ -17,6 +17,7 @@ import {
 import type { AomiSimulateFee } from "../../types";
 import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
+import { parseSolanaKeypairSecret, signSolanaTransaction } from "../solana-signer";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -25,8 +26,10 @@ import {
   type CliExecutionDecision,
 } from "../execution";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
-import type { SignedTx } from "../state";
+import type { PendingSolTx, SignedTx } from "../state";
 import {
+  formatPendingSolTxLine,
+  formatSignedSolTxLine,
   formatSignedTxLine,
   formatTxLine,
   pendingTxToCallList,
@@ -59,26 +62,37 @@ export async function txCommand(): Promise<void> {
   }
 
   const pending = [...cli.pendingTxs];
+  const pendingSol = [...cli.pendingSolTxs];
   const signed = [...cli.signedTxs];
+  const signedSol = [...cli.signedSolTxs];
 
-  if (pending.length === 0 && signed.length === 0) {
+  const totalPending = pending.length + pendingSol.length;
+  const totalSigned = signed.length + signedSol.length;
+
+  if (totalPending === 0 && totalSigned === 0) {
     console.log("No transactions.");
     printDataFileLocation();
     return;
   }
 
-  if (pending.length > 0) {
-    console.log(`Pending (${pending.length}):`);
+  if (totalPending > 0) {
+    console.log(`Pending (${totalPending}):`);
     for (const tx of pending) {
       console.log(formatTxLine(tx, "  ⏳"));
     }
+    for (const tx of pendingSol) {
+      console.log(formatPendingSolTxLine(tx, "  ⏳"));
+    }
   }
 
-  if (signed.length > 0) {
-    if (pending.length > 0) console.log();
-    console.log(`Signed (${signed.length}):`);
+  if (totalSigned > 0) {
+    if (totalPending > 0) console.log();
+    console.log(`Signed (${totalSigned}):`);
     for (const tx of signed) {
       console.log(formatSignedTxLine(tx, "  ✅"));
+    }
+    for (const tx of signedSol) {
+      console.log(formatSignedSolTxLine(tx, "  ✅"));
     }
   }
 
@@ -162,6 +176,97 @@ function buildCliTxCompletionMetadata(params: {
   };
 }
 
+/**
+ * Drive the Solana sign branch end-to-end:
+ *   1. Load + parse the local Solana keypair from `--solana-private-key`
+ *      (or `SOLANA_PRIVATE_KEY` env).
+ *   2. Sign the base64 unsigned tx in place.
+ *   3. Post `wallet::solana_sign_complete` to the backend with the signed
+ *      bytes, so the agent's bound `signed_tx` artifact resolves and any
+ *      `submit_*` continuation can fire.
+ *   4. Persist the signed record locally for `aomi tx list`.
+ *
+ * Singular by design — host doesn't batch Solana signs. The host's
+ * `domain.svm.address` is informational; this CLI path always signs with
+ * whatever keypair the user provided. We do warn on mismatch.
+ */
+async function signSolanaPending(params: {
+  cli: CliSession;
+  session: ReturnType<CliSession["createClientSession"]>;
+  config: CliConfig;
+  pendingTx: PendingSolTx;
+}): Promise<void> {
+  const { cli, session, config, pendingTx } = params;
+  const secret = config.solanaPrivateKey ?? process.env.SOLANA_PRIVATE_KEY;
+  if (!secret) {
+    fatal(
+      [
+        "Solana keypair required for `aomi tx sign` on a solana_sign request.",
+        "Pass one of:",
+        "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
+        "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
+        "",
+        "Accepted formats:",
+        "  base58 of the 64-byte secret key (Phantom / Solflare export)",
+        "  JSON byte array `[1,2,...,64]` (solana-keygen output)",
+      ].join("\n"),
+    );
+  }
+
+  let keypair;
+  try {
+    keypair = parseSolanaKeypairSecret(secret);
+  } catch (err) {
+    fatal(err instanceof Error ? err.message : String(err));
+  }
+
+  if (pendingTx.signer && pendingTx.signer !== keypair.publicKey.toBase58()) {
+    console.log(
+      `⚠️  Local signer ${keypair.publicKey.toBase58()} differs from expected ${pendingTx.signer}`,
+    );
+  }
+
+  console.log(`Kind:    solana_sign`);
+  console.log(`Tx:      ${pendingTx.id}`);
+  if (pendingTx.cluster) console.log(`Cluster: ${pendingTx.cluster}`);
+  if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
+  console.log(`Signer:  ${keypair.publicKey.toBase58()}`);
+  console.log();
+
+  const outcome = signSolanaTransaction(pendingTx.unsignedTx, keypair);
+  console.log(
+    `✅ Signed! signed_tx: ${outcome.signedTxBase64.slice(0, 24)}... (${outcome.signedTxBase64.length} chars)`,
+  );
+
+  await session.client.sendSystemMessage(
+    cli.sessionId,
+    JSON.stringify({
+      type: "wallet::solana_sign_complete",
+      payload: {
+        status: "signed",
+        signed_tx: outcome.signedTxBase64,
+        description: pendingTx.description,
+        pending_solana_id: pendingTx.solanaId,
+      },
+    }),
+  );
+
+  // Re-sync to drop the now-discarded pending entry on the host side.
+  const syncedState = await session.syncUserState();
+  cli.syncPendingFromUserState(syncedState.user_state);
+
+  cli.addSignedSolTx({
+    id: pendingTx.id,
+    signedTx: outcome.signedTxBase64,
+    signer: outcome.signer,
+    cluster: pendingTx.cluster,
+    description: pendingTx.description,
+    timestamp: Date.now(),
+  });
+
+  console.log("Backend notified.");
+}
+
 async function executeCliTransaction(params: {
   privateKey: `0x${string}`;
   currentChainId: number;
@@ -196,24 +301,19 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs.",
     );
   }
+  const uniqueIds = Array.from(new Set(txIds));
+  if (uniqueIds.length !== txIds.length) {
+    fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+  }
 
   const cli = CliSession.load();
   if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
   }
 
+  // EVM private key is only required when the targeted pending tx is
+  // EVM/EIP-712 kind. Solana sign requests use a separate keypair flag.
   const privateKey = config.privateKey ?? cli.privateKey;
-  if (!privateKey) {
-    fatal(
-      [
-        "Private key required for `aomi tx sign`.",
-        "Pass one of:",
-        "  aomi wallet set <hex-key>",
-        "  aomi tx sign --private-key <hex-key> <tx-id>",
-        "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>",
-      ].join("\n"),
-    );
-  }
 
   cli.mergeConfig(config);
   const session = cli.createClientSession();
@@ -225,7 +325,60 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       cli.clientId,
     );
     cli.syncPendingFromUserState(initialState.user_state);
-    const pendingTxs = cli.requirePendingTxs(txIds);
+
+    // Membership check: each requested id resolves to exactly one of the
+    // two authoritative arrays (EVM/EIP-712 or Solana) — backend ids are
+    // unique across kinds. Mixing kinds in a single invocation is a UX
+    // error, so dispatch wholesale.
+    const solanaIds = uniqueIds.filter((id) => cli.findPendingSolTx(id) !== undefined);
+    const evmIds = uniqueIds.filter((id) => cli.findPendingTx(id) !== undefined);
+    const unknownIds = uniqueIds.filter(
+      (id) =>
+        cli.findPendingSolTx(id) === undefined &&
+        cli.findPendingTx(id) === undefined,
+    );
+    if (unknownIds.length > 0) {
+      const available =
+        [...cli.pendingTxs, ...cli.pendingSolTxs].map((tx) => tx.id).join(", ") || "(none)";
+      const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
+      fatal(`${label} "${unknownIds.join('", "')}" not found.\nAvailable: ${available}`);
+    }
+    if (solanaIds.length > 0 && evmIds.length > 0) {
+      fatal(
+        "Cannot mix Solana and EVM/EIP-712 requests in the same `aomi tx sign` invocation.",
+      );
+    }
+
+    // Solana sign branch: singular, no EVM key, no chain/RPC needed.
+    if (solanaIds.length > 0) {
+      if (solanaIds.length > 1) {
+        fatal(
+          "Solana signing is singular — pass exactly one tx-id at a time.",
+        );
+      }
+      const solanaTx = cli.requirePendingSolTx(solanaIds[0]);
+      await signSolanaPending({
+        cli,
+        session,
+        config,
+        pendingTx: solanaTx,
+      });
+      return;
+    }
+
+    // EVM / EIP-712 branch.
+    const pendingTxs = cli.requirePendingTxs(uniqueIds);
+    if (!privateKey) {
+      fatal(
+        [
+          "Private key required for `aomi tx sign`.",
+          "Pass one of:",
+          "  aomi wallet set <hex-key>",
+          "  aomi tx sign --private-key <hex-key> <tx-id>",
+          "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>",
+        ].join("\n"),
+      );
+    }
     const account = privateKeyToAccount(privateKey as `0x${string}`);
 
     if (
