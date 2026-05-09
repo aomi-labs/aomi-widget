@@ -305,4 +305,21 @@ describe("CLI wallet sign — solana_sign branch", () => {
 
     expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
   });
+
+  it("rejects unknown ids instead of silently signing the known solana request", async () => {
+    await expect(
+      signCommand(
+        {
+          baseUrl: "http://127.0.0.1:8080",
+          app: "default",
+          apiKey: "test-key",
+          solanaPrivateKey: SIGNER_SECRET_BS58,
+          secrets: {},
+        },
+        ["tx-5", "tx-999"],
+      ),
+    ).rejects.toThrow();
+
+    expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
+  });
 });

@@ -301,6 +301,10 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs.",
     );
   }
+  const uniqueIds = Array.from(new Set(txIds));
+  if (uniqueIds.length !== txIds.length) {
+    fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+  }
 
   const cli = CliSession.load();
   if (!cli) {
@@ -326,8 +330,19 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     // two authoritative arrays (EVM/EIP-712 or Solana) — backend ids are
     // unique across kinds. Mixing kinds in a single invocation is a UX
     // error, so dispatch wholesale.
-    const solanaIds = txIds.filter((id) => cli.findPendingSolTx(id) !== undefined);
-    const evmIds = txIds.filter((id) => cli.findPendingTx(id) !== undefined);
+    const solanaIds = uniqueIds.filter((id) => cli.findPendingSolTx(id) !== undefined);
+    const evmIds = uniqueIds.filter((id) => cli.findPendingTx(id) !== undefined);
+    const unknownIds = uniqueIds.filter(
+      (id) =>
+        cli.findPendingSolTx(id) === undefined &&
+        cli.findPendingTx(id) === undefined,
+    );
+    if (unknownIds.length > 0) {
+      const available =
+        [...cli.pendingTxs, ...cli.pendingSolTxs].map((tx) => tx.id).join(", ") || "(none)";
+      const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
+      fatal(`${label} "${unknownIds.join('", "')}" not found.\nAvailable: ${available}`);
+    }
     if (solanaIds.length > 0 && evmIds.length > 0) {
       fatal(
         "Cannot mix Solana and EVM/EIP-712 requests in the same `aomi tx sign` invocation.",
@@ -352,7 +367,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     }
 
     // EVM / EIP-712 branch.
-    const pendingTxs = cli.requirePendingTxs(txIds);
+    const pendingTxs = cli.requirePendingTxs(uniqueIds);
     if (!privateKey) {
       fatal(
         [

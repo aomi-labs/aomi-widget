@@ -1613,7 +1613,7 @@ var init_session = __esm({
        */
       async resolve(requestId, result) {
         var _a3, _b, _c, _d, _e;
-        const req = this.removeWalletRequest(requestId);
+        const req = this.walletRequests.find((request) => request.id === requestId);
         if (!req) {
           throw new Error(`No pending wallet request with id "${requestId}"`);
         }
@@ -1622,6 +1622,7 @@ var init_session = __esm({
             `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`
           );
         }
+        this.removeWalletRequest(requestId);
         if (req.kind === "transaction" && result.kind === "transaction") {
           const pendingTxIds = txIdsFromPayload(req.payload);
           const requestedMode = (_a3 = result.aaRequestedMode) != null ? _a3 : aaRequestedModeFromPreference(req.payload.aaPreference);
@@ -3327,12 +3328,13 @@ async function chatCommand(config, message, verbose) {
       );
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
-    const authoritativePendingTxs = cli.syncPendingFromUserState(
+    const syncedPending = cli.syncPendingFromUserState(
       session.getUserState()
     );
-    const newPendingTxs = authoritativePendingTxs.filter(
-      (tx) => !previousPendingIds.has(tx.id)
-    );
+    const newPendingTxs = [
+      ...syncedPending.pendingTxs,
+      ...syncedPending.pendingSolTxs
+    ].filter((tx) => !previousPendingIds.has(tx.id));
     for (const pending of newPendingTxs) {
       console.log(`\u26A1 Wallet request queued: ${pending.id}`);
       if (pending.kind === "transaction") {
@@ -5168,6 +5170,10 @@ async function signCommand(config, txIds) {
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
     );
   }
+  const uniqueIds = Array.from(new Set(txIds));
+  if (uniqueIds.length !== txIds.length) {
+    fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+  }
   const cli = CliSession.load();
   if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
@@ -5182,8 +5188,17 @@ async function signCommand(config, txIds) {
       cli.clientId
     );
     cli.syncPendingFromUserState(initialState.user_state);
-    const solanaIds = txIds.filter((id) => cli.findPendingSolTx(id) !== void 0);
-    const evmIds = txIds.filter((id) => cli.findPendingTx(id) !== void 0);
+    const solanaIds = uniqueIds.filter((id) => cli.findPendingSolTx(id) !== void 0);
+    const evmIds = uniqueIds.filter((id) => cli.findPendingTx(id) !== void 0);
+    const unknownIds = uniqueIds.filter(
+      (id) => cli.findPendingSolTx(id) === void 0 && cli.findPendingTx(id) === void 0
+    );
+    if (unknownIds.length > 0) {
+      const available = [...cli.pendingTxs, ...cli.pendingSolTxs].map((tx) => tx.id).join(", ") || "(none)";
+      const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
+      fatal(`${label} "${unknownIds.join('", "')}" not found.
+Available: ${available}`);
+    }
     if (solanaIds.length > 0 && evmIds.length > 0) {
       fatal(
         "Cannot mix Solana and EVM/EIP-712 requests in the same `aomi tx sign` invocation."
@@ -5204,7 +5219,7 @@ async function signCommand(config, txIds) {
       });
       return;
     }
-    const pendingTxs = cli.requirePendingTxs(txIds);
+    const pendingTxs = cli.requirePendingTxs(uniqueIds);
     if (!privateKey) {
       fatal(
         [
