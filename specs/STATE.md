@@ -2,9 +2,31 @@
 
 ## Last Updated
 
-2026-04-27 - Release version bumps for publish
+2026-05-09 - x402 / MPP frontend affordances
 
 ## Recent Changes
+
+### x402 / MPP frontend support (2026-05-09)
+
+Goal: make x402 and MPP usable in any widget-lib consumer that brings a wallet, without violating the unification-spec rule that wagmi-bound payment wiring stays portal-local.
+
+- **`<PaymentSelect>` extended** ([apps/registry/src/components/control-bar/payment-select.tsx](apps/registry/src/components/control-bar/payment-select.tsx)) — new optional `getStatus(method)` prop returning `{ tone, label, connect? }`. Renders a status dot in trigger and option rows; renders a Connect CTA inside the popover only when the selected method's status carries a `connect` field. Backward-compatible — no props means today's selection-only behavior.
+- **`paymentSelectProps` threaded through** `ControlBarProps` → `ComposerControlContext` (`<AomiFrame.Composer controlBarProps={{ paymentSelectProps }}>`) → inline `<PaymentSelect>` in `assistant-ui/thread.tsx`. Existing `Header` path also covered since the field is on `ControlBarProps`.
+- **Portal adapter** [apps/portal/src/lib/use-payment-select-props.ts](apps/portal/src/lib/use-payment-select-props.ts) maps `usePaymentStatus()` to `PaymentSelectProps`. Attaches `connect` only on remediable MPP states (`not_connected | needs_reconnect | needs_top_up`); never on x402 (wallet-required is remediated upstream).
+- **Wired in** [apps/portal/src/components/portal-aomi-frame.tsx](apps/portal/src/components/portal-aomi-frame.tsx) via the existing `controlBarProps={{ ... }}` on `<AomiFrame.Composer>`.
+- **Settings panels lifted to widget-lib** as opt-in registry components (not mounted by `<AomiFrame>`):
+  - [apps/registry/src/components/settings/payment-settings.tsx](apps/registry/src/components/settings/payment-settings.tsx) — props-driven (`status`, `toggles`, optional `providerKeys`). Default renders bundled `<ProviderKeysSettings />` matching today's portal Payments panel.
+  - [apps/registry/src/components/settings/provider-keys-settings.tsx](apps/registry/src/components/settings/provider-keys-settings.tsx) — uses `useControl()`; documented runtime requirement.
+  - Imports use registry idiom: `@/components/ui/button`, `@/components/ui/input`, `@/components/settings/provider-keys-settings`. No `@aomi-labs/widget-lib` or `@portal/...` imports inside the published source.
+- **Registry entries** added in [apps/registry/src/registry.ts](apps/registry/src/registry.ts): `payment-settings` (registryDeps: `button`, `aomi("provider-keys-settings")`) and `provider-keys-settings` (registryDeps: `button`, `input`).
+- **Exports** added in [apps/registry/src/index.ts](apps/registry/src/index.ts): `PaymentSelect` types, `PaymentSettings` + types, `ProviderKeysSettings`, `MppStatus`, `X402Status`.
+- **Portal collapsed to shims**:
+  - `apps/portal/src/components/settings/payment-settings.tsx` — wires `usePaymentStatus()` + `useSettings()` into widget-lib's `<PaymentSettings>`.
+  - `apps/portal/src/components/settings/provider-keys-settings.tsx` — re-export.
+- **Docs**: new [apps/landing/content/guides/build/payments.mdx](apps/landing/content/guides/build/payments.mdx) covering selection-only vs wallet-backed paths and the three pieces a host wires (fetch, status props, settings panel).
+- **Spec**: `DOMAIN.md` gains a "Payment Methods" section.
+
+
 
 ### Release version bumps for publish (2026-04-27)
 

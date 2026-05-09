@@ -1,0 +1,88 @@
+---
+title: Payments (x402 & MPP)
+description: How to wire wallet-backed payment methods (x402, MPP/Tempo) into the Aomi widget.
+---
+
+The Aomi backend supports four chat payment methods that the widget routes via the `payment_method` query param: Aomi credits, BYOK provider keys, MPP (Tempo channels), and x402 (HTTP 402 exact-payment, EVM scheme).
+
+The widget itself handles **selection** out of the box (per-thread, via `<PaymentSelect>`). The wallet-backed transports — MPP and x402 — require the host app to install three pieces, listed below. The reference implementation lives in `apps/portal`; copy from there as needed.
+
+## Selection-only (default)
+
+Mount the widget normally. Users can pick any method from the picker; the choice flows through `useControl().onPaymentMethodSelect` and into chat requests as `?payment_method=...`. No additional setup.
+
+```tsx
+import { AomiFrame } from "@aomi-labs/widget-lib";
+
+<AomiFrame.Root>
+  <AomiFrame.Composer withControl />
+</AomiFrame.Root>;
+```
+
+If a user picks `MPP` or `x402` here without the wallet-backed pieces below, the request will reach the backend without a payment header and the backend will respond with the appropriate error.
+
+## Wallet-backed (MPP + x402)
+
+You need to wire all three pieces below. Each is opt-in.
+
+### 1. Payment-aware `fetch`
+
+Build a `fetch` that signs x402 challenges and answers MPP `WWW-Authenticate` headers, then pass it to `<AomiFrame.Root clientOptions={{ fetch }}>`. The reference implementation wraps `mppx` and `@x402/fetch` over wagmi's `getConnectorClient`. See [`apps/portal/src/lib/payment-client-options.ts`](https://github.com/aomi-labs/aomi-widget/blob/main/apps/portal/src/lib/payment-client-options.ts).
+
+```tsx
+const clientOptions = usePaymentAwareClientOptions(); // your hook
+<AomiFrame.Root clientOptions={clientOptions}>...</AomiFrame.Root>;
+```
+
+### 2. Status + connect on the picker
+
+`<PaymentSelect>` accepts a `getStatus(method)` prop that returns a tone (`ready | connecting | warning | error`), label, and an optional method-specific `connect` action. Forward your status hook through `<AomiFrame.Composer controlBarProps={{ paymentSelectProps }}>`.
+
+```tsx
+import type { PaymentSelectProps } from "@aomi-labs/widget-lib";
+
+const paymentSelectProps: PaymentSelectProps = {
+  getStatus: (method) => {
+    if (method === "tempo") {
+      return {
+        tone: mppReady ? "ready" : "warning",
+        label: mppStatusText,
+        connect: mppNotConnected
+          ? { label: "Connect MPP channel", run: () => connectMpp() }
+          : undefined,
+      };
+    }
+    if (method === "coinbase") {
+      return { tone: walletConnected ? "ready" : "warning", label: x402StatusText };
+    }
+    return undefined;
+  },
+};
+```
+
+Attach `connect` only on states the popover can actually remediate (e.g. MPP "not connected"). For x402 wallet-required, leave `connect` undefined — the user fixes that upstream via your wallet-connect button.
+
+### 3. Settings panel (optional)
+
+Install the `payment-settings` registry component to drop a Payments admin panel into your settings route:
+
+```bash
+npx shadcn@latest add https://aomi.dev/r/payment-settings.json
+```
+
+It composes `provider-keys-settings` by default. You supply two props:
+
+- `status`: same status hook used in step 2 (e.g. portal's `usePaymentStatus`).
+- `toggles`: a `mppEnabled` / `x402Enabled` / `preferredPaymentMethod` setter you persist somewhere (localStorage in portal).
+
+Pass `providerKeys={false}` to skip the BYOK section if you don't have a `ControlContextProvider` in scope.
+
+## Reference implementation
+
+`apps/portal` shows the full pattern end-to-end:
+
+- `src/lib/payment-client-options.ts` — payment-aware fetch (mppx + x402 via wagmi).
+- `src/lib/use-payment-status.ts` — overview poll, connect/clear actions.
+- `src/lib/use-payment-select-props.ts` — adapter from status to `<PaymentSelect>` props.
+- `src/components/portal-aomi-frame.tsx` — wires all three into one `<AomiFrame.Root>`.
+- `src/app/settings/page.tsx` + `src/components/settings/payment-settings.tsx` — settings route using the shared widget-lib panel.

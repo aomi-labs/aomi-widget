@@ -5,7 +5,7 @@ import { cn } from "@aomi-labs/react";
 import { NetworkSelect } from "./network-select";
 import { ModelSelect } from "./model-select";
 import { AppSelect } from "./app-select";
-import { PaymentSelect } from "./payment-select";
+import { PaymentSelect, type PaymentSelectProps } from "./payment-select";
 import { ApiKeyInput } from "./api-key-input";
 import { ConnectButton } from "./connect-button";
 import { SecretInput } from "./secret-input";
@@ -32,6 +32,8 @@ export type ControlBarProps = {
   hideNetwork?: boolean;
   /** Hide the secrets input */
   hideSecrets?: boolean;
+  /** Optional props forwarded to the inline PaymentSelect (status dots, connect CTA). */
+  paymentSelectProps?: PaymentSelectProps;
 };
 
 // =============================================================================
@@ -48,13 +50,14 @@ export const ControlBar: FC<ControlBarProps> = ({
   hideWallet = true,
   hideNetwork = false,
   hideSecrets = false,
+  paymentSelectProps,
 }) => {
   return (
     <div className={cn("flex items-center gap-2", className)}>
       {!hideNetwork && <NetworkSelect />}
       {!hideModel && <ModelSelect />}
       {!hideApp && <AppSelect />}
-      {!hidePayment && <PaymentSelect />}
+      {!hidePayment && <PaymentSelect {...paymentSelectProps} />}
       {!hideWallet && <ConnectButton />}
       {!hideSecrets && <SecretInput />}
       {children}
@@ -69,7 +72,12 @@ export const ControlBar: FC<ControlBarProps> = ({
 
 export { ModelSelect, type ModelSelectProps } from "./model-select";
 export { AppSelect, type AppSelectProps } from "./app-select";
-export { PaymentSelect, type PaymentSelectProps } from "./payment-select";
+export {
+  PaymentSelect,
+  type PaymentSelectProps,
+  type PaymentMethodStatus,
+  type PaymentMethodStatusTone,
+} from "./payment-select";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
 export { ConnectButton, type ConnectButtonProps } from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";

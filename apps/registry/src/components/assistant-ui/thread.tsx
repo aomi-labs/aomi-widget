@@ -238,6 +238,7 @@ const ComposerAction: FC = () => {
   const hideApiKey = controlBarProps.hideApiKey ?? false;
   const hideWallet = controlBarProps.hideWallet ?? true;
   const hideNetwork = controlBarProps.hideNetwork ?? false;
+  const paymentSelectProps = controlBarProps.paymentSelectProps;
 
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center gap-1">
@@ -247,7 +248,7 @@ const ComposerAction: FC = () => {
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
           {!hideApp && <AppSelect />}
-          {!hidePayment && <PaymentSelect />}
+          {!hidePayment && <PaymentSelect {...paymentSelectProps} />}
           {!hideWallet && <ConnectButton />}
           {!hideApiKey && <ApiKeyInput />}
         </div>

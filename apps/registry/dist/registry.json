@@ -690,6 +690,42 @@
         "vaul"
       ],
       "registryDependencies": []
+    },
+    {
+      "name": "provider-keys-settings",
+      "type": "registry:component",
+      "description": "BYOK provider-key management UI. Requires ControlContextProvider in the React tree (provided by <AomiFrame.Root>, or compose your own).",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/settings/provider-keys-settings.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react"
+      ],
+      "registryDependencies": [
+        "button",
+        "input"
+      ]
+    },
+    {
+      "name": "payment-settings",
+      "type": "registry:component",
+      "description": "Props-driven Payments settings panel. Renders ProviderKeysSettings by default; pass providerKeys={false} to skip BYOK and drop the runtime requirement. Host supplies status (e.g. portal's usePaymentStatus) and toggle persistence.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/settings/payment-settings.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/client"
+      ],
+      "registryDependencies": [
+        "button",
+        "https://aomi.dev/r/provider-keys-settings.json"
+      ]
     }
   ]
 }

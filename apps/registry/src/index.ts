@@ -2,6 +2,25 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 
+// Control bar — payment picker types so hosts can build adapters.
+export {
+  PaymentSelect,
+  type PaymentSelectProps,
+  type PaymentMethodStatus,
+  type PaymentMethodStatusTone,
+} from "./components/control-bar/payment-select";
+
+// Settings panels — opt-in, not mounted by AomiFrame.
+export {
+  PaymentSettings,
+  type PaymentSettingsProps,
+  type PaymentSettingsStatus,
+  type PaymentSettingsToggles,
+  type MppStatus,
+  type X402Status,
+} from "./components/settings/payment-settings";
+export { ProviderKeysSettings } from "./components/settings/provider-keys-settings";
+
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
 

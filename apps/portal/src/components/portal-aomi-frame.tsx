@@ -6,6 +6,7 @@ import { Settings } from "lucide-react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { useControl } from "@aomi-labs/react";
 import { usePaymentAwareClientOptions } from "@portal/lib/payment-client-options";
+import { usePaymentSelectProps } from "@portal/lib/use-payment-select-props";
 
 function getRequestedAppFromSearch(search: string): string | null {
   const params = new URLSearchParams(search);
@@ -43,6 +44,7 @@ function AppSelectUrlBootstrap() {
 
 export function PortalAomiFrame() {
   const clientOptions = usePaymentAwareClientOptions();
+  const paymentSelectProps = usePaymentSelectProps();
 
   return (
     <main className="bg-background h-full w-full overflow-hidden">
@@ -67,6 +69,7 @@ export function PortalAomiFrame() {
           withControl
           controlBarProps={{
             hideApiKey: true,
+            paymentSelectProps,
           }}
         />
       </AomiFrame.Root>

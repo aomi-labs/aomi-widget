@@ -354,4 +354,22 @@ export const registry: RegistryComponent[] = [
     description:
       "A drawer component for mobile navigation menus and similar interfaces.",
   },
+
+  // === SETTINGS PANELS (opt-in, not mounted by AomiFrame) ===
+  {
+    name: "provider-keys-settings",
+    file: "components/settings/provider-keys-settings.tsx",
+    dependencies: ["@aomi-labs/react"],
+    registryDependencies: ["button", "input"],
+    description:
+      "BYOK provider-key management UI. Requires ControlContextProvider in the React tree (provided by <AomiFrame.Root>, or compose your own).",
+  },
+  {
+    name: "payment-settings",
+    file: "components/settings/payment-settings.tsx",
+    dependencies: ["@aomi-labs/client"],
+    registryDependencies: ["button", aomi("provider-keys-settings")],
+    description:
+      "Props-driven Payments settings panel. Renders ProviderKeysSettings by default; pass providerKeys={false} to skip BYOK and drop the runtime requirement. Host supplies status (e.g. portal's usePaymentStatus) and toggle persistence.",
+  },
 ];

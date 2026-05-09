@@ -156,6 +156,24 @@ AomiClient (packages/react/backend)
 Backend Server
 ```
 
+## Payment Methods
+
+`paymentMethod` is **per-thread** state on `ThreadControlState` (`null = backend default`). Set via `useControl().onPaymentMethodSelect`; orchestrator propagates it into `ClientSession.sendMessage`. Backend selects via `?payment_method=` on `/api/chat`.
+
+| Method     | Value      | Transport requirement                          |
+| ---------- | ---------- | ---------------------------------------------- |
+| Auto       | `null`     | none                                           |
+| Aomi       | `"null"`   | none (uses included credits)                   |
+| BYOK       | `"byok"`   | provider key in vault (managed via `useControl`) |
+| MPP/Tempo  | `"tempo"`  | host installs payment-aware `fetch` + connects channel |
+| x402       | `"coinbase"` | host installs payment-aware `fetch` + wallet client |
+
+The widget does **not** ship MPP/x402 transport. Hosts pass a wallet-bound `fetch` via `<AomiFrame.Root clientOptions={{ fetch }}>` (see `apps/portal/src/lib/payment-client-options.ts` for the reference impl using `mppx` + `@x402/fetch`). Per `specs/portal-widget-lib-unification.md`, this stays portal-local and must not become default widget-lib behavior.
+
+`<PaymentSelect>` accepts an optional `getStatus(method)` prop (returning `{ tone, label, connect? }`) so hosts can render method-specific status dots and remediation CTAs (e.g. "Connect MPP channel"). Capability is bundled with status: absence of `connect` means no CTA, regardless of tone — used to avoid surfacing un-actionable CTAs (e.g. x402 wallet-required is remediated upstream).
+
+`<PaymentSettings>` is an opt-in settings panel exported from widget-lib, props-driven (host supplies `status` + `toggles`). Renders `<ProviderKeysSettings />` by default; pass `providerKeys={false}` to skip BYOK and drop the `ControlContextProvider` requirement.
+
 ## Invariants
 
 1. `ThreadContextProvider` must wrap `AomiRuntimeProvider`
