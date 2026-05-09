@@ -680,6 +680,50 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("keeps the request queued when resolve receives the wrong result kind", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-solana-kind-mismatch" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "AQAA",
+            description: "claim rewards",
+            pending_solana_id: 9,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_sign_request", resolve);
+    });
+
+    await session.sendAsync("sign solana");
+    const request = (await requestPromise) as { id: string };
+
+    await expect(
+      session.resolve(request.id, {
+        kind: "eip712_sign",
+        signature: "0xdeadbeef",
+      }),
+    ).rejects.toThrow(/kind mismatch/i);
+
+    expect(sendSystemMessage).not.toHaveBeenCalled();
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: request.id,
+        kind: "solana_sign",
+      }),
+    ]);
+
+    session.close();
+  });
+
   it("posts wallet::solana_sign_complete rejected on reject", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-solana-3" });

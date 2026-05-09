@@ -409,7 +409,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * fail fast at runtime instead.
    */
   async resolve(requestId: string, result: WalletRequestResult): Promise<void> {
-    const req = this.removeWalletRequest(requestId);
+    const req = this.walletRequests.find((request) => request.id === requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
@@ -418,6 +418,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`,
       );
     }
+    this.removeWalletRequest(requestId);
 
     if (req.kind === "transaction" && result.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);

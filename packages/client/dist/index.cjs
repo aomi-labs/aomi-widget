@@ -1401,7 +1401,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async resolve(requestId, result) {
     var _a, _b, _c, _d, _e;
-    const req = this.removeWalletRequest(requestId);
+    const req = this.walletRequests.find((request) => request.id === requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
@@ -1410,6 +1410,7 @@ var ClientSession = class extends TypedEventEmitter {
         `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`
       );
     }
+    this.removeWalletRequest(requestId);
     if (req.kind === "transaction" && result.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
       const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(req.payload.aaPreference);
