@@ -229,6 +229,7 @@ declare class AomiClient {
     private readonly baseUrl;
     private readonly apiKey?;
     private readonly fetchImpl;
+    private readonly rawFetchImpl;
     private readonly logger?;
     private readonly sseSubscriber;
     constructor(options: AomiClientOptions);

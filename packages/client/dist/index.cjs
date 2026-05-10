@@ -454,6 +454,7 @@ var AomiClient = class {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     this.fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
+    this.rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : this.fetchImpl;
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -742,7 +743,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await this.fetchImpl(url, { headers });
+    const response = await this.rawFetchImpl(url, { headers });
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
@@ -759,7 +760,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await this.fetchImpl(url, {
+    const response = await this.rawFetchImpl(url, {
       headers
     });
     if (!response.ok) {
@@ -1716,6 +1717,11 @@ var ClientSession = class extends TypedEventEmitter {
         const req = this.enqueueWalletRequest("solana_sign", payload);
         this.emit("wallet_solana_sign_request", req);
       } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
+        this.emit(
+          unwrapped.type,
+          unwrapped.payload
+        );
+      } else {
         this.emit(
           unwrapped.type,
           unwrapped.payload

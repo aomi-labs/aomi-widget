@@ -813,6 +813,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           unwrapped.type as keyof SessionEventMap,
           unwrapped.payload as never,
         );
+      } else {
+        this.emit(
+          unwrapped.type as keyof SessionEventMap,
+          unwrapped.payload as never,
+        );
       }
     }
   }
