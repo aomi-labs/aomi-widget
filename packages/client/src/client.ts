@@ -108,6 +108,7 @@ export class AomiClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly rawFetchImpl: typeof fetch;
   private readonly logger?: Logger;
   private readonly sseSubscriber: SseSubscriber;
 
@@ -116,6 +117,10 @@ export class AomiClient {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
+    this.rawFetchImpl =
+      typeof globalThis.fetch === "function"
+        ? globalThis.fetch.bind(globalThis)
+        : this.fetchImpl;
     this.logger = options.logger;
 
     this.sseSubscriber = createSseSubscriber({
@@ -494,7 +499,7 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await this.fetchImpl(url, { headers });
+    const response = await this.rawFetchImpl(url, { headers });
 
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
@@ -517,7 +522,7 @@ export class AomiClient {
       headers.set(API_KEY_HEADER, apiKey);
     }
 
-    const response = await this.fetchImpl(url, {
+    const response = await this.rawFetchImpl(url, {
       headers,
     });
 
