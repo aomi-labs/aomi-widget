@@ -21,6 +21,7 @@ import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
 import { initThreadControl } from "../state/thread-store";
 import { useWalletHandler } from "../handlers/wallet-handler";
 import { RuntimeUserStateProvider } from "./user-state-provider";
+import { getControlSessionId } from "../utils/client-session";
 
 const THREAD_PREFETCH_LIMIT = 5;
 const PREFETCH_IDLE_TIMEOUT_MS = 1500;
@@ -387,9 +388,16 @@ export function AomiRuntimeCore({
     const fetchThreadList = async () => {
       try {
         const remoteThreadIdsAtFetchStart = new Set(remoteThreadIdsRef.current);
-        const threadList = await aomiClientRef.current.listThreads(userAddress);
-        if (cancelled) return;
         const currentContext = threadContextRef.current;
+        const controlSessionId = getControlSessionId(
+          getControlState().clientId,
+          currentContext.currentThreadId,
+        );
+        const threadList = await aomiClientRef.current.listThreads(
+          controlSessionId,
+          userAddress,
+        );
+        if (cancelled) return;
         const remoteThreadIds = new Set<string>();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -470,6 +478,7 @@ export function AomiRuntimeCore({
     user,
     aomiClientRef,
     ensureInitialState,
+    getControlState,
     scheduleThreadPrefetch,
     warmThread,
   ]);

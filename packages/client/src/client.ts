@@ -237,13 +237,16 @@ export class AomiClient {
    * to `sendMessage` / `fetchState` so sessions get associated.
    */
   async ingestSecrets(
+    sessionId: string,
     clientId: string,
     secrets: Record<string, string>,
   ): Promise<AomiIngestSecretsResponse> {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
       body: JSON.stringify({ client_id: clientId, secrets }),
     });
 
@@ -257,11 +260,17 @@ export class AomiClient {
   /**
    * Clear all secrets for a client (e.g. on page unload or logout).
    */
-  async clearSecrets(clientId: string): Promise<AomiClearSecretsResponse> {
+  async clearSecrets(
+    sessionId: string,
+    clientId: string,
+  ): Promise<AomiClearSecretsResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/secrets", {
       client_id: clientId,
     });
-    const response = await this.fetchImpl(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId),
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -274,6 +283,7 @@ export class AomiClient {
    * Remove a single secret for a client.
    */
   async deleteSecret(
+    sessionId: string,
     clientId: string,
     name: string,
   ): Promise<AomiDeleteSecretResponse> {
@@ -284,7 +294,10 @@ export class AomiClient {
         client_id: clientId,
       },
     );
-    const response = await this.fetchImpl(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId),
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -317,11 +330,13 @@ export class AomiClient {
   /**
    * List all threads for a wallet address.
    */
-  async listThreads(publicKey: string): Promise<AomiThread[]> {
+  async listThreads(sessionId: string, publicKey: string): Promise<AomiThread[]> {
     const url = buildApiUrl(this.baseUrl, "/api/sessions", {
       public_key: publicKey,
     });
-    const response = await this.fetchImpl(url);
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
@@ -418,36 +433,18 @@ export class AomiClient {
    * Archive a thread.
    */
   async archiveThread(sessionId: string): Promise<void> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
+    throw new Error(
+      "Failed to archive thread: current backend does not expose /api/sessions/:id/archive",
     );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
   }
 
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId: string): Promise<void> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`,
+    throw new Error(
+      "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive",
     );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
   }
 
   // ===========================================================================

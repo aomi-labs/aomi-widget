@@ -275,13 +275,9 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// src/contexts/control-context.tsx
-import { jsx } from "react/jsx-runtime";
-var API_KEY_STORAGE_KEY = "aomi_api_key";
+// src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
-var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
-var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
-var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
+var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
   var _a, _b, _c, _d, _e;
   try {
@@ -300,6 +296,17 @@ function getOrCreateClientId() {
   }
   return clientId;
 }
+function getControlSessionId(clientId, fallbackSessionId) {
+  const trimmedClientId = clientId == null ? void 0 : clientId.trim();
+  return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
+}
+
+// src/contexts/control-context.tsx
+import { jsx } from "react/jsx-runtime";
+var API_KEY_STORAGE_KEY = "aomi_api_key";
+var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
+var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
+var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
 function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
@@ -392,6 +399,10 @@ function ControlContextProvider({
   const updateThreadMetadataRef = useRef(updateThreadMetadata);
   updateThreadMetadataRef.current = updateThreadMetadata;
   const callbacks = useRef(/* @__PURE__ */ new Set());
+  const getCurrentControlSessionId = useCallback(
+    () => getControlSessionId(stateRef.current.clientId, sessionIdRef.current),
+    []
+  );
   const currentThreadMetadata = getThreadMetadata(sessionId);
   const isProcessing = (_b = (_a = currentThreadMetadata == null ? void 0 : currentThreadMetadata.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
   useEffect(() => {
@@ -458,18 +469,21 @@ function ControlContextProvider({
     for (const [provider, entry] of Object.entries(keys)) {
       secrets[`${PROVIDER_KEY_SECRET_PREFIX}${provider}`] = entry.apiKey;
     }
-    void aomiClientRef.current.ingestSecrets(state.clientId, secrets).catch((err) => {
+    void aomiClientRef.current.ingestSecrets(getCurrentControlSessionId(), state.clientId, secrets).catch((err) => {
       console.error("Failed to auto-ingest provider keys:", err);
     });
-  }, [state.clientId, state.providerKeys]);
+  }, [getCurrentControlSessionId, state.clientId, state.providerKeys]);
   useEffect(() => {
     const fetchApps = async () => {
       var _a2;
       try {
-        const apps = await aomiClientRef.current.getApps(sessionIdRef.current, {
-          publicKey: publicKeyRef.current,
-          apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
-        });
+        const apps = await aomiClientRef.current.getApps(
+          getCurrentControlSessionId(),
+          {
+            publicKey: publicKeyRef.current,
+            apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+          }
+        );
         const defaultApp = getDefaultApp(apps);
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
           authorizedApps: apps,
@@ -484,12 +498,12 @@ function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [state.apiKey, publicKey]);
+  }, [getCurrentControlSessionId, state.apiKey, publicKey]);
   useEffect(() => {
     const fetchModels = async () => {
       try {
         const models = await aomiClientRef.current.getModels(
-          sessionIdRef.current
+          getCurrentControlSessionId()
         );
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
           availableModels: models,
@@ -500,7 +514,7 @@ function ControlContextProvider({
       }
     };
     void fetchModels();
-  }, []);
+  }, [getCurrentControlSessionId]);
   const setApiKey = useCallback((apiKey) => {
     setStateInternal((prev) => {
       const next = __spreadProps(__spreadValues({}, prev), { apiKey: apiKey === "" ? null : apiKey });
@@ -513,19 +527,24 @@ function ControlContextProvider({
       const clientId = stateRef.current.clientId;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
+        getCurrentControlSessionId(),
         clientId,
         secrets
       );
       return handles;
     },
-    []
+    [getCurrentControlSessionId]
   );
   const clearSecrets = useCallback(async () => {
     var _a2, _b2;
     const clientId = stateRef.current.clientId;
     if (!clientId) return;
-    await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(_a2, clientId));
-  }, []);
+    await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(
+      _a2,
+      getCurrentControlSessionId(),
+      clientId
+    ));
+  }, [getCurrentControlSessionId]);
   const setProviderKey = useCallback(
     async (provider, apiKey, label) => {
       const trimmed = apiKey.trim();
@@ -545,21 +564,26 @@ function ControlContextProvider({
       const clientId = stateRef.current.clientId;
       if (clientId) {
         try {
-          await aomiClientRef.current.ingestSecrets(clientId, {
-            [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed
-          });
+          await aomiClientRef.current.ingestSecrets(
+            getCurrentControlSessionId(),
+            clientId,
+            {
+              [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed
+            }
+          );
         } catch (err) {
           console.error("Failed to ingest provider key:", err);
         }
       }
     },
-    []
+    [getCurrentControlSessionId]
   );
   const removeProviderKey = useCallback(
     async (provider) => {
       const clientId = stateRef.current.clientId;
       if (clientId) {
         await aomiClientRef.current.deleteSecret(
+          getCurrentControlSessionId(),
           clientId,
           `${PROVIDER_KEY_SECRET_PREFIX}${provider}`
         );
@@ -571,7 +595,7 @@ function ControlContextProvider({
         return next;
       });
     },
-    []
+    [getCurrentControlSessionId]
   );
   const getProviderKeys = useCallback(
     () => stateRef.current.providerKeys,
@@ -585,7 +609,7 @@ function ControlContextProvider({
   const getAvailableModels = useCallback(async () => {
     try {
       const models = await aomiClientRef.current.getModels(
-        sessionIdRef.current
+        getCurrentControlSessionId()
       );
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
         availableModels: models,
@@ -596,14 +620,17 @@ function ControlContextProvider({
       console.error("Failed to fetch models:", error);
       return [];
     }
-  }, []);
+  }, [getCurrentControlSessionId]);
   const getAuthorizedApps = useCallback(async () => {
     var _a2;
     try {
-      const apps = await aomiClientRef.current.getApps(sessionIdRef.current, {
-        publicKey: publicKeyRef.current,
-        apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
-      });
+      const apps = await aomiClientRef.current.getApps(
+        getCurrentControlSessionId(),
+        {
+          publicKey: publicKeyRef.current,
+          apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
+        }
+      );
       const defaultApp = getDefaultApp(apps);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
         authorizedApps: apps,
@@ -618,7 +645,7 @@ function ControlContextProvider({
       }));
       return ["default"];
     }
-  }, []);
+  }, [getCurrentControlSessionId]);
   const getCurrentThreadControl = useCallback(() => {
     var _a2;
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
@@ -2255,9 +2282,16 @@ function AomiRuntimeCore({
       var _a2, _b, _c;
       try {
         const remoteThreadIdsAtFetchStart = new Set(remoteThreadIdsRef.current);
-        const threadList = await aomiClientRef.current.listThreads(userAddress);
-        if (cancelled) return;
         const currentContext = threadContextRef.current;
+        const controlSessionId = getControlSessionId(
+          getControlState().clientId,
+          currentContext.currentThreadId
+        );
+        const threadList = await aomiClientRef.current.listThreads(
+          controlSessionId,
+          userAddress
+        );
+        if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
         let maxChatNum = currentContext.threadCnt;
@@ -2329,6 +2363,7 @@ function AomiRuntimeCore({
     user,
     aomiClientRef,
     ensureInitialState,
+    getControlState,
     scheduleThreadPrefetch,
     warmThread
   ]);
