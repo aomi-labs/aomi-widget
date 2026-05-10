@@ -260,15 +260,15 @@ declare class AomiClient {
      * client_id for the browser tab. The same client_id should be passed
      * to `sendMessage` / `fetchState` so sessions get associated.
      */
-    ingestSecrets(clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
+    ingestSecrets(sessionId: string, clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
     /**
      * Clear all secrets for a client (e.g. on page unload or logout).
      */
-    clearSecrets(clientId: string): Promise<AomiClearSecretsResponse>;
+    clearSecrets(sessionId: string, clientId: string): Promise<AomiClearSecretsResponse>;
     /**
      * Remove a single secret for a client.
      */
-    deleteSecret(clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
+    deleteSecret(sessionId: string, clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
     /**
      * Subscribe to real-time SSE updates for a session.
      * Automatically reconnects with exponential backoff on disconnects.
@@ -278,7 +278,7 @@ declare class AomiClient {
     /**
      * List all threads for a wallet address.
      */
-    listThreads(publicKey: string): Promise<AomiThread[]>;
+    listThreads(sessionId: string, publicKey: string): Promise<AomiThread[]>;
     /**
      * Get a single thread by ID.
      */

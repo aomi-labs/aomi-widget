@@ -17,7 +17,7 @@ import type {
 
 export type AomiClientConfig = {
   // New names (match AomiClient API)
-  listThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  listThreads?: (sessionId: string, publicKey: string) => Promise<AomiThread[]>;
   fetchState?: (
     sessionId: string,
     userState?: Record<string, unknown>,
@@ -131,9 +131,14 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
   class MockAomiClient {
     private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
 
-    listThreads = vi.fn(async (publicKey: string) => {
-      const fn = mockState.config.listThreads ?? mockState.config.fetchThreads;
-      return fn ? await fn(publicKey) : [];
+    listThreads = vi.fn(async (sessionId: string, publicKey: string) => {
+      const fn = mockState.config.listThreads;
+      if (fn) {
+        return await fn(sessionId, publicKey);
+      }
+      return mockState.config.fetchThreads
+        ? await mockState.config.fetchThreads(publicKey)
+        : [];
     });
 
     fetchState = vi.fn(
