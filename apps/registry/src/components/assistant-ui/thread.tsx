@@ -214,7 +214,7 @@ const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-sidebar text-card-foreground border-border/30 relative flex w-full flex-col border px-1 pt-2">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-transparent text-card-foreground border-border/30 relative flex w-full flex-col border px-1 pt-2">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
           className="aui-composer-input text-foreground placeholder:text-muted-foreground/60 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-white"
@@ -371,7 +371,7 @@ const AssistantMessage: FC = () => {
         data-role="assistant"
       >
         {!showFinishedEmptyMessage && (
-          <div className="aui-assistant-message-content text-foreground mx-2 break-words text-sm leading-5">
+          <div className="aui-assistant-message-content text-foreground px-3 break-words text-sm leading-5">
             {showLoadingDot ? (
               <AssistantLoadingDot />
             ) : (
@@ -389,7 +389,7 @@ const AssistantMessage: FC = () => {
         {!showLoadingDot && (
           <div
             className={cn(
-              "aui-assistant-message-footer ml-2 flex",
+              "aui-assistant-message-footer flex px-3",
               showFinishedEmptyMessage ? "mt-0" : "mt-2",
             )}
           >
@@ -408,13 +408,13 @@ const AssistantActionBar: FC = () => {
       hideWhenRunning
       autohide="not-last"
       autohideFloat="single-branch"
-      className="aui-assistant-action-bar-root text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm col-start-3 row-start-2 -ml-1 flex gap-1"
+      className="aui-assistant-action-bar-root text-muted-foreground data-floating:absolute data-floating:rounded-xl data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm col-start-3 row-start-2 -ml-1 flex gap-1"
     >
       <ActionBarPrimitive.Copy asChild>
         <Button
           variant="ghost"
           size="icon"
-          className="aui-button-icon size-6 p-1"
+          className="aui-button-icon size-6 rounded-xl p-1"
           aria-label="Copy"
         >
           <MessagePrimitive.If copied>
@@ -429,7 +429,7 @@ const AssistantActionBar: FC = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="aui-button-icon size-6 p-1"
+          className="aui-button-icon size-6 rounded-xl p-1"
           aria-label="Refresh"
         >
           <RefreshCwIcon />
