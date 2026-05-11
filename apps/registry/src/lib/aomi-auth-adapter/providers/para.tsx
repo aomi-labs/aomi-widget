@@ -11,6 +11,21 @@ import {
   type TOAuthMethod,
 } from "@getpara/react-sdk";
 import "@getpara/react-sdk/styles.css";
+import {
+  ParaSolanaProvider,
+  phantomWallet,
+  solflareWallet,
+  backpackWallet,
+  glowWallet,
+  type ParaSolanaProviderConfig,
+  type WalletList as SolanaWalletList,
+} from "@getpara/solana-wallet-connectors";
+import { Chain as SolanaMobileChain } from "@solana-mobile/mobile-wallet-adapter-protocol";
+import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
+import {
+  Transaction as SolanaTransaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Chain, Hex, Transport } from "viem";
 import { http } from "viem";
@@ -24,7 +39,11 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
+import type {
+  WalletEip712Payload,
+  WalletSolanaSignPayload,
+  WalletTxPayload,
+} from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import {
   createAAProviderState,
@@ -88,6 +107,28 @@ export type AomiParaProviderProps = {
   walletConnectProjectId?: string;
   externalWallets?: TExternalWallet[];
   oAuthMethods?: TOAuthMethod[];
+  /**
+   * Solana RPC endpoint passed to the underlying
+   * `@solana/wallet-adapter-react` `<ConnectionProvider>`. Defaults to
+   * the Solana devnet public endpoint. Override for mainnet / a private
+   * RPC. Does not need to match the host's `cluster` field on
+   * `WalletSolanaSignPayload` — Para's connector is strictly for
+   * signing here; broadcast happens in app-side code.
+   */
+  solanaEndpoint?: string;
+  /**
+   * Override the list of Solana wallet connectors. Defaults to
+   * `[phantomWallet, solflareWallet, backpackWallet, glowWallet]`.
+   * Pass an empty list to disable Solana entirely (no
+   * `signSolanaTransaction` will be exposed and Solana-related host
+   * events will be rejected gracefully by `RuntimeTxHandler`).
+   */
+  solanaWallets?: SolanaWalletList;
+  /**
+   * Mobile wallet adapter chain hint for the Solana connector. Default
+   * `"solana:devnet"`. Has no effect outside Solana mobile mini-apps.
+   */
+  solanaMobileChain?: SolanaMobileChain;
 };
 
 const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() ?? "";
@@ -149,6 +190,65 @@ function useSafeParaClient(): ParaWeb | null {
     return null;
   }
 }
+
+// `useSolanaWallet` (the Solana wallet-adapter hook re-exported via
+// ParaSolanaProvider) throws when no `<WalletProvider>` is mounted above —
+// e.g. when the host app skips Solana entirely. Wrap in a try so the rest of
+// the auth adapter still works without the Solana connector mounted.
+type SafeSolanaWalletState = {
+  publicKey: string | undefined;
+  connected: boolean;
+  signTransaction:
+    | ((tx: VersionedTransaction | SolanaTransaction) =>
+        Promise<VersionedTransaction | SolanaTransaction>)
+    | undefined;
+};
+
+function useSafeSolanaWallet(): SafeSolanaWalletState {
+  try {
+    const wallet = useSolanaWallet();
+    return {
+      publicKey: wallet.publicKey?.toBase58(),
+      connected: wallet.connected,
+      signTransaction: wallet.signTransaction,
+    };
+  } catch {
+    return {
+      publicKey: undefined,
+      connected: false,
+      signTransaction: undefined,
+    };
+  }
+}
+
+// Browser-safe base64 ↔ bytes. The CLI signer uses Buffer; here we stay
+// compatible with both Node SSR and browser runtimes.
+function decodeBase64(value: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const bin = atob(value);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+const DEFAULT_SOLANA_ENDPOINT = "https://api.devnet.solana.com";
+const DEFAULT_SOLANA_WALLETS: SolanaWalletList = [
+  phantomWallet,
+  solflareWallet,
+  backpackWallet,
+  glowWallet,
+];
 
 function resolveAAProvider(): AAProvider | null {
   if (
@@ -319,6 +419,7 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
   });
   const { signTypedDataAsync } = useSafeSignTypedData();
   const wagmiConfig = useSafeWagmiConfig();
+  const solanaWallet = useSafeSolanaWallet();
 
   const chainsById = useMemo<Record<number, Chain>>(
     () =>
@@ -357,10 +458,13 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     const authProvider = inferAuthProvider(paraAccount.embedded.authMethods);
     const providerLabel = formatAuthProvider(authProvider);
 
+    const svmAddress = solanaWallet.publicKey;
+
     const identity: AomiAuthIdentity = isBooting
       ? {
           ...AOMI_AUTH_BOOTING_IDENTITY,
           chainId: chainId ?? undefined,
+          svmAddress,
         }
       : isConnected && embeddedPrimary
         ? {
@@ -368,6 +472,7 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
             isConnected: true,
             address,
             chainId: chainId ?? undefined,
+            svmAddress,
             authProvider,
             primaryLabel: embeddedPrimary,
             secondaryLabel: providerLabel,
@@ -378,15 +483,27 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
               isConnected: true,
               address,
               chainId: chainId ?? undefined,
+              svmAddress,
               authProvider,
               primaryLabel: formatAddress(address) ?? "Connected wallet",
               secondaryLabel: undefined,
             }
-          : {
-              ...AOMI_AUTH_DISCONNECTED_IDENTITY,
-              chainId: chainId ?? undefined,
-              authProvider,
-            };
+          : svmAddress
+            ? {
+                status: "connected",
+                isConnected: true,
+                chainId: chainId ?? undefined,
+                svmAddress,
+                authProvider,
+                primaryLabel:
+                  formatAddress(svmAddress) ?? "Connected Solana wallet",
+                secondaryLabel: "Solana",
+              }
+            : {
+                ...AOMI_AUTH_DISCONNECTED_IDENTITY,
+                chainId: chainId ?? undefined,
+                authProvider,
+              };
 
     const connectorName = connector?.name?.toLowerCase() ?? "";
     const isParaWallet = connectorName.includes("para");
@@ -444,6 +561,32 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
             return { signature };
           }
         : undefined,
+      // Solana sign — only exposed when the user has actually connected
+      // a Solana wallet through `<ParaSolanaProvider>`. `RuntimeTxHandler`
+      // checks for this method's presence and rejects gracefully when
+      // it's undefined.
+      signSolanaTransaction: solanaWallet.signTransaction
+        ? async (payload: WalletSolanaSignPayload) => {
+            if (!payload.unsignedTx) {
+              throw new Error("Missing unsigned_tx payload");
+            }
+            if (!solanaWallet.signTransaction) {
+              throw new Error("Solana wallet sign function unavailable");
+            }
+            const bytes = decodeBase64(payload.unsignedTx);
+            // Versioned-tx first, legacy fallback. Wallet adapters
+            // accept both via the same `signTransaction` method.
+            let signed: VersionedTransaction | SolanaTransaction;
+            try {
+              const tx = VersionedTransaction.deserialize(bytes);
+              signed = await solanaWallet.signTransaction(tx);
+            } catch {
+              const tx = SolanaTransaction.from(bytes);
+              signed = await solanaWallet.signTransaction(tx);
+            }
+            return { signedTx: encodeBase64(signed.serialize()) };
+          }
+        : undefined,
     };
   }, [
     capabilities,
@@ -460,6 +603,8 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     sendCallsSyncAsync,
     sendTransactionAsync,
     signTypedDataAsync,
+    solanaWallet.publicKey,
+    solanaWallet.signTransaction,
     switchChainAsync,
     wagmiAddress,
     wagmiConfig.chains,
@@ -488,6 +633,10 @@ export function AomiParaProvider({
     process.env.NEXT_PUBLIC_PROJECT_ID,
   externalWallets = defaultExternalWallets,
   oAuthMethods = ["GOOGLE"],
+  solanaEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+    DEFAULT_SOLANA_ENDPOINT,
+  solanaWallets = DEFAULT_SOLANA_WALLETS,
+  solanaMobileChain = "solana:devnet" as SolanaMobileChain,
 }: AomiParaProviderProps) {
   const [queryClient] = useState(() => new QueryClient());
   const resolvedWallets = walletConnectProjectId
@@ -540,6 +689,25 @@ export function AomiParaProvider({
     ],
   );
 
+  // Solana branch: opt-out by passing an empty `solanaWallets` array.
+  // When opted out, `useSolanaWallet` inside the adapter throws (no
+  // <WalletProvider> mounted) and the safe wrapper returns "no Solana"
+  // — `signSolanaTransaction` ends up undefined.
+  const solanaEnabled = solanaWallets.length > 0;
+
+  const solanaProviderConfig = useMemo(
+    () => ({
+      wallets: solanaWallets,
+      endpoint: solanaEndpoint,
+      chain: solanaMobileChain,
+      appIdentity: {
+        name: appName,
+        uri: appUrl,
+      },
+    }),
+    [appName, appUrl, solanaEndpoint, solanaMobileChain, solanaWallets],
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
       {apiKey ? (
@@ -552,11 +720,52 @@ export function AomiParaProvider({
           paraModalConfig={paraModalConfig}
           externalWalletConfig={externalWalletConfig}
         >
-          <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+          <ParaSolanaWrapper
+            enabled={solanaEnabled}
+            config={solanaProviderConfig}
+          >
+            <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+          </ParaSolanaWrapper>
         </ParaProvider>
       ) : (
+        // No Para API key → no Para session, no Solana session either.
         <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
       )}
     </QueryClientProvider>
+  );
+}
+
+/**
+ * Mounts `ParaSolanaProvider` inside the active `<ParaProvider>` so it
+ * can populate `internalConfig.para` from the live `useClient()` Para
+ * session. Without this, `ParaSolanaProvider`'s wallet-discovery hooks
+ * have no Para context to attach to.
+ *
+ * Renders children unwrapped when `enabled === false` (caller opted out
+ * of Solana entirely).
+ */
+function ParaSolanaWrapper({
+  enabled,
+  config,
+  children,
+}: {
+  enabled: boolean;
+  config: ParaSolanaProviderConfig;
+  children: ReactNode;
+}) {
+  const para = useSafeParaClient();
+  if (!enabled || !para) {
+    return <>{children}</>;
+  }
+  return (
+    <ParaSolanaProvider
+      config={config}
+      internalConfig={{
+        para: para as never,
+        walletsWithFullAuth: "ALL",
+      }}
+    >
+      {children}
+    </ParaSolanaProvider>
   );
 }

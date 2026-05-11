@@ -13,10 +13,13 @@ import type { CliConfig } from "./types";
 import {
   readState,
   hasSameBackendPendingId,
+  hasSameSolanaPendingId,
   syncPendingTxsFromUserState,
   writeState,
   type CliSessionState,
+  type PendingSolTx,
   type PendingTx,
+  type SignedSolTx,
   type SignedTx,
 } from "./state";
 import { buildCliUserState } from "./user-state";
@@ -112,6 +115,12 @@ export class CliSession {
   }
   get pendingTxs(): readonly PendingTx[] {
     return this.state.pendingTxs ?? [];
+  }
+  get pendingSolTxs(): readonly PendingSolTx[] {
+    return this.state.pendingSolTxs ?? [];
+  }
+  get signedSolTxs(): readonly SignedSolTx[] {
+    return this.state.signedSolTxs ?? [];
   }
   get signedTxs(): readonly SignedTx[] {
     return this.state.signedTxs ?? [];
@@ -273,12 +282,55 @@ export class CliSession {
     this.save();
   }
 
+  /** Add a pending Solana tx with dedup on `solanaId`. */
+  addPendingSolTx(tx: Omit<PendingSolTx, "id">): PendingSolTx | null {
+    if (!this.state.pendingSolTxs) this.state.pendingSolTxs = [];
+
+    const isDuplicate = this.state.pendingSolTxs.some((existing) =>
+      hasSameSolanaPendingId(existing, tx),
+    );
+    if (isDuplicate) return null;
+
+    const pending: PendingSolTx = {
+      ...tx,
+      id: `tx-${tx.solanaId}`,
+    };
+    this.state.pendingSolTxs.push(pending);
+    this.save();
+    return pending;
+  }
+
+  removePendingSolTx(id: string): PendingSolTx | null {
+    if (!this.state.pendingSolTxs) return null;
+    const idx = this.state.pendingSolTxs.findIndex((tx) => tx.id === id);
+    if (idx === -1) return null;
+    const [removed] = this.state.pendingSolTxs.splice(idx, 1);
+    this.save();
+    return removed;
+  }
+
+  addSignedSolTx(tx: SignedSolTx): void {
+    if (!this.state.signedSolTxs) this.state.signedSolTxs = [];
+    this.state.signedSolTxs.push(tx);
+    this.save();
+  }
+
   syncPendingFromUserState(
     userState: Parameters<typeof syncPendingTxsFromUserState>[1],
-  ): PendingTx[] {
-    const pendingTxs = syncPendingTxsFromUserState(this.state, userState);
+  ): { pendingTxs: readonly PendingTx[]; pendingSolTxs: readonly PendingSolTx[] } {
+    const result = syncPendingTxsFromUserState(this.state, userState);
     this.reload();
-    return pendingTxs;
+    return result;
+  }
+
+  /** Find a pending Solana tx by display id, or undefined if unknown. */
+  findPendingSolTx(txId: string): PendingSolTx | undefined {
+    return (this.state.pendingSolTxs ?? []).find((tx) => tx.id === txId);
+  }
+
+  /** Find a pending EVM/EIP-712 tx by display id, or undefined. */
+  findPendingTx(txId: string): PendingTx | undefined {
+    return (this.state.pendingTxs ?? []).find((tx) => tx.id === txId);
   }
 
   /** Get a pending tx by ID, or fatal() if not found. */
@@ -286,7 +338,7 @@ export class CliSession {
     const pending = this.state.pendingTxs ?? [];
     const tx = pending.find((t) => t.id === txId);
     if (!tx) {
-      const available = pending.map((t) => t.id).join(", ") || "(none)";
+      const available = this.allDisplayIds().join(", ") || "(none)";
       fatal(`Transaction "${txId}" not found.\nAvailable: ${available}`);
     }
     return tx;
@@ -301,6 +353,23 @@ export class CliSession {
       );
     }
     return uniqueIds.map((txId) => this.requirePendingTx(txId));
+  }
+
+  /** Get a pending Solana tx by ID, or fatal() if not found. */
+  requirePendingSolTx(txId: string): PendingSolTx {
+    const tx = this.findPendingSolTx(txId);
+    if (!tx) {
+      const available = this.allDisplayIds().join(", ") || "(none)";
+      fatal(`Solana transaction "${txId}" not found.\nAvailable: ${available}`);
+    }
+    return tx;
+  }
+
+  private allDisplayIds(): string[] {
+    return [
+      ...(this.state.pendingTxs ?? []).map((tx) => tx.id),
+      ...(this.state.pendingSolTxs ?? []).map((tx) => tx.id),
+    ];
   }
 
   // ---------------------------------------------------------------------------

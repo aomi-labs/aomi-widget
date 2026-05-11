@@ -325,8 +325,12 @@ describe("CLI session lifecycle", () => {
 
     expect(cli.publicKey).toBe("0xabc");
     expect(cli.chainId).toBe(8453);
-    expect(synced.map((tx) => tx.id)).toEqual(["tx-7", "tx-8"]);
-    expect(synced.map((tx) => tx.kind)).toEqual(["transaction", "eip712_sign"]);
+    expect(synced.pendingTxs.map((tx) => tx.id)).toEqual(["tx-7", "tx-8"]);
+    expect(synced.pendingTxs.map((tx) => tx.kind)).toEqual([
+      "transaction",
+      "eip712_sign",
+    ]);
+    expect(synced.pendingSolTxs).toEqual([]);
   });
 
   it("does not wipe local chain when backend user_state omits chain_id", async () => {

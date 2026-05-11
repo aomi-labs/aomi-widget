@@ -24,8 +24,10 @@ const USER_STATE_KEY_ALIASES: Record<string, string> = {
   chainId: "chain_id",
   isConnected: "is_connected",
   ensName: "ens_name",
+  svmAddress: "svm_address",
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
+  pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id",
 };
 
@@ -116,6 +118,17 @@ export namespace UserState {
       reconciled.address = previousAddress;
     }
 
+    // Same preservation rule for the SVM (Solana) pubkey: if the incoming
+    // snapshot omits `svm_address` but we previously had one and the
+    // connection isn't being explicitly broken, keep it. EVM and SVM
+    // identities are independent — neither field's presence implies the
+    // other.
+    const previousSvm = svmAddress(previous);
+    const incomingSvm = svmAddress(incoming);
+    if (!incomingSvm && canPreserveConnectedWalletContext && previousSvm) {
+      reconciled.svm_address = previousSvm;
+    }
+
     if (
       incomingChainId === undefined &&
       canPreserveConnectedWalletContext &&
@@ -143,6 +156,16 @@ export namespace UserState {
     return typeof address === "string" && address.length > 0
       ? address
       : undefined;
+  }
+
+  /**
+   * Connected Solana wallet pubkey (base58). Independent of `address`,
+   * which is the EVM address. A session may have either, both, or neither.
+   */
+  export function svmAddress(userState?: UserState | null): string | undefined {
+    const normalized = normalize(userState);
+    const value = normalized?.svm_address;
+    return typeof value === "string" && value.length > 0 ? value : undefined;
   }
 
   export function chainId(userState?: UserState | null): number | undefined {

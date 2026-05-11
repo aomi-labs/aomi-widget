@@ -8,6 +8,7 @@ import type {
   AomiStateResponse,
   AomiChatResponse,
   AomiInterruptResponse,
+  AomiSystemEvent,
   AomiSSEEvent,
   AomiPaymentMethod,
 } from "@aomi-labs/client";
@@ -18,7 +19,7 @@ import type {
 
 export type AomiClientConfig = {
   // New names (match AomiClient API)
-  listThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  listThreads?: (sessionId: string, publicKey: string) => Promise<AomiThread[]>;
   fetchState?: (
     sessionId: string,
     userState?: Record<string, unknown>,
@@ -136,9 +137,14 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
   class MockAomiClient {
     private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
 
-    listThreads = vi.fn(async (publicKey: string) => {
-      const fn = mockState.config.listThreads ?? mockState.config.fetchThreads;
-      return fn ? await fn(publicKey) : [];
+    listThreads = vi.fn(async (sessionId: string, publicKey: string) => {
+      const fn = mockState.config.listThreads;
+      if (fn) {
+        return await fn(sessionId, publicKey);
+      }
+      return mockState.config.fetchThreads
+        ? await mockState.config.fetchThreads(publicKey)
+        : [];
     });
 
     fetchState = vi.fn(
@@ -467,7 +473,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       state?:
         | AomiStateResponse
         | AomiChatResponse
-        | { user_state?: Record<string, unknown> | null },
+        | {
+            system_events?: AomiSystemEvent[];
+            user_state?: Record<string, unknown> | null;
+          },
     ) {
       if (state?.user_state) {
         this.resolveUserState(state.user_state);
@@ -475,6 +484,19 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (state?.messages) {
         this._messages = state.messages;
         this.emit("messages", state.messages);
+      }
+      if (state?.system_events) {
+        for (const event of state.system_events) {
+          if ("InlineCall" in event) {
+            this.emit(event.InlineCall.type, event.InlineCall.payload ?? {});
+          } else if ("SystemNotice" in event) {
+            this.emit("system_notice", { message: event.SystemNotice });
+          } else if ("SystemError" in event) {
+            this.emit("system_error", { message: event.SystemError });
+          } else if ("AsyncCallback" in event) {
+            this.emit("async_callback", event.AsyncCallback);
+          }
+        }
       }
     }
 
@@ -543,10 +565,8 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
-import {
-  useControl,
-  type ControlContextApi,
-} from "../../contexts/control-context";
+import { useControl, type ControlContextApi } from "../../contexts/control-context";
+import { useThreadContext } from "../../contexts/thread-context";
 
 // =============================================================================
 // Test Harness Component
@@ -555,13 +575,19 @@ import {
 export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
   control: ControlContextApi;
+  threadCount: number;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
   const api = useAomiRuntime();
   const control = useControl();
+  const threadContext = useThreadContext();
 
-  useImperativeHandle(ref, () => ({ api, control }), [api, control]);
+  useImperativeHandle(
+    ref,
+    () => ({ api, control, threadCount: threadContext.threadCnt }),
+    [api, control, threadContext.threadCnt],
+  );
 
   return null;
 });
@@ -579,6 +605,7 @@ export type RenderRuntimeOptions = {
 export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
   control: ControlContextApi;
+  getThreadCount: () => number;
   getApi: () => AomiRuntimeApi;
   getControl: () => ControlContextApi;
   unmount: () => void;
@@ -603,6 +630,7 @@ export const renderRuntime = ({
   return {
     api: ref.current.api,
     control: ref.current.control,
+    getThreadCount: () => ref.current!.threadCount,
     getApi: () => ref.current!.api,
     getControl: () => ref.current!.control,
     unmount,

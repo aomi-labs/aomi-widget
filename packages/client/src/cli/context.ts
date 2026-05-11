@@ -22,9 +22,9 @@ export async function ingestSecretsForSession(
   const clientId = cli.ensureClientId();
 
   const response: AomiIngestSecretsResponse = await client.ingestSecrets(
+    cli.sessionId,
     clientId,
     secrets,
-    cli.sessionId,
   );
 
   cli.addSecretHandles(response.handles);

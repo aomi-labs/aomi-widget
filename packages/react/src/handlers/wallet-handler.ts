@@ -3,16 +3,25 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignPayload,
   WalletTxPayload,
   WalletRequest,
+  WalletRequestKind,
   WalletRequestResult,
 } from "@aomi-labs/client";
 import type { Session as ClientSession } from "@aomi-labs/client";
 
-// Re-export types consumers need
-export type { WalletRequest, WalletTxPayload, WalletEip712Payload, WalletRequestResult };
+// Re-export types consumers need. The source of truth for `WalletRequestKind`
+// is `@aomi-labs/client` — Solana adds a third arm there.
+export type {
+  WalletRequest,
+  WalletRequestKind,
+  WalletRequestResult,
+  WalletTxPayload,
+  WalletEip712Payload,
+  WalletSolanaSignPayload,
+};
 
-export type WalletRequestKind = "transaction" | "eip712_sign";
 export type WalletRequestStatus = "pending" | "processing";
 
 export type WalletHandlerConfig = {
@@ -21,13 +30,25 @@ export type WalletHandlerConfig = {
 };
 
 export type WalletHandlerApi = {
-  /** All queued wallet requests (tx + eip712) */
+  /**
+   * All queued wallet requests across every supported kind: EVM txs
+   * (`kind: "transaction"`), EIP-712 signs (`kind: "eip712_sign"`), and
+   * Solana signs (`kind: "solana_sign"`). Consumers should narrow on
+   * `request.kind` before reading `request.payload` — the discriminated
+   * union auto-narrows the payload type.
+   */
   pendingRequests: WalletRequest[];
   /** Replace pending requests with the session's authoritative snapshot. */
   setRequests: (requests: WalletRequest[]) => void;
   /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
   startRequest: (id: string) => void;
-  /** Complete a request successfully — sends response to backend via ClientSession */
+  /**
+   * Complete a request successfully — sends the response wire event to
+   * the backend via ClientSession. The `result.kind` discriminator must
+   * match the originating request's kind (e.g. `{ kind: "solana_sign",
+   * signedTx: "..." }` for a Solana request); ClientSession runtime-checks
+   * this and throws on mismatch.
+   */
   resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
   /** Fail a request — sends error to backend via ClientSession */
   rejectRequest: (id: string, error?: string) => Promise<void>;

@@ -218,12 +218,13 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       console.log(`${DIM}✅ Done${RESET}`);
     }
 
-    const authoritativePendingTxs = cli.syncPendingFromUserState(
+    const syncedPending = cli.syncPendingFromUserState(
       session.getUserState(),
     );
-    const newPendingTxs = authoritativePendingTxs.filter(
-      (tx) => !previousPendingIds.has(tx.id),
-    );
+    const newPendingTxs = [
+      ...syncedPending.pendingTxs,
+      ...syncedPending.pendingSolTxs,
+    ].filter((tx) => !previousPendingIds.has(tx.id));
 
     for (const pending of newPendingTxs) {
       console.log(`⚡ Wallet request queued: ${pending.id}`);

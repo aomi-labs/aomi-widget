@@ -9,7 +9,7 @@
 //   const session = new Session({ baseUrl: "https://api.aomi.dev" });
 //   session.on("wallet_tx_request", async (req) => {
 //     const signed = await signer.signTransaction(req.payload);
-//     await session.resolve(req.id, { txHash: signed.hash });
+//     await session.resolve(req.id, { kind: "transaction", txHash: signed.hash });
 //   });
 //   const result = await session.send("swap 1 ETH for USDC");
 //   session.close();
@@ -36,38 +36,86 @@ import {
   normalizeTxPayload,
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaSignPayload,
   type WalletTxPayload,
   type WalletEip712Payload,
+  type WalletSolanaSignPayload,
 } from "./wallet-utils";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export type WalletRequestKind = "transaction" | "eip712_sign";
+export type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
 
-export type WalletRequest = {
-  id: string;
-  kind: WalletRequestKind;
-  payload: WalletTxPayload | WalletEip712Payload;
-  timestamp: number;
-};
+/**
+ * Tagged union of in-flight wallet requests. The `kind` field is the
+ * discriminator — narrowing on it auto-narrows `payload` to the matching
+ * chain-specific shape, so consumers don't need `as` casts.
+ *
+ * The id namespace is shared (the backend assigns ids out of one
+ * monotonic sequence), but the request shapes diverge per kind. Keeping
+ * this as a real discriminated union (rather than a `kind` + flat union
+ * `payload`) is the cheapest way to keep type information flowing from
+ * the SDK up to consumer apps.
+ */
+export type WalletRequest =
+  | {
+      id: string;
+      kind: "transaction";
+      payload: WalletTxPayload;
+      timestamp: number;
+    }
+  | {
+      id: string;
+      kind: "eip712_sign";
+      payload: WalletEip712Payload;
+      timestamp: number;
+    }
+  | {
+      id: string;
+      kind: "solana_sign";
+      payload: WalletSolanaSignPayload;
+      timestamp: number;
+    };
 
-export type WalletRequestResult = {
-  txHash?: string;
-  signature?: string;
-  amount?: string;
-  error?: string;
-  aaRequestedMode?: "4337" | "7702" | "none";
-  aaResolvedMode?: "4337" | "7702" | "none";
-  aaFallbackReason?: string;
-  executionKind?: string;
-  batched?: boolean;
-  callCount?: number;
-  sponsored?: boolean;
-  smartAccountAddress?: string;
-  delegationAddress?: string;
-};
+/**
+ * Tagged union of results passed to `Session.resolve(id, result)`. The
+ * `kind` field is the discriminator — set it to match the originating
+ * request's kind, and the result shape narrows to exactly the artifact
+ * the backend expects:
+ *   - "transaction"  → `txHash` (+ optional AA metadata)
+ *   - "eip712_sign"  → `signature`
+ *   - "solana_sign"  → `signedTx` (base64 of the full signed bytes)
+ *
+ * `Session.resolve` runtime-checks that `result.kind` matches the
+ * originating `request.kind`, so a kind mismatch fails fast instead of
+ * silently posting an empty artifact to the backend.
+ */
+export type WalletRequestResult =
+  | {
+      kind: "transaction";
+      txHash: string;
+      amount?: string;
+      aaRequestedMode?: "4337" | "7702" | "none";
+      aaResolvedMode?: "4337" | "7702" | "none";
+      aaFallbackReason?: string;
+      executionKind?: string;
+      batched?: boolean;
+      callCount?: number;
+      sponsored?: boolean;
+      smartAccountAddress?: string;
+      delegationAddress?: string;
+    }
+  | {
+      kind: "eip712_sign";
+      signature: string;
+    }
+  | {
+      kind: "solana_sign";
+      /** Base64 of the full signed Solana transaction bytes. */
+      signedTx: string;
+    };
 
 export type SendResult = {
   messages: AomiMessage[];
@@ -181,6 +229,13 @@ export type SessionEventMap = {
   wallet_tx_request: WalletRequest;
   /** An EIP-712 signing request arrived from the backend. */
   wallet_eip712_request: WalletRequest;
+  /**
+   * A Solana signing request arrived from the backend. Singular by design:
+   * one request per call (no batching). The wallet adapter signs and
+   * returns a base64-encoded full signed transaction via
+   * `Session.resolve(id, { signedTx })`.
+   */
+  wallet_solana_sign_request: WalletRequest;
   /** A system notice from the backend. */
   system_notice: { message: string };
   /** A system error from the backend. */
@@ -362,27 +417,35 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   // ===========================================================================
 
   /**
-   * Resolve a pending wallet request (transaction or EIP-712 signing).
-   * Sends the result to the backend and resumes polling.
+   * Resolve a pending wallet request (transaction, EIP-712, or Solana
+   * sign). The `result.kind` discriminator must match the originating
+   * request's kind — sending a `transaction` result for an `eip712_sign`
+   * request would post the wrong wire event with empty fields, so we
+   * fail fast at runtime instead.
    */
   async resolve(requestId: string, result: WalletRequestResult): Promise<void> {
-    const req = this.removeWalletRequest(requestId);
+    const req = this.walletRequests.find((request) => request.id === requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
+    if (result.kind !== req.kind) {
+      throw new Error(
+        `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`,
+      );
+    }
+    this.removeWalletRequest(requestId);
 
-    if (req.kind === "transaction") {
-      const txPayload = req.payload as WalletTxPayload;
-      const pendingTxIds = txIdsFromPayload(txPayload);
+    if (req.kind === "transaction" && result.kind === "transaction") {
+      const pendingTxIds = txIdsFromPayload(req.payload);
       const requestedMode =
         result.aaRequestedMode ??
-        aaRequestedModeFromPreference(txPayload.aaPreference);
+        aaRequestedModeFromPreference(req.payload.aaPreference);
       const resolvedMode =
         result.aaResolvedMode ??
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
       await this.sendSystemEvent("wallet:tx_complete", {
-        txHash: result.txHash ?? "",
+        txHash: result.txHash,
         status: "success",
         amount: result.amount,
         pending_tx_ids: pendingTxIds,
@@ -396,14 +459,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         smart_account_address: result.smartAccountAddress,
         delegation_address: result.delegationAddress,
       });
-    } else {
-      const eip712Payload = req.payload as WalletEip712Payload;
+    } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", {
         status: "success",
         signature: result.signature,
-        description: eip712Payload.description,
-        ...(eip712Payload.eip712Id !== undefined
-          ? { pending_eip712_id: eip712Payload.eip712Id }
+        description: req.payload.description,
+        ...(req.payload.eip712Id !== undefined
+          ? { pending_eip712_id: req.payload.eip712Id }
+          : {}),
+      });
+    } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
+      await this.sendSystemEvent("wallet::solana_sign_complete", {
+        status: "signed",
+        signed_tx: result.signedTx,
+        description: req.payload.description,
+        ...(req.payload.pendingSolanaId !== undefined
+          ? { pending_solana_id: req.payload.pendingSolanaId }
           : {}),
       });
     }
@@ -425,11 +496,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     if (req.kind === "transaction") {
-      const txPayload = req.payload as WalletTxPayload;
-      const pendingTxIds = txIdsFromPayload(txPayload);
-      const requestedMode = aaRequestedModeFromPreference(
-        txPayload.aaPreference,
-      );
+      const pendingTxIds = txIdsFromPayload(req.payload);
+      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
@@ -445,14 +513,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         smart_account_address: undefined,
         delegation_address: undefined,
       });
-    } else {
-      const eip712Payload = req.payload as WalletEip712Payload;
+    } else if (req.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", {
         status: "failed",
         error: reason ?? "Request rejected",
-        description: eip712Payload.description,
-        ...(eip712Payload.eip712Id !== undefined
-          ? { pending_eip712_id: eip712Payload.eip712Id }
+        description: req.payload.description,
+        ...(req.payload.eip712Id !== undefined
+          ? { pending_eip712_id: req.payload.eip712Id }
+          : {}),
+      });
+    } else {
+      await this.sendSystemEvent("wallet::solana_sign_complete", {
+        status: "rejected",
+        error: reason ?? "Request rejected",
+        description: req.payload.description,
+        ...(req.payload.pendingSolanaId !== undefined
+          ? { pending_solana_id: req.payload.pendingSolanaId }
           : {}),
       });
     }
@@ -742,12 +818,21 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         const payload = normalizeEip712Payload(unwrapped.payload ?? {});
         const req = this.enqueueWalletRequest("eip712_sign", payload);
         this.emit("wallet_eip712_request", req);
+      } else if (unwrapped.type === "wallet::solana_sign_request") {
+        const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
+        const req = this.enqueueWalletRequest("solana_sign", payload);
+        this.emit("wallet_solana_sign_request", req);
       } else if (
         unwrapped.type === "system_notice" ||
         unwrapped.type === "system_error" ||
         unwrapped.type === "async_callback"
       ) {
         // These match known event map keys — emit directly
+        this.emit(
+          unwrapped.type as keyof SessionEventMap,
+          unwrapped.payload as never,
+        );
+      } else {
         this.emit(
           unwrapped.type as keyof SessionEventMap,
           unwrapped.payload as never,
@@ -776,34 +861,66 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   // ===========================================================================
 
   private enqueueWalletRequest(
+    kind: "transaction",
+    payload: WalletTxPayload,
+  ): WalletRequest;
+  private enqueueWalletRequest(
+    kind: "eip712_sign",
+    payload: WalletEip712Payload,
+  ): WalletRequest;
+  private enqueueWalletRequest(
+    kind: "solana_sign",
+    payload: WalletSolanaSignPayload,
+  ): WalletRequest;
+  private enqueueWalletRequest(
     kind: WalletRequestKind,
-    payload: WalletTxPayload | WalletEip712Payload,
+    payload: WalletTxPayload | WalletEip712Payload | WalletSolanaSignPayload,
   ): WalletRequest {
     const id = this.getWalletRequestId(kind, payload);
     const existing = this.walletRequests.find((request) => request.id === id);
-    const req: WalletRequest = {
-      id,
-      kind,
-      payload,
-      timestamp: existing?.timestamp ?? Date.now(),
-    };
+    const timestamp = existing?.timestamp ?? Date.now();
+    // Build the discriminated record by kind. The overload signatures
+    // above guarantee the call sites pass the right payload shape; here
+    // we just need to assemble the union member.
+    let req: WalletRequest;
+    if (kind === "transaction") {
+      req = {
+        id,
+        kind,
+        payload: payload as WalletTxPayload,
+        timestamp,
+      };
+    } else if (kind === "eip712_sign") {
+      req = {
+        id,
+        kind,
+        payload: payload as WalletEip712Payload,
+        timestamp,
+      };
+    } else {
+      req = {
+        id,
+        kind,
+        payload: payload as WalletSolanaSignPayload,
+        timestamp,
+      };
+    }
+
     this.walletRequests = existing
       ? this.walletRequests.map((request) =>
           request.id === id ? req : request,
         )
       : [...this.walletRequests, req];
 
-    if (kind === "transaction") {
-      const nextTxIds = txIdsFromPayload(payload as WalletTxPayload);
+    if (req.kind === "transaction") {
+      const nextTxIds = txIdsFromPayload(req.payload);
       if (nextTxIds.length > 1) {
         const nextTxIdSet = new Set(nextTxIds);
         this.walletRequests = this.walletRequests.filter((request) => {
           if (request.id === id || request.kind !== "transaction") {
             return true;
           }
-          const requestTxIds = txIdsFromPayload(
-            request.payload as WalletTxPayload,
-          );
+          const requestTxIds = txIdsFromPayload(request.payload);
           if (requestTxIds.length === 0) {
             return true;
           }
@@ -871,7 +988,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   private getWalletRequestId(
     kind: WalletRequestKind,
-    payload: WalletTxPayload | WalletEip712Payload,
+    payload: WalletTxPayload | WalletEip712Payload | WalletSolanaSignPayload,
   ): string {
     if (kind === "transaction") {
       const txPayload = payload as WalletTxPayload;
@@ -885,10 +1002,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       if (txIds.length > 0) {
         return `tx-${txIds.join("-")}`;
       }
-    } else {
-      const eip712Id = (payload as WalletEip712Payload).eip712Id;
+    } else if (kind === "eip712_sign") {
+      const { eip712Id } = payload as WalletEip712Payload;
       if (typeof eip712Id === "number") {
         return `eip712-${eip712Id}`;
+      }
+    } else {
+      const { pendingSolanaId } = payload as WalletSolanaSignPayload;
+      if (typeof pendingSolanaId === "number") {
+        return `solana-${pendingSolanaId}`;
       }
     }
 
@@ -903,6 +1025,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const pendingEip712s = isRecord(this.userState?.pending_eip712s)
       ? this.userState?.pending_eip712s
       : undefined;
+    const pendingSolanaTxs = isRecord(this.userState?.pending_solana_txs)
+      ? this.userState?.pending_solana_txs
+      : undefined;
 
     const pendingTxEntries = Object.entries(pendingTxs ?? {})
       .filter(([id]) => Number.isInteger(Number(id)))
@@ -912,12 +1037,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const existingTxRequests = this.walletRequests
       .filter(
-        (request): request is WalletRequest & { kind: "transaction" } =>
+        (request): request is Extract<WalletRequest, { kind: "transaction" }> =>
           request.kind === "transaction",
       )
       .map((request) => ({
         request,
-        txIds: txIdsFromPayload(request.payload as WalletTxPayload),
+        txIds: txIdsFromPayload(request.payload),
       }))
       .filter(
         ({ txIds }) =>
@@ -935,7 +1060,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         continue;
       }
       const payload = hydrateTxPayloadFromUserState(
-        request.payload as WalletTxPayload,
+        request.payload,
         { pending_txs: pendingTxs ?? {} },
       );
       const requestId = this.getWalletRequestId("transaction", payload);
@@ -994,6 +1119,24 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         timestamp:
           this.walletRequests.find((request) => request.id === requestId)
             ?.timestamp ?? Date.now(),
+      });
+    }
+
+    for (const [id, raw] of Object.entries(pendingSolanaTxs ?? {}).sort(
+      (left, right) => Number(left[0]) - Number(right[0]),
+    )) {
+      const payload = normalizeSolanaSignPayload({
+        ...(isRecord(raw) ? raw : {}),
+        pending_solana_id: Number(id),
+      });
+      const requestId = this.getWalletRequestId("solana_sign", payload);
+      nextRequests.push({
+        id: requestId,
+        kind: "solana_sign",
+        payload,
+        timestamp:
+          this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
+          Date.now(),
       });
     }
 

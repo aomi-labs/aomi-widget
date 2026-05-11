@@ -7,6 +7,7 @@ import { AomiFrame } from "@aomi-labs/widget-lib";
 import { useControl } from "@aomi-labs/react";
 import { usePaymentAwareClientOptions } from "@portal/lib/payment-client-options";
 import { usePaymentSelectProps } from "@portal/lib/use-payment-select-props";
+import { getBackendUrl } from "@portal/lib/settings-api";
 
 function getRequestedAppFromSearch(search: string): string | null {
   const params = new URLSearchParams(search);
@@ -45,12 +46,14 @@ function AppSelectUrlBootstrap() {
 export function PortalAomiFrame() {
   const clientOptions = usePaymentAwareClientOptions();
   const paymentSelectProps = usePaymentSelectProps();
+  const backendUrl = getBackendUrl();
 
   return (
     <main className="bg-background h-full w-full overflow-hidden">
       <AomiFrame.Root
         width="100%"
         height="100%"
+        backendUrl={backendUrl}
         walletPosition="footer"
         className="rounded-none border-0 shadow-none"
         clientOptions={clientOptions}

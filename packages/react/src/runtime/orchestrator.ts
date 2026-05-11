@@ -272,6 +272,7 @@ export function useRuntimeOrchestrator(
       cleanups.push(forwardEvent("system_notice"));
       cleanups.push(forwardEvent("system_error"));
       cleanups.push(forwardEvent("async_callback"));
+      cleanups.push(forwardEvent("user_state_request"));
 
       listenerCleanups.current.set(threadId, () => {
         for (const cleanup of cleanups) cleanup();
