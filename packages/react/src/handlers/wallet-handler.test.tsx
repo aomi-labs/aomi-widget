@@ -53,12 +53,14 @@ describe("useWalletHandler", () => {
     act(() => {
       result.current.startRequest(request.id);
       resolvePromise = result.current.resolveRequest(request.id, {
+        kind: "transaction",
         txHash: "0xabc",
       });
     });
 
     expect(result.current.pendingRequests).toEqual([]);
     expect(session.resolve).toHaveBeenCalledWith(request.id, {
+      kind: "transaction",
       txHash: "0xabc",
     });
 
@@ -107,6 +109,7 @@ describe("useWalletHandler", () => {
     let resolvePromise!: Promise<void>;
     act(() => {
       resolvePromise = result.current.resolveRequest(request.id, {
+        kind: "transaction",
         txHash: "0xdef",
       });
     });

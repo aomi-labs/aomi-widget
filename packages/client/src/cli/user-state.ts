@@ -3,7 +3,7 @@ import {
   UserState,
 } from "../types";
 import { getAddress } from "viem";
-import type { PendingTx } from "./state";
+import type { PendingSolTx, PendingTx } from "./state";
 import { normalizePendingTxData } from "../wallet-utils";
 
 type UnknownRecord = Record<string, unknown>;
@@ -170,6 +170,68 @@ export function pendingTxsFromBackendUserState(
   });
 
   return nextPendingTxs;
+}
+
+/**
+ * Rebuild the local Solana pending list from the backend's authoritative
+ * `pending_solana_txs` map. Mirrors [`pendingTxsFromBackendUserState`] but
+ * for the Solana domain only — kept in its own function so the caller's
+ * EVM/EIP-712 state and Solana state stay in separate arrays rather than
+ * a discriminated union.
+ */
+export function pendingSolTxsFromBackendUserState(
+  userState: UserState | null | undefined,
+  existingPendingSolTxs: readonly PendingSolTx[] = [],
+): PendingSolTx[] {
+  const normalizedUserState = UserState.normalize(userState);
+  if (!normalizedUserState) {
+    return [];
+  }
+
+  const existingById = new Map(existingPendingSolTxs.map((tx) => [tx.id, tx]));
+  const fallbackNow = Date.now();
+  const next: PendingSolTx[] = [];
+
+  const pendingSolanaTxs = asRecord(normalizedUserState.pending_solana_txs) ?? {};
+  for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
+    const pendingId = parsePendingId(rawId);
+    const request = asRecord(rawValue);
+    if (!pendingId || !request) {
+      continue;
+    }
+
+    const unsignedTx = parseOptionalString(request.unsigned_tx);
+    if (!unsignedTx) {
+      continue;
+    }
+
+    const id = pendingDisplayId(pendingId);
+    const description = parseOptionalString(request.description);
+    const cluster = parseOptionalString(request.cluster);
+    const signer = parseOptionalString(request.signer);
+
+    next.push({
+      id,
+      solanaId: pendingId,
+      unsignedTx,
+      cluster,
+      signer,
+      description,
+      timestamp: existingById.get(id)?.timestamp ?? fallbackNow,
+      payload: {
+        pending_solana_id: pendingId,
+        pendingSolanaId: pendingId,
+        unsigned_tx: unsignedTx,
+        unsignedTx,
+        cluster,
+        description,
+        signer,
+      },
+    });
+  }
+
+  next.sort((left, right) => left.solanaId - right.solanaId);
+  return next;
 }
 
 export function walletSnapshotFromUserState(

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "aomi-auth-adapter",
+  "type": "registry:component",
+  "description": "Generic Aomi auth adapter context and runtime user-state sync.",
+  "files": [
+    {
+      "type": "registry:component",
+      "path": "lib/aomi-auth-adapter.ts",
+      "content": "export * from \"./aomi-auth-adapter/index\";\n"
+    },
+    {
+      "type": "registry:component",
+      "path": "lib/aomi-auth-adapter/index.ts",
+      "content": "\"use client\";\n\nexport * from \"./context\";\nexport * from \"./identity\";\nexport * from \"./runtime-user-sync\";\nexport * from \"./types\";\n"
+    },
+    {
+      "type": "registry:component",
+      "path": "lib/aomi-auth-adapter/context.tsx",
+      "content": "\"use client\";\n\nimport { createContext, useContext, type ReactNode } from \"react\";\nimport { AOMI_AUTH_DISCONNECTED_IDENTITY } from \"./identity\";\nimport type { AomiAuthAdapter } from \"./types\";\n\nconst DISCONNECTED_ADAPTER: AomiAuthAdapter = {\n  identity: AOMI_AUTH_DISCONNECTED_IDENTITY,\n  isReady: true,\n  isSwitchingChain: false,\n  canConnect: false,\n  canOpenAccountUI: false,\n  canDisconnect: false,\n  connect: async () => undefined,\n};\n\nconst AomiAuthAdapterContext =\n  createContext<AomiAuthAdapter>(DISCONNECTED_ADAPTER);\n\nexport function AomiAuthAdapterProvider({\n  children,\n  value,\n}: {\n  children: ReactNode;\n  value: AomiAuthAdapter;\n}) {\n  return (\n    <AomiAuthAdapterContext.Provider value={value}>\n      {children}\n    </AomiAuthAdapterContext.Provider>\n  );\n}\n\nexport function useAomiAuthAdapter(): AomiAuthAdapter {\n  return useContext(AomiAuthAdapterContext);\n}\n"
+    },
+    {
+      "type": "registry:component",
+      "path": "lib/aomi-auth-adapter/types.ts",
+      "content": "\"use client\";\n\nimport type { Chain } from \"viem\";\nimport type { WalletEip712Payload, WalletTxPayload } from \"@aomi-labs/react\";\n\nexport type AomiAuthStatus = \"booting\" | \"disconnected\" | \"connected\";\n\nexport type AomiAuthIdentity = {\n  status: AomiAuthStatus;\n  isConnected: boolean;\n  address?: string;\n  chainId?: number;\n  authProvider?: string;\n  primaryLabel: string;\n  secondaryLabel?: string;\n};\n\nexport type AomiTxResult = {\n  txHash: string;\n  amount?: string;\n  aaRequestedMode?: \"4337\" | \"7702\" | \"none\";\n  aaResolvedMode?: \"4337\" | \"7702\" | \"none\";\n  aaFallbackReason?: string;\n  executionKind?: string;\n  batched?: boolean;\n  callCount?: number;\n  sponsored?: boolean;\n  smartAccountAddress?: string;\n  delegationAddress?: string;\n};\n\nexport type AomiAuthAdapter = {\n  identity: AomiAuthIdentity;\n  isReady: boolean;\n  isSwitchingChain: boolean;\n\n  canConnect: boolean;\n  canOpenAccountUI: boolean;\n  canDisconnect: boolean;\n\n  supportedChains?: readonly Chain[];\n\n  connect: () => Promise<void>;\n  openAccountUI?: () => Promise<void>;\n  disconnect?: () => Promise<void>;\n\n  switchChain?: (chainId: number) => Promise<void>;\n\n  sendTransaction?: (payload: WalletTxPayload) => Promise<AomiTxResult>;\n  signTypedData?: (\n    payload: WalletEip712Payload,\n  ) => Promise<{ signature: string }>;\n};\n"
+    },
+    {
+      "type": "registry:component",
+      "path": "lib/aomi-auth-adapter/identity.ts",
+      "content": "\"use client\";\n\nimport type { AomiAuthIdentity } from \"./types\";\n\nexport const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {\n  status: \"disconnected\",\n  isConnected: false,\n  address: undefined,\n  chainId: undefined,\n  authProvider: undefined,\n  primaryLabel: \"Not connected\",\n  secondaryLabel: undefined,\n};\n\nexport const AOMI_AUTH_BOOTING_IDENTITY: AomiAuthIdentity = {\n  status: \"booting\",\n  isConnected: false,\n  address: undefined,\n  chainId: undefined,\n  authProvider: undefined,\n  primaryLabel: \"Loading Wallet...\",\n  secondaryLabel: undefined,\n};\n\nexport function formatAddress(address?: string): string | undefined {\n  if (!address) return undefined;\n  return `${address.slice(0, 5)}..${address.slice(-2)}`;\n}\n\nexport function formatAuthProvider(provider?: string): string | undefined {\n  if (!provider) return undefined;\n\n  const labelMap: Record<string, string> = {\n    google: \"Google\",\n    github: \"GitHub\",\n    apple: \"Apple\",\n    facebook: \"Facebook\",\n    x: \"X\",\n    discord: \"Discord\",\n    farcaster: \"Farcaster\",\n    telegram: \"Telegram\",\n    email: \"Email\",\n    phone: \"Phone\",\n    wallet: \"Wallet\",\n    baseAccount: \"Base Account\",\n  };\n\n  return labelMap[provider] ?? provider;\n}\n\nexport function inferAuthProvider(authMethods: unknown): string | undefined {\n  if (!(authMethods instanceof Set) || authMethods.size === 0) return undefined;\n\n  const allowed = new Set([\n    \"google\",\n    \"github\",\n    \"apple\",\n    \"facebook\",\n    \"x\",\n    \"discord\",\n    \"farcaster\",\n    \"telegram\",\n    \"email\",\n    \"phone\",\n  ]);\n\n  for (const method of authMethods) {\n    if (typeof method !== \"string\") continue;\n    const normalized = method.toLowerCase();\n    if (allowed.has(normalized)) return normalized;\n  }\n\n  const first = authMethods.values().next().value;\n  return typeof first === \"string\" ? first.toLowerCase() : undefined;\n}\n"
+    },
+    {
+      "type": "registry:component",
+      "path": "lib/aomi-auth-adapter/runtime-user-sync.tsx",
+      "content": "\"use client\";\n\nimport { useEffect } from \"react\";\nimport { useUser } from \"@aomi-labs/react\";\nimport { useAomiAuthAdapter } from \"./context\";\n\nexport function AomiAuthRuntimeUserSync() {\n  const adapter = useAomiAuthAdapter();\n  const { setUser } = useUser();\n  const identity = adapter.identity;\n\n  useEffect(() => {\n    setUser({\n      address: identity.address ?? undefined,\n      chainId: identity.chainId ?? undefined,\n      isConnected: identity.isConnected,\n    });\n  }, [identity.address, identity.chainId, identity.isConnected, setUser]);\n\n  return null;\n}\n"
+    },
+    {
+      "type": "registry:component",
+      "path": "lib/auth-identity.ts",
+      "content": "export * from \"./aomi-auth-adapter/identity\";\nexport type {\n  AomiAuthIdentity,\n  AomiAuthStatus,\n} from \"./aomi-auth-adapter/types\";\n"
+    }
+  ],
+  "dependencies": [
+    "@aomi-labs/react",
+    "viem"
+  ],
+  "registryDependencies": []
+}

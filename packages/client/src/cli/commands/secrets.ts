@@ -61,7 +61,7 @@ export async function clearSecretsCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession();
   try {
-    await session.client.clearSecrets(clientId);
+    await session.client.clearSecrets(cli.sessionId, clientId);
     cli.clearSecretHandles();
     console.log("Cleared all secrets for the active session.");
     printDataFileLocation();

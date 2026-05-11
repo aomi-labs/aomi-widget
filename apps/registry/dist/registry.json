@@ -203,7 +203,8 @@
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "https://aomi.dev/r/attachment.json",
         "https://aomi.dev/r/assistant-tool-fallback.json",
-        "button"
+        "button",
+        "skeleton"
       ]
     },
     {
@@ -221,8 +222,10 @@
         "lucide-react"
       ],
       "registryDependencies": [
+        "https://aomi.dev/r/aomi-auth-adapter.json",
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "button",
+        "dialog",
         "skeleton"
       ]
     },

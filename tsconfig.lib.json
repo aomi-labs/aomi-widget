@@ -20,5 +20,13 @@
     "baseUrl": "."
   },
   "include": ["packages/react/src/**/*.ts", "packages/react/src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "example", "app"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "example",
+    "app",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**"
+  ]
 }

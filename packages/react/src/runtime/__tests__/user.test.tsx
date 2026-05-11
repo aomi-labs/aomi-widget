@@ -17,6 +17,7 @@ import {
   setAomiClientConfig,
   flushPromises,
 } from "./test-harness";
+import type { AomiThread } from "@aomi-labs/client";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -109,7 +110,30 @@ describe("User API", () => {
       });
     });
 
-    it("sends wallet state change to backend", async () => {
+    it("does not send wallet state changes to empty draft threads", async () => {
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+
+      setAomiClientConfig({ createThread, postSystemMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0x789",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      expect(createThread).not.toHaveBeenCalled();
+      expect(postSystemMessage).not.toHaveBeenCalled();
+    });
+
+    it("sends wallet state changes to materialized threads", async () => {
       const postSystemMessage = vi.fn(async () => ({ res: null }));
 
       setAomiClientConfig({ postSystemMessage });
@@ -122,6 +146,18 @@ describe("User API", () => {
           chainId: 1,
           isConnected: true,
         });
+        await flushPromises();
+      });
+
+      expect(postSystemMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await api.sendMessage("Materialize this thread");
+        await flushPromises();
+      });
+
+      await act(async () => {
+        api.setUser({ chainId: 137 });
         await flushPromises();
       });
 
@@ -138,8 +174,228 @@ describe("User API", () => {
       expect(messageJson.type).toBe("wallet:state_changed");
       expect(messageJson.payload.address).toBe("0x789");
       expect(messageJson.payload.ext).toBeUndefined();
-      expect(messageJson.payload.chain_id).toBe(1);
+      expect(messageJson.payload.chain_id).toBe(137);
       expect(messageJson.payload.is_connected).toBe(true);
+    });
+
+    it("keeps a materialized thread remote after a stale list fetch resolves", async () => {
+      let resolveListThreads:
+        | ((threads: AomiThread[] | PromiseLike<AomiThread[]>) => void)
+        | undefined;
+      const listThreads = vi.fn(
+        () =>
+          new Promise<AomiThread[]>((resolve) => {
+            resolveListThreads = resolve;
+          }),
+      );
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+
+      setAomiClientConfig({
+        listThreads,
+        createThread,
+        postSystemMessage,
+      });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0x789",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(listThreads).toHaveBeenCalledWith(
+          expect.stringMatching(/^control:/),
+          "0x789",
+        );
+      });
+
+      await act(async () => {
+        await getApi().sendMessage("Materialize during list fetch");
+      });
+      const materializedThreadId = getApi().currentThreadId;
+
+      await act(async () => {
+        resolveListThreads?.([]);
+        await flushPromises();
+      });
+
+      await act(async () => {
+        getApi().setUser({ chainId: 137 });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(postSystemMessage).toHaveBeenCalledWith(
+          materializedThreadId,
+          expect.any(String),
+        );
+      });
+    });
+
+    it("does not send wallet state changes to the previous wallet thread when the address changes", async () => {
+      const listThreads = vi
+        .fn<() => Promise<AomiThread[]>>()
+        .mockResolvedValueOnce([
+          { session_id: "wallet-a-thread", title: "Wallet A Thread" },
+        ])
+        .mockResolvedValueOnce([
+          { session_id: "wallet-b-thread", title: "Wallet B Thread" },
+        ]);
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+
+      setAomiClientConfig({
+        listThreads,
+        postSystemMessage,
+      });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xAAA",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("wallet-a-thread")?.title).toBe(
+          "Wallet A Thread",
+        );
+      });
+
+      await act(async () => {
+        getApi().selectThread("wallet-a-thread");
+        await flushPromises();
+      });
+
+      await act(async () => {
+        getApi().setUser({
+          address: "0xBBB",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      expect(postSystemMessage).not.toHaveBeenCalled();
+    });
+
+    it("answers user_state_request with the live connected wallet state", async () => {
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+
+      setAomiClientConfig({
+        sendMessage: async () => ({
+          is_processing: false,
+          messages: [],
+          user_state: {
+            address: undefined,
+            chain_id: undefined,
+            is_connected: false,
+          },
+          system_events: [
+            {
+              InlineCall: {
+                type: "user_state_request",
+              },
+            },
+          ],
+        }),
+        postSystemMessage,
+      });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xLIVE",
+          chainId: 8453,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await act(async () => {
+        await api.sendMessage("hello");
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(postSystemMessage).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.any(String),
+        );
+      });
+
+      const [, message] = postSystemMessage.mock.calls[0] as [string, string];
+      expect(JSON.parse(message)).toEqual({
+        type: "user_state_response",
+        payload: {
+          address: "0xLIVE",
+          chain_id: 8453,
+          is_connected: true,
+        },
+      });
+    });
+
+    it("recomputes the thread counter from the new wallet's threads after an address change", async () => {
+      const listThreads = vi
+        .fn<() => Promise<AomiThread[]>>()
+        .mockResolvedValueOnce([
+          { session_id: "wallet-a-thread", title: "Chat 9" },
+        ])
+        .mockResolvedValueOnce([
+          { session_id: "wallet-b-thread", title: "Chat 3" },
+        ]);
+
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi, getThreadCount } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xAAA",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("wallet-a-thread")?.title).toBe(
+          "Chat 9",
+        );
+      });
+      await waitFor(() => {
+        expect(getThreadCount()).toBe(9);
+      });
+
+      await act(async () => {
+        getApi().setUser({
+          address: "0xBBB",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("wallet-b-thread")?.title).toBe(
+          "Chat 3",
+        );
+      });
+      await waitFor(() => {
+        expect(getThreadCount()).toBe(3);
+      });
     });
   });
 

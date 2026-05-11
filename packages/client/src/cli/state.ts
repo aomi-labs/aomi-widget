@@ -14,6 +14,7 @@ import {
 } from "../types";
 import {
   pendingTxsFromBackendUserState,
+  pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
 
@@ -52,6 +53,43 @@ export type SignedTx = {
   timestamp: number;
 };
 
+/**
+ * Solana sign-only request waiting for the local CLI signer. Mirrors
+ * [`PendingTx`] but kept as its own type — the host treats Solana as a
+ * separate domain (no batching, no chain id, no `to`/`value`) so a flat
+ * non-union record is cleaner than co-mingling Solana-only fields onto
+ * [`PendingTx`].
+ */
+export type PendingSolTx = {
+  id: string;
+  /** Backend-assigned id for the staged Solana sign request. */
+  solanaId: number;
+  /** Base64 of the unsigned Solana transaction (host never decodes). */
+  unsignedTx: string;
+  /** CAIP-2 cluster, e.g. "solana:mainnet" / "solana:devnet". */
+  cluster?: string;
+  /** Base58 pubkey the host expects to sign (informational; CLI signs
+   *  with whatever local keypair the user provides). */
+  signer?: string;
+  description?: string;
+  timestamp: number;
+  payload: Record<string, unknown>;
+};
+
+/**
+ * Signed Solana record persisted locally for `aomi tx list`. The bound
+ * artifact is `signedTx` (base64 of the full signed bytes, ready to
+ * splice into a `submit_*` continuation).
+ */
+export type SignedSolTx = {
+  id: string;
+  signedTx: string;
+  signer: string;
+  cluster?: string;
+  description?: string;
+  timestamp: number;
+};
+
 export type CliSessionState = {
   sessionId: string;
   clientId?: string;
@@ -63,7 +101,9 @@ export type CliSessionState = {
   privateKey?: string;
   chainId?: number;
   pendingTxs?: PendingTx[];
+  pendingSolTxs?: PendingSolTx[];
   signedTxs?: SignedTx[];
+  signedSolTxs?: SignedSolTx[];
   secretHandles?: Record<string, string>;
 };
 
@@ -141,7 +181,9 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     privateKey: stored.privateKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
+    pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
+    signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles,
   };
 }
@@ -167,7 +209,9 @@ function readStoredSession(path: string): StoredSessionState | null {
       privateKey: parsed.privateKey,
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
+      pendingSolTxs: parsed.pendingSolTxs,
       signedTxs: parsed.signedTxs,
+      signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
@@ -418,7 +462,12 @@ export function clearState(): void {
 }
 
 function getNextTxId(state: CliSessionState): string {
-  const allIds = [...(state.pendingTxs ?? []), ...(state.signedTxs ?? [])].map((tx) => {
+  const allIds = [
+    ...(state.pendingTxs ?? []),
+    ...(state.pendingSolTxs ?? []),
+    ...(state.signedTxs ?? []),
+    ...(state.signedSolTxs ?? []),
+  ].map((tx) => {
     const match = tx.id.match(/^tx-(\d+)$/);
     return match ? parseInt(match[1], 10) : 0;
   });
@@ -475,10 +524,65 @@ export function addSignedTx(
   writeState(state);
 }
 
+export function hasSameSolanaPendingId(
+  existing: PendingSolTx,
+  next: Omit<PendingSolTx, "id">,
+): boolean {
+  return existing.solanaId === next.solanaId;
+}
+
+export function addPendingSolTx(
+  state: CliSessionState,
+  tx: Omit<PendingSolTx, "id">,
+): PendingSolTx | null {
+  if (!state.pendingSolTxs) state.pendingSolTxs = [];
+
+  const isDuplicate = state.pendingSolTxs.some((existing) =>
+    hasSameSolanaPendingId(existing, tx),
+  );
+  if (isDuplicate) {
+    return null;
+  }
+
+  const pending: PendingSolTx = {
+    ...tx,
+    id: `tx-${tx.solanaId}`,
+  };
+  state.pendingSolTxs.push(pending);
+  writeState(state);
+  return pending;
+}
+
+export function removePendingSolTx(
+  state: CliSessionState,
+  id: string,
+): PendingSolTx | null {
+  if (!state.pendingSolTxs) return null;
+  const idx = state.pendingSolTxs.findIndex((tx) => tx.id === id);
+  if (idx === -1) return null;
+  const [removed] = state.pendingSolTxs.splice(idx, 1);
+  writeState(state);
+  return removed;
+}
+
+export function addSignedSolTx(
+  state: CliSessionState,
+  tx: SignedSolTx,
+): void {
+  if (!state.signedSolTxs) state.signedSolTxs = [];
+  state.signedSolTxs.push(tx);
+  writeState(state);
+}
+
+export type SyncPendingTxsResult = {
+  pendingTxs: PendingTx[];
+  pendingSolTxs: PendingSolTx[];
+};
+
 export function syncPendingTxsFromUserState(
   state: CliSessionState,
   userState: UserState | null | undefined,
-): PendingTx[] {
+): SyncPendingTxsResult {
   const normalizedUserState = UserStateHelpers.normalize(userState);
   const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
   const isConnected = UserStateHelpers.isConnected(normalizedUserState);
@@ -499,6 +603,13 @@ export function syncPendingTxsFromUserState(
     normalizedUserState,
     state.pendingTxs ?? [],
   );
+  state.pendingSolTxs = pendingSolTxsFromBackendUserState(
+    normalizedUserState,
+    state.pendingSolTxs ?? [],
+  );
   writeState(state);
-  return state.pendingTxs;
+  return {
+    pendingTxs: state.pendingTxs,
+    pendingSolTxs: state.pendingSolTxs,
+  };
 }
