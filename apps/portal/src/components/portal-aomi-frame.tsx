@@ -11,6 +11,7 @@ import { wrapFetchWithPayment } from "@x402/fetch";
 import { Mppx, tempo } from "mppx/client";
 import { useConfig, useWalletClient } from "wagmi";
 import { getConnectorClient } from "wagmi/actions";
+import { getBackendUrl } from "@portal/lib/settings-api";
 
 function getRequestedAppFromSearch(search: string): string | null {
   const params = new URLSearchParams(search);
@@ -100,12 +101,14 @@ function AppSelectUrlBootstrap() {
 
 export function PortalAomiFrame() {
   const clientOptions = usePortalClientOptions();
+  const backendUrl = getBackendUrl();
 
   return (
     <main className="bg-background h-full w-full overflow-hidden">
       <AomiFrame.Root
         width="100%"
         height="100%"
+        backendUrl={backendUrl}
         walletPosition="footer"
         className="rounded-none border-0 shadow-none"
         clientOptions={clientOptions}

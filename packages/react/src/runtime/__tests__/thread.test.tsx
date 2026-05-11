@@ -280,6 +280,44 @@ describe("Thread API", () => {
       });
     });
 
+    it("drops previous wallet thread metadata when the connected address changes", async () => {
+      const fetchThreads = vi
+        .fn<() => Promise<AomiThread[]>>()
+        .mockResolvedValueOnce([
+          { session_id: "thread-a", title: "Wallet A Thread" },
+        ])
+        .mockResolvedValueOnce([
+          { session_id: "thread-b", title: "Wallet B Thread" },
+        ]);
+      setAomiClientConfig({ fetchThreads });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("thread-a")?.title).toBe(
+          "Wallet A Thread",
+        );
+      });
+
+      await act(async () => {
+        api.setUser({ address: "0x456", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("thread-b")?.title).toBe(
+          "Wallet B Thread",
+        );
+      });
+
+      expect(getApi().getThreadMetadata("thread-a")).toBeUndefined();
+    });
+
     it("handles archived threads", async () => {
       const fetchThreads = vi.fn(
         async (): Promise<AomiThread[]> => [

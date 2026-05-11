@@ -164,7 +164,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
                   </span>
                   <div className="flex flex-col">
                     <span className="font-medium">{AUTO_MODE_LABEL}</span>
-                    <span className="text-muted-foreground text-[11px]">
+                    <span className="text-muted-foreground text-xs">
                       Best balance of speed & cost
                     </span>
                   </div>

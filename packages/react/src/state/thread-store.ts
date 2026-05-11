@@ -244,6 +244,7 @@ export class ThreadStore {
     };
     this.snapshot = this.buildSnapshot();
     this.emit();
+    return threadId;
   };
 
   updateThreadMetadata = (

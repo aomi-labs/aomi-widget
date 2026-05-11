@@ -25,12 +25,7 @@ export const ThreadList: FC = () => {
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-1 pl-2">
       <ThreadListNew />
-      <div className="aui-thread-list-separator mx-4 my-2 flex items-center gap-2">
-        <span className="text-muted-foreground/40 text-[10px] font-medium uppercase tracking-widest">
-          Recent
-        </span>
-        <div className="border-border/30 flex-1 border-t" />
-      </div>
+      <div className="aui-thread-list-separator border-border/30 mx-4 my-2 border-t" />
       <ThreadListItems />
     </ThreadListPrimitive.Root>
   );
@@ -40,7 +35,7 @@ const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-3xl px-4 py-2 text-start"
+        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-2xl px-4 py-2 text-sm text-start"
         variant="ghost"
       >
         <PlusIcon className="size-4" />
@@ -68,7 +63,7 @@ const ThreadListItems: FC = () => {
 
 const ThreadListConnectHint: FC = () => {
   return (
-    <p className="aui-thread-list-connect-hint text-muted-foreground/60 px-4 py-8 text-center text-xs">
+    <p className="mt-2 px-4 aui-thread-list-connect-hint text-muted-foreground/60 text-left text-xs">
       Connect wallet to see threads
     </p>
   );
@@ -108,7 +103,7 @@ const ThreadListSkeleton: FC = () => {
       {SKELETON_WIDTHS.map((width, i) => (
         <div
           key={i}
-          className="aui-thread-list-skeleton-wrapper flex h-9 shrink-0 items-center rounded-3xl px-4"
+          className="aui-thread-list-skeleton-wrapper flex h-9 shrink-0 items-center rounded-2xl px-4"
         >
           <Skeleton
             className="aui-thread-list-skeleton h-3"
@@ -122,7 +117,7 @@ const ThreadListSkeleton: FC = () => {
 
 const ThreadListItem: FC = () => {
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex w-full min-w-0 items-center rounded-3xl pl-4 transition-all focus-visible:outline-none">
+    <ThreadListItemPrimitive.Root className="aui-thread-list-item hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex w-full min-w-0 items-center rounded-2xl pl-4 pr-2 transition-all focus-visible:outline-none">
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger min-w-0 flex-1 py-2 text-start">
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
@@ -145,7 +140,7 @@ const ThreadListItemDelete: FC = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button
-        className="aui-thread-list-item-delete text-foreground hover:text-primary mr-3 size-4 shrink-0 p-0"
+        className="aui-thread-list-item-delete text-foreground hover:text-primary shrink-0 pl-2"
         variant="ghost"
         size="icon"
         aria-label="Delete thread"
@@ -155,7 +150,7 @@ const ThreadListItemDelete: FC = () => {
           setOpen(true);
         }}
       >
-        <TrashIcon />
+        <TrashIcon className="size-3.5" />
       </Button>
       <DialogContent className="aui-thread-list-delete-dialog sm:max-w-sm">
         <DialogHeader>

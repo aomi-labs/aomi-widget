@@ -135,7 +135,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                       </span>
                       <div className="flex flex-col">
                         <span className="font-medium">All Apps</span>
-                        <span className="text-muted-foreground text-[11px]">
+                        <span className="text-muted-foreground text-xs">
                           Use all available apps
                         </span>
                       </div>

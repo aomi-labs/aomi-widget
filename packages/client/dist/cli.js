@@ -636,6 +636,7 @@ var init_client = __esm({
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
         this.fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
+        this.rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : this.fetchImpl;
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
@@ -724,11 +725,13 @@ var init_client = __esm({
        * client_id for the browser tab. The same client_id should be passed
        * to `sendMessage` / `fetchState` so sessions get associated.
        */
-      async ingestSecrets(clientId, secrets) {
+      async ingestSecrets(sessionId, clientId, secrets) {
         const url = joinApiPath(this.baseUrl, "/api/secrets");
         const response = await this.fetchImpl(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: withSessionHeader(sessionId, {
+            "Content-Type": "application/json"
+          }),
           body: JSON.stringify({ client_id: clientId, secrets })
         });
         if (!response.ok) {
@@ -739,11 +742,14 @@ var init_client = __esm({
       /**
        * Clear all secrets for a client (e.g. on page unload or logout).
        */
-      async clearSecrets(clientId) {
+      async clearSecrets(sessionId, clientId) {
         const url = buildApiUrl(this.baseUrl, "/api/secrets", {
           client_id: clientId
         });
-        const response = await this.fetchImpl(url, { method: "DELETE" });
+        const response = await this.fetchImpl(url, {
+          method: "DELETE",
+          headers: withSessionHeader(sessionId)
+        });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -752,7 +758,7 @@ var init_client = __esm({
       /**
        * Remove a single secret for a client.
        */
-      async deleteSecret(clientId, name) {
+      async deleteSecret(sessionId, clientId, name) {
         const url = buildApiUrl(
           this.baseUrl,
           `/api/secrets/${encodeURIComponent(name)}`,
@@ -760,7 +766,10 @@ var init_client = __esm({
             client_id: clientId
           }
         );
-        const response = await this.fetchImpl(url, { method: "DELETE" });
+        const response = await this.fetchImpl(url, {
+          method: "DELETE",
+          headers: withSessionHeader(sessionId)
+        });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -783,11 +792,13 @@ var init_client = __esm({
       /**
        * List all threads for a wallet address.
        */
-      async listThreads(publicKey) {
+      async listThreads(sessionId, publicKey) {
         const url = buildApiUrl(this.baseUrl, "/api/sessions", {
           public_key: publicKey
         });
-        const response = await this.fetchImpl(url);
+        const response = await this.fetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
         if (!response.ok) {
           throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
         }
@@ -867,33 +878,17 @@ var init_client = __esm({
        * Archive a thread.
        */
       async archiveThread(sessionId) {
-        const url = buildApiUrl(
-          this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}/archive`
+        throw new Error(
+          "Failed to archive thread: current backend does not expose /api/sessions/:id/archive"
         );
-        const response = await this.fetchImpl(url, {
-          method: "POST",
-          headers: withSessionHeader(sessionId)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-        }
       }
       /**
        * Unarchive a thread.
        */
       async unarchiveThread(sessionId) {
-        const url = buildApiUrl(
-          this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`
+        throw new Error(
+          "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive"
         );
-        const response = await this.fetchImpl(url, {
-          method: "POST",
-          headers: withSessionHeader(sessionId)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-        }
       }
       // ===========================================================================
       // System Events
@@ -930,7 +925,7 @@ var init_client = __esm({
         if (apiKey) {
           headers.set(API_KEY_HEADER, apiKey);
         }
-        const response = await this.fetchImpl(url, { headers });
+        const response = await this.rawFetchImpl(url, { headers });
         if (!response.ok) {
           throw new Error(`Failed to get apps: HTTP ${response.status}`);
         }
@@ -947,7 +942,7 @@ var init_client = __esm({
         if (apiKey) {
           headers.set(API_KEY_HEADER, apiKey);
         }
-        const response = await this.fetchImpl(url, {
+        const response = await this.rawFetchImpl(url, {
           headers
         });
         if (!response.ok) {
@@ -1934,6 +1929,11 @@ var init_session = __esm({
             const req = this.enqueueWalletRequest("solana_sign", payload);
             this.emit("wallet_solana_sign_request", req);
           } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
+            this.emit(
+              unwrapped.type,
+              unwrapped.payload
+            );
+          } else {
             this.emit(
               unwrapped.type,
               unwrapped.payload
@@ -3154,6 +3154,7 @@ async function ingestSecretsForSession(config, cli, client) {
   if (Object.keys(secrets).length === 0) return {};
   const clientId = cli.ensureClientId();
   const response = await client.ingestSecrets(
+    cli.sessionId,
     clientId,
     secrets
   );
@@ -6310,7 +6311,7 @@ async function clearSecretsCommand(config) {
   }
   const session = cli.createClientSession();
   try {
-    await session.client.clearSecrets(clientId);
+    await session.client.clearSecrets(cli.sessionId, clientId);
     cli.clearSecretHandles();
     console.log("Cleared all secrets for the active session.");
     printDataFileLocation();
@@ -6987,7 +6988,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.34",
+  version: "0.1.35",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

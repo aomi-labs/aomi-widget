@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { CookieConsent } from "@portal/components/cookie-consent";
@@ -7,15 +7,14 @@ import { GoogleAnalytics } from "@portal/components/google-analytics";
 import { SettingsProvider } from "@portal/components/settings-provider";
 import { WalletProviders } from "@portal/components/wallet-providers";
 
-const iaWriterMono = localFont({
-  src: [
-    {
-      path: "../../public/assets/fonts/iAWriterMonoS-Regular.ttf",
-      weight: "400",
-      style: "normal",
-    },
-  ],
-  variable: "--font-ia-writer",
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +40,9 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className={`${iaWriterMono.variable} font-sans antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+      >
         <GoogleAnalytics />
         <WalletProviders cookies={cookieString || null}>
           <SettingsProvider>
