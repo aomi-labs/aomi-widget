@@ -587,6 +587,77 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("re-enters processing and polling after rejecting a wallet request while idle", async () => {
+    vi.useFakeTimers();
+    const { client, sendMessage, sendSystemMessage, fetchState } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-9b",
+      pollIntervalMs: 10,
+    });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet_eip712_request",
+          payload: {
+            eip712Id: 12,
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0x123" },
+            },
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+    fetchState.mockResolvedValue({
+      is_processing: false,
+      messages: [],
+    } satisfies AomiStateResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_eip712_request", resolve);
+    });
+    const processingStart = vi.fn();
+    session.on("processing_start", processingStart);
+
+    await session.sendAsync("queue signature");
+    const request = await requestPromise;
+
+    expect(session.getIsProcessing()).toBe(false);
+
+    await session.reject((request as { id: string }).id, "User rejected");
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-unit-9b",
+      JSON.stringify({
+        type: "wallet_eip712_response",
+        payload: {
+          status: "failed",
+          error: "User rejected",
+          description: "Permit2 signature",
+          pending_eip712_id: 12,
+        },
+      }),
+    );
+    expect(processingStart).toHaveBeenCalledTimes(1);
+    expect(session.getIsProcessing()).toBe(true);
+    expect(session.getIsPolling()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(fetchState).toHaveBeenCalled();
+    expect(session.getIsProcessing()).toBe(false);
+    expect(session.getIsPolling()).toBe(false);
+
+    session.close();
+    vi.useRealTimers();
+  });
+
   it("emits wallet_solana_sign_request from a wallet::solana_sign_request InlineCall", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-solana-1" });

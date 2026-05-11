@@ -888,6 +888,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private enqueueWalletRequest;
     private removeWalletRequest;
     private sendSystemEvent;
+    private resumeAfterWalletCallback;
     private resolvePending;
     private assertOpen;
     private assertUserStateAligned;

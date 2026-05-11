@@ -1650,9 +1650,7 @@ var init_session = __esm({
             description: req.payload.description
           }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         }
-        if (this._isProcessing) {
-          this.startPolling();
-        }
+        this.resumeAfterWalletCallback();
       }
       /**
        * Reject a pending wallet request.
@@ -1694,9 +1692,7 @@ var init_session = __esm({
             description: req.payload.description
           }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         }
-        if (this._isProcessing) {
-          this.startPolling();
-        }
+        this.resumeAfterWalletCallback();
       }
       // ===========================================================================
       // Public API — Control
@@ -2015,6 +2011,14 @@ var init_session = __esm({
       async sendSystemEvent(type, payload) {
         const message = JSON.stringify({ type, payload });
         await this.client.sendSystemMessage(this.sessionId, message);
+      }
+      resumeAfterWalletCallback() {
+        if (this.closed) return;
+        if (!this._isProcessing) {
+          this._isProcessing = true;
+          this.emit("processing_start", void 0);
+        }
+        this.startPolling();
       }
       resolvePending() {
         if (this.pendingResolve) {
@@ -6988,7 +6992,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.35",
+  version: "0.1.36",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

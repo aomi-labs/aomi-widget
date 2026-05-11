@@ -464,10 +464,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       });
     }
 
-    // Resume polling if still processing
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletCallback();
   }
 
   /**
@@ -518,9 +515,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       });
     }
 
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletCallback();
   }
 
   // ===========================================================================
@@ -930,6 +925,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   ): Promise<void> {
     const message = JSON.stringify({ type, payload });
     await this.client.sendSystemMessage(this.sessionId, message);
+  }
+
+  private resumeAfterWalletCallback(): void {
+    if (this.closed) return;
+    if (!this._isProcessing) {
+      this._isProcessing = true;
+      this.emit("processing_start", undefined);
+    }
+    this.startPolling();
   }
 
   private resolvePending(): void {

@@ -1369,9 +1369,7 @@ var ClientSession = class extends TypedEventEmitter {
         description: req.payload.description
       }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
     }
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletCallback();
   }
   /**
    * Reject a pending wallet request.
@@ -1413,9 +1411,7 @@ var ClientSession = class extends TypedEventEmitter {
         description: req.payload.description
       }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
     }
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletCallback();
   }
   // ===========================================================================
   // Public API — Control
@@ -1734,6 +1730,14 @@ var ClientSession = class extends TypedEventEmitter {
   async sendSystemEvent(type, payload) {
     const message = JSON.stringify({ type, payload });
     await this.client.sendSystemMessage(this.sessionId, message);
+  }
+  resumeAfterWalletCallback() {
+    if (this.closed) return;
+    if (!this._isProcessing) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+    }
+    this.startPolling();
   }
   resolvePending() {
     if (this.pendingResolve) {
