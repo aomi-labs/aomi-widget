@@ -34,11 +34,6 @@ const ALLOWED_ROUTES: Array<{
     pattern: /^\/api\/sessions\/[^/]+$/,
     methods: new Set(["GET", "PATCH", "DELETE"]),
   },
-  { pattern: /^\/api\/sessions\/[^/]+\/archive$/, methods: new Set(["POST"]) },
-  {
-    pattern: /^\/api\/sessions\/[^/]+\/unarchive$/,
-    methods: new Set(["POST"]),
-  },
   { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/apps$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/models$/, methods: new Set(["GET"]) },

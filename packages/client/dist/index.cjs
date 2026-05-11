@@ -454,6 +454,7 @@ var AomiClient = class {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     this.fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
+    this.rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : this.fetchImpl;
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -542,11 +543,13 @@ var AomiClient = class {
    * client_id for the browser tab. The same client_id should be passed
    * to `sendMessage` / `fetchState` so sessions get associated.
    */
-  async ingestSecrets(clientId, secrets) {
+  async ingestSecrets(sessionId, clientId, secrets) {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
       body: JSON.stringify({ client_id: clientId, secrets })
     });
     if (!response.ok) {
@@ -557,11 +560,14 @@ var AomiClient = class {
   /**
    * Clear all secrets for a client (e.g. on page unload or logout).
    */
-  async clearSecrets(clientId) {
+  async clearSecrets(sessionId, clientId) {
     const url = buildApiUrl(this.baseUrl, "/api/secrets", {
       client_id: clientId
     });
-    const response = await this.fetchImpl(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -570,7 +576,7 @@ var AomiClient = class {
   /**
    * Remove a single secret for a client.
    */
-  async deleteSecret(clientId, name) {
+  async deleteSecret(sessionId, clientId, name) {
     const url = buildApiUrl(
       this.baseUrl,
       `/api/secrets/${encodeURIComponent(name)}`,
@@ -578,7 +584,10 @@ var AomiClient = class {
         client_id: clientId
       }
     );
-    const response = await this.fetchImpl(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -601,11 +610,13 @@ var AomiClient = class {
   /**
    * List all threads for a wallet address.
    */
-  async listThreads(publicKey) {
+  async listThreads(sessionId, publicKey) {
     const url = buildApiUrl(this.baseUrl, "/api/sessions", {
       public_key: publicKey
     });
-    const response = await this.fetchImpl(url);
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
@@ -685,33 +696,17 @@ var AomiClient = class {
    * Archive a thread.
    */
   async archiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/archive`
+    throw new Error(
+      "Failed to archive thread: current backend does not expose /api/sessions/:id/archive"
     );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
   }
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`
+    throw new Error(
+      "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive"
     );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
   }
   // ===========================================================================
   // System Events
@@ -748,7 +743,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await this.fetchImpl(url, { headers });
+    const response = await this.rawFetchImpl(url, { headers });
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
@@ -765,7 +760,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await this.fetchImpl(url, {
+    const response = await this.rawFetchImpl(url, {
       headers
     });
     if (!response.ok) {
@@ -1722,6 +1717,11 @@ var ClientSession = class extends TypedEventEmitter {
         const req = this.enqueueWalletRequest("solana_sign", payload);
         this.emit("wallet_solana_sign_request", req);
       } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
+        this.emit(
+          unwrapped.type,
+          unwrapped.payload
+        );
+      } else {
         this.emit(
           unwrapped.type,
           unwrapped.payload
