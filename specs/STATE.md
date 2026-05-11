@@ -2,9 +2,43 @@
 
 ## Last Updated
 
-2026-05-09 - x402 / MPP frontend affordances
+2026-05-09 - E2E payment verification + Tempo `maxDeposit` fix
 
 ## Recent Changes
+
+### E2E payment verification against product-mono backend (2026-05-09)
+
+Ran the dispatcher in `apps/portal/src/lib/payment-client-options.ts` against a locally-running `product-mono` backend with a connected test wallet. All three modes verified end-to-end:
+
+| Mode | Backend response | Final outcome | Notes |
+|---|---|---|---|
+| **Auto** (no `payment_method`) | LLM streams via Anthropic Claude Haiku 4.5 | 200, `payment_method=null`, `credits_used=0.65424` | Aomi-credits-first chain works without any wallet handshake. |
+| **x402 / coinbase** (Base Sepolia) | 402 + `Payment-Required` (base64 v2::PaymentRequired, USDC EIP-3009) | 200 + `Payment-Response` header | Sign with the connected wallet surfaced through wagmi/Para (`{address, signTypedData}`) and `ExactEvmScheme`. |
+| **MPP / tempo** (Tempo Moderato) | 402 + `WWW-Authenticate: Payment id="…", realm="MPP Payment", method="tempo", intent="session"` | First call: 200 + management body `{"status":"ok"}` (channel opened, chat does NOT proceed). Second call: 200 + `Payment-Receipt` header + chat body, then `agent: ok` after a `/api/state` poll. | mppx auto-opens a Tempo channel within `maxDeposit` cap and signs vouchers. **Two-shot:** the verifier returns a "management response" on the first round (channel-open ack — `tempo.rs:198`), so the actual chat needs a *second* request reusing the same `Mppx` instance state. Browser portal handles this naturally because `Mppx.create()` is memoized on `wagmiConfig` — the same instance survives across user messages. A page reload would lose the in-memory channel state and pay another channel-open round-trip until the user's deposit is reused on-chain. |
+
+**Bug uncovered**: `apps/portal/src/lib/payment-client-options.ts` was constructing `tempo({ getClient })` with no `maxDeposit` or `deposit`. The first MPP request would always throw `Error: No 'action' in context and no 'deposit' or 'maxDeposit' configured` from `mppx/tempo/client/Session.js:263` — meaning portal's MPP path was broken end-to-end despite the dispatcher fix. **Fixed by adding `maxDeposit: "0.5"`** to the tempo config so mppx can auto-manage channel opening within a bounded cap.
+
+Verification should continue to use the browser wallet integration already present in portal (`AomiWalletProvider` / wagmi / Para), not checked-in raw-key scripts.
+
+### Payments redesign + auth dispatcher (2026-05-09)
+
+Two coupled fixes:
+
+1. **Wallet handshakes work end-to-end now.** `apps/portal/src/lib/payment-client-options.ts` was wrapping `wrapFetchWithPayment(mppFetch, ...)` so mppx saw every 402, including x402 ones, and threw `Missing WWW-Authenticate header.`. Replaced with a single `paymentAwareFetch`:
+   - `narrowAutoMethod` (new pure helper in `apps/portal/src/lib/payment-fetch-utils.ts`) appends `?payment_method=coinbase` when MPP is off and x402 is on; no-op otherwise.
+   - The dispatcher fires a plain `globalThis.fetch` (cloning `Request` inputs to preserve replay), then on 402 routes by response header: `Payment-Required` → x402Fetch, `WWW-Authenticate` → mppFetch. Backend chain `null → byok → tempo → coinbase` (`product-mono/aomi/bin/backend/src/endpoint/chat.rs:31`) now works under Auto and explicit selection alike.
+   - 17 unit tests in `apps/portal/src/lib/payment-fetch-utils.test.ts` cover the four input shapes (string abs/rel, URL, Request) crossed with the four toggle combos for `narrowAutoMethod`, plus six cases for `readExplicitMethod` (the explicit-method short-circuit). Wired into the root vitest run.
+2. **`<PaymentSettings>` redesigned around the credits-first model.** The previous 5-card "Default chat payment method" grid is gone. New layout: hero "Aomi credits" card with a fallback chain visualizer (`Aomi credits → BYOK → MPP → x402`, segments dim when toggle off or BYOK empty); two side-by-side wallet-fallback cards (MPP + x402) using shadcn `Card`; bundled BYOK at the bottom. Switched hand-rolled containers to `Card`. Added optional `status.credits` for a usage bar.
+
+Other changes:
+
+- Dropped explicit MPP "Connect" CTA from `<PaymentSelect>` popover and from the settings card. Connection happens automatically the first chat turn that reaches Tempo. Portal's `connectMpp` aliases to `refreshPaymentStatus`. Portal's `usePaymentSelectProps` no longer attaches a `connect` field to the tempo status.
+- `connect` field stays in the public `PaymentMethodStatus` API as a host-extensible capability (removing it would be a breaking change to widget-lib consumers).
+- `PaymentSettingsToggles.preferredPaymentMethod` and `setPreferredPaymentMethod` are now optional (back-compat only — new layout doesn't read them).
+- `payment-settings` registry entry now declares `card` as a registry dep and `@aomi-labs/react` as an npm dep (used by `useControl()` for BYOK availability inference when the default BYOK section is rendered).
+- DOMAIN.md "Payment Methods" section updated with the dispatcher contract and the chain order.
+
+
 
 ### x402 / MPP frontend support (2026-05-09)
 

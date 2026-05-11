@@ -16,6 +16,7 @@ export {
   type PaymentSettingsProps,
   type PaymentSettingsStatus,
   type PaymentSettingsToggles,
+  type PaymentSettingsCredits,
   type MppStatus,
   type X402Status,
 } from "./components/settings/payment-settings";

@@ -4,14 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AomiClient,
   type AomiPaymentOverviewResponse,
-  type UserState,
 } from "@aomi-labs/client";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { useAccount } from "wagmi";
 import { usePaymentAwareClientOptions } from "./payment-client-options";
 import {
   bindSettingsSession,
   getBackendUrl,
-  getOrCreateSettingsClientId,
   getSettingsSessionId,
 } from "./settings-api";
 import { useSettings } from "./use-settings";
@@ -19,6 +18,7 @@ import { useSettings } from "./use-settings";
 type MppStatus =
   | "disabled"
   | "wallet_required"
+  | "unsupported_wallet"
   | "not_connected"
   | "connecting"
   | "ready"
@@ -51,6 +51,8 @@ function deriveMppStatusText(status: MppStatus): string {
       return "MPP disabled";
     case "wallet_required":
       return "Connect wallet";
+    case "unsupported_wallet":
+      return "Use Para wallet";
     case "not_connected":
       return "Not connected";
     case "connecting":
@@ -77,33 +79,15 @@ function deriveX402StatusText(status: X402Status): string {
   }
 }
 
-function classifyMppError(message: string): MppStatus {
-  const normalized = message.toLowerCase();
-  if (
-    normalized.includes("voucher") ||
-    normalized.includes("insufficient") ||
-    normalized.includes("top-up")
-  ) {
-    return "needs_top_up";
-  }
-  if (
-    normalized.includes("payment required") ||
-    normalized.includes("www-authenticate") ||
-    normalized.includes("authorize") ||
-    normalized.includes("wallet")
-  ) {
-    return "needs_reconnect";
-  }
-  return "error";
-}
-
 export function usePaymentStatus(): UsePaymentStatusResult {
   const { identity } = useAomiAuthAdapter();
+  const account = useAccount();
   const { settings } = useSettings();
   const backendUrl = getBackendUrl();
   const sessionId = getSettingsSessionId();
-  const clientId = getOrCreateSettingsClientId();
   const runtimeClientOptions = usePaymentAwareClientOptions();
+  const connectorName = account.connector?.name?.toLowerCase() ?? "";
+  const mppSupported = !connectorName || connectorName.includes("para");
   const client = useMemo(
     () => new AomiClient({ baseUrl: backendUrl, ...runtimeClientOptions }),
     [backendUrl, runtimeClientOptions],
@@ -118,17 +102,6 @@ export function usePaymentStatus(): UsePaymentStatusResult {
   const [isClearingMpp, setIsClearingMpp] = useState(false);
   const [mppLastError, setMppLastError] = useState<string | null>(null);
   const [mppErrorStatus, setMppErrorStatus] = useState<MppStatus | null>(null);
-
-  const walletUserState = useMemo<UserState | undefined>(() => {
-    if (!identity.address) {
-      return undefined;
-    }
-    return {
-      address: identity.address,
-      chainId: identity.chainId,
-      isConnected: true,
-    };
-  }, [identity.address, identity.chainId]);
 
   const ensureBoundSession = useCallback(async () => {
     await bindSettingsSession({
@@ -167,41 +140,22 @@ export function usePaymentStatus(): UsePaymentStatusResult {
     [overview],
   );
 
+  // Connecting MPP is no longer an explicit user step. Once the dispatcher in
+  // `payment-client-options.ts` is in place, the first chat turn that reaches
+  // the Tempo gate triggers the 402 → mppx-sign → 200 handshake automatically
+  // and the backend caches the channel. The previously-named `connectMpp`
+  // button now just refreshes the cached overview state, so the call sites
+  // (settings panel button, popover) stay meaningful as "Refresh status".
   const connectMpp = useCallback(async () => {
-    if (!settings.mppEnabled || !identity.address) {
-      return;
-    }
-
     setIsConnectingMpp(true);
     setMppLastError(null);
     setMppErrorStatus(null);
     try {
-      await ensureBoundSession();
-      await client.sendMessage(sessionId, "Connect MPP payment session.", {
-        publicKey: identity.address,
-        clientId,
-        paymentMethod: "tempo",
-        userState: walletUserState,
-      });
       await refreshPaymentStatus();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to connect MPP";
-      setMppLastError(message);
-      setMppErrorStatus(classifyMppError(message));
     } finally {
       setIsConnectingMpp(false);
     }
-  }, [
-    client,
-    clientId,
-    ensureBoundSession,
-    identity.address,
-    refreshPaymentStatus,
-    sessionId,
-    settings.mppEnabled,
-    walletUserState,
-  ]);
+  }, [refreshPaymentStatus]);
 
   const clearMppCache = useCallback(async () => {
     setIsClearingMpp(true);
@@ -228,6 +182,9 @@ export function usePaymentStatus(): UsePaymentStatusResult {
     if (!identity.address) {
       return "wallet_required";
     }
+    if (!mppSupported) {
+      return "unsupported_wallet";
+    }
     if (isConnectingMpp) {
       return "connecting";
     }
@@ -242,6 +199,7 @@ export function usePaymentStatus(): UsePaymentStatusResult {
     identity.address,
     isConnectingMpp,
     mppErrorStatus,
+    mppSupported,
     settings.mppEnabled,
     tempoStream,
   ]);

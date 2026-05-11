@@ -162,17 +162,37 @@ Backend Server
 
 | Method     | Value      | Transport requirement                          |
 | ---------- | ---------- | ---------------------------------------------- |
-| Auto       | `null`     | none                                           |
+| Auto       | `null`     | none — backend runs the default chain          |
 | Aomi       | `"null"`   | none (uses included credits)                   |
 | BYOK       | `"byok"`   | provider key in vault (managed via `useControl`) |
-| MPP/Tempo  | `"tempo"`  | host installs payment-aware `fetch` + connects channel |
-| x402       | `"coinbase"` | host installs payment-aware `fetch` + wallet client |
+| MPP/Tempo  | `"tempo"`  | host installs payment-aware `fetch` + wallet   |
+| x402       | `"coinbase"` | host installs payment-aware `fetch` + wallet |
 
 The widget does **not** ship MPP/x402 transport. Hosts pass a wallet-bound `fetch` via `<AomiFrame.Root clientOptions={{ fetch }}>` (see `apps/portal/src/lib/payment-client-options.ts` for the reference impl using `mppx` + `@x402/fetch`). Per `specs/portal-widget-lib-unification.md`, this stays portal-local and must not become default widget-lib behavior.
 
-`<PaymentSelect>` accepts an optional `getStatus(method)` prop (returning `{ tone, label, connect? }`) so hosts can render method-specific status dots and remediation CTAs (e.g. "Connect MPP channel"). Capability is bundled with status: absence of `connect` means no CTA, regardless of tone — used to avoid surfacing un-actionable CTAs (e.g. x402 wallet-required is remediated upstream).
+`<PaymentSelect>` accepts an optional `getStatus(method)` prop returning `{ tone, label, connect? }`. `connect` is optional; portal's adapter intentionally omits it because wallet-method handshakes (MPP/x402) happen automatically on the next chat turn via the response-header dispatcher (see "Payment auth dispatcher" below). Hosts MAY attach `connect` for their own payment methods if they need an explicit setup step.
 
-`<PaymentSettings>` is an opt-in settings panel exported from widget-lib, props-driven (host supplies `status` + `toggles`). Renders `<ProviderKeysSettings />` by default; pass `providerKeys={false}` to skip BYOK and drop the `ControlContextProvider` requirement.
+`<PaymentSettings>` is an opt-in settings panel exported from widget-lib, props-driven (host supplies `status` + `toggles`). Layout is Aomi-credits-first: hero card with a fallback chain visualizer (`Aomi credits → BYOK → MPP → x402`), then MPP and x402 cards, then BYOK. Renders `<ProviderKeysSettings />` by default; pass `providerKeys={false}` to skip BYOK and drop the `ControlContextProvider` requirement. `toggles.preferredPaymentMethod` is optional and unused by the new layout (back-compat only — per-thread method selection lives in `<PaymentSelect>` in the composer).
+
+### Payment auth dispatcher
+
+Backend's default chain (verified at `product-mono/aomi/bin/backend/src/endpoint/chat.rs:31`) is `null → byok → tempo → coinbase`. When the chain reaches a wallet step (tempo or coinbase), the backend returns 402 with a method-specific challenge header:
+
+| Scheme | Challenge header             | Success header     |
+| ------ | ---------------------------- | ------------------ |
+| x402   | `Payment-Required` (base64)  | `Payment-Response` |
+| MPP    | `WWW-Authenticate: Payment`  | `Payment-Receipt`  |
+
+These two formats are **mutually exclusive** — `mppx` rejects 402s without `WWW-Authenticate`; `@x402/core` rejects 402s without `Payment-Required`. Wrapping one fetch in the other (`x402(mppx(...))`) breaks because the inner wrapper sees ALL 402s. The portal `paymentAwareFetch` instead:
+
+1. **Narrows Auto** when MPP is off and x402 is on — appends `?payment_method=coinbase` to skip past the disabled tempo step in the backend chain. Other toggle combinations are no-ops.
+2. **Short-circuits explicit method requests** — if the URL already carries `payment_method=tempo|coinbase`, hand the request directly to the matching wrapper. The wrapper's own probe→sign→retry runs once (one 402 then 200). Without this short-circuit the explicit path would pay two 402 round-trips (dispatcher probe + wrapper probe).
+3. **Probes for Auto** — issues the request through plain `globalThis.fetch` (cloning `Request` inputs first to preserve the body for replay).
+4. **Dispatches by response header** on the probe's 402: `Payment-Required` → x402Fetch; `WWW-Authenticate` → mppFetch. The chosen wrapper then runs its own probe→sign→retry, so Auto's wallet-fallback path costs **two** 402s plus the signed 200 (dispatcher probe + wrapper probe + signed retry). Acceptable for a boundary that only fires once, after credits and BYOK have already missed.
+
+This handles both explicit-method requests (per-thread `<PaymentSelect>` choice) and Auto-mode wallet fallback (chain falls through to a wallet step on its own). Future agents: do **not** chain `wrapFetchWithPayment` and `Mppx.create({...}).fetch` together. They are dispatch targets, not composable transports.
+
+**MPP two-shot handshake.** The Tempo gate (`product-mono/aomi/crates/payment/src/tempo.rs:198`) returns a *management response* on the first signed credential — typically the channel-opening confirmation from the on-chain escrow. That response sets `payment_method=tempo, status=200` but does NOT proceed to the LLM. The actual chat runs on the *second* request from the same `Mppx` instance, because the channel state is now cached in memory. The portal's `Mppx.create({...})` lives inside a `useMemo([wagmiConfig])` so a single React tree reuses the channel across messages — only a page reload (or wagmi config change) re-opens. `tempo({ maxDeposit: "0.5" })` is required so mppx can auto-open the channel; without it the first request throws `Error: No 'action' in context …`.
 
 ## Invariants
 

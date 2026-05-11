@@ -12,6 +12,7 @@ import {
   arbitrum,
   optimism,
   base,
+  baseSepolia,
   polygon,
   sepolia,
   linea,
@@ -23,6 +24,7 @@ import { AomiWalletProvider } from "@aomi-labs/widget-lib";
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
 const LOCALHOST_CHAIN_ID = 31337;
+const TEMPO_MODERATO_CHAIN_ID = 42431;
 
 // Custom localhost network for Anvil (local testing)
 const localhost = defineChain({
@@ -46,6 +48,27 @@ const localhost = defineChain({
   },
 });
 
+const tempoModerato = defineChain({
+  id: TEMPO_MODERATO_CHAIN_ID,
+  name: "Tempo Moderato",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Tempo",
+    symbol: "TMP",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.moderato.tempo.xyz"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Tempo Explorer",
+      url: "https://explorer.moderato.tempo.xyz",
+    },
+  },
+});
+
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
 
 const walletConnectProjectId =
@@ -62,6 +85,8 @@ const defaultNetworks = [
   arbitrum,
   optimism,
   base,
+  baseSepolia,
+  tempoModerato,
   polygon,
   sepolia,
   linea,

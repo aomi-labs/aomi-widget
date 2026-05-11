@@ -6,12 +6,19 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}"],
+    include: [
+      "packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}",
+      // Portal lib has pure helper tests we want in CI. Keep this narrow —
+      // app-level component tests need their own provider setup and aren't
+      // covered by this config.
+      "apps/portal/src/lib/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}",
+    ],
     exclude: [
       ".claude/**",
       "**/.claude/**",
       "**/node_modules/**",
-      "apps/**",
+      "apps/!(portal)/**",
+      "apps/portal/{.next,test,scripts,public}/**",
       "dist/**",
     ],
     restoreMocks: true,

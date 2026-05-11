@@ -367,9 +367,9 @@ export const registry: RegistryComponent[] = [
   {
     name: "payment-settings",
     file: "components/settings/payment-settings.tsx",
-    dependencies: ["@aomi-labs/client"],
-    registryDependencies: ["button", aomi("provider-keys-settings")],
+    dependencies: ["@aomi-labs/client", "@aomi-labs/react"],
+    registryDependencies: ["button", "card", aomi("provider-keys-settings")],
     description:
-      "Props-driven Payments settings panel. Renders ProviderKeysSettings by default; pass providerKeys={false} to skip BYOK and drop the runtime requirement. Host supplies status (e.g. portal's usePaymentStatus) and toggle persistence.",
+      "Props-driven Payments settings panel laid out as Aomi-credits-first with wallet fallbacks (MPP, x402) and bundled BYOK. Renders ProviderKeysSettings by default; pass providerKeys={false} to skip BYOK and drop the runtime requirement. Host supplies status (e.g. portal's usePaymentStatus) and toggle persistence.",
   },
 ];

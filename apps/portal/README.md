@@ -35,6 +35,12 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
    ```
    The runtime reads `NEXT_PUBLIC_BACKEND_URL`, defaulting to `http://localhost:8080`. For local full-stack startup use [../scripts/dev.sh](../scripts/dev.sh).
 
+   For wallet-backed payment flows, prefer the built-in same-origin proxy:
+   ```bash
+   AOMI_BACKEND_PROXY_TARGET=http://localhost:8080 pnpm dev
+   ```
+   With that set, portal talks to `"/api/*"` through Next rewrites instead of making cross-origin browser requests to `http://localhost:8080` directly. This matters for x402 because the browser must be able to read the `Payment-Required` header on `402` responses.
+
 3. **Open in browser**:
    ```
    http://localhost:3000
@@ -52,7 +58,7 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
 Current end-to-end testing is mostly manual:
 
 1. Start the backend.
-2. Start the frontend with `NEXT_PUBLIC_BACKEND_URL` pointed at that backend.
+2. Start the frontend against that backend. For x402/MPP browser testing, prefer `AOMI_BACKEND_PROXY_TARGET=http://localhost:8080 pnpm dev` so the requests stay same-origin.
 3. Exercise chat, wallet requests, and settings screens in the browser.
 4. Verify wallet callbacks and settings headers in backend logs or network tools.
 

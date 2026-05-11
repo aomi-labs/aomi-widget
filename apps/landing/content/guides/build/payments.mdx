@@ -1,15 +1,21 @@
 ---
 title: Payments (x402 & MPP)
-description: How to wire wallet-backed payment methods (x402, MPP/Tempo) into the Aomi widget.
+description: How payment methods, fallbacks, and wallet-backed transports work in the Aomi widget.
 ---
 
-The Aomi backend supports four chat payment methods that the widget routes via the `payment_method` query param: Aomi credits, BYOK provider keys, MPP (Tempo channels), and x402 (HTTP 402 exact-payment, EVM scheme).
+The Aomi backend resolves payments via a **default chain**:
 
-The widget itself handles **selection** out of the box (per-thread, via `<PaymentSelect>`). The wallet-backed transports — MPP and x402 — require the host app to install three pieces, listed below. The reference implementation lives in `apps/portal`; copy from there as needed.
+```
+Aomi credits  →  BYOK  →  MPP (Tempo)  →  x402 (Coinbase)
+```
+
+When a chat request is sent without an explicit `?payment_method=` (i.e. Auto), the backend walks this chain and uses the first method that succeeds. Aomi credits cover most chats; the chain only progresses when credits are exhausted. The widget's `<PaymentSelect>` lets users override the chain per-thread.
+
+The widget itself ships **selection** out of the box. Wallet-backed methods (MPP, x402) require the host to install a payment-aware `fetch` backed by a connected browser wallet. Reference implementation: `apps/portal`.
 
 ## Selection-only (default)
 
-Mount the widget normally. Users can pick any method from the picker; the choice flows through `useControl().onPaymentMethodSelect` and into chat requests as `?payment_method=...`. No additional setup.
+Mount the widget normally. Auto requests succeed via credits/BYOK with no extra setup. Picking MPP or x402 in the composer will request the wallet-backed method, but without the dispatcher below the request will receive a 402 with no signer.
 
 ```tsx
 import { AomiFrame } from "@aomi-labs/widget-lib";
@@ -19,70 +25,84 @@ import { AomiFrame } from "@aomi-labs/widget-lib";
 </AomiFrame.Root>;
 ```
 
-If a user picks `MPP` or `x402` here without the wallet-backed pieces below, the request will reach the backend without a payment header and the backend will respond with the appropriate error.
-
 ## Wallet-backed (MPP + x402)
 
-You need to wire all three pieces below. Each is opt-in.
+Three pieces. Each is opt-in.
 
-### 1. Payment-aware `fetch`
+The signing authority should come from the browser wallet layer you already use in the host app, typically wagmi or Para via wagmi-compatible clients. Do not ship raw private keys in frontend code or local verifier scripts.
 
-Build a `fetch` that signs x402 challenges and answers MPP `WWW-Authenticate` headers, then pass it to `<AomiFrame.Root clientOptions={{ fetch }}>`. The reference implementation wraps `mppx` and `@x402/fetch` over wagmi's `getConnectorClient`. See [`apps/portal/src/lib/payment-client-options.ts`](https://github.com/aomi-labs/aomi-widget/blob/main/apps/portal/src/lib/payment-client-options.ts).
+### 1. Payment-aware `fetch` (the dispatcher)
 
-```tsx
-const clientOptions = usePaymentAwareClientOptions(); // your hook
-<AomiFrame.Root clientOptions={clientOptions}>...</AomiFrame.Root>;
+The backend uses two **mutually exclusive** challenge formats:
+
+| Method | Challenge header              | Success header     |
+| ------ | ----------------------------- | ------------------ |
+| x402   | `Payment-Required` (base64)   | `Payment-Response` |
+| MPP    | `WWW-Authenticate: Payment`   | `Payment-Receipt`  |
+
+Don't chain `wrapFetchWithPayment(mppFetch, ...)` — the inner wrapper rejects challenges from the *other* scheme (e.g. mppx throws `Missing WWW-Authenticate header.` on x402's `Payment-Required` 402). Instead, build a dispatcher that issues a plain `fetch` first and routes the retry by response header. In portal, both wrappers are built from the connected wagmi/Para wallet:
+
+```ts
+// see apps/portal/src/lib/payment-client-options.ts for the production version
+async function paymentAwareFetch(input, init) {
+  const probe = input instanceof Request ? input.clone() : input;
+  const initial = await globalThis.fetch(probe, init);
+  if (initial.status !== 402) return initial;
+
+  if (initial.headers.get("payment-required") && x402Enabled) {
+    return x402Fetch(input, init); // wrapFetchWithPayment(globalThis.fetch, ...)
+  }
+  if (initial.headers.get("www-authenticate") && mppEnabled) {
+    return mppFetch(input, init); // Mppx.create(...).fetch
+  }
+  return initial;
+}
+
+<AomiFrame.Root clientOptions={{ fetch: paymentAwareFetch }}>...</AomiFrame.Root>;
 ```
 
-### 2. Status + connect on the picker
+There's also a small **request-narrowing** rule for the awkward case where MPP is disabled but x402 is enabled: append `?payment_method=coinbase` to Auto requests so the backend chain skips past the disabled tempo step. See `narrowAutoMethod` in `apps/portal/src/lib/payment-fetch-utils.ts`.
 
-`<PaymentSelect>` accepts a `getStatus(method)` prop that returns a tone (`ready | connecting | warning | error`), label, and an optional method-specific `connect` action. Forward your status hook through `<AomiFrame.Composer controlBarProps={{ paymentSelectProps }}>`.
+### 2. Status on the picker
+
+`<PaymentSelect>` accepts an optional `getStatus(method)` prop returning `{ tone, label, connect? }`. The `connect` field stays in the shared API as a generic host-extensible capability. Portal's adapter intentionally omits it — wallet handshakes (MPP/x402) happen automatically on the first chat turn that reaches the wallet step, so there's no remediation action to surface for those methods. If you're integrating a different payment scheme that needs an explicit setup step, attach `connect` and the popover will render a CTA.
 
 ```tsx
 import type { PaymentSelectProps } from "@aomi-labs/widget-lib";
 
 const paymentSelectProps: PaymentSelectProps = {
   getStatus: (method) => {
-    if (method === "tempo") {
-      return {
-        tone: mppReady ? "ready" : "warning",
-        label: mppStatusText,
-        connect: mppNotConnected
-          ? { label: "Connect MPP channel", run: () => connectMpp() }
-          : undefined,
-      };
-    }
-    if (method === "coinbase") {
-      return { tone: walletConnected ? "ready" : "warning", label: x402StatusText };
-    }
+    if (method === "tempo") return { tone: mppReady ? "ready" : "warning", label: mppStatusText };
+    if (method === "coinbase") return { tone: x402Ready ? "ready" : "warning", label: x402StatusText };
     return undefined;
   },
 };
 ```
 
-Attach `connect` only on states the popover can actually remediate (e.g. MPP "not connected"). For x402 wallet-required, leave `connect` undefined — the user fixes that upstream via your wallet-connect button.
+Forward via `<AomiFrame.Composer controlBarProps={{ paymentSelectProps }}>`.
 
 ### 3. Settings panel (optional)
 
-Install the `payment-settings` registry component to drop a Payments admin panel into your settings route:
+Install the `payment-settings` registry component:
 
 ```bash
 npx shadcn@latest add https://aomi.dev/r/payment-settings.json
 ```
 
-It composes `provider-keys-settings` by default. You supply two props:
+The panel is laid out around the chain: a hero "Aomi credits" card with a fallback-chain visualizer, two cards for the wallet fallbacks (MPP, x402), and a bundled BYOK section. Supply two props:
 
-- `status`: same status hook used in step 2 (e.g. portal's `usePaymentStatus`).
-- `toggles`: a `mppEnabled` / `x402Enabled` / `preferredPaymentMethod` setter you persist somewhere (localStorage in portal).
+- `status` — same status object you'd use for `<PaymentSelect>`. Optional `credits` field renders a usage bar; otherwise the card just describes the model.
+- `toggles` — `mppEnabled` / `x402Enabled` (and their setters); persistence is yours (e.g. localStorage).
 
-Pass `providerKeys={false}` to skip the BYOK section if you don't have a `ControlContextProvider` in scope.
+Pass `providerKeys={false}` to hide the BYOK section if you don't have a `ControlContextProvider` upstream.
 
 ## Reference implementation
 
 `apps/portal` shows the full pattern end-to-end:
 
-- `src/lib/payment-client-options.ts` — payment-aware fetch (mppx + x402 via wagmi).
-- `src/lib/use-payment-status.ts` — overview poll, connect/clear actions.
+- `src/lib/payment-fetch-utils.ts` — pure `narrowAutoMethod` helper (and unit tests).
+- `src/lib/payment-client-options.ts` — `paymentAwareFetch` dispatcher + mppx/x402 wrapper construction.
+- `src/lib/use-payment-status.ts` — overview poll + clear actions.
 - `src/lib/use-payment-select-props.ts` — adapter from status to `<PaymentSelect>` props.
 - `src/components/portal-aomi-frame.tsx` — wires all three into one `<AomiFrame.Root>`.
 - `src/app/settings/page.tsx` + `src/components/settings/payment-settings.tsx` — settings route using the shared widget-lib panel.

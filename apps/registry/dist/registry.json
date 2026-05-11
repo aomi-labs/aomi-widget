@@ -712,7 +712,7 @@
     {
       "name": "payment-settings",
       "type": "registry:component",
-      "description": "Props-driven Payments settings panel. Renders ProviderKeysSettings by default; pass providerKeys={false} to skip BYOK and drop the runtime requirement. Host supplies status (e.g. portal's usePaymentStatus) and toggle persistence.",
+      "description": "Props-driven Payments settings panel laid out as Aomi-credits-first with wallet fallbacks (MPP, x402) and bundled BYOK. Renders ProviderKeysSettings by default; pass providerKeys={false} to skip BYOK and drop the runtime requirement. Host supplies status (e.g. portal's usePaymentStatus) and toggle persistence.",
       "files": [
         {
           "type": "registry:component",
@@ -720,10 +720,12 @@
         }
       ],
       "dependencies": [
-        "@aomi-labs/client"
+        "@aomi-labs/client",
+        "@aomi-labs/react"
       ],
       "registryDependencies": [
         "button",
+        "card",
         "https://aomi.dev/r/provider-keys-settings.json"
       ]
     }

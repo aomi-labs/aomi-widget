@@ -36,7 +36,9 @@ const widgetWebpackAliases = {
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BACKEND_URL:
-      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      (process.env.AOMI_BACKEND_PROXY_TARGET
+        ? "/"
+        : process.env.NEXT_PUBLIC_BACKEND_URL) ||
       process.env.BACKEND_URL ||
       "http://localhost:8080",
     NEXT_PUBLIC_ANVIL_URL:

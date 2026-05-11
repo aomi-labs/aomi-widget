@@ -52,6 +52,19 @@ export function getBackendUrl(): string {
   return process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
 }
 
+function joinBackendUrl(path: string): string {
+  const base = getBackendUrl();
+  if (!path) return base;
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (base === "/") {
+    return normalizedPath;
+  }
+
+  return `${base.replace(/\/+$/, "")}${normalizedPath}`;
+}
+
 export function getSettingsApiKey(): string | null {
   if (typeof window === "undefined") {
     return null;
@@ -84,7 +97,7 @@ export async function settingsApiFetch<T>(
   options?: RequestInit & { apiKey?: string | null },
 ): Promise<T> {
   const { apiKey, ...requestInit } = options ?? {};
-  const url = `${getBackendUrl()}${path}`;
+  const url = joinBackendUrl(path);
   const headers = new Headers(requestInit.headers ?? {});
   headers.set("X-Session-Id", getSettingsSessionId());
   const resolvedApiKey = apiKey === undefined ? getSettingsApiKey() : apiKey?.trim() || null;

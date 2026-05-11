@@ -1,13 +1,22 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AomiPaymentMethod } from "@aomi-labs/client";
+import { useControl } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ProviderKeysSettings } from "@/components/settings/provider-keys-settings";
 
 export type MppStatus =
   | "disabled"
   | "wallet_required"
+  | "unsupported_wallet"
   | "not_connected"
   | "connecting"
   | "ready"
@@ -16,6 +25,12 @@ export type MppStatus =
   | "error";
 
 export type X402Status = "disabled" | "wallet_required" | "ready";
+
+export type PaymentSettingsCredits = {
+  remaining: number;
+  total: number;
+  lastUpdated?: string;
+};
 
 export type PaymentSettingsStatus = {
   isLoading: boolean;
@@ -30,125 +45,78 @@ export type PaymentSettingsStatus = {
   x402Status: X402Status;
   x402StatusText: string;
   refreshPaymentStatus: () => Promise<void>;
+  /** Refreshes cached overview state. No longer triggers a chat-time handshake. */
   connectMpp: () => Promise<void>;
   clearMppCache: () => Promise<void>;
+  /** Optional credits balance; renders a usage bar when supplied. */
+  credits?: PaymentSettingsCredits;
 };
 
 export type PaymentSettingsToggles = {
-  preferredPaymentMethod: AomiPaymentMethod | null;
-  setPreferredPaymentMethod: (method: AomiPaymentMethod | null) => void;
   mppEnabled: boolean;
   setMppEnabled: (enabled: boolean) => void;
   x402Enabled: boolean;
   setX402Enabled: (enabled: boolean) => void;
+  /**
+   * Legacy "preferred default method" seed. The new layout no longer renders
+   * a settings-level picker — per-thread method selection lives in
+   * `<PaymentSelect>` in the composer. Kept as optional props so existing
+   * shims (e.g. portal) keep compiling.
+   */
+  preferredPaymentMethod?: AomiPaymentMethod | null;
+  setPreferredPaymentMethod?: (method: AomiPaymentMethod | null) => void;
 };
 
 export type PaymentSettingsProps = {
-  /** Payment-status snapshot. Host owns polling, connect, and clear. */
+  /** Payment-status snapshot. Host owns polling, refresh, and clear. */
   status: PaymentSettingsStatus;
   /** Persistent toggle/preference state. Host owns persistence. */
   toggles: PaymentSettingsToggles;
   /**
    * BYOK section.
-   * - `undefined` (default): renders bundled `<ProviderKeysSettings />` —
-   *   matches the portal Payments panel exactly. Requires `ControlContextProvider`.
+   * - `undefined` (default): renders bundled `<ProviderKeysSettings />`
+   *   (matches the portal Payments panel exactly). Requires
+   *   `ControlContextProvider` upstream — same as today's behavior.
    * - `false`: hide the BYOK section entirely (no `useControl` requirement).
    * - `ReactNode`: render the supplied node in place of `<ProviderKeysSettings />`.
+   *
+   * Effect on the fallback chain visualizer's BYOK segment:
+   * - `undefined` (default): probe reads `useControl().state.providerKeys`
+   *   and dims the segment when no keys are saved, otherwise active.
+   * - `false`: BYOK is unavailable — segment is **dimmed**.
+   * - `ReactNode`: host owns the BYOK UI, so we have no signal — segment is
+   *   rendered in a neutral state (neither dimmed nor active).
    */
   providerKeys?: ReactNode | false;
 };
 
-type PaymentOption = {
-  value: AomiPaymentMethod | null;
-  label: string;
-  description: string;
+const TONE_PILL: Record<
+  "neutral" | "success" | "warning" | "danger",
+  string
+> = {
+  success: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  danger: "bg-destructive/10 text-destructive",
+  neutral: "bg-muted text-muted-foreground",
 };
-
-const PAYMENT_OPTIONS: PaymentOption[] = [
-  {
-    value: null,
-    label: "Auto",
-    description: "Legacy backend fallback when a client omits payment_method.",
-  },
-  {
-    value: "null",
-    label: "Aomi",
-    description: "Use included Aomi credits when they are available.",
-  },
-  {
-    value: "byok",
-    label: "BYOK",
-    description: "Use your own provider key from the BYOK section below.",
-  },
-  {
-    value: "tempo",
-    label: "MPP",
-    description: "Use the Tempo / MPP payment flow from the connected wallet.",
-  },
-  {
-    value: "coinbase",
-    label: "x402",
-    description: "Use x402 exact payment from the connected wallet.",
-  },
-];
-
-function ToggleCard({
-  title,
-  description,
-  enabled,
-  onToggle,
-}: Readonly<{
-  title: string;
-  description: string;
-  enabled: boolean;
-  onToggle: () => void;
-}>) {
-  return (
-    <div className="border-border bg-card flex items-start justify-between gap-4 rounded-2xl border p-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-medium">{title}</h3>
-        <p className="text-muted-foreground text-sm">{description}</p>
-      </div>
-      <Button
-        type="button"
-        variant={enabled ? "default" : "outline"}
-        onClick={onToggle}
-        className="rounded-full"
-      >
-        {enabled ? "Enabled" : "Disabled"}
-      </Button>
-    </div>
-  );
-}
 
 function StatusPill({
   label,
   tone,
 }: Readonly<{
   label: string;
-  tone: "neutral" | "success" | "warning" | "danger";
+  tone: keyof typeof TONE_PILL;
 }>) {
-  const className =
-    tone === "success"
-      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-      : tone === "warning"
-        ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-        : tone === "danger"
-          ? "bg-destructive/10 text-destructive"
-          : "bg-muted text-muted-foreground";
-
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-xs font-medium ${className}`}
+      className={`rounded-full px-2.5 py-1 text-xs font-medium ${TONE_PILL[tone]}`}
     >
       {label}
     </span>
   );
 }
 
-function statusTone(
-  status: string,
-): "neutral" | "success" | "warning" | "danger" {
+function statusTone(status: string): keyof typeof TONE_PILL {
   switch (status) {
     case "ready":
       return "success";
@@ -162,13 +130,117 @@ function statusTone(
   }
 }
 
+type ChainSegmentState = "active" | "dimmed" | "neutral";
+
+function ChainSegment({
+  label,
+  state,
+  isLast,
+}: {
+  label: string;
+  state: ChainSegmentState;
+  isLast: boolean;
+}) {
+  const stateClass =
+    state === "active"
+      ? "border-foreground bg-foreground text-background"
+      : state === "dimmed"
+        ? "border-border bg-muted text-muted-foreground/60"
+        : "border-border bg-background text-muted-foreground";
+  return (
+    <>
+      <span
+        className={`rounded-full border px-3 py-1 text-xs font-medium ${stateClass}`}
+      >
+        {label}
+      </span>
+      {isLast ? null : (
+        <span className="text-muted-foreground text-xs" aria-hidden>
+          →
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Probes BYOK availability via `useControl().state.providerKeys`. Rendered
+ * ONLY on the default-BYOK code path, so the `useControl()` call site is
+ * itself unconditional from React's perspective (the conditional lives at the
+ * parent's render level, on whether this component appears in the tree).
+ *
+ * `useControl()` throws outside its provider; `useByokProbe` catches the
+ * throw because hosts are allowed to render `<PaymentSettings>` with
+ * `providerKeys={false}` outside a `ControlContextProvider`. For the default
+ * path the provider is always present.
+ */
+function ByokAvailabilityProbe({
+  onResult,
+}: {
+  onResult: (available: boolean) => void;
+}) {
+  const available = useByokProbe();
+  useEffect(() => {
+    if (available !== null) onResult(available);
+  }, [available, onResult]);
+  return null;
+}
+
+function useByokProbe(): boolean | null {
+  // `useControl()` is a single `useContext` call internally; it manually
+  // throws when the provider is missing. We catch that throw to allow
+  // mounting `<PaymentSettings>` outside the provider with a custom or
+  // disabled BYOK slot. From React's perspective the hook call site itself
+  // is unconditional; the throw doesn't change hook order.
+  let ctx: ReturnType<typeof useControl> | null = null;
+  try {
+    ctx = useControl();
+  } catch {
+    ctx = null;
+  }
+  if (!ctx) return null;
+  return Object.keys(ctx.state.providerKeys ?? {}).length > 0;
+}
+
+function CreditsBar({ credits }: { credits: PaymentSettingsCredits }) {
+  const ratio =
+    credits.total > 0
+      ? Math.max(0, Math.min(1, credits.remaining / credits.total))
+      : 0;
+  return (
+    <div className="space-y-1">
+      <div className="bg-muted h-2 w-full overflow-hidden rounded-full">
+        <div
+          className="bg-foreground h-full"
+          style={{ width: `${(ratio * 100).toFixed(1)}%` }}
+        />
+      </div>
+      <div className="text-muted-foreground flex justify-between text-xs">
+        <span>
+          {credits.remaining.toLocaleString()} of{" "}
+          {credits.total.toLocaleString()} remaining
+        </span>
+        {credits.lastUpdated ? (
+          <span>Updated {credits.lastUpdated}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Payments settings panel.
  *
+ * Layout matches the backend's actual behavior (`product-mono` chat handler,
+ * default chain `null → byok → tempo → coinbase`):
+ *   1. Aomi credits hero with a fallback-chain visualizer.
+ *   2. Wallet fallbacks (MPP + x402) — toggles + status + per-method actions.
+ *   3. BYOK provider keys.
+ *
  * Runtime requirement: when the default BYOK section is rendered (i.e.
- * `providerKeys` prop is omitted), this component must be mounted inside a
- * tree that provides `ControlContextProvider` from `@aomi-labs/react`. Pass
- * `providerKeys={false}` to skip BYOK and remove that requirement.
+ * `providerKeys` is omitted), this component must be mounted inside a tree
+ * that provides `ControlContextProvider`. Pass `providerKeys={false}` to skip
+ * BYOK and remove that requirement.
  */
 export function PaymentSettings({
   status,
@@ -188,178 +260,189 @@ export function PaymentSettings({
     x402Status,
     x402StatusText,
     refreshPaymentStatus,
-    connectMpp,
     clearMppCache,
+    credits,
   } = status;
 
-  const {
-    preferredPaymentMethod,
-    setPreferredPaymentMethod,
-    mppEnabled,
-    setMppEnabled,
-    x402Enabled,
-    setX402Enabled,
-  } = toggles;
+  const { mppEnabled, setMppEnabled, x402Enabled, setX402Enabled } = toggles;
+
+  // Default-BYOK code path: child probe component reads useControl() and
+  // reports BYOK availability. The probe only mounts when default BYOK is in
+  // use, so the hook call site itself is always unconditional from React's
+  // perspective (no Rules-of-Hooks risk).
+  const usingDefaultByok = providerKeys === undefined;
+  const [byokKnown, setByokKnown] = useState<boolean | null>(null);
 
   const renderedProviderKeys =
     providerKeys === undefined ? <ProviderKeysSettings /> : providerKeys;
 
+  const byokState: ChainSegmentState =
+    providerKeys === false
+      ? "dimmed" // BYOK explicitly hidden by host
+      : !usingDefaultByok
+        ? "neutral" // host supplied a custom node — we have no signal
+        : byokKnown === null
+          ? "neutral" // probe hasn't reported yet (or no provider in tree)
+          : byokKnown
+            ? "active"
+            : "dimmed";
+  const mppState: ChainSegmentState = mppEnabled ? "active" : "dimmed";
+  const x402State: ChainSegmentState = x402Enabled ? "active" : "dimmed";
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {usingDefaultByok ? <ByokAvailabilityProbe onResult={setByokKnown} /> : null}
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Payments</h1>
         <p className="text-muted-foreground text-sm">
-          Choose the payment method your chat UI should send, and decide which
-          wallet-backed payment transports are enabled in this browser.
+          Aomi credits cover most chats by default. Enable wallet fallbacks
+          below to keep chatting when credits run out.
         </p>
       </div>
 
-      <section className="border-border bg-card space-y-4 rounded-2xl border p-6">
-        <div className="space-y-2">
-          <h2 className="text-lg font-medium">Default chat payment method</h2>
-          <p className="text-muted-foreground text-sm">
-            New chat threads start from this preference. You can still change
-            the method per thread from the chat control bar.
-          </p>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          {PAYMENT_OPTIONS.map((option) => {
-            const active = preferredPaymentMethod === option.value;
-            return (
-              <button
-                key={option.value ?? "auto"}
-                type="button"
-                onClick={() => setPreferredPaymentMethod(option.value)}
-                className={`rounded-2xl border p-4 text-left transition-colors ${
-                  active
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border bg-background text-foreground hover:border-foreground/40"
-                }`}
-              >
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">{option.label}</div>
-                  <div
-                    className={`text-sm ${
-                      active ? "text-background/80" : "text-muted-foreground"
-                    }`}
-                  >
-                    {option.description}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="border-border bg-card space-y-4 rounded-2xl border p-6">
-        <div className="space-y-2">
-          <h2 className="text-lg font-medium">Wallet-backed methods</h2>
-          <p className="text-muted-foreground text-sm">
-            These toggles decide whether this frontend enables the client-side
-            transport layers for MPP and x402 at all.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <ToggleCard
-            title="Enable MPP"
-            description="Allow the frontend to answer Tempo / MPP payment challenges from the connected wallet."
-            enabled={mppEnabled}
-            onToggle={() => setMppEnabled(!mppEnabled)}
-          />
-          <ToggleCard
-            title="Enable x402"
-            description="Allow the frontend to sign x402 exact-payment challenges from the connected wallet."
-            enabled={x402Enabled}
-            onToggle={() => setX402Enabled(!x402Enabled)}
-          />
-        </div>
-
-        <div className="grid gap-4 pt-2">
-          <div className="border-border/80 bg-background rounded-2xl border p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-medium">MPP</h3>
-                  <StatusPill
-                    label={mppStatusText}
-                    tone={statusTone(mppStatus)}
-                  />
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  Use Tempo payment channels from the connected wallet. The
-                  first connection authorizes a channel, then the backend reuses
-                  the cached MPP session on later chat turns.
-                </p>
-                {mppLastError ? (
-                  <p className="text-destructive text-sm">{mppLastError}</p>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="default"
-                  disabled={
-                    !mppEnabled ||
-                    isConnectingMpp ||
-                    mppStatus === "wallet_required"
-                  }
-                  onClick={() => void connectMpp()}
-                >
-                  {isConnectingMpp
-                    ? "Connecting..."
-                    : mppCachePresent
-                      ? "Reconnect"
-                      : "Connect MPP"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isRefreshing || isLoading}
-                  onClick={() => void refreshPaymentStatus()}
-                >
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!mppCachePresent || isClearingMpp}
-                  onClick={() => void clearMppCache()}
-                >
-                  {isClearingMpp ? "Clearing..." : "Clear cached session"}
-                </Button>
-              </div>
+      {/* 1. Aomi credits hero + fallback chain visualizer */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Aomi credits</CardTitle>
+          <CardDescription>
+            Used by default. When credits are out, your enabled fallbacks below
+            take over automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {credits ? (
+            <CreditsBar credits={credits} />
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Credits balance is not published to this widget. Check your
+              account dashboard for usage.
+            </p>
+          )}
+          <div className="space-y-2">
+            <div className="text-muted-foreground text-xs uppercase tracking-wide">
+              Fallback chain
             </div>
-            <details className="border-border/80 bg-card mt-4 rounded-xl border p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                Show technical details
-              </summary>
-              <div className="text-muted-foreground mt-3 space-y-2 text-sm">
-                <p>Cached session: {mppCachePresent ? "present" : "none"}</p>
-                <p>Cached receipt id: {mppReceiptId ?? "-"}</p>
-              </div>
-            </details>
-          </div>
-
-          <div className="border-border/80 bg-background rounded-2xl border p-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium">x402</h3>
-              <StatusPill
-                label={x402StatusText}
-                tone={statusTone(x402Status)}
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <ChainSegment label="Aomi credits" state="active" isLast={false} />
+              <ChainSegment label="BYOK" state={byokState} isLast={false} />
+              <ChainSegment label="MPP" state={mppState} isLast={false} />
+              <ChainSegment label="x402" state={x402State} isLast />
             </div>
-            <p className="text-muted-foreground mt-2 text-sm">
-              x402 does not keep a cached backend session. When enabled, the
-              frontend signs each exact-payment challenge from the connected
-              wallet as needed.
+            <p className="text-muted-foreground text-xs">
+              Dimmed segments are skipped (toggle off, or no provider keys).
+              Pick a specific method per chat from the composer to override the
+              chain.
             </p>
           </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
+      {/* 2. Wallet fallbacks */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>MPP (Tempo)</CardTitle>
+                <CardDescription>
+                  Pay with a Tempo channel from the connected wallet.
+                </CardDescription>
+              </div>
+              <StatusPill label={mppStatusText} tone={statusTone(mppStatus)} />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm">Enable</span>
+              <Button
+                type="button"
+                variant={mppEnabled ? "default" : "outline"}
+                size="sm"
+                className="rounded-full"
+                onClick={() => setMppEnabled(!mppEnabled)}
+              >
+                {mppEnabled ? "Enabled" : "Disabled"}
+              </Button>
+            </div>
+            {mppLastError ? (
+              <p className="text-destructive text-sm">{mppLastError}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isRefreshing || isLoading || isConnectingMpp}
+                onClick={() => void refreshPaymentStatus()}
+              >
+                {isRefreshing ? "Refreshing…" : "Refresh"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!mppCachePresent || isClearingMpp}
+                onClick={() => void clearMppCache()}
+              >
+                {isClearingMpp ? "Clearing…" : "Clear cached session"}
+              </Button>
+            </div>
+            <details className="border-border/80 bg-background rounded-md border px-3 py-2">
+              <summary className="text-muted-foreground cursor-pointer text-xs">
+                Technical details
+              </summary>
+              <div className="text-muted-foreground mt-2 space-y-1 text-xs">
+                <p>Cached session: {mppCachePresent ? "present" : "none"}</p>
+                <p>Cached receipt id: {mppReceiptId ?? "—"}</p>
+                <p>
+                  Connection happens automatically the next time MPP is the
+                  active method.
+                </p>
+              </div>
+            </details>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>x402</CardTitle>
+                <CardDescription>
+                  Pay-per-request via x402 exact-payment from the connected
+                  wallet.
+                </CardDescription>
+              </div>
+              <StatusPill label={x402StatusText} tone={statusTone(x402Status)} />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm">Enable</span>
+              <Button
+                type="button"
+                variant={x402Enabled ? "default" : "outline"}
+                size="sm"
+                className="rounded-full"
+                onClick={() => setX402Enabled(!x402Enabled)}
+              >
+                {x402Enabled ? "Enabled" : "Disabled"}
+              </Button>
+            </div>
+            {x402Status === "wallet_required" ? (
+              <p className="text-muted-foreground text-sm">
+                Connect a wallet to sign x402 challenges.
+              </p>
+            ) : null}
+            <p className="text-muted-foreground text-sm">
+              x402 does not keep a cached backend session. Each request is
+              signed individually.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 3. BYOK provider keys */}
       {renderedProviderKeys === false ? null : renderedProviderKeys}
     </div>
   );
