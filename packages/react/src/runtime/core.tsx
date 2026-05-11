@@ -77,6 +77,14 @@ export function AomiRuntimeCore({
     syncCurrentThreadControl,
   } = useControl();
 
+  const getEffectiveApiKey = useCallback(() => {
+    const paymentMethod = getCurrentThreadPaymentMethod();
+    if (paymentMethod === "tempo" || paymentMethod === "coinbase") {
+      return null;
+    }
+    return getControlState().apiKey;
+  }, [getControlState, getCurrentThreadPaymentMethod]);
+
   // ---------------------------------------------------------------------------
   // Wallet handler (receives requests from orchestrator)
   // ---------------------------------------------------------------------------
@@ -112,7 +120,7 @@ export function AomiRuntimeCore({
     getUserState,
     getApp: getCurrentThreadApp,
     getPaymentMethod: getCurrentThreadPaymentMethod,
-    getApiKey: () => getControlState().apiKey,
+    getApiKey: getEffectiveApiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
       await ensureBackendThread(threadId);

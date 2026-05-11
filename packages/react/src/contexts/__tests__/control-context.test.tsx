@@ -162,13 +162,14 @@ describe("ControlContextProvider", () => {
       expect(deleteSecret).toHaveBeenCalledWith(
         clientId,
         "PROVIDER_KEY:openai",
+        "session-1",
       );
     });
 
     expect(getControl().state.providerKeys.openai).toBeUndefined();
     expect(aomiClient.ingestSecrets).toHaveBeenCalledWith(clientId, {
       "PROVIDER_KEY:openai": "sk-openai-123",
-    });
+    }, "session-1");
   });
 
   it("auto-ingests provider keys loaded from localStorage on mount", async () => {
@@ -190,7 +191,7 @@ describe("ControlContextProvider", () => {
     await waitFor(() => {
       expect(ingestSecrets).toHaveBeenCalledWith("client-stored", {
         "PROVIDER_KEY:openai": "sk-openai-abc",
-      });
+      }, "session-1");
     });
   });
 

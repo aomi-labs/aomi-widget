@@ -283,15 +283,15 @@ declare class AomiClient {
      * client_id for the browser tab. The same client_id should be passed
      * to `sendMessage` / `fetchState` so sessions get associated.
      */
-    ingestSecrets(clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
+    ingestSecrets(clientId: string, secrets: Record<string, string>, sessionId?: string): Promise<AomiIngestSecretsResponse>;
     /**
      * Clear all secrets for a client (e.g. on page unload or logout).
      */
-    clearSecrets(clientId: string): Promise<AomiClearSecretsResponse>;
+    clearSecrets(clientId: string, sessionId?: string): Promise<AomiClearSecretsResponse>;
     /**
      * Remove a single secret for a client.
      */
-    deleteSecret(clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
+    deleteSecret(clientId: string, name: string, sessionId?: string): Promise<AomiDeleteSecretResponse>;
     /**
      * Subscribe to real-time SSE updates for a session.
      * Automatically reconnects with exponential backoff on disconnects.

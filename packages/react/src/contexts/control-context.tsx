@@ -376,7 +376,7 @@ export function ControlContextProvider({
     }
 
     void aomiClientRef.current
-      .ingestSecrets(state.clientId, secrets)
+      .ingestSecrets(state.clientId, secrets, sessionIdRef.current)
       .catch((err: unknown) => {
         console.error("Failed to auto-ingest provider keys:", err);
       });
@@ -451,6 +451,7 @@ export function ControlContextProvider({
       const { handles } = await aomiClientRef.current.ingestSecrets(
         clientId,
         secrets,
+        sessionIdRef.current,
       );
       return handles;
     },
@@ -460,7 +461,7 @@ export function ControlContextProvider({
   const clearSecrets = useCallback(async (): Promise<void> => {
     const clientId = stateRef.current.clientId;
     if (!clientId) return;
-    await aomiClientRef.current.clearSecrets?.(clientId);
+    await aomiClientRef.current.clearSecrets?.(clientId, sessionIdRef.current);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -492,7 +493,7 @@ export function ControlContextProvider({
         try {
           await aomiClientRef.current.ingestSecrets(clientId, {
             [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed,
-          });
+          }, sessionIdRef.current);
         } catch (err) {
           console.error("Failed to ingest provider key:", err);
         }
@@ -508,6 +509,7 @@ export function ControlContextProvider({
         await aomiClientRef.current.deleteSecret(
           clientId,
           `${PROVIDER_KEY_SECRET_PREFIX}${provider}`,
+          sessionIdRef.current,
         );
       }
 

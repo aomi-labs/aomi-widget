@@ -25,6 +25,101 @@ import { AomiWalletProvider } from "@aomi-labs/widget-lib";
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
 const LOCALHOST_CHAIN_ID = 31337;
 const TEMPO_MODERATO_CHAIN_ID = 42431;
+const useTempoRpcProxy =
+  process.env.NEXT_PUBLIC_USE_TEMPO_RPC_PROXY === "true";
+const debugTempoRpc = process.env.NEXT_PUBLIC_DEBUG_TEMPO_RPC === "true";
+const tempoRpcUrl =
+  (useTempoRpcProxy
+    ? "/api/tempo-rpc"
+    : process.env.NEXT_PUBLIC_TEMPO_RPC_URL?.trim()) ||
+  "https://rpc.moderato.tempo.xyz";
+
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchInit = Parameters<typeof fetch>[1];
+
+function isTempoRpcUrl(url: string): boolean {
+  return (
+    url.includes("rpc.moderato.tempo.xyz") || url.includes("/api/tempo-rpc")
+  );
+}
+
+async function readRpcBody(
+  input: FetchInput,
+  init?: FetchInit,
+): Promise<{ request: Request; bodyText: string | null }> {
+  const request =
+    input instanceof Request && init === undefined
+      ? input
+      : new Request(input, init);
+  const clone = request.clone();
+
+  try {
+    return {
+      request,
+      bodyText: await clone.text(),
+    };
+  } catch {
+    return {
+      request,
+      bodyText: null,
+    };
+  }
+}
+
+function installTempoRpcDebugFetch() {
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    __AOMI_TEMPO_RPC_DEBUG_FETCH__?: boolean;
+    __AOMI_TEMPO_RPC_ORIGINAL_FETCH__?: typeof fetch;
+  };
+
+  if (
+    runtimeGlobal.__AOMI_TEMPO_RPC_DEBUG_FETCH__ ||
+    typeof runtimeGlobal.fetch !== "function"
+  ) {
+    return;
+  }
+
+  const originalFetch = runtimeGlobal.fetch.bind(runtimeGlobal);
+  runtimeGlobal.__AOMI_TEMPO_RPC_ORIGINAL_FETCH__ = originalFetch;
+  runtimeGlobal.__AOMI_TEMPO_RPC_DEBUG_FETCH__ = true;
+
+  runtimeGlobal.fetch = async (input: FetchInput, init?: FetchInit) => {
+    const candidateUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+
+    if (!isTempoRpcUrl(candidateUrl)) {
+      return originalFetch(input, init);
+    }
+
+    const { request, bodyText } = await readRpcBody(input, init);
+
+    try {
+      const response = await originalFetch(request);
+      if (!response.ok) {
+        const responseText = await response.clone().text().catch(() => null);
+        console.error("[tempo-rpc] HTTP failure", {
+          url: request.url,
+          status: response.status,
+          statusText: response.statusText,
+          body: bodyText,
+          response: responseText,
+        });
+      }
+      return response;
+    } catch (error) {
+      console.error("[tempo-rpc] network failure", {
+        url: request.url,
+        body: bodyText,
+        error,
+      });
+      throw error;
+    }
+  };
+}
 
 // Custom localhost network for Anvil (local testing)
 const localhost = defineChain({
@@ -58,7 +153,7 @@ const tempoModerato = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ["https://rpc.moderato.tempo.xyz"],
+      http: [tempoRpcUrl],
     },
   },
   blockExplorers: {
@@ -178,6 +273,11 @@ type Props = {
 };
 
 export function WalletProviders({ children }: Props) {
+  useEffect(() => {
+    if (!debugTempoRpc) return;
+    installTempoRpcDebugFetch();
+  }, []);
+
   const content = paraApiKey ? (
     <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
   ) : (

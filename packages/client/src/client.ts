@@ -268,11 +268,16 @@ export class AomiClient {
   async ingestSecrets(
     clientId: string,
     secrets: Record<string, string>,
+    sessionId?: string,
   ): Promise<AomiIngestSecretsResponse> {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (sessionId) {
+      headers.set(SESSION_ID_HEADER, sessionId);
+    }
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ client_id: clientId, secrets }),
     });
 
@@ -286,11 +291,15 @@ export class AomiClient {
   /**
    * Clear all secrets for a client (e.g. on page unload or logout).
    */
-  async clearSecrets(clientId: string): Promise<AomiClearSecretsResponse> {
+  async clearSecrets(
+    clientId: string,
+    sessionId?: string,
+  ): Promise<AomiClearSecretsResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/secrets", {
       client_id: clientId,
     });
-    const response = await this.fetchImpl(url, { method: "DELETE" });
+    const headers = sessionId ? withSessionHeader(sessionId) : undefined;
+    const response = await this.fetchImpl(url, { method: "DELETE", headers });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -305,6 +314,7 @@ export class AomiClient {
   async deleteSecret(
     clientId: string,
     name: string,
+    sessionId?: string,
   ): Promise<AomiDeleteSecretResponse> {
     const url = buildApiUrl(
       this.baseUrl,
@@ -313,7 +323,8 @@ export class AomiClient {
         client_id: clientId,
       },
     );
-    const response = await this.fetchImpl(url, { method: "DELETE" });
+    const headers = sessionId ? withSessionHeader(sessionId) : undefined;
+    const response = await this.fetchImpl(url, { method: "DELETE", headers });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

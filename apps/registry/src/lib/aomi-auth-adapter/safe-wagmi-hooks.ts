@@ -120,11 +120,17 @@ export function useSafeSignTypedData(): {
   }
 }
 
-export function useSafeCapabilities(): {
+export function useSafeCapabilities(options?: {
+  enabled?: boolean;
+}): {
   capabilities?: Parameters<typeof executeWalletCalls>[0]["capabilities"];
 } {
   try {
-    const { data } = useCapabilities();
+    const { data } = useCapabilities({
+      query: {
+        enabled: options?.enabled ?? true,
+      },
+    });
     return {
       capabilities: normalizeAtomicCapabilities(
         data as Parameters<typeof executeWalletCalls>[0]["capabilities"],

@@ -96,6 +96,7 @@ const ALCHEMY_GAS_POLICY_ID =
 const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() ?? "";
 const AA_PROVIDER_OVERRIDE =
   process.env.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase();
+const TEMPO_MODERATO_CHAIN_ID = 42431;
 
 const DISCONNECTED_PARA_ACCOUNT: ParaAccountShape = {
   isLoading: false,
@@ -308,7 +309,14 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { sendTransactionAsync } = useSafeSendTransaction();
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
-  const { capabilities } = useSafeCapabilities();
+  // wagmi `useCapabilities()` issues `wallet_getCapabilities`, which is a
+  // wallet/provider RPC method. On Tempo we temporarily switch the active
+  // client onto the chain RPC for MPP session management, and that public RPC
+  // correctly rejects wallet-scoped methods. Disable the capabilities probe on
+  // Tempo so MPP doesn't trip over unrelated AA feature detection.
+  const { capabilities } = useSafeCapabilities({
+    enabled: chainId !== TEMPO_MODERATO_CHAIN_ID,
+  });
   const { signTypedDataAsync } = useSafeSignTypedData();
   const wagmiConfig = useSafeWagmiConfig();
 
@@ -334,8 +342,18 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
       | undefined;
     const embeddedAddress = embeddedWallet?.address;
     const externalAddress = paraAccount.external.evm?.address;
+    const signerAddress = (
+      walletClient as { account?: { address?: `0x${string}` } } | undefined
+    )?.account?.address;
+    // Prefer the active wagmi signer address over Para profile metadata so
+    // request/session identity matches the account that actually signs wallet
+    // payments (Tempo/x402) through the connector client.
     const address =
-      wagmiAddress ?? externalAddress ?? embeddedAddress ?? undefined;
+      signerAddress ??
+      wagmiAddress ??
+      externalAddress ??
+      embeddedAddress ??
+      undefined;
     const authProvider = inferAuthProvider(paraAccount.embedded.authMethods);
     const providerLabel = formatAuthProvider(authProvider);
 
