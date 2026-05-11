@@ -1,0 +1,40 @@
+{
+  "name": "telegram",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "next dev",
+    "dev:webpack": "next dev --no-turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test:unit": "rm -rf .tmp-test-dist && tsc -p tsconfig.test.json && tsc-alias -p tsconfig.test.json && node --test test/*.test.mjs",
+    "clean": "rm -rf node_modules .next .tmp-test-dist"
+  },
+  "dependencies": {
+    "@aomi-labs/client": "workspace:*",
+    "@getpara/evm-wallet-connectors": "2.24.0",
+    "@getpara/react-sdk": "2.24.0",
+    "@getpara/web-sdk": "2.24.0",
+    "@tanstack/react-query": "^5.90.10",
+    "@walletconnect/sign-client": "^2.23.9",
+    "next": "16.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "viem": "^2.47.11",
+    "wagmi": "^2.19.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "16.1.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^3.4.19",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.3"
+  }
+}

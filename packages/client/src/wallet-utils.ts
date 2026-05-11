@@ -54,6 +54,26 @@ export type WalletEip712Payload = {
   eip712Id?: number;
 };
 
+/**
+ * Wire payload for `wallet::solana_sign_request`. Mirrors `WalletEip712Payload`
+ * in shape — singular sign-only — but carries a base64-encoded serialized
+ * Solana transaction instead of EIP-712 typed data.
+ *
+ * `unsignedTx` is base64 of `VersionedTransaction.serialize()` (legacy
+ * `Transaction.serialize()` also accepted by adapters). The host doesn't
+ * decode it; the wallet adapter handles deserialization.
+ */
+export type WalletSolanaSignPayload = {
+  /** Base64 of the unsigned Solana transaction. */
+  unsignedTx?: string;
+  /** Human-readable summary shown alongside the wallet's decoded preview. */
+  description?: string;
+  /** CAIP-2 cluster string (`"solana:mainnet"` / `"solana:devnet"`). */
+  cluster?: string;
+  /** Server-side correlation id for the staged sign request. */
+  pendingSolanaId?: number;
+};
+
 export type ViemSignTypedDataArgs = {
   domain?: Record<string, unknown>;
   types: Record<string, Array<{ name: string; type: string }>>;
@@ -315,6 +335,36 @@ export function hydrateTxPayloadFromUserState(
     chainId: payload.chainId ?? first.chainId,
     calls,
   };
+}
+
+/**
+ * Normalize a `wallet::solana_sign_request` payload into a consistent shape.
+ *
+ * Accepts the various nesting levels the backend can ship: top-level args,
+ * `{ args: { ... } }`, snake_case (`unsigned_tx`, `pending_solana_id`) or
+ * camelCase (`unsignedTx`, `pendingSolanaId`). Single source of truth for
+ * the SDK's view of the request — both the dispatch path and the
+ * `syncWalletRequests` reconstruction loop go through here.
+ */
+export function normalizeSolanaSignPayload(
+  payload: unknown,
+): WalletSolanaSignPayload {
+  const args = getToolArgs(payload);
+
+  const unsignedTxRaw = args.unsigned_tx ?? args.unsignedTx;
+  const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : undefined;
+
+  const description =
+    typeof args.description === "string" ? args.description : undefined;
+
+  const clusterRaw = args.cluster;
+  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+
+  const pendingSolanaId =
+    parsePendingId(args.pendingSolanaId) ??
+    parsePendingId(args.pending_solana_id);
+
+  return { unsignedTx, description, cluster, pendingSolanaId };
 }
 
 /**

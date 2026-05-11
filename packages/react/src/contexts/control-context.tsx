@@ -17,6 +17,11 @@ import type {
 } from "../state/thread-store";
 import { initThreadControl } from "../state/thread-store";
 import { resolveAutoModel } from "../utils/model-selection";
+import {
+  CLIENT_ID_STORAGE_KEY,
+  getControlSessionId,
+  getOrCreateClientId,
+} from "../utils/client-session";
 
 // =============================================================================
 // Types
@@ -115,31 +120,9 @@ export type ControlContextApi = {
 // =============================================================================
 
 const API_KEY_STORAGE_KEY = "aomi_api_key";
-const CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 const PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
 const MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
 const PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
-
-function getOrCreateClientId(): string {
-  try {
-    const storedClientId = globalThis.localStorage?.getItem(
-      CLIENT_ID_STORAGE_KEY,
-    );
-    if (storedClientId && storedClientId.trim().length > 0) {
-      return storedClientId;
-    }
-  } catch {
-    // localStorage not available
-  }
-
-  const clientId = globalThis.crypto?.randomUUID?.() ?? `client-${Date.now()}`;
-  try {
-    globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, clientId);
-  } catch {
-    // localStorage not available
-  }
-  return clientId;
-}
 
 function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
@@ -287,6 +270,10 @@ export function ControlContextProvider({
   updateThreadMetadataRef.current = updateThreadMetadata;
 
   const callbacks = useRef<Set<(state: ControlState) => void>>(new Set());
+  const getCurrentControlSessionId = useCallback(
+    () => getControlSessionId(stateRef.current.clientId, sessionIdRef.current),
+    [],
+  );
 
   // Compute isProcessing from current thread's control state
   const currentThreadMetadata = getThreadMetadata(sessionId);
@@ -371,20 +358,24 @@ export function ControlContextProvider({
     }
 
     void aomiClientRef.current
-      .ingestSecrets(state.clientId, secrets)
+      .ingestSecrets(getCurrentControlSessionId(), state.clientId, secrets)
       .catch((err: unknown) => {
         console.error("Failed to auto-ingest provider keys:", err);
       });
-  }, [state.clientId, state.providerKeys]);
+  }, [getCurrentControlSessionId, state.clientId, state.providerKeys]);
 
-  // Fetch apps whenever the auth context changes
+  // Fetch apps whenever the auth context changes. App authorization is scoped
+  // to auth/api-key state, so thread switches should not refetch it.
   useEffect(() => {
     const fetchApps = async () => {
       try {
-        const apps = await aomiClientRef.current.getApps(sessionIdRef.current, {
-          publicKey: publicKeyRef.current,
-          apiKey: stateRef.current.apiKey ?? undefined,
-        });
+        const apps = await aomiClientRef.current.getApps(
+          getCurrentControlSessionId(),
+          {
+            publicKey: publicKeyRef.current,
+            apiKey: stateRef.current.apiKey ?? undefined,
+          },
+        );
         const defaultApp = getDefaultApp(apps);
         setStateInternal((prev) => ({
           ...prev,
@@ -401,14 +392,14 @@ export function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [state.apiKey, publicKey, sessionId]);
+  }, [getCurrentControlSessionId, state.apiKey, publicKey]);
 
   // Fetch models on mount
   useEffect(() => {
     const fetchModels = async () => {
       try {
         const models = await aomiClientRef.current.getModels(
-          sessionIdRef.current,
+          getCurrentControlSessionId(),
         );
         setStateInternal((prev) => ({
           ...prev,
@@ -420,7 +411,7 @@ export function ControlContextProvider({
       }
     };
     void fetchModels();
-  }, []);
+  }, [getCurrentControlSessionId]);
 
   // ---------------------------------------------------------------------------
   // API Key
@@ -443,19 +434,23 @@ export function ControlContextProvider({
       const clientId = stateRef.current.clientId;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
+        getCurrentControlSessionId(),
         clientId,
         secrets,
       );
       return handles;
     },
-    [],
+    [getCurrentControlSessionId],
   );
 
   const clearSecrets = useCallback(async (): Promise<void> => {
     const clientId = stateRef.current.clientId;
     if (!clientId) return;
-    await aomiClientRef.current.clearSecrets?.(clientId);
-  }, []);
+    await aomiClientRef.current.clearSecrets?.(
+      getCurrentControlSessionId(),
+      clientId,
+    );
+  }, [getCurrentControlSessionId]);
 
   // ---------------------------------------------------------------------------
   // Provider Keys (BYOK)
@@ -484,15 +479,19 @@ export function ControlContextProvider({
       const clientId = stateRef.current.clientId;
       if (clientId) {
         try {
-          await aomiClientRef.current.ingestSecrets(clientId, {
-            [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed,
-          });
+          await aomiClientRef.current.ingestSecrets(
+            getCurrentControlSessionId(),
+            clientId,
+            {
+              [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed,
+            },
+          );
         } catch (err) {
           console.error("Failed to ingest provider key:", err);
         }
       }
     },
-    [],
+    [getCurrentControlSessionId],
   );
 
   const removeProviderKey = useCallback(
@@ -500,6 +499,7 @@ export function ControlContextProvider({
       const clientId = stateRef.current.clientId;
       if (clientId) {
         await aomiClientRef.current.deleteSecret(
+          getCurrentControlSessionId(),
           clientId,
           `${PROVIDER_KEY_SECRET_PREFIX}${provider}`,
         );
@@ -512,7 +512,7 @@ export function ControlContextProvider({
         return next;
       });
     },
-    [],
+    [getCurrentControlSessionId],
   );
 
   const getProviderKeys = useCallback(
@@ -532,7 +532,7 @@ export function ControlContextProvider({
   const getAvailableModels = useCallback(async (): Promise<string[]> => {
     try {
       const models = await aomiClientRef.current.getModels(
-        sessionIdRef.current,
+        getCurrentControlSessionId(),
       );
       setStateInternal((prev) => ({
         ...prev,
@@ -544,14 +544,17 @@ export function ControlContextProvider({
       console.error("Failed to fetch models:", error);
       return [];
     }
-  }, []);
+  }, [getCurrentControlSessionId]);
 
   const getAuthorizedApps = useCallback(async (): Promise<string[]> => {
     try {
-      const apps = await aomiClientRef.current.getApps(sessionIdRef.current, {
-        publicKey: publicKeyRef.current,
-        apiKey: stateRef.current.apiKey ?? undefined,
-      });
+      const apps = await aomiClientRef.current.getApps(
+        getCurrentControlSessionId(),
+        {
+          publicKey: publicKeyRef.current,
+          apiKey: stateRef.current.apiKey ?? undefined,
+        },
+      );
       const defaultApp = getDefaultApp(apps);
       setStateInternal((prev) => ({
         ...prev,
@@ -568,7 +571,7 @@ export function ControlContextProvider({
       }));
       return ["default"];
     }
-  }, []);
+  }, [getCurrentControlSessionId]);
 
   // ---------------------------------------------------------------------------
   // Per-thread control state

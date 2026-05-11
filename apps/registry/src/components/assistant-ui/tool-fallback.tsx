@@ -12,13 +12,16 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(true);
   return (
-    <div className="aui-tool-fallback-root mb-4 flex w-full flex-col gap-3 rounded-lg border py-3">
+    <div className="aui-tool-fallback-root mb-4 flex w-full flex-col gap-3 overflow-hidden rounded-2xl border py-3">
       <div className="aui-tool-fallback-header flex items-center gap-2 px-4">
         <CheckIcon className="aui-tool-fallback-icon size-4" />
         <p className="aui-tool-fallback-title flex-grow">
           Used tool: <b>{toolName}</b>
         </p>
-        <Button onClick={() => setIsCollapsed(!isCollapsed)}>
+        <Button
+          className="rounded-xl"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
           {isCollapsed ? <ChevronUpIcon /> : <ChevronDownIcon />}
         </Button>
       </div>

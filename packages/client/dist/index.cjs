@@ -76,6 +76,7 @@ __export(index_exports, {
   isSystemNotice: () => isSystemNotice,
   normalizeEip712Payload: () => normalizeEip712Payload,
   normalizeSimulatedFee: () => normalizeSimulatedFee,
+  normalizeSolanaSignPayload: () => normalizeSolanaSignPayload,
   normalizeTxPayload: () => normalizeTxPayload,
   parseChainId: () => parseChainId,
   resolvePimlicoConfig: () => resolvePimlicoConfig,
@@ -93,8 +94,10 @@ var USER_STATE_KEY_ALIASES = {
   chainId: "chain_id",
   isConnected: "is_connected",
   ensName: "ens_name",
+  svmAddress: "svm_address",
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
+  pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id"
 };
 function parseUserStateChainId(value) {
@@ -152,6 +155,11 @@ var UserState;
     if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
       reconciled.address = previousAddress;
     }
+    const previousSvm = svmAddress(previous);
+    const incomingSvm = svmAddress(incoming);
+    if (!incomingSvm && canPreserveConnectedWalletContext && previousSvm) {
+      reconciled.svm_address = previousSvm;
+    }
     if (incomingChainId === void 0 && canPreserveConnectedWalletContext && previous && chainId(previous) !== void 0) {
       const canPreserveChain = sameAddress || !incomingAddress && !!previousAddress;
       if (canPreserveChain) {
@@ -170,6 +178,12 @@ var UserState;
     return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
   }
   UserState2.address = address;
+  function svmAddress(userState) {
+    const normalized = normalize(userState);
+    const value = normalized == null ? void 0 : normalized.svm_address;
+    return typeof value === "string" && value.length > 0 ? value : void 0;
+  }
+  UserState2.svmAddress = svmAddress;
   function chainId(userState) {
     const normalized = normalize(userState);
     return parseUserStateChainId(normalized == null ? void 0 : normalized.chain_id);
@@ -244,6 +258,7 @@ async function readSseStream(stream, signal, onMessage) {
 function createSseSubscriber({
   backendUrl,
   getHeaders,
+  fetchImpl = fetch,
   logger
 }) {
   const subscriptions = /* @__PURE__ */ new Map();
@@ -316,7 +331,7 @@ function createSseSubscriber({
       subscription.abortController = controller;
       const openedAt = Date.now();
       try {
-        const response = await fetch(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/updates`, {
           headers: getHeaders(sessionId),
           signal: controller.signal
         });
@@ -417,14 +432,14 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
-async function postState(baseUrl, path, payload, sessionId, apiKey) {
+async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   const query = toQueryString(payload);
   const url = `${baseUrl}${path}${query}`;
   const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
     headers.set(API_KEY_HEADER, apiKey);
   }
-  const response = await fetch(url, {
+  const response = await fetchImpl(url, {
     method: "POST",
     headers
   });
@@ -435,12 +450,16 @@ async function postState(baseUrl, path, payload, sessionId, apiKey) {
 }
 var AomiClient = class {
   constructor(options) {
+    var _a;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
+    this.rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : this.fetchImpl;
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
+      fetchImpl: this.fetchImpl,
       logger: this.logger
     });
   }
@@ -456,7 +475,7 @@ var AomiClient = class {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
     });
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
     if (!response.ok) {
@@ -487,6 +506,7 @@ var AomiClient = class {
       "/api/chat",
       payload,
       sessionId,
+      this.fetchImpl,
       apiKey
     );
   }
@@ -498,7 +518,8 @@ var AomiClient = class {
       this.baseUrl,
       "/api/system",
       { message },
-      sessionId
+      sessionId,
+      this.fetchImpl
     );
   }
   /**
@@ -509,7 +530,8 @@ var AomiClient = class {
       this.baseUrl,
       "/api/interrupt",
       {},
-      sessionId
+      sessionId,
+      this.fetchImpl
     );
   }
   // ===========================================================================
@@ -521,11 +543,13 @@ var AomiClient = class {
    * client_id for the browser tab. The same client_id should be passed
    * to `sendMessage` / `fetchState` so sessions get associated.
    */
-  async ingestSecrets(clientId, secrets) {
+  async ingestSecrets(sessionId, clientId, secrets) {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
       body: JSON.stringify({ client_id: clientId, secrets })
     });
     if (!response.ok) {
@@ -536,11 +560,14 @@ var AomiClient = class {
   /**
    * Clear all secrets for a client (e.g. on page unload or logout).
    */
-  async clearSecrets(clientId) {
+  async clearSecrets(sessionId, clientId) {
     const url = buildApiUrl(this.baseUrl, "/api/secrets", {
       client_id: clientId
     });
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -549,7 +576,7 @@ var AomiClient = class {
   /**
    * Remove a single secret for a client.
    */
-  async deleteSecret(clientId, name) {
+  async deleteSecret(sessionId, clientId, name) {
     const url = buildApiUrl(
       this.baseUrl,
       `/api/secrets/${encodeURIComponent(name)}`,
@@ -557,7 +584,10 @@ var AomiClient = class {
         client_id: clientId
       }
     );
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await this.fetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -580,11 +610,13 @@ var AomiClient = class {
   /**
    * List all threads for a wallet address.
    */
-  async listThreads(publicKey) {
+  async listThreads(sessionId, publicKey) {
     const url = buildApiUrl(this.baseUrl, "/api/sessions", {
       public_key: publicKey
     });
-    const response = await fetch(url);
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
@@ -598,7 +630,7 @@ var AomiClient = class {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}`
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
     if (!response.ok) {
@@ -613,7 +645,7 @@ var AomiClient = class {
     const body = {};
     if (publicKey) body.public_key = publicKey;
     const url = buildApiUrl(this.baseUrl, "/api/sessions");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId, {
         "Content-Type": "application/json"
@@ -633,7 +665,7 @@ var AomiClient = class {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}`
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId)
     });
@@ -649,7 +681,7 @@ var AomiClient = class {
       this.baseUrl,
       `/api/sessions/${encodeURIComponent(sessionId)}`
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "PATCH",
       headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json"
@@ -664,33 +696,17 @@ var AomiClient = class {
    * Archive a thread.
    */
   async archiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/archive`
+    throw new Error(
+      "Failed to archive thread: current backend does not expose /api/sessions/:id/archive"
     );
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
   }
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`
+    throw new Error(
+      "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive"
     );
-    const response = await fetch(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
   }
   // ===========================================================================
   // System Events
@@ -702,7 +718,7 @@ var AomiClient = class {
     const url = buildApiUrl(this.baseUrl, "/api/events", {
       count: count !== void 0 ? String(count) : void 0
     });
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
     if (!response.ok) {
@@ -727,7 +743,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await fetch(url, { headers });
+    const response = await this.rawFetchImpl(url, { headers });
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
@@ -744,7 +760,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await fetch(url, {
+    const response = await this.rawFetchImpl(url, {
       headers
     });
     if (!response.ok) {
@@ -765,7 +781,14 @@ var AomiClient = class {
     if (options == null ? void 0 : options.clientId) {
       payload.client_id = options.clientId;
     }
-    return postState(this.baseUrl, "/api/control/model", payload, sessionId, apiKey);
+    return postState(
+      this.baseUrl,
+      "/api/control/model",
+      payload,
+      sessionId,
+      this.fetchImpl,
+      apiKey
+    );
   }
   /**
    * List BYOK provider keys bound to the current session's client.
@@ -773,7 +796,7 @@ var AomiClient = class {
   async listProviderKeys(sessionId) {
     var _a;
     const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
     if (!response.ok) {
@@ -787,7 +810,7 @@ var AomiClient = class {
    */
   async saveProviderKey(sessionId, provider, apiKey, label) {
     const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json"
@@ -812,7 +835,7 @@ var AomiClient = class {
       this.baseUrl,
       `/api/control/provider-keys/${encodeURIComponent(provider)}`
     );
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId)
     });
@@ -853,7 +876,7 @@ var AomiClient = class {
       from: options == null ? void 0 : options.from,
       chain_id: options == null ? void 0 : options.chainId
     };
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: "POST",
       headers,
       body: JSON.stringify(payload)
@@ -1147,6 +1170,17 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
     calls
   });
 }
+function normalizeSolanaSignPayload(payload) {
+  var _a, _b;
+  const args = getToolArgs(payload);
+  const unsignedTxRaw = (_a = args.unsigned_tx) != null ? _a : args.unsignedTx;
+  const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
+  const description = typeof args.description === "string" ? args.description : void 0;
+  const clusterRaw = args.cluster;
+  const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
+  const pendingSolanaId = (_b = parsePendingId(args.pendingSolanaId)) != null ? _b : parsePendingId(args.pending_solana_id);
+  return { unsignedTx, description, cluster, pendingSolanaId };
+}
 function normalizeEip712Payload(payload) {
   var _a, _b, _c, _d;
   const args = getToolArgs(payload);
@@ -1354,22 +1388,30 @@ var ClientSession = class extends TypedEventEmitter {
   // Public API — Wallet Request Resolution
   // ===========================================================================
   /**
-   * Resolve a pending wallet request (transaction or EIP-712 signing).
-   * Sends the result to the backend and resumes polling.
+   * Resolve a pending wallet request (transaction, EIP-712, or Solana
+   * sign). The `result.kind` discriminator must match the originating
+   * request's kind — sending a `transaction` result for an `eip712_sign`
+   * request would post the wrong wire event with empty fields, so we
+   * fail fast at runtime instead.
    */
   async resolve(requestId, result) {
-    var _a, _b, _c, _d, _e, _f;
-    const req = this.removeWalletRequest(requestId);
+    var _a, _b, _c, _d, _e;
+    const req = this.walletRequests.find((request) => request.id === requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
-    if (req.kind === "transaction") {
-      const txPayload = req.payload;
-      const pendingTxIds = txIdsFromPayload(txPayload);
-      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(txPayload.aaPreference);
+    if (result.kind !== req.kind) {
+      throw new Error(
+        `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`
+      );
+    }
+    this.removeWalletRequest(requestId);
+    if (req.kind === "transaction" && result.kind === "transaction") {
+      const pendingTxIds = txIdsFromPayload(req.payload);
+      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(req.payload.aaPreference);
       const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
       await this.sendSystemEvent("wallet:tx_complete", {
-        txHash: (_d = result.txHash) != null ? _d : "",
+        txHash: result.txHash,
         status: "success",
         amount: result.amount,
         pending_tx_ids: pendingTxIds,
@@ -1377,19 +1419,24 @@ var ClientSession = class extends TypedEventEmitter {
         aa_resolved_mode: resolvedMode,
         aa_fallback_reason: result.aaFallbackReason,
         execution_kind: result.executionKind,
-        batched: (_e = result.batched) != null ? _e : pendingTxIds.length > 1,
-        call_count: (_f = result.callCount) != null ? _f : pendingTxIds.length,
+        batched: (_d = result.batched) != null ? _d : pendingTxIds.length > 1,
+        call_count: (_e = result.callCount) != null ? _e : pendingTxIds.length,
         sponsored: result.sponsored,
         smart_account_address: result.smartAccountAddress,
         delegation_address: result.delegationAddress
       });
-    } else {
-      const eip712Payload = req.payload;
+    } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "success",
         signature: result.signature,
-        description: eip712Payload.description
-      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
+        description: req.payload.description
+      }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
+    } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
+      await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
+        status: "signed",
+        signed_tx: result.signedTx,
+        description: req.payload.description
+      }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1405,9 +1452,8 @@ var ClientSession = class extends TypedEventEmitter {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
-      const txPayload = req.payload;
-      const pendingTxIds = txIdsFromPayload(txPayload);
-      const requestedMode = aaRequestedModeFromPreference(txPayload.aaPreference);
+      const pendingTxIds = txIdsFromPayload(req.payload);
+      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
@@ -1423,13 +1469,18 @@ var ClientSession = class extends TypedEventEmitter {
         smart_account_address: void 0,
         delegation_address: void 0
       });
-    } else {
-      const eip712Payload = req.payload;
+    } else if (req.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "failed",
         error: reason != null ? reason : "Request rejected",
-        description: eip712Payload.description
-      }, eip712Payload.eip712Id !== void 0 ? { pending_eip712_id: eip712Payload.eip712Id } : {}));
+        description: req.payload.description
+      }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
+    } else {
+      await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
+        status: "rejected",
+        error: reason != null ? reason : "Request rejected",
+        description: req.payload.description
+      }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
     }
     if (this._isProcessing) {
       this.startPolling();
@@ -1646,7 +1697,7 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   dispatchSystemEvents(events) {
-    var _a;
+    var _a, _b;
     for (const event of events) {
       const unwrapped = unwrapSystemEvent(event);
       if (!unwrapped) continue;
@@ -1661,7 +1712,16 @@ var ClientSession = class extends TypedEventEmitter {
         const payload = normalizeEip712Payload((_a = unwrapped.payload) != null ? _a : {});
         const req = this.enqueueWalletRequest("eip712_sign", payload);
         this.emit("wallet_eip712_request", req);
+      } else if (unwrapped.type === "wallet::solana_sign_request") {
+        const payload = normalizeSolanaSignPayload((_b = unwrapped.payload) != null ? _b : {});
+        const req = this.enqueueWalletRequest("solana_sign", payload);
+        this.emit("wallet_solana_sign_request", req);
       } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
+        this.emit(
+          unwrapped.type,
+          unwrapped.payload
+        );
+      } else {
         this.emit(
           unwrapped.type,
           unwrapped.payload
@@ -1682,22 +1742,37 @@ var ClientSession = class extends TypedEventEmitter {
       this.emit("tool_complete", event);
     }
   }
-  // ===========================================================================
-  // Internal — Wallet Request Queue
-  // ===========================================================================
   enqueueWalletRequest(kind, payload) {
     var _a;
     const id = this.getWalletRequestId(kind, payload);
     const existing = this.walletRequests.find((request) => request.id === id);
-    const req = {
-      id,
-      kind,
-      payload,
-      timestamp: (_a = existing == null ? void 0 : existing.timestamp) != null ? _a : Date.now()
-    };
-    this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    const timestamp = (_a = existing == null ? void 0 : existing.timestamp) != null ? _a : Date.now();
+    let req;
     if (kind === "transaction") {
-      const nextTxIds = txIdsFromPayload(payload);
+      req = {
+        id,
+        kind,
+        payload,
+        timestamp
+      };
+    } else if (kind === "eip712_sign") {
+      req = {
+        id,
+        kind,
+        payload,
+        timestamp
+      };
+    } else {
+      req = {
+        id,
+        kind,
+        payload,
+        timestamp
+      };
+    }
+    this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    if (req.kind === "transaction") {
+      const nextTxIds = txIdsFromPayload(req.payload);
       if (nextTxIds.length > 1) {
         const nextTxIdSet = new Set(nextTxIds);
         this.walletRequests = this.walletRequests.filter((request) => {
@@ -1768,19 +1843,25 @@ var ClientSession = class extends TypedEventEmitter {
       if (txIds.length > 0) {
         return `tx-${txIds.join("-")}`;
       }
-    } else {
-      const eip712Id = payload.eip712Id;
+    } else if (kind === "eip712_sign") {
+      const { eip712Id } = payload;
       if (typeof eip712Id === "number") {
         return `eip712-${eip712Id}`;
+      }
+    } else {
+      const { pendingSolanaId } = payload;
+      if (typeof pendingSolanaId === "number") {
+        return `solana-${pendingSolanaId}`;
       }
     }
     return `wreq-${this.walletRequestNextId++}`;
   }
   syncWalletRequests() {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     const nextRequests = [];
     const pendingTxs = isRecord((_a = this.userState) == null ? void 0 : _a.pending_txs) ? (_b = this.userState) == null ? void 0 : _b.pending_txs : void 0;
     const pendingEip712s = isRecord((_c = this.userState) == null ? void 0 : _c.pending_eip712s) ? (_d = this.userState) == null ? void 0 : _d.pending_eip712s : void 0;
+    const pendingSolanaTxs = isRecord((_e = this.userState) == null ? void 0 : _e.pending_solana_txs) ? (_f = this.userState) == null ? void 0 : _f.pending_solana_txs : void 0;
     const pendingTxEntries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
     const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
     const coveredPendingTxIds = /* @__PURE__ */ new Set();
@@ -1837,7 +1918,7 @@ var ClientSession = class extends TypedEventEmitter {
           id: requestId,
           kind: "transaction",
           payload,
-          timestamp: (_f = (_e = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _e.timestamp) != null ? _f : Date.now()
+          timestamp: (_h = (_g = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _g.timestamp) != null ? _h : Date.now()
         });
       }
     }
@@ -1852,7 +1933,21 @@ var ClientSession = class extends TypedEventEmitter {
         id: requestId,
         kind: "eip712_sign",
         payload,
-        timestamp: (_h = (_g = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _g.timestamp) != null ? _h : Date.now()
+        timestamp: (_j = (_i = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _i.timestamp) != null ? _j : Date.now()
+      });
+    }
+    for (const [id, raw] of Object.entries(pendingSolanaTxs != null ? pendingSolanaTxs : {}).sort(
+      (left, right) => Number(left[0]) - Number(right[0])
+    )) {
+      const payload = normalizeSolanaSignPayload(__spreadProps(__spreadValues({}, isRecord(raw) ? raw : {}), {
+        pending_solana_id: Number(id)
+      }));
+      const requestId = this.getWalletRequestId("solana_sign", payload);
+      nextRequests.push({
+        id: requestId,
+        kind: "solana_sign",
+        payload,
+        timestamp: (_l = (_k = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _k.timestamp) != null ? _l : Date.now()
       });
     }
     if (nextRequests.length === this.walletRequests.length && nextRequests.every((request, index) => {
@@ -3277,6 +3372,7 @@ async function createAAProviderState(options) {
   isSystemNotice,
   normalizeEip712Payload,
   normalizeSimulatedFee,
+  normalizeSolanaSignPayload,
   normalizeTxPayload,
   parseChainId,
   resolvePimlicoConfig,

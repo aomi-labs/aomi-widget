@@ -7,7 +7,12 @@ import {
   createContext,
   useContext,
 } from "react";
-import { AomiRuntimeProvider, cn, useAomiRuntime } from "@aomi-labs/react";
+import {
+  AomiRuntimeProvider,
+  cn,
+  useAomiRuntime,
+  type AomiClientOptions,
+} from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 import { NotificationToaster } from "@/components/ui/notification";
@@ -18,7 +23,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -56,6 +60,8 @@ type RootProps = {
   showSidebar?: boolean;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
+  /** Optional runtime client overrides. */
+  clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
 type HeaderProps = {
@@ -96,6 +102,7 @@ const Root: FC<RootProps> = ({
   walletPosition = "footer",
   showSidebar = true,
   backendUrl,
+  clientOptions,
 }) => {
   const resolvedBackendUrl =
     backendUrl ??
@@ -104,7 +111,10 @@ const Root: FC<RootProps> = ({
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
-    <AomiRuntimeProvider backendUrl={resolvedBackendUrl}>
+    <AomiRuntimeProvider
+      backendUrl={resolvedBackendUrl}
+      clientOptions={clientOptions}
+    >
       <SidebarProvider className="min-h-0! h-full">
         <div
           className={cn(
@@ -137,33 +147,40 @@ const Header: FC<HeaderProps> = ({
   className,
 }) => {
   const { currentThreadId, getThreadMetadata } = useAomiRuntime();
-  const currentTitle = getThreadMetadata(currentThreadId)?.title ?? "New Chat";
+  const meta = getThreadMetadata(currentThreadId);
+  const currentTitle =
+    meta?.title && meta.title !== "New Chat" ? meta.title : null;
 
   return (
-    <header
-      className={cn(
-        "mt-1 flex h-14 shrink-0 items-center gap-2 px-3",
-        className,
-      )}
-    >
-      {showSidebarTrigger && (
-        <>
-          <SidebarTrigger />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-        </>
-      )}
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem className="hidden md:block">
-            {currentTitle}
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="ml-auto flex items-center gap-2">
-        {withControl && <ControlBar {...controlBarProps} />}
-        {children}
-      </div>
-    </header>
+    <>
+      <header
+        className={cn(
+          "mt-1 flex h-14 shrink-0 items-center gap-2 px-3",
+          className,
+        )}
+      >
+        {showSidebarTrigger && (
+          <>
+            <SidebarTrigger />
+            {currentTitle && <div className="bg-border/50 mr-2 h-3.5 w-px" />}
+          </>
+        )}
+        <Breadcrumb>
+          <BreadcrumbList>
+            {currentTitle && (
+              <BreadcrumbItem className="hidden md:block">
+                {currentTitle}
+              </BreadcrumbItem>
+            )}
+          </BreadcrumbList>
+        </Breadcrumb>
+        <div className="ml-auto flex items-center gap-2">
+          {withControl && <ControlBar {...controlBarProps} />}
+          {children}
+        </div>
+      </header>
+      <div className="pointer-events-none relative z-10 -mb-4 h-4 shrink-0 bg-gradient-to-b from-white/80 to-transparent dark:from-neutral-950/80" />
+    </>
   );
 };
 

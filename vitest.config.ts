@@ -6,6 +6,14 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
+    include: ["packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}"],
+    exclude: [
+      ".claude/**",
+      "**/.claude/**",
+      "**/node_modules/**",
+      "apps/**",
+      "dist/**",
+    ],
     restoreMocks: true,
   },
 });

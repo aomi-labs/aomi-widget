@@ -3,9 +3,13 @@ import type {
   AAWalletCall,
 } from "../aa";
 import type { WalletRequest } from "../session";
-import type { WalletEip712Payload, WalletTxPayload } from "../wallet-utils";
+import type {
+  WalletEip712Payload,
+  WalletSolanaSignPayload,
+  WalletTxPayload,
+} from "../wallet-utils";
 import { toAAWalletCall } from "../wallet-utils";
-import type { PendingTx, SignedTx } from "./state";
+import type { PendingSolTx, PendingTx, SignedSolTx, SignedTx } from "./state";
 
 export function walletRequestToPendingTx(
   request: WalletRequest,
@@ -24,10 +28,46 @@ export function walletRequestToPendingTx(
     };
   }
 
-  const payload = request.payload as WalletEip712Payload;
+  if (request.kind === "eip712_sign") {
+    const payload = request.payload as WalletEip712Payload;
+    return {
+      kind: "eip712_sign",
+      eip712Id: payload.eip712Id,
+      description: payload.description,
+      timestamp: request.timestamp,
+      payload: request.payload as unknown as Record<string, unknown>,
+    };
+  }
+
+  throw new Error(
+    `walletRequestToPendingTx received non-EVM kind '${request.kind}'. Solana sign requests use walletRequestToPendingSolTx.`,
+  );
+}
+
+/**
+ * Convert a `solana_sign` [`WalletRequest`] into a [`PendingSolTx`] without
+ * the display id. Companion to [`walletRequestToPendingTx`] — split out
+ * because Solana state is its own typed array, not a discriminated union
+ * member of the EVM/EIP-712 record.
+ */
+export function walletRequestToPendingSolTx(
+  request: WalletRequest,
+): Omit<PendingSolTx, "id"> | null {
+  if (request.kind !== "solana_sign") {
+    return null;
+  }
+  const payload = request.payload as WalletSolanaSignPayload;
+  if (
+    payload.pendingSolanaId === undefined ||
+    payload.unsignedTx === undefined
+  ) {
+    return null;
+  }
+
   return {
-    kind: "eip712_sign",
-    eip712Id: payload.eip712Id,
+    solanaId: payload.pendingSolanaId,
+    unsignedTx: payload.unsignedTx,
+    cluster: payload.cluster,
     description: payload.description,
     timestamp: request.timestamp,
     payload: request.payload as unknown as Record<string, unknown>,
@@ -114,6 +154,28 @@ export function formatSignedTxLine(tx: SignedTx, prefix: string): string {
     if (tx.value) parts.push(`value: ${tx.value}`);
   }
 
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+
+/** Render a pending Solana sign request for `aomi tx list`. */
+export function formatPendingSolTxLine(tx: PendingSolTx, prefix: string): string {
+  const parts = [`${prefix} ${tx.id}`, "solana"];
+  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
+  if (tx.description) parts.push(tx.description);
+  if (tx.signer) parts.push(`signer: ${tx.signer}`);
+  if (tx.unsignedTx) parts.push(`tx: ${tx.unsignedTx.slice(0, 20)}...`);
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+
+/** Render a locally-persisted signed Solana tx record. */
+export function formatSignedSolTxLine(tx: SignedSolTx, prefix: string): string {
+  const parts = [`${prefix} ${tx.id}`, "solana"];
+  if (tx.signedTx) parts.push(`signed: ${tx.signedTx.slice(0, 20)}...`);
+  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
+  if (tx.signer) parts.push(`signer: ${tx.signer}`);
+  if (tx.description) parts.push(tx.description);
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
