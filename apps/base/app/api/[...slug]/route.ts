@@ -18,6 +18,14 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "x-session-id",
 ]);
 
+const PAYMENT_RESPONSE_HEADERS = new Set([
+  "payment-required",
+  "www-authenticate",
+  "x-aomi-payment-state",
+  "x-payment",
+  "x-payment-response",
+]);
+
 const ALLOWED_ROUTES: Array<{
   pattern: RegExp;
   methods: ReadonlySet<string>;
@@ -94,6 +102,13 @@ function copyResponseHeaders(upstream: Response): Headers {
   } else if (cacheControl) {
     headers.set("cache-control", cacheControl);
   }
+
+  upstream.headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (PAYMENT_RESPONSE_HEADERS.has(lowerKey) || lowerKey.startsWith("x-payment-")) {
+      headers.set(key, value);
+    }
+  });
 
   return headers;
 }

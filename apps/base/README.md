@@ -66,6 +66,13 @@ The backend proxy lives in `app/api/[...slug]/route.ts`. It only forwards known 
 
 The paymaster proxy lives in `app/api/paymaster/route.ts`. It accepts only the expected paymaster JSON-RPC methods, enforces body and batch limits, rate-limits callers, adds sponsor metadata to stub responses, and forwards requests to Pimlico using the server-side API key.
 
+The Base payment gate lives in `app/base-payment-gate.tsx`. Users can chat for free until the backend signals quota exhaustion or payment required. At that point the app opens a compact payment modal with two paths:
+
+- `Use this account for x402` keeps the current Base Account and retries the blocked `/api/chat` request through the normal x402 challenge flow.
+- `Use another address` reconnects Base Account so the user can pick or create a separate Base MPC wallet, pays the blocked x402 request with that wallet, and persists the chosen address locally as the dedicated x402 payer for future paid requests.
+
+This keeps the existing `402 Payment Required` backend contract intact. The Base app handles wallet choice and the x402 retry on the client side.
+
 Styling is loaded from `app/globals.css`, including Tailwind and the Aomi widget stylesheet. Tailwind scans the local registry source so widget class changes are visible immediately during development.
 
 The widget/runtime code is consumed through the normal package names, `@aomi-labs/widget-lib` and `@aomi-labs/react`, but both dependencies are workspace packages. The app behaves like a package consumer while resolving changes directly from `apps/registry/src`, `packages/react/src`, and `packages/client/src`.
