@@ -35,7 +35,7 @@ const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-2xl px-4 py-2 text-sm text-start"
+        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-2xl px-4 py-2 text-start text-sm"
         variant="ghost"
       >
         <PlusIcon className="size-4" />
@@ -63,7 +63,7 @@ const ThreadListItems: FC = () => {
 
 const ThreadListConnectHint: FC = () => {
   return (
-    <p className="mt-2 px-4 aui-thread-list-connect-hint text-muted-foreground/60 text-left text-xs">
+    <p className="aui-thread-list-connect-hint text-muted-foreground/60 mt-2 px-4 text-left text-xs">
       Connect wallet to see threads
     </p>
   );

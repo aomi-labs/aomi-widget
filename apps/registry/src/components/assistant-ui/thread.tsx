@@ -192,14 +192,16 @@ const ThreadSuggestions: FC = () => {
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion group/suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full min-w-0 flex-col items-start justify-start gap-0.5 overflow-hidden rounded-2xl border px-4 py-3 text-left text-sm font-normal whitespace-normal transition-colors"
+              className="aui-thread-welcome-suggestion group/suggestion @md:flex-col dark:hover:bg-accent/60 h-auto w-full min-w-0 flex-col items-start justify-start gap-0.5 overflow-hidden whitespace-normal rounded-2xl border px-4 py-3 text-left text-sm font-normal transition-colors"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 text-foreground flex min-w-0 items-start gap-2 leading-tight break-words">
+              <span className="aui-thread-welcome-suggestion-text-1 text-foreground flex min-w-0 items-start gap-2 break-words leading-tight">
                 <suggestedAction.icon className="text-muted-foreground/40 group-hover/suggestion:text-primary size-3.5 shrink-0 transition-colors" />
-                <span className="min-w-0 break-words">{suggestedAction.title}</span>
+                <span className="min-w-0 break-words">
+                  {suggestedAction.title}
+                </span>
               </span>
-              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/60 ml-[22px] min-w-0 text-xs leading-tight break-words">
+              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/60 ml-[22px] min-w-0 break-words text-xs leading-tight">
                 {suggestedAction.label}
               </span>
             </Button>
@@ -214,7 +216,7 @@ const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-transparent text-card-foreground border-border/30 relative flex w-full flex-col border px-1 pt-2">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-muted/20 text-card-foreground border-border/40 relative flex w-full flex-col border px-1 pt-2">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
           className="aui-composer-input text-foreground placeholder:text-muted-foreground/60 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-white"
@@ -238,7 +240,7 @@ const ComposerAction: FC = () => {
   const hideNetwork = controlBarProps.hideNetwork ?? false;
 
   return (
-    <div className="aui-composer-action-wrapper relative mx-1 mb-2 mt-2 flex items-center gap-1">
+    <div className="aui-composer-action-wrapper relative mx-1 mb-3 mt-2 flex min-h-[38px] items-center gap-1">
       {/* Inline controls — horizontally scrollable on mobile */}
       {composerControl.enabled && (
         <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-0 overflow-x-auto md:ml-2 md:gap-2">
@@ -256,17 +258,15 @@ const ComposerAction: FC = () => {
       <div className="shrink-0">
         <ThreadPrimitive.If running={false}>
           <ComposerPrimitive.Send asChild>
-            <TooltipIconButton
-              tooltip="Send message"
-              side="bottom"
+            <Button
               type="submit"
               variant="default"
               size="icon"
-              className="aui-composer-send mb-3 mr-2 size-[38px] rounded-full p-1 md:mr-3 md:size-[34px]"
+              className="aui-composer-send mr-2 size-[38px] shrink-0 rounded-full p-1 md:mr-3 md:size-[34px]"
               aria-label="Send message"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-5" />
-            </TooltipIconButton>
+            </Button>
           </ComposerPrimitive.Send>
         </ThreadPrimitive.If>
 
@@ -276,7 +276,7 @@ const ComposerAction: FC = () => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 mb-3 mr-2 size-[38px] rounded-full border md:mr-3 md:size-[34px]"
+              className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 mr-2 size-[38px] shrink-0 rounded-full border md:mr-3 md:size-[34px]"
               aria-label="Stop generating"
             >
               <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
@@ -358,6 +358,10 @@ const AssistantMessage: FC = () => {
   const isEmpty = useMessage((state) => state.content.length === 0);
   const isRunning = useMessage((state) => state.status?.type === "running");
   const isLast = useMessage((state) => state.isLast);
+  const notice = useMessage((state) => state.metadata?.custom) as
+    | { aomiNoticeKind?: string; aomiNoticeTitle?: string }
+    | undefined;
+  const isPaymentRequiredNotice = notice?.aomiNoticeKind === "payment_required";
   const showLoadingDot = isEmpty && isRunning && isLast;
   const showFinishedEmptyMessage = isEmpty && !showLoadingDot;
 
@@ -370,8 +374,24 @@ const AssistantMessage: FC = () => {
         )}
         data-role="assistant"
       >
-        {!showFinishedEmptyMessage && (
-          <div className="aui-assistant-message-content text-foreground px-3 break-words text-sm leading-5">
+        {!showFinishedEmptyMessage && isPaymentRequiredNotice && (
+          <div className="aui-assistant-payment-required bg-sidebar text-sidebar-foreground border-border/70 dark:border-border mx-3 rounded-2xl border px-4 py-3 text-sm shadow-sm">
+            <div className="aui-assistant-payment-required-title mb-1 font-medium">
+              {notice?.aomiNoticeTitle ?? "Credits needed"}
+            </div>
+            <div className="aui-assistant-payment-required-message text-muted-foreground leading-5">
+              <MessagePrimitive.Parts
+                components={{
+                  Text: MarkdownText,
+                  tools: { Fallback: ToolFallback },
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {!showFinishedEmptyMessage && !isPaymentRequiredNotice && (
+          <div className="aui-assistant-message-content text-foreground break-words px-3 text-sm leading-5">
             {showLoadingDot ? (
               <AssistantLoadingDot />
             ) : (
