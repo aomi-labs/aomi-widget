@@ -14,7 +14,7 @@ import {
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
 } from "../../wallet-utils";
-import type { AomiSimulateFee } from "../../types";
+import type { AomiSimulateFee, AomiSimulateResponse } from "../../types";
 import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import { parseSolanaKeypairSecret, signSolanaTransaction } from "../solana-signer";
@@ -26,7 +26,7 @@ import {
   type CliExecutionDecision,
 } from "../execution";
 import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
-import type { PendingSolTx, SignedTx } from "../state";
+import type { PendingSolTx, PendingTx, SignedTx } from "../state";
 import {
   formatPendingSolTxLine,
   formatSignedSolTxLine,
@@ -174,6 +174,32 @@ function buildCliTxCompletionMetadata(params: {
     aa_resolved_mode: resolvedMode,
     aa_fallback_reason: fallbackReason,
   };
+}
+
+async function simulatePendingTransactions(params: {
+  session: ReturnType<CliSession["createClientSession"]>;
+  cli: CliSession;
+  pendingTxs: PendingTx[];
+  resolvedChainIds: number[];
+  chainId: number;
+}): Promise<AomiSimulateResponse["result"]> {
+  const { session, cli, pendingTxs, resolvedChainIds, chainId } = params;
+
+  const simResponse = await session.client.simulateBatch(
+    cli.sessionId,
+    pendingTxs.map((tx, index) => ({
+      to: tx.to ?? "",
+      value: tx.value,
+      data: tx.data,
+      label: tx.description ?? tx.id,
+      chain_id: resolvedChainIds[index],
+    })),
+    {
+      chainId,
+    },
+  );
+
+  return simResponse.result;
 }
 
 /**
@@ -408,6 +434,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
     let signedRecords: SignedTx[] = [];
     let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    let resolvedUserStateAAMode: "4337" | "7702" | null = null;
+    let resolvedUserStateSmartAccount: string | null = null;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
@@ -435,24 +463,47 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
       }
 
+      const simulationDecision = resolveCliExecutionDecision({
+        config,
+        chain,
+        callList: baseCallList,
+      });
+      const simulationProviderState =
+        simulationDecision.execution === "aa"
+          ? await createCliProviderState({
+              decision: simulationDecision,
+              chain,
+              privateKey: privateKey as `0x${string}`,
+              rpcUrl: resolvedRpcUrl,
+              callList: baseCallList,
+              baseUrl: cli.baseUrl,
+            })
+          : undefined;
+      const simulationAAMode =
+        simulationDecision.execution === "aa" ? simulationDecision.aaMode : null;
+      const simulationSmartAccount =
+        simulationAAMode === "4337"
+          ? simulationProviderState?.account?.AAAddress ??
+            simulationProviderState?.account?.executionAddress ??
+            null
+          : null;
+
+      session.resolveWallet(account.address, primaryChainId, {
+        aaMode: simulationAAMode,
+        smartAccount: simulationSmartAccount,
+      });
+      await session.syncUserState();
+
       // Simulate batch to validate and compute service fee.
       let simFee: AomiSimulateFee | undefined;
       try {
-        const simResponse = await session.client.simulateBatch(
-          cli.sessionId,
-          pendingTxs.map((tx, index) => ({
-            to: tx.to ?? "",
-            value: tx.value,
-            data: tx.data,
-            label: tx.description ?? tx.id,
-            chain_id: resolvedChainIds[index],
-          })),
-          {
-            from: account.address,
-            chainId: primaryChainId,
-          },
-        );
-        const { result: sim } = simResponse;
+        const sim = await simulatePendingTransactions({
+          session,
+          cli,
+          pendingTxs,
+          resolvedChainIds,
+          chainId: primaryChainId,
+        });
         if (!sim.batch_success) {
           const failed = sim.steps.find((s) => !s.success);
           console.log(
@@ -572,6 +623,12 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
       const executionUsedAA =
         finalDecision.execution === "aa" && execution.executionKind !== "eoa";
+      resolvedUserStateAAMode =
+        executionUsedAA && finalDecision.execution === "aa"
+          ? finalDecision.aaMode
+          : null;
+      resolvedUserStateSmartAccount =
+        resolvedUserStateAAMode === "4337" ? execution.AAAddress ?? null : null;
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -659,7 +716,10 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
     // Persist signer state and notify the backend with authoritative staged ids.
     cli.setPublicKey(account.address);
-    session.resolveWallet(account.address, primaryChainId);
+    session.resolveWallet(account.address, primaryChainId, {
+      aaMode: resolvedUserStateAAMode,
+      smartAccount: resolvedUserStateSmartAccount,
+    });
 
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(

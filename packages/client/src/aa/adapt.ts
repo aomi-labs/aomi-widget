@@ -53,6 +53,7 @@ export function adaptSmartAccount(account: SdkSmartAccount): SmartAccount {
   return {
     provider: account.provider,
     mode: account.mode,
+    executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
     delegationAddress,
     sendTransaction: async (call) => {

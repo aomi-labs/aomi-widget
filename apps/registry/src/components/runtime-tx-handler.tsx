@@ -110,6 +110,12 @@ export function RuntimeTxHandler() {
             payload,
             simulationResult.fee,
             defaultChainId,
+            // Fee-injected batches must be allowed to fall back from AA
+            // to sequential EOA sends if the wallet/bundler fails after
+            // sign — otherwise transient post-sign failures (e.g. wallet
+            // pricing middleware rejection) become hard errors with no
+            // recovery path.
+            { strictAa: false },
           );
           if (payloadWithFee === payload) {
             throw new Error("missing_fee_payment_tx");
