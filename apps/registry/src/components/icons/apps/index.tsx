@@ -37,6 +37,25 @@ export function AllAppsIcon(props: SVGProps<SVGSVGElement>) {
 const BinanceIconMarkup =
   '<path fill="currentColor" d="m16.624 13.92l2.718 2.716l-7.353 7.353l-7.353-7.352l2.717-2.717l4.636 4.66zm4.637-4.636L24 12l-2.715 2.716L18.568 12zm-9.272 0l2.716 2.692l-2.717 2.717L9.272 12zm-9.273 0L5.41 12l-2.692 2.692L0 12zM11.99.012l7.35 7.328l-2.717 2.715L11.99 5.42l-4.636 4.66l-2.717-2.716z"/>';
 
+export function AcrossIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 40 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M35.9714 0L40 4.02857L26.5371 17.4915C25.8275 15.6433 24.3567 14.1725 22.5085 13.4629L35.9714 0ZM17.4915 13.4629L4.02857 0L0 4.02857L13.4629 17.4915C14.1725 15.6433 15.6433 14.1725 17.4915 13.4629ZM13.4629 22.5085L0 35.9714L4.02857 40L17.4915 26.5371C15.6433 25.8275 14.1725 24.3567 13.4629 22.5085ZM22.5085 26.5371L35.9714 40L40 35.9714L26.5371 22.5085C25.8275 24.3567 24.3567 25.8275 22.5085 26.5371Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function BinanceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -390,6 +409,27 @@ export function ParaIcon(props: SVGProps<SVGSVGElement>) {
       dangerouslySetInnerHTML={{ __html: ParaIconMarkup }}
       {...props}
     />
+  );
+}
+
+export function PelagosIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 162 170"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        d="M43.4 57.5C58.6 57.5 70.9 69.8 70.9 85V85.6C70.9 85.8 70.9 86 70.9 86.3C71.5 112.8 91.3 135 116.7 139.3C106.2 146.2 93.8 150 80.9 150C63.6 150 47.3 143.3 35.1 131.1C22.8 118.9 16 102.7 15.9 85.4V84.7C16.1 69.6 28.4 57.5 43.4 57.5ZM43.4 47.5C22.9 47.5 6.2 64 5.9 84.5V85.5C6.2 126.7 39.6 160 80.9 160C106.9 160 129.9 146.7 143.3 126.6C137.9 128.8 132.1 130.1 125.9 130.1C101.3 130.1 81.4 110.4 80.9 86V85C80.9 64.3 64.1 47.5 43.4 47.5Z"
+        fill="currentColor"
+      />
+      <path
+        d="M155.9 84.5C155.8 69.3 151.2 55.2 143.3 43.4C129.9 23.3 106.9 10 80.9 10C39.6 10 6.2 43.3 5.9 84.5C6.2 64 22.9 47.5 43.4 47.5C64.1 47.5 80.9 64.3 80.9 85V86C81.4 106.3 98 122.5 118.4 122.5C138.9 122.5 155.6 106 155.9 85.5V84.5Z"
+        fill="currentColor"
+      />
+    </svg>
   );
 }
 

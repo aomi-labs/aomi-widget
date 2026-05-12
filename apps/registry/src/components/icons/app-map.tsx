@@ -1,5 +1,6 @@
 import type { FC, SVGProps } from "react";
 import {
+  AcrossIcon,
   AllAppsIcon,
   BinanceIcon,
   BybitIcon,
@@ -20,6 +21,7 @@ import {
   OkxIcon,
   OneInchIcon,
   ParaIcon,
+  PelagosIcon,
   PolymarketIcon,
   XIcon,
   YearnIcon,
@@ -29,6 +31,7 @@ import {
 
 const APP_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   default: AllAppsIcon,
+  across: AcrossIcon,
   binance: BinanceIcon,
   bybit: BybitIcon,
   cow: CowIcon,
@@ -48,6 +51,7 @@ const APP_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   okx: OkxIcon,
   oneinch: OneInchIcon,
   para: ParaIcon,
+  pelagos: PelagosIcon,
   polymarket: PolymarketIcon,
   "polymarket-rewards": PolymarketIcon,
   x: XIcon,

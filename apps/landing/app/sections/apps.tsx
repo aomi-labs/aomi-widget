@@ -20,6 +20,15 @@ const APP_DEEP_LINKS_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_APP_DEEP_LINKS !== "false";
 
 const APP_METADATA: Record<string, AppMetadata> = {
+  across: {
+    title: "Across",
+    description: "Cross-chain bridging and swap routing across ecosystems.",
+    category: "Cross-chain",
+    requiresApiKey: false,
+    websiteUrl: "https://across.to/",
+    logoSrc: "/assets/logos/across.svg",
+    logoAlt: "Across logo",
+  },
   binance: {
     title: "Binance",
     description: "Centralized exchange data for prices, depth, and klines.",
@@ -189,6 +198,15 @@ const APP_METADATA: Record<string, AppMetadata> = {
     requiresApiKey: true,
     logoSrc: "/assets/logos/oneinch.svg",
     logoAlt: "1inch logo",
+  },
+  pelagos: {
+    title: "Pelagos",
+    description: "Cross-chain execution workflows for intent-based routing.",
+    category: "Cross-chain",
+    requiresApiKey: false,
+    websiteUrl: "https://pelagos.network/",
+    logoSrc: "/assets/logos/pelagos.svg",
+    logoAlt: "Pelagos logo",
   },
   polymarket: {
     title: "Polymarket",

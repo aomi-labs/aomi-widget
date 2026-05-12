@@ -47,6 +47,11 @@ const APP_DISPLAY_NAMES: Record<
     abbr: "All",
     category: APP_CATEGORIES.all!,
   },
+  across: {
+    displayName: "Across",
+    abbr: "A",
+    category: APP_CATEGORIES.dex!,
+  },
   binance: {
     displayName: "Binance",
     abbr: "B",
@@ -151,6 +156,11 @@ const APP_DISPLAY_NAMES: Record<
     displayName: "Para Consumer",
     abbr: "P",
     category: APP_CATEGORIES.custom!,
+  },
+  pelagos: {
+    displayName: "Pelagos",
+    abbr: "P",
+    category: APP_CATEGORIES.dex!,
   },
   polymarket: {
     displayName: "Polymarket",
