@@ -21,10 +21,13 @@ import {
 import { fatal } from "../errors";
 import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
+import type { UserStateAAMode } from "../../types";
 
 type WalletSnapshot = {
   publicKey?: string;
   chainId?: number;
+  aaMode?: UserStateAAMode | null;
+  smartAccount?: string | null;
 };
 
 function normalizeAddress(address: string | undefined): string | undefined {
@@ -48,7 +51,10 @@ export function shouldBroadcastWalletStateChange(
 
   return (
     normalizeAddress(previous?.publicKey) !== normalizeAddress(next.publicKey) ||
-    previous?.chainId !== next.chainId
+    previous?.chainId !== next.chainId ||
+    previous?.aaMode !== next.aaMode ||
+    normalizeAddress(previous?.smartAccount ?? undefined) !==
+      normalizeAddress(next.smartAccount ?? undefined)
   );
 }
 
@@ -67,13 +73,18 @@ export async function syncWalletStateForChat(
     return;
   }
 
-  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId));
+  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
+    aaMode: next.aaMode ?? null,
+    smartAccount: next.smartAccount ?? null,
+  }));
   await session.syncUserState();
 
   const payload: Record<string, unknown> = {
     address: next.publicKey,
     chainId: next.chainId,
     isConnected: true,
+    aa_mode: next.aaMode ?? null,
+    smart_account: next.smartAccount ?? null,
   };
 
   await session.client.sendSystemMessage(
@@ -95,6 +106,8 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
     ? {
         publicKey: previousCli.publicKey,
         chainId: previousCli.chainId,
+        aaMode: previousCli.toState().aaMode ?? null,
+        smartAccount: previousCli.toState().smartAccount ?? null,
       }
     : null;
   const cli = CliSession.loadOrCreate(config);
@@ -109,6 +122,8 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
+        aaMode: cli.toState().aaMode ?? null,
+        smartAccount: cli.toState().smartAccount ?? null,
       },
       cli,
       session,

@@ -372,11 +372,13 @@ async function executeViaEoa({
       usedPaymasterService = Boolean(sendCallsCapabilities?.paymasterService);
       usedSendCalls = true;
     } catch (error) {
-      if (!isUnsupportedAtomicCapabilityError(error)) {
+      if (
+        !canFallbackToSequentialWalletSends(
+          error,
+          requiresSponsoredSendCalls,
+        )
+      ) {
         throw error;
-      }
-      if (requiresSponsoredSendCalls) {
-        throw new Error("wallet_sponsorship_required");
       }
       await sendSequentially();
     }
@@ -498,6 +500,31 @@ function isUnsupportedAtomicCapabilityError(error: unknown): boolean {
     (lowered.includes("unsupported") && lowered.includes("atomic")) ||
     (lowered.includes("wallet does not support") &&
       lowered.includes("capabilit"))
+  );
+}
+
+function isRecoverableOptionalPaymasterError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+
+  return (
+    lowered.includes("paymaster") ||
+    lowered.includes("sponsor") ||
+    lowered.includes("erc-7677")
+  );
+}
+
+function canFallbackToSequentialWalletSends(
+  error: unknown,
+  requiresSponsoredSendCalls: boolean,
+): boolean {
+  if (requiresSponsoredSendCalls) {
+    return false;
+  }
+
+  return (
+    isUnsupportedAtomicCapabilityError(error) ||
+    isRecoverableOptionalPaymasterError(error)
   );
 }
 

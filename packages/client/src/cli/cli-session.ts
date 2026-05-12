@@ -354,7 +354,10 @@ export class CliSession {
         publicKey: this.state.publicKey,
       },
     );
-    session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId));
+    session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
+      aaMode: this.state.aaMode ?? null,
+      smartAccount: this.state.smartAccount ?? null,
+    }));
     return session;
   }
 
