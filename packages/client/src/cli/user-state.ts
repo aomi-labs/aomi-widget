@@ -1,6 +1,7 @@
 import {
   CLIENT_TYPE_TS_CLI,
   UserState,
+  type UserStateAAMode,
 } from "../types";
 import { getAddress } from "viem";
 import type { PendingSolTx, PendingTx } from "./state";
@@ -68,6 +69,10 @@ function txTimestamp(
 export function buildCliUserState(
   publicKey?: string,
   chainId?: number,
+  aa?: {
+    aaMode?: UserStateAAMode | null;
+    smartAccount?: string | null;
+  },
 ): UserState {
   const userState: UserState = {};
 
@@ -82,6 +87,9 @@ export function buildCliUserState(
   if (publicKey !== undefined && chainId !== undefined) {
     userState.is_connected = true;
   }
+
+  userState.aa_mode = aa?.aaMode ?? null;
+  userState.smart_account = aa?.smartAccount ?? null;
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
@@ -236,12 +244,19 @@ export function pendingSolTxsFromBackendUserState(
 
 export function walletSnapshotFromUserState(
   userState: UserState | null | undefined,
-): { publicKey?: string; chainId?: number } {
+): {
+  publicKey?: string;
+  chainId?: number;
+  aaMode?: UserStateAAMode | null;
+  smartAccount?: string | null;
+} {
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
 
   return {
     publicKey: isConnected === false ? undefined : address,
     chainId: UserState.chainId(userState),
+    aaMode: UserState.aaMode(userState),
+    smartAccount: UserState.smartAccount(userState),
   };
 }

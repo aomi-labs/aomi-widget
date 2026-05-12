@@ -211,7 +211,13 @@ export async function executeAdapterTransaction({
   const aaRequestedMode = resolveRequestedAAMode(payload, isBatch);
   const requiresSponsoredExecution =
     state.nativeWalletExecution?.sponsorship?.mode === "required";
-  const requiresAtomicForBatch = isBatch && requiresSponsoredExecution;
+  // Atomic-required is a payload-level intent (`aaStrict === true`),
+  // independent of the provider's sponsorship mode. Conflating them
+  // (commit 1d406d2) forces every sponsored batch into atomic+no-fallback
+  // and breaks fee-injected 2-call batches when the wallet/bundler errors
+  // after sign. `requiresSponsoredExecution` still drives fail-closed
+  // semantics in the AA-failure exit path below.
+  const requiresAtomicForBatch = isBatch && payload.aaStrict === true;
   const nativeWalletExecution = resolveNativeWalletExecutionPolicy({
     policy: state.nativeWalletExecution,
     chainId: callList[0]?.chainId ?? state.currentChainId ?? 1,
