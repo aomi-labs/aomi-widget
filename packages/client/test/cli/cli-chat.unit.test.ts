@@ -37,6 +37,19 @@ describe("CLI chat wallet sync", () => {
 
     expect(
       shouldBroadcastWalletStateChange(
+        config,
+        { publicKey: "0x111", chainId: 1, aaMode: null, smartAccount: null },
+        {
+          publicKey: "0x111",
+          chainId: 1,
+          aaMode: "4337",
+          smartAccount: "0x222",
+        },
+      ),
+    ).toBe(true);
+
+    expect(
+      shouldBroadcastWalletStateChange(
         createConfig(),
         null,
         { publicKey: "0x111", chainId: 1 },
@@ -73,6 +86,8 @@ describe("CLI chat wallet sync", () => {
       address: "0xnew",
       chain_id: 8453,
       is_connected: true,
+      aa_mode: null,
+      smart_account: null,
       ext: { client_type: "ts_cli" },
     });
     expect(syncUserState).toHaveBeenCalledTimes(1);
@@ -84,6 +99,8 @@ describe("CLI chat wallet sync", () => {
         address: "0xnew",
         chainId: 8453,
         isConnected: true,
+        aa_mode: null,
+        smart_account: null,
       },
     });
   });

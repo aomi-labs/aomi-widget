@@ -10,6 +10,7 @@ import { basename, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import {
   UserState as UserStateHelpers,
+  type UserStateAAMode,
   type UserState,
 } from "../types";
 import {
@@ -100,6 +101,8 @@ export type CliSessionState = {
   publicKey?: string;
   privateKey?: string;
   chainId?: number;
+  aaMode?: UserStateAAMode | null;
+  smartAccount?: string | null;
   pendingTxs?: PendingTx[];
   pendingSolTxs?: PendingSolTx[];
   signedTxs?: SignedTx[];
@@ -597,6 +600,18 @@ export function syncPendingTxsFromUserState(
     state.chainId = walletSnapshot.chainId;
   } else if (isConnected === false) {
     state.chainId = undefined;
+  }
+
+  if (walletSnapshot.aaMode !== undefined) {
+    state.aaMode = walletSnapshot.aaMode;
+  } else if (isConnected === false) {
+    state.aaMode = null;
+  }
+
+  if (walletSnapshot.smartAccount !== undefined) {
+    state.smartAccount = walletSnapshot.smartAccount;
+  } else if (isConnected === false) {
+    state.smartAccount = null;
   }
 
   state.pendingTxs = pendingTxsFromBackendUserState(

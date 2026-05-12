@@ -174,6 +174,8 @@ function BaseAccountAdapterInner({
             authProvider: "baseAccount",
             primaryLabel: formatAddress(address) ?? "Base Account",
             secondaryLabel: "Base Account",
+            aaMode: "4337",
+            smartAccount: address,
           }
         : {
             ...AOMI_AUTH_DISCONNECTED_IDENTITY,

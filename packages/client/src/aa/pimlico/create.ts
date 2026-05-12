@@ -238,6 +238,7 @@ function adaptPimlicoSdkAccount(account: {
   return {
     provider: account.provider,
     mode: account.mode,
+    executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
     delegationAddress: account.delegationAddress,
     sendTransaction: async (call) => account.sendTransaction(call),

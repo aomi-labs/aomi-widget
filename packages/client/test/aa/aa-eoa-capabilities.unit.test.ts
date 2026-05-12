@@ -425,6 +425,51 @@ describe("executeWalletCalls EOA capability handling", () => {
     });
   });
 
+  it("falls back to sequential sendTransaction when optional paymaster sendCalls fails", async () => {
+    const sendCallsSyncAsync = vi
+      .fn()
+      .mockRejectedValue(new Error("Paymaster request failed with 500"));
+    const sendTransactionAsync = vi
+      .fn()
+      .mockResolvedValueOnce("0x111")
+      .mockResolvedValueOnce("0x222");
+
+    const result = await executeWalletCalls({
+      callList: CALL_LIST,
+      currentChainId: 1,
+      capabilities: {
+        "eip155:1": {
+          atomic: { status: "ready" },
+          paymasterService: { supported: true },
+        },
+      },
+      localPrivateKey: null,
+      nativeWalletExecution: {
+        executionKind: "base_account_4337",
+        sponsorship: {
+          mode: "optional",
+          paymasterServiceUrl: "https://paymaster.example.test",
+        },
+      },
+      providerState: DISABLED_PROVIDER_STATE,
+      sendCallsSyncAsync,
+      sendTransactionAsync,
+      switchChainAsync: vi.fn(),
+      chainsById: { [mainnet.id]: mainnet },
+      getPreferredRpcUrl: () => "https://example-rpc.invalid",
+    });
+
+    expect(sendCallsSyncAsync).toHaveBeenCalledTimes(1);
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      txHash: "0x222",
+      txHashes: ["0x111", "0x222"],
+      executionKind: "eoa",
+      batched: true,
+      sponsored: false,
+    });
+  });
+
   it("requires atomic sendCalls and blocks sequential fallback when requested", async () => {
     const sendCallsSyncAsync = vi.fn().mockResolvedValue({
       receipts: [{ transactionHash: "0xabc" }, { transactionHash: "0xdef" }],
