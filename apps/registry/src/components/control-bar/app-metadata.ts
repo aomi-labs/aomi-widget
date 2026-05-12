@@ -107,6 +107,11 @@ const APP_DISPLAY_NAMES: Record<
     abbr: "LI",
     category: APP_CATEGORIES.dex!,
   },
+  limitless: {
+    displayName: "Limitless",
+    abbr: "L",
+    category: APP_CATEGORIES.prediction!,
+  },
   manifold: {
     displayName: "Manifold",
     abbr: "M",
@@ -171,6 +176,11 @@ const APP_DISPLAY_NAMES: Record<
     displayName: "0x",
     abbr: "0x",
     category: APP_CATEGORIES.dex!,
+  },
+  zora: {
+    displayName: "Zora",
+    abbr: "Z",
+    category: APP_CATEGORIES.social!,
   },
 };
 

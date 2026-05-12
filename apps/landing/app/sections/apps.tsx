@@ -30,7 +30,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   bybit: {
     title: "Bybit",
-    description: "Bybit trading context for orders, positions, and leverage workflows.",
+    description:
+      "Bybit trading context for orders, positions, and leverage workflows.",
     category: "CEX",
     requiresApiKey: true,
     logoSrc: "/assets/logos/bybit.png",
@@ -47,7 +48,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   defillama: {
     title: "DefiLlama",
-    description: "Protocol analytics for TVL, yields, volumes, and stablecoins.",
+    description:
+      "Protocol analytics for TVL, yields, volumes, and stablecoins.",
     category: "Analytics",
     requiresApiKey: false,
     websiteUrl: "https://defillama.com/",
@@ -73,7 +75,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   gmx: {
     title: "GMX",
-    description: "Perpetual trading context for prices, markets, and positions.",
+    description:
+      "Perpetual trading context for prices, markets, and positions.",
     category: "Perps",
     requiresApiKey: false,
     websiteUrl: "https://gmx.io/",
@@ -91,7 +94,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   kaito: {
     title: "Kaito",
-    description: "Crypto social intelligence for trends, search, and mindshare.",
+    description:
+      "Crypto social intelligence for trends, search, and mindshare.",
     category: "Social",
     requiresApiKey: true,
     logoSrc: "/assets/logos/kaito.png",
@@ -107,7 +111,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   khalani: {
     title: "Khalani",
-    description: "Cross-chain intent routing for quotes, builds, and submissions.",
+    description:
+      "Cross-chain intent routing for quotes, builds, and submissions.",
     category: "Cross-chain",
     requiresApiKey: false,
     websiteUrl: "https://khalani.network/",
@@ -123,9 +128,19 @@ const APP_METADATA: Record<string, AppMetadata> = {
     logoSrc: "/assets/logos/lifi-new.png",
     logoAlt: "LI.FI logo",
   },
+  limitless: {
+    title: "Limitless",
+    description: "Prediction markets for crypto and stock price outcomes.",
+    category: "Prediction",
+    requiresApiKey: false,
+    websiteUrl: "https://limitless.exchange/",
+    logoSrc: "/assets/logos/limitless.svg",
+    logoAlt: "Limitless logo",
+  },
   manifold: {
     title: "Manifold",
-    description: "Prediction market search, positions, and market creation flows.",
+    description:
+      "Prediction market search, positions, and market creation flows.",
     category: "Prediction",
     requiresApiKey: true,
     logoSrc: "/assets/logos/manifold.png",
@@ -133,7 +148,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   molinar: {
     title: "Molinar",
-    description: "Onchain world interactions for movement, exploration, and chat.",
+    description:
+      "Onchain world interactions for movement, exploration, and chat.",
     category: "Gaming",
     requiresApiKey: false,
     websiteUrl: "https://www.molinar.xyz/",
@@ -167,7 +183,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   oneinch: {
     title: "1inch",
-    description: "DEX aggregation for quotes, swaps, allowances, and liquidity.",
+    description:
+      "DEX aggregation for quotes, swaps, allowances, and liquidity.",
     category: "DEX",
     requiresApiKey: true,
     logoSrc: "/assets/logos/oneinch.svg",
@@ -184,7 +201,8 @@ const APP_METADATA: Record<string, AppMetadata> = {
   },
   "polymarket-rewards": {
     title: "Polymarket Rewards",
-    description: "Reward-oriented Polymarket workflows available in the portal.",
+    description:
+      "Reward-oriented Polymarket workflows available in the portal.",
     category: "Prediction",
     requiresApiKey: false,
     websiteUrl: "https://polymarket.com/",
@@ -215,6 +233,16 @@ const APP_METADATA: Record<string, AppMetadata> = {
     requiresApiKey: true,
     logoSrc: "/assets/logos/zerox.svg",
     logoAlt: "0x logo",
+  },
+  zora: {
+    title: "Zora",
+    description:
+      "Onchain social and creator coin workflows for posts and profiles.",
+    category: "Social",
+    requiresApiKey: false,
+    websiteUrl: "https://zora.co/",
+    logoSrc: "/assets/logos/zora.svg",
+    logoAlt: "Zora logo",
   },
 };
 
@@ -273,9 +301,7 @@ function formatWebsiteLabel(websiteUrl: string) {
     const url = new URL(websiteUrl);
     return `${url.hostname.replace(/^www\./, "")}${url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "")}`;
   } catch {
-    return websiteUrl
-      .replace(/^https?:\/\//, "")
-      .replace(/\/$/, "");
+    return websiteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
   }
 }
 
@@ -370,11 +396,9 @@ export async function Apps() {
               Apps
             </span>
           </div>
-          <h2 className="font-serif text-4xl tracking-tight lg:whitespace-nowrap md:text-5xl">
+          <h2 className="font-serif text-4xl tracking-tight md:text-5xl lg:whitespace-nowrap">
             Explore an ecosystem of{" "}
-            <span className="text-stone-600 italic">
-              Agentic Applications
-            </span>
+            <span className="text-stone-600 italic">Agentic Applications</span>
           </h2>
           <p className="font-geist mt-4 max-w-2xl text-sm leading-relaxed text-stone-600 md:text-base">
             {description}

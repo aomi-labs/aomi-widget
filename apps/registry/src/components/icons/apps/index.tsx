@@ -274,6 +274,23 @@ export function LifiIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function LimitlessIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 500 500"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        d="M413.468 218.013H352.889L434.511 134.701L435 134.207L405.25 104.415H324.308V86.2778C324.308 74.5475 314.779 65 303.063 65H216.211C204.495 65 194.971 74.5425 194.971 86.2778V239.432H86.5317C74.821 239.432 65.2923 248.979 65.2923 260.709C65.2923 272.44 74.821 281.987 86.5317 281.987H147.111L65.4888 365.269L65 365.763L94.7453 395.555H175.692V413.722C175.692 425.452 185.221 435 196.932 435H283.784C295.495 435 305.029 425.458 305.029 413.722V260.568H413.468C425.184 260.568 434.713 251.026 434.713 239.291C434.713 227.555 425.184 218.013 413.468 218.013ZM296.19 413.722C296.19 420.568 290.627 426.143 283.789 426.143C276.951 426.143 271.388 420.573 271.388 413.722V291.873L181.84 383.265L164.304 365.702L255.042 273.125H173.384C166.546 273.125 160.983 267.555 160.983 260.704C160.983 253.854 166.546 248.284 173.384 248.284H277.873C287.977 248.284 296.19 256.515 296.19 266.633V413.722ZM413.468 251.711H308.974C298.876 251.711 290.657 243.48 290.657 233.367V86.2778C290.657 79.4322 296.22 73.8569 303.058 73.8569C309.896 73.8569 315.459 79.4272 315.459 86.2778V208.127L405.008 116.7L422.544 134.263L331.806 226.875H413.463C420.301 226.875 425.864 232.445 425.864 239.296C425.864 246.146 420.301 251.716 413.463 251.716L413.468 251.711Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 const ManifoldIconMarkup =
   '<path fill="currentColor" d="M195.402 96.0412L171.329 72H26L48.1382 94.1021H164.634L122.958 135.694L103.131 115.906H70.0139L105.185 151H138.301L123.003 135.738H156.03L195.402 96.0412Z" ></path>';
 
@@ -443,5 +460,38 @@ export function ZeroxIcon(props: SVGProps<SVGSVGElement>) {
       dangerouslySetInnerHTML={{ __html: ZeroxIconMarkup }}
       {...props}
     />
+  );
+}
+
+export function ZoraIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        fill="url(#zora-icon-mono-gradient)"
+        d="M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18"
+      />
+      <defs>
+        <radialGradient
+          id="zora-icon-mono-gradient"
+          cx="0"
+          cy="0"
+          r="1"
+          gradientTransform="translate(16.086 7.84)scale(-15.2029)"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset=".007" stopColor="currentColor" stopOpacity=".12" />
+          <stop offset=".191" stopColor="currentColor" stopOpacity=".28" />
+          <stop offset=".498" stopColor="currentColor" stopOpacity=".6" />
+          <stop offset=".667" stopColor="currentColor" stopOpacity=".82" />
+          <stop offset=".823" stopColor="currentColor" />
+          <stop offset="1" stopColor="currentColor" stopOpacity=".42" />
+        </radialGradient>
+      </defs>
+    </svg>
   );
 }

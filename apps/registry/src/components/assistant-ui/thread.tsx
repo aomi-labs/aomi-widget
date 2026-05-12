@@ -90,7 +90,7 @@ export const Thread: FC = () => {
             />
 
             <ThreadPrimitive.If empty={false}>
-              <div className="aui-thread-viewport-spacer min-h-8 grow" />
+              <div className="aui-thread-viewport-spacer min-h-36 grow" />
             </ThreadPrimitive.If>
           </ThreadPrimitive.Viewport>
 
