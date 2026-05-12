@@ -13,6 +13,7 @@ import {
   KalshiIcon,
   KhalaniIcon,
   LifiIcon,
+  LimitlessIcon,
   ManifoldIcon,
   MorphoIcon,
   NeynarIcon,
@@ -23,6 +24,7 @@ import {
   XIcon,
   YearnIcon,
   ZeroxIcon,
+  ZoraIcon,
 } from "./apps";
 
 const APP_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
@@ -39,6 +41,7 @@ const APP_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   kalshi: KalshiIcon,
   khalani: KhalaniIcon,
   lifi: LifiIcon,
+  limitless: LimitlessIcon,
   manifold: ManifoldIcon,
   morpho: MorphoIcon,
   neynar: NeynarIcon,
@@ -50,6 +53,7 @@ const APP_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   x: XIcon,
   yearn: YearnIcon,
   zerox: ZeroxIcon,
+  zora: ZoraIcon,
   "0x": ZeroxIcon,
   "1inch": OneInchIcon,
   "li-fi": LifiIcon,
@@ -57,7 +61,7 @@ const APP_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   getpara: ParaIcon,
   "para-customer": ParaIcon,
   "para-consumer": ParaIcon,
-  "para_consumer": ParaIcon,
+  para_consumer: ParaIcon,
   twitter: XIcon,
 };
 
