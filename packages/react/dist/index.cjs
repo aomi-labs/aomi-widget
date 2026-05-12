@@ -47,7 +47,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/index.ts
+// packages/react/src/index.ts
 var index_exports = {};
 __export(index_exports, {
   AomiClient: () => import_client8.AomiClient,
@@ -93,14 +93,14 @@ module.exports = __toCommonJS(index_exports);
 var import_client8 = require("@aomi-labs/client");
 var import_client9 = require("@aomi-labs/client");
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_react12 = require("react");
 var import_client7 = require("@aomi-labs/client");
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_react = require("react");
 
-// src/utils/uuid.ts
+// packages/react/src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -112,7 +112,7 @@ function generateUUID() {
   });
 }
 
-// src/state/thread-store.ts
+// packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -297,7 +297,7 @@ var ThreadStore = class {
   }
 };
 
-// src/utils/model-selection.ts
+// packages/react/src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude-4\.5-haiku/i,
   /^claude.*haiku/i,
@@ -314,7 +314,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// src/utils/client-session.ts
+// packages/react/src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -340,7 +340,7 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
@@ -957,7 +957,7 @@ function ControlContextProvider({
   );
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 var import_react2 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var EventContextState = (0, import_react2.createContext)(null);
@@ -1027,7 +1027,7 @@ function EventContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(EventContextState.Provider, { value: contextValue, children });
 }
 
-// src/contexts/notification-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 var import_react3 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 var NotificationContext = (0, import_react3.createContext)(null);
@@ -1072,7 +1072,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotificationContext.Provider, { value, children });
 }
 
-// src/contexts/thread-context.tsx
+// packages/react/src/contexts/thread-context.tsx
 var import_react4 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var ThreadContextState = (0, import_react4.createContext)(null);
@@ -1116,7 +1116,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// src/contexts/user-context.tsx
+// packages/react/src/contexts/user-context.tsx
 var import_react5 = require("react");
 var import_client = require("@aomi-labs/client");
 var import_client2 = require("@aomi-labs/client");
@@ -1230,16 +1230,16 @@ function UserContextProvider({ children }) {
   );
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_react10 = require("react");
 var import_react11 = require("@assistant-ui/react");
 var import_client6 = require("@aomi-labs/client");
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var import_react6 = require("react");
 var import_client4 = require("@aomi-labs/client");
 
-// src/runtime/session-manager.ts
+// packages/react/src/runtime/session-manager.ts
 var import_client3 = require("@aomi-labs/client");
 var SessionManager = class {
   constructor(clientFactory) {
@@ -1296,7 +1296,7 @@ var SessionManager = class {
   }
 };
 
-// src/runtime/utils.ts
+// packages/react/src/runtime/utils.ts
 var import_clsx = require("clsx");
 var import_tailwind_merge = require("tailwind-merge");
 function cn(...inputs) {
@@ -1398,8 +1398,33 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
+var getHttpStatus = (error) => {
+  const status = error == null ? void 0 : error.status;
+  if (typeof status === "number") return status;
+  const message = toErrorMessage(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : void 0;
+};
+var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
+var buildPaymentRequiredMessage = () => ({
+  id: `aomi-payment-required-${Date.now()}`,
+  role: "assistant",
+  content: [
+    {
+      type: "text",
+      text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access."
+    }
+  ],
+  createdAt: /* @__PURE__ */ new Date(),
+  metadata: {
+    custom: {
+      aomiNoticeKind: "payment_required",
+      aomiNoticeTitle: "Credits needed"
+    }
+  }
+});
 var getOptimisticStatus = (message) => {
   var _a, _b;
   const status = (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiSendStatus;
@@ -1436,6 +1461,17 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
   if (changed) {
     threadContext.setThreadMessages(threadId, nextMessages);
   }
+};
+var appendPaymentRequiredMessage = (threadContext, threadId) => {
+  var _a, _b;
+  const messages = threadContext.getThreadMessages(threadId);
+  const lastMessage = messages[messages.length - 1];
+  const hasPaymentNotice = ((_b = (_a = lastMessage == null ? void 0 : lastMessage.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+  if (hasPaymentNotice) return;
+  threadContext.setThreadMessages(threadId, [
+    ...messages,
+    buildPaymentRequiredMessage()
+  ]);
 };
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
@@ -1644,7 +1680,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const sendMessage = (0, import_react6.useCallback)(
     async (text, threadId) => {
-      var _a, _b, _c, _d;
+      var _a, _b, _c, _d, _e, _f, _g, _h;
       const existingMessages = threadContextRef.current.getThreadMessages(threadId);
       const optimisticMessageId = String(existingMessages.length);
       const userMessage = {
@@ -1673,6 +1709,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         await ((_b = (_a = optionsRef.current).prepareThreadForSend) == null ? void 0 : _b.call(_a, threadId));
         const session = getSession(threadId);
         await session.sendAsync(text);
+        (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -1682,8 +1719,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
           optimisticMessageId,
           "sent"
         );
-        (_d = (_c = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _d.call(
-          _c,
+        (_f = (_e = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _f.call(
+          _e,
           session.getPendingRequests()
         );
       } catch (error) {
@@ -1697,6 +1734,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
           "failed",
           error
         );
+        if (isPaymentRequiredError(error)) {
+          appendPaymentRequiredMessage(threadContextRef.current, threadId);
+        }
+        await ((_h = (_g = optionsRef.current).onSendError) == null ? void 0 : _h.call(_g, threadId, error));
         throw error;
       }
     },
@@ -1729,7 +1770,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// src/runtime/threadlist-adapter.ts
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1888,7 +1929,7 @@ function buildThreadListAdapter({
   };
 }
 
-// src/interface.tsx
+// packages/react/src/interface.tsx
 var import_react7 = require("react");
 var AomiRuntimeContext = (0, import_react7.createContext)(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1902,7 +1943,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
 var import_react8 = require("react");
 function useWalletHandler({
   getSession
@@ -1992,7 +2033,7 @@ function useWalletHandler({
   };
 }
 
-// src/runtime/user-state-provider.tsx
+// packages/react/src/runtime/user-state-provider.tsx
 var import_react9 = require("react");
 var import_client5 = require("@aomi-labs/client");
 var import_jsx_runtime6 = require("react/jsx-runtime");
@@ -2345,8 +2386,15 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children });
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
+var getHttpStatus2 = (error) => {
+  const status = error == null ? void 0 : error.status;
+  if (typeof status === "number") return status;
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : void 0;
+};
 function AomiRuntimeCore({
   children,
   aomiClient
@@ -2390,8 +2438,27 @@ function AomiRuntimeCore({
       return (_a = getControlState().clientId) != null ? _a : void 0;
     },
     prepareThreadForSend: async (threadId) => {
-      await ensureBackendThread(threadId);
       await syncCurrentThreadControl();
+    },
+    onSendSuccess: (threadId) => {
+      const wasRemote = remoteThreadIdsRef.current.has(threadId);
+      remoteThreadIdsRef.current.add(threadId);
+      warmedThreadIdsRef.current.add(threadId);
+      if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
+        void syncCurrentThreadControl().catch((error) => {
+          console.error("Failed to sync thread controls:", error);
+        });
+      }
+    },
+    onSendError: async (threadId, error) => {
+      if (getHttpStatus2(error) !== 402 || remoteThreadIdsRef.current.has(threadId)) {
+        return;
+      }
+      try {
+        await aomiClientRef.current.deleteThread(threadId);
+      } catch (deleteError) {
+        console.error("Failed to delete quota-blocked thread:", deleteError);
+      }
     },
     onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event)
@@ -2538,6 +2605,9 @@ function AomiRuntimeCore({
     const showToolNotification = (eventType) => (event) => {
       const payload = event.payload;
       const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
+      if (eventType === "tool_complete" && toolName === "commit_txs") {
+        return;
+      }
       const title = toolName ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}` : eventType === "tool_update" ? "Tool update" : "Tool complete";
       const message = typeof (payload == null ? void 0 : payload.message) === "string" ? payload.message : typeof (payload == null ? void 0 : payload.result) === "string" ? payload.result : void 0;
       notificationContext.showNotification({
@@ -2574,7 +2644,11 @@ function AomiRuntimeCore({
         (part) => part.type === "text"
       ).map((part) => part.text).join("\n");
       if (text) {
-        await orchestratorSendMessage(text, threadContext.currentThreadId);
+        try {
+          await orchestratorSendMessage(text, threadContext.currentThreadId);
+        } catch (error) {
+          console.error("Failed to send message:", error);
+        }
       }
     },
     onCancel: async () => {
@@ -2726,7 +2800,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function AomiRuntimeProvider({
   children,
@@ -2766,7 +2840,7 @@ function AomiRuntimeInner({
   );
 }
 
-// src/handlers/notification-handler.ts
+// packages/react/src/handlers/notification-handler.ts
 var import_react13 = require("react");
 var notificationIdCounter2 = 0;
 function generateNotificationId() {

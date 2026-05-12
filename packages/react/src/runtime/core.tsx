@@ -32,6 +32,15 @@ export type AomiRuntimeCoreProps = {
   aomiClient: AomiClient;
 };
 
+const getHttpStatus = (error: unknown): number | undefined => {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status === "number") return status;
+
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : undefined;
+};
+
 // =============================================================================
 // Core Component
 // =============================================================================
@@ -88,8 +97,28 @@ export function AomiRuntimeCore({
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
-      await ensureBackendThread(threadId);
       await syncCurrentThreadControl();
+    },
+    onSendSuccess: (threadId) => {
+      const wasRemote = remoteThreadIdsRef.current.has(threadId);
+      remoteThreadIdsRef.current.add(threadId);
+      warmedThreadIdsRef.current.add(threadId);
+      if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
+        void syncCurrentThreadControl().catch((error) => {
+          console.error("Failed to sync thread controls:", error);
+        });
+      }
+    },
+    onSendError: async (threadId, error) => {
+      if (getHttpStatus(error) !== 402 || remoteThreadIdsRef.current.has(threadId)) {
+        return;
+      }
+
+      try {
+        await aomiClientRef.current.deleteThread(threadId);
+      } catch (deleteError) {
+        console.error("Failed to delete quota-blocked thread:", deleteError);
+      }
     },
     onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event),
@@ -285,6 +314,11 @@ export function AomiRuntimeCore({
           typeof payload?.tool_name === "string"
             ? payload.tool_name
             : undefined;
+
+        if (eventType === "tool_complete" && toolName === "commit_txs") {
+          return;
+        }
+
         const title = toolName
           ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}`
           : eventType === "tool_update"
@@ -348,7 +382,11 @@ export function AomiRuntimeCore({
         .map((part) => part.text)
         .join("\n");
       if (text) {
-        await orchestratorSendMessage(text, threadContext.currentThreadId);
+        try {
+          await orchestratorSendMessage(text, threadContext.currentThreadId);
+        } catch (error) {
+          console.error("Failed to send message:", error);
+        }
       }
     },
     onCancel: async () => {
