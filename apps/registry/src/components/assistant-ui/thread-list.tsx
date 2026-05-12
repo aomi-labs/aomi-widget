@@ -19,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export const ThreadList: FC = () => {
   return (
@@ -47,26 +46,12 @@ const ThreadListNew: FC = () => {
 
 const ThreadListItems: FC = () => {
   const isLoading = useAssistantState(({ threads }) => threads.isLoading);
-  const { identity } = useAomiAuthAdapter();
 
   if (isLoading) {
     return <ThreadListSkeleton />;
   }
 
-  return (
-    <>
-      {!identity.isConnected && <ThreadListConnectHint />}
-      <ThreadListPrimitive.Items components={{ ThreadListItem }} />
-    </>
-  );
-};
-
-const ThreadListConnectHint: FC = () => {
-  return (
-    <p className="aui-thread-list-connect-hint text-muted-foreground/60 mt-2 px-4 text-left text-xs">
-      Connect wallet to see threads
-    </p>
-  );
+  return <ThreadListPrimitive.Items components={{ ThreadListItem }} />;
 };
 
 const SKELETON_WIDTHS = [
