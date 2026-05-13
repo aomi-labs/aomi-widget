@@ -35,6 +35,7 @@ const ALLOWED_ROUTES: Array<{
     methods: new Set(["GET", "PATCH", "DELETE"]),
   },
   { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/settings\/account$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/apps$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/models$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/model$/, methods: new Set(["POST"]) },
