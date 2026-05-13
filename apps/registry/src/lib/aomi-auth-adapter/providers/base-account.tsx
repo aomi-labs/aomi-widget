@@ -217,7 +217,6 @@ function BaseAccountAdapterInner({
                 capabilities,
                 nativeWalletExecution: {
                   executionKind: "base_account_4337",
-                  sendCallsVersion: "1.0",
                   sendCallsTimeoutMs:
                     sponsorship?.mode === "optional" ||
                     sponsorship?.mode === "required"
