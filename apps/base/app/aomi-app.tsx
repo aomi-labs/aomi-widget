@@ -3,6 +3,7 @@
 import { AomiBaseAccountProvider, AomiFrame } from "@aomi-labs/widget-lib";
 import { useMemo } from "react";
 import { BasePaymentGate } from "./base-payment-gate";
+import { CoinbaseDedicatedWalletProvider } from "./coinbase-dedicated-wallet-provider";
 
 type AomiAppProps = {
   paymasterServiceUrl?: string;
@@ -27,39 +28,41 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
 
   return (
     <main className="bg-background h-full w-full overflow-hidden">
-      <AomiBaseAccountProvider
-        appName={walletAppName}
-        sponsorship={
-          resolvedPaymasterServiceUrl
-            ? {
-                mode: "required",
-                paymasterServiceUrl: resolvedPaymasterServiceUrl,
-              }
-            : undefined
-        }
-      >
-        <BasePaymentGate walletAppName={walletAppName}>
-          {({ clientOptions, paymentUi }) => (
-            <AomiFrame.Root
-              width="100%"
-              height="100%"
-              backendUrl={backendUrl}
-              walletPosition="footer"
-              className="rounded-none border-0 shadow-none"
-              clientOptions={clientOptions}
-            >
-              {paymentUi}
-              <AomiFrame.Header />
-              <AomiFrame.Composer
-                withControl
-                controlBarProps={{
-                  hideApiKey: true,
-                }}
-              />
-            </AomiFrame.Root>
-          )}
-        </BasePaymentGate>
-      </AomiBaseAccountProvider>
+      <CoinbaseDedicatedWalletProvider>
+        <AomiBaseAccountProvider
+          appName={walletAppName}
+          sponsorship={
+            resolvedPaymasterServiceUrl
+              ? {
+                  mode: "required",
+                  paymasterServiceUrl: resolvedPaymasterServiceUrl,
+                }
+              : undefined
+          }
+        >
+          <BasePaymentGate walletAppName={walletAppName}>
+            {({ clientOptions, paymentUi }) => (
+              <AomiFrame.Root
+                width="100%"
+                height="100%"
+                backendUrl={backendUrl}
+                walletPosition="footer"
+                className="rounded-none border-0 shadow-none"
+                clientOptions={clientOptions}
+              >
+                {paymentUi}
+                <AomiFrame.Header />
+                <AomiFrame.Composer
+                  withControl
+                  controlBarProps={{
+                    hideApiKey: true,
+                  }}
+                />
+              </AomiFrame.Root>
+            )}
+          </BasePaymentGate>
+        </AomiBaseAccountProvider>
+      </CoinbaseDedicatedWalletProvider>
     </main>
   );
 }

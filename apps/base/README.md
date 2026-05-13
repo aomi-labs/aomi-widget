@@ -40,6 +40,8 @@ pnpm run lint:base      # lint the app
 ```bash
 AOMI_PROXY_BACKEND_URL=https://api.aomi.dev
 NEXT_PUBLIC_WALLET_APP_NAME=Aomi
+NEXT_PUBLIC_CDP_PROJECT_ID=your_cdp_project_id
+NEXT_PUBLIC_CDP_APP_LOGO_URL=
 PIMLICO_PAYMASTER_URL=https://api.pimlico.io/v2/base/rpc?apikey=your_pimlico_api_key
 PAYMASTER_ALLOWED_ORIGINS=http://localhost:3000,https://your-ngrok-domain.ngrok-free.app
 PAYMASTER_ALLOW_ORIGINLESS_REQUESTS=
@@ -49,6 +51,10 @@ PAYMASTER_TRUST_FORWARDED_IP_HEADERS=
 `AOMI_PROXY_BACKEND_URL` is the server-side Aomi backend target for the catch-all API proxy.
 
 `NEXT_PUBLIC_WALLET_APP_NAME` controls the app name shown in wallet connection flows.
+
+`NEXT_PUBLIC_CDP_PROJECT_ID` enables the dedicated Coinbase embedded-wallet branch. Add your local domain (for example `http://localhost:3000`) to the CDP project allowlist first.
+
+`NEXT_PUBLIC_CDP_APP_LOGO_URL` is optional and is shown in Coinbase embedded-wallet authentication surfaces.
 
 `PIMLICO_PAYMASTER_URL` is server-only. Set it in local and Vercel environments so gas sponsorship runs through this app's `/api/paymaster` proxy without exposing the Pimlico API key.
 
@@ -68,8 +74,8 @@ The paymaster proxy lives in `app/api/paymaster/route.ts`. It accepts only the e
 
 The Base payment gate lives in `app/base-payment-gate.tsx`. Users can chat for free until the backend signals quota exhaustion or payment required. At that point the app opens a compact payment modal with two paths:
 
-- `Use this account for x402` keeps the current Base Account and retries the blocked `/api/chat` request through the normal x402 challenge flow.
-- `Use another address` reconnects Base Account so the user can pick or create a separate Base MPC wallet, pays the blocked x402 request with that wallet, and persists the chosen address locally as the dedicated x402 payer for future paid requests.
+- `Use this account for x402` keeps the current Base Account and retries the blocked `/api/chat` request through the normal x402 challenge flow by calling the Base Account provider's `eth_signTypedData_v4` RPC.
+- `Use another address` uses Coinbase CDP embedded-wallet auth plus `useX402()` for a dedicated x402 payer. Once the user signs in, the app persists that dedicated wallet address locally and automatically reuses it for later paid requests when the same CDP wallet session is active.
 
 This keeps the existing `402 Payment Required` backend contract intact. The Base app handles wallet choice and the x402 retry on the client side.
 

@@ -6,10 +6,10 @@ import { wrapFetchWithPayment } from "@x402/fetch";
 import { useAomiRuntime, type AomiClientOptions } from "@aomi-labs/react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useConfig, useConnect, useConnectors, useDisconnect, useSwitchChain } from "wagmi";
-import { getConnectorClient } from "wagmi/actions";
+import { useAccount, useConnect, useConnectors, useSwitchChain } from "wagmi";
 import { base } from "wagmi/chains";
 import { BasePaymentModal } from "./base-payment-modal";
+import { useCoinbaseDedicatedWallet } from "./coinbase-dedicated-wallet-provider";
 
 type BasePaymentGateProps = {
   children: (props: {
@@ -27,7 +27,7 @@ type BasePaymentGateRenderProps = {
 
 type DedicatedWalletRecord = {
   address: string;
-  source: "baseAccount";
+  source: "coinbase_cdp";
   selectedAt: number;
 };
 
@@ -44,8 +44,21 @@ type FetchLike = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-const BASE_CHAIN_ID = base.id;
+type BaseTypedDataParameter = {
+  domain?: {
+    chainId?: number;
+  };
+  types?: Record<string, Array<{ name: string; type: string }>>;
+  primaryType?: string;
+  message?: Record<string, unknown>;
+};
+
+type BaseProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
 const DEDICATED_WALLET_STORAGE_KEY = "aomi_base_dedicated_wallet";
+const BASE_MAINNET_HEX_CHAIN_ID = `0x${base.id.toString(16)}`;
 
 function shouldOpenPaymentModal(response: Response): boolean {
   if (response.status === 402) return true;
@@ -99,12 +112,7 @@ function cloneRequestInfo(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): [RequestInfo | URL, RequestInit | undefined] {
-  const nextInput = input instanceof Request ? input.clone() : input;
-  let nextInit = init;
-  if (init?.body instanceof ReadableStream) {
-    nextInit = { ...init };
-  }
-  return [nextInput, nextInit];
+  return [input instanceof Request ? input.clone() : input, init];
 }
 
 function parseStoredDedicatedWallet(
@@ -123,6 +131,43 @@ function parseStoredDedicatedWallet(
 function formatAddress(address?: string) {
   if (!address) return "No wallet selected";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+async function readX402ChallengeError(response: Response): Promise<string | null> {
+  const paymentRequired = response.headers.get("payment-required");
+  if (paymentRequired) return null;
+
+  let detail = "Backend did not return a valid x402 Payment-Required header.";
+  const contentType = response.headers.get("content-type") ?? "";
+  const cloned = response.clone();
+
+  try {
+    if (contentType.includes("application/json")) {
+      const body = (await cloned.json()) as {
+        reason?: string;
+        method?: string;
+        type?: string;
+      };
+      if (body?.type === "payment-required") {
+        const reason = body.reason?.trim();
+        const method = body.method?.trim();
+        if (reason && method) {
+          detail = `${reason} (${method})`;
+        } else if (reason) {
+          detail = reason;
+        }
+      }
+    } else {
+      const text = (await cloned.text()).trim();
+      if (text) {
+        detail = `${detail} ${text}`;
+      }
+    }
+  } catch {
+    // Ignore parse failures and fall back to the generic message above.
+  }
+
+  return detail;
 }
 
 function BasePaymentRuntimeSync({
@@ -155,19 +200,20 @@ export function BasePaymentGate({
   children,
   walletAppName,
 }: BasePaymentGateProps) {
-  const wagmiConfig = useConfig();
   const { address, isConnected } = useAccount();
   const connectors = useConnectors();
   const { connectAsync, isPending: isConnecting } = useConnect();
-  const { disconnectAsync, isPending: isDisconnecting } = useDisconnect();
   const { switchChainAsync } = useSwitchChain();
+  const dedicatedWalletClient = useCoinbaseDedicatedWallet();
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"choice" | "dedicated">("choice");
   const [error, setError] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<"current" | "dedicated" | null>(null);
-  const [dedicatedWallet, setDedicatedWallet] = useState<DedicatedWalletRecord | null>(
-    null,
-  );
+  const [busyAction, setBusyAction] = useState<
+    "current" | "dedicated_pay" | "dedicated_connect" | null
+  >(null);
+  const [dedicatedWallet, setDedicatedWallet] =
+    useState<DedicatedWalletRecord | null>(null);
 
   const pendingRequestRef = useRef<PendingPaymentRequest | null>(null);
 
@@ -214,52 +260,90 @@ export function BasePaymentGate({
     pending.reject(new Error(message));
   }, []);
 
-  const buildX402Fetch = useCallback(
+  const settlePending = useCallback(
+    async (fetcher: FetchLike) => {
+      const pending = pendingRequestRef.current;
+      if (!pending) return;
+      const challengeError = await readX402ChallengeError(pending.originalResponse);
+      if (challengeError) {
+        throw new Error(challengeError);
+      }
+      const [nextInput, nextInit] = cloneRequestInfo(pending.input, pending.init);
+      const response = await fetcher(nextInput, nextInit);
+      pendingRequestRef.current = null;
+      pending.resolve(response);
+    },
+    [],
+  );
+
+  const buildBaseAccountX402Fetch = useCallback(
     async (expectedAddress?: string): Promise<FetchLike> => {
       if (!baseConnector) {
         throw new Error("Base Account connector is not available.");
       }
 
-      const connectorClient = await getConnectorClient(wagmiConfig, {
-        connector: baseConnector,
-      });
+      const provider = (await baseConnector.getProvider?.({
+        chainId: base.id,
+      })) as BaseProvider | undefined;
 
-      if (!connectorClient.account?.address) {
+      if (!provider?.request) {
+        throw new Error("Base Account provider is unavailable.");
+      }
+
+      const accountsResult = await provider.request({
+        method: "eth_requestAccounts",
+      });
+      const accounts = Array.isArray(accountsResult)
+        ? (accountsResult as string[])
+        : [];
+      const signerAddress = accounts[0] ?? address;
+
+      if (!signerAddress) {
         throw new Error("Connect a Base Account first, then try again.");
       }
 
       if (
         expectedAddress &&
-        connectorClient.account.address.toLowerCase() !== expectedAddress.toLowerCase()
+        signerAddress.toLowerCase() !== expectedAddress.toLowerCase()
       ) {
         throw new Error(
-          `Reconnect the dedicated wallet ${formatAddress(expectedAddress)} before paying.`,
+          `Reconnect the wallet ${formatAddress(expectedAddress)} before paying.`,
         );
       }
 
-      const signTypedData = (
-        connectorClient as {
-          signTypedData?: (parameters: unknown) => Promise<string>;
-        }
-      ).signTypedData;
-      if (!signTypedData) {
-        throw new Error("The connected Base Account cannot sign x402 payloads.");
-      }
-
       const signer = {
-        address: connectorClient.account.address,
-        signTypedData: async (parameters: {
-          domain?: { chainId?: number };
-        }) => {
+        address: signerAddress,
+        signTypedData: async (parameters: BaseTypedDataParameter) => {
           const requestedChainId = parameters.domain?.chainId;
           if (
             typeof requestedChainId === "number" &&
-            connectorClient.chain?.id !== requestedChainId &&
+            requestedChainId !== base.id &&
             switchChainAsync
           ) {
             await switchChainAsync({ chainId: requestedChainId });
+          } else if (requestedChainId === base.id) {
+            await provider.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: BASE_MAINNET_HEX_CHAIN_ID }],
+            }).catch(() => undefined);
           }
-          return signTypedData(parameters);
+
+          const typedData = {
+            domain: parameters.domain ?? {},
+            types: parameters.types ?? {},
+            primaryType: parameters.primaryType,
+            message: parameters.message ?? {},
+          };
+
+          const signature = await provider.request({
+            method: "eth_signTypedData_v4",
+            params: [signerAddress, JSON.stringify(typedData)],
+          });
+
+          if (typeof signature !== "string") {
+            throw new Error("Base Account returned an invalid x402 signature.");
+          }
+          return signature;
         },
       };
 
@@ -270,21 +354,35 @@ export function BasePaymentGate({
         paymentClient,
       ) as FetchLike;
     },
-    [baseConnector, switchChainAsync, wagmiConfig],
+    [address, baseConnector, switchChainAsync],
   );
 
-  const settlePendingWithPayment = useCallback(
-    async (expectedAddress?: string) => {
-      const pending = pendingRequestRef.current;
-      if (!pending) return;
+  const maybePayWithDedicatedWallet = useCallback(
+    async (
+      requestInput: RequestInfo | URL,
+      init: RequestInit | undefined,
+    ): Promise<Response | null> => {
+      if (
+        !dedicatedWallet ||
+        !dedicatedWalletClient.isConfigured ||
+        !dedicatedWalletClient.isSignedIn ||
+        !dedicatedWalletClient.fetchWithPayment ||
+        !dedicatedWalletClient.evmAddress
+      ) {
+        return null;
+      }
 
-      const x402Fetch = await buildX402Fetch(expectedAddress);
-      const [nextInput, nextInit] = cloneRequestInfo(pending.input, pending.init);
-      const response = await x402Fetch(nextInput, nextInit);
-      pendingRequestRef.current = null;
-      pending.resolve(response);
+      if (
+        dedicatedWalletClient.evmAddress.toLowerCase() !==
+        dedicatedWallet.address.toLowerCase()
+      ) {
+        return null;
+      }
+
+      const [nextInput, nextInit] = cloneRequestInfo(requestInput, init);
+      return await dedicatedWalletClient.fetchWithPayment(nextInput, nextInit);
     },
-    [buildX402Fetch],
+    [dedicatedWallet, dedicatedWalletClient],
   );
 
   const ensureBaseConnection = useCallback(async () => {
@@ -309,7 +407,8 @@ export function BasePaymentGate({
     setBusyAction("current");
     try {
       await ensureBaseConnection();
-      await settlePendingWithPayment();
+      const fetcher = await buildBaseAccountX402Fetch();
+      await settlePending(fetcher);
       setModalOpen(false);
     } catch (paymentError) {
       setError(
@@ -320,53 +419,60 @@ export function BasePaymentGate({
     } finally {
       setBusyAction(null);
     }
-  }, [ensureBaseConnection, settlePendingWithPayment]);
+  }, [buildBaseAccountX402Fetch, ensureBaseConnection, settlePending]);
 
-  const handleUseAnotherAddress = useCallback(async () => {
+  const handlePrepareDedicatedWallet = useCallback(() => {
     setError(null);
-    setBusyAction("dedicated");
+    setModalMode("dedicated");
+  }, []);
+
+  const handleSelectDedicatedWallet = useCallback(() => {
+    if (!dedicatedWalletClient.isConfigured) {
+      setError("Set NEXT_PUBLIC_CDP_PROJECT_ID before using the dedicated wallet path.");
+      return;
+    }
+    if (!dedicatedWalletClient.isSignedIn || !dedicatedWalletClient.evmAddress) {
+      setError("Sign in to the Coinbase embedded wallet first.");
+      return;
+    }
+
+    persistDedicatedWallet({
+      address: dedicatedWalletClient.evmAddress,
+      source: "coinbase_cdp",
+      selectedAt: Date.now(),
+    });
+    setError(null);
+  }, [dedicatedWalletClient, persistDedicatedWallet]);
+
+  const handlePayWithDedicatedWallet = useCallback(async () => {
+    setError(null);
+    setBusyAction("dedicated_pay");
     try {
-      if (!connectAsync || !baseConnector) {
-        throw new Error("Base Account connect is unavailable.");
+      if (!dedicatedWalletClient.isConfigured || !dedicatedWalletClient.fetchWithPayment) {
+        throw new Error("Coinbase embedded wallet is not configured.");
+      }
+      if (!dedicatedWalletClient.isSignedIn || !dedicatedWalletClient.evmAddress) {
+        throw new Error("Sign in to the Coinbase embedded wallet first.");
       }
 
-      if (isConnected && disconnectAsync) {
-        await disconnectAsync();
-      }
-
-      const result = await connectAsync({ connector: baseConnector });
-      const nextAddress =
-        result.accounts?.[0] ??
-        result.accounts?.find((accountValue) => Boolean(accountValue));
-      if (!nextAddress) {
-        throw new Error("Pick or create the dedicated Base wallet, then try again.");
-      }
-
-      const nextDedicatedWallet: DedicatedWalletRecord = {
-        address: nextAddress,
-        source: "baseAccount",
+      const selectedWallet: DedicatedWalletRecord = {
+        address: dedicatedWalletClient.evmAddress,
+        source: "coinbase_cdp",
         selectedAt: Date.now(),
       };
-      persistDedicatedWallet(nextDedicatedWallet);
-      await settlePendingWithPayment(nextAddress);
+      persistDedicatedWallet(selectedWallet);
+      await settlePending(dedicatedWalletClient.fetchWithPayment);
       setModalOpen(false);
-    } catch (switchError) {
+    } catch (paymentError) {
       setError(
-        switchError instanceof Error
-          ? switchError.message
-          : "Failed to switch to the dedicated x402 wallet.",
+        paymentError instanceof Error
+          ? paymentError.message
+          : "Failed to pay with the dedicated wallet.",
       );
     } finally {
       setBusyAction(null);
     }
-  }, [
-    baseConnector,
-    connectAsync,
-    disconnectAsync,
-    isConnected,
-    persistDedicatedWallet,
-    settlePendingWithPayment,
-  ]);
+  }, [dedicatedWalletClient, persistDedicatedWallet, settlePending]);
 
   const clearDedicatedWallet = useCallback(() => {
     persistDedicatedWallet(null);
@@ -374,6 +480,7 @@ export function BasePaymentGate({
 
   const closeModal = useCallback(() => {
     setModalOpen(false);
+    setModalMode("choice");
     setError(null);
     resolvePendingWithOriginal();
   }, [resolvePendingWithOriginal]);
@@ -389,6 +496,20 @@ export function BasePaymentGate({
         return response;
       }
 
+      const dedicatedResponse = await maybePayWithDedicatedWallet(requestInput, init).catch(
+        (paymentError) => {
+          setError(
+            paymentError instanceof Error
+              ? paymentError.message
+              : "Dedicated wallet payment failed.",
+          );
+          return null;
+        },
+      );
+      if (dedicatedResponse) {
+        return dedicatedResponse;
+      }
+
       const [pendingInput, pendingInit] = cloneRequestInfo(requestInput, init);
       return await new Promise<Response>((resolve, reject) => {
         pendingRequestRef.current = {
@@ -398,11 +519,18 @@ export function BasePaymentGate({
           resolve,
           reject,
         };
-        setError(null);
+        setModalMode(
+          dedicatedWallet &&
+            (!dedicatedWalletClient.isSignedIn ||
+              dedicatedWalletClient.evmAddress?.toLowerCase() !==
+                dedicatedWallet.address.toLowerCase())
+            ? "dedicated"
+            : "choice",
+        );
         setModalOpen(true);
       });
     },
-    [],
+    [dedicatedWallet, dedicatedWalletClient, maybePayWithDedicatedWallet],
   );
 
   const paymentUi = (
@@ -422,13 +550,23 @@ export function BasePaymentGate({
       ) : null}
       <BasePaymentModal
         open={modalOpen}
+        mode={modalMode}
         activeAccount={address}
         dedicatedWallet={dedicatedWallet}
+        dedicatedWalletConfigured={dedicatedWalletClient.isConfigured}
+        dedicatedWalletSignedIn={dedicatedWalletClient.isSignedIn}
+        dedicatedWalletAddress={dedicatedWalletClient.evmAddress}
         walletAppName={walletAppName}
         error={error}
         busyAction={busyAction}
         onUseCurrentAccount={() => void handleUseCurrentAccount()}
-        onUseAnotherAddress={() => void handleUseAnotherAddress()}
+        onUseAnotherAddress={handlePrepareDedicatedWallet}
+        onSelectDedicatedWallet={handleSelectDedicatedWallet}
+        onPayWithDedicatedWallet={() => void handlePayWithDedicatedWallet()}
+        onBackToChoices={() => {
+          setError(null);
+          setModalMode("choice");
+        }}
         onClose={closeModal}
       />
     </>
