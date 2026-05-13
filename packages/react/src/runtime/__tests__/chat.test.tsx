@@ -80,7 +80,7 @@ describe("Chat API", () => {
           },
         },
       });
-      expect(createThread).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
       expect(postChatMessage).toHaveBeenCalled();
 
       await act(async () => {
@@ -174,7 +174,7 @@ describe("Chat API", () => {
           text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
         },
       ]);
-      expect(createThread).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
       expect(setModel).toHaveBeenCalledWith(
         api.currentThreadId,
         "auto-model",
@@ -223,6 +223,43 @@ describe("Chat API", () => {
       );
       expect(postChatMessage).toHaveBeenCalled();
       expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
+        postChatMessage.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("ensures the wallet account before creating a connected thread", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ ensureAccount, createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
+        });
+      });
+
+      await act(async () => {
+        await api.sendMessage("Persist this wallet thread");
+      });
+
+      expect(ensureAccount).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(ensureAccount.mock.invocationCallOrder[0]).toBeLessThan(
+        createThread.mock.invocationCallOrder[0],
+      );
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
     });

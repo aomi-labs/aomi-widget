@@ -98,11 +98,16 @@ export function AomiRuntimeCore({
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
       await syncCurrentThreadControl();
+      const wasCreated = await ensureBackendThread(threadId);
+      if (wasCreated) {
+        threadsMaterializedForSendRef.current.add(threadId);
+      }
     },
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      threadsMaterializedForSendRef.current.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
           console.error("Failed to sync thread controls:", error);
@@ -110,12 +115,18 @@ export function AomiRuntimeCore({
       }
     },
     onSendError: async (threadId, error) => {
-      if (getHttpStatus(error) !== 402 || remoteThreadIdsRef.current.has(threadId)) {
+      const wasMaterializedForSend =
+        threadsMaterializedForSendRef.current.has(threadId);
+      threadsMaterializedForSendRef.current.delete(threadId);
+
+      if (getHttpStatus(error) !== 402 || !wasMaterializedForSend) {
         return;
       }
 
       try {
         await aomiClientRef.current.deleteThread(threadId);
+        remoteThreadIdsRef.current.delete(threadId);
+        warmedThreadIdsRef.current.delete(threadId);
       } catch (deleteError) {
         console.error("Failed to delete quota-blocked thread:", deleteError);
       }
@@ -134,7 +145,22 @@ export function AomiRuntimeCore({
   const remoteThreadIdsRef = useRef(new Set<string>());
   const warmedThreadIdsRef = useRef(new Set<string>());
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
+  const threadsMaterializedForSendRef = useRef(new Set<string>());
+  const ensuredAccountPublicKeysRef = useRef(new Set<string>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
+
+  const ensureAccountForPublicKey = useCallback(
+    async (sessionId: string, publicKey: string) => {
+      const normalizedPublicKey = publicKey.toLowerCase();
+      if (ensuredAccountPublicKeysRef.current.has(normalizedPublicKey)) {
+        return;
+      }
+
+      await aomiClientRef.current.ensureAccount(sessionId, publicKey);
+      ensuredAccountPublicKeysRef.current.add(normalizedPublicKey);
+    },
+    [aomiClientRef],
+  );
 
   const warmThread = useCallback(
     async (threadId: string) => {
@@ -152,6 +178,12 @@ export function AomiRuntimeCore({
 
       const warmPromise = (async () => {
         const userState = getUserState();
+        if (UserState.isConnected(userState)) {
+          const publicKey = UserState.address(userState);
+          if (publicKey) {
+            await ensureAccountForPublicKey(threadId, publicKey);
+          }
+        }
         await aomiClientRef.current.createThread(
           threadId,
           UserState.isConnected(userState)
@@ -169,7 +201,7 @@ export function AomiRuntimeCore({
         warmPromisesRef.current.delete(threadId);
       }
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef, ensureAccountForPublicKey, getUserState],
   );
 
   // ---------------------------------------------------------------------------
@@ -177,9 +209,15 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   const ensureBackendThread = useCallback(
     async (threadId: string) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return;
+      if (remoteThreadIdsRef.current.has(threadId)) return false;
 
       const userState = getUserState();
+      if (UserState.isConnected(userState)) {
+        const publicKey = UserState.address(userState);
+        if (publicKey) {
+          await ensureAccountForPublicKey(threadId, publicKey);
+        }
+      }
       await aomiClientRef.current.createThread(
         threadId,
         UserState.isConnected(userState)
@@ -188,8 +226,9 @@ export function AomiRuntimeCore({
       );
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      return true;
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef, ensureAccountForPublicKey, getUserState],
   );
 
   const getRuntimeSession = useCallback(

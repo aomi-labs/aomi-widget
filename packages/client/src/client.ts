@@ -333,6 +333,29 @@ export class AomiClient {
   // ===========================================================================
 
   /**
+   * Ensure the backend has an account row for a wallet address.
+   *
+   * The hosted backend binds wallet-owned session lists through the account
+   * table. Calling this before thread list/create keeps first-run wallet flows
+   * from creating sessions that exist by ID but do not appear in
+   * GET /api/sessions?public_key=...
+   */
+  async ensureAccount(sessionId: string, publicKey: string): Promise<void> {
+    const url = buildApiUrl(this.baseUrl, "/api/settings/account", {
+      public_key: publicKey,
+    });
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to ensure account: HTTP ${response.status}`);
+    }
+
+    await response.json().catch(() => undefined);
+  }
+
+  /**
    * List all threads for a wallet address.
    */
   async listThreads(sessionId: string, publicKey: string): Promise<AomiThread[]> {
