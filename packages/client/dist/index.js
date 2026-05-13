@@ -29,7 +29,10 @@ var USER_STATE_KEY_ALIASES = {
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
   pendingSolanaTxs: "pending_solana_txs",
-  nextId: "next_id"
+  nextId: "next_id",
+  aaMode: "aa_mode",
+  smartAccount: "smart_account",
+  smartAccountAddress: "smart_account"
 };
 function parseUserStateChainId(value) {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
@@ -51,6 +54,21 @@ function parseUserStateChainId(value) {
 }
 function normalizeAddressForComparison(value) {
   return typeof value === "string" ? value.toLowerCase() : void 0;
+}
+function parseUserStateAAMode(value) {
+  if (value === null) {
+    return null;
+  }
+  return value === "4337" || value === "7702" ? value : void 0;
+}
+function parseUserStateOptionalAddress(value) {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function hasOwnKey(record, key) {
+  return record !== void 0 && Object.prototype.hasOwnProperty.call(record, key);
 }
 var UserState;
 ((UserState2) => {
@@ -97,6 +115,13 @@ var UserState;
         reconciled.chain_id = chainId(previous);
       }
     }
+    const canPreserveAAContext = canPreserveConnectedWalletContext && previous !== void 0 && (sameAddress || !incomingAddress && !!previousAddress);
+    if (!hasOwnKey(incoming, "aa_mode") && canPreserveAAContext && aaMode(previous) !== void 0) {
+      reconciled.aa_mode = aaMode(previous);
+    }
+    if (!hasOwnKey(incoming, "smart_account") && canPreserveAAContext && smartAccount(previous) !== void 0) {
+      reconciled.smart_account = smartAccount(previous);
+    }
     if (isConnected(reconciled) === true && chainId(reconciled) === void 0) {
       delete reconciled.is_connected;
     }
@@ -126,6 +151,16 @@ var UserState;
     return typeof isConnected2 === "boolean" ? isConnected2 : void 0;
   }
   UserState2.isConnected = isConnected;
+  function aaMode(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateAAMode(normalized == null ? void 0 : normalized.aa_mode);
+  }
+  UserState2.aaMode = aaMode;
+  function smartAccount(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.smart_account);
+  }
+  UserState2.smartAccount = smartAccount;
   function withExt(userState, key, value) {
     var _a;
     const normalizedUserState = (_a = normalize(userState)) != null ? _a : {};
@@ -139,6 +174,12 @@ var UserState;
   }
   UserState2.withExt = withExt;
 })(UserState || (UserState = {}));
+function getUserStateAAMode(userState) {
+  return UserState.aaMode(userState);
+}
+function getUserStateSmartAccount(userState) {
+  return UserState.smartAccount(userState);
+}
 function addUserStateExt(userState, key, value) {
   return UserState.withExt(userState, key, value);
 }
@@ -538,6 +579,26 @@ var AomiClient = class {
   // ===========================================================================
   // Thread / Session Management
   // ===========================================================================
+  /**
+   * Ensure the backend has an account row for a wallet address.
+   *
+   * The hosted backend binds wallet-owned session lists through the account
+   * table. Calling this before thread list/create keeps first-run wallet flows
+   * from creating sessions that exist by ID but do not appear in
+   * GET /api/sessions?public_key=...
+   */
+  async ensureAccount(sessionId, publicKey) {
+    const url = buildApiUrl(this.baseUrl, "/api/settings/account", {
+      public_key: publicKey
+    });
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to ensure account: HTTP ${response.status}`);
+    }
+    await response.json().catch(() => void 0);
+  }
   /**
    * List all threads for a wallet address.
    */
@@ -1326,7 +1387,7 @@ var ClientSession = class extends TypedEventEmitter {
    * fail fast at runtime instead.
    */
   async resolve(requestId, result) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     const req = this.walletRequests.find((request) => request.id === requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
@@ -1341,6 +1402,10 @@ var ClientSession = class extends TypedEventEmitter {
       const pendingTxIds = txIdsFromPayload(req.payload);
       const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(req.payload.aaPreference);
       const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
+      this.resolveUserState(__spreadProps(__spreadValues({}, (_d = this.userState) != null ? _d : {}), {
+        aa_mode: resolvedMode === "none" ? null : resolvedMode,
+        smart_account: resolvedMode === "4337" ? (_e = result.smartAccountAddress) != null ? _e : null : null
+      }));
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash,
         status: "success",
@@ -1350,8 +1415,8 @@ var ClientSession = class extends TypedEventEmitter {
         aa_resolved_mode: resolvedMode,
         aa_fallback_reason: result.aaFallbackReason,
         execution_kind: result.executionKind,
-        batched: (_d = result.batched) != null ? _d : pendingTxIds.length > 1,
-        call_count: (_e = result.callCount) != null ? _e : pendingTxIds.length,
+        batched: (_f = result.batched) != null ? _f : pendingTxIds.length > 1,
+        call_count: (_g = result.callCount) != null ? _g : pendingTxIds.length,
         sponsored: result.sponsored,
         smart_account_address: result.smartAccountAddress,
         delegation_address: result.delegationAddress
@@ -1517,11 +1582,14 @@ var ClientSession = class extends TypedEventEmitter {
     }
     this.resolveUserState(nextState);
   }
-  resolveWallet(address, chainId) {
+  resolveWallet(address, chainId, aa) {
+    var _a, _b;
     this.resolveUserState({
       address,
       chain_id: chainId != null ? chainId : 1,
-      is_connected: true
+      is_connected: true,
+      aa_mode: (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : null,
+      smart_account: (_b = aa == null ? void 0 : aa.smartAccount) != null ? _b : null
     });
   }
   async syncUserState() {
@@ -1704,7 +1772,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
     if (req.kind === "transaction") {
       const nextTxIds = txIdsFromPayload(req.payload);
-      if (nextTxIds.length > 1) {
+      if (nextTxIds.length > 0) {
         const nextTxIdSet = new Set(nextTxIds);
         this.walletRequests = this.walletRequests.filter((request) => {
           if (request.id === id || request.kind !== "transaction") {
@@ -2281,11 +2349,11 @@ async function executeViaEoa({
       usedPaymasterService = Boolean(sendCallsCapabilities == null ? void 0 : sendCallsCapabilities.paymasterService);
       usedSendCalls = true;
     } catch (error) {
-      if (!isUnsupportedAtomicCapabilityError(error)) {
+      if (!canFallbackToSequentialWalletSends(
+        error,
+        requiresSponsoredSendCalls
+      )) {
         throw error;
-      }
-      if (requiresSponsoredSendCalls) {
-        throw new Error("wallet_sponsorship_required");
       }
       await sendSequentially();
     }
@@ -2370,6 +2438,17 @@ function isUnsupportedAtomicCapabilityError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const lowered = message.toLowerCase();
   return lowered.includes("unsupported non-optional capabilities: atomic") || lowered.includes("unsupported") && lowered.includes("atomic") || lowered.includes("wallet does not support") && lowered.includes("capabilit");
+}
+function isRecoverableOptionalPaymasterError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("paymaster") || lowered.includes("sponsor") || lowered.includes("erc-7677");
+}
+function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
+  if (requiresSponsoredSendCalls) {
+    return false;
+  }
+  return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
 }
 function toErrorMessage(error) {
   var _a;
@@ -2565,6 +2644,7 @@ function adaptSmartAccount(account) {
   return {
     provider: account.provider,
     mode: account.mode,
+    executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
     delegationAddress,
     sendTransaction: async (call) => {
@@ -2869,6 +2949,8 @@ async function createAlchemyWalletApisState(params) {
   const smartAccount = {
     provider: "alchemy",
     mode: params.resolved.mode,
+    ownerAddress: signerAddress,
+    executionAddress: params.resolved.mode === "4337" ? accountAddress : signerAddress,
     AAAddress: accountAddress,
     delegationAddress: params.resolved.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
     sendTransaction: async (call) => sendCalls([call]),
@@ -3126,6 +3208,7 @@ function adaptPimlicoSdkAccount(account) {
   return {
     provider: account.provider,
     mode: account.mode,
+    executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
     delegationAddress: account.delegationAddress,
     sendTransaction: async (call) => account.sendTransaction(call),
@@ -3293,6 +3376,8 @@ export {
   createPimlicoAAProvider,
   executeWalletCalls,
   getAAChainConfig,
+  getUserStateAAMode,
+  getUserStateSmartAccount,
   getWalletExecutorReady,
   hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,
