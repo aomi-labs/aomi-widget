@@ -60,6 +60,7 @@ export function RuntimeTxHandler() {
     resolveWalletRequest,
     rejectWalletRequest,
     simulateBatchTransactions,
+    showNotification,
   } = useAomiRuntime();
   const adapter = useAomiAuthAdapter();
   const { chainId: currentChainId } = adapter.identity;
@@ -102,23 +103,33 @@ export function RuntimeTxHandler() {
               chainId: defaultChainId,
             },
           );
-          if (!simulationResult.fee) {
-            throw new Error("missing_simulated_fee");
-          }
 
-          const payloadWithFee = appendFeeCallToPayload(
-            payload,
-            simulationResult.fee,
-            defaultChainId,
-            // Fee-injected batches must be allowed to fall back from AA
-            // to sequential EOA sends if the wallet/bundler fails after
-            // sign — otherwise transient post-sign failures (e.g. wallet
-            // pricing middleware rejection) become hard errors with no
-            // recovery path.
-            { strictAa: false },
-          );
+          // Fee injection is the production path: simulation succeeds,
+          // returns a non-zero fee, and we append it to the batch so Aomi
+          // gets paid atomically with the user's tx. Simulation can come
+          // back without a fee for test / 0-balance / unsupported-chain
+          // scenarios — in that case we still want the wallet to pop so
+          // the user can sign (and have the tx revert on-chain if
+          // applicable) rather than silently rejecting. `strictAa: false`
+          // lets the fee-injected batch fall back from AA to sequential
+          // EOA sends if the wallet/bundler fails after sign.
+          const payloadWithFee = simulationResult.fee
+            ? appendFeeCallToPayload(
+                payload,
+                simulationResult.fee,
+                defaultChainId,
+                { strictAa: false },
+              )
+            : payload;
           if (payloadWithFee === payload) {
-            throw new Error("missing_fee_payment_tx");
+            showNotification({
+              type: "notice",
+              title: "Proceeding without Aomi fee",
+              message: simulationResult.fee
+                ? "Simulation returned a zero fee — sending without an appended fee call."
+                : "Simulation returned no fee — sending the original transaction. Aomi will not collect a fee on this one.",
+              duration: 6000,
+            });
           }
 
           const result = await adapter.sendTransaction(payloadWithFee);
@@ -194,6 +205,7 @@ export function RuntimeTxHandler() {
     resolveWalletRequest,
     rejectWalletRequest,
     simulateBatchTransactions,
+    showNotification,
   ]);
 
   return null;
