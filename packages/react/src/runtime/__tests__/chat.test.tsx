@@ -51,22 +51,14 @@ describe("Chat API", () => {
       expect(call[1]).toBe("Hello world");
     });
 
-    it("shows an optimistic sending message before backend preparation finishes", async () => {
-      let resolveCreateThread:
-        | ((value: { session_id: string }) => void)
-        | undefined;
-      const createThread = vi.fn(
-        (threadId: string) =>
-          new Promise<{ session_id: string }>((resolve) => {
-            resolveCreateThread = resolve;
-            void threadId;
-          }),
-      );
+    it("shows an optimistic sending message before the backend send finishes", async () => {
+      let resolveChat: ((value: AomiChatResponse) => void) | undefined;
+      const createThread = vi.fn();
       const postChatMessage = vi.fn(
-        async (): Promise<AomiChatResponse> => ({
-          is_processing: false,
-          messages: [],
-        }),
+        () =>
+          new Promise<AomiChatResponse>((resolve) => {
+            resolveChat = resolve;
+          }),
       );
       setAomiClientConfig({ createThread, postChatMessage });
 
@@ -88,10 +80,11 @@ describe("Chat API", () => {
           },
         },
       });
-      expect(postChatMessage).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(postChatMessage).toHaveBeenCalled();
 
       await act(async () => {
-        resolveCreateThread?.({ session_id: api.currentThreadId });
+        resolveChat?.({ is_processing: false, messages: [] });
         await sendPromise!;
       });
     });
@@ -122,6 +115,153 @@ describe("Chat API", () => {
           },
         },
       });
+    });
+
+    it("adds an inline x402 credits notice when the backend returns 402", async () => {
+      const createThread = vi.fn();
+      const deleteThread = vi.fn(async () => undefined);
+      const setModel = vi.fn(async () => ({ rig: "auto-model" }));
+      const postChatMessage = vi.fn(async () => {
+        throw new Error("HTTP 402: Payment Required");
+      });
+      setAomiClientConfig({
+        createThread,
+        deleteThread,
+        getModels: vi.fn(async () => ["auto-model"]),
+        setModel,
+        postChatMessage,
+      });
+
+      const { api, control } = renderRuntime();
+
+      await act(async () => {
+        await control.getAvailableModels();
+      });
+
+      await waitFor(() => {
+        expect(
+          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
+        ).toBe(true);
+      });
+
+      await act(async () => {
+        await expect(api.sendMessage("Need quota")).rejects.toThrow("HTTP 402");
+      });
+
+      const messages = api.getMessages();
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({
+        role: "user",
+        metadata: {
+          custom: {
+            aomiOriginalText: "Need quota",
+            aomiSendStatus: "failed",
+          },
+        },
+      });
+      expect(messages[1]).toMatchObject({
+        role: "assistant",
+        metadata: {
+          custom: {
+            aomiNoticeKind: "payment_required",
+            aomiNoticeTitle: "Credits needed",
+          },
+        },
+      });
+      expect(messages[1].content).toEqual([
+        {
+          type: "text",
+          text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
+        },
+      ]);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(setModel).toHaveBeenCalledWith(
+        api.currentThreadId,
+        "auto-model",
+        expect.objectContaining({ app: "default" }),
+      );
+      expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
+        postChatMessage.mock.invocationCallOrder[0],
+      );
+      expect(deleteThread).toHaveBeenCalledWith(api.currentThreadId);
+    });
+
+    it("syncs dirty control state before the first message on a new thread", async () => {
+      const setModel = vi.fn(async () => ({ rig: "auto-model" }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({
+        getModels: vi.fn(async () => ["auto-model"]),
+        setModel,
+        postChatMessage,
+      });
+
+      const { api, control } = renderRuntime();
+
+      await act(async () => {
+        await control.getAvailableModels();
+      });
+
+      await waitFor(() => {
+        expect(
+          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
+        ).toBe(true);
+      });
+
+      await act(async () => {
+        await api.sendMessage("Use selected model");
+      });
+
+      expect(setModel).toHaveBeenCalledWith(
+        api.currentThreadId,
+        "auto-model",
+        expect.objectContaining({ app: "default" }),
+      );
+      expect(postChatMessage).toHaveBeenCalled();
+      expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
+        postChatMessage.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("ensures the wallet account before creating a connected thread", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ ensureAccount, createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
+        });
+      });
+
+      await act(async () => {
+        await api.sendMessage("Persist this wallet thread");
+      });
+
+      expect(ensureAccount).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(ensureAccount.mock.invocationCallOrder[0]).toBeLessThan(
+        createThread.mock.invocationCallOrder[0],
+      );
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        postChatMessage.mock.invocationCallOrder[0],
+      );
     });
 
     it("replaces the optimistic message with backend messages on success", async () => {

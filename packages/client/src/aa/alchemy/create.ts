@@ -333,6 +333,9 @@ async function createAlchemyWalletApisState(
   const smartAccount: SmartAccount = {
     provider: "alchemy",
     mode: params.resolved.mode,
+    ownerAddress: signerAddress,
+    executionAddress:
+      params.resolved.mode === "4337" ? accountAddress : signerAddress,
     AAAddress: accountAddress,
     delegationAddress:
       params.resolved.mode === "7702"

@@ -124,6 +124,102 @@ describe("executeAdapterTransaction fallback behavior", () => {
     });
   });
 
+  it("requires sponsored atomic sendCalls for Base Account fee batches", async () => {
+    const sendCallsSyncAsync = vi.fn().mockResolvedValue({
+      receipts: [{ transactionHash: "0x111" }, { transactionHash: "0x222" }],
+      status: "success",
+    });
+    const sendTransactionAsync = vi.fn();
+
+    const result = await executeAdapterTransaction({
+      payload: strictFeeBatchPayload(),
+      state: {
+        currentChainId: 1,
+        capabilities: {
+          "eip155:1": {
+            atomic: { status: "ready" },
+            paymasterService: { supported: true },
+          },
+        },
+        nativeWalletExecution: {
+          executionKind: "base_account_4337",
+          sendCallsVersion: "1.0",
+          sendCallsTimeoutMs: 45_000,
+          sponsorship: {
+            mode: "required",
+            getPaymasterServiceUrl: () => "https://paymaster.example.test",
+          },
+        },
+        sendCallsSyncAsync,
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+      },
+    });
+
+    expect(sendCallsSyncAsync).toHaveBeenCalledWith({
+      chainId: 1,
+      calls: expect.any(Array),
+      capabilities: {
+        atomic: { required: true },
+        paymasterService: {
+          url: "https://paymaster.example.test",
+          context: {},
+        },
+      },
+      forceAtomic: true,
+      status: expect.any(Function),
+      throwOnFailure: true,
+      timeout: 45_000,
+      version: "1.0",
+    });
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      txHash: "0x222",
+      aaRequestedMode: "7702",
+      aaResolvedMode: "4337",
+      executionKind: "base_account_4337",
+      batched: true,
+      sponsored: true,
+    });
+  });
+
+  it("does not fall back to sequential sends when sponsored atomic sendCalls fails", async () => {
+    const sendCallsSyncAsync = vi
+      .fn()
+      .mockRejectedValue(new Error("wallet_prepareCalls failed"));
+    const sendTransactionAsync = vi.fn();
+
+    await expect(
+      executeAdapterTransaction({
+        payload: strictFeeBatchPayload(),
+        state: {
+          currentChainId: 1,
+          capabilities: {
+            "eip155:1": {
+              atomic: { status: "ready" },
+              paymasterService: { supported: true },
+            },
+          },
+          nativeWalletExecution: {
+            executionKind: "base_account_4337",
+            sponsorship: {
+              mode: "required",
+              getPaymasterServiceUrl: () => "https://paymaster.example.test",
+            },
+          },
+          sendCallsSyncAsync,
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+        },
+      }),
+    ).rejects.toThrow("wallet_prepareCalls failed");
+
+    expect(sendCallsSyncAsync).toHaveBeenCalledTimes(1);
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
+  });
+
   it("does not submit native wallet fallback twice when unresolved AA fallback times out", async () => {
     const timeoutError = new Error(
       'Timed out while waiting for call bundle with id "0x123" to be confirmed.',

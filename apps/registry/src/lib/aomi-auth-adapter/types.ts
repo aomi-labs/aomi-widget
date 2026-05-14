@@ -24,6 +24,13 @@ export type AomiAuthIdentity = {
   authProvider?: string;
   primaryLabel: string;
   secondaryLabel?: string;
+  /**
+   * Set when the connected wallet itself IS a smart account (always-AA),
+   * e.g. Base Account / Coinbase Smart Wallet. Leave undefined for EOA
+   * wallets that may opt into AA per-transaction (Para's 7702/4337 flows).
+   */
+  aaMode?: "4337" | "7702";
+  smartAccount?: string;
 };
 
 export type AomiTxResult = {

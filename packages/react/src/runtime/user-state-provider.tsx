@@ -318,6 +318,7 @@ function useRemoteThreadListSync(
           getControlState().clientId,
           resetThreadId ?? currentContext.currentThreadId,
         );
+        await aomiClientRef.current.ensureAccount(controlSessionId, userAddress);
         const threadList = await aomiClientRef.current.listThreads(
           controlSessionId,
           userAddress,

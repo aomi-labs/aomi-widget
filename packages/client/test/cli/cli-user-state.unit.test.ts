@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { pendingTxsFromBackendUserState } from "../../src/cli/user-state";
+import {
+  buildCliUserState,
+  pendingTxsFromBackendUserState,
+  walletSnapshotFromUserState,
+} from "../../src/cli/user-state";
+
+describe("CLI user state AA fields", () => {
+  it("builds explicit null AA state by default", () => {
+    expect(buildCliUserState("0xabc", 8453)).toMatchObject({
+      address: "0xabc",
+      chain_id: 8453,
+      is_connected: true,
+      aa_mode: null,
+      smart_account: null,
+      ext: { client_type: "ts_cli" },
+    });
+  });
+
+  it("round-trips 4337 smart-account context", () => {
+    const snapshot = walletSnapshotFromUserState({
+      address: "0xabc",
+      chain_id: 8453,
+      is_connected: true,
+      aa_mode: "4337",
+      smart_account: "0xdef",
+    });
+
+    expect(snapshot).toEqual({
+      publicKey: "0xabc",
+      chainId: 8453,
+      aaMode: "4337",
+      smartAccount: "0xdef",
+    });
+  });
+});
 
 describe("pendingTxsFromBackendUserState", () => {
   it("strips data from native_transfer entries", () => {

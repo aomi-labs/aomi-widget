@@ -240,7 +240,7 @@ describe("CLI wallet sign simulation integration", () => {
     expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
   });
 
-  it("passes explicit from and chainId into simulateBatch and appends the fee call", async () => {
+  it("syncs wallet state and lets backend resolve simulateBatch sender", async () => {
     await signCommand(
       {
         privateKey:
@@ -265,10 +265,13 @@ describe("CLI wallet sign simulation integration", () => {
         },
       ],
       {
-        from: MOCK_ADDRESS,
         chainId: 1,
       },
     );
+    expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
+      aaMode: null,
+      smartAccount: null,
+    });
 
     expect(mocks.createCliProviderState).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -423,12 +426,34 @@ describe("CLI wallet sign simulation integration", () => {
       apiKey: "alchemy-key",
       modeExplicit: false,
     });
-    mocks.createCliProviderState.mockResolvedValue({
-      resolved: { sponsorship: "disabled" },
-      account: { AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
-      pending: false,
-      error: null,
-    });
+    mocks.createCliProviderState
+      .mockResolvedValueOnce({
+        resolved: { sponsorship: "disabled" },
+        account: {
+          AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          executionAddress: MOCK_ADDRESS,
+        },
+        pending: false,
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        resolved: { sponsorship: "disabled" },
+        account: {
+          AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          executionAddress: MOCK_ADDRESS,
+        },
+        pending: false,
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        resolved: { sponsorship: "optional" },
+        account: {
+          AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          executionAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+        pending: false,
+        error: null,
+      });
     mocks.executeWalletCalls
       .mockRejectedValueOnce(new Error("7702 failed"))
       .mockResolvedValueOnce({
@@ -451,8 +476,29 @@ describe("CLI wallet sign simulation integration", () => {
       ["tx-1"],
     );
 
-    // First call with 7702, second with 4337
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(2);
+    expect(mocks.simulateBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.simulateBatch).toHaveBeenCalledWith(
+      "session-1",
+      [
+        {
+          to: "0x1111111111111111111111111111111111111111",
+          value: "0",
+          data: "0x",
+          label: "send zero",
+          chain_id: 1,
+        },
+      ],
+      {
+        chainId: 1,
+      },
+    );
+    expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
+      aaMode: "7702",
+      smartAccount: null,
+    });
+
+    // planning 7702 + execution 7702 + execution 4337
+    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(3);
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
     expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
     expect(mocks.sendSystemMessage.mock.calls[0]?.[0]).toBe("session-1");
@@ -504,7 +550,7 @@ describe("CLI wallet sign simulation integration", () => {
     ).rejects.toThrow();
 
     // Both AA modes tried, no third attempt (no EOA)
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(2);
+    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(3);
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
   });
 
@@ -550,7 +596,7 @@ describe("CLI wallet sign simulation integration", () => {
     );
 
     // All three strategies attempted: 7702, 4337, eoa
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(3);
+    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(4);
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(3);
   });
 
@@ -593,7 +639,7 @@ describe("CLI wallet sign simulation integration", () => {
       ),
     ).rejects.toThrow();
 
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(1);
+    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(2);
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(1);
   });
 });
