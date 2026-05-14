@@ -83,7 +83,7 @@ function SidebarProvider({
   const open = openProp ?? _open;
 
   // Sidebar width state (in pixels)
-  const [sidebarWidth, setSidebarWidth] = React.useState(224); // 14rem = 224px
+  const [sidebarWidth, setSidebarWidth] = React.useState(252); // 15.75rem = 252px
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value;
@@ -240,7 +240,9 @@ function Sidebar({
         "text-sidebar-foreground group peer relative hidden md:block",
         "w-[var(--sidebar-width)]",
         "data-[collapsible=offcanvas]:w-0",
-        isDragging ? "transition-none" : "transition-[width] duration-200 ease-linear",
+        isDragging
+          ? "transition-none"
+          : "transition-[width] duration-200 ease-linear",
       )}
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -253,7 +255,9 @@ function Sidebar({
         data-slot="sidebar-gap"
         className={cn(
           "w-(--sidebar-width) relative bg-transparent",
-          isDragging ? "transition-none" : "transition-[width] duration-200 ease-linear",
+          isDragging
+            ? "transition-none"
+            : "transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -306,7 +310,10 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon"
-      className={cn("size-7 text-muted-foreground/60 hover:text-foreground", className)}
+      className={cn(
+        "text-muted-foreground/60 hover:text-foreground size-7",
+        className,
+      )}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();

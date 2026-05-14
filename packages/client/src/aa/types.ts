@@ -72,6 +72,8 @@ export type AACallPayload = Omit<AAWalletCall, "chainId">;
 export interface SmartAccount {
   provider: string;
   mode: string;
+  ownerAddress?: Hex;
+  executionAddress?: Hex;
   AAAddress?: Hex;
   delegationAddress?: Hex;
   sendTransaction: (

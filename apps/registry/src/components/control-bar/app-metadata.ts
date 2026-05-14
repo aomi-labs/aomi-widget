@@ -47,6 +47,11 @@ const APP_DISPLAY_NAMES: Record<
     abbr: "All",
     category: APP_CATEGORIES.all!,
   },
+  across: {
+    displayName: "Across",
+    abbr: "A",
+    category: APP_CATEGORIES.dex!,
+  },
   binance: {
     displayName: "Binance",
     abbr: "B",
@@ -107,6 +112,11 @@ const APP_DISPLAY_NAMES: Record<
     abbr: "LI",
     category: APP_CATEGORIES.dex!,
   },
+  limitless: {
+    displayName: "Limitless",
+    abbr: "L",
+    category: APP_CATEGORIES.prediction!,
+  },
   manifold: {
     displayName: "Manifold",
     abbr: "M",
@@ -147,6 +157,11 @@ const APP_DISPLAY_NAMES: Record<
     abbr: "P",
     category: APP_CATEGORIES.custom!,
   },
+  pelagos: {
+    displayName: "Pelagos",
+    abbr: "P",
+    category: APP_CATEGORIES.dex!,
+  },
   polymarket: {
     displayName: "Polymarket",
     abbr: "P",
@@ -171,6 +186,11 @@ const APP_DISPLAY_NAMES: Record<
     displayName: "0x",
     abbr: "0x",
     category: APP_CATEGORIES.dex!,
+  },
+  zora: {
+    displayName: "Zora",
+    abbr: "Z",
+    category: APP_CATEGORIES.social!,
   },
 };
 

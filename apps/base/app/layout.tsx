@@ -6,6 +6,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Aomi",
   description: "Aomi",
+  other: {
+    "base:app_id": "6a0087769ee68cd142d1b06c",
+  },
 };
 
 export const viewport: Viewport = {

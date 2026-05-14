@@ -6,7 +6,16 @@
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
  */
-export interface UserState extends Record<string, unknown> {}
+export type UserStateAAMode = "4337" | "7702";
+
+export interface UserState extends Record<string, unknown> {
+  address?: string | null;
+  chain_id?: number | string | null;
+  is_connected?: boolean | null;
+  svm_address?: string | null;
+  aa_mode?: UserStateAAMode | null;
+  smart_account?: string | null;
+}
 
 /**
  * Known client surfaces that may want backend-specific UX strategies.
@@ -26,6 +35,9 @@ const USER_STATE_KEY_ALIASES: Record<string, string> = {
   pendingEip712s: "pending_eip712s",
   pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id",
+  aaMode: "aa_mode",
+  smartAccount: "smart_account",
+  smartAccountAddress: "smart_account",
 };
 
 function parseUserStateChainId(value: unknown): number | undefined {
@@ -52,6 +64,26 @@ function parseUserStateChainId(value: unknown): number | undefined {
 
 function normalizeAddressForComparison(value: string | undefined): string | undefined {
   return typeof value === "string" ? value.toLowerCase() : undefined;
+}
+
+function parseUserStateAAMode(value: unknown): UserStateAAMode | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return value === "4337" || value === "7702" ? value : undefined;
+}
+
+function parseUserStateOptionalAddress(
+  value: unknown,
+): string | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function hasOwnKey(record: UserState | undefined, key: string): boolean {
+  return record !== undefined && Object.prototype.hasOwnProperty.call(record, key);
 }
 
 export namespace UserState {
@@ -131,6 +163,27 @@ export namespace UserState {
       }
     }
 
+    const canPreserveAAContext =
+      canPreserveConnectedWalletContext &&
+      previous !== undefined &&
+      (sameAddress || (!incomingAddress && !!previousAddress));
+
+    if (
+      !hasOwnKey(incoming, "aa_mode") &&
+      canPreserveAAContext &&
+      aaMode(previous) !== undefined
+    ) {
+      reconciled.aa_mode = aaMode(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "smart_account") &&
+      canPreserveAAContext &&
+      smartAccount(previous) !== undefined
+    ) {
+      reconciled.smart_account = smartAccount(previous);
+    }
+
     // Never keep `is_connected: true` without a valid chain id.
     if (isConnected(reconciled) === true && chainId(reconciled) === undefined) {
       delete reconciled.is_connected;
@@ -164,6 +217,20 @@ export namespace UserState {
     const normalized = normalize(userState);
     const isConnected = normalized?.is_connected;
     return typeof isConnected === "boolean" ? isConnected : undefined;
+  }
+
+  export function aaMode(
+    userState?: UserState | null,
+  ): UserStateAAMode | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateAAMode(normalized?.aa_mode);
+  }
+
+  export function smartAccount(
+    userState?: UserState | null,
+  ): string | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized?.smart_account);
   }
 
   /**
@@ -215,6 +282,18 @@ export function getUserStateIsConnected(
   userState?: UserState | null,
 ): boolean | undefined {
   return UserState.isConnected(userState);
+}
+
+export function getUserStateAAMode(
+  userState?: UserState | null,
+): UserStateAAMode | null | undefined {
+  return UserState.aaMode(userState);
+}
+
+export function getUserStateSmartAccount(
+  userState?: UserState | null,
+): string | null | undefined {
+  return UserState.smartAccount(userState);
 }
 
 export function addUserStateExt(
