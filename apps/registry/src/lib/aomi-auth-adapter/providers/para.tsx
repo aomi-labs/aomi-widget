@@ -435,8 +435,14 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
       | undefined;
     const embeddedAddress = embeddedWallet?.address;
     const externalAddress = paraAccount.external.evm?.address;
+    // When the user has explicitly linked an external wallet via Para's
+    // external-wallet flow, prefer it over the Para-controlled embedded
+    // MPC. Para registers a wagmi connector for the embedded wallet at
+    // OAuth time, so `wagmiAddress` keeps pointing at the MPC even after
+    // an external wallet is added; only `paraAccount.external.evm.address`
+    // reliably reflects "user brought their own wallet".
     const address =
-      wagmiAddress ?? externalAddress ?? embeddedAddress ?? undefined;
+      externalAddress ?? wagmiAddress ?? embeddedAddress ?? undefined;
     const authProvider = inferAuthProvider(paraAccount.embedded.authMethods);
     const providerLabel = formatAuthProvider(authProvider);
 
