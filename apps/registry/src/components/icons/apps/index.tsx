@@ -37,6 +37,25 @@ export function AllAppsIcon(props: SVGProps<SVGSVGElement>) {
 const BinanceIconMarkup =
   '<path fill="currentColor" d="m16.624 13.92l2.718 2.716l-7.353 7.353l-7.353-7.352l2.717-2.717l4.636 4.66zm4.637-4.636L24 12l-2.715 2.716L18.568 12zm-9.272 0l2.716 2.692l-2.717 2.717L9.272 12zm-9.273 0L5.41 12l-2.692 2.692L0 12zM11.99.012l7.35 7.328l-2.717 2.715L11.99 5.42l-4.636 4.66l-2.717-2.716z"/>';
 
+export function AcrossIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 40 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M35.9714 0L40 4.02857L26.5371 17.4915C25.8275 15.6433 24.3567 14.1725 22.5085 13.4629L35.9714 0ZM17.4915 13.4629L4.02857 0L0 4.02857L13.4629 17.4915C14.1725 15.6433 15.6433 14.1725 17.4915 13.4629ZM13.4629 22.5085L0 35.9714L4.02857 40L17.4915 26.5371C15.6433 25.8275 14.1725 24.3567 13.4629 22.5085ZM22.5085 26.5371L35.9714 40L40 35.9714L26.5371 22.5085C25.8275 24.3567 24.3567 25.8275 22.5085 26.5371Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function BinanceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -274,6 +293,23 @@ export function LifiIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function LimitlessIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 500 500"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        d="M413.468 218.013H352.889L434.511 134.701L435 134.207L405.25 104.415H324.308V86.2778C324.308 74.5475 314.779 65 303.063 65H216.211C204.495 65 194.971 74.5425 194.971 86.2778V239.432H86.5317C74.821 239.432 65.2923 248.979 65.2923 260.709C65.2923 272.44 74.821 281.987 86.5317 281.987H147.111L65.4888 365.269L65 365.763L94.7453 395.555H175.692V413.722C175.692 425.452 185.221 435 196.932 435H283.784C295.495 435 305.029 425.458 305.029 413.722V260.568H413.468C425.184 260.568 434.713 251.026 434.713 239.291C434.713 227.555 425.184 218.013 413.468 218.013ZM296.19 413.722C296.19 420.568 290.627 426.143 283.789 426.143C276.951 426.143 271.388 420.573 271.388 413.722V291.873L181.84 383.265L164.304 365.702L255.042 273.125H173.384C166.546 273.125 160.983 267.555 160.983 260.704C160.983 253.854 166.546 248.284 173.384 248.284H277.873C287.977 248.284 296.19 256.515 296.19 266.633V413.722ZM413.468 251.711H308.974C298.876 251.711 290.657 243.48 290.657 233.367V86.2778C290.657 79.4322 296.22 73.8569 303.058 73.8569C309.896 73.8569 315.459 79.4272 315.459 86.2778V208.127L405.008 116.7L422.544 134.263L331.806 226.875H413.463C420.301 226.875 425.864 232.445 425.864 239.296C425.864 246.146 420.301 251.716 413.463 251.716L413.468 251.711Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 const ManifoldIconMarkup =
   '<path fill="currentColor" d="M195.402 96.0412L171.329 72H26L48.1382 94.1021H164.634L122.958 135.694L103.131 115.906H70.0139L105.185 151H138.301L123.003 135.738H156.03L195.402 96.0412Z" ></path>';
 
@@ -376,6 +412,27 @@ export function ParaIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function PelagosIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 162 170"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        d="M43.4 57.5C58.6 57.5 70.9 69.8 70.9 85V85.6C70.9 85.8 70.9 86 70.9 86.3C71.5 112.8 91.3 135 116.7 139.3C106.2 146.2 93.8 150 80.9 150C63.6 150 47.3 143.3 35.1 131.1C22.8 118.9 16 102.7 15.9 85.4V84.7C16.1 69.6 28.4 57.5 43.4 57.5ZM43.4 47.5C22.9 47.5 6.2 64 5.9 84.5V85.5C6.2 126.7 39.6 160 80.9 160C106.9 160 129.9 146.7 143.3 126.6C137.9 128.8 132.1 130.1 125.9 130.1C101.3 130.1 81.4 110.4 80.9 86V85C80.9 64.3 64.1 47.5 43.4 47.5Z"
+        fill="currentColor"
+      />
+      <path
+        d="M155.9 84.5C155.8 69.3 151.2 55.2 143.3 43.4C129.9 23.3 106.9 10 80.9 10C39.6 10 6.2 43.3 5.9 84.5C6.2 64 22.9 47.5 43.4 47.5C64.1 47.5 80.9 64.3 80.9 85V86C81.4 106.3 98 122.5 118.4 122.5C138.9 122.5 155.6 106 155.9 85.5V84.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 const PolymarketIconMarkup =
   '<path fill="currentColor" d="M42.76,24.28V0L0,12.04v28.93l42.76,12.04v-28.74ZM38.63,23.12V5.42L7.21,14.27l31.42,8.85ZM35.55,26.51L4.14,17.66v17.69l31.42-8.85ZM7.21,38.75l31.42,8.85v-17.71l-31.42,8.85v.02Z"></path>';
 
@@ -443,5 +500,38 @@ export function ZeroxIcon(props: SVGProps<SVGSVGElement>) {
       dangerouslySetInnerHTML={{ __html: ZeroxIconMarkup }}
       {...props}
     />
+  );
+}
+
+export function ZoraIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+    >
+      <path
+        fill="url(#zora-icon-mono-gradient)"
+        d="M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18"
+      />
+      <defs>
+        <radialGradient
+          id="zora-icon-mono-gradient"
+          cx="0"
+          cy="0"
+          r="1"
+          gradientTransform="translate(16.086 7.84)scale(-15.2029)"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset=".007" stopColor="currentColor" stopOpacity=".12" />
+          <stop offset=".191" stopColor="currentColor" stopOpacity=".28" />
+          <stop offset=".498" stopColor="currentColor" stopOpacity=".6" />
+          <stop offset=".667" stopColor="currentColor" stopOpacity=".82" />
+          <stop offset=".823" stopColor="currentColor" />
+          <stop offset="1" stopColor="currentColor" stopOpacity=".42" />
+        </radialGradient>
+      </defs>
+    </svg>
   );
 }

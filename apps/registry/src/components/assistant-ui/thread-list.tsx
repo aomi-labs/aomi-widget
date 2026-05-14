@@ -19,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
 export const ThreadList: FC = () => {
   return (
@@ -35,7 +34,7 @@ const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-2xl px-4 py-2 text-sm text-start"
+        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-2xl px-4 py-2 text-start text-sm"
         variant="ghost"
       >
         <PlusIcon className="size-4" />
@@ -47,26 +46,12 @@ const ThreadListNew: FC = () => {
 
 const ThreadListItems: FC = () => {
   const isLoading = useAssistantState(({ threads }) => threads.isLoading);
-  const { identity } = useAomiAuthAdapter();
 
   if (isLoading) {
     return <ThreadListSkeleton />;
   }
 
-  return (
-    <>
-      {!identity.isConnected && <ThreadListConnectHint />}
-      <ThreadListPrimitive.Items components={{ ThreadListItem }} />
-    </>
-  );
-};
-
-const ThreadListConnectHint: FC = () => {
-  return (
-    <p className="mt-2 px-4 aui-thread-list-connect-hint text-muted-foreground/60 text-left text-xs">
-      Connect wallet to see threads
-    </p>
-  );
+  return <ThreadListPrimitive.Items components={{ ThreadListItem }} />;
 };
 
 const SKELETON_WIDTHS = [

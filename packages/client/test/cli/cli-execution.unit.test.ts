@@ -21,7 +21,9 @@ const {
     createSmartWalletClientMock: vi.fn(() => ({
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
-      requestAccount: vi.fn().mockResolvedValue({ address: "0xaaaa" }),
+      requestAccount: vi.fn().mockResolvedValue({
+        address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
     })),
     alchemyWalletTransportMock: vi.fn(() => "mock-transport"),
     sendCallsMock,
@@ -121,7 +123,9 @@ describe("CLI execution controls", () => {
     createSmartWalletClientMock.mockReturnValue({
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
-      requestAccount: vi.fn().mockResolvedValue({ address: "0xaaaa" }),
+      requestAccount: vi.fn().mockResolvedValue({
+        address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
     });
     createAlchemySmartAccountMock.mockResolvedValue({
       provider: "ALCHEMY",
@@ -494,6 +498,11 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       mode: "4337",
       sponsorship: "optional",
+    });
+    expect(providerState.account).toMatchObject({
+      ownerAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+      executionAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
   });
 

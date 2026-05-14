@@ -240,6 +240,38 @@ describe("User API", () => {
       });
     });
 
+    it("ensures the wallet account before listing remote threads", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const listThreads = vi.fn(async (): Promise<AomiThread[]> => []);
+
+      setAomiClientConfig({ ensureAccount, listThreads });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0x789",
+          chainId: 8453,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(ensureAccount).toHaveBeenCalledWith(
+          expect.stringMatching(/^control:/),
+          "0x789",
+        );
+      });
+      expect(listThreads).toHaveBeenCalledWith(
+        expect.stringMatching(/^control:/),
+        "0x789",
+      );
+      expect(ensureAccount.mock.invocationCallOrder[0]).toBeLessThan(
+        listThreads.mock.invocationCallOrder[0],
+      );
+    });
+
     it("does not send wallet state changes to the previous wallet thread when the address changes", async () => {
       const listThreads = vi
         .fn<() => Promise<AomiThread[]>>()

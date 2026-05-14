@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AomiClient, Session } from "../src/index";
 import type { AomiChatResponse, AomiStateResponse } from "../src/index";
-import { CLIENT_TYPE_WEB_UI } from "../src/index";
+import { CLIENT_TYPE_WEB_UI, UserState } from "../src/index";
 
 function createMockClient() {
   const client = new AomiClient({ baseUrl: "http://unit.test" });
@@ -199,6 +199,55 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("preserves AA mode and smart account across partial backend user_state snapshots", async () => {
+    const { client, fetchState, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-5c",
+      userState: {
+        address: "0xabc",
+        chain_id: 8453,
+        is_connected: true,
+        aa_mode: "4337",
+        smart_account: "0xsmart",
+      },
+    });
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        address: "0xabc",
+        is_connected: true,
+        pending_txs: {},
+      },
+    } satisfies AomiStateResponse);
+
+    await session.syncUserState();
+    await session.sendAsync("keep aa state");
+
+    expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
+      address: "0xabc",
+      chain_id: 8453,
+      is_connected: true,
+      aa_mode: "4337",
+      smart_account: "0xsmart",
+    });
+
+    session.close();
+  });
+
+  it("normalizes camelCase AA user_state aliases", () => {
+    expect(UserState.normalize({
+      address: "0xabc",
+      aaMode: "4337",
+      smartAccount: "0xsmart",
+    })).toMatchObject({
+      address: "0xabc",
+      aa_mode: "4337",
+      smart_account: "0xsmart",
+    });
+  });
+
   it("warns when backend user_state ext mismatches expected subset", async () => {
     const { client, fetchState } = createMockClient();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -377,6 +426,52 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("dedupes a synthetic single-tx request once the backend wallet event arrives", async () => {
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-7c-dedupe" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        pending_txs: {
+          15: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "42",
+            data: "0x",
+            chain_id: 8453,
+          },
+        },
+      },
+      system_events: [{
+        InlineCall: {
+          type: "wallet_tx_request",
+          payload: {
+            tx_ids: [15],
+            tx_id: "tx:pending:15:123",
+            aa_preference: "auto",
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("queue id-only tx");
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "txreq-tx:pending:15:123",
+        kind: "transaction",
+        payload: expect.objectContaining({
+          txId: 15,
+          txIds: [15],
+          chainId: 8453,
+        }),
+      }),
+    ]);
+
+    session.close();
+  });
+
   it("preserves batched wallet_tx_request payloads across user_state sync", async () => {
     const { client, sendMessage, fetchState } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-7d" });
@@ -511,6 +606,16 @@ describe("ClientSession ext helpers", () => {
     await session.resolve((request as { id: string }).id, {
       kind: "transaction",
       txHash: "0xabc",
+    });
+
+    expect(session.getUserState()).toMatchObject({
+      aa_mode: "7702",
+      smart_account: null,
+      pending_txs: {
+        7: expect.objectContaining({
+          chain_id: 8453,
+        }),
+      },
     });
 
     expect(sendSystemMessage).toHaveBeenCalledWith(

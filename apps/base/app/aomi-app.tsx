@@ -31,7 +31,7 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
         sponsorship={
           resolvedPaymasterServiceUrl
             ? {
-                mode: "required",
+                mode: "optional",
                 paymasterServiceUrl: resolvedPaymasterServiceUrl,
               }
             : undefined
