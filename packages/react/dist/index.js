@@ -1418,6 +1418,31 @@ var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.f
 
 // packages/react/src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
+var getHttpStatus = (error) => {
+  const status = error == null ? void 0 : error.status;
+  if (typeof status === "number") return status;
+  const message = toErrorMessage(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : void 0;
+};
+var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
+var buildPaymentRequiredMessage = () => ({
+  id: `aomi-payment-required-${Date.now()}`,
+  role: "assistant",
+  content: [
+    {
+      type: "text",
+      text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access."
+    }
+  ],
+  createdAt: /* @__PURE__ */ new Date(),
+  metadata: {
+    custom: {
+      aomiNoticeKind: "payment_required",
+      aomiNoticeTitle: "Credits needed"
+    }
+  }
+});
 var getOptimisticStatus = (message) => {
   var _a, _b;
   const status = (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiSendStatus;
@@ -1454,6 +1479,17 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
   if (changed) {
     threadContext.setThreadMessages(threadId, nextMessages);
   }
+};
+var appendPaymentRequiredMessage = (threadContext, threadId) => {
+  var _a, _b;
+  const messages = threadContext.getThreadMessages(threadId);
+  const lastMessage = messages[messages.length - 1];
+  const hasPaymentNotice = ((_b = (_a = lastMessage == null ? void 0 : lastMessage.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+  if (hasPaymentNotice) return;
+  threadContext.setThreadMessages(threadId, [
+    ...messages,
+    buildPaymentRequiredMessage()
+  ]);
 };
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
@@ -1665,7 +1701,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const sendMessage = useCallback5(
     async (text, threadId) => {
-      var _a, _b, _c, _d;
+      var _a, _b, _c, _d, _e, _f, _g, _h;
       const existingMessages = threadContextRef.current.getThreadMessages(threadId);
       const optimisticMessageId = String(existingMessages.length);
       const userMessage = {
@@ -1694,6 +1730,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         await ((_b = (_a = optionsRef.current).prepareThreadForSend) == null ? void 0 : _b.call(_a, threadId));
         const session = getSession(threadId);
         await session.sendAsync(text);
+        (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -1703,8 +1740,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
           optimisticMessageId,
           "sent"
         );
-        (_d = (_c = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _d.call(
-          _c,
+        (_f = (_e = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _f.call(
+          _e,
           session.getPendingRequests()
         );
       } catch (error) {
@@ -1718,6 +1755,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
           "failed",
           error
         );
+        if (isPaymentRequiredError(error)) {
+          appendPaymentRequiredMessage(threadContextRef.current, threadId);
+        }
+        await ((_h = (_g = optionsRef.current).onSendError) == null ? void 0 : _h.call(_g, threadId, error));
         throw error;
       }
     },
@@ -2213,6 +2254,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
           getControlState().clientId,
           resetThreadId != null ? resetThreadId : currentContext.currentThreadId
         );
+        await aomiClientRef.current.ensureAccount(controlSessionId, userAddress);
         const threadList = await aomiClientRef.current.listThreads(
           controlSessionId,
           userAddress
@@ -2373,6 +2415,13 @@ function RuntimeUserStateProvider({
 
 // packages/react/src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
+var getHttpStatus2 = (error) => {
+  const status = error == null ? void 0 : error.status;
+  if (typeof status === "number") return status;
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : void 0;
+};
 function AomiRuntimeCore({
   children,
   aomiClient
@@ -2426,8 +2475,36 @@ function AomiRuntimeCore({
       return (_a = getControlState().clientId) != null ? _a : void 0;
     },
     prepareThreadForSend: async (threadId) => {
-      await ensureBackendThread(threadId);
       await syncCurrentThreadControl();
+      const wasCreated = await ensureBackendThread(threadId);
+      if (wasCreated) {
+        threadsMaterializedForSendRef.current.add(threadId);
+      }
+    },
+    onSendSuccess: (threadId) => {
+      const wasRemote = remoteThreadIdsRef.current.has(threadId);
+      remoteThreadIdsRef.current.add(threadId);
+      warmedThreadIdsRef.current.add(threadId);
+      threadsMaterializedForSendRef.current.delete(threadId);
+      if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
+        void syncCurrentThreadControl().catch((error) => {
+          console.error("Failed to sync thread controls:", error);
+        });
+      }
+    },
+    onSendError: async (threadId, error) => {
+      const wasMaterializedForSend = threadsMaterializedForSendRef.current.has(threadId);
+      threadsMaterializedForSendRef.current.delete(threadId);
+      if (getHttpStatus2(error) !== 402 || !wasMaterializedForSend) {
+        return;
+      }
+      try {
+        await aomiClientRef.current.deleteThread(threadId);
+        remoteThreadIdsRef.current.delete(threadId);
+        warmedThreadIdsRef.current.delete(threadId);
+      } catch (deleteError) {
+        console.error("Failed to delete quota-blocked thread:", deleteError);
+      }
     },
     onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event)
@@ -2438,7 +2515,20 @@ function AomiRuntimeCore({
   const remoteThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
   const warmedThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
   const warmPromisesRef = useRef8(/* @__PURE__ */ new Map());
+  const threadsMaterializedForSendRef = useRef8(/* @__PURE__ */ new Set());
+  const ensuredAccountPublicKeysRef = useRef8(/* @__PURE__ */ new Set());
   const [isThreadLoading, setIsThreadLoading] = useState7(false);
+  const ensureAccountForPublicKey = useCallback8(
+    async (sessionId, publicKey) => {
+      const normalizedPublicKey = publicKey.toLowerCase();
+      if (ensuredAccountPublicKeysRef.current.has(normalizedPublicKey)) {
+        return;
+      }
+      await aomiClientRef.current.ensureAccount(sessionId, publicKey);
+      ensuredAccountPublicKeysRef.current.add(normalizedPublicKey);
+    },
+    [aomiClientRef]
+  );
   const warmThread = useCallback8(
     async (threadId) => {
       if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
@@ -2450,6 +2540,12 @@ function AomiRuntimeCore({
       }
       const warmPromise = (async () => {
         const userState = getUserState();
+        if (UserState3.isConnected(userState)) {
+          const publicKey = UserState3.address(userState);
+          if (publicKey) {
+            await ensureAccountForPublicKey(threadId, publicKey);
+          }
+        }
         await aomiClientRef.current.createThread(
           threadId,
           UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
@@ -2463,20 +2559,27 @@ function AomiRuntimeCore({
         warmPromisesRef.current.delete(threadId);
       }
     },
-    [aomiClientRef, getUserState]
+    [aomiClientRef, ensureAccountForPublicKey, getUserState]
   );
   const ensureBackendThread = useCallback8(
     async (threadId) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return;
+      if (remoteThreadIdsRef.current.has(threadId)) return false;
       const userState = getUserState();
+      if (UserState3.isConnected(userState)) {
+        const publicKey = UserState3.address(userState);
+        if (publicKey) {
+          await ensureAccountForPublicKey(threadId, publicKey);
+        }
+      }
       await aomiClientRef.current.createThread(
         threadId,
         UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
       );
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      return true;
     },
-    [aomiClientRef, getUserState]
+    [aomiClientRef, ensureAccountForPublicKey, getUserState]
   );
   const getRuntimeSession = useCallback8(
     (threadId) => {
@@ -2574,6 +2677,9 @@ function AomiRuntimeCore({
     const showToolNotification = (eventType) => (event) => {
       const payload = event.payload;
       const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
+      if (eventType === "tool_complete" && toolName === "commit_txs") {
+        return;
+      }
       const title = toolName ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}` : eventType === "tool_update" ? "Tool update" : "Tool complete";
       const message = typeof (payload == null ? void 0 : payload.message) === "string" ? payload.message : typeof (payload == null ? void 0 : payload.result) === "string" ? payload.result : void 0;
       notificationContext.showNotification({
@@ -2610,7 +2716,11 @@ function AomiRuntimeCore({
         (part) => part.type === "text"
       ).map((part) => part.text).join("\n");
       if (text) {
-        await orchestratorSendMessage(text, threadContext.currentThreadId);
+        try {
+          await orchestratorSendMessage(text, threadContext.currentThreadId);
+        } catch (error) {
+          console.error("Failed to send message:", error);
+        }
       }
     },
     onCancel: async () => {

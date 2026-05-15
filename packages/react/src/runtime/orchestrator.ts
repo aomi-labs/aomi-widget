@@ -26,6 +26,8 @@ type OrchestratorOptions = {
   getApiKey?: () => string | null;
   getClientId?: () => string | undefined;
   prepareThreadForSend?: (threadId: string) => Promise<void> | void;
+  onSendSuccess?: (threadId: string) => void;
+  onSendError?: (threadId: string, error: unknown) => Promise<void> | void;
   onPendingRequestsChange?: (requests: WalletRequest[]) => void;
   onEvent?: (event: {
     type: string;
@@ -38,6 +40,35 @@ type OptimisticSendStatus = "sending" | "sent" | "failed";
 
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Message failed to send";
+
+const getHttpStatus = (error: unknown): number | undefined => {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status === "number") return status;
+
+  const message = toErrorMessage(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : undefined;
+};
+
+const isPaymentRequiredError = (error: unknown) => getHttpStatus(error) === 402;
+
+const buildPaymentRequiredMessage = (): ThreadMessageLike => ({
+  id: `aomi-payment-required-${Date.now()}`,
+  role: "assistant",
+  content: [
+    {
+      type: "text",
+      text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
+    },
+  ],
+  createdAt: new Date(),
+  metadata: {
+    custom: {
+      aomiNoticeKind: "payment_required",
+      aomiNoticeTitle: "Credits needed",
+    },
+  },
+});
 
 const getOptimisticStatus = (message: ThreadMessageLike) => {
   const status = message.metadata?.custom?.aomiSendStatus;
@@ -95,6 +126,23 @@ const updateOptimisticMessage = (
   if (changed) {
     threadContext.setThreadMessages(threadId, nextMessages);
   }
+};
+
+const appendPaymentRequiredMessage = (
+  threadContext: ThreadContext,
+  threadId: string,
+) => {
+  const messages = threadContext.getThreadMessages(threadId);
+  const lastMessage = messages[messages.length - 1];
+  const hasPaymentNotice =
+    lastMessage?.metadata?.custom?.aomiNoticeKind === "payment_required";
+
+  if (hasPaymentNotice) return;
+
+  threadContext.setThreadMessages(threadId, [
+    ...messages,
+    buildPaymentRequiredMessage(),
+  ]);
 };
 
 export function useRuntimeOrchestrator(
@@ -374,6 +422,7 @@ export function useRuntimeOrchestrator(
         await optionsRef.current.prepareThreadForSend?.(threadId);
         const session = getSession(threadId);
         await session.sendAsync(text);
+        optionsRef.current.onSendSuccess?.(threadId);
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -397,6 +446,10 @@ export function useRuntimeOrchestrator(
           "failed",
           error,
         );
+        if (isPaymentRequiredError(error)) {
+          appendPaymentRequiredMessage(threadContextRef.current, threadId);
+        }
+        await optionsRef.current.onSendError?.(threadId, error);
         throw error;
       }
     },

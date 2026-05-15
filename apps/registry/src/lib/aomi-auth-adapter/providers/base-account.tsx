@@ -174,6 +174,8 @@ function BaseAccountAdapterInner({
             authProvider: "baseAccount",
             primaryLabel: formatAddress(address) ?? "Base Account",
             secondaryLabel: "Base Account",
+            aaMode: "4337",
+            smartAccount: address,
           }
         : {
             ...AOMI_AUTH_DISCONNECTED_IDENTITY,
@@ -215,7 +217,6 @@ function BaseAccountAdapterInner({
                 capabilities,
                 nativeWalletExecution: {
                   executionKind: "base_account_4337",
-                  sendCallsVersion: "1.0",
                   sendCallsTimeoutMs:
                     sponsorship?.mode === "optional" ||
                     sponsorship?.mode === "required"

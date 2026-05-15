@@ -25,7 +25,11 @@ import type {
   AomiSystemEvent,
   AomiPaymentMethod,
 } from "./types";
-import { UserState, type UserState as UserStateShape } from "./types";
+import {
+  UserState,
+  type UserState as UserStateShape,
+  type UserStateAAMode,
+} from "./types";
 import { TypedEventEmitter } from "./event";
 import { unwrapSystemEvent } from "./event";
 import {
@@ -444,6 +448,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         result.aaResolvedMode ??
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
+      this.resolveUserState({
+        ...(this.userState ?? {}),
+        aa_mode: resolvedMode === "none" ? null : resolvedMode,
+        smart_account:
+          resolvedMode === "4337" ? result.smartAccountAddress ?? null : null,
+      });
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash,
         status: "success",
@@ -658,11 +668,20 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.resolveUserState(nextState);
   }
 
-  resolveWallet(address: string, chainId?: number): void {
+  resolveWallet(
+    address: string,
+    chainId?: number,
+    aa?: {
+      aaMode?: UserStateAAMode | null;
+      smartAccount?: string | null;
+    },
+  ): void {
     this.resolveUserState({
       address,
       chain_id: chainId ?? 1,
       is_connected: true,
+      aa_mode: aa?.aaMode ?? null,
+      smart_account: aa?.smartAccount ?? null,
     });
   }
 
@@ -914,7 +933,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction") {
       const nextTxIds = txIdsFromPayload(req.payload);
-      if (nextTxIds.length > 1) {
+      if (nextTxIds.length > 0) {
         const nextTxIdSet = new Set(nextTxIds);
         this.walletRequests = this.walletRequests.filter((request) => {
           if (request.id === id || request.kind !== "transaction") {

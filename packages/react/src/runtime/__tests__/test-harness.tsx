@@ -19,6 +19,7 @@ import type {
 
 export type AomiClientConfig = {
   // New names (match AomiClient API)
+  ensureAccount?: (sessionId: string, publicKey: string) => Promise<void>;
   listThreads?: (sessionId: string, publicKey: string) => Promise<AomiThread[]>;
   fetchState?: (
     sessionId: string,
@@ -88,6 +89,7 @@ const mockState = {
 
 export type MockAomiClientInstance = {
   emitSSEEvent: (event: AomiSSEEvent) => void;
+  ensureAccount: ReturnType<typeof vi.fn>;
   listThreads: ReturnType<typeof vi.fn>;
   fetchState: ReturnType<typeof vi.fn>;
   createThread: ReturnType<typeof vi.fn>;
@@ -136,6 +138,12 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
   // Mock class defined inside the factory
   class MockAomiClient {
     private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
+
+    ensureAccount = vi.fn(async (sessionId: string, publicKey: string) => {
+      if (mockState.config.ensureAccount) {
+        await mockState.config.ensureAccount(sessionId, publicKey);
+      }
+    });
 
     listThreads = vi.fn(async (sessionId: string, publicKey: string) => {
       const fn = mockState.config.listThreads;

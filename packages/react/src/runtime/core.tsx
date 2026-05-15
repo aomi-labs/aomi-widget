@@ -32,6 +32,15 @@ export type AomiRuntimeCoreProps = {
   aomiClient: AomiClient;
 };
 
+const getHttpStatus = (error: unknown): number | undefined => {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status === "number") return status;
+
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : undefined;
+};
+
 // =============================================================================
 // Core Component
 // =============================================================================
@@ -99,8 +108,39 @@ export function AomiRuntimeCore({
     getApiKey: getEffectiveApiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
-      await ensureBackendThread(threadId);
       await syncCurrentThreadControl();
+      const wasCreated = await ensureBackendThread(threadId);
+      if (wasCreated) {
+        threadsMaterializedForSendRef.current.add(threadId);
+      }
+    },
+    onSendSuccess: (threadId) => {
+      const wasRemote = remoteThreadIdsRef.current.has(threadId);
+      remoteThreadIdsRef.current.add(threadId);
+      warmedThreadIdsRef.current.add(threadId);
+      threadsMaterializedForSendRef.current.delete(threadId);
+      if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
+        void syncCurrentThreadControl().catch((error) => {
+          console.error("Failed to sync thread controls:", error);
+        });
+      }
+    },
+    onSendError: async (threadId, error) => {
+      const wasMaterializedForSend =
+        threadsMaterializedForSendRef.current.has(threadId);
+      threadsMaterializedForSendRef.current.delete(threadId);
+
+      if (getHttpStatus(error) !== 402 || !wasMaterializedForSend) {
+        return;
+      }
+
+      try {
+        await aomiClientRef.current.deleteThread(threadId);
+        remoteThreadIdsRef.current.delete(threadId);
+        warmedThreadIdsRef.current.delete(threadId);
+      } catch (deleteError) {
+        console.error("Failed to delete quota-blocked thread:", deleteError);
+      }
     },
     onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event),
@@ -116,7 +156,22 @@ export function AomiRuntimeCore({
   const remoteThreadIdsRef = useRef(new Set<string>());
   const warmedThreadIdsRef = useRef(new Set<string>());
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
+  const threadsMaterializedForSendRef = useRef(new Set<string>());
+  const ensuredAccountPublicKeysRef = useRef(new Set<string>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
+
+  const ensureAccountForPublicKey = useCallback(
+    async (sessionId: string, publicKey: string) => {
+      const normalizedPublicKey = publicKey.toLowerCase();
+      if (ensuredAccountPublicKeysRef.current.has(normalizedPublicKey)) {
+        return;
+      }
+
+      await aomiClientRef.current.ensureAccount(sessionId, publicKey);
+      ensuredAccountPublicKeysRef.current.add(normalizedPublicKey);
+    },
+    [aomiClientRef],
+  );
 
   const warmThread = useCallback(
     async (threadId: string) => {
@@ -134,6 +189,12 @@ export function AomiRuntimeCore({
 
       const warmPromise = (async () => {
         const userState = getUserState();
+        if (UserState.isConnected(userState)) {
+          const publicKey = UserState.address(userState);
+          if (publicKey) {
+            await ensureAccountForPublicKey(threadId, publicKey);
+          }
+        }
         await aomiClientRef.current.createThread(
           threadId,
           UserState.isConnected(userState)
@@ -151,7 +212,7 @@ export function AomiRuntimeCore({
         warmPromisesRef.current.delete(threadId);
       }
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef, ensureAccountForPublicKey, getUserState],
   );
 
   // ---------------------------------------------------------------------------
@@ -159,9 +220,15 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   const ensureBackendThread = useCallback(
     async (threadId: string) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return;
+      if (remoteThreadIdsRef.current.has(threadId)) return false;
 
       const userState = getUserState();
+      if (UserState.isConnected(userState)) {
+        const publicKey = UserState.address(userState);
+        if (publicKey) {
+          await ensureAccountForPublicKey(threadId, publicKey);
+        }
+      }
       await aomiClientRef.current.createThread(
         threadId,
         UserState.isConnected(userState)
@@ -170,8 +237,9 @@ export function AomiRuntimeCore({
       );
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      return true;
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef, ensureAccountForPublicKey, getUserState],
   );
 
   const getRuntimeSession = useCallback(
@@ -296,6 +364,11 @@ export function AomiRuntimeCore({
           typeof payload?.tool_name === "string"
             ? payload.tool_name
             : undefined;
+
+        if (eventType === "tool_complete" && toolName === "commit_txs") {
+          return;
+        }
+
         const title = toolName
           ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}`
           : eventType === "tool_update"
@@ -359,7 +432,11 @@ export function AomiRuntimeCore({
         .map((part) => part.text)
         .join("\n");
       if (text) {
-        await orchestratorSendMessage(text, threadContext.currentThreadId);
+        try {
+          await orchestratorSendMessage(text, threadContext.currentThreadId);
+        } catch (error) {
+          console.error("Failed to send message:", error);
+        }
       }
     },
     onCancel: async () => {

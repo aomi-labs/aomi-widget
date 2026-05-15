@@ -32,6 +32,7 @@ export type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  UserStateAAMode,
   Logger,
 } from "./types";
 
@@ -44,6 +45,8 @@ export {
   addUserStateExt,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
+  getUserStateAAMode,
+  getUserStateSmartAccount,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
