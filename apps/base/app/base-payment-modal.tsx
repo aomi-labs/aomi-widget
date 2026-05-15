@@ -15,6 +15,8 @@ type BasePaymentModalProps = {
   activeAccount?: string;
   dedicatedWallet: DedicatedWalletRecord | null;
   dedicatedWalletConfigured: boolean;
+  dedicatedWalletConfigurationChecking: boolean;
+  dedicatedWalletConfigurationError: string | null;
   dedicatedWalletSignedIn: boolean;
   dedicatedWalletAddress?: string;
   walletAppName: string;
@@ -34,7 +36,9 @@ function formatAddress(address?: string) {
 }
 
 function SectionLabel({ children }: { children: ReactNode }) {
-  return <div className="text-muted-foreground text-xs uppercase">{children}</div>;
+  return (
+    <div className="text-muted-foreground text-xs uppercase">{children}</div>
+  );
 }
 
 export function BasePaymentModal({
@@ -43,6 +47,8 @@ export function BasePaymentModal({
   activeAccount,
   dedicatedWallet,
   dedicatedWalletConfigured,
+  dedicatedWalletConfigurationChecking,
+  dedicatedWalletConfigurationError,
   dedicatedWalletSignedIn,
   dedicatedWalletAddress,
   walletAppName,
@@ -57,7 +63,8 @@ export function BasePaymentModal({
 }: BasePaymentModalProps) {
   if (!open) return null;
 
-  const currentDedicatedAddress = dedicatedWalletAddress ?? dedicatedWallet?.address;
+  const currentDedicatedAddress =
+    dedicatedWalletAddress ?? dedicatedWallet?.address;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
@@ -65,9 +72,9 @@ export function BasePaymentModal({
         <div className="space-y-1">
           <div className="text-lg font-semibold">Payment required</div>
           <p className="text-muted-foreground text-sm">
-            Your free chat quota is exhausted. Pay this x402 request once with the
-            connected wallet, or switch to a dedicated Coinbase wallet for later
-            paid chats.
+            Your free chat quota is exhausted. Pay this x402 request once with
+            the connected wallet, or switch to a dedicated Coinbase wallet for
+            later paid chats.
           </p>
         </div>
 
@@ -75,10 +82,12 @@ export function BasePaymentModal({
           <div className="mt-4 grid gap-3">
             <div className="rounded-2xl border p-3 text-sm">
               <SectionLabel>Connected wallet</SectionLabel>
-              <div className="mt-1 font-mono">{formatAddress(activeAccount)}</div>
+              <div className="mt-1 font-mono">
+                {formatAddress(activeAccount)}
+              </div>
               <p className="text-muted-foreground mt-2 text-xs">
-                This path keeps the current {walletAppName} Base Account and signs
-                the x402 payment only for this blocked request.
+                This path keeps the current {walletAppName} Base Account and
+                signs the x402 payment only for this blocked request.
               </p>
             </div>
 
@@ -110,13 +119,19 @@ export function BasePaymentModal({
               </p>
             </div>
 
-            {dedicatedWalletConfigured ? (
+            {dedicatedWalletConfigurationChecking ? (
+              <div className="rounded-2xl border p-3 text-sm">
+                <p className="text-muted-foreground text-xs">
+                  Checking Coinbase embedded-wallet configuration...
+                </p>
+              </div>
+            ) : dedicatedWalletConfigured ? (
               dedicatedWalletSignedIn && dedicatedWalletAddress ? (
                 <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
                   <div className="font-medium text-emerald-700 dark:text-emerald-300">
                     Dedicated wallet ready
                   </div>
-                  <div className="mt-1 font-mono text-xs break-all">
+                  <div className="mt-1 break-all font-mono text-xs">
                     {dedicatedWalletAddress}
                   </div>
                   <p className="text-muted-foreground mt-2 text-xs">
@@ -127,8 +142,8 @@ export function BasePaymentModal({
               ) : (
                 <div className="rounded-2xl border p-3 text-sm">
                   <p className="text-muted-foreground text-xs">
-                    Sign in with Coinbase to create or restore the dedicated x402
-                    wallet for this app.
+                    Sign in with Coinbase to create or restore the dedicated
+                    x402 wallet for this app.
                   </p>
                   <div className="mt-3">
                     <SignInModal>
@@ -143,16 +158,20 @@ export function BasePaymentModal({
                 </div>
               )
             ) : (
-              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                Set <code>NEXT_PUBLIC_CDP_PROJECT_ID</code> to enable the dedicated
-                Coinbase wallet path.
+              <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-2xl border p-3 text-sm">
+                {dedicatedWalletConfigurationError ?? (
+                  <>
+                    Set <code>NEXT_PUBLIC_CDP_PROJECT_ID</code> to enable the
+                    dedicated Coinbase wallet path.
+                  </>
+                )}
               </div>
             )}
           </div>
         )}
 
         {error ? (
-          <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="border-destructive/30 bg-destructive/10 text-destructive mt-4 rounded-2xl border p-3 text-sm">
             {error}
           </div>
         ) : null}
@@ -184,7 +203,12 @@ export function BasePaymentModal({
               <button
                 type="button"
                 onClick={onSelectDedicatedWallet}
-                disabled={!dedicatedWalletSignedIn || !dedicatedWalletAddress}
+                disabled={
+                  dedicatedWalletConfigurationChecking ||
+                  !dedicatedWalletConfigured ||
+                  !dedicatedWalletSignedIn ||
+                  !dedicatedWalletAddress
+                }
                 className="hover:bg-accent rounded-2xl border px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50"
               >
                 Use this dedicated wallet
@@ -194,6 +218,8 @@ export function BasePaymentModal({
                 onClick={onPayWithDedicatedWallet}
                 disabled={
                   busyAction !== null ||
+                  dedicatedWalletConfigurationChecking ||
+                  !dedicatedWalletConfigured ||
                   !dedicatedWalletSignedIn ||
                   !dedicatedWalletAddress
                 }

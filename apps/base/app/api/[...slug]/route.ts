@@ -14,7 +14,9 @@ const HOP_BY_HOP_HEADERS = new Set([
 const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
   "content-type",
+  "payment-signature",
   "x-api-key",
+  "x-payment",
   "x-session-id",
 ]);
 

@@ -31,6 +31,7 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
       <CoinbaseDedicatedWalletProvider>
         <AomiBaseAccountProvider
           appName={walletAppName}
+          includeBaseSepolia
           sponsorship={
             resolvedPaymasterServiceUrl
               ? {

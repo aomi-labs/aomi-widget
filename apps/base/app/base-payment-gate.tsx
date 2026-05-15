@@ -60,6 +60,12 @@ type BaseProvider = {
 const DEDICATED_WALLET_STORAGE_KEY = "aomi_base_dedicated_wallet";
 const BASE_MAINNET_HEX_CHAIN_ID = `0x${base.id.toString(16)}`;
 
+function stringifyTypedDataForRpc(value: unknown): string {
+  return JSON.stringify(value, (_key, entry) =>
+    typeof entry === "bigint" ? entry.toString() : entry,
+  );
+}
+
 function shouldOpenPaymentModal(response: Response): boolean {
   if (response.status === 402) return true;
   const paymentState = response.headers.get("x-aomi-payment-state");
@@ -82,11 +88,14 @@ function isChatRequest(input: RequestInfo | URL): boolean {
   return url.pathname === "/api/chat";
 }
 
-function setPaymentMethodToCoinbase(input: RequestInfo | URL): RequestInfo | URL {
+function setPaymentMethodToCoinbase(
+  input: RequestInfo | URL,
+): RequestInfo | URL {
   if (typeof input === "string") {
-    const url = input.startsWith("http://") || input.startsWith("https://")
-      ? new URL(input)
-      : new URL(input, "http://_internal_/");
+    const url =
+      input.startsWith("http://") || input.startsWith("https://")
+        ? new URL(input)
+        : new URL(input, "http://_internal_/");
     if (url.searchParams.has("payment_method")) return input;
     url.searchParams.set("payment_method", "coinbase");
     if (input.startsWith("http://") || input.startsWith("https://")) {
@@ -133,7 +142,9 @@ function formatAddress(address?: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-async function readX402ChallengeError(response: Response): Promise<string | null> {
+async function readX402ChallengeError(
+  response: Response,
+): Promise<string | null> {
   const paymentRequired = response.headers.get("payment-required");
   if (paymentRequired) return null;
 
@@ -168,6 +179,71 @@ async function readX402ChallengeError(response: Response): Promise<string | null
   }
 
   return detail;
+}
+
+function parsePaymentRequiredHeader(
+  headerValue: string | null,
+): {
+  error?: string;
+  accepts?: Array<{
+    amount?: string;
+    asset?: string;
+    network?: string;
+    extra?: {
+      name?: string;
+    };
+  }>;
+} | null {
+  if (!headerValue) return null;
+  try {
+    const binary = globalThis.atob(headerValue.trim());
+    const bytes = Uint8Array.from(binary, (character) =>
+      character.charCodeAt(0),
+    );
+    return JSON.parse(new TextDecoder().decode(bytes)) as { error?: string };
+  } catch {
+    return null;
+  }
+}
+
+function describeKnownX402Error(
+  error: string,
+  paymentRequired: ReturnType<typeof parsePaymentRequiredHeader>,
+): string {
+  const requirement = paymentRequired?.accepts?.[0];
+  const assetName = requirement?.extra?.name?.trim() || "the payment asset";
+  const network =
+    requirement?.network === "eip155:84532"
+      ? "Base Sepolia"
+      : requirement?.network;
+
+  if (error === "invalid_exact_evm_insufficient_balance") {
+    if (network) {
+      return `The selected wallet does not have enough ${assetName} on ${network} to pay this x402 request.`;
+    }
+    return `The selected wallet does not have enough ${assetName} to pay this x402 request.`;
+  }
+
+  return error;
+}
+
+async function readX402PaymentError(response: Response): Promise<string> {
+  const paymentRequired = parsePaymentRequiredHeader(
+    response.headers.get("payment-required"),
+  );
+  const headerError = paymentRequired?.error?.trim();
+  if (headerError) {
+    return describeKnownX402Error(headerError, paymentRequired);
+  }
+
+  try {
+    const text = (await response.clone().text()).trim();
+    if (text) return text;
+  } catch {
+    // Ignore body read failures and use the generic message below.
+  }
+
+  return "The backend rejected the x402 payment.";
 }
 
 function BasePaymentRuntimeSync({
@@ -234,17 +310,20 @@ export function BasePaymentGate({
     }
   }, []);
 
-  const persistDedicatedWallet = useCallback((next: DedicatedWalletRecord | null) => {
-    setDedicatedWallet(next);
-    if (!next) {
-      globalThis.localStorage?.removeItem(DEDICATED_WALLET_STORAGE_KEY);
-      return;
-    }
-    globalThis.localStorage?.setItem(
-      DEDICATED_WALLET_STORAGE_KEY,
-      JSON.stringify(next),
-    );
-  }, []);
+  const persistDedicatedWallet = useCallback(
+    (next: DedicatedWalletRecord | null) => {
+      setDedicatedWallet(next);
+      if (!next) {
+        globalThis.localStorage?.removeItem(DEDICATED_WALLET_STORAGE_KEY);
+        return;
+      }
+      globalThis.localStorage?.setItem(
+        DEDICATED_WALLET_STORAGE_KEY,
+        JSON.stringify(next),
+      );
+    },
+    [],
+  );
 
   const resolvePendingWithOriginal = useCallback(() => {
     const pending = pendingRequestRef.current;
@@ -260,21 +339,23 @@ export function BasePaymentGate({
     pending.reject(new Error(message));
   }, []);
 
-  const settlePending = useCallback(
-    async (fetcher: FetchLike) => {
-      const pending = pendingRequestRef.current;
-      if (!pending) return;
-      const challengeError = await readX402ChallengeError(pending.originalResponse);
-      if (challengeError) {
-        throw new Error(challengeError);
-      }
-      const [nextInput, nextInit] = cloneRequestInfo(pending.input, pending.init);
-      const response = await fetcher(nextInput, nextInit);
-      pendingRequestRef.current = null;
-      pending.resolve(response);
-    },
-    [],
-  );
+  const settlePending = useCallback(async (fetcher: FetchLike) => {
+    const pending = pendingRequestRef.current;
+    if (!pending) return;
+    const challengeError = await readX402ChallengeError(
+      pending.originalResponse,
+    );
+    if (challengeError) {
+      throw new Error(challengeError);
+    }
+    const [nextInput, nextInit] = cloneRequestInfo(pending.input, pending.init);
+    const response = await fetcher(nextInput, nextInit);
+    if (response.status === 402) {
+      throw new Error(await readX402PaymentError(response));
+    }
+    pendingRequestRef.current = null;
+    pending.resolve(response);
+  }, []);
 
   const buildBaseAccountX402Fetch = useCallback(
     async (expectedAddress?: string): Promise<FetchLike> => {
@@ -322,10 +403,12 @@ export function BasePaymentGate({
           ) {
             await switchChainAsync({ chainId: requestedChainId });
           } else if (requestedChainId === base.id) {
-            await provider.request({
-              method: "wallet_switchEthereumChain",
-              params: [{ chainId: BASE_MAINNET_HEX_CHAIN_ID }],
-            }).catch(() => undefined);
+            await provider
+              .request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: BASE_MAINNET_HEX_CHAIN_ID }],
+              })
+              .catch(() => undefined);
           }
 
           const typedData = {
@@ -337,7 +420,7 @@ export function BasePaymentGate({
 
           const signature = await provider.request({
             method: "eth_signTypedData_v4",
-            params: [signerAddress, JSON.stringify(typedData)],
+            params: [signerAddress, stringifyTypedDataForRpc(typedData)],
           });
 
           if (typeof signature !== "string") {
@@ -365,6 +448,7 @@ export function BasePaymentGate({
       if (
         !dedicatedWallet ||
         !dedicatedWalletClient.isConfigured ||
+        dedicatedWalletClient.isConfigurationChecking ||
         !dedicatedWalletClient.isSignedIn ||
         !dedicatedWalletClient.fetchWithPayment ||
         !dedicatedWalletClient.evmAddress
@@ -380,7 +464,14 @@ export function BasePaymentGate({
       }
 
       const [nextInput, nextInit] = cloneRequestInfo(requestInput, init);
-      return await dedicatedWalletClient.fetchWithPayment(nextInput, nextInit);
+      const response = await dedicatedWalletClient.fetchWithPayment(
+        nextInput,
+        nextInit,
+      );
+      if (response.status === 402) {
+        throw new Error(await readX402PaymentError(response));
+      }
+      return response;
     },
     [dedicatedWallet, dedicatedWalletClient],
   );
@@ -427,11 +518,21 @@ export function BasePaymentGate({
   }, []);
 
   const handleSelectDedicatedWallet = useCallback(() => {
-    if (!dedicatedWalletClient.isConfigured) {
-      setError("Set NEXT_PUBLIC_CDP_PROJECT_ID before using the dedicated wallet path.");
+    if (dedicatedWalletClient.isConfigurationChecking) {
+      setError("Coinbase embedded wallet configuration is still loading.");
       return;
     }
-    if (!dedicatedWalletClient.isSignedIn || !dedicatedWalletClient.evmAddress) {
+    if (!dedicatedWalletClient.isConfigured) {
+      setError(
+        dedicatedWalletClient.configurationError ??
+          "Set NEXT_PUBLIC_CDP_PROJECT_ID before using the dedicated wallet path.",
+      );
+      return;
+    }
+    if (
+      !dedicatedWalletClient.isSignedIn ||
+      !dedicatedWalletClient.evmAddress
+    ) {
       setError("Sign in to the Coinbase embedded wallet first.");
       return;
     }
@@ -448,10 +549,24 @@ export function BasePaymentGate({
     setError(null);
     setBusyAction("dedicated_pay");
     try {
-      if (!dedicatedWalletClient.isConfigured || !dedicatedWalletClient.fetchWithPayment) {
-        throw new Error("Coinbase embedded wallet is not configured.");
+      if (dedicatedWalletClient.isConfigurationChecking) {
+        throw new Error(
+          "Coinbase embedded wallet configuration is still loading.",
+        );
       }
-      if (!dedicatedWalletClient.isSignedIn || !dedicatedWalletClient.evmAddress) {
+      if (
+        !dedicatedWalletClient.isConfigured ||
+        !dedicatedWalletClient.fetchWithPayment
+      ) {
+        throw new Error(
+          dedicatedWalletClient.configurationError ??
+            "Coinbase embedded wallet is not configured.",
+        );
+      }
+      if (
+        !dedicatedWalletClient.isSignedIn ||
+        !dedicatedWalletClient.evmAddress
+      ) {
         throw new Error("Sign in to the Coinbase embedded wallet first.");
       }
 
@@ -496,16 +611,17 @@ export function BasePaymentGate({
         return response;
       }
 
-      const dedicatedResponse = await maybePayWithDedicatedWallet(requestInput, init).catch(
-        (paymentError) => {
-          setError(
-            paymentError instanceof Error
-              ? paymentError.message
-              : "Dedicated wallet payment failed.",
-          );
-          return null;
-        },
-      );
+      const dedicatedResponse = await maybePayWithDedicatedWallet(
+        requestInput,
+        init,
+      ).catch((paymentError) => {
+        setError(
+          paymentError instanceof Error
+            ? paymentError.message
+            : "Dedicated wallet payment failed.",
+        );
+        return null;
+      });
       if (dedicatedResponse) {
         return dedicatedResponse;
       }
@@ -537,8 +653,10 @@ export function BasePaymentGate({
     <>
       <BasePaymentRuntimeSync dedicatedWallet={dedicatedWallet} />
       {dedicatedWallet ? (
-        <div className="fixed left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-background/90 px-3 py-1 text-xs shadow-sm backdrop-blur">
-          <span>Dedicated x402 wallet: {formatAddress(dedicatedWallet.address)}</span>
+        <div className="bg-background/90 fixed left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm backdrop-blur">
+          <span>
+            Dedicated x402 wallet: {formatAddress(dedicatedWallet.address)}
+          </span>
           <button
             type="button"
             onClick={clearDedicatedWallet}
@@ -554,6 +672,12 @@ export function BasePaymentGate({
         activeAccount={address}
         dedicatedWallet={dedicatedWallet}
         dedicatedWalletConfigured={dedicatedWalletClient.isConfigured}
+        dedicatedWalletConfigurationChecking={
+          dedicatedWalletClient.isConfigurationChecking
+        }
+        dedicatedWalletConfigurationError={
+          dedicatedWalletClient.configurationError
+        }
         dedicatedWalletSignedIn={dedicatedWalletClient.isSignedIn}
         dedicatedWalletAddress={dedicatedWalletClient.evmAddress}
         walletAppName={walletAppName}
