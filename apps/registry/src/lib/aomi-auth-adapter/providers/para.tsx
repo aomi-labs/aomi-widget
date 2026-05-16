@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Environment,
   ParaProvider,
@@ -67,7 +67,13 @@ import {
   useSafeWagmiConfig,
   useSafeWalletClient,
 } from "../safe-wagmi-hooks";
-import type { AomiAuthAdapter, AomiAuthIdentity, AomiAuthMethod } from "../types";
+import type {
+  AomiAuthAdapter,
+  AomiAuthIdentity,
+  AomiAuthMethod,
+  AomiAAMode,
+  AomiWalletKind,
+} from "../types";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -446,17 +452,37 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     [wagmiConfig.chains],
   );
 
+  const embeddedWallet0 = paraAccount.embedded.wallets?.[0] as
+    | { address?: string }
+    | undefined;
+  const connectedAddress =
+    wagmiAddress ??
+    paraAccount.external.evm?.address ??
+    embeddedWallet0?.address ??
+    undefined;
+
+  // Post-tx AA context, captured from the wallet-execution result. Drives
+  // identity.aaMode / SmartAccount4337 / Delegation7702 / walletKind so the
+  // UI and the bot see the same thing after a tx (no UserState-vs-identity
+  // divergence). Reset whenever the connected address or chain changes.
+  type ResolvedAA = {
+    aaMode: AomiAAMode;
+    walletKind: AomiWalletKind;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
+  };
+  const [resolvedAA, setResolvedAA] = useState<ResolvedAA | null>(null);
+  useEffect(() => {
+    setResolvedAA(null);
+  }, [connectedAddress, chainId]);
+
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
     const isBooting = paraAccount.isLoading && !isConnected;
 
-    const embeddedWallet = paraAccount.embedded.wallets?.[0] as
-      | { address?: string }
-      | undefined;
-    const embeddedAddress = embeddedWallet?.address;
+    const embeddedAddress = embeddedWallet0?.address;
     const externalAddress = paraAccount.external.evm?.address;
-    const address =
-      wagmiAddress ?? externalAddress ?? embeddedAddress ?? undefined;
+    const address = connectedAddress;
     const walletProvider = "para" as const;
     const oauthMethod = inferAuthMethod(paraAccount.embedded.authMethods);
     // External wallet flow (WalletConnect / wagmi-injected via Para) has no
@@ -481,8 +507,10 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
             status: "connected",
             isConnected: true,
             address,
-            walletKind: "eoa",
-            aaMode: "none",
+            walletKind: resolvedAA?.walletKind ?? "eoa",
+            aaMode: resolvedAA?.aaMode ?? "none",
+            SmartAccount4337: resolvedAA?.SmartAccount4337,
+            Delegation7702: resolvedAA?.Delegation7702,
             sponsored,
             sponsorProvider,
             sponsorAccount,
@@ -533,8 +561,8 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
           }
         : undefined,
       sendTransaction: sendTransactionAsync
-        ? async (payload: WalletTxPayload) =>
-            executeAdapterTransaction({
+        ? async (payload: WalletTxPayload) => {
+            const result = await executeAdapterTransaction({
               payload,
               state: {
                 currentChainId: chainId,
@@ -555,7 +583,19 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
                   walletClient,
                   address,
                 }),
-            })
+            });
+            const resolved = result.aaResolvedMode ?? "none";
+            setResolvedAA({
+              aaMode: resolved,
+              walletKind:
+                resolved === "4337" && address === result.SmartAccount4337
+                  ? "smart-account"
+                  : "eoa",
+              SmartAccount4337: result.SmartAccount4337,
+              Delegation7702: result.Delegation7702,
+            });
+            return result;
+          }
         : undefined,
       signTypedData: signTypedDataAsync
         ? async (payload: WalletEip712Payload) => {
@@ -598,7 +638,9 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     capabilities,
     chainId,
     chainsById,
+    connectedAddress,
     connector,
+    embeddedWallet0,
     isPending,
     paraAccount.embedded,
     paraAccount.external,
@@ -606,6 +648,7 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     paraAccount.isLoading,
     paraModal,
     paraSession,
+    resolvedAA,
     sendCallsSyncAsync,
     sendTransactionAsync,
     signTypedDataAsync,

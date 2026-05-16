@@ -500,9 +500,8 @@ describe("CLI execution controls", () => {
       sponsorship: "optional",
     });
     expect(providerState.account).toMatchObject({
-      ownerAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
-      executionAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
   });
 

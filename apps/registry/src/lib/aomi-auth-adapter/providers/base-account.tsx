@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Chain } from "viem";
 import { http } from "viem";
@@ -27,7 +27,12 @@ import {
   useSafeWagmiAccount,
   useSafeWagmiConfig,
 } from "../safe-wagmi-hooks";
-import type { AomiAuthAdapter, AomiAuthIdentity } from "../types";
+import type {
+  AomiAuthAdapter,
+  AomiAuthIdentity,
+  AomiAAMode,
+  AomiWalletKind,
+} from "../types";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -159,6 +164,20 @@ function BaseAccountAdapterInner({
     [wagmiConfig.chains],
   );
 
+  // Post-tx AA context, captured from the wallet-execution result. Drives
+  // identity so the UI and the bot see the same thing after a tx. Reset on
+  // address or chain change.
+  type ResolvedAA = {
+    aaMode: AomiAAMode;
+    walletKind: AomiWalletKind;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
+  };
+  const [resolvedAA, setResolvedAA] = useState<ResolvedAA | null>(null);
+  useEffect(() => {
+    setResolvedAA(null);
+  }, [address, chainId]);
+
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const sponsorshipEnabled =
       sponsorship?.mode === "optional" || sponsorship?.mode === "required";
@@ -172,8 +191,10 @@ function BaseAccountAdapterInner({
             status: "connected",
             isConnected: true,
             address,
-            walletKind: "smart-account",
-            aaMode: "4337",
+            walletKind: resolvedAA?.walletKind ?? "smart-account",
+            aaMode: resolvedAA?.aaMode ?? "4337",
+            SmartAccount4337: resolvedAA?.SmartAccount4337 ?? address,
+            Delegation7702: resolvedAA?.Delegation7702,
             sponsored: sponsorshipEnabled,
             sponsorProvider: sponsorshipEnabled ? "coinbase" : "self",
             sponsorAccount: undefined,
@@ -213,8 +234,8 @@ function BaseAccountAdapterInner({
           }
         : undefined,
       sendTransaction: sendTransactionAsync
-        ? async (payload: WalletTxPayload) =>
-            executeAdapterTransaction({
+        ? async (payload: WalletTxPayload) => {
+            const result = await executeAdapterTransaction({
               payload,
               state: {
                 currentChainId: chainId,
@@ -250,7 +271,16 @@ function BaseAccountAdapterInner({
                 chainsById,
                 getPreferredRpcUrl,
               },
-            })
+            });
+            const resolved = result.aaResolvedMode ?? "4337";
+            setResolvedAA({
+              aaMode: resolved,
+              walletKind: "smart-account",
+              SmartAccount4337: result.SmartAccount4337 ?? address,
+              Delegation7702: result.Delegation7702,
+            });
+            return result;
+          }
         : undefined,
       signTypedData: signTypedDataAsync
         ? async (payload: WalletEip712Payload) => {
@@ -275,6 +305,7 @@ function BaseAccountAdapterInner({
     isConnecting,
     isDisconnecting,
     isSwitchingChain,
+    resolvedAA,
     sendCallsSyncAsync,
     sendTransactionAsync,
     signTypedDataAsync,

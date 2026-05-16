@@ -105,9 +105,23 @@ async function createAlchemySdkState(params: {
     };
   }
 
+  const ownerAddress = "address" in params.ownerParams
+    ? (params.ownerParams.address as Hex | undefined)
+    : undefined;
+  if (!ownerAddress) {
+    return {
+      resolved: params.resolved,
+      account: null,
+      pending: false,
+      error: new Error(
+        "Alchemy AA session owner is missing a wallet address. Connect a wallet first.",
+      ),
+    };
+  }
+
   return {
     resolved: params.resolved,
-    account: adaptSmartAccount(smartAccount),
+    account: adaptSmartAccount(smartAccount, ownerAddress),
     pending: false,
     error: null,
   };
@@ -333,14 +347,10 @@ async function createAlchemyWalletApisState(
   const smartAccount: SmartAccount = {
     provider: "alchemy",
     mode: params.resolved.mode,
-    ownerAddress: signerAddress,
-    executionAddress:
-      params.resolved.mode === "4337" ? accountAddress : signerAddress,
-    AAAddress: accountAddress,
-    Delegation7702:
-      params.resolved.mode === "7702"
-        ? ALCHEMY_7702_DELEGATION_ADDRESS
-        : undefined,
+    address: signerAddress,
+    ...(params.resolved.mode === "4337"
+      ? { SmartAccount4337: accountAddress }
+      : { Delegation7702: ALCHEMY_7702_DELEGATION_ADDRESS }),
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls),
   };
