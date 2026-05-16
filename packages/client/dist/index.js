@@ -176,6 +176,9 @@ var UserState;
     if (!hasOwnKey(incoming, "delegation_7702") && canPreserveAAContext && Delegation7702(previous) !== void 0) {
       reconciled.delegation_7702 = Delegation7702(previous);
     }
+    if (!hasOwnKey(incoming, "ens_name") && canPreserveAAContext && ensName(previous) !== void 0) {
+      reconciled.ens_name = ensName(previous);
+    }
     if (!hasOwnKey(incoming, "wallet_provider") && canPreserveAAContext && walletProvider(previous) !== void 0) {
       reconciled.wallet_provider = walletProvider(previous);
     }
@@ -240,6 +243,12 @@ var UserState;
     return typeof isConnected2 === "boolean" ? isConnected2 : void 0;
   }
   UserState2.isConnected = isConnected;
+  function ensName(userState) {
+    const normalized = normalize(userState);
+    const value = normalized == null ? void 0 : normalized.ens_name;
+    return typeof value === "string" && value.length > 0 ? value : void 0;
+  }
+  UserState2.ensName = ensName;
   function walletProvider(userState) {
     const normalized = normalize(userState);
     return parseUserStateWalletProvider(normalized == null ? void 0 : normalized.wallet_provider);
@@ -278,6 +287,9 @@ var UserState;
   }
   UserState2.withExt = withExt;
 })(UserState || (UserState = {}));
+function getUserStateEnsName(userState) {
+  return UserState.ensName(userState);
+}
 function getUserStateWalletKind(userState) {
   return UserState.walletKind(userState);
 }
@@ -3572,6 +3584,7 @@ export {
   getUserStateAAMode,
   getUserStateAuthMethod,
   getUserStateDelegation7702,
+  getUserStateEnsName,
   getUserStateSmartAccount4337,
   getUserStateSponsorAccount,
   getUserStateSponsorProvider,

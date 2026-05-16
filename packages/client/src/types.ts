@@ -41,12 +41,23 @@ export interface UserState extends Record<string, unknown> {
   delegation_7702?: string | null;
   chain_id?: number | string | null;
   is_connected?: boolean | null;
+  ens_name?: string | null;
   svm_address?: string | null;
   wallet_provider?: UserStateWalletProvider | null;
   auth_method?: UserStateAuthMethod | null;
   sponsored?: boolean | null;
   sponsor_provider?: UserStateSponsorProvider | null;
   sponsor_account?: string | null;
+
+  /**
+   * Backend-pushed in-flight wallet requests. Shape is owned by the backend;
+   * parsed by helpers like `pendingTxsFromBackendUserState`. The client
+   * forwards them transparently via reconciliation.
+   */
+  pending_txs?: Record<string, unknown> | null;
+  pending_eip712s?: Record<string, unknown> | null;
+  pending_solana_txs?: Record<string, unknown> | null;
+  next_id?: number | null;
 }
 
 /**
@@ -306,6 +317,14 @@ export namespace UserState {
     }
 
     if (
+      !hasOwnKey(incoming, "ens_name") &&
+      canPreserveAAContext &&
+      ensName(previous) !== undefined
+    ) {
+      reconciled.ens_name = ensName(previous);
+    }
+
+    if (
       !hasOwnKey(incoming, "wallet_provider") &&
       canPreserveAAContext &&
       walletProvider(previous) !== undefined
@@ -408,6 +427,12 @@ export namespace UserState {
     return typeof isConnected === "boolean" ? isConnected : undefined;
   }
 
+  export function ensName(userState?: UserState | null): string | undefined {
+    const normalized = normalize(userState);
+    const value = normalized?.ens_name;
+    return typeof value === "string" && value.length > 0 ? value : undefined;
+  }
+
   export function walletProvider(
     userState?: UserState | null,
   ): UserStateWalletProvider | null | undefined {
@@ -486,6 +511,12 @@ export function getUserStateChainId(
   userState?: UserState | null,
 ): number | undefined {
   return UserState.chainId(userState);
+}
+
+export function getUserStateEnsName(
+  userState?: UserState | null,
+): string | undefined {
+  return UserState.ensName(userState);
 }
 
 export function getUserStateWalletKind(
