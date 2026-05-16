@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Environment,
   ParaProvider,
@@ -44,7 +44,7 @@ import type {
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "@aomi-labs/react";
-import { toViemSignTypedDataArgs } from "@aomi-labs/react";
+import { toViemSignTypedDataArgs, UserState, useUser } from "@aomi-labs/react";
 import {
   createAAProviderState,
   type AAMode,
@@ -71,8 +71,6 @@ import type {
   AomiAuthAdapter,
   AomiAuthIdentity,
   AomiAuthMethod,
-  AomiAAMode,
-  AomiWalletKind,
 } from "../types";
 import {
   executeAdapterTransaction,
@@ -461,20 +459,16 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     embeddedWallet0?.address ??
     undefined;
 
-  // Post-tx AA context, captured from the wallet-execution result. Drives
-  // identity.aaMode / SmartAccount4337 / Delegation7702 / walletKind so the
-  // UI and the bot see the same thing after a tx (no UserState-vs-identity
-  // divergence). Reset whenever the connected address or chain changes.
-  type ResolvedAA = {
-    aaMode: AomiAAMode;
-    walletKind: AomiWalletKind;
-    SmartAccount4337?: string;
-    Delegation7702?: string;
-  };
-  const [resolvedAA, setResolvedAA] = useState<ResolvedAA | null>(null);
-  useEffect(() => {
-    setResolvedAA(null);
-  }, [connectedAddress, chainId]);
+  // Per-tx AA fields are session-owned: `session.ts` writes them to UserState
+  // on tx-complete and we read them back via `useUser()`. UserState is the
+  // single source of truth so identity rehydrates correctly after remount.
+  // walletKind stays "eoa" for Para regardless of mode (Para wallets are EOAs
+  // — even when a tx upgrades to 4337, the connected address differs from
+  // the derived smart account address).
+  const { user } = useUser();
+  const userAAMode = UserState.aaMode(user);
+  const userSmartAccount4337 = UserState.SmartAccount4337(user);
+  const userDelegation7702 = UserState.Delegation7702(user);
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
@@ -507,10 +501,10 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
             status: "connected",
             isConnected: true,
             address,
-            walletKind: resolvedAA?.walletKind ?? "eoa",
-            aaMode: resolvedAA?.aaMode ?? "none",
-            SmartAccount4337: resolvedAA?.SmartAccount4337,
-            Delegation7702: resolvedAA?.Delegation7702,
+            walletKind: "eoa",
+            aaMode: userAAMode ?? "none",
+            SmartAccount4337: userSmartAccount4337 ?? undefined,
+            Delegation7702: userDelegation7702 ?? undefined,
             sponsored,
             sponsorProvider,
             sponsorAccount,
@@ -584,16 +578,8 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
                   address,
                 }),
             });
-            const resolved = result.aaResolvedMode ?? "none";
-            setResolvedAA({
-              aaMode: resolved,
-              walletKind:
-                resolved === "4337" && address === result.SmartAccount4337
-                  ? "smart-account"
-                  : "eoa",
-              SmartAccount4337: result.SmartAccount4337,
-              Delegation7702: result.Delegation7702,
-            });
+            // session.ts writes aa_mode / smart_account_4337 / delegation_7702
+            // to UserState on tx-complete; identity rereads them via useUser.
             return result;
           }
         : undefined,
@@ -648,13 +634,15 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     paraAccount.isLoading,
     paraModal,
     paraSession,
-    resolvedAA,
     sendCallsSyncAsync,
     sendTransactionAsync,
     signTypedDataAsync,
     solanaWallet.publicKey,
     solanaWallet.signTransaction,
     switchChainAsync,
+    userAAMode,
+    userDelegation7702,
+    userSmartAccount4337,
     wagmiAddress,
     wagmiConfig.chains,
     wagmiConnected,

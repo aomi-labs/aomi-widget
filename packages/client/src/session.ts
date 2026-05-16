@@ -433,18 +433,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         result.aaResolvedMode ??
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
-      const currentAddress = UserState.address(this.userState);
-      const normalizedWalletKind =
-        UserState.walletKind(this.userState) ??
-        (resolvedMode === "4337" &&
-        currentAddress === result.SmartAccount4337
-          ? "smart-account"
-          : currentAddress
-            ? "eoa"
-            : null);
+      // wallet_kind is provider-owned (constant per platform: Base="smart-account",
+      // Para="eoa") and forwarded via runtime-user-sync. Session only writes
+      // per-tx-mutable fields here.
       this.resolveUserState({
         ...(this.userState ?? {}),
-        wallet_kind: normalizedWalletKind,
         aa_mode: resolvedMode,
         smart_account_4337:
           resolvedMode === "4337" ? result.SmartAccount4337 ?? null : null,

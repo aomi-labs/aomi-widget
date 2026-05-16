@@ -1775,7 +1775,7 @@ var init_session = __esm({
        * fail fast at runtime instead.
        */
       async resolve(requestId, result) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+        var _a3, _b, _c, _d, _e, _f, _g, _h;
         const req = this.walletRequests.find((request) => request.id === requestId);
         if (!req) {
           throw new Error(`No pending wallet request with id "${requestId}"`);
@@ -1790,13 +1790,10 @@ var init_session = __esm({
           const pendingTxIds = txIdsFromPayload(req.payload);
           const requestedMode = (_a3 = result.aaRequestedMode) != null ? _a3 : aaRequestedModeFromPreference(req.payload.aaPreference);
           const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
-          const currentAddress = UserState.address(this.userState);
-          const normalizedWalletKind = (_d = UserState.walletKind(this.userState)) != null ? _d : resolvedMode === "4337" && currentAddress === result.SmartAccount4337 ? "smart-account" : currentAddress ? "eoa" : null;
-          this.resolveUserState(__spreadProps(__spreadValues({}, (_e = this.userState) != null ? _e : {}), {
-            wallet_kind: normalizedWalletKind,
+          this.resolveUserState(__spreadProps(__spreadValues({}, (_d = this.userState) != null ? _d : {}), {
             aa_mode: resolvedMode,
-            smart_account_4337: resolvedMode === "4337" ? (_f = result.SmartAccount4337) != null ? _f : null : null,
-            delegation_7702: resolvedMode === "7702" ? (_g = result.Delegation7702) != null ? _g : null : null
+            smart_account_4337: resolvedMode === "4337" ? (_e = result.SmartAccount4337) != null ? _e : null : null,
+            delegation_7702: resolvedMode === "7702" ? (_f = result.Delegation7702) != null ? _f : null : null
           }));
           await this.sendSystemEvent("wallet:tx_complete", {
             txHash: result.txHash,
@@ -1807,8 +1804,8 @@ var init_session = __esm({
             aa_resolved_mode: resolvedMode,
             aa_fallback_reason: result.aaFallbackReason,
             execution_kind: result.executionKind,
-            batched: (_h = result.batched) != null ? _h : pendingTxIds.length > 1,
-            call_count: (_i = result.callCount) != null ? _i : pendingTxIds.length,
+            batched: (_g = result.batched) != null ? _g : pendingTxIds.length > 1,
+            call_count: (_h = result.callCount) != null ? _h : pendingTxIds.length,
             sponsored: result.sponsored,
             smart_account_4337: result.SmartAccount4337,
             delegation_7702: result.Delegation7702

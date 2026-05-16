@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Chain } from "viem";
 import { http } from "viem";
@@ -30,9 +30,8 @@ import {
 import type {
   AomiAuthAdapter,
   AomiAuthIdentity,
-  AomiAAMode,
-  AomiWalletKind,
 } from "../types";
+import { UserState, useUser } from "@aomi-labs/react";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -164,19 +163,14 @@ function BaseAccountAdapterInner({
     [wagmiConfig.chains],
   );
 
-  // Post-tx AA context, captured from the wallet-execution result. Drives
-  // identity so the UI and the bot see the same thing after a tx. Reset on
-  // address or chain change.
-  type ResolvedAA = {
-    aaMode: AomiAAMode;
-    walletKind: AomiWalletKind;
-    SmartAccount4337?: string;
-    Delegation7702?: string;
-  };
-  const [resolvedAA, setResolvedAA] = useState<ResolvedAA | null>(null);
-  useEffect(() => {
-    setResolvedAA(null);
-  }, [address, chainId]);
+  // Per-tx AA fields are session-owned: `session.ts` writes them to UserState
+  // on tx-complete and we read them back via `useUser()`. This makes UserState
+  // the single source of truth — identity rehydrates correctly after remount
+  // (the previous local `useState<ResolvedAA>` was lost on unmount).
+  const { user } = useUser();
+  const userAAMode = UserState.aaMode(user);
+  const userSmartAccount4337 = UserState.SmartAccount4337(user);
+  const userDelegation7702 = UserState.Delegation7702(user);
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const sponsorshipEnabled =
@@ -191,10 +185,10 @@ function BaseAccountAdapterInner({
             status: "connected",
             isConnected: true,
             address,
-            walletKind: resolvedAA?.walletKind ?? "smart-account",
-            aaMode: resolvedAA?.aaMode ?? "4337",
-            SmartAccount4337: resolvedAA?.SmartAccount4337 ?? address,
-            Delegation7702: resolvedAA?.Delegation7702,
+            walletKind: "smart-account",
+            aaMode: userAAMode ?? "4337",
+            SmartAccount4337: userSmartAccount4337 ?? address,
+            Delegation7702: userDelegation7702 ?? undefined,
             sponsored: sponsorshipEnabled,
             sponsorProvider: sponsorshipEnabled ? "coinbase" : "self",
             sponsorAccount: undefined,
@@ -272,13 +266,8 @@ function BaseAccountAdapterInner({
                 getPreferredRpcUrl,
               },
             });
-            const resolved = result.aaResolvedMode ?? "4337";
-            setResolvedAA({
-              aaMode: resolved,
-              walletKind: "smart-account",
-              SmartAccount4337: result.SmartAccount4337 ?? address,
-              Delegation7702: result.Delegation7702,
-            });
+            // session.ts writes aa_mode / smart_account_4337 / delegation_7702
+            // to UserState on tx-complete; identity rereads them via useUser.
             return result;
           }
         : undefined,
@@ -305,12 +294,14 @@ function BaseAccountAdapterInner({
     isConnecting,
     isDisconnecting,
     isSwitchingChain,
-    resolvedAA,
     sendCallsSyncAsync,
     sendTransactionAsync,
     signTypedDataAsync,
     sponsorship,
     switchChainAsync,
+    userAAMode,
+    userSmartAccount4337,
+    userDelegation7702,
     wagmiConfig.chains,
   ]);
 
