@@ -299,6 +299,8 @@ var ThreadStore = class {
 
 // packages/react/src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
+  /^claude.*opus.*4[.-]?6/i,
+  /^claude.*4[.-]?6.*opus/i,
   /^claude-4\.5-haiku/i,
   /^claude.*haiku/i,
   /^gpt-4o-mini/i,
