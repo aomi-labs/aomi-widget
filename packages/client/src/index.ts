@@ -45,6 +45,7 @@ export {
   CLIENT_TYPE_WEB_UI,
   getUserStateAAMode,
   getUserStateAuthMethod,
+  getUserStateEnsName,
   getUserStateDelegation7702,
   getUserStateSmartAccount4337,
   getUserStateWalletKind,

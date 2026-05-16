@@ -2062,12 +2062,19 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = (0, import_react9.useCallback)(
     (nextUser) => {
-      var _a;
+      var _a, _b, _c, _d, _e, _f, _g, _h;
       return {
         address: import_client5.UserState.address(nextUser),
         chain_id: import_client5.UserState.chainId(nextUser),
         is_connected: (_a = import_client5.UserState.isConnected(nextUser)) != null ? _a : false,
-        ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0
+        ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0,
+        wallet_provider: (_b = import_client5.UserState.walletProvider(nextUser)) != null ? _b : void 0,
+        auth_method: (_c = import_client5.UserState.authMethod(nextUser)) != null ? _c : void 0,
+        sponsored: (_d = import_client5.UserState.sponsored(nextUser)) != null ? _d : void 0,
+        sponsor_provider: (_e = import_client5.UserState.sponsorProvider(nextUser)) != null ? _e : void 0,
+        sponsor_account: (_f = import_client5.UserState.sponsorAccount(nextUser)) != null ? _f : void 0,
+        smart_account_4337: (_g = import_client5.UserState.SmartAccount4337(nextUser)) != null ? _g : void 0,
+        delegation_7702: (_h = import_client5.UserState.Delegation7702(nextUser)) != null ? _h : void 0
       };
     },
     [getUserState]
@@ -2081,7 +2088,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = (_a = prevWalletState.address) == null ? void 0 : _a.toLowerCase();
       const nextAddress = (_b = nextWalletState.address) == null ? void 0 : _b.toLowerCase();
-      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name) {
+      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name && prevWalletState.wallet_provider === nextWalletState.wallet_provider && prevWalletState.auth_method === nextWalletState.auth_method && prevWalletState.sponsored === nextWalletState.sponsored && prevWalletState.sponsor_provider === nextWalletState.sponsor_provider && prevWalletState.sponsor_account === nextWalletState.sponsor_account && prevWalletState.smart_account_4337 === nextWalletState.smart_account_4337 && prevWalletState.delegation_7702 === nextWalletState.delegation_7702) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
@@ -2149,6 +2156,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     warmedThreadIdsRef,
     warmThread
   } = remoteThreads;
+  const connectedAddress = import_client5.UserState.isConnected(user) ? import_client5.UserState.address(user) : void 0;
   const scheduleThreadPrefetch = (0, import_react9.useCallback)(
     (threadIds) => {
       var _a;
@@ -2187,7 +2195,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
   );
   (0, import_react9.useEffect)(() => {
     var _a, _b;
-    const userAddress = import_client5.UserState.isConnected(user) ? import_client5.UserState.address(user) : void 0;
+    const userAddress = connectedAddress;
     const normalizedUserAddress = userAddress == null ? void 0 : userAddress.toLowerCase();
     const previousAddress = lastConnectedAddressRef.current;
     const walletChanged = previousAddress !== void 0 && normalizedUserAddress !== void 0 && previousAddress !== normalizedUserAddress;
@@ -2318,7 +2326,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
-    user,
+    connectedAddress,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread
