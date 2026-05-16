@@ -19,18 +19,14 @@ export function AomiAuthRuntimeUserSync() {
   const identity = adapter.identity;
 
   useEffect(() => {
+    // NOTE: aaMode / SmartAccount4337 / Delegation7702 are NOT forwarded
+    // here. They are session-owned: `session.ts` writes them on tx-complete
+    // and providers read them back via `useUser()`. Forwarding them from
+    // identity would create a write loop (UserState → identity → setUser
+    // → UserState). walletKind is provider-static and forwarded normally.
     setUser({
       address: identity.address ?? undefined,
       walletKind: identity.walletKind ?? undefined,
-      aaMode: identity.isConnected
-        ? (identity.aaMode ?? "none")
-        : null,
-      SmartAccount4337: identity.isConnected
-        ? (identity.SmartAccount4337 ?? null)
-        : null,
-      Delegation7702: identity.isConnected
-        ? (identity.Delegation7702 ?? null)
-        : null,
       chainId: identity.chainId ?? undefined,
       isConnected: identity.isConnected,
       svmAddress: identity.svmAddress ?? undefined,
@@ -49,9 +45,6 @@ export function AomiAuthRuntimeUserSync() {
         : null,
     });
   }, [
-    identity.Delegation7702,
-    identity.SmartAccount4337,
-    identity.aaMode,
     identity.address,
     identity.authMethod,
     identity.chainId,

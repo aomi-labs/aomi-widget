@@ -59,16 +59,20 @@ describe("AomiAuthRuntimeUserSync", () => {
 
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
+      // aa_mode / smart_account_4337 / delegation_7702 are session-owned and
+      // NOT forwarded by runtime-user-sync (it only forwards connect-time
+      // identity fields). They appear in UserState only after session.ts
+      // writes them on tx-complete.
       expect(state).toMatchObject({
         address: "0x1111111111111111111111111111111111111111",
         chain_id: 8453,
         is_connected: true,
         wallet_provider: "baseAccount",
         wallet_kind: "smart-account",
-        aa_mode: "4337",
         sponsored: true,
         sponsor_provider: "coinbase",
       });
+      expect(state.aa_mode).toBeUndefined();
     });
   });
 
