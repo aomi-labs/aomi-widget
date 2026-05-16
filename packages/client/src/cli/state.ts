@@ -44,7 +44,7 @@ export type SignedTx = {
   batched?: boolean;
   sponsored?: boolean;
   AAAddress?: string;
-  delegationAddress?: string;
+  Delegation7702?: string;
   signature?: string;
   from?: string;
   to?: string;

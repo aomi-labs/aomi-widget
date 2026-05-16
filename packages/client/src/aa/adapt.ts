@@ -41,7 +41,7 @@ export function adaptSmartAccount(account: SdkSmartAccount): SmartAccount {
   // delegation target should be the implementation contract (e.g. Alchemy's
   // SemiModularAccount7702), not the EOA itself.  Drop the bogus value so
   // callers don't display a misleading "Deleg: <own-address>".
-  const delegationAddress =
+  const Delegation7702 =
     account.mode === "7702" &&
     account.delegationAddress &&
     account.smartAccountAddress &&
@@ -55,7 +55,7 @@ export function adaptSmartAccount(account: SdkSmartAccount): SmartAccount {
     mode: account.mode,
     executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
-    delegationAddress,
+    Delegation7702,
     sendTransaction: async (call) => {
       const receipt = await account.sendTransaction(call);
       return { transactionHash: receipt.transactionHash };

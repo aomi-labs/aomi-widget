@@ -20,7 +20,7 @@ function makeProviderState(params: {
       provider: "ALCHEMY",
       mode: params.mode,
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress:
+      Delegation7702:
         params.mode === "7702"
           ? "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
           : undefined,
@@ -93,7 +93,7 @@ describe("executeWalletCalls via AA", () => {
       batched: true,
       sponsored: true,
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      Delegation7702: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     });
   });
 
@@ -142,7 +142,7 @@ describe("executeWalletCalls via AA", () => {
       batched: false,
       sponsored: true,
       AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: undefined,
+      Delegation7702: undefined,
     });
   });
 });

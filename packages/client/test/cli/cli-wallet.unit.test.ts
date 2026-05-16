@@ -231,7 +231,7 @@ describe("CLI wallet generic AA execution", () => {
         batched: true,
         sponsored: true,
         AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        Delegation7702: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         to: "0x1111111111111111111111111111111111111111",
         value: "10",
         timestamp: 0,

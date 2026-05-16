@@ -41,6 +41,7 @@ export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/aomi-auth-adapter";
 export {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
-  formatAuthProvider,
-  inferAuthProvider,
+  formatAuthMethod,
+  formatWalletProvider,
+  inferAuthMethod,
 } from "./lib/aomi-auth-adapter";

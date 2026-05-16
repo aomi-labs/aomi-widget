@@ -192,7 +192,7 @@ describe("createAAProviderState", () => {
       provider: "alchemy",
       mode: "7702",
       AAAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
-      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
+      Delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
     });
     expect(state.error).toBeNull();
   });

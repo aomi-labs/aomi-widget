@@ -26,13 +26,18 @@ var USER_STATE_KEY_ALIASES = {
   isConnected: "is_connected",
   ensName: "ens_name",
   svmAddress: "svm_address",
+  walletKind: "wallet_kind",
+  aaMode: "aa_mode",
+  SmartAccount4337: "smart_account_4337",
+  Delegation7702: "delegation_7702",
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
   pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id",
-  aaMode: "aa_mode",
-  smartAccount: "smart_account",
-  smartAccountAddress: "smart_account"
+  walletProvider: "wallet_provider",
+  authMethod: "auth_method",
+  sponsorProvider: "sponsor_provider",
+  sponsorAccount: "sponsor_account"
 };
 function parseUserStateChainId(value) {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
@@ -55,11 +60,54 @@ function parseUserStateChainId(value) {
 function normalizeAddressForComparison(value) {
   return typeof value === "string" ? value.toLowerCase() : void 0;
 }
+function parseUserStateWalletProvider(value) {
+  if (value === null) {
+    return null;
+  }
+  return value === "para" || value === "baseAccount" ? value : void 0;
+}
+var AUTH_METHODS = /* @__PURE__ */ new Set([
+  "google",
+  "apple",
+  "facebook",
+  "x",
+  "discord",
+  "github",
+  "farcaster",
+  "telegram",
+  "email",
+  "phone",
+  "wagmi"
+]);
+function parseUserStateAuthMethod(value) {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && AUTH_METHODS.has(value) ? value : void 0;
+}
+function parseUserStateSponsored(value) {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "boolean" ? value : void 0;
+}
+function parseUserStateSponsorProvider(value) {
+  if (value === null) {
+    return null;
+  }
+  return value === "alchemy" || value === "coinbase" || value === "pimlico" || value === "self" ? value : void 0;
+}
+function parseUserStateWalletKind(value) {
+  if (value === null) {
+    return null;
+  }
+  return value === "eoa" || value === "smart-account" ? value : void 0;
+}
 function parseUserStateAAMode(value) {
   if (value === null) {
     return null;
   }
-  return value === "4337" || value === "7702" ? value : void 0;
+  return value === "none" || value === "4337" || value === "7702" ? value : void 0;
 }
 function parseUserStateOptionalAddress(value) {
   if (value === null) {
@@ -116,11 +164,32 @@ var UserState;
       }
     }
     const canPreserveAAContext = canPreserveConnectedWalletContext && previous !== void 0 && (sameAddress || !incomingAddress && !!previousAddress);
+    if (!hasOwnKey(incoming, "wallet_kind") && canPreserveAAContext && walletKind(previous) !== void 0) {
+      reconciled.wallet_kind = walletKind(previous);
+    }
     if (!hasOwnKey(incoming, "aa_mode") && canPreserveAAContext && aaMode(previous) !== void 0) {
       reconciled.aa_mode = aaMode(previous);
     }
-    if (!hasOwnKey(incoming, "smart_account") && canPreserveAAContext && smartAccount(previous) !== void 0) {
-      reconciled.smart_account = smartAccount(previous);
+    if (!hasOwnKey(incoming, "smart_account_4337") && canPreserveAAContext && SmartAccount4337(previous) !== void 0) {
+      reconciled.smart_account_4337 = SmartAccount4337(previous);
+    }
+    if (!hasOwnKey(incoming, "delegation_7702") && canPreserveAAContext && Delegation7702(previous) !== void 0) {
+      reconciled.delegation_7702 = Delegation7702(previous);
+    }
+    if (!hasOwnKey(incoming, "wallet_provider") && canPreserveAAContext && walletProvider(previous) !== void 0) {
+      reconciled.wallet_provider = walletProvider(previous);
+    }
+    if (!hasOwnKey(incoming, "auth_method") && canPreserveAAContext && authMethod(previous) !== void 0) {
+      reconciled.auth_method = authMethod(previous);
+    }
+    if (!hasOwnKey(incoming, "sponsored") && canPreserveAAContext && sponsored(previous) !== void 0) {
+      reconciled.sponsored = sponsored(previous);
+    }
+    if (!hasOwnKey(incoming, "sponsor_provider") && canPreserveAAContext && sponsorProvider(previous) !== void 0) {
+      reconciled.sponsor_provider = sponsorProvider(previous);
+    }
+    if (!hasOwnKey(incoming, "sponsor_account") && canPreserveAAContext && sponsorAccount(previous) !== void 0) {
+      reconciled.sponsor_account = sponsorAccount(previous);
     }
     if (isConnected(reconciled) === true && chainId(reconciled) === void 0) {
       delete reconciled.is_connected;
@@ -134,6 +203,26 @@ var UserState;
     return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
   }
   UserState2.address = address;
+  function walletKind(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateWalletKind(normalized == null ? void 0 : normalized.wallet_kind);
+  }
+  UserState2.walletKind = walletKind;
+  function aaMode(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateAAMode(normalized == null ? void 0 : normalized.aa_mode);
+  }
+  UserState2.aaMode = aaMode;
+  function SmartAccount4337(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.smart_account_4337);
+  }
+  UserState2.SmartAccount4337 = SmartAccount4337;
+  function Delegation7702(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.delegation_7702);
+  }
+  UserState2.Delegation7702 = Delegation7702;
   function svmAddress(userState) {
     const normalized = normalize(userState);
     const value = normalized == null ? void 0 : normalized.svm_address;
@@ -151,16 +240,31 @@ var UserState;
     return typeof isConnected2 === "boolean" ? isConnected2 : void 0;
   }
   UserState2.isConnected = isConnected;
-  function aaMode(userState) {
+  function walletProvider(userState) {
     const normalized = normalize(userState);
-    return parseUserStateAAMode(normalized == null ? void 0 : normalized.aa_mode);
+    return parseUserStateWalletProvider(normalized == null ? void 0 : normalized.wallet_provider);
   }
-  UserState2.aaMode = aaMode;
-  function smartAccount(userState) {
+  UserState2.walletProvider = walletProvider;
+  function authMethod(userState) {
     const normalized = normalize(userState);
-    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.smart_account);
+    return parseUserStateAuthMethod(normalized == null ? void 0 : normalized.auth_method);
   }
-  UserState2.smartAccount = smartAccount;
+  UserState2.authMethod = authMethod;
+  function sponsored(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateSponsored(normalized == null ? void 0 : normalized.sponsored);
+  }
+  UserState2.sponsored = sponsored;
+  function sponsorProvider(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateSponsorProvider(normalized == null ? void 0 : normalized.sponsor_provider);
+  }
+  UserState2.sponsorProvider = sponsorProvider;
+  function sponsorAccount(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.sponsor_account);
+  }
+  UserState2.sponsorAccount = sponsorAccount;
   function withExt(userState, key, value) {
     var _a;
     const normalizedUserState = (_a = normalize(userState)) != null ? _a : {};
@@ -174,11 +278,32 @@ var UserState;
   }
   UserState2.withExt = withExt;
 })(UserState || (UserState = {}));
+function getUserStateWalletKind(userState) {
+  return UserState.walletKind(userState);
+}
 function getUserStateAAMode(userState) {
   return UserState.aaMode(userState);
 }
-function getUserStateSmartAccount(userState) {
-  return UserState.smartAccount(userState);
+function getUserStateSmartAccount4337(userState) {
+  return UserState.SmartAccount4337(userState);
+}
+function getUserStateDelegation7702(userState) {
+  return UserState.Delegation7702(userState);
+}
+function getUserStateWalletProvider(userState) {
+  return UserState.walletProvider(userState);
+}
+function getUserStateAuthMethod(userState) {
+  return UserState.authMethod(userState);
+}
+function getUserStateSponsored(userState) {
+  return UserState.sponsored(userState);
+}
+function getUserStateSponsorProvider(userState) {
+  return UserState.sponsorProvider(userState);
+}
+function getUserStateSponsorAccount(userState) {
+  return UserState.sponsorAccount(userState);
 }
 function addUserStateExt(userState, key, value) {
   return UserState.withExt(userState, key, value);
@@ -1387,7 +1512,7 @@ var ClientSession = class extends TypedEventEmitter {
    * fail fast at runtime instead.
    */
   async resolve(requestId, result) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     const req = this.walletRequests.find((request) => request.id === requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
@@ -1402,9 +1527,13 @@ var ClientSession = class extends TypedEventEmitter {
       const pendingTxIds = txIdsFromPayload(req.payload);
       const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(req.payload.aaPreference);
       const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
-      this.resolveUserState(__spreadProps(__spreadValues({}, (_d = this.userState) != null ? _d : {}), {
-        aa_mode: resolvedMode === "none" ? null : resolvedMode,
-        smart_account: resolvedMode === "4337" ? (_e = result.smartAccountAddress) != null ? _e : null : null
+      const currentAddress = UserState.address(this.userState);
+      const normalizedWalletKind = (_d = UserState.walletKind(this.userState)) != null ? _d : resolvedMode === "4337" && currentAddress === result.SmartAccount4337 ? "smart-account" : currentAddress ? "eoa" : null;
+      this.resolveUserState(__spreadProps(__spreadValues({}, (_e = this.userState) != null ? _e : {}), {
+        wallet_kind: normalizedWalletKind,
+        aa_mode: resolvedMode,
+        smart_account_4337: resolvedMode === "4337" ? (_f = result.SmartAccount4337) != null ? _f : null : null,
+        delegation_7702: resolvedMode === "7702" ? (_g = result.Delegation7702) != null ? _g : null : null
       }));
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash,
@@ -1415,11 +1544,11 @@ var ClientSession = class extends TypedEventEmitter {
         aa_resolved_mode: resolvedMode,
         aa_fallback_reason: result.aaFallbackReason,
         execution_kind: result.executionKind,
-        batched: (_f = result.batched) != null ? _f : pendingTxIds.length > 1,
-        call_count: (_g = result.callCount) != null ? _g : pendingTxIds.length,
+        batched: (_h = result.batched) != null ? _h : pendingTxIds.length > 1,
+        call_count: (_i = result.callCount) != null ? _i : pendingTxIds.length,
         sponsored: result.sponsored,
-        smart_account_address: result.smartAccountAddress,
-        delegation_address: result.delegationAddress
+        smart_account_4337: result.SmartAccount4337,
+        delegation_7702: result.Delegation7702
       });
     } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
@@ -1462,8 +1591,8 @@ var ClientSession = class extends TypedEventEmitter {
         batched: pendingTxIds.length > 1,
         call_count: pendingTxIds.length,
         sponsored: void 0,
-        smart_account_address: void 0,
-        delegation_address: void 0
+        smart_account_4337: void 0,
+        delegation_7702: void 0
       });
     } else if (req.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
@@ -1583,13 +1712,15 @@ var ClientSession = class extends TypedEventEmitter {
     this.resolveUserState(nextState);
   }
   resolveWallet(address, chainId, aa) {
-    var _a, _b;
+    var _a;
+    const resolvedAAMode = (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : (aa == null ? void 0 : aa.smartAccount) === address ? "4337" : "none";
+    const resolvedWalletKind = (aa == null ? void 0 : aa.smartAccount) === address ? "smart-account" : "eoa";
     this.resolveUserState({
       address,
+      wallet_kind: resolvedWalletKind,
+      aa_mode: resolvedAAMode,
       chain_id: chainId != null ? chainId : 1,
-      is_connected: true,
-      aa_mode: (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : null,
-      smart_account: (_b = aa == null ? void 0 : aa.smartAccount) != null ? _b : null
+      is_connected: true
     });
   }
   async syncUserState() {
@@ -2178,9 +2309,9 @@ async function executeViaAA(callList, providerState, getPreferredRpcUrl) {
   }
   const txHash = receipt.transactionHash;
   const providerPrefix = account.provider.toLowerCase();
-  let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
-  if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(
+  let Delegation7702 = account.mode === "7702" ? account.Delegation7702 : void 0;
+  if (account.mode === "7702" && !Delegation7702) {
+    Delegation7702 = await resolve7702Delegation(
       txHash,
       callList,
       getPreferredRpcUrl
@@ -2193,7 +2324,7 @@ async function executeViaAA(callList, providerState, getPreferredRpcUrl) {
     batched: callList.length > 1,
     sponsored: resolved.sponsorship !== "disabled",
     AAAddress: account.AAAddress,
-    delegationAddress
+    Delegation7702
   };
 }
 async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl) {
@@ -2360,12 +2491,13 @@ async function executeViaEoa({
   } else {
     await sendSequentially();
   }
+  const sponsoredResult = !usedSendCalls ? false : (sponsorship == null ? void 0 : sponsorship.mode) === "optional" ? void 0 : usedPaymasterService;
   return {
     txHash: hashes[hashes.length - 1],
     txHashes: hashes,
     executionKind: usedSendCalls ? nativeExecutionKind : "eoa",
     batched: normalizedCalls.length > 1,
-    sponsored: usedPaymasterService
+    sponsored: sponsoredResult
   };
 }
 function extractBatchTransactionHashes(batchResult) {
@@ -2640,13 +2772,13 @@ import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 
 // src/aa/adapt.ts
 function adaptSmartAccount(account) {
-  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
+  const Delegation7702 = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
   return {
     provider: account.provider,
     mode: account.mode,
     executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
-    delegationAddress,
+    Delegation7702,
     sendTransaction: async (call) => {
       const receipt = await account.sendTransaction(call);
       return { transactionHash: receipt.transactionHash };
@@ -2952,7 +3084,7 @@ async function createAlchemyWalletApisState(params) {
     ownerAddress: signerAddress,
     executionAddress: params.resolved.mode === "4337" ? accountAddress : signerAddress,
     AAAddress: accountAddress,
-    delegationAddress: params.resolved.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
+    Delegation7702: params.resolved.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls)
   };
@@ -3210,7 +3342,7 @@ function adaptPimlicoSdkAccount(account) {
     mode: account.mode,
     executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+    Delegation7702: account.delegationAddress,
     sendTransaction: async (call) => account.sendTransaction(call),
     sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls)
   };
@@ -3377,7 +3509,14 @@ export {
   executeWalletCalls,
   getAAChainConfig,
   getUserStateAAMode,
-  getUserStateSmartAccount,
+  getUserStateAuthMethod,
+  getUserStateDelegation7702,
+  getUserStateSmartAccount4337,
+  getUserStateSponsorAccount,
+  getUserStateSponsorProvider,
+  getUserStateSponsored,
+  getUserStateWalletKind,
+  getUserStateWalletProvider,
   getWalletExecutorReady,
   hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,

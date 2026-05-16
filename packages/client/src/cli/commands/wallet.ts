@@ -617,8 +617,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       if (execution.AAAddress) {
         console.log(`AA:      ${execution.AAAddress}`);
       }
-      if (execution.delegationAddress) {
-        console.log(`Deleg:   ${execution.delegationAddress}`);
+      if (execution.Delegation7702) {
+        console.log(`Deleg:   ${execution.Delegation7702}`);
       }
 
       const executionUsedAA =
@@ -660,8 +660,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           batched: execution.batched,
           call_count: execution.txHashes.length,
           sponsored: execution.sponsored,
-          smart_account_address: execution.AAAddress,
-          delegation_address: execution.delegationAddress,
+          smart_account_4337: execution.AAAddress,
+          delegation_7702: execution.Delegation7702,
         },
       }));
     } else {

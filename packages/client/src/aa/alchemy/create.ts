@@ -337,7 +337,7 @@ async function createAlchemyWalletApisState(
     executionAddress:
       params.resolved.mode === "4337" ? accountAddress : signerAddress,
     AAAddress: accountAddress,
-    delegationAddress:
+    Delegation7702:
       params.resolved.mode === "7702"
         ? ALCHEMY_7702_DELEGATION_ADDRESS
         : undefined,

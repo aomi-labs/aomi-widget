@@ -26,6 +26,9 @@
 *.pem
 .claude/
 .playwright-mcp/
+.repowiki/
+.fastembed_cache/
+/aomi
 
 # debug
 npm-debug.log*

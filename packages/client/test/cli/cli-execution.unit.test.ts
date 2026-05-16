@@ -130,8 +130,8 @@ describe("CLI execution controls", () => {
     createAlchemySmartAccountMock.mockResolvedValue({
       provider: "ALCHEMY",
       mode: "7702",
-      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      Delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
       sendTransaction: vi.fn(),
       sendBatchTransaction: vi.fn(),
     });

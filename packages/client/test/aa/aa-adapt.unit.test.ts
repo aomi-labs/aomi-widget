@@ -31,7 +31,7 @@ describe("adaptSmartAccount", () => {
     expect(adapted.AAAddress).toBe("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     expect(adapted.provider).toBe("ALCHEMY");
     expect(adapted.mode).toBe("7702");
-    expect(adapted.delegationAddress).toBe("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    expect(adapted.Delegation7702).toBe("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
   });
 
   it("drops a 7702 delegation address when it matches the smart account address", () => {
@@ -44,7 +44,7 @@ describe("adaptSmartAccount", () => {
     const adapted = adaptSmartAccount(account);
 
     expect(adapted.AAAddress).toBe("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    expect(adapted.delegationAddress).toBeUndefined();
+    expect(adapted.Delegation7702).toBeUndefined();
   });
 
   it("preserves matching smart and delegation addresses outside 7702 mode", () => {
@@ -57,7 +57,7 @@ describe("adaptSmartAccount", () => {
 
     const adapted = adaptSmartAccount(account);
 
-    expect(adapted.delegationAddress).toBe(
+    expect(adapted.Delegation7702).toBe(
       "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     );
   });

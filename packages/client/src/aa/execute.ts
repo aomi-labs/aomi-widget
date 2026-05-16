@@ -157,11 +157,11 @@ async function executeViaAA(
   // For 7702, the SDK may not provide the delegation address (or provide the
   // EOA which is already filtered out by adaptSmartAccount).  Fall back to
   // reading the authorization list from the on-chain transaction.
-  let delegationAddress: Hex | undefined =
-    account.mode === "7702" ? account.delegationAddress : undefined;
+  let Delegation7702: Hex | undefined =
+    account.mode === "7702" ? account.Delegation7702 : undefined;
 
-  if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(
+  if (account.mode === "7702" && !Delegation7702) {
+    Delegation7702 = await resolve7702Delegation(
       txHash,
       callList,
       getPreferredRpcUrl,
@@ -175,7 +175,7 @@ async function executeViaAA(
     batched: callList.length > 1,
     sponsored: resolved.sponsorship !== "disabled",
     AAAddress: account.AAAddress,
-    delegationAddress,
+    Delegation7702,
   };
 }
 
@@ -386,12 +386,26 @@ async function executeViaEoa({
     await sendSequentially();
   }
 
+  // `usedPaymasterService = true` only means a paymaster config was passed to
+  // sendCalls and the call resolved. It does NOT verify the wallet honored
+  // the paymaster. With `sponsorship.mode === "optional"`, the wallet (e.g.
+  // Coinbase Smart Wallet / Base Account) may silently fall back to
+  // user-paid while sendCalls still succeeds. In that case the honest
+  // answer is "we don't know" — report `undefined` rather than guess.
+  // `required` mode is verified by the protocol: tx fails if the paymaster
+  // rejects, so success ⟹ paymaster paid.
+  const sponsoredResult: boolean | undefined = !usedSendCalls
+    ? false
+    : sponsorship?.mode === "optional"
+      ? undefined
+      : usedPaymasterService;
+
   return {
     txHash: hashes[hashes.length - 1],
     txHashes: hashes,
     executionKind: usedSendCalls ? nativeExecutionKind : "eoa",
     batched: normalizedCalls.length > 1,
-    sponsored: usedPaymasterService,
+    sponsored: sponsoredResult,
   };
 }
 

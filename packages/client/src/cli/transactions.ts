@@ -109,7 +109,7 @@ export function toSignedTransactionRecord(
     batched: execution.batched,
     sponsored: execution.sponsored,
     AAAddress: execution.AAAddress,
-    delegationAddress: execution.delegationAddress,
+    Delegation7702: execution.Delegation7702,
     from,
     to: tx.to,
     value: tx.value,
@@ -149,7 +149,7 @@ export function formatSignedTxLine(tx: SignedTx, prefix: string): string {
     }
     if (tx.sponsored) parts.push("sponsored");
     if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
-    if (tx.delegationAddress) parts.push(`delegation: ${tx.delegationAddress}`);
+    if (tx.Delegation7702) parts.push(`delegation: ${tx.Delegation7702}`);
     if (tx.to) parts.push(`to: ${tx.to}`);
     if (tx.value) parts.push(`value: ${tx.value}`);
   }

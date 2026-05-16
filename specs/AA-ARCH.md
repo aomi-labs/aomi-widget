@@ -407,7 +407,7 @@ This path returns a `SmartAccount` with:
 - `provider: "alchemy"`
 - `mode: "7702"`
 - `AAAddress = signer.address`
-- `delegationAddress = 0x6900...E139`
+- `Delegation7702 = 0x6900...E139`
 
 If a gas policy is configured, the 7702 path prints a warning that raw 7702 is
 not paymaster-sponsored and the EOA pays gas directly.
@@ -506,8 +506,8 @@ library-level `SmartAccount` interface consumed by `executeWalletCalls()`.
 
 The important normalization is the 7702 guard:
 
-- if the SDK reports the same value for `smartAccountAddress` and
-  `delegationAddress`, the adapter drops that delegation address as bogus
+- if the SDK reports the same value for `SmartAccount4337` and
+  `Delegation7702`, the adapter drops that delegation address as bogus
 
 ---
 
@@ -532,7 +532,7 @@ flowchart TD
     AA_BATCH --> AA_POST[build ExecutionResult]
     AA_SINGLE --> AA_POST
 
-    AA_POST --> DELEG{mode === 7702<br/>and no delegationAddress?}
+    AA_POST --> DELEG{mode === 7702<br/>and no Delegation7702?}
     DELEG -->|yes| FETCH_TX[resolve7702Delegation<br/>via authorizationList]
     DELEG -->|no| RETURN_AA([return AA result])
     FETCH_TX --> RETURN_AA
@@ -559,11 +559,11 @@ The returned `ExecutionResult` contains:
 - `batched`
 - `sponsored = resolved.sponsorship !== "disabled"`
 - `AAAddress`
-- `delegationAddress`
+- `Delegation7702`
 
 For `7702`, delegation metadata is best-effort:
 
-- first use `account.delegationAddress`
+- first use `account.Delegation7702`
 - if it is missing, fetch the on-chain transaction and read
   `authorizationList[0].address` or `authorizationList[0].contractAddress`
 

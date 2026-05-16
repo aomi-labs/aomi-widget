@@ -108,6 +108,16 @@ function useWalletStateSync(
       is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
       ens_name:
         typeof nextUser.ens_name === "string" ? nextUser.ens_name : undefined,
+      wallet_provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
+      auth_method: UserStateHelpers.authMethod(nextUser) ?? undefined,
+      sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
+      sponsor_provider:
+        UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
+      sponsor_account: UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
+      smart_account_4337:
+        UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
+      delegation_7702:
+        UserStateHelpers.Delegation7702(nextUser) ?? undefined,
     }),
     [getUserState],
   );
@@ -126,7 +136,16 @@ function useWalletStateSync(
         prevWalletState.address === nextWalletState.address &&
         prevWalletState.chain_id === nextWalletState.chain_id &&
         prevWalletState.is_connected === nextWalletState.is_connected &&
-        prevWalletState.ens_name === nextWalletState.ens_name
+        prevWalletState.ens_name === nextWalletState.ens_name &&
+        prevWalletState.wallet_provider === nextWalletState.wallet_provider &&
+        prevWalletState.auth_method === nextWalletState.auth_method &&
+        prevWalletState.sponsored === nextWalletState.sponsored &&
+        prevWalletState.sponsor_provider === nextWalletState.sponsor_provider &&
+        prevWalletState.sponsor_account === nextWalletState.sponsor_account &&
+        prevWalletState.smart_account_4337 ===
+          nextWalletState.smart_account_4337 &&
+        prevWalletState.delegation_7702 ===
+          nextWalletState.delegation_7702
       ) {
         return;
       }
@@ -218,6 +237,9 @@ function useRemoteThreadListSync(
     warmedThreadIdsRef,
     warmThread,
   } = remoteThreads;
+  const connectedAddress = UserStateHelpers.isConnected(user)
+    ? UserStateHelpers.address(user)
+    : undefined;
 
   const scheduleThreadPrefetch = useCallback(
     (threadIds: string[]) => {
@@ -265,9 +287,7 @@ function useRemoteThreadListSync(
   );
 
   useEffect(() => {
-    const userAddress = UserStateHelpers.isConnected(user)
-      ? UserStateHelpers.address(user)
-      : undefined;
+    const userAddress = connectedAddress;
     const normalizedUserAddress = userAddress?.toLowerCase();
     const previousAddress = lastConnectedAddressRef.current;
     const walletChanged =
@@ -425,7 +445,7 @@ function useRemoteThreadListSync(
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
-    user,
+    connectedAddress,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread,

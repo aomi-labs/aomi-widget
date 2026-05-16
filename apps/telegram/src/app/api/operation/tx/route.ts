@@ -41,8 +41,8 @@ function formatTxResponse(operationId: string) {
     executionKind?: string;
     batched?: boolean;
     sponsored?: boolean;
-    smartAccountAddress?: string;
-    delegationAddress?: string;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
     errorCode?: string;
     errorMessage?: string;
     attemptCount?: number;
@@ -73,8 +73,8 @@ function formatTxResponse(operationId: string) {
     executionKind: txMeta.executionKind,
     batched: txMeta.batched,
     sponsored: txMeta.sponsored,
-    smartAccountAddress: txMeta.smartAccountAddress,
-    delegationAddress: txMeta.delegationAddress,
+    SmartAccount4337: txMeta.SmartAccount4337,
+    Delegation7702: txMeta.Delegation7702,
     errorCode: found.operation.errorCode,
     errorMessage: found.operation.errorMessage,
     createdAt: found.operation.startedAt,
@@ -186,11 +186,11 @@ export async function PUT(request: NextRequest) {
       : undefined;
     const batched = typeof body?.batched === 'boolean' ? body.batched : undefined;
     const sponsored = typeof body?.sponsored === 'boolean' ? body.sponsored : undefined;
-    const smartAccountAddress = typeof body?.smart_account_address === 'string'
-      ? body.smart_account_address
+    const SmartAccount4337 = typeof body?.smart_account_4337 === 'string'
+      ? body.smart_account_4337
       : undefined;
-    const delegationAddress = typeof body?.delegation_address === 'string'
-      ? body.delegation_address
+    const Delegation7702 = typeof body?.delegation_7702 === 'string'
+      ? body.delegation_7702
       : undefined;
 
     if (!txId || !status) {
@@ -215,8 +215,8 @@ export async function PUT(request: NextRequest) {
         executionKind,
         batched,
         sponsored,
-        smartAccountAddress,
-        delegationAddress,
+        SmartAccount4337,
+        Delegation7702,
       });
       if (!found) {
         return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
@@ -232,8 +232,8 @@ export async function PUT(request: NextRequest) {
         executionKind,
         batched,
         sponsored,
-        smartAccountAddress,
-        delegationAddress,
+        SmartAccount4337,
+        Delegation7702,
       });
       return NextResponse.json({
         success: true,
@@ -247,8 +247,8 @@ export async function PUT(request: NextRequest) {
         executionKind,
         batched,
         sponsored,
-        smartAccountAddress,
-        delegationAddress,
+        SmartAccount4337,
+        Delegation7702,
         state: found.state,
         label: found.state.label,
       });
@@ -265,8 +265,8 @@ export async function PUT(request: NextRequest) {
         executionKind,
         batched,
         sponsored,
-        smartAccountAddress,
-        delegationAddress,
+        SmartAccount4337,
+        Delegation7702,
       });
       if (!found) {
         return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
@@ -283,8 +283,8 @@ export async function PUT(request: NextRequest) {
         executionKind,
         batched,
         sponsored,
-        smartAccountAddress,
-        delegationAddress,
+        SmartAccount4337,
+        Delegation7702,
       });
     }
 
@@ -298,8 +298,8 @@ export async function PUT(request: NextRequest) {
       executionKind,
       batched,
       sponsored,
-      smartAccountAddress,
-      delegationAddress,
+      SmartAccount4337,
+      Delegation7702,
     });
 
     if (!found) {
@@ -320,8 +320,8 @@ export async function PUT(request: NextRequest) {
       executionKind,
       batched,
       sponsored,
-      smartAccountAddress,
-      delegationAddress,
+      SmartAccount4337,
+      Delegation7702,
     });
   } catch (error) {
     console.error('Error updating tx operation:', error);

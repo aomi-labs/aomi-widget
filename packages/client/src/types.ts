@@ -6,15 +6,47 @@
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
  */
-export type UserStateAAMode = "4337" | "7702";
+export type UserStateAAMode = "none" | "4337" | "7702";
+export type UserStateWalletKind = "eoa" | "smart-account";
+export type UserStateWalletProvider = "para" | "baseAccount";
+export type UserStateAuthMethod =
+  | "google"
+  | "apple"
+  | "facebook"
+  | "x"
+  | "discord"
+  | "github"
+  | "farcaster"
+  | "telegram"
+  | "email"
+  | "phone"
+  | "wagmi";
+export type UserStateSponsorProvider =
+  | "alchemy"
+  | "coinbase"
+  | "pimlico"
+  | "self";
 
 export interface UserState extends Record<string, unknown> {
+  /**
+   * Connected account address. When `wallet_kind === "smart-account"` this is
+   * the smart account address; when `wallet_kind === "eoa"` it is the EOA.
+   */
   address?: string | null;
+  wallet_kind?: UserStateWalletKind | null;
+  aa_mode?: UserStateAAMode | null;
+  /** 4337 smart account address — populated after a 4337 tx resolves. */
+  smart_account_4337?: string | null;
+  /** 7702 delegation contract address — populated after a 7702 tx resolves. */
+  delegation_7702?: string | null;
   chain_id?: number | string | null;
   is_connected?: boolean | null;
   svm_address?: string | null;
-  aa_mode?: UserStateAAMode | null;
-  smart_account?: string | null;
+  wallet_provider?: UserStateWalletProvider | null;
+  auth_method?: UserStateAuthMethod | null;
+  sponsored?: boolean | null;
+  sponsor_provider?: UserStateSponsorProvider | null;
+  sponsor_account?: string | null;
 }
 
 /**
@@ -31,13 +63,18 @@ const USER_STATE_KEY_ALIASES: Record<string, string> = {
   isConnected: "is_connected",
   ensName: "ens_name",
   svmAddress: "svm_address",
+  walletKind: "wallet_kind",
+  aaMode: "aa_mode",
+  SmartAccount4337: "smart_account_4337",
+  Delegation7702: "delegation_7702",
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
   pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id",
-  aaMode: "aa_mode",
-  smartAccount: "smart_account",
-  smartAccountAddress: "smart_account",
+  walletProvider: "wallet_provider",
+  authMethod: "auth_method",
+  sponsorProvider: "sponsor_provider",
+  sponsorAccount: "sponsor_account",
 };
 
 function parseUserStateChainId(value: unknown): number | undefined {
@@ -66,11 +103,79 @@ function normalizeAddressForComparison(value: string | undefined): string | unde
   return typeof value === "string" ? value.toLowerCase() : undefined;
 }
 
-function parseUserStateAAMode(value: unknown): UserStateAAMode | null | undefined {
+function parseUserStateWalletProvider(
+  value: unknown,
+): UserStateWalletProvider | null | undefined {
   if (value === null) {
     return null;
   }
-  return value === "4337" || value === "7702" ? value : undefined;
+  return value === "para" || value === "baseAccount" ? value : undefined;
+}
+
+const AUTH_METHODS = new Set<UserStateAuthMethod>([
+  "google",
+  "apple",
+  "facebook",
+  "x",
+  "discord",
+  "github",
+  "farcaster",
+  "telegram",
+  "email",
+  "phone",
+  "wagmi",
+]);
+
+function parseUserStateAuthMethod(
+  value: unknown,
+): UserStateAuthMethod | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && AUTH_METHODS.has(value as UserStateAuthMethod)
+    ? (value as UserStateAuthMethod)
+    : undefined;
+}
+
+function parseUserStateSponsored(value: unknown): boolean | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function parseUserStateSponsorProvider(
+  value: unknown,
+): UserStateSponsorProvider | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return value === "alchemy" ||
+    value === "coinbase" ||
+    value === "pimlico" ||
+    value === "self"
+    ? value
+    : undefined;
+}
+
+function parseUserStateWalletKind(
+  value: unknown,
+): UserStateWalletKind | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return value === "eoa" || value === "smart-account" ? value : undefined;
+}
+
+function parseUserStateAAMode(
+  value: unknown,
+): UserStateAAMode | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return value === "none" || value === "4337" || value === "7702"
+    ? value
+    : undefined;
 }
 
 function parseUserStateOptionalAddress(
@@ -169,6 +274,14 @@ export namespace UserState {
       (sameAddress || (!incomingAddress && !!previousAddress));
 
     if (
+      !hasOwnKey(incoming, "wallet_kind") &&
+      canPreserveAAContext &&
+      walletKind(previous) !== undefined
+    ) {
+      reconciled.wallet_kind = walletKind(previous);
+    }
+
+    if (
       !hasOwnKey(incoming, "aa_mode") &&
       canPreserveAAContext &&
       aaMode(previous) !== undefined
@@ -177,11 +290,59 @@ export namespace UserState {
     }
 
     if (
-      !hasOwnKey(incoming, "smart_account") &&
+      !hasOwnKey(incoming, "smart_account_4337") &&
       canPreserveAAContext &&
-      smartAccount(previous) !== undefined
+      SmartAccount4337(previous) !== undefined
     ) {
-      reconciled.smart_account = smartAccount(previous);
+      reconciled.smart_account_4337 = SmartAccount4337(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "delegation_7702") &&
+      canPreserveAAContext &&
+      Delegation7702(previous) !== undefined
+    ) {
+      reconciled.delegation_7702 = Delegation7702(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "wallet_provider") &&
+      canPreserveAAContext &&
+      walletProvider(previous) !== undefined
+    ) {
+      reconciled.wallet_provider = walletProvider(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "auth_method") &&
+      canPreserveAAContext &&
+      authMethod(previous) !== undefined
+    ) {
+      reconciled.auth_method = authMethod(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "sponsored") &&
+      canPreserveAAContext &&
+      sponsored(previous) !== undefined
+    ) {
+      reconciled.sponsored = sponsored(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "sponsor_provider") &&
+      canPreserveAAContext &&
+      sponsorProvider(previous) !== undefined
+    ) {
+      reconciled.sponsor_provider = sponsorProvider(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "sponsor_account") &&
+      canPreserveAAContext &&
+      sponsorAccount(previous) !== undefined
+    ) {
+      reconciled.sponsor_account = sponsorAccount(previous);
     }
 
     // Never keep `is_connected: true` without a valid chain id.
@@ -196,6 +357,34 @@ export namespace UserState {
     const normalized = normalize(userState);
     const address = normalized?.address;
     return typeof address === "string" && address.length > 0 ? address : undefined;
+  }
+
+  export function walletKind(
+    userState?: UserState | null,
+  ): UserStateWalletKind | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateWalletKind(normalized?.wallet_kind);
+  }
+
+  export function aaMode(
+    userState?: UserState | null,
+  ): UserStateAAMode | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateAAMode(normalized?.aa_mode);
+  }
+
+  export function SmartAccount4337(
+    userState?: UserState | null,
+  ): string | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized?.smart_account_4337);
+  }
+
+  export function Delegation7702(
+    userState?: UserState | null,
+  ): string | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized?.delegation_7702);
   }
 
   /**
@@ -219,18 +408,39 @@ export namespace UserState {
     return typeof isConnected === "boolean" ? isConnected : undefined;
   }
 
-  export function aaMode(
+  export function walletProvider(
     userState?: UserState | null,
-  ): UserStateAAMode | null | undefined {
+  ): UserStateWalletProvider | null | undefined {
     const normalized = normalize(userState);
-    return parseUserStateAAMode(normalized?.aa_mode);
+    return parseUserStateWalletProvider(normalized?.wallet_provider);
   }
 
-  export function smartAccount(
+  export function authMethod(
+    userState?: UserState | null,
+  ): UserStateAuthMethod | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateAuthMethod(normalized?.auth_method);
+  }
+
+  export function sponsored(
+    userState?: UserState | null,
+  ): boolean | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateSponsored(normalized?.sponsored);
+  }
+
+  export function sponsorProvider(
+    userState?: UserState | null,
+  ): UserStateSponsorProvider | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateSponsorProvider(normalized?.sponsor_provider);
+  }
+
+  export function sponsorAccount(
     userState?: UserState | null,
   ): string | null | undefined {
     const normalized = normalize(userState);
-    return parseUserStateOptionalAddress(normalized?.smart_account);
+    return parseUserStateOptionalAddress(normalized?.sponsor_account);
   }
 
   /**
@@ -278,10 +488,10 @@ export function getUserStateChainId(
   return UserState.chainId(userState);
 }
 
-export function getUserStateIsConnected(
+export function getUserStateWalletKind(
   userState?: UserState | null,
-): boolean | undefined {
-  return UserState.isConnected(userState);
+): UserStateWalletKind | null | undefined {
+  return UserState.walletKind(userState);
 }
 
 export function getUserStateAAMode(
@@ -290,10 +500,52 @@ export function getUserStateAAMode(
   return UserState.aaMode(userState);
 }
 
-export function getUserStateSmartAccount(
+export function getUserStateSmartAccount4337(
   userState?: UserState | null,
 ): string | null | undefined {
-  return UserState.smartAccount(userState);
+  return UserState.SmartAccount4337(userState);
+}
+
+export function getUserStateDelegation7702(
+  userState?: UserState | null,
+): string | null | undefined {
+  return UserState.Delegation7702(userState);
+}
+
+export function getUserStateIsConnected(
+  userState?: UserState | null,
+): boolean | undefined {
+  return UserState.isConnected(userState);
+}
+
+export function getUserStateWalletProvider(
+  userState?: UserState | null,
+): UserStateWalletProvider | null | undefined {
+  return UserState.walletProvider(userState);
+}
+
+export function getUserStateAuthMethod(
+  userState?: UserState | null,
+): UserStateAuthMethod | null | undefined {
+  return UserState.authMethod(userState);
+}
+
+export function getUserStateSponsored(
+  userState?: UserState | null,
+): boolean | null | undefined {
+  return UserState.sponsored(userState);
+}
+
+export function getUserStateSponsorProvider(
+  userState?: UserState | null,
+): UserStateSponsorProvider | null | undefined {
+  return UserState.sponsorProvider(userState);
+}
+
+export function getUserStateSponsorAccount(
+  userState?: UserState | null,
+): string | null | undefined {
+  return UserState.sponsorAccount(userState);
 }
 
 export function addUserStateExt(
