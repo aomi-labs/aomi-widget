@@ -69,12 +69,21 @@ export interface AAResolvedConfig {
 /** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
 export type AACallPayload = Omit<AAWalletCall, "chainId">;
 
+/**
+ * Smart account used for AA execution. `address` is the EOA signer — the same
+ * value the user sees as their connected wallet address (`AomiAuthIdentity.address`).
+ *
+ * Exactly one of the mode-discriminated address fields is meaningful:
+ * - `mode === "4337"` ⟹ `SmartAccount4337` is the AA contract address;
+ *   `Delegation7702` is undefined.
+ * - `mode === "7702"` ⟹ `Delegation7702` is the delegation target contract;
+ *   `SmartAccount4337` is undefined.
+ */
 export interface SmartAccount {
-  provider: string;
-  mode: string;
-  ownerAddress?: Hex;
-  executionAddress?: Hex;
-  AAAddress?: Hex;
+  provider: "alchemy" | "pimlico";
+  mode: "4337" | "7702";
+  address: Hex;
+  SmartAccount4337?: Hex;
   Delegation7702?: Hex;
   sendTransaction: (
     call: AACallPayload,
@@ -114,7 +123,7 @@ export interface ExecutionResult {
    *   decoding the userOp logs.
    */
   sponsored: boolean | undefined;
-  AAAddress?: Hex;
+  SmartAccount4337?: Hex;
   Delegation7702?: Hex;
 }
 

@@ -25,6 +25,12 @@ export function AomiAuthRuntimeUserSync() {
       aaMode: identity.isConnected
         ? (identity.aaMode ?? "none")
         : null,
+      SmartAccount4337: identity.isConnected
+        ? (identity.SmartAccount4337 ?? null)
+        : null,
+      Delegation7702: identity.isConnected
+        ? (identity.Delegation7702 ?? null)
+        : null,
       chainId: identity.chainId ?? undefined,
       isConnected: identity.isConnected,
       svmAddress: identity.svmAddress ?? undefined,
@@ -43,6 +49,8 @@ export function AomiAuthRuntimeUserSync() {
         : null,
     });
   }, [
+    identity.Delegation7702,
+    identity.SmartAccount4337,
     identity.aaMode,
     identity.address,
     identity.authMethod,

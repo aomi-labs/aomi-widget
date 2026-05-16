@@ -483,9 +483,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         simulationDecision.execution === "aa" ? simulationDecision.aaMode : null;
       const simulationSmartAccount =
         simulationAAMode === "4337"
-          ? simulationProviderState?.account?.AAAddress ??
-            simulationProviderState?.account?.executionAddress ??
-            null
+          ? simulationProviderState?.account?.SmartAccount4337 ?? null
           : null;
 
       session.resolveWallet(account.address, primaryChainId, {
@@ -614,8 +612,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       if (execution.sponsored) {
         console.log("Gas:     sponsored");
       }
-      if (execution.AAAddress) {
-        console.log(`AA:      ${execution.AAAddress}`);
+      if (execution.SmartAccount4337) {
+        console.log(`AA:      ${execution.SmartAccount4337}`);
       }
       if (execution.Delegation7702) {
         console.log(`Deleg:   ${execution.Delegation7702}`);
@@ -628,7 +626,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           ? finalDecision.aaMode
           : null;
       resolvedUserStateSmartAccount =
-        resolvedUserStateAAMode === "4337" ? execution.AAAddress ?? null : null;
+        resolvedUserStateAAMode === "4337"
+          ? execution.SmartAccount4337 ?? null
+          : null;
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -660,7 +660,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           batched: execution.batched,
           call_count: execution.txHashes.length,
           sponsored: execution.sponsored,
-          smart_account_4337: execution.AAAddress,
+          smart_account_4337: execution.SmartAccount4337,
           delegation_7702: execution.Delegation7702,
         },
       }));

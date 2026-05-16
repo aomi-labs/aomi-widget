@@ -108,7 +108,7 @@ export function toSignedTransactionRecord(
     aaMode,
     batched: execution.batched,
     sponsored: execution.sponsored,
-    AAAddress: execution.AAAddress,
+    AAAddress: execution.SmartAccount4337,
     Delegation7702: execution.Delegation7702,
     from,
     to: tx.to,

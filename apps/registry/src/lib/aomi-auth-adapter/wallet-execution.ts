@@ -360,7 +360,7 @@ export async function executeAdapterTransaction({
     batched: execution.batched,
     callCount: callList.length,
     sponsored: execution.sponsored,
-    SmartAccount4337: execution.AAAddress,
+    SmartAccount4337: execution.SmartAccount4337,
     Delegation7702: execution.Delegation7702,
   };
 }

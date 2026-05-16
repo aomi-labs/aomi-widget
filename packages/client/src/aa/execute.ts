@@ -174,8 +174,10 @@ async function executeViaAA(
     executionKind: `${providerPrefix}_${account.mode}`,
     batched: callList.length > 1,
     sponsored: resolved.sponsorship !== "disabled",
-    AAAddress: account.AAAddress,
-    Delegation7702,
+    ...(account.mode === "4337" && account.SmartAccount4337
+      ? { SmartAccount4337: account.SmartAccount4337 }
+      : {}),
+    ...(Delegation7702 ? { Delegation7702 } : {}),
   };
 }
 

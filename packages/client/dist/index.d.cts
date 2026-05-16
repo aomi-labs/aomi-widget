@@ -482,12 +482,21 @@ interface AAResolvedConfig {
 }
 /** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
 type AACallPayload = Omit<AAWalletCall, "chainId">;
+/**
+ * Smart account used for AA execution. `address` is the EOA signer — the same
+ * value the user sees as their connected wallet address (`AomiAuthIdentity.address`).
+ *
+ * Exactly one of the mode-discriminated address fields is meaningful:
+ * - `mode === "4337"` ⟹ `SmartAccount4337` is the AA contract address;
+ *   `Delegation7702` is undefined.
+ * - `mode === "7702"` ⟹ `Delegation7702` is the delegation target contract;
+ *   `SmartAccount4337` is undefined.
+ */
 interface SmartAccount {
-    provider: string;
-    mode: string;
-    ownerAddress?: Hex;
-    executionAddress?: Hex;
-    AAAddress?: Hex;
+    provider: "alchemy" | "pimlico";
+    mode: "4337" | "7702";
+    address: Hex;
+    SmartAccount4337?: Hex;
     Delegation7702?: Hex;
     sendTransaction: (call: AACallPayload) => Promise<{
         transactionHash: string;
@@ -521,7 +530,7 @@ interface ExecutionResult {
      *   decoding the userOp logs.
      */
     sponsored: boolean | undefined;
-    AAAddress?: Hex;
+    SmartAccount4337?: Hex;
     Delegation7702?: Hex;
 }
 interface AtomicBatchArgs {
@@ -1056,6 +1065,7 @@ interface CreatePimlicoAAProviderOptions<TAccount extends SmartAccount = SmartAc
 declare function createPimlicoAAProvider<TAccount extends SmartAccount = SmartAccount>({ accountAbstractionConfig, usePimlicoAA, chainsById, rpcUrl, }: CreatePimlicoAAProviderOptions<TAccount>): (calls: AAWalletCall[] | null, localPrivateKey: `0x${string}` | null) => AAState<TAccount>;
 
 type SdkSmartAccount = {
+    /** Para SDKs emit uppercase (e.g. "ALCHEMY", "PIMLICO"); normalized by the adapter. */
     provider: string;
     mode: AAMode;
     smartAccountAddress: Hex;
@@ -1065,11 +1075,15 @@ type SdkSmartAccount = {
 };
 /**
  * Bridges the provider SDK smart-account shape into the library's
- * SmartAccount interface:
- * - Maps `smartAccountAddress` → `AAAddress`
- * - Unwraps `TransactionReceipt` → `{ transactionHash }`
+ * `SmartAccount` interface.
+ *
+ * - `address` is the EOA signer — must be supplied by the caller (the SDK
+ *   account object only exposes the *executing* address, which differs from
+ *   the signer in 4337 mode).
+ * - `SmartAccount4337` is the AA contract address (only set in 4337 mode).
+ * - `Delegation7702` is the delegation target contract (only set in 7702 mode).
  */
-declare function adaptSmartAccount(account: SdkSmartAccount): SmartAccount;
+declare function adaptSmartAccount(account: SdkSmartAccount, address: Hex): SmartAccount;
 /**
  * Detects Alchemy gas sponsorship quota errors.
  */
