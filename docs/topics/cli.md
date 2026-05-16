@@ -1,0 +1,39 @@
+---
+title: CLI
+owner: sdk
+status: authoritative
+area: cli
+review_after_days: 30
+sources_of_truth:
+  - packages/client/package.json
+  - packages/client/src/cli/main.ts
+  - packages/client/src/cli/root.ts
+  - packages/client/src/cli/repl.ts
+  - packages/client/src/cli/commands/chat.ts
+---
+
+# CLI
+
+The `aomi` terminal client is published from `@aomi-labs/client` and shares its transport layer with the widget runtime.
+
+## Entrypoint
+
+- `packages/client/package.json` exposes the `aomi` bin as `./dist/cli.js`.
+- `packages/client/src/cli/main.ts` decides whether to run root help, one-shot commands, or the interactive REPL.
+- Root command handling is defined under `packages/client/src/cli/root.ts`.
+
+## Command Surface
+
+- The CLI supports chat, transaction, session, model, app, chain, wallet, config, and secret commands.
+- Interactive mode exposes slash-style helpers such as `/app`, `/model`, and `/key`.
+- The root help path is intentionally explicit about backend URL, API key, app, model, chain, and wallet options.
+
+## Role In The Repo
+
+- The CLI is the terminal-facing consumer of the same backend contracts used by the runtime and widget.
+- Packaging it inside `@aomi-labs/client` keeps the command surface and transport layer versioned together.
+
+## Related Topics
+
+- [ts-client.md](ts-client.md)
+- [repo-overview.md](repo-overview.md)
