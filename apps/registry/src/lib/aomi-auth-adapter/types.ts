@@ -8,12 +8,49 @@ import type {
 } from "@aomi-labs/react";
 
 export type AomiAuthStatus = "booting" | "disconnected" | "connected";
+export type AomiWalletKind = "eoa" | "smart-account";
+export type AomiAAMode = "none" | "4337" | "7702";
+export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
+export type AomiWalletProvider = "para" | "baseAccount";
+export type AomiAuthMethod =
+  | "google"
+  | "apple"
+  | "facebook"
+  | "x"
+  | "discord"
+  | "github"
+  | "farcaster"
+  | "telegram"
+  | "email"
+  | "phone"
+  | "wagmi";
 
 export type AomiAuthIdentity = {
   status: AomiAuthStatus;
   isConnected: boolean;
-  /** Connected EVM wallet address (0x...). */
+  /**
+   * Connected EVM account address (0x...). When `walletKind === "smart-account"`
+   * this is the smart account address; when `walletKind === "eoa"` it is the EOA.
+   */
   address?: string;
+  /** Whether the connected account is an EOA or an always-AA smart account. */
+  walletKind?: AomiWalletKind;
+  /** Default/current AA mode for the connected wallet context. */
+  aaMode?: AomiAAMode;
+  /** 4337 smart account address, populated after a 4337 tx resolves. */
+  SmartAccount4337?: string;
+  /** 7702 delegation contract address, populated after a 7702 tx resolves. */
+  Delegation7702?: string;
+  /** Whether gas is sponsored by a host-configured paymaster. */
+  sponsored?: boolean;
+  /** Which paymaster service is sponsoring, when `sponsored` is true. */
+  sponsorProvider?: AomiSponsorProvider;
+  /**
+   * Public, safe-to-expose identifier of the sponsor account on the paymaster
+   * platform (e.g. Alchemy gas policy id). Left undefined when the platform's
+   * binding is secret (API key, paymaster URL with embedded credential).
+   */
+  sponsorAccount?: string;
   chainId?: number;
   /**
    * Connected SVM (Solana) wallet pubkey, base58. Independent of
@@ -21,16 +58,10 @@ export type AomiAuthIdentity = {
    * Solana wallet under one identity.
    */
   svmAddress?: string;
-  authProvider?: string;
-  primaryLabel: string;
-  secondaryLabel?: string;
-  /**
-   * Set when the connected wallet itself IS a smart account (always-AA),
-   * e.g. Base Account / Coinbase Smart Wallet. Leave undefined for EOA
-   * wallets that may opt into AA per-transaction (Para's 7702/4337 flows).
-   */
-  aaMode?: "4337" | "7702";
-  smartAccount?: string;
+  /** Wallet platform backing this session. */
+  walletProvider?: AomiWalletProvider;
+  /** Auth method used within the wallet platform (Para OAuth, etc). */
+  authMethod?: AomiAuthMethod;
 };
 
 export type AomiTxResult = {
@@ -43,8 +74,8 @@ export type AomiTxResult = {
   batched?: boolean;
   callCount?: number;
   sponsored?: boolean;
-  smartAccountAddress?: string;
-  delegationAddress?: string;
+  SmartAccount4337?: string;
+  Delegation7702?: string;
 };
 
 export type AomiAuthAdapter = {

@@ -43,8 +43,8 @@ export interface SignTxOperationMetadata {
   executionKind?: string;
   batched?: boolean;
   sponsored?: boolean;
-  smartAccountAddress?: string;
-  delegationAddress?: string;
+  SmartAccount4337?: string;
+  Delegation7702?: string;
   attemptCount: number;
 }
 

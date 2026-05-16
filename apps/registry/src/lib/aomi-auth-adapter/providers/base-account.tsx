@@ -14,7 +14,7 @@ import type {
 } from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../context";
-import { AOMI_AUTH_DISCONNECTED_IDENTITY, formatAddress } from "../identity";
+import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "../identity";
 import {
   useSafeCapabilities,
   useSafeConnect,
@@ -160,6 +160,8 @@ function BaseAccountAdapterInner({
   );
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
+    const sponsorshipEnabled =
+      sponsorship?.mode === "optional" || sponsorship?.mode === "required";
     const baseConnector =
       connectors.find((connector) => connector.id === "baseAccount") ??
       connectors.find((connector) => connector.type === "baseAccount") ??
@@ -170,17 +172,19 @@ function BaseAccountAdapterInner({
             status: "connected",
             isConnected: true,
             address,
-            chainId: chainId ?? undefined,
-            authProvider: "baseAccount",
-            primaryLabel: formatAddress(address) ?? "Base Account",
-            secondaryLabel: "Base Account",
+            walletKind: "smart-account",
             aaMode: "4337",
-            smartAccount: address,
+            sponsored: sponsorshipEnabled,
+            sponsorProvider: sponsorshipEnabled ? "coinbase" : "self",
+            sponsorAccount: undefined,
+            chainId: chainId ?? undefined,
+            walletProvider: "baseAccount",
+            authMethod: undefined,
           }
         : {
             ...AOMI_AUTH_DISCONNECTED_IDENTITY,
             chainId: chainId ?? undefined,
-            authProvider: "baseAccount",
+            walletProvider: "baseAccount",
           };
 
     const connect = async () => {

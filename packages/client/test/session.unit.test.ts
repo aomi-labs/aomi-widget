@@ -199,7 +199,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("preserves AA mode and smart account across partial backend user_state snapshots", async () => {
+  it("preserves AA and sponsorship context across partial backend user_state snapshots", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-5c",
@@ -207,8 +207,11 @@ describe("ClientSession ext helpers", () => {
         address: "0xabc",
         chain_id: 8453,
         is_connected: true,
+        wallet_kind: "smart-account",
         aa_mode: "4337",
-        smart_account: "0xsmart",
+        wallet_provider: "baseAccount",
+        sponsored: true,
+        sponsor_provider: "coinbase",
       },
     });
 
@@ -229,22 +232,33 @@ describe("ClientSession ext helpers", () => {
       address: "0xabc",
       chain_id: 8453,
       is_connected: true,
+      wallet_kind: "smart-account",
       aa_mode: "4337",
-      smart_account: "0xsmart",
+      wallet_provider: "baseAccount",
+      sponsored: true,
+      sponsor_provider: "coinbase",
     });
 
     session.close();
   });
 
-  it("normalizes camelCase AA user_state aliases", () => {
+  it("normalizes camelCase user_state aliases", () => {
     expect(UserState.normalize({
       address: "0xabc",
       aaMode: "4337",
-      smartAccount: "0xsmart",
+      walletKind: "smart-account",
+      walletProvider: "baseAccount",
+      authMethod: "google",
+      sponsorProvider: "coinbase",
+      sponsorAccount: "gp_test",
     })).toMatchObject({
       address: "0xabc",
       aa_mode: "4337",
-      smart_account: "0xsmart",
+      wallet_kind: "smart-account",
+      wallet_provider: "baseAccount",
+      auth_method: "google",
+      sponsor_provider: "coinbase",
+      sponsor_account: "gp_test",
     });
   });
 
@@ -610,7 +624,6 @@ describe("ClientSession ext helpers", () => {
 
     expect(session.getUserState()).toMatchObject({
       aa_mode: "7702",
-      smart_account: null,
       pending_txs: {
         7: expect.objectContaining({
           chain_id: 8453,
@@ -634,8 +647,8 @@ describe("ClientSession ext helpers", () => {
           batched: false,
           call_count: 1,
           sponsored: undefined,
-          smart_account_address: undefined,
-          delegation_address: undefined,
+          smart_account_4337: undefined,
+          delegation_7702: undefined,
         },
       }),
     );

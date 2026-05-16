@@ -124,10 +124,7 @@ export function RuntimeTxHandler() {
           if (payloadWithFee === payload) {
             showNotification({
               type: "notice",
-              title: "Proceeding without Aomi fee",
-              message: simulationResult.fee
-                ? "Simulation returned a zero fee — sending without an appended fee call."
-                : "Simulation returned no fee — sending the original transaction. Aomi will not collect a fee on this one.",
+              title: "Proceeding without fee on failed simulation",
               duration: 6000,
             });
           }

@@ -240,7 +240,7 @@ function adaptPimlicoSdkAccount(account: {
     mode: account.mode,
     executionAddress: account.smartAccountAddress,
     AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+    Delegation7702: account.delegationAddress,
     sendTransaction: async (call) => account.sendTransaction(call),
     sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls),
   };

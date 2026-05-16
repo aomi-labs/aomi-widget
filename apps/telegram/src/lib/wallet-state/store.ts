@@ -120,8 +120,8 @@ function asSignTxMetadata(metadata: OperationMetadata): {
   executionKind?: string;
   batched?: boolean;
   sponsored?: boolean;
-  smartAccountAddress?: string;
-  delegationAddress?: string;
+  SmartAccount4337?: string;
+  Delegation7702?: string;
   attemptCount: number;
 } | null {
   if (!('calls' in metadata)) return null;
@@ -137,8 +137,8 @@ function asSignTxMetadata(metadata: OperationMetadata): {
     executionKind?: string;
     batched?: boolean;
     sponsored?: boolean;
-    smartAccountAddress?: string;
-    delegationAddress?: string;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
     attemptCount: number;
   };
 }
@@ -317,8 +317,8 @@ export function markOperationSuccess(
     executionKind?: string;
     batched?: boolean;
     sponsored?: boolean;
-    smartAccountAddress?: string;
-    delegationAddress?: string;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
     signature?: string;
   },
 ): OperationLookupResult | undefined {
@@ -338,8 +338,8 @@ export function markOperationSuccess(
       executionKind: patch?.executionKind ?? txMeta.executionKind,
       batched: patch?.batched ?? txMeta.batched,
       sponsored: patch?.sponsored ?? txMeta.sponsored,
-      smartAccountAddress: patch?.smartAccountAddress ?? txMeta.smartAccountAddress,
-      delegationAddress: patch?.delegationAddress ?? txMeta.delegationAddress,
+      SmartAccount4337: patch?.SmartAccount4337 ?? txMeta.SmartAccount4337,
+      Delegation7702: patch?.Delegation7702 ?? txMeta.Delegation7702,
     };
   }
 
@@ -389,8 +389,8 @@ export function markOperationFailure(
     executionKind?: string;
     batched?: boolean;
     sponsored?: boolean;
-    smartAccountAddress?: string;
-    delegationAddress?: string;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
   },
 ): OperationLookupResult | undefined {
   const found = getOperationStateById(operationId);
@@ -407,8 +407,8 @@ export function markOperationFailure(
       executionKind: params.executionKind ?? txMeta.executionKind,
       batched: params.batched ?? txMeta.batched,
       sponsored: params.sponsored ?? txMeta.sponsored,
-      smartAccountAddress: params.smartAccountAddress ?? txMeta.smartAccountAddress,
-      delegationAddress: params.delegationAddress ?? txMeta.delegationAddress,
+      SmartAccount4337: params.SmartAccount4337 ?? txMeta.SmartAccount4337,
+      Delegation7702: params.Delegation7702 ?? txMeta.Delegation7702,
     };
   }
 

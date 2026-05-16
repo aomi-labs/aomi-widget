@@ -55,9 +55,7 @@ import { AomiAuthAdapterProvider } from "../context";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
-  formatAddress,
-  formatAuthProvider,
-  inferAuthProvider,
+  inferAuthMethod,
 } from "../identity";
 import {
   useSafeCapabilities,
@@ -69,7 +67,7 @@ import {
   useSafeWagmiConfig,
   useSafeWalletClient,
 } from "../safe-wagmi-hooks";
-import type { AomiAuthAdapter, AomiAuthIdentity } from "../types";
+import type { AomiAuthAdapter, AomiAuthIdentity, AomiAuthMethod } from "../types";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -262,6 +260,33 @@ function resolveAAProvider(): AAProvider | null {
   return null;
 }
 
+function resolveParaSponsorship(): {
+  sponsored: boolean;
+  sponsorProvider: AomiAuthIdentity["sponsorProvider"];
+  sponsorAccount: AomiAuthIdentity["sponsorAccount"];
+} {
+  const aaProvider = resolveAAProvider();
+  if (aaProvider === "alchemy") {
+    return {
+      sponsored: Boolean(ALCHEMY_GAS_POLICY_ID),
+      sponsorProvider: "alchemy",
+      sponsorAccount: ALCHEMY_GAS_POLICY_ID || undefined,
+    };
+  }
+  if (aaProvider === "pimlico") {
+    return {
+      sponsored: Boolean(PIMLICO_API_KEY),
+      sponsorProvider: "pimlico",
+      sponsorAccount: undefined,
+    };
+  }
+  return {
+    sponsored: false,
+    sponsorProvider: "self",
+    sponsorAccount: undefined,
+  };
+}
+
 async function resolveParaAAProviderState({
   callList,
   chainsById,
@@ -425,11 +450,6 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
     const isBooting = paraAccount.isLoading && !isConnected;
 
-    const embeddedPrimary =
-      paraAccount.embedded.email ??
-      paraAccount.embedded.farcasterUsername ??
-      paraAccount.embedded.telegramUserId ??
-      undefined;
     const embeddedWallet = paraAccount.embedded.wallets?.[0] as
       | { address?: string }
       | undefined;
@@ -437,10 +457,18 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     const externalAddress = paraAccount.external.evm?.address;
     const address =
       wagmiAddress ?? externalAddress ?? embeddedAddress ?? undefined;
-    const authProvider = inferAuthProvider(paraAccount.embedded.authMethods);
-    const providerLabel = formatAuthProvider(authProvider);
+    const walletProvider = "para" as const;
+    const oauthMethod = inferAuthMethod(paraAccount.embedded.authMethods);
+    // External wallet flow (WalletConnect / wagmi-injected via Para) has no
+    // OAuth identity — surface it explicitly as "wagmi" so the bot can tell
+    // QR/external from embedded-without-method-yet.
+    const usingExternalWallet = Boolean(externalAddress || wagmiAddress);
+    const authMethod: AomiAuthMethod | undefined =
+      oauthMethod ?? (usingExternalWallet ? "wagmi" : undefined);
 
     const svmAddress = solanaWallet.publicKey;
+    const { sponsored, sponsorProvider, sponsorAccount } =
+      resolveParaSponsorship();
 
     const identity: AomiAuthIdentity = isBooting
       ? {
@@ -448,44 +476,38 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
           chainId: chainId ?? undefined,
           svmAddress,
         }
-      : isConnected && embeddedPrimary
+      : isConnected && address
         ? {
             status: "connected",
             isConnected: true,
             address,
+            walletKind: "eoa",
+            aaMode: "none",
+            sponsored,
+            sponsorProvider,
+            sponsorAccount,
             chainId: chainId ?? undefined,
             svmAddress,
-            authProvider,
-            primaryLabel: embeddedPrimary,
-            secondaryLabel: providerLabel,
+            walletProvider,
+            authMethod,
           }
-        : isConnected && address
+        : svmAddress
           ? {
               status: "connected",
               isConnected: true,
-              address,
+              walletKind: undefined,
+              aaMode: undefined,
               chainId: chainId ?? undefined,
               svmAddress,
-              authProvider,
-              primaryLabel: formatAddress(address) ?? "Connected wallet",
-              secondaryLabel: undefined,
+              walletProvider,
+              authMethod,
             }
-          : svmAddress
-            ? {
-                status: "connected",
-                isConnected: true,
-                chainId: chainId ?? undefined,
-                svmAddress,
-                authProvider,
-                primaryLabel:
-                  formatAddress(svmAddress) ?? "Connected Solana wallet",
-                secondaryLabel: "Solana",
-              }
-            : {
-                ...AOMI_AUTH_DISCONNECTED_IDENTITY,
-                chainId: chainId ?? undefined,
-                authProvider,
-              };
+          : {
+              ...AOMI_AUTH_DISCONNECTED_IDENTITY,
+              chainId: chainId ?? undefined,
+              walletProvider,
+              authMethod,
+            };
 
     const connectorName = connector?.name?.toLowerCase() ?? "";
     const isParaWallet = connectorName.includes("para");
@@ -523,6 +545,8 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
                 chainsById,
                 getPreferredRpcUrl,
               },
+              forceAA: true,
+              preferAAForSingleCall: true,
               shouldUseExternalSigner,
               resolveAAProviderState: (params) =>
                 resolveParaAAProviderState({

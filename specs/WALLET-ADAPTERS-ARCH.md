@@ -280,8 +280,8 @@ export type AomiTxResult = {
   batched?: boolean;
   callCount?: number;
   sponsored?: boolean;
-  smartAccountAddress?: string;
-  delegationAddress?: string;
+  SmartAccount4337?: string;
+  Delegation7702?: string;
 };
 ```
 

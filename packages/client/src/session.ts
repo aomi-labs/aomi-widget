@@ -107,8 +107,8 @@ export type WalletRequestResult =
       batched?: boolean;
       callCount?: number;
       sponsored?: boolean;
-      smartAccountAddress?: string;
-      delegationAddress?: string;
+      SmartAccount4337?: string;
+      Delegation7702?: string;
     }
   | {
       kind: "eip712_sign";
@@ -433,11 +433,23 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         result.aaResolvedMode ??
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
+      const currentAddress = UserState.address(this.userState);
+      const normalizedWalletKind =
+        UserState.walletKind(this.userState) ??
+        (resolvedMode === "4337" &&
+        currentAddress === result.SmartAccount4337
+          ? "smart-account"
+          : currentAddress
+            ? "eoa"
+            : null);
       this.resolveUserState({
         ...(this.userState ?? {}),
-        aa_mode: resolvedMode === "none" ? null : resolvedMode,
-        smart_account:
-          resolvedMode === "4337" ? result.smartAccountAddress ?? null : null,
+        wallet_kind: normalizedWalletKind,
+        aa_mode: resolvedMode,
+        smart_account_4337:
+          resolvedMode === "4337" ? result.SmartAccount4337 ?? null : null,
+        delegation_7702:
+          resolvedMode === "7702" ? result.Delegation7702 ?? null : null,
       });
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash,
@@ -451,8 +463,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         batched: result.batched ?? pendingTxIds.length > 1,
         call_count: result.callCount ?? pendingTxIds.length,
         sponsored: result.sponsored,
-        smart_account_address: result.smartAccountAddress,
-        delegation_address: result.delegationAddress,
+        smart_account_4337: result.SmartAccount4337,
+        delegation_7702: result.Delegation7702,
       });
     } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", {
@@ -505,8 +517,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         batched: pendingTxIds.length > 1,
         call_count: pendingTxIds.length,
         sponsored: undefined,
-        smart_account_address: undefined,
-        delegation_address: undefined,
+        smart_account_4337: undefined,
+        delegation_7702: undefined,
       });
     } else if (req.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", {
@@ -661,12 +673,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       smartAccount?: string | null;
     },
   ): void {
+    const resolvedAAMode =
+      aa?.aaMode ?? (aa?.smartAccount === address ? "4337" : "none");
+    const resolvedWalletKind =
+      aa?.smartAccount === address ? "smart-account" : "eoa";
     this.resolveUserState({
       address,
+      wallet_kind: resolvedWalletKind,
+      aa_mode: resolvedAAMode,
       chain_id: chainId ?? 1,
       is_connected: true,
-      aa_mode: aa?.aaMode ?? null,
-      smart_account: aa?.smartAccount ?? null,
     });
   }
 

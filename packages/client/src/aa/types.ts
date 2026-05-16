@@ -75,7 +75,7 @@ export interface SmartAccount {
   ownerAddress?: Hex;
   executionAddress?: Hex;
   AAAddress?: Hex;
-  delegationAddress?: Hex;
+  Delegation7702?: Hex;
   sendTransaction: (
     call: AACallPayload,
   ) => Promise<{ transactionHash: string }>;
@@ -100,9 +100,22 @@ export interface ExecutionResult {
   txHashes: string[];
   executionKind: string;
   batched: boolean;
-  sponsored: boolean;
+  /**
+   * Whether gas was paid by a paymaster.
+   *
+   * - `true`: paymaster paid, verified by the protocol (4337 userOp success
+   *   requires paymaster validation; `sponsorship.mode === "required"`
+   *   fails the tx if the paymaster rejects).
+   * - `false`: no paymaster was attached (EOA path, or sendCalls fallback
+   *   to sequential after sponsored-batch error).
+   * - `undefined`: paymaster config was passed but the wallet may have
+   *   silently fallen back to user-paid (Base Account with
+   *   `sponsorship.mode === "optional"`). We cannot tell post-hoc without
+   *   decoding the userOp logs.
+   */
+  sponsored: boolean | undefined;
   AAAddress?: Hex;
-  delegationAddress?: Hex;
+  Delegation7702?: Hex;
 }
 
 export interface AtomicBatchArgs {
