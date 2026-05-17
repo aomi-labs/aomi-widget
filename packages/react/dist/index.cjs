@@ -1137,6 +1137,13 @@ function useUser() {
   };
 }
 function ExtUserProvider({ children }) {
+  const parent = (0, import_react5.useContext)(UserContext);
+  if (parent) {
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_jsx_runtime5.Fragment, { children });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ExtUserProviderImpl, { children });
+}
+function ExtUserProviderImpl({ children }) {
   const [user, setUserState] = (0, import_react5.useState)({
     address: void 0,
     chain_id: void 0,

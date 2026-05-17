@@ -1104,7 +1104,7 @@ import {
 } from "react";
 import { UserState } from "@aomi-labs/client";
 import { UserState as UserState2 } from "@aomi-labs/client";
-import { jsx as jsx5 } from "react/jsx-runtime";
+import { Fragment, jsx as jsx5 } from "react/jsx-runtime";
 var UserContext = createContext5(void 0);
 function useUser() {
   const context = useContext5(UserContext);
@@ -1121,6 +1121,13 @@ function useUser() {
   };
 }
 function ExtUserProvider({ children }) {
+  const parent = useContext5(UserContext);
+  if (parent) {
+    return /* @__PURE__ */ jsx5(Fragment, { children });
+  }
+  return /* @__PURE__ */ jsx5(ExtUserProviderImpl, { children });
+}
+function ExtUserProviderImpl({ children }) {
   const [user, setUserState] = useState3({
     address: void 0,
     chain_id: void 0,
@@ -2060,7 +2067,7 @@ import {
   useState as useState6
 } from "react";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
-import { Fragment, jsx as jsx6 } from "react/jsx-runtime";
+import { Fragment as Fragment2, jsx as jsx6 } from "react/jsx-runtime";
 var THREAD_PREFETCH_LIMIT = 5;
 var PREFETCH_IDLE_TIMEOUT_MS = 1500;
 function scheduleBackgroundTask(task) {
@@ -2430,7 +2437,7 @@ function RuntimeUserStateProvider({
       sessionListeners.forEach((off) => off());
     };
   }, [getUserState, onUserStateChange, sessionManager, setUser]);
-  return /* @__PURE__ */ jsx6(Fragment, { children });
+  return /* @__PURE__ */ jsx6(Fragment2, { children });
 }
 
 // src/runtime/core.tsx
