@@ -18,7 +18,7 @@ const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
 const AomiAuthAdapterContext =
   createContext<AomiAuthAdapter>(DISCONNECTED_ADAPTER);
 
-function AomiAuthAdapterUserSync({
+function AomiAuthAdapterSync({
   adapter,
 }: {
   adapter: AomiAuthAdapter;
@@ -78,7 +78,7 @@ export function AomiAuthAdapterProvider({
 }) {
   return (
     <AomiAuthAdapterContext.Provider value={value}>
-      <AomiAuthAdapterUserSync adapter={value} />
+      <AomiAuthAdapterSync adapter={value} />
       {children}
     </AomiAuthAdapterContext.Provider>
   );

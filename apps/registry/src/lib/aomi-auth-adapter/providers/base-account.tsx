@@ -15,6 +15,7 @@ import type {
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../context";
 import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "../identity";
+import { useFullTestnet } from "../full-testnet-wallet-routing";
 import {
   useSafeCapabilities,
   useSafeConnect,
@@ -27,10 +28,7 @@ import {
   useSafeWagmiAccount,
   useSafeWagmiConfig,
 } from "../safe-wagmi-hooks";
-import type {
-  AomiAuthAdapter,
-  AomiAuthIdentity,
-} from "../types";
+import type { AomiAuthAdapter, AomiAuthIdentity } from "../types";
 import { ExtUserProvider, UserState, useUser } from "@aomi-labs/react";
 import {
   executeAdapterTransaction,
@@ -320,21 +318,22 @@ export function AomiBaseAccountProvider({
   includeBaseSepolia = false,
   sponsorship,
 }: AomiBaseAccountProviderProps) {
-  const resolvedChains = useMemo(
+  const preferredChains = useMemo(
     () =>
       chains ??
       (includeBaseSepolia ? ([base, baseSepolia] as const) : ([base] as const)),
     [chains, includeBaseSepolia],
   );
+  const routing = useFullTestnet(preferredChains);
   const [queryClient] = useState(() => new QueryClient());
   const config = useMemo(
     () =>
       createBaseAccountConfig({
         appName,
         appLogoUrl,
-        chains: resolvedChains,
+        chains: routing.routedChains,
       }),
-    [appLogoUrl, appName, resolvedChains],
+    [appLogoUrl, appName, routing.routedChains],
   );
 
   // `BaseAccountAdapterInner` reads per-tx AA fields from `useUser()`, so
