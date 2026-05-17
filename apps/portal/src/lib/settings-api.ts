@@ -66,7 +66,7 @@ export async function settingsApiFetch<T>(
   headers.set("X-Session-Id", getSettingsSessionId());
   const resolvedSecret = secret === undefined ? getSettingsSecret() : secret?.trim() || null;
   if (resolvedSecret) {
-    headers.set("X-API-Key", resolvedSecret);
+    headers.set("AOMI-APP-KEY", resolvedSecret);
   }
   if (!headers.has("Content-Type") && requestInit.body) {
     headers.set("Content-Type", "application/json");

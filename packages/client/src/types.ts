@@ -629,24 +629,24 @@ export interface AomiCreateThreadResponse {
 
 /**
  * GET/POST /api/control/provider-keys
- * Lists or saves BYOK provider keys for the bound client.
+ * Lists or saves BYOK keys (one per LLM provider) for the bound client.
  */
-export interface AomiProviderKeyEntry {
+export interface AomiByokKeyEntry {
   provider: string;
   key_prefix: string;
   label?: string | null;
   is_active: boolean;
 }
 
-export interface AomiListProviderKeysResponse {
-  provider_keys: AomiProviderKeyEntry[];
+export interface AomiListByokKeysResponse {
+  byok_keys: AomiByokKeyEntry[];
 }
 
-export interface AomiSaveProviderKeyResponse {
-  key: AomiProviderKeyEntry;
+export interface AomiSaveByokKeyResponse {
+  key: AomiByokKeyEntry;
 }
 
-export interface AomiDeleteProviderKeyResponse {
+export interface AomiDeleteByokKeyResponse {
   deleted: boolean;
 }
 

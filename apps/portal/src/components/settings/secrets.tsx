@@ -17,11 +17,11 @@ type OwnedSecret = {
 };
 
 type SecretsResponse = {
-  api_keys: OwnedSecret[];
+  app_keys: OwnedSecret[];
 };
 
 type CreateSecretResponse = {
-  api_key: string;
+  app_key: string;
   key: OwnedSecret;
 };
 
@@ -71,7 +71,7 @@ export function Secrets() {
       const data = await settingsApiFetch<SecretsResponse>(
         "/api/settings/api-keys",
       );
-      setSecrets(data.api_keys ?? []);
+      setSecrets(data.app_keys ?? []);
     } catch (error) {
       setStatus({
         type: "error",
@@ -140,7 +140,7 @@ export function Secrets() {
       const payload = {
         apps: selectedApps,
         label: labelInput.trim() || undefined,
-        api_key: manualSecretInput.trim() || undefined,
+        app_key: manualSecretInput.trim() || undefined,
       };
       const data = await settingsApiFetch<CreateSecretResponse>(
         "/api/settings/api-keys",
@@ -149,7 +149,7 @@ export function Secrets() {
           body: JSON.stringify(payload),
         },
       );
-      setCreatedSecret(data.api_key);
+      setCreatedSecret(data.app_key);
       setLabelInput("");
       setManualSecretInput("");
       await loadSecrets();

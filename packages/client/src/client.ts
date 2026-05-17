@@ -4,13 +4,13 @@ import type {
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
-  AomiDeleteProviderKeyResponse,
+  AomiDeleteByokKeyResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
-  AomiListProviderKeysResponse,
-  AomiProviderKeyEntry,
-  AomiSaveProviderKeyResponse,
+  AomiListByokKeysResponse,
+  AomiByokKeyEntry,
+  AomiSaveByokKeyResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
   AomiStateResponse,
@@ -27,7 +27,7 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 // =============================================================================
 
 const SESSION_ID_HEADER = "X-Session-Id";
-const API_KEY_HEADER = "X-API-Key";
+const APP_KEY_HEADER = "AOMI-APP-KEY";
 
 function joinApiPath(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
@@ -85,7 +85,7 @@ async function postState<T>(
 
   const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
-    headers.set(API_KEY_HEADER, apiKey);
+    headers.set(APP_KEY_HEADER, apiKey);
   }
 
   const response = await fetchImpl(url, {
@@ -519,7 +519,7 @@ export class AomiClient {
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
+      headers.set(APP_KEY_HEADER, apiKey);
     }
 
     const response = await this.rawFetchImpl(url, { headers });
@@ -542,7 +542,7 @@ export class AomiClient {
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
+      headers.set(APP_KEY_HEADER, apiKey);
     }
 
     const response = await this.rawFetchImpl(url, {
@@ -594,31 +594,31 @@ export class AomiClient {
   }
 
   /**
-   * List BYOK provider keys bound to the current session's client.
+   * List BYOK keys (one per LLM provider) bound to the current session's client.
    */
-  async listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]> {
+  async listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]> {
     const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+      throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiListProviderKeysResponse;
-    return data.provider_keys ?? [];
+    const data = (await response.json()) as AomiListByokKeysResponse;
+    return data.byok_keys ?? [];
   }
 
   /**
-   * Save or replace a BYOK provider key for the client bound to this session.
+   * Save or replace a BYOK key for the client bound to this session.
    */
-  async saveProviderKey(
+  async saveByokKey(
     sessionId: string,
     provider: string,
-    apiKey: string,
+    byokKey: string,
     label?: string,
-  ): Promise<AomiProviderKeyEntry> {
+  ): Promise<AomiByokKeyEntry> {
     const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
     const response = await this.fetchImpl(url, {
       method: "POST",
@@ -627,23 +627,23 @@ export class AomiClient {
       }),
       body: JSON.stringify({
         provider,
-        api_key: apiKey,
+        byok_key: byokKey,
         label,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+      throw new Error(`Failed to save BYOK key: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiSaveProviderKeyResponse;
+    const data = (await response.json()) as AomiSaveByokKeyResponse;
     return data.key;
   }
 
   /**
-   * Delete a BYOK provider key for the client bound to this session.
+   * Delete a BYOK key for the client bound to this session.
    */
-  async deleteProviderKey(
+  async deleteByokKey(
     sessionId: string,
     provider: string,
   ): Promise<boolean> {
@@ -657,10 +657,10 @@ export class AomiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+      throw new Error(`Failed to delete BYOK key: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiDeleteProviderKeyResponse;
+    const data = (await response.json()) as AomiDeleteByokKeyResponse;
     return data.deleted;
   }
 
@@ -690,7 +690,7 @@ export class AomiClient {
       withSessionHeader(sessionId, { "Content-Type": "application/json" }),
     );
     if (this.apiKey) {
-      headers.set(API_KEY_HEADER, this.apiKey);
+      headers.set(APP_KEY_HEADER, this.apiKey);
     }
 
     const normalizedTransactions = transactions.map((transaction) => ({
