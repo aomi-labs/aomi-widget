@@ -1764,16 +1764,21 @@ var ClientSession = class extends TypedEventEmitter {
     this.resolveUserState(nextState);
   }
   resolveWallet(address, chainId, aa) {
-    var _a;
+    var _a, _b, _c, _d;
     const resolvedAAMode = (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : (aa == null ? void 0 : aa.smartAccount) === address ? "4337" : "none";
     const resolvedWalletKind = (aa == null ? void 0 : aa.smartAccount) === address ? "smart-account" : "eoa";
-    this.resolveUserState({
+    const next = __spreadProps(__spreadValues({}, (_b = this.userState) != null ? _b : {}), {
       address,
       wallet_kind: resolvedWalletKind,
       aa_mode: resolvedAAMode,
       chain_id: chainId != null ? chainId : 1,
       is_connected: true
     });
+    if ((aa == null ? void 0 : aa.smartAccount4337) !== void 0 || (aa == null ? void 0 : aa.delegation7702) !== void 0) {
+      next.smart_account_4337 = resolvedAAMode === "4337" ? (_c = aa == null ? void 0 : aa.smartAccount4337) != null ? _c : null : null;
+      next.delegation_7702 = resolvedAAMode === "7702" ? (_d = aa == null ? void 0 : aa.delegation7702) != null ? _d : null : null;
+    }
+    this.resolveUserState(next);
   }
   async syncUserState() {
     this.assertOpen();

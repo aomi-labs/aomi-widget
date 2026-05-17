@@ -44,7 +44,12 @@ import type {
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "@aomi-labs/react";
-import { toViemSignTypedDataArgs, UserState, useUser } from "@aomi-labs/react";
+import {
+  ExtUserProvider,
+  toViemSignTypedDataArgs,
+  UserState,
+  useUser,
+} from "@aomi-labs/react";
 import {
   createAAProviderState,
   type AAMode,
@@ -745,30 +750,34 @@ export function AomiParaProvider({
     [appName, appUrl, solanaEndpoint, solanaMobileChain, solanaWallets],
   );
 
+  // `AomiParaAdapterProvider` reads from `useUser()`, so mount
+  // `ExtUserProvider` here. Host apps don't need to mount it themselves.
   return (
-    <QueryClientProvider client={queryClient}>
-      {apiKey ? (
-        <ParaProvider
-          paraClientConfig={{
-            apiKey,
-            env: environment,
-          }}
-          config={{ appName }}
-          paraModalConfig={paraModalConfig}
-          externalWalletConfig={externalWalletConfig}
-        >
-          <ParaSolanaWrapper
-            enabled={solanaEnabled}
-            config={solanaProviderConfig}
+    <ExtUserProvider>
+      <QueryClientProvider client={queryClient}>
+        {apiKey ? (
+          <ParaProvider
+            paraClientConfig={{
+              apiKey,
+              env: environment,
+            }}
+            config={{ appName }}
+            paraModalConfig={paraModalConfig}
+            externalWalletConfig={externalWalletConfig}
           >
-            <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
-          </ParaSolanaWrapper>
-        </ParaProvider>
-      ) : (
-        // No Para API key → no Para session, no Solana session either.
-        <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
-      )}
-    </QueryClientProvider>
+            <ParaSolanaWrapper
+              enabled={solanaEnabled}
+              config={solanaProviderConfig}
+            >
+              <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+            </ParaSolanaWrapper>
+          </ParaProvider>
+        ) : (
+          // No Para API key → no Para session, no Solana session either.
+          <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+        )}
+      </QueryClientProvider>
+    </ExtUserProvider>
   );
 }
 

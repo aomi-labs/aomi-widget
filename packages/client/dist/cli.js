@@ -1980,16 +1980,21 @@ var init_session = __esm({
         this.resolveUserState(nextState);
       }
       resolveWallet(address, chainId, aa) {
-        var _a3;
+        var _a3, _b, _c, _d;
         const resolvedAAMode = (_a3 = aa == null ? void 0 : aa.aaMode) != null ? _a3 : (aa == null ? void 0 : aa.smartAccount) === address ? "4337" : "none";
         const resolvedWalletKind = (aa == null ? void 0 : aa.smartAccount) === address ? "smart-account" : "eoa";
-        this.resolveUserState({
+        const next = __spreadProps(__spreadValues({}, (_b = this.userState) != null ? _b : {}), {
           address,
           wallet_kind: resolvedWalletKind,
           aa_mode: resolvedAAMode,
           chain_id: chainId != null ? chainId : 1,
           is_connected: true
         });
+        if ((aa == null ? void 0 : aa.smartAccount4337) !== void 0 || (aa == null ? void 0 : aa.delegation7702) !== void 0) {
+          next.smart_account_4337 = resolvedAAMode === "4337" ? (_c = aa == null ? void 0 : aa.smartAccount4337) != null ? _c : null : null;
+          next.delegation_7702 = resolvedAAMode === "7702" ? (_d = aa == null ? void 0 : aa.delegation7702) != null ? _d : null : null;
+        }
+        this.resolveUserState(next);
       }
       async syncUserState() {
         this.assertOpen();
@@ -2612,6 +2617,8 @@ function toCliSessionState(stored) {
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     chainId: stored.chainId,
+    aaMode: stored.aaMode,
+    smartAccount: stored.smartAccount,
     pendingTxs: stored.pendingTxs,
     pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
@@ -2638,6 +2645,8 @@ function readStoredSession(path) {
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       chainId: parsed.chainId,
+      aaMode: parsed.aaMode,
+      smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
       pendingSolTxs: parsed.pendingSolTxs,
       signedTxs: parsed.signedTxs,
@@ -5489,7 +5498,7 @@ async function executeCliTransaction(params) {
   });
 }
 async function signCommand(config, txIds) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
@@ -5583,6 +5592,8 @@ Available: ${available}`);
     let backendNotifications = [];
     let resolvedUserStateAAMode = null;
     let resolvedUserStateSmartAccount = null;
+    let resolvedUserStateSmartAccount4337 = null;
+    let resolvedUserStateDelegation7702 = null;
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
       for (const tx of pendingTxs) {
@@ -5733,6 +5744,8 @@ Available: ${available}`);
       const executionUsedAA = finalDecision.execution === "aa" && execution.executionKind !== "eoa";
       resolvedUserStateAAMode = executionUsedAA && finalDecision.execution === "aa" ? finalDecision.aaMode : null;
       resolvedUserStateSmartAccount = resolvedUserStateAAMode === "4337" ? (_h = execution.SmartAccount4337) != null ? _h : null : null;
+      resolvedUserStateSmartAccount4337 = resolvedUserStateAAMode === "4337" ? (_i = execution.SmartAccount4337) != null ? _i : null : null;
+      resolvedUserStateDelegation7702 = resolvedUserStateAAMode === "7702" ? (_j = execution.Delegation7702) != null ? _j : null : null;
       signedRecords = pendingTxs.map(
         (tx, index) => toSignedTransactionRecord(
           tx,
@@ -5807,7 +5820,9 @@ Available: ${available}`);
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
       aaMode: resolvedUserStateAAMode,
-      smartAccount: resolvedUserStateSmartAccount
+      smartAccount: resolvedUserStateSmartAccount,
+      smartAccount4337: resolvedUserStateSmartAccount4337,
+      delegation7702: resolvedUserStateDelegation7702
     });
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(

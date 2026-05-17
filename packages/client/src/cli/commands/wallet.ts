@@ -436,6 +436,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
     let resolvedUserStateAAMode: "4337" | "7702" | null = null;
     let resolvedUserStateSmartAccount: string | null = null;
+    let resolvedUserStateSmartAccount4337: string | null = null;
+    let resolvedUserStateDelegation7702: string | null = null;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
@@ -629,6 +631,14 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         resolvedUserStateAAMode === "4337"
           ? execution.SmartAccount4337 ?? null
           : null;
+      resolvedUserStateSmartAccount4337 =
+        resolvedUserStateAAMode === "4337"
+          ? execution.SmartAccount4337 ?? null
+          : null;
+      resolvedUserStateDelegation7702 =
+        resolvedUserStateAAMode === "7702"
+          ? execution.Delegation7702 ?? null
+          : null;
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -719,6 +729,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     session.resolveWallet(account.address, primaryChainId, {
       aaMode: resolvedUserStateAAMode,
       smartAccount: resolvedUserStateSmartAccount,
+      smartAccount4337: resolvedUserStateSmartAccount4337,
+      delegation7702: resolvedUserStateDelegation7702,
     });
 
     for (const backendNotification of backendNotifications) {

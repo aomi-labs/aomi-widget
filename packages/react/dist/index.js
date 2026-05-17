@@ -31,7 +31,7 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// packages/react/src/index.ts
+// src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
@@ -48,11 +48,11 @@ import {
   aaModeFromExecutionKind
 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
 import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import {
   createContext,
   useCallback,
@@ -62,7 +62,7 @@ import {
   useEffect
 } from "react";
 
-// packages/react/src/utils/uuid.ts
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -74,7 +74,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -259,7 +259,7 @@ var ThreadStore = class {
   }
 };
 
-// packages/react/src/utils/model-selection.ts
+// src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude-4\.5-haiku/i,
   /^claude.*haiku/i,
@@ -276,7 +276,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// packages/react/src/utils/client-session.ts
+// src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -302,12 +302,12 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
-var API_KEY_STORAGE_KEY = "aomi_api_key";
-var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
+var API_KEY_STORAGE_KEY = "aomi_secret_key";
+var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
-var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
+var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
 function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
@@ -385,7 +385,7 @@ function ControlContextProvider({
     authorizedApps: [],
     defaultModel: null,
     defaultApp: null,
-    providerKeys: {}
+    byokKeys: {}
   }));
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -428,10 +428,10 @@ function ControlContextProvider({
   useEffect(() => {
     var _a2;
     try {
-      const raw = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(PROVIDER_KEYS_STORAGE_KEY);
+      const raw = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(BYOK_KEYS_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { providerKeys: parsed }));
+        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { byokKeys: parsed }));
       }
     } catch (e) {
     }
@@ -450,30 +450,30 @@ function ControlContextProvider({
   useEffect(() => {
     var _a2, _b2;
     try {
-      const keys = state.providerKeys;
+      const keys = state.byokKeys;
       if (Object.keys(keys).length > 0) {
         (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(
-          PROVIDER_KEYS_STORAGE_KEY,
+          BYOK_KEYS_STORAGE_KEY,
           JSON.stringify(keys)
         );
       } else {
-        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(PROVIDER_KEYS_STORAGE_KEY);
+        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(BYOK_KEYS_STORAGE_KEY);
       }
     } catch (e) {
     }
-  }, [state.providerKeys]);
+  }, [state.byokKeys]);
   useEffect(() => {
     if (!state.clientId) return;
-    const keys = stateRef.current.providerKeys;
+    const keys = stateRef.current.byokKeys;
     if (Object.keys(keys).length === 0) return;
     const secrets = {};
     for (const [provider, entry] of Object.entries(keys)) {
-      secrets[`${PROVIDER_KEY_SECRET_PREFIX}${provider}`] = entry.apiKey;
+      secrets[`${BYOK_SECRET_PREFIX}${provider}`] = entry.apiKey;
     }
     void aomiClientRef.current.ingestSecrets(getCurrentControlSessionId(), state.clientId, secrets).catch((err) => {
-      console.error("Failed to auto-ingest provider keys:", err);
+      console.error("Failed to auto-ingest BYOK keys:", err);
     });
-  }, [getCurrentControlSessionId, state.clientId, state.providerKeys]);
+  }, [getCurrentControlSessionId, state.clientId, state.byokKeys]);
   useEffect(() => {
     const fetchApps = async () => {
       var _a2;
@@ -546,7 +546,7 @@ function ControlContextProvider({
       clientId
     ));
   }, [getCurrentControlSessionId]);
-  const setProviderKey = useCallback(
+  const setByok = useCallback(
     async (provider, apiKey, label) => {
       const trimmed = apiKey.trim();
       if (!trimmed) return;
@@ -557,7 +557,7 @@ function ControlContextProvider({
       };
       setStateInternal((prev) => {
         const next = __spreadProps(__spreadValues({}, prev), {
-          providerKeys: __spreadProps(__spreadValues({}, prev.providerKeys), { [provider]: entry })
+          byokKeys: __spreadProps(__spreadValues({}, prev.byokKeys), { [provider]: entry })
         });
         callbacks.current.forEach((cb) => cb(next));
         return next;
@@ -569,41 +569,41 @@ function ControlContextProvider({
             getCurrentControlSessionId(),
             clientId,
             {
-              [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed
+              [`${BYOK_SECRET_PREFIX}${provider}`]: trimmed
             }
           );
         } catch (err) {
-          console.error("Failed to ingest provider key:", err);
+          console.error("Failed to ingest BYOK key:", err);
         }
       }
     },
     [getCurrentControlSessionId]
   );
-  const removeProviderKey = useCallback(
+  const removeByok = useCallback(
     async (provider) => {
       const clientId = stateRef.current.clientId;
       if (clientId) {
         await aomiClientRef.current.deleteSecret(
           getCurrentControlSessionId(),
           clientId,
-          `${PROVIDER_KEY_SECRET_PREFIX}${provider}`
+          `${BYOK_SECRET_PREFIX}${provider}`
         );
       }
       setStateInternal((prev) => {
-        const _a2 = prev.providerKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
-        const next = __spreadProps(__spreadValues({}, prev), { providerKeys: rest });
+        const _a2 = prev.byokKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
+        const next = __spreadProps(__spreadValues({}, prev), { byokKeys: rest });
         callbacks.current.forEach((cb) => cb(next));
         return next;
       });
     },
     [getCurrentControlSessionId]
   );
-  const getProviderKeys = useCallback(
-    () => stateRef.current.providerKeys,
+  const getByokKeys = useCallback(
+    () => stateRef.current.byokKeys,
     []
   );
-  const hasProviderKey = useCallback((provider) => {
-    const keys = stateRef.current.providerKeys;
+  const hasByok = useCallback((provider) => {
+    const keys = stateRef.current.byokKeys;
     if (provider) return provider in keys;
     return Object.keys(keys).length > 0;
   }, []);
@@ -896,10 +896,10 @@ function ControlContextProvider({
         setApiKey,
         ingestSecrets,
         clearSecrets,
-        setProviderKey,
-        removeProviderKey,
-        getProviderKeys,
-        hasProviderKey,
+        setByok,
+        removeByok,
+        getByokKeys,
+        hasByok,
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,
@@ -919,7 +919,7 @@ function ControlContextProvider({
   );
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 import {
   createContext as createContext2,
   useCallback as useCallback2,
@@ -994,7 +994,7 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
   useCallback as useCallback3,
@@ -1044,7 +1044,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -1094,7 +1094,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/user-context.tsx
+// src/contexts/ext-user-context.tsx
 import {
   createContext as createContext5,
   useCallback as useCallback4,
@@ -1244,7 +1244,7 @@ function ExtUserProvider({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { useCallback as useCallback8, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8, useState as useState7 } from "react";
 import {
   AssistantRuntimeProvider,
@@ -1252,11 +1252,11 @@ import {
 } from "@assistant-ui/react";
 import { UserState as UserState3 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
-// packages/react/src/runtime/session-manager.ts
+// src/runtime/session-manager.ts
 import {
   Session as ClientSession
 } from "@aomi-labs/client";
@@ -1315,7 +1315,7 @@ var SessionManager = class {
   }
 };
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/utils.ts
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1417,7 +1417,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1789,7 +1789,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1948,7 +1948,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1962,7 +1962,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// packages/react/src/handlers/wallet-handler.ts
+// src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useRef as useRef6, useState as useState5 } from "react";
 function useWalletHandler({
   getSession
@@ -2052,7 +2052,7 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/user-state-provider.tsx
+// src/runtime/user-state-provider.tsx
 import {
   useCallback as useCallback7,
   useEffect as useEffect3,
@@ -2396,6 +2396,7 @@ function RuntimeUserStateProvider({
   children,
   sessionManager,
   getUserState,
+  setUser,
   onUserStateChange
 }) {
   const lastSerializedStateRef = useRef7("");
@@ -2407,19 +2408,32 @@ function RuntimeUserStateProvider({
       }
       lastSerializedStateRef.current = serialized;
       sessionManager.forEach((session) => {
-        session.resolveUserState(next);
+        session.resolveUserState(next, { skipEmit: true });
       });
     };
+    const sessionListeners = [];
+    sessionManager.forEach((session) => {
+      const handler = (next) => {
+        setUser(next);
+      };
+      session.on("user_state_updated", handler);
+      sessionListeners.push(
+        () => session.off("user_state_updated", handler)
+      );
+    });
     applyToSessions(getUserState());
     const unsubscribe = onUserStateChange((next) => {
       applyToSessions(next);
     });
-    return unsubscribe;
-  }, [getUserState, onUserStateChange, sessionManager]);
+    return () => {
+      unsubscribe();
+      sessionListeners.forEach((off) => off());
+    };
+  }, [getUserState, onUserStateChange, sessionManager, setUser]);
   return /* @__PURE__ */ jsx6(Fragment, { children });
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
 var getHttpStatus2 = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -2862,13 +2876,14 @@ function AomiRuntimeCore({
     {
       sessionManager,
       getUserState: userContext.getUserState,
+      setUser: userContext.setUser,
       onUserStateChange: userContext.onUserStateChange,
       children: /* @__PURE__ */ jsx7(AssistantRuntimeProvider, { runtime, children })
     }
   ) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
@@ -2908,7 +2923,7 @@ function AomiRuntimeInner({
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
+// src/handlers/notification-handler.ts
 import { useCallback as useCallback9, useEffect as useEffect5, useState as useState8 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
@@ -2955,12 +2970,12 @@ export {
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
   EventContextProvider,
+  ExtUserProvider,
   MAX_AUTO_FEE_WEI,
   NotificationContextProvider,
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
-  ExtUserProvider,
   UserState2 as UserState,
   aaModeFromExecutionKind,
   appendFeeCallToPayload,

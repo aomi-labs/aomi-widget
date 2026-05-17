@@ -25,10 +25,10 @@ export {
 // Re-export types and utilities from @aomi-labs/react
 export type { UserConfig } from "@aomi-labs/react";
 export { formatAddress, getNetworkName } from "@aomi-labs/react";
+export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
 export type { AomiAuthAdapter } from "./lib/aomi-auth-adapter";
 export {
   AomiAuthAdapterProvider,
-  AomiAuthRuntimeUserSync,
   useAomiAuthAdapter,
 } from "./lib/aomi-auth-adapter";
 export { AomiWalletProvider } from "./lib/aomi-auth-adapter/providers";
