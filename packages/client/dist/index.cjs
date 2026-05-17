@@ -58,7 +58,6 @@ __export(index_exports, {
   UserState: () => UserState,
   aaModeFromExecutionKind: () => aaModeFromExecutionKind,
   adaptSmartAccount: () => adaptSmartAccount,
-  addUserStateExt: () => addUserStateExt,
   appendFeeCallToPayload: () => appendFeeCallToPayload,
   buildAAExecutionPlan: () => buildAAExecutionPlan,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
@@ -67,16 +66,6 @@ __export(index_exports, {
   createPimlicoAAProvider: () => createPimlicoAAProvider,
   executeWalletCalls: () => executeWalletCalls,
   getAAChainConfig: () => getAAChainConfig,
-  getUserStateAAMode: () => getUserStateAAMode,
-  getUserStateAuthMethod: () => getUserStateAuthMethod,
-  getUserStateDelegation7702: () => getUserStateDelegation7702,
-  getUserStateEnsName: () => getUserStateEnsName,
-  getUserStateSmartAccount4337: () => getUserStateSmartAccount4337,
-  getUserStateSponsorAccount: () => getUserStateSponsorAccount,
-  getUserStateSponsorProvider: () => getUserStateSponsorProvider,
-  getUserStateSponsored: () => getUserStateSponsored,
-  getUserStateWalletKind: () => getUserStateWalletKind,
-  getUserStateWalletProvider: () => getUserStateWalletProvider,
   getWalletExecutorReady: () => getWalletExecutorReady,
   hydrateTxPayloadFromUserState: () => hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError: () => isAlchemySponsorshipLimitError,
@@ -366,39 +355,6 @@ var UserState;
   }
   UserState2.withExt = withExt;
 })(UserState || (UserState = {}));
-function getUserStateEnsName(userState) {
-  return UserState.ensName(userState);
-}
-function getUserStateWalletKind(userState) {
-  return UserState.walletKind(userState);
-}
-function getUserStateAAMode(userState) {
-  return UserState.aaMode(userState);
-}
-function getUserStateSmartAccount4337(userState) {
-  return UserState.SmartAccount4337(userState);
-}
-function getUserStateDelegation7702(userState) {
-  return UserState.Delegation7702(userState);
-}
-function getUserStateWalletProvider(userState) {
-  return UserState.walletProvider(userState);
-}
-function getUserStateAuthMethod(userState) {
-  return UserState.authMethod(userState);
-}
-function getUserStateSponsored(userState) {
-  return UserState.sponsored(userState);
-}
-function getUserStateSponsorProvider(userState) {
-  return UserState.sponsorProvider(userState);
-}
-function getUserStateSponsorAccount(userState) {
-  return UserState.sponsorAccount(userState);
-}
-function addUserStateExt(userState, key, value) {
-  return UserState.withExt(userState, key, value);
-}
 function isInlineCall(event) {
   return "InlineCall" in event;
 }
@@ -1463,6 +1419,9 @@ function isRecord(value) {
 function isNil(value) {
   return value === null || value === void 0;
 }
+function stableUserStateString(state) {
+  return JSON.stringify(sortJson(state != null ? state : {}));
+}
 function sortJson(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -1760,8 +1719,10 @@ var ClientSession = class extends TypedEventEmitter {
       this.resolveUserState(options.userState);
     }
   }
-  resolveUserState(userState) {
+  resolveUserState(userState, opts) {
+    const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
+    const nextSerialized = stableUserStateString(this.userState);
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
     if (address && isConnected !== false) {
@@ -1770,6 +1731,9 @@ var ClientSession = class extends TypedEventEmitter {
       this.publicKey = void 0;
     }
     this.syncWalletRequests();
+    if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
+      this.emit("user_state_updated", this.userState);
+    }
   }
   setClientType(clientType) {
     var _a;
@@ -3649,7 +3613,6 @@ async function createAAProviderState(options) {
   UserState,
   aaModeFromExecutionKind,
   adaptSmartAccount,
-  addUserStateExt,
   appendFeeCallToPayload,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
@@ -3658,16 +3621,6 @@ async function createAAProviderState(options) {
   createPimlicoAAProvider,
   executeWalletCalls,
   getAAChainConfig,
-  getUserStateAAMode,
-  getUserStateAuthMethod,
-  getUserStateDelegation7702,
-  getUserStateEnsName,
-  getUserStateSmartAccount4337,
-  getUserStateSponsorAccount,
-  getUserStateSponsorProvider,
-  getUserStateSponsored,
-  getUserStateWalletKind,
-  getUserStateWalletProvider,
   getWalletExecutorReady,
   hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,

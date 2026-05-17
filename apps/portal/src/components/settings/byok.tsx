@@ -10,27 +10,27 @@ const PROVIDERS = [
   { id: "openrouter", label: "OpenRouter" },
 ] as const;
 
-export function ProviderKeysSettings() {
-  const { state, setProviderKey, removeProviderKey } = useControl();
+export function Byok() {
+  const { state, setByok, removeByok } = useControl();
   const [selectedProvider, setSelectedProvider] = useState<(typeof PROVIDERS)[number]["id"]>("openai");
-  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [byokInput, setByokInput] = useState("");
   const [labelInput, setLabelInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingProvider, setDeletingProvider] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const providerKeys = useMemo(
+  const byokKeys = useMemo(
     () =>
-      Object.entries(state.providerKeys).map(([provider, entry]) => ({
+      Object.entries(state.byokKeys).map(([provider, entry]) => ({
         provider,
         keyPrefix: entry.keyPrefix,
         label: entry.label,
       })),
-    [state.providerKeys],
+    [state.byokKeys],
   );
 
   const canSave = useMemo(
-    () => !saving && apiKeyInput.trim().length > 0,
-    [apiKeyInput, saving],
+    () => !saving && byokInput.trim().length > 0,
+    [byokInput, saving],
   );
 
   const handleSave = useCallback(async () => {
@@ -39,41 +39,41 @@ export function ProviderKeysSettings() {
     setSaving(true);
     setStatus(null);
     try {
-      await setProviderKey(
+      await setByok(
         selectedProvider,
-        apiKeyInput.trim(),
+        byokInput.trim(),
         labelInput.trim() || undefined,
       );
-      setApiKeyInput("");
+      setByokInput("");
       setLabelInput("");
-      setStatus({ type: "success", text: "Provider key saved." });
+      setStatus({ type: "success", text: "BYOK key saved." });
     } catch (error) {
       setStatus({
         type: "error",
-        text: error instanceof Error ? error.message : "Failed to save provider key",
+        text: error instanceof Error ? error.message : "Failed to save BYOK key",
       });
     } finally {
       setSaving(false);
     }
-  }, [apiKeyInput, canSave, labelInput, selectedProvider, setProviderKey]);
+  }, [byokInput, canSave, labelInput, selectedProvider, setByok]);
 
   const handleDelete = useCallback(
     async (provider: string) => {
       setDeletingProvider(provider);
       setStatus(null);
       try {
-        await removeProviderKey(provider);
+        await removeByok(provider);
         setStatus({ type: "success", text: `${provider} key removed.` });
       } catch (error) {
         setStatus({
           type: "error",
-          text: error instanceof Error ? error.message : "Failed to delete provider key",
+          text: error instanceof Error ? error.message : "Failed to delete BYOK key",
         });
       } finally {
         setDeletingProvider(null);
       }
     },
-    [removeProviderKey],
+    [removeByok],
   );
 
   return (
@@ -81,7 +81,7 @@ export function ProviderKeysSettings() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">LLM Keys</h1>
         <p className="text-sm text-muted-foreground">
-          Store your own provider API keys for OpenAI, Anthropic, or OpenRouter.
+          Bring your own LLM provider keys for OpenAI, Anthropic, or OpenRouter.
           BYOK usage is recorded, but it does not consume Aomi credits.
         </p>
       </div>
@@ -122,9 +122,9 @@ export function ProviderKeysSettings() {
             placeholder="Label (optional)"
           />
           <Input
-            value={apiKeyInput}
-            onChange={(event) => setApiKeyInput(event.target.value)}
-            placeholder="Paste provider API key"
+            value={byokInput}
+            onChange={(event) => setByokInput(event.target.value)}
+            placeholder="Paste LLM provider key"
             type="password"
             autoComplete="off"
           />
@@ -151,11 +151,11 @@ export function ProviderKeysSettings() {
           </p>
         </div>
 
-        {providerKeys.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No provider keys saved.</p>
+        {byokKeys.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No BYOK keys saved.</p>
         ) : (
           <div className="space-y-3">
-            {providerKeys.map((key) => (
+            {byokKeys.map((key) => (
               <div
                 key={key.provider}
                 className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background p-4 md:flex-row md:items-center md:justify-between"

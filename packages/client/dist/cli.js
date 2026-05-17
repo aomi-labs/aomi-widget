@@ -1624,6 +1624,9 @@ function isRecord(value) {
 function isNil(value) {
   return value === null || value === void 0;
 }
+function stableUserStateString(state) {
+  return JSON.stringify(sortJson(state != null ? state : {}));
+}
 function sortJson(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -1932,8 +1935,10 @@ var init_session = __esm({
           this.resolveUserState(options.userState);
         }
       }
-      resolveUserState(userState) {
+      resolveUserState(userState, opts) {
+        const previousSerialized = stableUserStateString(this.userState);
         this.userState = UserState.reconcile(this.userState, userState);
+        const nextSerialized = stableUserStateString(this.userState);
         const address = UserState.address(this.userState);
         const isConnected = UserState.isConnected(this.userState);
         if (address && isConnected !== false) {
@@ -1942,6 +1947,9 @@ var init_session = __esm({
           this.publicKey = void 0;
         }
         this.syncWalletRequests();
+        if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
+          this.emit("user_state_updated", this.userState);
+        }
       }
       setClientType(clientType) {
         var _a3;

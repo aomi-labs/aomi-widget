@@ -1109,7 +1109,7 @@ var UserContext = createContext5(void 0);
 function useUser() {
   const context = useContext5(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within UserContextProvider");
+    throw new Error("useUser must be used within ExtUserProvider");
   }
   return {
     user: context.user,
@@ -1120,7 +1120,7 @@ function useUser() {
     onUserStateChange: context.onUserStateChange
   };
 }
-function UserContextProvider({ children }) {
+function ExtUserProvider({ children }) {
   const [user, setUserState] = useState3({
     address: void 0,
     chain_id: void 0,
@@ -1147,7 +1147,7 @@ function UserContextProvider({ children }) {
   }, []);
   const setUser = useCallback4((data) => {
     setUserState((prev) => {
-      var _a, _b, _c;
+      var _a, _b;
       const normalizedData = pruneUndefined((_a = UserState.normalize(data)) != null ? _a : {});
       const nextPartial = __spreadValues({}, normalizedData);
       if (nextPartial.is_connected === true && nextPartial.chain_id === void 0) {
@@ -1157,11 +1157,41 @@ function UserContextProvider({ children }) {
           delete nextPartial.is_connected;
         }
       }
-      const next = nextPartial.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev), {
-        address: void 0,
-        chain_id: void 0,
-        ens_name: void 0
-      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _c : prev;
+      const merged = (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev;
+      let next;
+      if (nextPartial.is_connected === false) {
+        next = __spreadProps(__spreadValues({}, merged), {
+          address: void 0,
+          chain_id: void 0,
+          ens_name: void 0,
+          wallet_kind: void 0,
+          aa_mode: void 0,
+          smart_account_4337: void 0,
+          delegation_7702: void 0,
+          svm_address: void 0,
+          wallet_provider: void 0,
+          auth_method: void 0,
+          sponsored: void 0,
+          sponsor_provider: void 0,
+          sponsor_account: void 0,
+          pending_txs: void 0,
+          pending_eip712s: void 0,
+          pending_solana_txs: void 0
+        });
+      } else {
+        const prevAddress = UserState.address(prev);
+        const nextAddress = UserState.address(merged);
+        const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+        next = addressChanged ? __spreadProps(__spreadValues({}, merged), {
+          aa_mode: void 0,
+          smart_account_4337: void 0,
+          delegation_7702: void 0,
+          ens_name: void 0,
+          pending_txs: void 0,
+          pending_eip712s: void 0,
+          pending_solana_txs: void 0
+        }) : merged;
+      }
       notifyStateChange(next);
       return next;
     });
@@ -2849,7 +2879,7 @@ function AomiRuntimeProvider({
     () => new AomiClient(__spreadValues({ baseUrl: backendUrl }, clientOptions)),
     [backendUrl, clientOptions]
   );
-  return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(UserContextProvider, { children: /* @__PURE__ */ jsx8(AomiRuntimeInner, { aomiClient, children }) }) }) });
+  return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(ExtUserProvider, { children: /* @__PURE__ */ jsx8(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
   children,
@@ -2930,7 +2960,7 @@ export {
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
-  UserContextProvider,
+  ExtUserProvider,
   UserState2 as UserState,
   aaModeFromExecutionKind,
   appendFeeCallToPayload,

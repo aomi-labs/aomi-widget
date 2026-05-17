@@ -4,8 +4,8 @@ import { useState } from "react";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
-import { ApiKeySettings } from "./api-key-settings";
-import { ProviderKeysSettings } from "./provider-keys-settings";
+import { Secrets } from "./secrets";
+import { Byok } from "./byok";
 
 export function SettingsLayout() {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general");
@@ -16,10 +16,10 @@ export function SettingsLayout() {
         return <GeneralSettings />;
       case "apps":
         return <AppsSettings />;
-      case "api-keys":
-        return <ApiKeySettings />;
-      case "provider-keys":
-        return <ProviderKeysSettings />;
+      case "secrets":
+        return <Secrets />;
+      case "byok":
+        return <Byok />;
       default:
         return <GeneralSettings />;
     }

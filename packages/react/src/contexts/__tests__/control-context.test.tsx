@@ -134,7 +134,7 @@ describe("ControlContextProvider", () => {
     });
   });
 
-  it("sends a targeted backend removal when a provider key is deleted", async () => {
+  it("sends a targeted backend removal when a BYOK key is deleted", async () => {
     const deleteSecret = vi.fn(async () => ({ deleted: true }));
     const { aomiClient, getControl } = renderControlContext({ deleteSecret });
 
@@ -145,17 +145,17 @@ describe("ControlContextProvider", () => {
     const clientId = getControl().state.clientId!;
 
     await act(async () => {
-      await getControl().setProviderKey("openai", "sk-openai-123");
+      await getControl().setByok("openai", "sk-openai-123");
     });
 
     await waitFor(() => {
-      expect(getControl().state.providerKeys.openai?.apiKey).toBe(
+      expect(getControl().state.byokKeys.openai?.apiKey).toBe(
         "sk-openai-123",
       );
     });
 
     await act(async () => {
-      await getControl().removeProviderKey("openai");
+      await getControl().removeByok("openai");
     });
 
     await waitFor(() => {
@@ -166,7 +166,7 @@ describe("ControlContextProvider", () => {
       );
     });
 
-    expect(getControl().state.providerKeys.openai).toBeUndefined();
+    expect(getControl().state.byokKeys.openai).toBeUndefined();
     expect(aomiClient.ingestSecrets).toHaveBeenCalledWith(
       `control:${clientId}`,
       clientId,
@@ -176,10 +176,10 @@ describe("ControlContextProvider", () => {
     );
   });
 
-  it("auto-ingests provider keys loaded from localStorage on mount", async () => {
+  it("auto-ingests BYOK keys loaded from localStorage on mount", async () => {
     globalThis.localStorage.setItem("aomi_client_id", "client-stored");
     globalThis.localStorage.setItem(
-      "aomi_provider_keys",
+      "aomi_byok_keys",
       JSON.stringify({
         openai: {
           apiKey: "sk-openai-abc",

@@ -3,7 +3,7 @@
 import { Settings, Layers, ArrowLeft, KeyRound, Unplug } from "lucide-react";
 import Link from "next/link";
 
-export type SettingsCategory = "general" | "apps" | "api-keys" | "provider-keys";
+export type SettingsCategory = "general" | "apps" | "secrets" | "byok";
 
 interface SettingsSidebarProps {
   activeCategory: SettingsCategory;
@@ -17,8 +17,8 @@ const categories: Array<{
 }> = [
   { id: "general", label: "General", icon: Settings },
   { id: "apps", label: "Apps", icon: Layers },
-  { id: "api-keys", label: "API Keys", icon: KeyRound },
-  { id: "provider-keys", label: "LLM Keys", icon: Unplug },
+  { id: "secrets", label: "Secrets", icon: KeyRound },
+  { id: "byok", label: "LLM Keys", icon: Unplug },
 ];
 
 const AomiLogo = ({ className }: { className?: string }) => (

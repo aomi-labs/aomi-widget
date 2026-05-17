@@ -18,7 +18,7 @@ import {
 import { useEventContext } from "../contexts/event-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
-import { useUser } from "../contexts/user-context";
+import { useUser } from "../contexts/ext-user-context";
 import { initThreadControl } from "../state/thread-store";
 import { getControlSessionId } from "../utils/client-session";
 import { isPlaceholderTitle } from "./utils";
@@ -53,6 +53,7 @@ type RuntimeUserStateProviderProps = {
   children: ReactNode;
   sessionManager: SessionManager;
   getUserState: () => UserState;
+  setUser: (data: Partial<UserState>) => void;
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
 
@@ -496,10 +497,24 @@ export function RuntimeUserStateProvider({
   children,
   sessionManager,
   getUserState,
+  setUser,
   onUserStateChange,
 }: RuntimeUserStateProviderProps) {
   const lastSerializedStateRef = useRef<string>("");
 
+  // Bidirectional sync between React's `useUser()` state and each Session's
+  // internal `userState`:
+  //
+  //   React → Session: when React state changes, call session.resolveUserState
+  //                    with `skipEmit: true` so the session doesn't re-emit
+  //                    what we just pushed (would loop back into setUser).
+  //
+  //   Session → React: when a session writes per-tx fields (aa_mode,
+  //                    smart_account_4337, etc.) via its own resolveUserState,
+  //                    it emits `user_state_updated`. We forward those changes
+  //                    to React via setUser so consumers reading `useUser()`
+  //                    (e.g. auth-adapter providers) reflect the resolved AA
+  //                    context after a tx.
   useEffect(() => {
     const applyToSessions = (next: UserState) => {
       const serialized = stableStateString(next);
@@ -508,16 +523,30 @@ export function RuntimeUserStateProvider({
       }
       lastSerializedStateRef.current = serialized;
       sessionManager.forEach((session) => {
-        session.resolveUserState(next);
+        session.resolveUserState(next, { skipEmit: true });
       });
     };
+
+    const sessionListeners: Array<() => void> = [];
+    sessionManager.forEach((session) => {
+      const handler = (next: UserState) => {
+        setUser(next);
+      };
+      session.on("user_state_updated", handler);
+      sessionListeners.push(() =>
+        session.off("user_state_updated", handler),
+      );
+    });
 
     applyToSessions(getUserState());
     const unsubscribe = onUserStateChange((next) => {
       applyToSessions(next);
     });
-    return unsubscribe;
-  }, [getUserState, onUserStateChange, sessionManager]);
+    return () => {
+      unsubscribe();
+      sessionListeners.forEach((off) => off());
+    };
+  }, [getUserState, onUserStateChange, sessionManager, setUser]);
 
   return <>{children}</>;
 }
