@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useUser, ExtUserProvider } from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/context";
-import { AomiAuthRuntimeUserSync } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync";
 import type { AomiAuthAdapter } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/types";
 
 afterEach(() => {
@@ -38,14 +37,13 @@ function renderWithAdapter(adapter: AomiAuthAdapter) {
   return render(
     <ExtUserProvider>
       <AomiAuthAdapterProvider value={adapter}>
-        <AomiAuthRuntimeUserSync />
         <UserStateProbe />
       </AomiAuthAdapterProvider>
     </ExtUserProvider>,
   );
 }
 
-describe("AomiAuthRuntimeUserSync", () => {
+describe("AomiAuthAdapterProvider user sync", () => {
   it("publishes wallet provider and sponsorship as first-class UserState fields", async () => {
     renderWithAdapter(
       connectedAdapter({
@@ -60,7 +58,7 @@ describe("AomiAuthRuntimeUserSync", () => {
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
       // aa_mode / smart_account_4337 / delegation_7702 are session-owned and
-      // NOT forwarded by runtime-user-sync (it only forwards connect-time
+      // NOT forwarded by AomiAuthAdapterUserSync (it only forwards connect-time
       // identity fields). They appear in UserState only after session.ts
       // writes them on tx-complete.
       expect(state).toMatchObject({
@@ -99,7 +97,6 @@ describe("AomiAuthRuntimeUserSync", () => {
     rerender(
       <ExtUserProvider>
         <AomiAuthAdapterProvider value={connectedAdapter()}>
-          <AomiAuthRuntimeUserSync />
           <UserStateProbe />
         </AomiAuthAdapterProvider>
       </ExtUserProvider>,

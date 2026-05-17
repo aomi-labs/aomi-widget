@@ -95,9 +95,9 @@ export function ExtUserProvider({ children }: { children: ReactNode }) {
       // Wallet-context fields belong to a specific connected session. On
       // disconnect we wipe them all so that the next connection cannot
       // inherit stale identity (address, AA mode, sponsor metadata, etc.)
-      // from the previous wallet. runtime-user-sync deliberately does not
-      // forward per-tx AA fields, so without this clear they would survive
-      // across wallet switches.
+      // from the previous wallet. AomiAuthAdapterUserSync deliberately
+      // does not forward per-tx AA fields, so without this clear they
+      // would survive across wallet switches.
       const merged: UserState =
         UserState.normalize({ ...prev, ...nextPartial }) ?? prev;
       let next: UserState;

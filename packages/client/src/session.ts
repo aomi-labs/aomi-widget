@@ -448,8 +448,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
       // wallet_kind is provider-owned (constant per platform: Base="smart-account",
-      // Para="eoa") and forwarded via runtime-user-sync. Session only writes
-      // per-tx-mutable fields here.
+      // Para="eoa") and forwarded via AomiAuthAdapterUserSync inside
+      // AomiAuthAdapterProvider. Session only writes per-tx-mutable fields here.
       this.resolveUserState({
         ...(this.userState ?? {}),
         aa_mode: resolvedMode,
@@ -687,19 +687,37 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     aa?: {
       aaMode?: UserStateAAMode | null;
       smartAccount?: string | null;
+      smartAccount4337?: string | null;
+      delegation7702?: string | null;
     },
   ): void {
     const resolvedAAMode =
       aa?.aaMode ?? (aa?.smartAccount === address ? "4337" : "none");
     const resolvedWalletKind =
       aa?.smartAccount === address ? "smart-account" : "eoa";
-    this.resolveUserState({
+    // Spread the current userState so session-scoped metadata (e.g.
+    // `ext.client_type`) carries through. The reconciler only preserves
+    // connection-scoped fields, so without this spread the CLI tx-complete
+    // path would silently drop `ext`.
+    const next: UserStateShape = {
+      ...(this.userState ?? {}),
       address,
       wallet_kind: resolvedWalletKind,
       aa_mode: resolvedAAMode,
       chain_id: chainId ?? 1,
       is_connected: true,
-    });
+    };
+    // Per-tx AA address fields are written mode-exclusively when the
+    // caller explicitly hands them in (post-tx-complete path). Connection
+    // prep / simulation calls omit them so the reconciler preserves
+    // whatever the previous tx left in place.
+    if (aa?.smartAccount4337 !== undefined || aa?.delegation7702 !== undefined) {
+      next.smart_account_4337 =
+        resolvedAAMode === "4337" ? aa?.smartAccount4337 ?? null : null;
+      next.delegation_7702 =
+        resolvedAAMode === "7702" ? aa?.delegation7702 ?? null : null;
+    }
+    this.resolveUserState(next);
   }
 
   async syncUserState(): Promise<AomiStateResponse> {

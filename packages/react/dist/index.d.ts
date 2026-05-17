@@ -29,9 +29,10 @@ type RuntimeUserStateProviderProps = {
     children: ReactNode;
     sessionManager: SessionManager;
     getUserState: () => UserState;
+    setUser: (data: Partial<UserState>) => void;
     onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
-declare function RuntimeUserStateProvider({ children, sessionManager, getUserState, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
+declare function RuntimeUserStateProvider({ children, sessionManager, getUserState, setUser, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
 
 type ThreadContext = {
     currentThreadId: string;
@@ -352,8 +353,8 @@ declare const getChainInfo: (chainId: number | undefined) => ChainInfo | undefin
  */
 declare function resolveAutoModel(models: string[]): string | null;
 
-/** A stored provider API key (BYOK) */
-type StoredProviderKey = {
+/** A stored BYOK entry for an LLM provider */
+type StoredByokKey = {
     apiKey: string;
     keyPrefix: string;
     label?: string;
@@ -376,8 +377,8 @@ type ControlState = {
     defaultModel: string | null;
     /** Default app (from authorizedApps) */
     defaultApp: string | null;
-    /** Provider API keys stored locally (BYOK) — keyed by provider name */
-    providerKeys: Record<string, StoredProviderKey>;
+    /** BYOK entries stored locally — keyed by LLM provider name */
+    byokKeys: Record<string, StoredByokKey>;
 };
 type ControlContextApi = {
     /** Global state (apiKey, clientId, available models/apps) */
@@ -388,14 +389,14 @@ type ControlContextApi = {
     ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
     /** Clear all secrets from the backend vault */
     clearSecrets: () => Promise<void>;
-    /** Store a provider API key (BYOK) in localStorage and ingest into backend vault */
-    setProviderKey: (provider: string, apiKey: string, label?: string) => Promise<void>;
-    /** Remove a provider API key from localStorage and backend vault */
-    removeProviderKey: (provider: string) => Promise<void>;
-    /** Get all stored provider keys (metadata only — keys are in state.providerKeys) */
-    getProviderKeys: () => Record<string, StoredProviderKey>;
-    /** Check if a provider key is stored */
-    hasProviderKey: (provider?: string) => boolean;
+    /** Store a BYOK entry for an LLM provider in localStorage and ingest into backend vault */
+    setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
+    /** Remove a BYOK entry from localStorage and backend vault */
+    removeByok: (provider: string) => Promise<void>;
+    /** Get all stored BYOK entries (metadata only — keys are in state.byokKeys) */
+    getByokKeys: () => Record<string, StoredByokKey>;
+    /** Check if a BYOK entry is stored */
+    hasByok: (provider?: string) => boolean;
     /** Fetch available models from backend */
     getAvailableModels: () => Promise<string[]>;
     /** Fetch authorized apps from backend */
@@ -441,4 +442,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredModelPreference, type StoredProviderKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, ExtUserProvider, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type StoredModelPreference, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };

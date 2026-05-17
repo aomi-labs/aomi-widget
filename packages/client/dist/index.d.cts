@@ -956,6 +956,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     resolveWallet(address: string, chainId?: number, aa?: {
         aaMode?: UserStateAAMode | null;
         smartAccount?: string | null;
+        smartAccount4337?: string | null;
+        delegation7702?: string | null;
     }): void;
     syncUserState(): Promise<AomiStateResponse>;
     /** Whether the session is currently polling for state updates. */

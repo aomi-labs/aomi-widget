@@ -31,7 +31,7 @@ import type {
   AomiAuthAdapter,
   AomiAuthIdentity,
 } from "../types";
-import { UserState, useUser } from "@aomi-labs/react";
+import { ExtUserProvider, UserState, useUser } from "@aomi-labs/react";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -337,13 +337,19 @@ export function AomiBaseAccountProvider({
     [appLogoUrl, appName, resolvedChains],
   );
 
+  // `BaseAccountAdapterInner` reads per-tx AA fields from `useUser()`, so
+  // mount `ExtUserProvider` here. The provider owns its own UserState
+  // store — descendants of `AomiBaseAccountProvider` get one store,
+  // siblings get their own.
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <BaseAccountAdapterInner sponsorship={sponsorship}>
-          {children}
-        </BaseAccountAdapterInner>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <ExtUserProvider>
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <BaseAccountAdapterInner sponsorship={sponsorship}>
+            {children}
+          </BaseAccountAdapterInner>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </ExtUserProvider>
   );
 }
