@@ -108,7 +108,7 @@ export function toSignedTransactionRecord(
     aaMode,
     batched: execution.batched,
     sponsored: execution.sponsored,
-    AAAddress: execution.SmartAccount4337,
+    smartAccount4337: execution.SmartAccount4337,
     Delegation7702: execution.Delegation7702,
     from,
     to: tx.to,
@@ -148,7 +148,7 @@ export function formatSignedTxLine(tx: SignedTx, prefix: string): string {
       parts.push(`txs: ${tx.txHashes.length}`);
     }
     if (tx.sponsored) parts.push("sponsored");
-    if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
+    if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);
     if (tx.Delegation7702) parts.push(`delegation: ${tx.Delegation7702}`);
     if (tx.to) parts.push(`to: ${tx.to}`);
     if (tx.value) parts.push(`value: ${tx.value}`);
