@@ -16,7 +16,7 @@ graph TB
         TCP[ThreadContextProvider]
         ARP[AomiRuntimeProvider shell]
         NCP[NotificationContextProvider]
-        UCP[UserContextProvider]
+        UCP[ExtUserProvider]
         ECP[EventContextProvider]
         RAP[RuntimeActionsProvider]
         ARC[AomiRuntimeCore]

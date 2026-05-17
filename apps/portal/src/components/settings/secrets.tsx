@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 
-type OwnedApiKey = {
+type OwnedSecret = {
   key_hash: string;
   key_prefix: string;
   owner_user_id?: string | null;
@@ -16,13 +16,13 @@ type OwnedApiKey = {
   apps: string[];
 };
 
-type ApiKeysResponse = {
-  api_keys: OwnedApiKey[];
+type SecretsResponse = {
+  api_keys: OwnedSecret[];
 };
 
-type CreateApiKeyResponse = {
+type CreateSecretResponse = {
   api_key: string;
-  key: OwnedApiKey;
+  key: OwnedSecret;
 };
 
 function formatTs(ts?: number | null): string {
@@ -30,22 +30,22 @@ function formatTs(ts?: number | null): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
-export function ApiKeySettings() {
+export function Secrets() {
   const { identity } = useAomiAuthAdapter();
-  const [apiKeys, setApiKeys] = useState<OwnedApiKey[]>([]);
+  const [secrets, setSecrets] = useState<OwnedSecret[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
-  const [loadingKeys, setLoadingKeys] = useState(false);
+  const [loadingSecrets, setLoadingSecrets] = useState(false);
   const [loadingApps, setLoadingApps] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingHash, setDeletingHash] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState("");
-  const [manualKeyInput, setManualKeyInput] = useState("");
+  const [manualSecretInput, setManualSecretInput] = useState("");
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
   const [status, setStatus] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const [createdApiKey, setCreatedApiKey] = useState<string | null>(null);
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null);
 
   const ensureBoundSession = useCallback(async () => {
     if (!identity.address) return;
@@ -58,28 +58,28 @@ export function ApiKeySettings() {
     );
   }, [identity.address]);
 
-  const loadApiKeys = useCallback(async () => {
+  const loadSecrets = useCallback(async () => {
     if (!identity.address) {
-      setApiKeys([]);
+      setSecrets([]);
       return;
     }
 
-    setLoadingKeys(true);
+    setLoadingSecrets(true);
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await settingsApiFetch<ApiKeysResponse>(
+      const data = await settingsApiFetch<SecretsResponse>(
         "/api/settings/api-keys",
       );
-      setApiKeys(data.api_keys ?? []);
+      setSecrets(data.api_keys ?? []);
     } catch (error) {
       setStatus({
         type: "error",
         text:
-          error instanceof Error ? error.message : "Failed to load API keys",
+          error instanceof Error ? error.message : "Failed to load secrets",
       });
     } finally {
-      setLoadingKeys(false);
+      setLoadingSecrets(false);
     }
   }, [ensureBoundSession, identity.address]);
 
@@ -113,8 +113,8 @@ export function ApiKeySettings() {
   }, [identity.address]);
 
   useEffect(() => {
-    void Promise.all([loadApiKeys(), loadApps()]);
-  }, [loadApiKeys, loadApps]);
+    void Promise.all([loadSecrets(), loadApps()]);
+  }, [loadSecrets, loadApps]);
 
   const canCreate = useMemo(
     () => Boolean(identity.address) && !creating && selectedApps.length > 0,
@@ -134,31 +134,31 @@ export function ApiKeySettings() {
 
     setCreating(true);
     setStatus(null);
-    setCreatedApiKey(null);
+    setCreatedSecret(null);
     try {
       await ensureBoundSession();
       const payload = {
         apps: selectedApps,
         label: labelInput.trim() || undefined,
-        api_key: manualKeyInput.trim() || undefined,
+        api_key: manualSecretInput.trim() || undefined,
       };
-      const data = await settingsApiFetch<CreateApiKeyResponse>(
+      const data = await settingsApiFetch<CreateSecretResponse>(
         "/api/settings/api-keys",
         {
           method: "POST",
           body: JSON.stringify(payload),
         },
       );
-      setCreatedApiKey(data.api_key);
+      setCreatedSecret(data.api_key);
       setLabelInput("");
-      setManualKeyInput("");
-      await loadApiKeys();
-      setStatus({ type: "success", text: "API key created." });
+      setManualSecretInput("");
+      await loadSecrets();
+      setStatus({ type: "success", text: "Secret created." });
     } catch (error) {
       setStatus({
         type: "error",
         text:
-          error instanceof Error ? error.message : "Failed to create API key",
+          error instanceof Error ? error.message : "Failed to create secret",
       });
     } finally {
       setCreating(false);
@@ -167,52 +167,54 @@ export function ApiKeySettings() {
     canCreate,
     ensureBoundSession,
     labelInput,
-    loadApiKeys,
-    manualKeyInput,
+    loadSecrets,
+    manualSecretInput,
     selectedApps,
   ]);
 
   const handleRemove = useCallback(
-    async (key: OwnedApiKey) => {
+    async (secret: OwnedSecret) => {
       if (deletingHash) return;
 
-      const shouldDelete = window.confirm(`Remove API key ${key.key_prefix}?`);
+      const shouldDelete = window.confirm(
+        `Remove secret ${secret.key_prefix}?`,
+      );
       if (!shouldDelete) return;
 
-      setDeletingHash(key.key_hash);
+      setDeletingHash(secret.key_hash);
       setStatus(null);
       try {
         await ensureBoundSession();
         await settingsApiFetch<{ revoked: boolean }>(
-          `/api/settings/api-keys/${encodeURIComponent(key.key_hash)}`,
+          `/api/settings/api-keys/${encodeURIComponent(secret.key_hash)}`,
           { method: "DELETE" },
         );
-        await loadApiKeys();
-        setStatus({ type: "success", text: "API key removed." });
+        await loadSecrets();
+        setStatus({ type: "success", text: "Secret removed." });
       } catch (error) {
         setStatus({
           type: "error",
           text:
-            error instanceof Error ? error.message : "Failed to remove API key",
+            error instanceof Error ? error.message : "Failed to remove secret",
         });
       } finally {
         setDeletingHash(null);
       }
     },
-    [deletingHash, ensureBoundSession, loadApiKeys],
+    [deletingHash, ensureBoundSession, loadSecrets],
   );
 
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">API Keys</h3>
+        <h3 className="text-foreground mb-4 text-lg font-semibold">Secrets</h3>
         <p className="text-muted-foreground text-sm">
-          Manage your keys for authenticated API access. Newly generated keys
-          are shown only once.
+          Manage your secrets for authenticated API access. Newly generated
+          secrets are shown only once.
         </p>
         {!identity.address && (
           <p className="text-muted-foreground mt-2 text-sm">
-            Connect a wallet account to manage owned API keys.
+            Connect a wallet account to manage owned secrets.
           </p>
         )}
       </div>
@@ -230,41 +232,41 @@ export function ApiKeySettings() {
       )}
 
       <div className="border-input bg-background space-y-4 rounded-3xl border p-5">
-        <h4 className="text-foreground text-base font-semibold">Add API Key</h4>
+        <h4 className="text-foreground text-base font-semibold">Add Secret</h4>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <label
-              htmlFor="api-key-label"
+              htmlFor="secret-label"
               className="text-foreground block text-sm font-medium"
             >
               Label (optional)
             </label>
             <Input
-              id="api-key-label"
+              id="secret-label"
               type="text"
               value={labelInput}
               onChange={(event) => setLabelInput(event.target.value)}
-              placeholder="Trading bot key"
+              placeholder="Trading bot secret"
               className="h-11 rounded-full px-5 py-3"
             />
           </div>
           <div>
             <label
-              htmlFor="manual-api-key-input"
+              htmlFor="manual-secret-input"
               className="text-foreground mb-2 block text-sm font-medium"
             >
-              API Key Value (optional)
+              Secret Value (optional)
             </label>
             <Input
-              id="manual-api-key-input"
+              id="manual-secret-input"
               type="password"
-              value={manualKeyInput}
-              onChange={(event) => setManualKeyInput(event.target.value)}
+              value={manualSecretInput}
+              onChange={(event) => setManualSecretInput(event.target.value)}
               placeholder="Leave empty to auto-generate"
               className="h-11 rounded-full px-5 py-3"
             />
             <p className="text-muted-foreground mt-2 text-sm">
-              Leave blank to create a secure generated key.
+              Leave blank to create a secure generated secret.
             </p>
           </div>
         </div>
@@ -311,15 +313,15 @@ export function ApiKeySettings() {
             disabled={!canCreate}
             className="rounded-full px-6"
           >
-            {creating ? "Creating..." : "Create key"}
+            {creating ? "Creating..." : "Create secret"}
           </Button>
         </div>
 
-        {createdApiKey && (
+        {createdSecret && (
           <div className="space-y-2 rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
-            <p className="text-foreground text-sm font-medium">New key</p>
+            <p className="text-foreground text-sm font-medium">New secret</p>
             <p className="text-foreground break-all font-mono text-sm">
-              {createdApiKey}
+              {createdSecret}
             </p>
             <div className="flex gap-2">
               <Button
@@ -327,16 +329,16 @@ export function ApiKeySettings() {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  void navigator.clipboard.writeText(createdApiKey);
+                  void navigator.clipboard.writeText(createdSecret);
                 }}
               >
-                Copy key
+                Copy secret
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setCreatedApiKey(null)}
+                onClick={() => setCreatedSecret(null)}
               >
                 Hide
               </Button>
@@ -349,7 +351,7 @@ export function ApiKeySettings() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-muted-foreground text-left">
-              <th className="px-3 py-2">Key</th>
+              <th className="px-3 py-2">Secret</th>
               <th className="px-3 py-2">Label</th>
               <th className="px-3 py-2">Apps</th>
               <th className="px-3 py-2">Status</th>
@@ -358,37 +360,37 @@ export function ApiKeySettings() {
             </tr>
           </thead>
           <tbody>
-            {loadingKeys && (
+            {loadingSecrets && (
               <tr>
                 <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  Loading API keys...
+                  Loading secrets...
                 </td>
               </tr>
             )}
-            {!loadingKeys && apiKeys.length === 0 && (
+            {!loadingSecrets && secrets.length === 0 && (
               <tr>
                 <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  No API keys found.
+                  No secrets found.
                 </td>
               </tr>
             )}
-            {!loadingKeys &&
-              apiKeys.map((key) => (
-                <tr key={key.key_hash} className="border-border border-t">
+            {!loadingSecrets &&
+              secrets.map((secret) => (
+                <tr key={secret.key_hash} className="border-border border-t">
                   <td className="text-foreground px-3 py-2 font-mono">
-                    {key.key_prefix}
+                    {secret.key_prefix}
                   </td>
                   <td className="text-muted-foreground px-3 py-2">
-                    {key.label || "-"}
+                    {secret.label || "-"}
                   </td>
                   <td className="text-muted-foreground px-3 py-2">
-                    {key.apps.join(", ")}
+                    {secret.apps.join(", ")}
                   </td>
                   <td className="text-muted-foreground px-3 py-2">
-                    {key.is_active ? "Active" : "Inactive"}
+                    {secret.is_active ? "Active" : "Inactive"}
                   </td>
                   <td className="text-muted-foreground px-3 py-2">
-                    {formatTs(key.last_used_at)}
+                    {formatTs(secret.last_used_at)}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Button
@@ -396,12 +398,14 @@ export function ApiKeySettings() {
                       variant="destructive"
                       size="sm"
                       onClick={() => {
-                        void handleRemove(key);
+                        void handleRemove(secret);
                       }}
-                      disabled={deletingHash === key.key_hash}
+                      disabled={deletingHash === secret.key_hash}
                       className="rounded-full"
                     >
-                      {deletingHash === key.key_hash ? "Removing..." : "Remove"}
+                      {deletingHash === secret.key_hash
+                        ? "Removing..."
+                        : "Remove"}
                     </Button>
                   </td>
                 </tr>

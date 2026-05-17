@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { useUser, UserContextProvider } from "@aomi-labs/react";
+import { useUser, ExtUserProvider } from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/context";
 import { AomiAuthRuntimeUserSync } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync";
 import type { AomiAuthAdapter } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/types";
@@ -36,12 +36,12 @@ function connectedAdapter(
 
 function renderWithAdapter(adapter: AomiAuthAdapter) {
   return render(
-    <UserContextProvider>
+    <ExtUserProvider>
       <AomiAuthAdapterProvider value={adapter}>
         <AomiAuthRuntimeUserSync />
         <UserStateProbe />
       </AomiAuthAdapterProvider>
-    </UserContextProvider>,
+    </ExtUserProvider>,
   );
 }
 
@@ -97,12 +97,12 @@ describe("AomiAuthRuntimeUserSync", () => {
     });
 
     rerender(
-      <UserContextProvider>
+      <ExtUserProvider>
         <AomiAuthAdapterProvider value={connectedAdapter()}>
           <AomiAuthRuntimeUserSync />
           <UserStateProbe />
         </AomiAuthAdapterProvider>
-      </UserContextProvider>,
+      </ExtUserProvider>,
     );
 
     await waitFor(() => {

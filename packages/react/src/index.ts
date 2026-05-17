@@ -88,7 +88,7 @@ export type {
 // =============================================================================
 // User Context (wallet/user state)
 // =============================================================================
-export { useUser, UserContextProvider, UserState } from "./contexts/user-context";
+export { useUser, ExtUserProvider, UserState } from "./contexts/ext-user-context";
 
 // User config type (for render prop pattern)
 export type { UserConfig } from "./runtime/utils";

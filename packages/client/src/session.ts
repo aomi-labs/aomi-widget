@@ -133,6 +133,10 @@ function isNil(value: unknown): value is null | undefined {
   return value === null || value === undefined;
 }
 
+function stableUserStateString(state: UserStateShape | undefined): string {
+  return JSON.stringify(sortJson(state ?? {}));
+}
+
 function sortJson(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((entry) => sortJson(entry));
@@ -250,6 +254,16 @@ export type SessionEventMap = {
   title_changed: { title: string };
   /** Messages updated (new messages from poll or send response). */
   messages: AomiMessage[];
+  /**
+   * Session-side UserState changed (e.g. post-tx writes from `resolveUserState`).
+   * The React UserContext subscribes to this so per-tx fields written by the
+   * Session reach `useUser()` without each consumer polling.
+   *
+   * Not emitted when the caller passes `{ skipEmit: true }` to
+   * `resolveUserState` — used by the React→Session direction to break the
+   * feedback loop (React→Session→event→setUser→React).
+   */
+  user_state_updated: UserStateShape;
   /** AI started processing. */
   processing_start: undefined;
   /** AI finished processing. */
@@ -608,8 +622,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  resolveUserState(userState: UserStateShape): void {
+  resolveUserState(
+    userState: UserStateShape,
+    opts?: { skipEmit?: boolean },
+  ): void {
+    const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
+    const nextSerialized = stableUserStateString(this.userState);
 
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
@@ -623,6 +642,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     this.syncWalletRequests();
+
+    if (!opts?.skipEmit && this.userState && previousSerialized !== nextSerialized) {
+      this.emit("user_state_updated", this.userState);
+    }
   }
 
   setClientType(clientType: AomiClientType): void {

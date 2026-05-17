@@ -60,7 +60,7 @@ __export(index_exports, {
   RuntimeUserStateProvider: () => RuntimeUserStateProvider,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   ThreadContextProvider: () => ThreadContextProvider,
-  UserContextProvider: () => UserContextProvider,
+  ExtUserProvider: () => ExtUserProvider,
   UserState: () => import_client2.UserState,
   aaModeFromExecutionKind: () => import_client9.aaModeFromExecutionKind,
   appendFeeCallToPayload: () => import_client9.appendFeeCallToPayload,
@@ -1125,7 +1125,7 @@ var UserContext = (0, import_react5.createContext)(void 0);
 function useUser() {
   const context = (0, import_react5.useContext)(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within UserContextProvider");
+    throw new Error("useUser must be used within ExtUserProvider");
   }
   return {
     user: context.user,
@@ -1136,7 +1136,7 @@ function useUser() {
     onUserStateChange: context.onUserStateChange
   };
 }
-function UserContextProvider({ children }) {
+function ExtUserProvider({ children }) {
   const [user, setUserState] = (0, import_react5.useState)({
     address: void 0,
     chain_id: void 0,
@@ -1163,7 +1163,7 @@ function UserContextProvider({ children }) {
   }, []);
   const setUser = (0, import_react5.useCallback)((data) => {
     setUserState((prev) => {
-      var _a, _b, _c;
+      var _a, _b;
       const normalizedData = pruneUndefined((_a = import_client.UserState.normalize(data)) != null ? _a : {});
       const nextPartial = __spreadValues({}, normalizedData);
       if (nextPartial.is_connected === true && nextPartial.chain_id === void 0) {
@@ -1173,11 +1173,41 @@ function UserContextProvider({ children }) {
           delete nextPartial.is_connected;
         }
       }
-      const next = nextPartial.is_connected === false ? __spreadProps(__spreadValues({}, (_b = import_client.UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev), {
-        address: void 0,
-        chain_id: void 0,
-        ens_name: void 0
-      }) : (_c = import_client.UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _c : prev;
+      const merged = (_b = import_client.UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev;
+      let next;
+      if (nextPartial.is_connected === false) {
+        next = __spreadProps(__spreadValues({}, merged), {
+          address: void 0,
+          chain_id: void 0,
+          ens_name: void 0,
+          wallet_kind: void 0,
+          aa_mode: void 0,
+          smart_account_4337: void 0,
+          delegation_7702: void 0,
+          svm_address: void 0,
+          wallet_provider: void 0,
+          auth_method: void 0,
+          sponsored: void 0,
+          sponsor_provider: void 0,
+          sponsor_account: void 0,
+          pending_txs: void 0,
+          pending_eip712s: void 0,
+          pending_solana_txs: void 0
+        });
+      } else {
+        const prevAddress = import_client.UserState.address(prev);
+        const nextAddress = import_client.UserState.address(merged);
+        const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+        next = addressChanged ? __spreadProps(__spreadValues({}, merged), {
+          aa_mode: void 0,
+          smart_account_4337: void 0,
+          delegation_7702: void 0,
+          ens_name: void 0,
+          pending_txs: void 0,
+          pending_eip712s: void 0,
+          pending_solana_txs: void 0
+        }) : merged;
+      }
       notifyStateChange(next);
       return next;
     });
@@ -2855,7 +2885,7 @@ function AomiRuntimeProvider({
     () => new import_client7.AomiClient(__spreadValues({ baseUrl: backendUrl }, clientOptions)),
     [backendUrl, clientOptions]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(UserContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeInner, { aomiClient, children }) }) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ExtUserProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
   children,
@@ -2937,7 +2967,7 @@ function useNotificationHandler({
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
-  UserContextProvider,
+  ExtUserProvider,
   UserState,
   aaModeFromExecutionKind,
   appendFeeCallToPayload,
