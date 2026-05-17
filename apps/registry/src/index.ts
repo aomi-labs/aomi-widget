@@ -45,3 +45,8 @@ export {
   formatWalletProvider,
   inferAuthMethod,
 } from "./lib/aomi-auth-adapter";
+export {
+  FullTestnetWalletRouter,
+  isFullTestnet,
+  useFullTestnet,
+} from "./lib/aomi-auth-adapter";

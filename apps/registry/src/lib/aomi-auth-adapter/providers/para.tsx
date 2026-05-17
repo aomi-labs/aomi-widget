@@ -28,7 +28,6 @@ import {
 } from "@solana/web3.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Chain, Hex, Transport } from "viem";
-import { http } from "viem";
 import {
   arbitrum,
   base,
@@ -62,6 +61,10 @@ import {
   AOMI_AUTH_DISCONNECTED_IDENTITY,
   inferAuthMethod,
 } from "../identity";
+import {
+  FullTestnetWalletRouter,
+  useFullTestnet,
+} from "../full-testnet-wallet-routing";
 import {
   useSafeCapabilities,
   useSafeSendCallsSync,
@@ -205,8 +208,9 @@ type SafeSolanaWalletState = {
   publicKey: string | undefined;
   connected: boolean;
   signTransaction:
-    | ((tx: VersionedTransaction | SolanaTransaction) =>
-        Promise<VersionedTransaction | SolanaTransaction>)
+    | ((
+        tx: VersionedTransaction | SolanaTransaction,
+      ) => Promise<VersionedTransaction | SolanaTransaction>)
     | undefined;
 };
 
@@ -681,19 +685,11 @@ export function AomiParaProvider({
   solanaMobileChain = "solana:devnet" as SolanaMobileChain,
 }: AomiParaProviderProps) {
   const [queryClient] = useState(() => new QueryClient());
+  const routing = useFullTestnet(networks);
   const resolvedWallets = walletConnectProjectId
     ? externalWallets
     : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT");
-  const transports = useMemo(
-    () =>
-      Object.fromEntries(
-        networks.map((network) => [
-          network.id,
-          http(network.rpcUrls.default.http[0]),
-        ]),
-      ) as Record<number, Transport>,
-    [networks],
-  );
+  const transports = routing.transports as Record<number, Transport>;
   const paraModalConfig = useMemo(
     () => ({
       disableEmailLogin: true,
@@ -715,7 +711,7 @@ export function AomiParaProvider({
         : {}),
       evmConnector: {
         config: {
-          chains: networks,
+          chains: routing.routedChains,
           transports,
           ssr: true,
         },
@@ -724,7 +720,7 @@ export function AomiParaProvider({
     [
       appDescription,
       appUrl,
-      networks,
+      routing.routedChains,
       resolvedWallets,
       transports,
       walletConnectProjectId,
@@ -769,7 +765,13 @@ export function AomiParaProvider({
               enabled={solanaEnabled}
               config={solanaProviderConfig}
             >
-              <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+              <FullTestnetWalletRouter
+                enabled={routing.enabled}
+                chains={routing.routedChains}
+                routedChainIds={routing.routedChainIds}
+              >
+                <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+              </FullTestnetWalletRouter>
             </ParaSolanaWrapper>
           </ParaProvider>
         ) : (
