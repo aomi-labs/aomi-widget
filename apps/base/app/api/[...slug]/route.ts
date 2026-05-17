@@ -14,7 +14,7 @@ const HOP_BY_HOP_HEADERS = new Set([
 const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
   "content-type",
-  "x-api-key",
+  "aomi-app-key",
   "x-session-id",
 ]);
 
