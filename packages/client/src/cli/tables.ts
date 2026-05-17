@@ -66,7 +66,7 @@ export function toSignedTxMetadata(tx: SignedTx): Record<string, unknown> {
     aaMode: tx.aaMode ?? null,
     batched: tx.batched ?? null,
     sponsored: tx.sponsored ?? null,
-    AAAddress: tx.AAAddress ?? null,
+    smartAccount4337: tx.smartAccount4337 ?? null,
     Delegation7702: tx.Delegation7702 ?? null,
     signature: tx.signature ?? null,
     from: tx.from ?? null,
