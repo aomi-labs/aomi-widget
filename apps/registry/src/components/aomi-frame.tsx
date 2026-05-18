@@ -177,7 +177,7 @@ const Header: FC<HeaderProps> = ({
           {children}
         </div>
       </header>
-      <div className="pointer-events-none relative z-10 -mb-4 h-4 shrink-0 bg-gradient-to-b from-white/80 to-transparent dark:from-neutral-950/80" />
+      <div className="pointer-events-none relative z-10 -mb-4 h-4 shrink-0 bg-gradient-to-b from-background/90 to-background/0" />
     </>
   );
 };
