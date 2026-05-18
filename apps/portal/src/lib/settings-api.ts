@@ -26,6 +26,9 @@ export function getSettingsSessionId(): string {
 }
 
 export function getBackendUrl(): string {
+  if (process.env.NEXT_PUBLIC_USE_LOCALHOST === "true") {
+    return process.env.NEXT_PUBLIC_LOCAL_BACKEND_URL ?? "http://127.0.0.1:8080";
+  }
   return process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
 }
 
