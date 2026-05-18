@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 
-type OwnedApiKey = {
+type OwnedAppKey = {
   key_hash: string;
   key_prefix: string;
   owner_user_id?: string | null;
@@ -16,13 +16,13 @@ type OwnedApiKey = {
   apps: string[];
 };
 
-type ApiKeysResponse = {
-  api_keys: OwnedApiKey[];
+type AppKeysResponse = {
+  app_keys: OwnedAppKey[];
 };
 
-type CreateApiKeyResponse = {
-  api_key: string;
-  key: OwnedApiKey;
+type CreateAppKeyResponse = {
+  app_key: string;
+  key: OwnedAppKey;
 };
 
 function formatTs(ts?: number | null): string {
@@ -30,9 +30,9 @@ function formatTs(ts?: number | null): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
-export function ApiKeySettings() {
+export function AppKeys() {
   const { identity } = useAomiAuthAdapter();
-  const [apiKeys, setApiKeys] = useState<OwnedApiKey[]>([]);
+  const [appKeys, setAppKeys] = useState<OwnedAppKey[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [loadingApps, setLoadingApps] = useState(false);
@@ -45,7 +45,7 @@ export function ApiKeySettings() {
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const [createdApiKey, setCreatedApiKey] = useState<string | null>(null);
+  const [createdAppKey, setCreatedAppKey] = useState<string | null>(null);
 
   const ensureBoundSession = useCallback(async () => {
     if (!identity.address) return;
@@ -58,9 +58,9 @@ export function ApiKeySettings() {
     );
   }, [identity.address]);
 
-  const loadApiKeys = useCallback(async () => {
+  const loadAppKeys = useCallback(async () => {
     if (!identity.address) {
-      setApiKeys([]);
+      setAppKeys([]);
       return;
     }
 
@@ -68,15 +68,15 @@ export function ApiKeySettings() {
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await settingsApiFetch<ApiKeysResponse>(
+      const data = await settingsApiFetch<AppKeysResponse>(
         "/api/settings/api-keys",
       );
-      setApiKeys(data.api_keys ?? []);
+      setAppKeys(data.app_keys ?? []);
     } catch (error) {
       setStatus({
         type: "error",
         text:
-          error instanceof Error ? error.message : "Failed to load API keys",
+          error instanceof Error ? error.message : "Failed to load app keys",
       });
     } finally {
       setLoadingKeys(false);
@@ -113,8 +113,8 @@ export function ApiKeySettings() {
   }, [identity.address]);
 
   useEffect(() => {
-    void Promise.all([loadApiKeys(), loadApps()]);
-  }, [loadApiKeys, loadApps]);
+    void Promise.all([loadAppKeys(), loadApps()]);
+  }, [loadAppKeys, loadApps]);
 
   const canCreate = useMemo(
     () => Boolean(identity.address) && !creating && selectedApps.length > 0,
@@ -134,31 +134,31 @@ export function ApiKeySettings() {
 
     setCreating(true);
     setStatus(null);
-    setCreatedApiKey(null);
+    setCreatedAppKey(null);
     try {
       await ensureBoundSession();
       const payload = {
         apps: selectedApps,
         label: labelInput.trim() || undefined,
-        api_key: manualKeyInput.trim() || undefined,
+        app_key: manualKeyInput.trim() || undefined,
       };
-      const data = await settingsApiFetch<CreateApiKeyResponse>(
+      const data = await settingsApiFetch<CreateAppKeyResponse>(
         "/api/settings/api-keys",
         {
           method: "POST",
           body: JSON.stringify(payload),
         },
       );
-      setCreatedApiKey(data.api_key);
+      setCreatedAppKey(data.app_key);
       setLabelInput("");
       setManualKeyInput("");
-      await loadApiKeys();
-      setStatus({ type: "success", text: "API key created." });
+      await loadAppKeys();
+      setStatus({ type: "success", text: "App key created." });
     } catch (error) {
       setStatus({
         type: "error",
         text:
-          error instanceof Error ? error.message : "Failed to create API key",
+          error instanceof Error ? error.message : "Failed to create app key",
       });
     } finally {
       setCreating(false);
@@ -167,16 +167,18 @@ export function ApiKeySettings() {
     canCreate,
     ensureBoundSession,
     labelInput,
-    loadApiKeys,
+    loadAppKeys,
     manualKeyInput,
     selectedApps,
   ]);
 
   const handleRemove = useCallback(
-    async (key: OwnedApiKey) => {
+    async (key: OwnedAppKey) => {
       if (deletingHash) return;
 
-      const shouldDelete = window.confirm(`Remove API key ${key.key_prefix}?`);
+      const shouldDelete = window.confirm(
+        `Remove app key ${key.key_prefix}?`,
+      );
       if (!shouldDelete) return;
 
       setDeletingHash(key.key_hash);
@@ -187,32 +189,33 @@ export function ApiKeySettings() {
           `/api/settings/api-keys/${encodeURIComponent(key.key_hash)}`,
           { method: "DELETE" },
         );
-        await loadApiKeys();
-        setStatus({ type: "success", text: "API key removed." });
+        await loadAppKeys();
+        setStatus({ type: "success", text: "App key removed." });
       } catch (error) {
         setStatus({
           type: "error",
           text:
-            error instanceof Error ? error.message : "Failed to remove API key",
+            error instanceof Error ? error.message : "Failed to remove app key",
         });
       } finally {
         setDeletingHash(null);
       }
     },
-    [deletingHash, ensureBoundSession, loadApiKeys],
+    [deletingHash, ensureBoundSession, loadAppKeys],
   );
 
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">API Keys</h3>
+        <h3 className="text-foreground mb-4 text-lg font-semibold">App Keys</h3>
         <p className="text-muted-foreground text-sm">
-          Manage your keys for authenticated API access. Newly generated keys
-          are shown only once.
+          Programmatic access keys for Aomi. Send as <code>X-API-Key</code> to
+          call <code>/api/chat</code> from your own services. Newly generated
+          keys are shown only once.
         </p>
         {!identity.address && (
           <p className="text-muted-foreground mt-2 text-sm">
-            Connect a wallet account to manage owned API keys.
+            Connect a wallet account to manage owned app keys.
           </p>
         )}
       </div>
@@ -230,40 +233,40 @@ export function ApiKeySettings() {
       )}
 
       <div className="border-input bg-background space-y-4 rounded-3xl border p-5">
-        <h4 className="text-foreground text-base font-semibold">Add API Key</h4>
+        <h4 className="text-foreground text-base font-semibold">Add App Key</h4>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <label
-              htmlFor="api-key-label"
+              htmlFor="app-key-label"
               className="text-foreground block text-sm font-medium"
             >
               Label (optional)
             </label>
             <Input
-              id="api-key-label"
+              id="app-key-label"
               type="text"
               value={labelInput}
               onChange={(event) => setLabelInput(event.target.value)}
-              placeholder="Trading bot key"
-              className="h-11 rounded-full px-5 py-3"
+              placeholder="Trading bot"
+              className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
             />
           </div>
-          <div>
+          <div className="space-y-3">
             <label
-              htmlFor="manual-api-key-input"
-              className="text-foreground mb-2 block text-sm font-medium"
+              htmlFor="manual-app-key-input"
+              className="text-foreground block text-sm font-medium"
             >
-              API Key Value (optional)
+              App Key Value (optional)
             </label>
             <Input
-              id="manual-api-key-input"
+              id="manual-app-key-input"
               type="password"
               value={manualKeyInput}
               onChange={(event) => setManualKeyInput(event.target.value)}
               placeholder="Leave empty to auto-generate"
-              className="h-11 rounded-full px-5 py-3"
+              className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
             />
-            <p className="text-muted-foreground mt-2 text-sm">
+            <p className="text-muted-foreground text-sm">
               Leave blank to create a secure generated key.
             </p>
           </div>
@@ -311,15 +314,15 @@ export function ApiKeySettings() {
             disabled={!canCreate}
             className="rounded-full px-6"
           >
-            {creating ? "Creating..." : "Create key"}
+            {creating ? "Creating..." : "Create app key"}
           </Button>
         </div>
 
-        {createdApiKey && (
+        {createdAppKey && (
           <div className="space-y-2 rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
-            <p className="text-foreground text-sm font-medium">New key</p>
+            <p className="text-foreground text-sm font-medium">New app key</p>
             <p className="text-foreground break-all font-mono text-sm">
-              {createdApiKey}
+              {createdAppKey}
             </p>
             <div className="flex gap-2">
               <Button
@@ -327,7 +330,7 @@ export function ApiKeySettings() {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  void navigator.clipboard.writeText(createdApiKey);
+                  void navigator.clipboard.writeText(createdAppKey);
                 }}
               >
                 Copy key
@@ -336,7 +339,7 @@ export function ApiKeySettings() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setCreatedApiKey(null)}
+                onClick={() => setCreatedAppKey(null)}
               >
                 Hide
               </Button>
@@ -361,19 +364,19 @@ export function ApiKeySettings() {
             {loadingKeys && (
               <tr>
                 <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  Loading API keys...
+                  Loading app keys...
                 </td>
               </tr>
             )}
-            {!loadingKeys && apiKeys.length === 0 && (
+            {!loadingKeys && appKeys.length === 0 && (
               <tr>
                 <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  No API keys found.
+                  No app keys found.
                 </td>
               </tr>
             )}
             {!loadingKeys &&
-              apiKeys.map((key) => (
+              appKeys.map((key) => (
                 <tr key={key.key_hash} className="border-border border-t">
                   <td className="text-foreground px-3 py-2 font-mono">
                     {key.key_prefix}

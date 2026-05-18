@@ -88,8 +88,14 @@ export function buildCliUserState(
     userState.is_connected = true;
   }
 
-  userState.aa_mode = aa?.aaMode ?? null;
-  userState.smart_account = aa?.smartAccount ?? null;
+  if (aa?.aaMode === "4337" || aa?.aaMode === "7702") {
+    userState.aa_mode = aa.aaMode;
+    userState.wallet_kind =
+      publicKey && aa.smartAccount === publicKey ? "smart-account" : "eoa";
+  } else if (aa?.aaMode === null) {
+    userState.aa_mode = "none";
+    userState.wallet_kind = "eoa";
+  }
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
@@ -252,11 +258,23 @@ export function walletSnapshotFromUserState(
 } {
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
+  const sessionAAMode = UserState.aaMode(userState);
+  const walletKind = UserState.walletKind(userState);
+
+  const aaMode: UserStateAAMode | null | undefined =
+    sessionAAMode === "4337" || sessionAAMode === "7702"
+      ? sessionAAMode
+      : sessionAAMode === "none"
+        ? null
+        : undefined;
+
+  const smartAccount: string | null | undefined =
+    walletKind === "smart-account" ? address ?? null : null;
 
   return {
     publicKey: isConnected === false ? undefined : address,
     chainId: UserState.chainId(userState),
-    aaMode: UserState.aaMode(userState),
-    smartAccount: UserState.smartAccount(userState),
+    aaMode,
+    smartAccount,
   };
 }

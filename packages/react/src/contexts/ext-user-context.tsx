@@ -26,7 +26,7 @@ const UserContext = createContext<UserContextValue | undefined>(undefined);
 export function useUser() {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within UserContextProvider");
+    throw new Error("useUser must be used within ExtUserProvider");
   }
   // Return only the public API
   return {
@@ -41,7 +41,29 @@ export function useUser() {
 
 // ==================== Provider ====================
 
-export function UserContextProvider({ children }: { children: ReactNode }) {
+/**
+ * Idempotent provider: if a parent already provided `UserContext`, render
+ * children straight through. Otherwise mount a fresh store.
+ *
+ * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the auth-adapter
+ * layers (`AomiParaProvider` / `AomiBaseAccountProvider`) both want to be
+ * usable standalone. Each historically wrapped with `<ExtUserProvider>` —
+ * but when they nest, the inner provider created a *second* store that
+ * shadowed the outer. The chat composer would read from one store while
+ * `AomiAuthAdapterSync` wrote to another, so wallet connects never
+ * propagated to the chat's `user_state`. Collapsing nested mounts to the
+ * outermost store fixes that without forcing host apps to wire the
+ * provider themselves.
+ */
+export function ExtUserProvider({ children }: { children: ReactNode }) {
+  const parent = useContext(UserContext);
+  if (parent) {
+    return <>{children}</>;
+  }
+  return <ExtUserProviderImpl>{children}</ExtUserProviderImpl>;
+}
+
+function ExtUserProviderImpl({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<UserState>({
     address: undefined,
     chain_id: undefined,
@@ -92,15 +114,58 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const next: UserState =
-        nextPartial.is_connected === false
+      // Wallet-context fields belong to a specific connected session. On
+      // disconnect we wipe them all so that the next connection cannot
+      // inherit stale identity (address, AA mode, sponsor metadata, etc.)
+      // from the previous wallet. AomiAuthAdapterUserSync deliberately
+      // does not forward per-tx AA fields, so without this clear they
+      // would survive across wallet switches.
+      const merged: UserState =
+        UserState.normalize({ ...prev, ...nextPartial }) ?? prev;
+      let next: UserState;
+      if (nextPartial.is_connected === false) {
+        next = {
+          ...merged,
+          address: undefined,
+          chain_id: undefined,
+          ens_name: undefined,
+          wallet_kind: undefined,
+          aa_mode: undefined,
+          smart_account_4337: undefined,
+          delegation_7702: undefined,
+          svm_address: undefined,
+          wallet_provider: undefined,
+          auth_method: undefined,
+          sponsored: undefined,
+          sponsor_provider: undefined,
+          sponsor_account: undefined,
+          pending_txs: undefined,
+          pending_eip712s: undefined,
+          pending_solana_txs: undefined,
+        };
+      } else {
+        // Address change while staying connected (wallet switch in place):
+        // per-tx AA outputs and pending request maps belong to the prior
+        // address — drop them so the new wallet starts with a clean slate.
+        const prevAddress = UserState.address(prev);
+        const nextAddress = UserState.address(merged);
+        const addressChanged =
+          prevAddress !== undefined &&
+          nextAddress !== undefined &&
+          prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+        next = addressChanged
           ? {
-              ...(UserState.normalize({ ...prev, ...nextPartial }) ?? prev),
-              address: undefined,
-              chain_id: undefined,
+              ...merged,
+              aa_mode: undefined,
+              smart_account_4337: undefined,
+              delegation_7702: undefined,
               ens_name: undefined,
+              pending_txs: undefined,
+              pending_eip712s: undefined,
+              pending_solana_txs: undefined,
             }
-          : (UserState.normalize({ ...prev, ...nextPartial }) ?? prev);
+          : merged;
+      }
       notifyStateChange(next);
 
       return next;

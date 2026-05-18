@@ -9,9 +9,9 @@ const SESSION_HEADER = {
   required: true,
 };
 
-const API_KEY_HEADER = {
-  key: "X-API-Key",
-  placeholder: "your-api-key (optional)",
+const APP_KEY_HEADER = {
+  key: "AOMI-APP-KEY",
+  placeholder: "your-app-key (optional)",
 };
 
 const ENDPOINTS: EndpointDef[] = [

@@ -51,12 +51,11 @@ export const registry: RegistryComponent[] = [
       "lib/aomi-auth-adapter/context.tsx",
       "lib/aomi-auth-adapter/types.ts",
       "lib/aomi-auth-adapter/identity.ts",
-      "lib/aomi-auth-adapter/runtime-user-sync.tsx",
       "lib/auth-identity.ts",
     ],
     dependencies: ["@aomi-labs/react", "viem"],
     description:
-      "Generic Aomi auth adapter context and runtime user-state sync.",
+      "Generic Aomi auth adapter context. Identity → UserState sync is mounted automatically by AomiAuthAdapterProvider.",
   },
   {
     name: "control-bar",

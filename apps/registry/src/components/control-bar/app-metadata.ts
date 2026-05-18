@@ -207,8 +207,8 @@ const APP_ALIASES: Record<string, string> = {
   twitter: "x",
 };
 
-function normalizeAppId(appId: string): string {
-  return appId.trim().toLowerCase();
+function normalizeAppId(appId: string | null | undefined): string {
+  return (appId ?? "").trim().toLowerCase();
 }
 
 function titleizeAppId(appId: string): string {
@@ -219,18 +219,19 @@ function titleizeAppId(appId: string): string {
     .join(" ");
 }
 
-export function getAppInfo(appId: string): AppInfo {
-  const normalized = normalizeAppId(appId);
+export function getAppInfo(appId: string | null | undefined): AppInfo {
+  const safeAppId = appId ?? "";
+  const normalized = normalizeAppId(safeAppId);
   const canonicalId = APP_ALIASES[normalized] ?? normalized;
   const known = APP_DISPLAY_NAMES[canonicalId];
   if (known) {
-    return { id: appId, ...known };
+    return { id: safeAppId, ...known };
   }
-  const displayName = titleizeAppId(appId);
+  const displayName = titleizeAppId(safeAppId);
   return {
-    id: appId,
+    id: safeAppId,
     displayName,
-    abbr: appId.charAt(0).toUpperCase(),
+    abbr: safeAppId.charAt(0).toUpperCase(),
     category: APP_CATEGORIES.custom!,
   };
 }
