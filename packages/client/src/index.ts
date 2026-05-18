@@ -9,6 +9,7 @@ export { AomiClient } from "./client";
 // =============================================================================
 
 export type {
+  AomiAppDescriptor,
   AomiClientType,
   AomiClientOptions,
   AomiMessage,
@@ -18,6 +19,8 @@ export type {
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiListSecretsResponse,
+  AomiSecretSlot,
   AomiSimulateFee,
   AomiSimulateResponse,
   AomiSSEEvent,

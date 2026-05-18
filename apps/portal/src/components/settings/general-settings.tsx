@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getChainInfo } from "@aomi-labs/react";
 import {
-  formatAuthProvider,
+  formatAuthMethod,
   useAomiAuthAdapter,
 } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
@@ -57,12 +57,8 @@ export function GeneralSettings() {
 
   const identityType = useMemo(() => {
     if (identity.status !== "connected") return "Disconnected";
-    return (
-      identity.secondaryLabel ??
-      formatAuthProvider(identity.authProvider) ??
-      "Wallet"
-    );
-  }, [identity.authProvider, identity.secondaryLabel, identity.status]);
+    return formatAuthMethod(identity.authMethod) ?? "Wallet";
+  }, [identity.authMethod, identity.status]);
 
   useEffect(() => {
     const run = async () => {
@@ -102,7 +98,7 @@ export function GeneralSettings() {
                 Primary:{" "}
                 {identity.status === "disconnected"
                   ? "Not connected"
-                  : identity.primaryLabel}
+                  : (identity.address ?? "Connected")}
               </p>
               {identity.address && (
                 <p className="text-muted-foreground text-sm">

@@ -9,7 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { AomiClient } from "@aomi-labs/client";
+import type { AomiAppDescriptor, AomiClient } from "@aomi-labs/client";
 import type {
   ModelSelectionMode,
   ThreadMetadata,
@@ -47,8 +47,14 @@ export type ControlState = {
   clientId: string | null;
   /** Available models fetched from backend */
   availableModels: string[];
-  /** Authorized apps fetched from backend */
+  /** Authorized apps fetched from backend — names only, derived from
+   *  `appDescriptors`. Kept as a separate field so existing
+   *  `authorizedApps.includes(app)` consumers keep working. */
   authorizedApps: string[];
+  /** Full per-app descriptors from `/api/control/apps`, including each
+   *  app's declared secret slots. Used by the Secrets settings page to
+   *  render slot inputs and by the chat shell to gate app load. */
+  appDescriptors: AomiAppDescriptor[];
   /** Default model (first from availableModels) */
   defaultModel: string | null;
   /** Default app (from authorizedApps) */
@@ -62,12 +68,22 @@ export type ControlContextApi = {
   state: ControlState;
   /** Update global state (apiKey only) */
   setApiKey: (apiKey: string | null) => void;
-  /** Ingest secrets into the backend vault, returns opaque handles */
+  /** Ingest secrets into the backend vault, returns opaque handles. Pass
+   *  `app` to scope to the per-app store; omit for the flat client store
+   *  (BYOK / STREAM / legacy). */
   ingestSecrets: (
     secrets: Record<string, string>,
+    app?: string,
   ) => Promise<Record<string, string>>;
-  /** Clear all secrets from the backend vault */
-  clearSecrets: () => Promise<void>;
+  /** Clear secrets from the backend vault. With `app`, clears only that
+   *  app's per-app slots; without, wipes the entire client (flat + app). */
+  clearSecrets: (app?: string) => Promise<void>;
+  /** Remove a single secret. With `app`, targets the per-app store under
+   *  that scope; without, targets the flat store. */
+  deleteSecret: (name: string, app?: string) => Promise<void>;
+  /** Return the names of slots filled per app for this client. Source of
+   *  truth for the Secrets settings page (no values are returned). */
+  listSecrets: () => Promise<Record<string, string[]>>;
   /** Store a BYOK entry for an LLM provider in localStorage and ingest into backend vault */
   setByok: (
     provider: string,
@@ -126,6 +142,12 @@ const BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
 
 function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
+}
+
+function namesFromDescriptors(
+  apps: ReadonlyArray<{ name: string }>,
+): string[] {
+  return apps.map((a) => a.name);
 }
 
 function readStoredModelPreference(): StoredModelPreference {
@@ -246,6 +268,7 @@ export function ControlContextProvider({
     clientId: getOrCreateClientId(),
     availableModels: [],
     authorizedApps: [],
+    appDescriptors: [],
     defaultModel: null,
     defaultApp: null,
     byokKeys: {},
@@ -369,17 +392,19 @@ export function ControlContextProvider({
   useEffect(() => {
     const fetchApps = async () => {
       try {
-        const apps = await aomiClientRef.current.getApps(
+        const descriptors = await aomiClientRef.current.getApps(
           getCurrentControlSessionId(),
           {
             publicKey: publicKeyRef.current,
             apiKey: stateRef.current.apiKey ?? undefined,
           },
         );
-        const defaultApp = getDefaultApp(apps);
+        const names = namesFromDescriptors(descriptors);
+        const defaultApp = getDefaultApp(names);
         setStateInternal((prev) => ({
           ...prev,
-          authorizedApps: apps,
+          authorizedApps: names,
+          appDescriptors: descriptors,
           defaultApp,
         }));
       } catch (error) {
@@ -387,6 +412,7 @@ export function ControlContextProvider({
         setStateInternal((prev) => ({
           ...prev,
           authorizedApps: ["default"],
+          appDescriptors: [{ name: "default" }],
           defaultApp: "default",
         }));
       }
@@ -430,6 +456,7 @@ export function ControlContextProvider({
   const ingestSecrets = useCallback(
     async (
       secrets: Record<string, string>,
+      app?: string,
     ): Promise<Record<string, string>> => {
       const clientId = stateRef.current.clientId;
       if (!clientId) throw new Error("clientId not initialized");
@@ -437,19 +464,45 @@ export function ControlContextProvider({
         getCurrentControlSessionId(),
         clientId,
         secrets,
+        app,
       );
       return handles;
     },
     [getCurrentControlSessionId],
   );
 
-  const clearSecrets = useCallback(async (): Promise<void> => {
-    const clientId = stateRef.current.clientId;
-    if (!clientId) return;
-    await aomiClientRef.current.clearSecrets?.(
+  const clearSecrets = useCallback(
+    async (app?: string): Promise<void> => {
+      const clientId = stateRef.current.clientId;
+      if (!clientId) return;
+      await aomiClientRef.current.clearSecrets?.(
+        getCurrentControlSessionId(),
+        clientId,
+        app,
+      );
+    },
+    [getCurrentControlSessionId],
+  );
+
+  const deleteSecret = useCallback(
+    async (name: string, app?: string): Promise<void> => {
+      const clientId = stateRef.current.clientId;
+      if (!clientId) return;
+      await aomiClientRef.current.deleteSecret(
+        getCurrentControlSessionId(),
+        clientId,
+        name,
+        app,
+      );
+    },
+    [getCurrentControlSessionId],
+  );
+
+  const listSecrets = useCallback(async (): Promise<Record<string, string[]>> => {
+    const { by_app } = await aomiClientRef.current.listSecrets(
       getCurrentControlSessionId(),
-      clientId,
     );
+    return by_app;
   }, [getCurrentControlSessionId]);
 
   // ---------------------------------------------------------------------------
@@ -548,25 +601,28 @@ export function ControlContextProvider({
 
   const getAuthorizedApps = useCallback(async (): Promise<string[]> => {
     try {
-      const apps = await aomiClientRef.current.getApps(
+      const descriptors = await aomiClientRef.current.getApps(
         getCurrentControlSessionId(),
         {
           publicKey: publicKeyRef.current,
           apiKey: stateRef.current.apiKey ?? undefined,
         },
       );
-      const defaultApp = getDefaultApp(apps);
+      const names = namesFromDescriptors(descriptors);
+      const defaultApp = getDefaultApp(names);
       setStateInternal((prev) => ({
         ...prev,
-        authorizedApps: apps,
+        authorizedApps: names,
+        appDescriptors: descriptors,
         defaultApp,
       }));
-      return apps;
+      return names;
     } catch (error) {
       console.error("Failed to fetch apps:", error);
       setStateInternal((prev) => ({
         ...prev,
         authorizedApps: ["default"],
+        appDescriptors: [{ name: "default" }],
         defaultApp: "default",
       }));
       return ["default"];
@@ -893,6 +949,8 @@ export function ControlContextProvider({
         setApiKey,
         ingestSecrets,
         clearSecrets,
+        deleteSecret,
+        listSecrets,
         setByok,
         removeByok,
         getByokKeys,

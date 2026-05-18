@@ -19,6 +19,18 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __objRest = (source, exclude) => {
+  var target = {};
+  for (var prop in source)
+    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && __getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(source)) {
+      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+        target[prop] = source[prop];
+    }
+  return target;
+};
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -759,7 +771,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   const url = `${baseUrl}${path}${query}`;
   const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
-    headers.set(API_KEY_HEADER, apiKey);
+    headers.set(APP_KEY_HEADER, apiKey);
   }
   const response = await fetchImpl(url, {
     method: "POST",
@@ -770,14 +782,14 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, API_KEY_HEADER, AomiClient;
+var SESSION_ID_HEADER, APP_KEY_HEADER, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
     init_types();
     init_sse();
     SESSION_ID_HEADER = "X-Session-Id";
-    API_KEY_HEADER = "X-API-Key";
+    APP_KEY_HEADER = "AOMI-APP-KEY";
     AomiClient = class {
       constructor(options) {
         var _a3;
@@ -869,18 +881,27 @@ var init_client = __esm({
       // ===========================================================================
       /**
        * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
-       * Call this once at page load (or when secrets change) with a stable
-       * client_id for the browser tab. The same client_id should be passed
-       * to `sendMessage` / `fetchState` so sessions get associated.
+       *
+       * When `app` is provided, the values land in the per-app store keyed by
+       * `(client_id, app)` — this is the path the Secrets settings page uses
+       * (one app at a time). When `app` is omitted, secrets land in the flat
+       * client store (used by BYOK and other cross-app pools).
        */
-      async ingestSecrets(sessionId, clientId, secrets) {
+      async ingestSecrets(sessionId, clientId, secrets, app) {
         const url = joinApiPath(this.baseUrl, "/api/secrets");
+        const body = {
+          client_id: clientId,
+          secrets
+        };
+        if (app && app.trim().length > 0) {
+          body.app = app.trim();
+        }
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId, {
             "Content-Type": "application/json"
           }),
-          body: JSON.stringify({ client_id: clientId, secrets })
+          body: JSON.stringify(body)
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -888,12 +909,16 @@ var init_client = __esm({
         return await response.json();
       }
       /**
-       * Clear all secrets for a client (e.g. on page unload or logout).
+       * Clear secrets for a client. With `app`, removes every slot under that
+       * app. Without `app`, clears the entire client (legacy behavior — wipes
+       * both stores and unbinds the session).
        */
-      async clearSecrets(sessionId, clientId) {
-        const url = buildApiUrl(this.baseUrl, "/api/secrets", {
-          client_id: clientId
-        });
+      async clearSecrets(sessionId, clientId, app) {
+        const params = { client_id: clientId };
+        if (app && app.trim().length > 0) {
+          params.app = app.trim();
+        }
+        const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
         const response = await this.fetchImpl(url, {
           method: "DELETE",
           headers: withSessionHeader(sessionId)
@@ -904,18 +929,37 @@ var init_client = __esm({
         return await response.json();
       }
       /**
-       * Remove a single secret for a client.
+       * Remove a single named secret. With `app`, targets the per-app store
+       * under that scope; without, targets the flat store.
        */
-      async deleteSecret(sessionId, clientId, name) {
+      async deleteSecret(sessionId, clientId, name, app) {
+        const params = { client_id: clientId };
+        if (app && app.trim().length > 0) {
+          params.app = app.trim();
+        }
         const url = buildApiUrl(
           this.baseUrl,
           `/api/secrets/${encodeURIComponent(name)}`,
-          {
-            client_id: clientId
-          }
+          params
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
+      }
+      /**
+       * List currently stored secret names per app for this client. The
+       * backend never returns raw values; the settings page uses this as the
+       * source of truth instead of trusting localStorage.
+       */
+      async listSecrets(sessionId) {
+        const url = joinApiPath(this.baseUrl, "/api/secrets");
+        const response = await this.fetchImpl(url, {
+          method: "GET",
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
@@ -1081,7 +1125,9 @@ var init_client = __esm({
       // Control API
       // ===========================================================================
       /**
-       * Get available apps.
+       * Get available apps as full descriptors (name + declared secret slots).
+       * The settings page consumes the slot info to render per-app inputs and
+       * the chat shell uses it to gate app load when required slots are unfilled.
        */
       async getApps(sessionId, options) {
         var _a3;
@@ -1091,7 +1137,7 @@ var init_client = __esm({
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
-          headers.set(API_KEY_HEADER, apiKey);
+          headers.set(APP_KEY_HEADER, apiKey);
         }
         const response = await this.rawFetchImpl(url, { headers });
         if (!response.ok) {
@@ -1108,7 +1154,7 @@ var init_client = __esm({
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
-          headers.set(API_KEY_HEADER, apiKey);
+          headers.set(APP_KEY_HEADER, apiKey);
         }
         const response = await this.rawFetchImpl(url, {
           headers
@@ -1141,24 +1187,24 @@ var init_client = __esm({
         );
       }
       /**
-       * List BYOK provider keys bound to the current session's client.
+       * List BYOK keys (one per LLM provider) bound to the current session's client.
        */
-      async listProviderKeys(sessionId) {
+      async listByokKeys(sessionId) {
         var _a3;
         const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
-          throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+          throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
         }
         const data = await response.json();
-        return (_a3 = data.provider_keys) != null ? _a3 : [];
+        return (_a3 = data.byok_keys) != null ? _a3 : [];
       }
       /**
-       * Save or replace a BYOK provider key for the client bound to this session.
+       * Save or replace a BYOK key for the client bound to this session.
        */
-      async saveProviderKey(sessionId, provider, apiKey, label) {
+      async saveByokKey(sessionId, provider, byokKey, label) {
         const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
         const response = await this.fetchImpl(url, {
           method: "POST",
@@ -1167,20 +1213,20 @@ var init_client = __esm({
           }),
           body: JSON.stringify({
             provider,
-            api_key: apiKey,
+            byok_key: byokKey,
             label
           })
         });
         if (!response.ok) {
-          throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+          throw new Error(`Failed to save BYOK key: HTTP ${response.status}`);
         }
         const data = await response.json();
         return data.key;
       }
       /**
-       * Delete a BYOK provider key for the client bound to this session.
+       * Delete a BYOK key for the client bound to this session.
        */
-      async deleteProviderKey(sessionId, provider) {
+      async deleteByokKey(sessionId, provider) {
         const url = buildApiUrl(
           this.baseUrl,
           `/api/control/provider-keys/${encodeURIComponent(provider)}`
@@ -1190,7 +1236,7 @@ var init_client = __esm({
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
-          throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+          throw new Error(`Failed to delete BYOK key: HTTP ${response.status}`);
         }
         const data = await response.json();
         return data.deleted;
@@ -1209,7 +1255,7 @@ var init_client = __esm({
           withSessionHeader(sessionId, { "Content-Type": "application/json" })
         );
         if (this.apiKey) {
-          headers.set(API_KEY_HEADER, this.apiKey);
+          headers.set(APP_KEY_HEADER, this.apiKey);
         }
         const normalizedTransactions = transactions.map((transaction) => {
           var _a3, _b;
@@ -2626,6 +2672,16 @@ function toCliSessionState(stored) {
     secretHandles: stored.secretHandles
   };
 }
+function normalizeSignedTx(tx) {
+  var _b;
+  const _a3 = tx, { AAAddress: _legacyAAAddress } = _a3, rest = __objRest(_a3, ["AAAddress"]);
+  return __spreadProps(__spreadValues({}, rest), {
+    smartAccount4337: (_b = tx.smartAccount4337) != null ? _b : tx.AAAddress
+  });
+}
+function normalizeSignedTxs(signedTxs) {
+  return signedTxs == null ? void 0 : signedTxs.map(normalizeSignedTx);
+}
 function readStoredSession(path) {
   var _a3;
   try {
@@ -2649,7 +2705,7 @@ function readStoredSession(path) {
       smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
       pendingSolTxs: parsed.pendingSolTxs,
-      signedTxs: parsed.signedTxs,
+      signedTxs: normalizeSignedTxs(parsed.signedTxs),
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
@@ -2725,6 +2781,7 @@ function migrateLegacyStateIfNeeded() {
     }
     const now = Date.now();
     const migrated = __spreadProps(__spreadValues({}, legacy), {
+      signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
       updatedAt: now
@@ -5217,7 +5274,7 @@ function toSignedTransactionRecord(tx, execution, from, chainId, timestamp, aaPr
     aaMode,
     batched: execution.batched,
     sponsored: execution.sponsored,
-    AAAddress: execution.SmartAccount4337,
+    smartAccount4337: execution.SmartAccount4337,
     Delegation7702: execution.Delegation7702,
     from,
     to: tx.to,
@@ -5256,7 +5313,7 @@ function formatSignedTxLine(tx, prefix) {
       parts.push(`txs: ${tx.txHashes.length}`);
     }
     if (tx.sponsored) parts.push("sponsored");
-    if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
+    if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);
     if (tx.Delegation7702) parts.push(`delegation: ${tx.Delegation7702}`);
     if (tx.to) parts.push(`to: ${tx.to}`);
     if (tx.value) parts.push(`value: ${tx.value}`);
@@ -6018,7 +6075,7 @@ function toSignedTxMetadata(tx) {
     aaMode: (_e = tx.aaMode) != null ? _e : null,
     batched: (_f = tx.batched) != null ? _f : null,
     sponsored: (_g = tx.sponsored) != null ? _g : null,
-    AAAddress: (_h = tx.AAAddress) != null ? _h : null,
+    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
     Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
     signature: (_j = tx.signature) != null ? _j : null,
     from: (_k = tx.from) != null ? _k : null,
@@ -6292,7 +6349,7 @@ async function eventsCommand(config) {
   }
 }
 async function appsCommand(config) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e;
   const client = createControlClient(config);
   const cli = CliSession.load();
   const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
@@ -6305,9 +6362,12 @@ async function appsCommand(config) {
     return;
   }
   const currentApp = (_d = cli == null ? void 0 : cli.app) != null ? _d : config.app;
-  for (const app of apps) {
-    const marker = currentApp === app ? "  (current)" : "";
-    console.log(`${app}${marker}`);
+  for (const descriptor of apps) {
+    const name = descriptor.name;
+    const marker = currentApp === name ? "  (current)" : "";
+    const required = ((_e = descriptor.secrets) != null ? _e : []).filter((s) => s.required).map((s) => s.name);
+    const requiredSuffix = required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
+    console.log(`${name}${marker}${requiredSuffix}`);
   }
 }
 async function modelsCommand(config) {
@@ -6684,12 +6744,12 @@ var init_secrets = __esm({
   }
 });
 
-// src/cli/commands/provider-keys.ts
-function parseProviderKeyArg(input2) {
-  const [providerPart, apiKeyPart] = input2.split(/:(.+)/, 2);
+// src/cli/commands/byok.ts
+function parseByokKeyArg(input2) {
+  const [providerPart, byokKeyPart] = input2.split(/:(.+)/, 2);
   const provider = providerPart == null ? void 0 : providerPart.trim().toLowerCase();
-  const apiKey = apiKeyPart == null ? void 0 : apiKeyPart.trim();
-  if (!provider || !apiKey) {
+  const byokKey = byokKeyPart == null ? void 0 : byokKeyPart.trim();
+  if (!provider || !byokKey) {
     fatal(
       "Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)"
     );
@@ -6699,9 +6759,9 @@ function parseProviderKeyArg(input2) {
       `Unknown provider "${provider}". Supported: anthropic, openai, openrouter`
     );
   }
-  return { provider, apiKey };
+  return { provider, byokKey };
 }
-async function createProviderKeyClient(config) {
+async function createByokKeyClient(config) {
   const cli = CliSession.loadOrCreate(config);
   const client = new AomiClient({
     baseUrl: cli.baseUrl,
@@ -6710,22 +6770,22 @@ async function createProviderKeyClient(config) {
   await client.fetchState(cli.sessionId, void 0, cli.ensureClientId());
   return { cli, client };
 }
-async function saveProviderKeyCommand(config, providerKey, options) {
-  const { provider, apiKey } = parseProviderKeyArg(providerKey);
-  const { cli, client } = await createProviderKeyClient(config);
-  const saved = await client.saveProviderKey(cli.sessionId, provider, apiKey);
+async function saveByokKeyCommand(config, byokKeyInput, options) {
+  const { provider, byokKey } = parseByokKeyArg(byokKeyInput);
+  const { cli, client } = await createByokKeyClient(config);
+  const saved = await client.saveByokKey(cli.sessionId, provider, byokKey);
   console.log(`BYOK key set for ${saved.provider}: ${saved.key_prefix}...`);
   if ((options == null ? void 0 : options.printLocation) !== false) {
     printDataFileLocation();
   }
 }
-async function showProviderKeysCommand(config, options) {
-  const { cli, client } = await createProviderKeyClient(config);
-  const providerKeys = await client.listProviderKeys(cli.sessionId);
-  if (providerKeys.length === 0) {
-    console.log("No BYOK provider keys set. Using system keys.");
+async function showByokKeysCommand(config, options) {
+  const { cli, client } = await createByokKeyClient(config);
+  const byokKeys = await client.listByokKeys(cli.sessionId);
+  if (byokKeys.length === 0) {
+    console.log("No BYOK keys set. Using system keys.");
   } else {
-    for (const key of providerKeys) {
+    for (const key of byokKeys) {
       console.log(`  ${key.provider}: ${key.key_prefix}...`);
     }
   }
@@ -6733,27 +6793,27 @@ async function showProviderKeysCommand(config, options) {
     printDataFileLocation();
   }
 }
-async function clearProviderKeysCommand(config, options) {
-  const { cli, client } = await createProviderKeyClient(config);
-  const providerKeys = await client.listProviderKeys(cli.sessionId);
-  if (providerKeys.length === 0) {
-    console.log("No BYOK provider keys set. Using system keys.");
+async function clearByokKeysCommand(config, options) {
+  const { cli, client } = await createByokKeyClient(config);
+  const byokKeys = await client.listByokKeys(cli.sessionId);
+  if (byokKeys.length === 0) {
+    console.log("No BYOK keys set. Using system keys.");
     if ((options == null ? void 0 : options.printLocation) !== false) {
       printDataFileLocation();
     }
     return;
   }
-  for (const key of providerKeys) {
-    await client.deleteProviderKey(cli.sessionId, key.provider);
+  for (const key of byokKeys) {
+    await client.deleteByokKey(cli.sessionId, key.provider);
   }
-  console.log("BYOK provider keys cleared. Using system keys.");
+  console.log("BYOK keys cleared. Using system keys.");
   if ((options == null ? void 0 : options.printLocation) !== false) {
     printDataFileLocation();
   }
 }
 var SUPPORTED_PROVIDERS;
-var init_provider_keys = __esm({
-  "src/cli/commands/provider-keys.ts"() {
+var init_byok = __esm({
+  "src/cli/commands/byok.ts"() {
     "use strict";
     init_client();
     init_cli_session();
@@ -6820,14 +6880,14 @@ async function handleKeyCommand(config, command) {
     fatal("Usage: /key <provider:key> | /key show | /key clear");
   }
   if (command === "show") {
-    await showProviderKeysCommand(config, { printLocation: false });
+    await showByokKeysCommand(config, { printLocation: false });
     return;
   }
   if (command === "clear") {
-    await clearProviderKeysCommand(config, { printLocation: false });
+    await clearByokKeysCommand(config, { printLocation: false });
     return;
   }
-  await saveProviderKeyCommand(config, command, { printLocation: false });
+  await saveByokKeyCommand(config, command, { printLocation: false });
 }
 async function handleReplLine(config, line, showTool) {
   const trimmed = line.trim();
@@ -6894,9 +6954,9 @@ async function runRootCli(args) {
   const config = buildCliConfig(args);
   const prompt = str2(args.prompt);
   const showTool = args["show-tool"] === true;
-  const providerKey = str2(args["provider-key"]);
-  if (providerKey) {
-    await saveProviderKeyCommand(config, providerKey, { printLocation: false });
+  const byokKey = str2(args["provider-key"]);
+  if (byokKey) {
+    await saveByokKeyCommand(config, byokKey, { printLocation: false });
   }
   if (prompt) {
     await chatCommand(config, prompt, showTool);
@@ -6909,7 +6969,7 @@ var init_repl = __esm({
     "use strict";
     init_chat();
     init_control();
-    init_provider_keys();
+    init_byok();
     init_shared();
     init_cli_session();
     init_errors();

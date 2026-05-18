@@ -1,5 +1,5 @@
-import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
-export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse, AomiAppDescriptor } from '@aomi-labs/client';
+export { AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -385,8 +385,14 @@ type ControlState = {
     clientId: string | null;
     /** Available models fetched from backend */
     availableModels: string[];
-    /** Authorized apps fetched from backend */
+    /** Authorized apps fetched from backend — names only, derived from
+     *  `appDescriptors`. Kept as a separate field so existing
+     *  `authorizedApps.includes(app)` consumers keep working. */
     authorizedApps: string[];
+    /** Full per-app descriptors from `/api/control/apps`, including each
+     *  app's declared secret slots. Used by the Secrets settings page to
+     *  render slot inputs and by the chat shell to gate app load. */
+    appDescriptors: AomiAppDescriptor[];
     /** Default model (first from availableModels) */
     defaultModel: string | null;
     /** Default app (from authorizedApps) */
@@ -399,10 +405,19 @@ type ControlContextApi = {
     state: ControlState;
     /** Update global state (apiKey only) */
     setApiKey: (apiKey: string | null) => void;
-    /** Ingest secrets into the backend vault, returns opaque handles */
-    ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
-    /** Clear all secrets from the backend vault */
-    clearSecrets: () => Promise<void>;
+    /** Ingest secrets into the backend vault, returns opaque handles. Pass
+     *  `app` to scope to the per-app store; omit for the flat client store
+     *  (BYOK / STREAM / legacy). */
+    ingestSecrets: (secrets: Record<string, string>, app?: string) => Promise<Record<string, string>>;
+    /** Clear secrets from the backend vault. With `app`, clears only that
+     *  app's per-app slots; without, wipes the entire client (flat + app). */
+    clearSecrets: (app?: string) => Promise<void>;
+    /** Remove a single secret. With `app`, targets the per-app store under
+     *  that scope; without, targets the flat store. */
+    deleteSecret: (name: string, app?: string) => Promise<void>;
+    /** Return the names of slots filled per app for this client. Source of
+     *  truth for the Secrets settings page (no values are returned). */
+    listSecrets: () => Promise<Record<string, string[]>>;
     /** Store a BYOK entry for an LLM provider in localStorage and ingest into backend vault */
     setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
     /** Remove a BYOK entry from localStorage and backend vault */

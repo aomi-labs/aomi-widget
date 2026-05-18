@@ -693,6 +693,36 @@ export interface AomiDeleteSecretResponse {
   deleted: boolean;
 }
 
+/**
+ * GET /api/secrets
+ * Per-app slot names currently filled for the session's client. The
+ * backend never returns raw values; only the names.
+ */
+export interface AomiListSecretsResponse {
+  by_app: Record<string, string[]>;
+}
+
+/**
+ * One per-app secret slot declared by a plugin manifest. Surfaced via
+ * `AomiAppDescriptor.secrets` so the frontend can render input rows and
+ * gate app load on `required` slots being filled.
+ */
+export interface AomiSecretSlot {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+/**
+ * GET /api/control/apps
+ * One entry per app the user can use. `secrets` is empty for apps that
+ * declare no slots.
+ */
+export interface AomiAppDescriptor {
+  name: string;
+  secrets?: AomiSecretSlot[];
+}
+
 export type AomiSSEEventType =
   | "title_changed"
   | "tool_update"

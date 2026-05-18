@@ -312,6 +312,9 @@ function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
 }
+function namesFromDescriptors(apps) {
+  return apps.map((a) => a.name);
+}
 function readStoredModelPreference() {
   var _a;
   try {
@@ -383,6 +386,7 @@ function ControlContextProvider({
     clientId: getOrCreateClientId(),
     availableModels: [],
     authorizedApps: [],
+    appDescriptors: [],
     defaultModel: null,
     defaultApp: null,
     byokKeys: {}
@@ -478,22 +482,25 @@ function ControlContextProvider({
     const fetchApps = async () => {
       var _a2;
       try {
-        const apps = await aomiClientRef.current.getApps(
+        const descriptors = await aomiClientRef.current.getApps(
           getCurrentControlSessionId(),
           {
             publicKey: publicKeyRef.current,
             apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
           }
         );
-        const defaultApp = getDefaultApp(apps);
+        const names = namesFromDescriptors(descriptors);
+        const defaultApp = getDefaultApp(names);
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedApps: apps,
+          authorizedApps: names,
+          appDescriptors: descriptors,
           defaultApp
         }));
       } catch (error) {
         console.error("Failed to fetch apps:", error);
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
           authorizedApps: ["default"],
+          appDescriptors: [{ name: "default" }],
           defaultApp: "default"
         }));
       }
@@ -524,27 +531,51 @@ function ControlContextProvider({
     });
   }, []);
   const ingestSecrets = useCallback(
-    async (secrets) => {
+    async (secrets, app) => {
       const clientId = stateRef.current.clientId;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
         getCurrentControlSessionId(),
         clientId,
-        secrets
+        secrets,
+        app
       );
       return handles;
     },
     [getCurrentControlSessionId]
   );
-  const clearSecrets = useCallback(async () => {
-    var _a2, _b2;
-    const clientId = stateRef.current.clientId;
-    if (!clientId) return;
-    await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(
-      _a2,
-      getCurrentControlSessionId(),
-      clientId
-    ));
+  const clearSecrets = useCallback(
+    async (app) => {
+      var _a2, _b2;
+      const clientId = stateRef.current.clientId;
+      if (!clientId) return;
+      await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(
+        _a2,
+        getCurrentControlSessionId(),
+        clientId,
+        app
+      ));
+    },
+    [getCurrentControlSessionId]
+  );
+  const deleteSecret = useCallback(
+    async (name, app) => {
+      const clientId = stateRef.current.clientId;
+      if (!clientId) return;
+      await aomiClientRef.current.deleteSecret(
+        getCurrentControlSessionId(),
+        clientId,
+        name,
+        app
+      );
+    },
+    [getCurrentControlSessionId]
+  );
+  const listSecrets = useCallback(async () => {
+    const { by_app } = await aomiClientRef.current.listSecrets(
+      getCurrentControlSessionId()
+    );
+    return by_app;
   }, [getCurrentControlSessionId]);
   const setByok = useCallback(
     async (provider, apiKey, label) => {
@@ -625,23 +656,26 @@ function ControlContextProvider({
   const getAuthorizedApps = useCallback(async () => {
     var _a2;
     try {
-      const apps = await aomiClientRef.current.getApps(
+      const descriptors = await aomiClientRef.current.getApps(
         getCurrentControlSessionId(),
         {
           publicKey: publicKeyRef.current,
           apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
         }
       );
-      const defaultApp = getDefaultApp(apps);
+      const names = namesFromDescriptors(descriptors);
+      const defaultApp = getDefaultApp(names);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedApps: apps,
+        authorizedApps: names,
+        appDescriptors: descriptors,
         defaultApp
       }));
-      return apps;
+      return names;
     } catch (error) {
       console.error("Failed to fetch apps:", error);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
         authorizedApps: ["default"],
+        appDescriptors: [{ name: "default" }],
         defaultApp: "default"
       }));
       return ["default"];
@@ -896,6 +930,8 @@ function ControlContextProvider({
         setApiKey,
         ingestSecrets,
         clearSecrets,
+        deleteSecret,
+        listSecrets,
         setByok,
         removeByok,
         getByokKeys,
