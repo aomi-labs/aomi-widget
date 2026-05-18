@@ -50,6 +50,52 @@ export type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
 
 const DEFAULT_AA_REQUESTED_MODE = "7702" as const;
 
+export type WalletTxAAMode = "4337" | "7702" | "none";
+
+export type WalletTxDebugTraceEntry = {
+  layer: string;
+  step: string;
+  status:
+    | "started"
+    | "resolved"
+    | "skipped"
+    | "failed"
+    | "fallback"
+    | "terminal";
+  mode?: WalletTxAAMode;
+  provider?: string;
+  executionKind?: string;
+  sponsored?: boolean;
+  callCount?: number;
+  message?: string;
+  reason?: string;
+};
+
+export type WalletTxFallbackAttempt = {
+  order: number;
+  layer: string;
+  mode: WalletTxAAMode;
+  status: "skipped" | "failed" | "succeeded";
+  provider?: string;
+  sponsored?: boolean;
+  reason?: string;
+  error?: string;
+  executionKind?: string;
+};
+
+export type WalletTxFailureMetadata = {
+  error?: string;
+  aaRequestedMode?: WalletTxAAMode;
+  aaResolvedMode?: WalletTxAAMode;
+  aaFallbackReason?: string;
+  executionKind?: string;
+  batched?: boolean;
+  callCount?: number;
+  sponsored?: boolean;
+  aaFallbackAttempts?: WalletTxFallbackAttempt[];
+  walletDebugTrace?: WalletTxDebugTraceEntry[];
+};
+
 /**
  * Tagged union of in-flight wallet requests. The `kind` field is the
  * discriminator — narrowing on it auto-narrows `payload` to the matching
@@ -99,8 +145,8 @@ export type WalletRequestResult =
       kind: "transaction";
       txHash: string;
       amount?: string;
-      aaRequestedMode?: "4337" | "7702" | "none";
-      aaResolvedMode?: "4337" | "7702" | "none";
+      aaRequestedMode?: WalletTxAAMode;
+      aaResolvedMode?: WalletTxAAMode;
       aaFallbackReason?: string;
       executionKind?: string;
       batched?: boolean;
@@ -118,6 +164,48 @@ export type WalletRequestResult =
       /** Base64 of the full signed Solana transaction bytes. */
       signedTx: string;
     };
+
+function normalizeWalletFailure(
+  reason?: string | WalletTxFailureMetadata,
+): WalletTxFailureMetadata {
+  if (typeof reason === "string") {
+    return { error: reason };
+  }
+  return reason ?? {};
+}
+
+function walletFallbackAttemptsToWire(
+  attempts: WalletTxFallbackAttempt[] | undefined,
+): Array<Record<string, unknown>> | undefined {
+  return attempts?.map((attempt) => ({
+    order: attempt.order,
+    layer: attempt.layer,
+    mode: attempt.mode,
+    status: attempt.status,
+    provider: attempt.provider,
+    sponsored: attempt.sponsored,
+    reason: attempt.reason,
+    error: attempt.error,
+    execution_kind: attempt.executionKind,
+  }));
+}
+
+function walletDebugTraceToWire(
+  trace: WalletTxDebugTraceEntry[] | undefined,
+): Array<Record<string, unknown>> | undefined {
+  return trace?.map((entry) => ({
+    layer: entry.layer,
+    step: entry.step,
+    status: entry.status,
+    mode: entry.mode,
+    provider: entry.provider,
+    execution_kind: entry.executionKind,
+    sponsored: entry.sponsored,
+    call_count: entry.callCount,
+    message: entry.message,
+    reason: entry.reason,
+  }));
+}
 
 export type SendResult = {
   messages: AomiMessage[];
@@ -506,7 +594,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * Reject a pending wallet request.
    * Sends an error to the backend and resumes polling.
    */
-  async reject(requestId: string, reason?: string): Promise<void> {
+  async reject(
+    requestId: string,
+    reason?: string | WalletTxFailureMetadata,
+  ): Promise<void> {
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
@@ -514,35 +605,43 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = DEFAULT_AA_REQUESTED_MODE;
+      const failure = normalizeWalletFailure(reason);
+      const requestedMode =
+        failure.aaRequestedMode ?? DEFAULT_AA_REQUESTED_MODE;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
-        error: reason ?? "Request rejected",
+        error: failure.error ?? "Request rejected",
         pending_tx_ids: pendingTxIds,
         aa_requested_mode: requestedMode,
-        aa_resolved_mode: requestedMode,
-        aa_fallback_reason: undefined,
-        execution_kind: undefined,
-        batched: pendingTxIds.length > 1,
-        call_count: pendingTxIds.length,
-        sponsored: undefined,
+        aa_resolved_mode: failure.aaResolvedMode ?? "none",
+        aa_fallback_reason: failure.aaFallbackReason,
+        execution_kind: failure.executionKind,
+        batched: failure.batched ?? pendingTxIds.length > 1,
+        call_count: failure.callCount ?? pendingTxIds.length,
+        sponsored: failure.sponsored,
+        aa_fallback_attempts: walletFallbackAttemptsToWire(
+          failure.aaFallbackAttempts,
+        ),
+        wallet_debug_trace: walletDebugTraceToWire(failure.walletDebugTrace),
         smart_account_4337: undefined,
         delegation_7702: undefined,
       });
     } else if (req.kind === "eip712_sign") {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet_eip712_response", {
         status: "failed",
-        error: reason ?? "Request rejected",
+        error: error ?? "Request rejected",
         description: req.payload.description,
         ...(req.payload.eip712Id !== undefined
           ? { pending_eip712_id: req.payload.eip712Id }
           : {}),
       });
     } else {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet::solana_sign_complete", {
         status: "rejected",
-        error: reason ?? "Request rejected",
+        error: error ?? "Request rejected",
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }

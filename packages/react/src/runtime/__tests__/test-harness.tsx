@@ -384,7 +384,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     }
 
     async resolve(_id: string, _result: unknown) {}
-    async reject(_id: string, _reason?: string) {}
+    async reject(_id: string, _reason?: unknown) {}
 
     resolveUserState(userState: unknown) {
       const normalized = UserState.normalize(

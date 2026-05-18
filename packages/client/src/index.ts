@@ -60,6 +60,10 @@ export type {
   WalletRequest,
   WalletRequestKind,
   WalletRequestResult,
+  WalletTxAAMode,
+  WalletTxDebugTraceEntry,
+  WalletTxFailureMetadata,
+  WalletTxFallbackAttempt,
 } from "./session";
 
 // =============================================================================

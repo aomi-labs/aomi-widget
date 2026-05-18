@@ -1612,6 +1612,39 @@ var init_wallet_utils = __esm({
 });
 
 // src/session.ts
+function normalizeWalletFailure(reason) {
+  if (typeof reason === "string") {
+    return { error: reason };
+  }
+  return reason != null ? reason : {};
+}
+function walletFallbackAttemptsToWire(attempts) {
+  return attempts == null ? void 0 : attempts.map((attempt) => ({
+    order: attempt.order,
+    layer: attempt.layer,
+    mode: attempt.mode,
+    status: attempt.status,
+    provider: attempt.provider,
+    sponsored: attempt.sponsored,
+    reason: attempt.reason,
+    error: attempt.error,
+    execution_kind: attempt.executionKind
+  }));
+}
+function walletDebugTraceToWire(trace) {
+  return trace == null ? void 0 : trace.map((entry) => ({
+    layer: entry.layer,
+    step: entry.step,
+    status: entry.status,
+    mode: entry.mode,
+    provider: entry.provider,
+    execution_kind: entry.executionKind,
+    sponsored: entry.sponsored,
+    call_count: entry.callCount,
+    message: entry.message,
+    reason: entry.reason
+  }));
+}
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1837,38 +1870,46 @@ var init_session = __esm({
        * Sends an error to the backend and resumes polling.
        */
       async reject(requestId, reason) {
+        var _a3, _b, _c, _d, _e;
         const req = this.removeWalletRequest(requestId);
         if (!req) {
           throw new Error(`No pending wallet request with id "${requestId}"`);
         }
         if (req.kind === "transaction") {
           const pendingTxIds = txIdsFromPayload(req.payload);
-          const requestedMode = DEFAULT_AA_REQUESTED_MODE;
+          const failure = normalizeWalletFailure(reason);
+          const requestedMode = (_a3 = failure.aaRequestedMode) != null ? _a3 : DEFAULT_AA_REQUESTED_MODE;
           await this.sendSystemEvent("wallet:tx_complete", {
             txHash: "",
             status: "failed",
-            error: reason != null ? reason : "Request rejected",
+            error: (_b = failure.error) != null ? _b : "Request rejected",
             pending_tx_ids: pendingTxIds,
             aa_requested_mode: requestedMode,
-            aa_resolved_mode: requestedMode,
-            aa_fallback_reason: void 0,
-            execution_kind: void 0,
-            batched: pendingTxIds.length > 1,
-            call_count: pendingTxIds.length,
-            sponsored: void 0,
+            aa_resolved_mode: (_c = failure.aaResolvedMode) != null ? _c : "none",
+            aa_fallback_reason: failure.aaFallbackReason,
+            execution_kind: failure.executionKind,
+            batched: (_d = failure.batched) != null ? _d : pendingTxIds.length > 1,
+            call_count: (_e = failure.callCount) != null ? _e : pendingTxIds.length,
+            sponsored: failure.sponsored,
+            aa_fallback_attempts: walletFallbackAttemptsToWire(
+              failure.aaFallbackAttempts
+            ),
+            wallet_debug_trace: walletDebugTraceToWire(failure.walletDebugTrace),
             smart_account_4337: void 0,
             delegation_7702: void 0
           });
         } else if (req.kind === "eip712_sign") {
+          const error = normalizeWalletFailure(reason).error;
           await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
             status: "failed",
-            error: reason != null ? reason : "Request rejected",
+            error: error != null ? error : "Request rejected",
             description: req.payload.description
           }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
         } else {
+          const error = normalizeWalletFailure(reason).error;
           await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
             status: "rejected",
-            error: reason != null ? reason : "Request rejected",
+            error: error != null ? error : "Request rejected",
             description: req.payload.description
           }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         }
@@ -5440,6 +5481,88 @@ function buildCliTxCompletionMetadata(params) {
     aa_fallback_reason: fallbackReason
   };
 }
+function cliDecisionMode(decision) {
+  return decision.execution === "aa" ? decision.aaMode : "none";
+}
+function cliDecisionProvider(decision) {
+  return decision.execution === "aa" ? decision.provider : void 0;
+}
+function buildCliTxFailurePayload(params) {
+  var _a3, _b;
+  const requestedMode = cliDecisionMode(params.requestedDecision);
+  const fallbackAttempts = params.failures.map((failure, index) => ({
+    order: index + 1,
+    layer: "cli.sign.strategy",
+    mode: cliDecisionMode(failure.decision),
+    status: "failed",
+    provider: cliDecisionProvider(failure.decision),
+    error: failure.message
+  }));
+  const lastFailureMessage = (_b = (_a3 = params.failures[params.failures.length - 1]) == null ? void 0 : _a3.message) != null ? _b : "CLI execution failed";
+  return {
+    txHash: "",
+    status: "failed",
+    error: lastFailureMessage,
+    pending_tx_ids: params.pendingTx.txId !== void 0 ? [params.pendingTx.txId] : [],
+    aa_requested_mode: requestedMode,
+    aa_resolved_mode: "none",
+    aa_fallback_reason: params.fallbackReason,
+    execution_kind: void 0,
+    batched: params.callCount > 1,
+    call_count: params.callCount,
+    sponsored: void 0,
+    aa_fallback_attempts: fallbackAttempts,
+    wallet_debug_trace: [
+      {
+        layer: "cli.sign",
+        step: "strategy.plan",
+        status: "started",
+        mode: requestedMode,
+        call_count: params.callCount,
+        message: fallbackAttempts.map(
+          (attempt) => attempt.provider ? `${attempt.mode}:${attempt.provider}` : attempt.mode
+        ).join(" -> ")
+      },
+      ...params.failures.map((failure) => ({
+        layer: "cli.sign",
+        step: "strategy.execute",
+        status: "failed",
+        mode: cliDecisionMode(failure.decision),
+        provider: cliDecisionProvider(failure.decision),
+        call_count: params.callCount,
+        message: failure.message
+      })),
+      {
+        layer: "cli.sign",
+        step: "strategy.execute",
+        status: "terminal",
+        mode: "none",
+        call_count: params.callCount,
+        reason: params.fallbackReason,
+        message: lastFailureMessage
+      }
+    ],
+    smart_account_4337: void 0,
+    delegation_7702: void 0
+  };
+}
+async function notifyCliTxFailures(params) {
+  for (const pendingTx of params.pendingTxs) {
+    await params.session.client.sendSystemMessage(
+      params.cli.sessionId,
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: buildCliTxFailurePayload({
+          pendingTx,
+          requestedDecision: params.requestedDecision,
+          failures: params.failures,
+          callCount: params.callCount,
+          fallbackReason: params.fallbackReason
+        })
+      })
+    );
+  }
+}
 async function simulatePendingTransactions(params) {
   const { session, cli, pendingTxs, resolvedChainIds, chainId } = params;
   const simResponse = await session.client.simulateBatch(
@@ -5524,7 +5647,14 @@ async function signSolanaPending(params) {
   console.log("Backend notified.");
 }
 async function executeCliTransaction(params) {
-  const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
+  const {
+    privateKey,
+    currentChainId,
+    chainsById,
+    rpcUrl,
+    providerState,
+    callList
+  } = params;
   const unsupportedWalletMethod = async () => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
   };
@@ -5550,7 +5680,9 @@ async function signCommand(config, txIds) {
   }
   const uniqueIds = Array.from(new Set(txIds));
   if (uniqueIds.length !== txIds.length) {
-    fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+    fatal(
+      "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call."
+    );
   }
   const cli = CliSession.load();
   if (!cli) {
@@ -5566,16 +5698,22 @@ async function signCommand(config, txIds) {
       cli.clientId
     );
     cli.syncPendingFromUserState(initialState.user_state);
-    const solanaIds = uniqueIds.filter((id) => cli.findPendingSolTx(id) !== void 0);
-    const evmIds = uniqueIds.filter((id) => cli.findPendingTx(id) !== void 0);
+    const solanaIds = uniqueIds.filter(
+      (id) => cli.findPendingSolTx(id) !== void 0
+    );
+    const evmIds = uniqueIds.filter(
+      (id) => cli.findPendingTx(id) !== void 0
+    );
     const unknownIds = uniqueIds.filter(
       (id) => cli.findPendingSolTx(id) === void 0 && cli.findPendingTx(id) === void 0
     );
     if (unknownIds.length > 0) {
       const available = [...cli.pendingTxs, ...cli.pendingSolTxs].map((tx) => tx.id).join(", ") || "(none)";
       const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
-      fatal(`${label} "${unknownIds.join('", "')}" not found.
-Available: ${available}`);
+      fatal(
+        `${label} "${unknownIds.join('", "')}" not found.
+Available: ${available}`
+      );
     }
     if (solanaIds.length > 0 && evmIds.length > 0) {
       fatal(
@@ -5584,9 +5722,7 @@ Available: ${available}`);
     }
     if (solanaIds.length > 0) {
       if (solanaIds.length > 1) {
-        fatal(
-          "Solana signing is singular \u2014 pass exactly one tx-id at a time."
-        );
+        fatal("Solana signing is singular \u2014 pass exactly one tx-id at a time.");
       }
       const solanaTx = cli.requirePendingSolTx(solanaIds[0]);
       await signSolanaPending({
@@ -5617,10 +5753,12 @@ Available: ${available}`);
       console.log("   Updating session to match the signing key...");
     }
     const rpcUrl = config.chainRpcUrl;
-    const resolvedChainIds = pendingTxs.map((tx) => {
-      var _a4, _b2;
-      return (_b2 = (_a4 = tx.chainId) != null ? _a4 : cli.chainId) != null ? _b2 : 1;
-    });
+    const resolvedChainIds = pendingTxs.map(
+      (tx) => {
+        var _a4, _b2;
+        return (_b2 = (_a4 = tx.chainId) != null ? _a4 : cli.chainId) != null ? _b2 : 1;
+      }
+    );
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
     const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
@@ -5638,11 +5776,14 @@ Available: ${available}`);
     let resolvedUserStateSmartAccount4337 = null;
     let resolvedUserStateDelegation7702 = null;
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
-      console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
+      console.log(
+        `Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`
+      );
       for (const tx of pendingTxs) {
         console.log(`Tx:      ${tx.id} -> ${tx.to}`);
         if (tx.value) console.log(`Value:   ${tx.value}`);
-        if ((_b = tx.chainId) != null ? _b : cli.chainId) console.log(`Chain:   ${(_c = tx.chainId) != null ? _c : cli.chainId}`);
+        if ((_b = tx.chainId) != null ? _b : cli.chainId)
+          console.log(`Chain:   ${(_c = tx.chainId) != null ? _c : cli.chainId}`);
         if (tx.data) {
           console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
@@ -5654,7 +5795,9 @@ Available: ${available}`);
         }))
       );
       if (baseCallList.length > 1 && rpcUrl && new Set(baseCallList.map((call) => call.chainId)).size > 1) {
-        fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
+        fatal(
+          "A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request."
+        );
       }
       const simulationDecision = resolveCliExecutionDecision({
         config,
@@ -5750,8 +5893,12 @@ Available: ${available}`);
       for (const strategy of strategies) {
         if (failures.length > 0) {
           const prev = strategies[failures.length - 1];
-          console.log(`${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1].message}`);
-          console.log(`Retrying with ${describeExecutionDecision(strategy)}...`);
+          console.log(
+            `${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1].message}`
+          );
+          console.log(
+            `Retrying with ${describeExecutionDecision(strategy)}...`
+          );
         }
         try {
           execution = await runWithDecision(strategy);
@@ -5761,10 +5908,28 @@ Available: ${available}`);
           const message = error instanceof Error ? error.message : String(error);
           failures.push({ decision: strategy, message });
           if (strategy === strategies[strategies.length - 1]) {
+            const fallbackReason = config.execution === "aa" ? "aa_all_modes_failed" : "all_execution_paths_failed";
+            try {
+              await notifyCliTxFailures({
+                cli,
+                session,
+                pendingTxs,
+                requestedDecision: decision,
+                failures,
+                callCount: decisionCallList.length,
+                fallbackReason
+              });
+            } catch (notifyError) {
+              console.warn(
+                `${DIM}Failed to notify backend about wallet failure: ${notifyError instanceof Error ? notifyError.message : String(notifyError)}${RESET}`
+              );
+            }
             if (config.execution === "aa") {
               fatal(
                 `\u274C AA execution failed with all modes.
-` + failures.map((f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`).join("\n") + "\nUse `--eoa` to sign without account abstraction."
+` + failures.map(
+                  (f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`
+                ).join("\n") + "\nUse `--eoa` to sign without account abstraction."
               );
             }
             throw error;
@@ -5821,7 +5986,9 @@ Available: ${available}`);
       }));
     } else {
       if (pendingTxs.length > 1) {
-        fatal("Batch signing is only supported for transaction requests, not EIP-712 requests.");
+        fatal(
+          "Batch signing is only supported for transaction requests, not EIP-712 requests."
+        );
       }
       const pendingTx = pendingTxs[0];
       const walletClient = createWalletClient2({
@@ -5842,22 +6009,26 @@ Available: ${available}`);
       console.log();
       const signature = await walletClient.signTypedData(signArgs);
       console.log(`\u2705 Signed! Signature: ${signature.slice(0, 20)}...`);
-      signedRecords = [{
-        id: pendingTx.id,
-        kind: "eip712_sign",
-        signature,
-        from: account.address,
-        description: pendingTx.description,
-        timestamp: Date.now()
-      }];
-      backendNotifications = [{
-        type: "wallet_eip712_response",
-        payload: __spreadValues({
-          status: "success",
+      signedRecords = [
+        {
+          id: pendingTx.id,
+          kind: "eip712_sign",
           signature,
-          description: pendingTx.description
-        }, pendingTx.eip712Id !== void 0 ? { pending_eip712_id: pendingTx.eip712Id } : {})
-      }];
+          from: account.address,
+          description: pendingTx.description,
+          timestamp: Date.now()
+        }
+      ];
+      backendNotifications = [
+        {
+          type: "wallet_eip712_response",
+          payload: __spreadValues({
+            status: "success",
+            signature,
+            description: pendingTx.description
+          }, pendingTx.eip712Id !== void 0 ? { pending_eip712_id: pendingTx.eip712Id } : {})
+        }
+      ];
     }
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {

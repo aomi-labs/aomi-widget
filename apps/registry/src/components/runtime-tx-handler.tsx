@@ -8,9 +8,11 @@ import {
   toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletRequest,
+  type WalletTxFailureMetadata,
   type WalletTxPayload,
 } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
+import { getAomiTxFailureMetadata } from "../lib/aomi-auth-adapter/wallet-execution";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
@@ -45,6 +47,39 @@ function toSimulationTransactions(payload: WalletTxPayload): Array<{
       chain_id: payload.chainId,
     },
   ];
+}
+
+function txCallCount(payload: WalletTxPayload): number {
+  return Array.isArray(payload.calls) && payload.calls.length > 0
+    ? payload.calls.length
+    : 1;
+}
+
+function buildRuntimeTxFailure(
+  message: string,
+  payload?: WalletTxPayload,
+  metadata?: WalletTxFailureMetadata,
+): WalletTxFailureMetadata {
+  const callCount = payload ? txCallCount(payload) : metadata?.callCount;
+  return {
+    ...metadata,
+    error: message,
+    aaRequestedMode: metadata?.aaRequestedMode ?? "7702",
+    aaResolvedMode: metadata?.aaResolvedMode ?? "none",
+    batched: metadata?.batched ?? (callCount ? callCount > 1 : undefined),
+    callCount,
+    walletDebugTrace: [
+      {
+        layer: "RuntimeTxHandler.processRequest",
+        step: "transaction",
+        status: "failed",
+        mode: metadata?.aaResolvedMode ?? "none",
+        callCount,
+        message,
+      },
+      ...(metadata?.walletDebugTrace ?? []),
+    ],
+  };
 }
 
 /**
@@ -87,7 +122,12 @@ export function RuntimeTxHandler() {
               });
 
           if (!adapter.sendTransaction) {
-            await rejectWalletRequest(req.id, "Wallet provider is not ready");
+            await rejectWalletRequest(
+              req.id,
+              buildRuntimeTxFailure("Wallet provider is not ready", payload, {
+                aaFallbackReason: "wallet_provider_not_ready",
+              }),
+            );
             return;
           }
 
@@ -188,11 +228,21 @@ export function RuntimeTxHandler() {
         });
         await resolveWalletRequest(req.id, { kind: "eip712_sign", ...result });
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Request failed";
         console.error("[RuntimeTxHandler] Request failed:", error);
-        await rejectWalletRequest(
-          req.id,
-          error instanceof Error ? error.message : "Request failed",
-        );
+        if (req.kind === "transaction") {
+          await rejectWalletRequest(
+            req.id,
+            buildRuntimeTxFailure(
+              message,
+              req.payload,
+              getAomiTxFailureMetadata(error),
+            ),
+          );
+        } else {
+          await rejectWalletRequest(req.id, message);
+        }
       }
     }
   }, [

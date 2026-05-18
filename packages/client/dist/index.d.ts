@@ -701,6 +701,42 @@ declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSign
 declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
 
 type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
+type WalletTxAAMode = "4337" | "7702" | "none";
+type WalletTxDebugTraceEntry = {
+    layer: string;
+    step: string;
+    status: "started" | "resolved" | "skipped" | "failed" | "fallback" | "terminal";
+    mode?: WalletTxAAMode;
+    provider?: string;
+    executionKind?: string;
+    sponsored?: boolean;
+    callCount?: number;
+    message?: string;
+    reason?: string;
+};
+type WalletTxFallbackAttempt = {
+    order: number;
+    layer: string;
+    mode: WalletTxAAMode;
+    status: "skipped" | "failed" | "succeeded";
+    provider?: string;
+    sponsored?: boolean;
+    reason?: string;
+    error?: string;
+    executionKind?: string;
+};
+type WalletTxFailureMetadata = {
+    error?: string;
+    aaRequestedMode?: WalletTxAAMode;
+    aaResolvedMode?: WalletTxAAMode;
+    aaFallbackReason?: string;
+    executionKind?: string;
+    batched?: boolean;
+    callCount?: number;
+    sponsored?: boolean;
+    aaFallbackAttempts?: WalletTxFallbackAttempt[];
+    walletDebugTrace?: WalletTxDebugTraceEntry[];
+};
 /**
  * Tagged union of in-flight wallet requests. The `kind` field is the
  * discriminator — narrowing on it auto-narrows `payload` to the matching
@@ -745,8 +781,8 @@ type WalletRequestResult = {
     kind: "transaction";
     txHash: string;
     amount?: string;
-    aaRequestedMode?: "4337" | "7702" | "none";
-    aaResolvedMode?: "4337" | "7702" | "none";
+    aaRequestedMode?: WalletTxAAMode;
+    aaResolvedMode?: WalletTxAAMode;
     aaFallbackReason?: string;
     executionKind?: string;
     batched?: boolean;
@@ -918,7 +954,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      * Reject a pending wallet request.
      * Sends an error to the backend and resumes polling.
      */
-    reject(requestId: string, reason?: string): Promise<void>;
+    reject(requestId: string, reason?: string | WalletTxFailureMetadata): Promise<void>;
     /**
      * Cancel the AI's current response.
      */
@@ -1111,4 +1147,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxAAMode, type WalletTxCallPayload, type WalletTxDebugTraceEntry, type WalletTxFailureMetadata, type WalletTxFallbackAttempt, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };

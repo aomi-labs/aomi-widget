@@ -1328,6 +1328,39 @@ function toViemSignTypedDataArgs(payload) {
 
 // src/session.ts
 var DEFAULT_AA_REQUESTED_MODE = "7702";
+function normalizeWalletFailure(reason) {
+  if (typeof reason === "string") {
+    return { error: reason };
+  }
+  return reason != null ? reason : {};
+}
+function walletFallbackAttemptsToWire(attempts) {
+  return attempts == null ? void 0 : attempts.map((attempt) => ({
+    order: attempt.order,
+    layer: attempt.layer,
+    mode: attempt.mode,
+    status: attempt.status,
+    provider: attempt.provider,
+    sponsored: attempt.sponsored,
+    reason: attempt.reason,
+    error: attempt.error,
+    execution_kind: attempt.executionKind
+  }));
+}
+function walletDebugTraceToWire(trace) {
+  return trace == null ? void 0 : trace.map((entry) => ({
+    layer: entry.layer,
+    step: entry.step,
+    status: entry.status,
+    mode: entry.mode,
+    provider: entry.provider,
+    execution_kind: entry.executionKind,
+    sponsored: entry.sponsored,
+    call_count: entry.callCount,
+    message: entry.message,
+    reason: entry.reason
+  }));
+}
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1541,38 +1574,46 @@ var ClientSession = class extends TypedEventEmitter {
    * Sends an error to the backend and resumes polling.
    */
   async reject(requestId, reason) {
+    var _a, _b, _c, _d, _e;
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = DEFAULT_AA_REQUESTED_MODE;
+      const failure = normalizeWalletFailure(reason);
+      const requestedMode = (_a = failure.aaRequestedMode) != null ? _a : DEFAULT_AA_REQUESTED_MODE;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
-        error: reason != null ? reason : "Request rejected",
+        error: (_b = failure.error) != null ? _b : "Request rejected",
         pending_tx_ids: pendingTxIds,
         aa_requested_mode: requestedMode,
-        aa_resolved_mode: requestedMode,
-        aa_fallback_reason: void 0,
-        execution_kind: void 0,
-        batched: pendingTxIds.length > 1,
-        call_count: pendingTxIds.length,
-        sponsored: void 0,
+        aa_resolved_mode: (_c = failure.aaResolvedMode) != null ? _c : "none",
+        aa_fallback_reason: failure.aaFallbackReason,
+        execution_kind: failure.executionKind,
+        batched: (_d = failure.batched) != null ? _d : pendingTxIds.length > 1,
+        call_count: (_e = failure.callCount) != null ? _e : pendingTxIds.length,
+        sponsored: failure.sponsored,
+        aa_fallback_attempts: walletFallbackAttemptsToWire(
+          failure.aaFallbackAttempts
+        ),
+        wallet_debug_trace: walletDebugTraceToWire(failure.walletDebugTrace),
         smart_account_4337: void 0,
         delegation_7702: void 0
       });
     } else if (req.kind === "eip712_sign") {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "failed",
-        error: reason != null ? reason : "Request rejected",
+        error: error != null ? error : "Request rejected",
         description: req.payload.description
       }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
     } else {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
         status: "rejected",
-        error: reason != null ? reason : "Request rejected",
+        error: error != null ? error : "Request rejected",
         description: req.payload.description
       }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
     }

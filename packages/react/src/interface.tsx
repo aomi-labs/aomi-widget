@@ -5,16 +5,16 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type { AomiSimulateResponse, UserState } from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
-import type {
-  EventSubscriber,
-  SSEStatus,
-} from "./contexts/event-context";
+import type { EventSubscriber, SSEStatus } from "./contexts/event-context";
 import type {
   Notification,
   NotificationData,
 } from "./contexts/notification-context";
 import type { WalletRequest } from "./handlers/wallet-handler";
-import type { WalletRequestResult } from "@aomi-labs/client";
+import type {
+  WalletRequestResult,
+  WalletTxFailureMetadata,
+} from "@aomi-labs/client";
 
 // =============================================================================
 // AomiRuntimeApi Type
@@ -96,7 +96,10 @@ export type AomiRuntimeApi = {
     result: WalletRequestResult,
   ) => Promise<void>;
   /** Fail a wallet request after the backend acknowledges the error */
-  rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+  rejectWalletRequest: (
+    id: string,
+    error?: string | WalletTxFailureMetadata,
+  ) => Promise<void>;
   /** Simulate a batch against the current thread session context. */
   simulateBatchTransactions: (
     transactions: Array<{
@@ -116,7 +119,11 @@ export type AomiRuntimeApi = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send a system command to the backend */
-  sendSystemCommand: (event: { type: string; sessionId: string; payload: unknown }) => Promise<void>;
+  sendSystemCommand: (event: {
+    type: string;
+    sessionId: string;
+    payload: unknown;
+  }) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };

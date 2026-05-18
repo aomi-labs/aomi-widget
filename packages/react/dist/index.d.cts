@@ -1,5 +1,5 @@
-import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
-export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, WalletTxFailureMetadata, AomiSimulateResponse } from '@aomi-labs/client';
+export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignPayload, WalletTxAAMode, WalletTxDebugTraceEntry, WalletTxFailureMetadata, WalletTxFallbackAttempt, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -172,8 +172,8 @@ type WalletHandlerApi = {
      * this and throws on mismatch.
      */
     resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
-    /** Fail a request — sends error to backend via ClientSession */
-    rejectRequest: (id: string, error?: string) => Promise<void>;
+    /** Fail a request — sends error/debug metadata to backend via ClientSession */
+    rejectRequest: (id: string, error?: string | WalletTxFailureMetadata) => Promise<void>;
 };
 declare function useWalletHandler({ getSession, }: WalletHandlerConfig): WalletHandlerApi;
 
@@ -231,7 +231,7 @@ type AomiRuntimeApi = {
     /** Complete a wallet request after the backend acknowledges the response */
     resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
     /** Fail a wallet request after the backend acknowledges the error */
-    rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+    rejectWalletRequest: (id: string, error?: string | WalletTxFailureMetadata) => Promise<void>;
     /** Simulate a batch against the current thread session context. */
     simulateBatchTransactions: (transactions: Array<{
         to: string;

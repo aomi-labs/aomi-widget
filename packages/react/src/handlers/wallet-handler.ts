@@ -8,6 +8,7 @@ import type {
   WalletRequest,
   WalletRequestKind,
   WalletRequestResult,
+  WalletTxFailureMetadata,
 } from "@aomi-labs/client";
 import type { Session as ClientSession } from "@aomi-labs/client";
 
@@ -17,6 +18,7 @@ export type {
   WalletRequest,
   WalletRequestKind,
   WalletRequestResult,
+  WalletTxFailureMetadata,
   WalletTxPayload,
   WalletEip712Payload,
   WalletSolanaSignPayload,
@@ -50,8 +52,11 @@ export type WalletHandlerApi = {
    * this and throws on mismatch.
    */
   resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
-  /** Fail a request — sends error to backend via ClientSession */
-  rejectRequest: (id: string, error?: string) => Promise<void>;
+  /** Fail a request — sends error/debug metadata to backend via ClientSession */
+  rejectRequest: (
+    id: string,
+    error?: string | WalletTxFailureMetadata,
+  ) => Promise<void>;
 };
 
 export function useWalletHandler({
@@ -70,42 +75,47 @@ export function useWalletHandler({
     );
   }, []);
 
-  const setRequests = useCallback((requests: WalletRequest[]) => {
-    const incomingIds = new Set(requests.map((request) => request.id));
-    for (const id of suppressedRequestSetRef.current) {
-      if (
-        !incomingIds.has(id) &&
-        !inFlightRequestSetRef.current.has(id)
-      ) {
-        suppressedRequestSetRef.current.delete(id);
+  const setRequests = useCallback(
+    (requests: WalletRequest[]) => {
+      const incomingIds = new Set(requests.map((request) => request.id));
+      for (const id of suppressedRequestSetRef.current) {
+        if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
+          suppressedRequestSetRef.current.delete(id);
+        }
       }
-    }
 
-    const preservedInFlight = requestsRef.current.filter(
-      (request) =>
-        inFlightRequestSetRef.current.has(request.id) &&
-        !incomingIds.has(request.id),
-    );
+      const preservedInFlight = requestsRef.current.filter(
+        (request) =>
+          inFlightRequestSetRef.current.has(request.id) &&
+          !incomingIds.has(request.id),
+      );
 
-    requestsRef.current = [...requests, ...preservedInFlight];
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
+      requestsRef.current = [...requests, ...preservedInFlight];
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests],
+  );
 
-  const startRequest = useCallback((id: string) => {
-    if (!requestsRef.current.some((request) => request.id === id)) {
-      return;
-    }
+  const startRequest = useCallback(
+    (id: string) => {
+      if (!requestsRef.current.some((request) => request.id === id)) {
+        return;
+      }
 
-    inFlightRequestSetRef.current.add(id);
-    suppressedRequestSetRef.current.add(id);
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
+      inFlightRequestSetRef.current.add(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests],
+  );
 
   const resolveRequest = useCallback(
     async (id: string, result: WalletRequestResult) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to resolve request");
+        console.error(
+          "[wallet-handler] No session available to resolve request",
+        );
         return;
       }
 
@@ -127,10 +137,12 @@ export function useWalletHandler({
   );
 
   const rejectRequest = useCallback(
-    async (id: string, error?: string) => {
+    async (id: string, error?: string | WalletTxFailureMetadata) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to reject request");
+        console.error(
+          "[wallet-handler] No session available to reject request",
+        );
         return;
       }
 

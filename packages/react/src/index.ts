@@ -17,6 +17,10 @@ export type {
   NativeWalletSponsorship,
   SponsorshipPaymasterServiceContext,
   WalletCapabilities,
+  WalletTxAAMode,
+  WalletTxDebugTraceEntry,
+  WalletTxFailureMetadata,
+  WalletTxFallbackAttempt,
 } from "@aomi-labs/client";
 export {
   toViemSignTypedDataArgs,

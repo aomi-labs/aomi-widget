@@ -5,7 +5,10 @@ import {
   type WalletTxPayload,
 } from "@aomi-labs/react";
 
-import { executeAdapterTransaction } from "./wallet-execution";
+import {
+  AomiTxExecutionError,
+  executeAdapterTransaction,
+} from "./wallet-execution";
 
 const CALLS: NonNullable<WalletTxPayload["calls"]> = [
   {
@@ -300,6 +303,73 @@ describe("executeAdapterTransaction fallback behavior", () => {
     expect(resolveAAProviderState).toHaveBeenCalledTimes(2);
     expect(sendCallsSyncAsync).toHaveBeenCalledTimes(1);
     expect(sendTransactionAsync).not.toHaveBeenCalled();
+  });
+
+  it("throws terminal failure metadata with AA fallback attempts", async () => {
+    const sendTransactionAsync = vi
+      .fn()
+      .mockRejectedValue(new Error("native failed"));
+    const resolveAAProviderState = vi.fn().mockResolvedValue({
+      providerState: DISABLED_PROVIDER_STATE,
+      resolvedMode: "7702",
+      fallbackReason: "aa_provider_not_configured_fallback_eoa",
+    });
+
+    try {
+      await executeAdapterTransaction({
+        payload: batchPayload(),
+        state: {
+          currentChainId: 1,
+          sendCallsSyncAsync: vi.fn(),
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+        },
+        shouldUseExternalSigner: false,
+        resolveAAProviderState,
+      });
+      throw new Error("expected executeAdapterTransaction to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AomiTxExecutionError);
+      expect((error as AomiTxExecutionError).metadata).toMatchObject({
+        error: "native failed",
+        aaRequestedMode: "7702",
+        aaResolvedMode: "none",
+        aaFallbackReason: "aa_provider_not_configured_fallback_eoa",
+        executionKind: "eoa",
+        batched: true,
+        callCount: 2,
+        sponsored: false,
+        aaFallbackAttempts: [
+          {
+            order: 1,
+            layer: "aa.resolve_provider_state",
+            mode: "7702",
+            status: "skipped",
+          },
+          {
+            order: 2,
+            layer: "aa.resolve_provider_state",
+            mode: "4337",
+            status: "skipped",
+          },
+        ],
+        walletDebugTrace: expect.arrayContaining([
+          expect.objectContaining({
+            layer: "executeAdapterTransaction",
+            step: "native.fallback",
+            status: "fallback",
+            mode: "none",
+          }),
+          expect.objectContaining({
+            layer: "executeAdapterTransaction",
+            step: "native.execute",
+            status: "terminal",
+            message: "native failed",
+          }),
+        ]),
+      });
+    }
   });
 
   it("falls back to native sends when resolved AA execution fails", async () => {
