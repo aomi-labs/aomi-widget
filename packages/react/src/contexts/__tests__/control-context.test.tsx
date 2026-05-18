@@ -360,7 +360,12 @@ describe("ControlContextProvider", () => {
     const getModels = vi
       .fn<() => Promise<string[]>>()
       .mockResolvedValueOnce(["gpt-4o", "gpt-4o-mini"])
-      .mockResolvedValueOnce(["claude-4.5-haiku", "gpt-4o", "gpt-4o-mini"]);
+      .mockResolvedValueOnce([
+        "claude-opus-4.6",
+        "claude-4.5-haiku",
+        "gpt-4o",
+        "gpt-4o-mini",
+      ]);
 
     const { getControl } = renderControlContext({ getModels }, threadMetadata);
 
@@ -378,7 +383,7 @@ describe("ControlContextProvider", () => {
 
     await waitFor(() => {
       expect(threadMetadata.get("session-1")?.control).toMatchObject({
-        model: "claude-4.5-haiku",
+        model: "claude-opus-4.6",
         modelMode: "auto",
         controlDirty: true,
       });
