@@ -23,26 +23,63 @@ export function AomiAuthRuntimeUserSync() {
 
   useEffect(() => {
     setUser({
-      address: identity.address ?? undefined,
-      chainId: identity.chainId ?? undefined,
-      isConnected: identity.isConnected,
-      svmAddress: identity.svmAddress ?? undefined,
-      // Pass `null` (not undefined) when the connected wallet isn't a
-      // smart account, so switching from a smart-account provider
-      // (Base Account) to an EOA provider (Para) clears the stale flag
-      // instead of being pruned as a no-op.
-      aaMode: identity.isConnected ? (identity.aaMode ?? null) : null,
-      smartAccount: identity.isConnected
-        ? (identity.smartAccount ?? null)
-        : null,
+      connection: {
+        is_connected: identity.isConnected,
+        primary_family:
+          identity.address && identity.svmAddress
+            ? "dual"
+            : identity.address
+              ? "evm"
+              : identity.svmAddress
+                ? "solana"
+                : null,
+        provider: identity.authProvider ?? undefined,
+        provider_label: providerLabel ?? undefined,
+      },
+      evm: {
+        address: identity.address ?? undefined,
+        chain_id: identity.chainId ?? undefined,
+        aa: {
+          mode: identity.isConnected ? (identity.aaMode ?? null) : null,
+          smart_account: identity.isConnected
+            ? (identity.smartAccount ?? null)
+            : null,
+        },
+      },
+      solana: {
+        address: identity.svmAddress ?? undefined,
+        cluster: identity.solanaCluster ?? undefined,
+        wallet_name: identity.solanaWalletName ?? undefined,
+        transport: identity.solanaTransport ?? undefined,
+        capabilities: identity.solanaCapabilities
+          ? {
+              can_sign_message:
+                identity.solanaCapabilities.canSignMessage ?? undefined,
+              can_sign_transaction:
+                identity.solanaCapabilities.canSignTransaction ?? undefined,
+              can_sign_all_transactions:
+                identity.solanaCapabilities.canSignAllTransactions ?? undefined,
+              can_send_transaction:
+                identity.solanaCapabilities.canSendTransaction ?? undefined,
+              can_sign_and_send_transaction:
+                identity.solanaCapabilities.canSignAndSendTransaction ??
+                undefined,
+            }
+          : undefined,
+      },
     });
   }, [
     identity.aaMode,
     identity.address,
     identity.chainId,
     identity.isConnected,
+    identity.solanaCapabilities,
+    identity.solanaCluster,
+    identity.solanaTransport,
+    identity.solanaWalletName,
     identity.smartAccount,
     identity.svmAddress,
+    providerLabel,
     setUser,
   ]);
 

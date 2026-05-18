@@ -32,6 +32,17 @@ export type AomiRuntimeCoreProps = {
   aomiClient: AomiClient;
 };
 
+function getConnectedWalletId(userState: ReturnType<typeof UserState.normalize>) {
+  return UserState.address(userState) ?? UserState.solanaAddress(userState);
+}
+
+function normalizeWalletIdForStorage(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return value.startsWith("0x") ? value.toLowerCase() : value;
+}
+
 const getHttpStatus = (error: unknown): number | undefined => {
   const status = (error as { status?: unknown })?.status;
   if (typeof status === "number") return status;
@@ -90,7 +101,7 @@ export function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getPublicKey: () =>
       UserState.isConnected(getUserState())
-        ? UserState.address(getUserState())
+        ? getConnectedWalletId(getUserState())
         : undefined,
     getUserState,
     getApp: getCurrentThreadApp,
@@ -151,7 +162,10 @@ export function AomiRuntimeCore({
 
   const ensureAccountForPublicKey = useCallback(
     async (sessionId: string, publicKey: string) => {
-      const normalizedPublicKey = publicKey.toLowerCase();
+      const normalizedPublicKey = normalizeWalletIdForStorage(publicKey);
+      if (!normalizedPublicKey) {
+        return;
+      }
       if (ensuredAccountPublicKeysRef.current.has(normalizedPublicKey)) {
         return;
       }
@@ -179,7 +193,7 @@ export function AomiRuntimeCore({
       const warmPromise = (async () => {
         const userState = getUserState();
         if (UserState.isConnected(userState)) {
-          const publicKey = UserState.address(userState);
+          const publicKey = getConnectedWalletId(userState);
           if (publicKey) {
             await ensureAccountForPublicKey(threadId, publicKey);
           }
@@ -187,7 +201,7 @@ export function AomiRuntimeCore({
         await aomiClientRef.current.createThread(
           threadId,
           UserState.isConnected(userState)
-            ? UserState.address(userState)
+            ? getConnectedWalletId(userState)
             : undefined,
         );
         warmedThreadIdsRef.current.add(threadId);
@@ -213,7 +227,7 @@ export function AomiRuntimeCore({
 
       const userState = getUserState();
       if (UserState.isConnected(userState)) {
-        const publicKey = UserState.address(userState);
+        const publicKey = getConnectedWalletId(userState);
         if (publicKey) {
           await ensureAccountForPublicKey(threadId, publicKey);
         }
@@ -221,7 +235,7 @@ export function AomiRuntimeCore({
       await aomiClientRef.current.createThread(
         threadId,
         UserState.isConnected(userState)
-          ? UserState.address(userState)
+          ? getConnectedWalletId(userState)
           : undefined,
       );
       remoteThreadIdsRef.current.add(threadId);

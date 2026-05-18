@@ -31,7 +31,7 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// packages/react/src/index.ts
+// src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
@@ -48,11 +48,11 @@ import {
   aaModeFromExecutionKind
 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
 import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import {
   createContext,
   useCallback,
@@ -62,7 +62,7 @@ import {
   useEffect
 } from "react";
 
-// packages/react/src/utils/uuid.ts
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -74,7 +74,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -259,7 +259,7 @@ var ThreadStore = class {
   }
 };
 
-// packages/react/src/utils/model-selection.ts
+// src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude.*opus.*4[.-]?6/i,
   /^claude.*4[.-]?6.*opus/i,
@@ -278,7 +278,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// packages/react/src/utils/client-session.ts
+// src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -304,7 +304,7 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
@@ -921,7 +921,7 @@ function ControlContextProvider({
   );
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 import {
   createContext as createContext2,
   useCallback as useCallback2,
@@ -996,7 +996,7 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
   useCallback as useCallback3,
@@ -1046,7 +1046,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -1096,7 +1096,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/user-context.tsx
+// src/contexts/user-context.tsx
 import {
   createContext as createContext5,
   useCallback as useCallback4,
@@ -1124,10 +1124,9 @@ function useUser() {
 }
 function UserContextProvider({ children }) {
   const [user, setUserState] = useState3({
-    address: void 0,
-    chain_id: void 0,
-    is_connected: false,
-    ens_name: void 0,
+    connection: {
+      is_connected: false
+    },
     ext: void 0
   });
   const userRef = useRef4(user);
@@ -1142,32 +1141,14 @@ function UserContextProvider({ children }) {
       });
     });
   }, []);
-  const pruneUndefined = useCallback4((state) => {
-    return Object.fromEntries(
-      Object.entries(state).filter(([, value]) => value !== void 0)
-    );
-  }, []);
   const setUser = useCallback4((data) => {
     setUserState((prev) => {
-      var _a, _b, _c;
-      const normalizedData = pruneUndefined((_a = UserState.normalize(data)) != null ? _a : {});
-      const nextPartial = __spreadValues({}, normalizedData);
-      if (nextPartial.is_connected === true && nextPartial.chain_id === void 0) {
-        if (prev.chain_id !== void 0) {
-          nextPartial.chain_id = prev.chain_id;
-        } else {
-          delete nextPartial.is_connected;
-        }
-      }
-      const next = nextPartial.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev), {
-        address: void 0,
-        chain_id: void 0,
-        ens_name: void 0
-      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _c : prev;
+      var _a;
+      const next = (_a = UserState.reconcile(prev, data)) != null ? _a : prev;
       notifyStateChange(next);
       return next;
     });
-  }, [notifyStateChange, pruneUndefined]);
+  }, [notifyStateChange]);
   const addExtValue = useCallback4((key, value) => {
     setUserState((prev) => {
       const next = UserState.withExt(prev, key, value);
@@ -1216,7 +1197,7 @@ function UserContextProvider({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { useCallback as useCallback8, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8, useState as useState7 } from "react";
 import {
   AssistantRuntimeProvider,
@@ -1224,11 +1205,11 @@ import {
 } from "@assistant-ui/react";
 import { UserState as UserState3 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
-// packages/react/src/runtime/session-manager.ts
+// src/runtime/session-manager.ts
 import {
   Session as ClientSession
 } from "@aomi-labs/client";
@@ -1287,7 +1268,7 @@ var SessionManager = class {
   }
 };
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/utils.ts
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1389,7 +1370,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1761,7 +1742,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1920,7 +1901,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1934,7 +1915,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// packages/react/src/handlers/wallet-handler.ts
+// src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useRef as useRef6, useState as useState5 } from "react";
 function useWalletHandler({
   getSession
@@ -2024,7 +2005,7 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/user-state-provider.tsx
+// src/runtime/user-state-provider.tsx
 import {
   useCallback as useCallback7,
   useEffect as useEffect3,
@@ -2052,18 +2033,36 @@ function scheduleBackgroundTask(task) {
 function stableStateString(state) {
   return JSON.stringify(state != null ? state : {});
 }
+function normalizeWalletId(value) {
+  if (!value) {
+    return void 0;
+  }
+  return value.startsWith("0x") ? value.toLowerCase() : value;
+}
+function getConnectedWalletId(userState) {
+  var _a;
+  return (_a = UserStateHelpers.address(userState)) != null ? _a : UserStateHelpers.solanaAddress(userState);
+}
 function useWalletStateSync(context, sessions, remoteThreads) {
   const { getUserState, onUserStateChange, threadContextRef } = context;
   const { aomiClientRef } = sessions;
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = useCallback7(
     (nextUser) => {
-      var _a;
+      var _a, _b, _c;
       return {
-        address: UserStateHelpers.address(nextUser),
-        chain_id: UserStateHelpers.chainId(nextUser),
-        is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
-        ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0
+        connection: {
+          is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
+          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family
+        },
+        evm: {
+          address: UserStateHelpers.address(nextUser),
+          chain_id: UserStateHelpers.chainId(nextUser),
+          ens_name: typeof ((_c = nextUser.evm) == null ? void 0 : _c.ens_name) === "string" ? nextUser.evm.ens_name : void 0
+        },
+        solana: {
+          address: UserStateHelpers.solanaAddress(nextUser)
+        }
       };
     },
     [getUserState]
@@ -2075,9 +2074,9 @@ function useWalletStateSync(context, sessions, remoteThreads) {
       var _a, _b;
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      const previousAddress = (_a = prevWalletState.address) == null ? void 0 : _a.toLowerCase();
-      const nextAddress = (_b = nextWalletState.address) == null ? void 0 : _b.toLowerCase();
-      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name) {
+      const previousAddress = normalizeWalletId((_a = prevWalletState.evm) == null ? void 0 : _a.address);
+      const nextAddress = normalizeWalletId((_b = nextWalletState.evm) == null ? void 0 : _b.address);
+      if (stableStateString(prevWalletState) === stableStateString(nextWalletState)) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
@@ -2183,8 +2182,8 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
   );
   useEffect3(() => {
     var _a, _b;
-    const userAddress = UserStateHelpers.isConnected(user) ? UserStateHelpers.address(user) : void 0;
-    const normalizedUserAddress = userAddress == null ? void 0 : userAddress.toLowerCase();
+    const userAddress = UserStateHelpers.isConnected(user) ? getConnectedWalletId(user) : void 0;
+    const normalizedUserAddress = normalizeWalletId(userAddress);
     const previousAddress = lastConnectedAddressRef.current;
     const walletChanged = previousAddress !== void 0 && normalizedUserAddress !== void 0 && previousAddress !== normalizedUserAddress;
     if (!userAddress) {
@@ -2383,8 +2382,18 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ jsx6(Fragment, { children });
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
+function getConnectedWalletId2(userState) {
+  var _a;
+  return (_a = UserState3.address(userState)) != null ? _a : UserState3.solanaAddress(userState);
+}
+function normalizeWalletIdForStorage(value) {
+  if (!value) {
+    return void 0;
+  }
+  return value.startsWith("0x") ? value.toLowerCase() : value;
+}
 var getHttpStatus2 = (error) => {
   const status = error == null ? void 0 : error.status;
   if (typeof status === "number") return status;
@@ -2426,7 +2435,7 @@ function AomiRuntimeCore({
     closeAllSessions,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => UserState3.isConnected(getUserState()) ? UserState3.address(getUserState()) : void 0,
+    getPublicKey: () => UserState3.isConnected(getUserState()) ? getConnectedWalletId2(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -2480,7 +2489,10 @@ function AomiRuntimeCore({
   const [isThreadLoading, setIsThreadLoading] = useState7(false);
   const ensureAccountForPublicKey = useCallback8(
     async (sessionId, publicKey) => {
-      const normalizedPublicKey = publicKey.toLowerCase();
+      const normalizedPublicKey = normalizeWalletIdForStorage(publicKey);
+      if (!normalizedPublicKey) {
+        return;
+      }
       if (ensuredAccountPublicKeysRef.current.has(normalizedPublicKey)) {
         return;
       }
@@ -2501,14 +2513,14 @@ function AomiRuntimeCore({
       const warmPromise = (async () => {
         const userState = getUserState();
         if (UserState3.isConnected(userState)) {
-          const publicKey = UserState3.address(userState);
+          const publicKey = getConnectedWalletId2(userState);
           if (publicKey) {
             await ensureAccountForPublicKey(threadId, publicKey);
           }
         }
         await aomiClientRef.current.createThread(
           threadId,
-          UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
+          UserState3.isConnected(userState) ? getConnectedWalletId2(userState) : void 0
         );
         warmedThreadIdsRef.current.add(threadId);
       })();
@@ -2526,14 +2538,14 @@ function AomiRuntimeCore({
       if (remoteThreadIdsRef.current.has(threadId)) return false;
       const userState = getUserState();
       if (UserState3.isConnected(userState)) {
-        const publicKey = UserState3.address(userState);
+        const publicKey = getConnectedWalletId2(userState);
         if (publicKey) {
           await ensureAccountForPublicKey(threadId, publicKey);
         }
       }
       await aomiClientRef.current.createThread(
         threadId,
-        UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
+        UserState3.isConnected(userState) ? getConnectedWalletId2(userState) : void 0
       );
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
@@ -2832,7 +2844,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
 function AomiRuntimeProvider({
   children,
@@ -2857,7 +2869,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: UserState4.isConnected(user) ? (_a = UserState4.address(user)) != null ? _a : void 0 : void 0,
+      publicKey: UserState4.isConnected(user) ? (_a = UserState4.address(user)) != null ? _a : UserState4.solanaAddress(user) : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ jsx8(
@@ -2872,7 +2884,7 @@ function AomiRuntimeInner({
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
+// src/handlers/notification-handler.ts
 import { useCallback as useCallback9, useEffect as useEffect5, useState as useState8 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {

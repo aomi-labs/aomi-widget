@@ -74,22 +74,20 @@ export function buildCliUserState(
     smartAccount?: string | null;
   },
 ): UserState {
-  const userState: UserState = {};
-
-  if (publicKey !== undefined) {
-    userState.address = publicKey;
-  }
-
-  if (chainId !== undefined) {
-    userState.chain_id = chainId;
-  }
-
-  if (publicKey !== undefined && chainId !== undefined) {
-    userState.is_connected = true;
-  }
-
-  userState.aa_mode = aa?.aaMode ?? null;
-  userState.smart_account = aa?.smartAccount ?? null;
+  const userState: UserState = {
+    connection: {
+      is_connected: publicKey !== undefined ? true : undefined,
+      primary_family: publicKey !== undefined ? "evm" : undefined,
+    },
+    evm: {
+      address: publicKey,
+      chain_id: chainId,
+      aa: {
+        mode: aa?.aaMode ?? null,
+        smart_account: aa?.smartAccount ?? null,
+      },
+    },
+  };
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
@@ -107,7 +105,7 @@ export function pendingTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const nextPendingTxs: PendingTx[] = [];
 
-  const pendingTxs = asRecord(normalizedUserState.pending_txs) ?? {};
+  const pendingTxs = asRecord(normalizedUserState.pending?.evm_txs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId(rawId);
     const tx = asRecord(rawValue);
@@ -145,7 +143,7 @@ export function pendingTxsFromBackendUserState(
     });
   }
 
-  const pendingEip712s = asRecord(normalizedUserState.pending_eip712s) ?? {};
+  const pendingEip712s = asRecord(normalizedUserState.pending?.eip712_requests) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -182,7 +180,7 @@ export function pendingTxsFromBackendUserState(
 
 /**
  * Rebuild the local Solana pending list from the backend's authoritative
- * `pending_solana_txs` map. Mirrors [`pendingTxsFromBackendUserState`] but
+ * `pending.solana_requests` map. Mirrors [`pendingTxsFromBackendUserState`] but
  * for the Solana domain only — kept in its own function so the caller's
  * EVM/EIP-712 state and Solana state stay in separate arrays rather than
  * a discriminated union.
@@ -200,7 +198,7 @@ export function pendingSolTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const next: PendingSolTx[] = [];
 
-  const pendingSolanaTxs = asRecord(normalizedUserState.pending_solana_txs) ?? {};
+  const pendingSolanaTxs = asRecord(normalizedUserState.pending?.solana_requests) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);

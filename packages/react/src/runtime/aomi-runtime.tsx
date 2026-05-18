@@ -72,7 +72,9 @@ function AomiRuntimeInner({
       aomiClient={aomiClient}
       sessionId={threadContext.currentThreadId}
       publicKey={
-        UserState.isConnected(user) ? (UserState.address(user) ?? undefined) : undefined
+        UserState.isConnected(user)
+          ? UserState.address(user) ?? UserState.solanaAddress(user)
+          : undefined
       }
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}

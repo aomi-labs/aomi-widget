@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
   WalletRequest,
@@ -19,6 +20,7 @@ export type {
   WalletRequestResult,
   WalletTxPayload,
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
 };
 

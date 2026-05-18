@@ -78,6 +78,7 @@ export {
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   normalizeSolanaSignPayload,
+  normalizeSolanaSignMessagePayload,
   toViemSignTypedDataArgs,
   toAAWalletCalls,
   toAAWalletCall,
@@ -90,6 +91,7 @@ export type {
   WalletTxAaPreference,
   WalletEip712Payload,
   WalletSolanaSignPayload,
+  WalletSolanaSignMessagePayload,
   ViemSignTypedDataArgs,
 } from "./wallet-utils";
 

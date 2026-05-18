@@ -43,10 +43,9 @@ export function useUser() {
 
 export function UserContextProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<UserState>({
-    address: undefined,
-    chain_id: undefined,
-    is_connected: false,
-    ens_name: undefined,
+    connection: {
+      is_connected: false,
+    },
     ext: undefined,
   });
 
@@ -67,45 +66,13 @@ export function UserContextProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const pruneUndefined = useCallback((state: UserState): UserState => {
-    return Object.fromEntries(
-      Object.entries(state).filter(([, value]) => value !== undefined),
-    );
-  }, []);
-
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
-      const normalizedData = pruneUndefined(UserState.normalize(data) ?? {});
-      const nextPartial: UserState = { ...normalizedData };
-
-      // Guard against a transient "connected-without-chain" payload:
-      // keep the previous chain if present; otherwise, delay flipping
-      // `is_connected` until a concrete chain arrives.
-      if (
-        nextPartial.is_connected === true &&
-        nextPartial.chain_id === undefined
-      ) {
-        if (prev.chain_id !== undefined) {
-          nextPartial.chain_id = prev.chain_id;
-        } else {
-          delete nextPartial.is_connected;
-        }
-      }
-
-      const next: UserState =
-        nextPartial.is_connected === false
-          ? {
-              ...(UserState.normalize({ ...prev, ...nextPartial }) ?? prev),
-              address: undefined,
-              chain_id: undefined,
-              ens_name: undefined,
-            }
-          : (UserState.normalize({ ...prev, ...nextPartial }) ?? prev);
+      const next = UserState.reconcile(prev, data) ?? prev;
       notifyStateChange(next);
-
       return next;
     });
-  }, [notifyStateChange, pruneUndefined]);
+  }, [notifyStateChange]);
 
   const addExtValue = useCallback((key: string, value: unknown) => {
     setUserState((prev) => {

@@ -175,6 +175,13 @@ export function WalletProviders({ children }: Props) {
       networks={networks}
       externalWallets={externalWallets}
       oAuthMethods={oAuthMethods}
+      solana={{
+        cluster: "solana:devnet",
+        rpcHttpUrl:
+          process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+          "https://api.devnet.solana.com",
+        preferDirectSend: true,
+      }}
     >
       {content}
     </AomiWalletProvider>
