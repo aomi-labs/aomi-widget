@@ -59,6 +59,7 @@ type BaseProvider = {
 
 const DEDICATED_WALLET_STORAGE_KEY = "aomi_base_dedicated_wallet";
 const BASE_MAINNET_HEX_CHAIN_ID = `0x${base.id.toString(16)}`;
+const PAYMENT_FETCH_TIMEOUT_MS = 45_000;
 
 function stringifyTypedDataForRpc(value: unknown): string {
   return JSON.stringify(value, (_key, entry) =>
@@ -122,6 +123,16 @@ function cloneRequestInfo(
   init?: RequestInit,
 ): [RequestInfo | URL, RequestInit | undefined] {
   return [input instanceof Request ? input.clone() : input, init];
+}
+
+function withAbortSignal(
+  init: RequestInit | undefined,
+  signal: AbortSignal,
+): RequestInit {
+  return {
+    ...(init ?? {}),
+    signal,
+  };
 }
 
 function parseStoredDedicatedWallet(
@@ -224,6 +235,10 @@ function describeKnownX402Error(
     return `The selected wallet does not have enough ${assetName} to pay this x402 request.`;
   }
 
+  if (error === "invalid_exact_evm_signature") {
+    return "The connected Base Account could not produce an x402-compatible payment signature. Use the dedicated Coinbase wallet path for this payment.";
+  }
+
   return error;
 }
 
@@ -244,6 +259,34 @@ async function readX402PaymentError(response: Response): Promise<string> {
   }
 
   return "The backend rejected the x402 payment.";
+}
+
+async function runPaymentFetchWithTimeout(
+  fetcher: FetchLike,
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => {
+    controller.abort(
+      new Error("The x402 payment took too long. Please try again."),
+    );
+  }, PAYMENT_FETCH_TIMEOUT_MS);
+
+  try {
+    return await fetcher(input, withAbortSignal(init, controller.signal));
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const reason = controller.signal.reason;
+      if (reason instanceof Error) {
+        throw reason;
+      }
+      throw new Error("The x402 payment took too long. Please try again.");
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
 }
 
 function BasePaymentRuntimeSync({
@@ -325,13 +368,6 @@ export function BasePaymentGate({
     [],
   );
 
-  const resolvePendingWithOriginal = useCallback(() => {
-    const pending = pendingRequestRef.current;
-    if (!pending) return;
-    pendingRequestRef.current = null;
-    pending.resolve(pending.originalResponse);
-  }, []);
-
   const rejectPending = useCallback((message: string) => {
     const pending = pendingRequestRef.current;
     if (!pending) return;
@@ -349,7 +385,11 @@ export function BasePaymentGate({
       throw new Error(challengeError);
     }
     const [nextInput, nextInit] = cloneRequestInfo(pending.input, pending.init);
-    const response = await fetcher(nextInput, nextInit);
+    const response = await runPaymentFetchWithTimeout(
+      fetcher,
+      nextInput,
+      nextInit,
+    );
     if (response.status === 402) {
       throw new Error(await readX402PaymentError(response));
     }
@@ -464,7 +504,8 @@ export function BasePaymentGate({
       }
 
       const [nextInput, nextInit] = cloneRequestInfo(requestInput, init);
-      const response = await dedicatedWalletClient.fetchWithPayment(
+      const response = await runPaymentFetchWithTimeout(
+        dedicatedWalletClient.fetchWithPayment,
         nextInput,
         nextInit,
       );
@@ -517,34 +558,6 @@ export function BasePaymentGate({
     setModalMode("dedicated");
   }, []);
 
-  const handleSelectDedicatedWallet = useCallback(() => {
-    if (dedicatedWalletClient.isConfigurationChecking) {
-      setError("Coinbase embedded wallet configuration is still loading.");
-      return;
-    }
-    if (!dedicatedWalletClient.isConfigured) {
-      setError(
-        dedicatedWalletClient.configurationError ??
-          "Set NEXT_PUBLIC_CDP_PROJECT_ID before using the dedicated wallet path.",
-      );
-      return;
-    }
-    if (
-      !dedicatedWalletClient.isSignedIn ||
-      !dedicatedWalletClient.evmAddress
-    ) {
-      setError("Sign in to the Coinbase embedded wallet first.");
-      return;
-    }
-
-    persistDedicatedWallet({
-      address: dedicatedWalletClient.evmAddress,
-      source: "coinbase_cdp",
-      selectedAt: Date.now(),
-    });
-    setError(null);
-  }, [dedicatedWalletClient, persistDedicatedWallet]);
-
   const handlePayWithDedicatedWallet = useCallback(async () => {
     setError(null);
     setBusyAction("dedicated_pay");
@@ -594,11 +607,11 @@ export function BasePaymentGate({
   }, [persistDedicatedWallet]);
 
   const closeModal = useCallback(() => {
+    rejectPending("Payment required. Choose an x402 payment wallet to continue.");
     setModalOpen(false);
     setModalMode("choice");
     setError(null);
-    resolvePendingWithOriginal();
-  }, [resolvePendingWithOriginal]);
+  }, [rejectPending]);
 
   const paymentFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -685,7 +698,6 @@ export function BasePaymentGate({
         busyAction={busyAction}
         onUseCurrentAccount={() => void handleUseCurrentAccount()}
         onUseAnotherAddress={handlePrepareDedicatedWallet}
-        onSelectDedicatedWallet={handleSelectDedicatedWallet}
         onPayWithDedicatedWallet={() => void handlePayWithDedicatedWallet()}
         onBackToChoices={() => {
           setError(null);

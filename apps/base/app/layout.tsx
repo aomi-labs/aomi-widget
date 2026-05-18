@@ -166,7 +166,9 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body>{children}</body>
+      <body>
+        <div className="relative h-screen w-full overflow-hidden">{children}</div>
+      </body>
     </html>
   );
 }

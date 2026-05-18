@@ -24,7 +24,6 @@ type BasePaymentModalProps = {
   busyAction: "current" | "dedicated_pay" | "dedicated_connect" | null;
   onUseCurrentAccount: () => void;
   onUseAnotherAddress: () => void;
-  onSelectDedicatedWallet: () => void;
   onPayWithDedicatedWallet: () => void;
   onBackToChoices: () => void;
   onClose: () => void;
@@ -56,7 +55,6 @@ export function BasePaymentModal({
   busyAction,
   onUseCurrentAccount,
   onUseAnotherAddress,
-  onSelectDedicatedWallet,
   onPayWithDedicatedWallet,
   onBackToChoices,
   onClose,
@@ -202,19 +200,6 @@ export function BasePaymentModal({
             <>
               <button
                 type="button"
-                onClick={onSelectDedicatedWallet}
-                disabled={
-                  dedicatedWalletConfigurationChecking ||
-                  !dedicatedWalletConfigured ||
-                  !dedicatedWalletSignedIn ||
-                  !dedicatedWalletAddress
-                }
-                className="hover:bg-accent rounded-2xl border px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                Use this dedicated wallet
-              </button>
-              <button
-                type="button"
                 onClick={onPayWithDedicatedWallet}
                 disabled={
                   busyAction !== null ||
@@ -227,7 +212,7 @@ export function BasePaymentModal({
               >
                 {busyAction === "dedicated_pay"
                   ? "Paying with dedicated wallet..."
-                  : "Pay with dedicated wallet now"}
+                  : "Use dedicated wallet for x402"}
               </button>
               <button
                 type="button"

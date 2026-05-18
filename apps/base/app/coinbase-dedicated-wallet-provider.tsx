@@ -283,7 +283,7 @@ export function CoinbaseDedicatedWalletProvider({
   };
 
   return (
-    <CDPReactProvider config={config}>
+    <CDPReactProvider config={config} className="h-full">
       <CoinbaseDedicatedWalletBridge projectId={projectId}>
         {children}
       </CoinbaseDedicatedWalletBridge>

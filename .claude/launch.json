@@ -36,6 +36,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "portal", "dev"],
       "autoPort": true
+    },
+    {
+      "name": "base",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "base", "dev"],
+      "autoPort": true
     }
   ]
 }
