@@ -1,196 +1,210 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { useControl, type AomiAppDescriptor } from "@aomi-labs/react";
+import { Button, Input } from "@aomi-labs/widget-lib";
 
-type OwnedSecret = {
-  key_hash: string;
-  key_prefix: string;
-  owner_user_id?: string | null;
-  label?: string | null;
-  is_active: boolean;
-  created_at: number;
-  updated_at: number;
-  last_used_at?: number | null;
-  apps: string[];
+type StoredEntry = {
+  valuePrefix: string;
+  addedAt: number;
 };
 
-type SecretsResponse = {
-  app_keys: OwnedSecret[];
-};
+const SECRETS_INDEX_STORAGE_KEY = "aomi_secrets_index";
 
-type CreateSecretResponse = {
-  app_key: string;
-  key: OwnedSecret;
-};
+type LocalIndex = Record<string, Record<string, StoredEntry>>;
 
-function formatTs(ts?: number | null): string {
-  if (!ts) return "-";
-  return new Date(ts * 1000).toLocaleString();
+function readIndex(): LocalIndex {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SECRETS_INDEX_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed ? (parsed as LocalIndex) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeIndex(index: LocalIndex): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (Object.keys(index).length === 0) {
+      window.localStorage.removeItem(SECRETS_INDEX_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(
+        SECRETS_INDEX_STORAGE_KEY,
+        JSON.stringify(index),
+      );
+    }
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+function buildValuePrefix(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 8) return `${trimmed.slice(0, 2)}…`;
+  return `${trimmed.slice(0, 4)}…${trimmed.slice(-2)}`;
+}
+
+function formatTs(ts: number): string {
+  return new Date(ts).toLocaleString();
 }
 
 export function Secrets() {
-  const { identity } = useAomiAuthAdapter();
-  const [secrets, setSecrets] = useState<OwnedSecret[]>([]);
-  const [availableApps, setAvailableApps] = useState<string[]>([]);
-  const [loadingSecrets, setLoadingSecrets] = useState(false);
-  const [loadingApps, setLoadingApps] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [deletingHash, setDeletingHash] = useState<string | null>(null);
-  const [labelInput, setLabelInput] = useState("");
-  const [manualSecretInput, setManualSecretInput] = useState("");
-  const [selectedApps, setSelectedApps] = useState<string[]>([]);
+  const { state, ingestSecrets, deleteSecret, clearSecrets, listSecrets } =
+    useControl();
+
+  const appsWithSecrets = useMemo<AomiAppDescriptor[]>(
+    () =>
+      state.appDescriptors.filter(
+        (d) => (d.secrets ?? []).length > 0,
+      ),
+    [state.appDescriptors],
+  );
+
+  const [selectedApp, setSelectedApp] = useState<string | null>(null);
+  const [slotValues, setSlotValues] = useState<Record<string, string>>({});
+  const [index, setIndex] = useState<LocalIndex>({});
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [clearingApp, setClearingApp] = useState<string | null>(null);
   const [status, setStatus] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const [createdSecret, setCreatedSecret] = useState<string | null>(null);
-
-  const ensureBoundSession = useCallback(async () => {
-    if (!identity.address) return;
-    await settingsApiFetch<{ session_id: string; title?: string | null }>(
-      "/api/sessions",
-      {
-        method: "POST",
-        body: JSON.stringify({ public_key: identity.address }),
-      },
-    );
-  }, [identity.address]);
-
-  const loadSecrets = useCallback(async () => {
-    if (!identity.address) {
-      setSecrets([]);
-      return;
-    }
-
-    setLoadingSecrets(true);
-    setStatus(null);
-    try {
-      await ensureBoundSession();
-      const data = await settingsApiFetch<SecretsResponse>(
-        "/api/settings/api-keys",
-      );
-      setSecrets(data.app_keys ?? []);
-    } catch (error) {
-      setStatus({
-        type: "error",
-        text:
-          error instanceof Error ? error.message : "Failed to load secrets",
-      });
-    } finally {
-      setLoadingSecrets(false);
-    }
-  }, [ensureBoundSession, identity.address]);
-
-  const loadApps = useCallback(async () => {
-    setLoadingApps(true);
-    try {
-      const path = identity.address
-        ? `/api/control/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/control/apps";
-      const data = await settingsApiFetch<string[]>(path);
-      const normalized = [
-        ...new Set((data ?? []).map((app) => app.toLowerCase())),
-      ];
-      setAvailableApps(normalized);
-      setSelectedApps((previous) => {
-        const filtered = previous.filter((ns) => normalized.includes(ns));
-        if (filtered.length > 0) {
-          return filtered;
-        }
-        if (normalized.includes("default")) {
-          return ["default"];
-        }
-        return normalized.length > 0 ? [normalized[0]] : [];
-      });
-    } catch {
-      setAvailableApps([]);
-      setSelectedApps([]);
-    } finally {
-      setLoadingApps(false);
-    }
-  }, [identity.address]);
 
   useEffect(() => {
-    void Promise.all([loadSecrets(), loadApps()]);
-  }, [loadSecrets, loadApps]);
-
-  const canCreate = useMemo(
-    () => Boolean(identity.address) && !creating && selectedApps.length > 0,
-    [creating, identity.address, selectedApps.length],
-  );
-
-  const toggleApp = useCallback((app: string) => {
-    setSelectedApps((current) =>
-      current.includes(app)
-        ? current.filter((item) => item !== app)
-        : [...current, app],
-    );
+    setIndex(readIndex());
   }, []);
 
-  const handleCreate = useCallback(async () => {
-    if (!canCreate) return;
+  // Reconcile localStorage mirror against the backend's source of truth on mount.
+  useEffect(() => {
+    if (!state.clientId) return;
+    void (async () => {
+      try {
+        const byApp = await listSecrets();
+        setIndex((prev) => {
+          const next: LocalIndex = {};
+          for (const [app, names] of Object.entries(byApp)) {
+            const appPrev = prev[app] ?? {};
+            const appNext: Record<string, StoredEntry> = {};
+            for (const name of names) {
+              appNext[name] = appPrev[name] ?? {
+                valuePrefix: "•••",
+                addedAt: Date.now(),
+              };
+            }
+            if (Object.keys(appNext).length > 0) next[app] = appNext;
+          }
+          writeIndex(next);
+          return next;
+        });
+      } catch {
+        // Backend unreachable — fall back to whatever localStorage had.
+      }
+    })();
+  }, [listSecrets, state.clientId]);
 
-    setCreating(true);
+  useEffect(() => {
+    if (selectedApp && !appsWithSecrets.some((a) => a.name === selectedApp)) {
+      setSelectedApp(null);
+    }
+    if (!selectedApp && appsWithSecrets.length > 0) {
+      setSelectedApp(appsWithSecrets[0]?.name ?? null);
+    }
+  }, [appsWithSecrets, selectedApp]);
+
+  useEffect(() => {
+    setSlotValues({});
+  }, [selectedApp]);
+
+  const activeDescriptor = useMemo<AomiAppDescriptor | undefined>(
+    () => appsWithSecrets.find((d) => d.name === selectedApp),
+    [appsWithSecrets, selectedApp],
+  );
+  const activeSlots = activeDescriptor?.secrets ?? [];
+
+  const requiredMissing = useMemo(
+    () =>
+      activeSlots
+        .filter((s) => s.required && !(slotValues[s.name] ?? "").trim())
+        .map((s) => s.name),
+    [activeSlots, slotValues],
+  );
+  const hasAnyValue = activeSlots.some(
+    (s) => (slotValues[s.name] ?? "").trim().length > 0,
+  );
+  const canSave =
+    !saving && Boolean(state.clientId) && hasAnyValue && requiredMissing.length === 0;
+
+  const handleSave = useCallback(async () => {
+    if (!canSave || !selectedApp) return;
+    const payload: Record<string, string> = {};
+    for (const slot of activeSlots) {
+      const v = (slotValues[slot.name] ?? "").trim();
+      if (v.length > 0) payload[slot.name] = v;
+    }
+    if (Object.keys(payload).length === 0) return;
+
+    setSaving(true);
     setStatus(null);
-    setCreatedSecret(null);
     try {
-      await ensureBoundSession();
-      const payload = {
-        apps: selectedApps,
-        label: labelInput.trim() || undefined,
-        app_key: manualSecretInput.trim() || undefined,
-      };
-      const data = await settingsApiFetch<CreateSecretResponse>(
-        "/api/settings/api-keys",
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        },
-      );
-      setCreatedSecret(data.app_key);
-      setLabelInput("");
-      setManualSecretInput("");
-      await loadSecrets();
-      setStatus({ type: "success", text: "Secret created." });
+      await ingestSecrets(payload, selectedApp);
+      const now = Date.now();
+      setIndex((prev) => {
+        const appPrev = prev[selectedApp] ?? {};
+        const appNext = { ...appPrev };
+        for (const [name, value] of Object.entries(payload)) {
+          appNext[name] = { valuePrefix: buildValuePrefix(value), addedAt: now };
+        }
+        const next = { ...prev, [selectedApp]: appNext };
+        writeIndex(next);
+        return next;
+      });
+      setSlotValues({});
+      setStatus({
+        type: "success",
+        text: `Saved ${Object.keys(payload).length} secret${
+          Object.keys(payload).length === 1 ? "" : "s"
+        } for ${selectedApp}.`,
+      });
     } catch (error) {
       setStatus({
         type: "error",
         text:
-          error instanceof Error ? error.message : "Failed to create secret",
+          error instanceof Error ? error.message : "Failed to save secrets",
       });
     } finally {
-      setCreating(false);
+      setSaving(false);
     }
-  }, [
-    canCreate,
-    ensureBoundSession,
-    labelInput,
-    loadSecrets,
-    manualSecretInput,
-    selectedApps,
-  ]);
+  }, [activeSlots, canSave, ingestSecrets, selectedApp, slotValues]);
 
   const handleRemove = useCallback(
-    async (secret: OwnedSecret) => {
-      if (deletingHash) return;
-
-      const shouldDelete = window.confirm(
-        `Remove secret ${secret.key_prefix}?`,
-      );
-      if (!shouldDelete) return;
-
-      setDeletingHash(secret.key_hash);
+    async (app: string, name: string) => {
+      if (removing) return;
+      const ok = window.confirm(`Remove ${name} from ${app}?`);
+      if (!ok) return;
+      const key = `${app}:${name}`;
+      setRemoving(key);
       setStatus(null);
       try {
-        await ensureBoundSession();
-        await settingsApiFetch<{ revoked: boolean }>(
-          `/api/settings/api-keys/${encodeURIComponent(secret.key_hash)}`,
-          { method: "DELETE" },
-        );
-        await loadSecrets();
-        setStatus({ type: "success", text: "Secret removed." });
+        await deleteSecret(name, app);
+        setIndex((prev) => {
+          const next = { ...prev };
+          if (next[app]) {
+            const appNext = { ...next[app] };
+            delete appNext[name];
+            if (Object.keys(appNext).length === 0) {
+              delete next[app];
+            } else {
+              next[app] = appNext;
+            }
+          }
+          writeIndex(next);
+          return next;
+        });
+        setStatus({ type: "success", text: `Removed ${name} from ${app}.` });
       } catch (error) {
         setStatus({
           type: "error",
@@ -198,10 +212,47 @@ export function Secrets() {
             error instanceof Error ? error.message : "Failed to remove secret",
         });
       } finally {
-        setDeletingHash(null);
+        setRemoving(null);
       }
     },
-    [deletingHash, ensureBoundSession, loadSecrets],
+    [deleteSecret, removing],
+  );
+
+  const handleClearApp = useCallback(
+    async (app: string) => {
+      if (clearingApp) return;
+      const ok = window.confirm(`Remove every secret stored for ${app}?`);
+      if (!ok) return;
+      setClearingApp(app);
+      setStatus(null);
+      try {
+        await clearSecrets(app);
+        setIndex((prev) => {
+          const next = { ...prev };
+          delete next[app];
+          writeIndex(next);
+          return next;
+        });
+        setStatus({ type: "success", text: `Cleared all secrets for ${app}.` });
+      } catch (error) {
+        setStatus({
+          type: "error",
+          text:
+            error instanceof Error ? error.message : "Failed to clear secrets",
+        });
+      } finally {
+        setClearingApp(null);
+      }
+    },
+    [clearSecrets, clearingApp],
+  );
+
+  const savedApps = useMemo(
+    () =>
+      Object.entries(index)
+        .filter(([, slots]) => Object.keys(slots).length > 0)
+        .sort(([a], [b]) => a.localeCompare(b)),
+    [index],
   );
 
   return (
@@ -209,12 +260,14 @@ export function Secrets() {
       <div>
         <h3 className="text-foreground mb-4 text-lg font-semibold">Secrets</h3>
         <p className="text-muted-foreground text-sm">
-          Manage your secrets for authenticated API access. Newly generated
-          secrets are shown only once.
+          API credentials for external services Aomi tools call on your behalf
+          (e.g. <code>LIMITLESS_API_KEY</code>, <code>OKX_API_KEY</code>).
+          Stored in the backend vault scoped to this browser and the chosen
+          app; tools receive them as opaque <code>$SECRET:NAME</code> handles.
         </p>
-        {!identity.address && (
+        {!state.clientId && (
           <p className="text-muted-foreground mt-2 text-sm">
-            Connect a wallet account to manage owned secrets.
+            Waiting for client id to initialize…
           </p>
         )}
       </div>
@@ -231,72 +284,29 @@ export function Secrets() {
         </div>
       )}
 
-      <div className="border-input bg-background space-y-4 rounded-3xl border p-5">
-        <h4 className="text-foreground text-base font-semibold">Add Secret</h4>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label
-              htmlFor="secret-label"
-              className="text-foreground block text-sm font-medium"
-            >
-              Label (optional)
-            </label>
-            <Input
-              id="secret-label"
-              type="text"
-              value={labelInput}
-              onChange={(event) => setLabelInput(event.target.value)}
-              placeholder="Trading bot secret"
-              className="h-11 rounded-full px-5 py-3"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="manual-secret-input"
-              className="text-foreground mb-2 block text-sm font-medium"
-            >
-              Secret Value (optional)
-            </label>
-            <Input
-              id="manual-secret-input"
-              type="password"
-              value={manualSecretInput}
-              onChange={(event) => setManualSecretInput(event.target.value)}
-              placeholder="Leave empty to auto-generate"
-              className="h-11 rounded-full px-5 py-3"
-            />
-            <p className="text-muted-foreground mt-2 text-sm">
-              Leave blank to create a secure generated secret.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <p className="text-foreground mb-2 text-sm font-medium">Apps</p>
-          {loadingApps && (
-            <p className="text-muted-foreground text-sm">Loading apps...</p>
-          )}
-          {!loadingApps && availableApps.length === 0 && (
+      <div className="border-input bg-background space-y-5 rounded-3xl border p-5">
+        <div className="space-y-3">
+          <p className="text-foreground text-sm font-medium">App</p>
+          {appsWithSecrets.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              No apps available for this session.
+              No apps declare secret slots in this session.
             </p>
-          )}
-          {!loadingApps && availableApps.length > 0 && (
+          ) : (
             <div className="flex flex-wrap gap-2">
-              {availableApps.map((app) => {
-                const selected = selectedApps.includes(app);
+              {appsWithSecrets.map((descriptor) => {
+                const active = selectedApp === descriptor.name;
                 return (
                   <button
-                    key={app}
+                    key={descriptor.name}
                     type="button"
-                    onClick={() => toggleApp(app)}
+                    onClick={() => setSelectedApp(descriptor.name)}
                     className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                      selected
+                      active
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-background text-foreground border-input hover:bg-accent"
                     }`}
                   >
-                    {app}
+                    {descriptor.name}
                   </button>
                 );
               })}
@@ -304,114 +314,139 @@ export function Secrets() {
           )}
         </div>
 
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            onClick={() => {
-              void handleCreate();
-            }}
-            disabled={!canCreate}
-            className="rounded-full px-6"
-          >
-            {creating ? "Creating..." : "Create secret"}
-          </Button>
-        </div>
-
-        {createdSecret && (
-          <div className="space-y-2 rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
-            <p className="text-foreground text-sm font-medium">New secret</p>
-            <p className="text-foreground break-all font-mono text-sm">
-              {createdSecret}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  void navigator.clipboard.writeText(createdSecret);
-                }}
-              >
-                Copy secret
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setCreatedSecret(null)}
-              >
-                Hide
-              </Button>
+        {activeDescriptor && (
+          <>
+            <h4 className="text-foreground text-base font-semibold">
+              Add Secret for {activeDescriptor.name}
+            </h4>
+            <div className="space-y-4">
+              {activeSlots.map((slot) => (
+                <div key={slot.name} className="space-y-2">
+                  <label
+                    htmlFor={`slot-${activeDescriptor.name}-${slot.name}`}
+                    className="text-foreground flex items-center gap-2 text-sm font-medium"
+                  >
+                    <span className="font-mono">{slot.name}</span>
+                    {slot.required ? (
+                      <span className="text-destructive text-xs">required</span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">
+                        optional
+                      </span>
+                    )}
+                  </label>
+                  <Input
+                    id={`slot-${activeDescriptor.name}-${slot.name}`}
+                    type="password"
+                    value={slotValues[slot.name] ?? ""}
+                    onChange={(event) =>
+                      setSlotValues((prev) => ({
+                        ...prev,
+                        [slot.name]: event.target.value,
+                      }))
+                    }
+                    placeholder={
+                      index[activeDescriptor.name]?.[slot.name]
+                        ? `${index[activeDescriptor.name][slot.name].valuePrefix} (set — paste a new value to rotate)`
+                        : "Paste the value from the provider's dashboard"
+                    }
+                    autoComplete="off"
+                    className="h-11 rounded-full px-5 py-3"
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    {slot.description}
+                  </p>
+                </div>
+              ))}
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    void handleSave();
+                  }}
+                  disabled={!canSave}
+                  className="rounded-full px-6"
+                >
+                  {saving ? "Saving..." : "Save secret"}
+                </Button>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 
-      <div className="border-input bg-background overflow-x-auto rounded-3xl border p-2">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-muted-foreground text-left">
-              <th className="px-3 py-2">Secret</th>
-              <th className="px-3 py-2">Label</th>
-              <th className="px-3 py-2">Apps</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Last used</th>
-              <th className="px-3 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loadingSecrets && (
-              <tr>
-                <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  Loading secrets...
-                </td>
-              </tr>
-            )}
-            {!loadingSecrets && secrets.length === 0 && (
-              <tr>
-                <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  No secrets found.
-                </td>
-              </tr>
-            )}
-            {!loadingSecrets &&
-              secrets.map((secret) => (
-                <tr key={secret.key_hash} className="border-border border-t">
-                  <td className="text-foreground px-3 py-2 font-mono">
-                    {secret.key_prefix}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {secret.label || "-"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {secret.apps.join(", ")}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {secret.is_active ? "Active" : "Inactive"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {formatTs(secret.last_used_at)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        void handleRemove(secret);
-                      }}
-                      disabled={deletingHash === secret.key_hash}
-                      className="rounded-full"
-                    >
-                      {deletingHash === secret.key_hash
-                        ? "Removing..."
-                        : "Remove"}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="space-y-4">
+        <h4 className="text-foreground text-base font-semibold">Saved</h4>
+        {savedApps.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No secrets saved.</p>
+        ) : (
+          savedApps.map(([app, slots]) => (
+            <div
+              key={app}
+              className="border-input bg-background overflow-x-auto rounded-3xl border p-2"
+            >
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-foreground font-medium">{app}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void handleClearApp(app);
+                  }}
+                  disabled={clearingApp === app}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  {clearingApp === app ? "Clearing..." : "Remove all"}
+                </Button>
+              </div>
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-muted-foreground text-left">
+                    <th className="px-3 py-2">Name</th>
+                    <th className="px-3 py-2">Preview</th>
+                    <th className="px-3 py-2">Added</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(slots)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([name, entry]) => {
+                      const key = `${app}:${name}`;
+                      return (
+                        <tr key={name} className="border-border border-t">
+                          <td className="text-foreground px-3 py-2 font-mono">
+                            {name}
+                          </td>
+                          <td className="text-muted-foreground px-3 py-2 font-mono">
+                            {entry.valuePrefix}
+                          </td>
+                          <td className="text-muted-foreground px-3 py-2">
+                            {formatTs(entry.addedAt)}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                void handleRemove(app, name);
+                              }}
+                              disabled={removing === key}
+                              className="rounded-full"
+                            >
+                              {removing === key ? "Removing..." : "Remove"}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

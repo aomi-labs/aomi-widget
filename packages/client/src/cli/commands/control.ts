@@ -74,9 +74,15 @@ export async function appsCommand(config: CliConfig): Promise<void> {
   }
 
   const currentApp = cli?.app ?? config.app;
-  for (const app of apps) {
-    const marker = currentApp === app ? "  (current)" : "";
-    console.log(`${app}${marker}`);
+  for (const descriptor of apps) {
+    const name = descriptor.name;
+    const marker = currentApp === name ? "  (current)" : "";
+    const required = (descriptor.secrets ?? [])
+      .filter((s) => s.required)
+      .map((s) => s.name);
+    const requiredSuffix =
+      required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
+    console.log(`${name}${marker}${requiredSuffix}`);
   }
 }
 

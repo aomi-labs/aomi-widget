@@ -30,11 +30,13 @@ const renderControlContext = (
 ) => {
   const ref = React.createRef<HarnessHandle>();
   const aomiClient = {
-    getApps: vi.fn(async () => ["default"]),
+    getApps: vi.fn(async () => [{ name: "default" }]),
     getModels: vi.fn(async () => []),
     setModel: vi.fn(async () => ({})),
     ingestSecrets: vi.fn(async () => ({ handles: {} })),
     deleteSecret: vi.fn(async () => ({ deleted: true })),
+    clearSecrets: vi.fn(async () => ({ cleared: true })),
+    listSecrets: vi.fn(async () => ({ by_app: {} })),
     ...clientOverrides,
   };
 
@@ -389,7 +391,7 @@ describe("ControlContextProvider", () => {
     const setModel = vi.fn(() => setModelResult.promise);
     const { getControl } = renderControlContext(
       {
-        getApps: vi.fn(async () => ["default", "docs"]),
+        getApps: vi.fn(async () => [{ name: "default" }, { name: "docs" }]),
         getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
         setModel,
       },
@@ -446,7 +448,7 @@ describe("ControlContextProvider", () => {
     const setModel = vi.fn(() => setModelResult.promise);
     const { getControl } = renderControlContext(
       {
-        getApps: vi.fn(async () => ["default", "docs"]),
+        getApps: vi.fn(async () => [{ name: "default" }, { name: "docs" }]),
         getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
         setModel,
       },
