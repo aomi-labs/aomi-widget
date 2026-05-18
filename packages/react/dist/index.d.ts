@@ -362,8 +362,8 @@ declare const getChainInfo: (chainId: number | undefined) => ChainInfo | undefin
 
 /**
  * Resolve the actual backend model for auto mode.
- * Prefers known cheaper/performance-oriented models before falling back to the
- * backend order.
+ * Prefers the current auto model before falling back to older balanced defaults
+ * and then backend order.
  */
 declare function resolveAutoModel(models: string[]): string | null;
 
