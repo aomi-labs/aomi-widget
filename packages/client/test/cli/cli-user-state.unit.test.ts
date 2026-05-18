@@ -6,31 +6,61 @@ import {
 } from "../../src/cli/user-state";
 
 describe("CLI user state AA fields", () => {
-  it("builds explicit null AA state by default", () => {
-    expect(buildCliUserState("0xabc", 8453)).toMatchObject({
+  it("omits execution context when aa is unspecified", () => {
+    const state = buildCliUserState("0xabc", 8453);
+    expect(state).toMatchObject({
       address: "0xabc",
       chain_id: 8453,
       is_connected: true,
-      aa_mode: null,
-      smart_account: null,
       ext: { client_type: "ts_cli" },
+    });
+    expect(state.aa_mode).toBeUndefined();
+    expect(state.smart_account_4337).toBeUndefined();
+    expect(state.delegation_7702).toBeUndefined();
+  });
+
+  it("maps null aaMode input to aa_mode=none", () => {
+    expect(buildCliUserState("0xabc", 8453, { aaMode: null })).toMatchObject({
+      address: "0xabc",
+      chain_id: 8453,
+      is_connected: true,
+      aa_mode: "none",
+      smart_account_4337: null,
+      delegation_7702: null,
     });
   });
 
-  it("round-trips 4337 smart-account context", () => {
-    const snapshot = walletSnapshotFromUserState({
+  it("maps 4337 with a known smart account into canonical AA fields", () => {
+    expect(
+      buildCliUserState("0xabc", 8453, {
+        aaMode: "4337",
+        smartAccount4337: "0xdef",
+      }),
+    ).toMatchObject({
       address: "0xabc",
       chain_id: 8453,
       is_connected: true,
       aa_mode: "4337",
-      smart_account: "0xdef",
+      smart_account_4337: "0xdef",
+      delegation_7702: null,
+    });
+  });
+
+  it("derives aaMode and smartAccount4337 from canonical UserState", () => {
+    const snapshot = walletSnapshotFromUserState({
+      address: "0xdef",
+      chain_id: 8453,
+      is_connected: true,
+      aa_mode: "4337",
+      smart_account_4337: "0xaaa",
     });
 
     expect(snapshot).toEqual({
-      publicKey: "0xabc",
+      publicKey: "0xdef",
       chainId: 8453,
       aaMode: "4337",
-      smartAccount: "0xdef",
+      smartAccount4337: "0xaaa",
+      delegation7702: null,
     });
   });
 });

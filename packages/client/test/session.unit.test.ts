@@ -199,7 +199,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("preserves AA mode and smart account across partial backend user_state snapshots", async () => {
+  it("preserves AA and sponsorship context across partial backend user_state snapshots", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-5c",
@@ -208,7 +208,10 @@ describe("ClientSession ext helpers", () => {
         chain_id: 8453,
         is_connected: true,
         aa_mode: "4337",
-        smart_account: "0xsmart",
+        smart_account_4337: "0xsmart",
+        wallet_provider: "baseAccount",
+        sponsored: true,
+        sponsor_provider: "coinbase",
       },
     });
 
@@ -230,21 +233,34 @@ describe("ClientSession ext helpers", () => {
       chain_id: 8453,
       is_connected: true,
       aa_mode: "4337",
-      smart_account: "0xsmart",
+      smart_account_4337: "0xsmart",
+      wallet_provider: "baseAccount",
+      sponsored: true,
+      sponsor_provider: "coinbase",
     });
 
     session.close();
   });
 
-  it("normalizes camelCase AA user_state aliases", () => {
-    expect(UserState.normalize({
-      address: "0xabc",
-      aaMode: "4337",
-      smartAccount: "0xsmart",
-    })).toMatchObject({
+  it("normalizes camelCase user_state aliases", () => {
+    expect(
+      UserState.normalize({
+        address: "0xabc",
+        aaMode: "4337",
+        smartAccount4337: "0xsmart",
+        walletProvider: "baseAccount",
+        authMethod: "google",
+        sponsorProvider: "coinbase",
+        sponsorAccount: "gp_test",
+      }),
+    ).toMatchObject({
       address: "0xabc",
       aa_mode: "4337",
-      smart_account: "0xsmart",
+      smart_account_4337: "0xsmart",
+      wallet_provider: "baseAccount",
+      auth_method: "google",
+      sponsor_provider: "coinbase",
+      sponsor_account: "gp_test",
     });
   });
 
@@ -308,7 +324,9 @@ describe("ClientSession ext helpers", () => {
       },
     } satisfies AomiChatResponse);
 
-    await expect(session.sendAsync("null normalization check")).resolves.toMatchObject({
+    await expect(
+      session.sendAsync("null normalization check"),
+    ).resolves.toMatchObject({
       is_processing: false,
     });
     expect(warnSpy).not.toHaveBeenCalled();
@@ -358,7 +376,11 @@ describe("ClientSession ext helpers", () => {
       expect.objectContaining({
         id: "tx-1",
         kind: "transaction",
-        payload: expect.objectContaining({ txId: 1, txIds: [1], chainId: 8453 }),
+        payload: expect.objectContaining({
+          txId: 1,
+          txIds: [1],
+          chainId: 8453,
+        }),
       }),
       expect.objectContaining({
         id: "eip712-7",
@@ -391,15 +413,17 @@ describe("ClientSession ext helpers", () => {
           },
         },
       },
-      system_events: [{
-        InlineCall: {
-          type: "wallet_tx_request",
-          payload: {
-            tx_ids: [15],
-            aa_preference: "auto",
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_tx_request",
+            payload: {
+              tx_ids: [15],
+              aa_preference: "auto",
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -409,7 +433,13 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("queue id-only tx");
     const request = requestPromise as Promise<{
       kind: "transaction";
-      payload: { txId?: number; txIds?: number[]; to?: string; value?: string; chainId?: number };
+      payload: {
+        txId?: number;
+        txIds?: number[];
+        to?: string;
+        value?: string;
+        chainId?: number;
+      };
     }>;
 
     await expect(request).resolves.toMatchObject({
@@ -428,7 +458,9 @@ describe("ClientSession ext helpers", () => {
 
   it("dedupes a synthetic single-tx request once the backend wallet event arrives", async () => {
     const { client, sendMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-7c-dedupe" });
+    const session = new Session(client, {
+      sessionId: "session-unit-7c-dedupe",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
@@ -443,16 +475,18 @@ describe("ClientSession ext helpers", () => {
           },
         },
       },
-      system_events: [{
-        InlineCall: {
-          type: "wallet_tx_request",
-          payload: {
-            tx_ids: [15],
-            tx_id: "tx:pending:15:123",
-            aa_preference: "auto",
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_tx_request",
+            payload: {
+              tx_ids: [15],
+              tx_id: "tx:pending:15:123",
+              aa_preference: "auto",
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     await session.sendAsync("queue id-only tx");
@@ -495,15 +529,17 @@ describe("ClientSession ext helpers", () => {
           },
         },
       },
-      system_events: [{
-        InlineCall: {
-          type: "wallet_tx_request",
-          payload: {
-            tx_ids: [1, 2],
-            aa_preference: "auto",
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_tx_request",
+            payload: {
+              tx_ids: [1, 2],
+              aa_preference: "auto",
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     await session.sendAsync("queue batched tx");
@@ -585,15 +621,17 @@ describe("ClientSession ext helpers", () => {
           },
         },
       },
-      system_events: [{
-        InlineCall: {
-          type: "wallet_tx_request",
-          payload: {
-            tx_ids: [7],
-            aa_preference: "auto",
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_tx_request",
+            payload: {
+              tx_ids: [7],
+              aa_preference: "auto",
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -610,7 +648,6 @@ describe("ClientSession ext helpers", () => {
 
     expect(session.getUserState()).toMatchObject({
       aa_mode: "7702",
-      smart_account: null,
       pending_txs: {
         7: expect.objectContaining({
           chain_id: 8453,
@@ -634,8 +671,120 @@ describe("ClientSession ext helpers", () => {
           batched: false,
           call_count: 1,
           sponsored: undefined,
-          smart_account_address: undefined,
-          delegation_address: undefined,
+          smart_account_4337: undefined,
+          delegation_7702: undefined,
+        },
+      }),
+    );
+
+    session.close();
+  });
+
+  it("posts structured wallet tx failure metadata", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-8b" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        pending_txs: {
+          7: {
+            to: "0x1111111111111111111111111111111111111111",
+            value: "0",
+            data: "0x",
+            chain_id: 8453,
+          },
+        },
+      },
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_tx_request",
+            payload: {
+              tx_ids: [7],
+            },
+          },
+        },
+      ],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_tx_request", resolve);
+    });
+
+    await session.sendAsync("queue tx");
+    const request = await requestPromise;
+
+    await session.reject((request as { id: string }).id, {
+      error: "native execution failed",
+      aaRequestedMode: "7702",
+      aaResolvedMode: "none",
+      aaFallbackReason: "aa_failed_fallback_eoa",
+      executionKind: "eoa",
+      batched: false,
+      callCount: 1,
+      sponsored: false,
+      aaFallbackAttempts: [
+        {
+          order: 1,
+          layer: "aa.execute",
+          mode: "7702",
+          status: "failed",
+          provider: "alchemy",
+          error: "7702 failed",
+        },
+      ],
+      walletDebugTrace: [
+        {
+          layer: "executeAdapterTransaction",
+          step: "native.execute",
+          status: "terminal",
+          mode: "none",
+          callCount: 1,
+          message: "native execution failed",
+        },
+      ],
+    });
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-unit-8b",
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: {
+          txHash: "",
+          status: "failed",
+          error: "native execution failed",
+          pending_tx_ids: [7],
+          aa_requested_mode: "7702",
+          aa_resolved_mode: "none",
+          aa_fallback_reason: "aa_failed_fallback_eoa",
+          execution_kind: "eoa",
+          batched: false,
+          call_count: 1,
+          sponsored: false,
+          aa_fallback_attempts: [
+            {
+              order: 1,
+              layer: "aa.execute",
+              mode: "7702",
+              status: "failed",
+              provider: "alchemy",
+              error: "7702 failed",
+            },
+          ],
+          wallet_debug_trace: [
+            {
+              layer: "executeAdapterTransaction",
+              step: "native.execute",
+              status: "terminal",
+              mode: "none",
+              call_count: 1,
+              message: "native execution failed",
+            },
+          ],
+          smart_account_4337: undefined,
+          delegation_7702: undefined,
         },
       }),
     );
@@ -650,21 +799,23 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet_eip712_request",
-          payload: {
-            eip712Id: 11,
-            description: "Permit2 signature",
-            typed_data: {
-              domain: { chainId: 8453, name: "Permit2" },
-              types: { Permit: [{ name: "owner", type: "address" }] },
-              primaryType: "Permit",
-              message: { owner: "0x123" },
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_eip712_request",
+            payload: {
+              eip712Id: 11,
+              description: "Permit2 signature",
+              typed_data: {
+                domain: { chainId: 8453, name: "Permit2" },
+                types: { Permit: [{ name: "owner", type: "address" }] },
+                primaryType: "Permit",
+                message: { owner: "0x123" },
+              },
             },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -699,17 +850,19 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "QkFTRTY0VFhCWVRFUw",
-            description: "swap 1 USDC for SOL",
-            cluster: "solana:devnet",
-            pending_solana_id: 7,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "QkFTRTY0VFhCWVRFUw",
+              description: "swap 1 USDC for SOL",
+              cluster: "solana:devnet",
+              pending_solana_id: 7,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -745,16 +898,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "AQAA",
-            description: "claim rewards",
-            pending_solana_id: 3,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              description: "claim rewards",
+              pending_solana_id: 3,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -787,21 +942,25 @@ describe("ClientSession ext helpers", () => {
 
   it("keeps the request queued when resolve receives the wrong result kind", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-kind-mismatch" });
+    const session = new Session(client, {
+      sessionId: "session-solana-kind-mismatch",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "AQAA",
-            description: "claim rewards",
-            pending_solana_id: 9,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              description: "claim rewards",
+              pending_solana_id: 9,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -836,16 +995,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "AQAA",
-            description: "claim rewards",
-            pending_solana_id: 4,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              description: "claim rewards",
+              pending_solana_id: 4,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {

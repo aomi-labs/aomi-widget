@@ -13,7 +13,7 @@
 import { type Hex, getAddress } from "viem";
 import type { AAWalletCall } from "./aa/types";
 
-export type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
+type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
 
 export type WalletTxCallPayload = {
   txId: number;
@@ -33,8 +33,6 @@ export type WalletTxPayload = {
   chainId?: number;
   txId?: number;
   txIds?: number[];
-  aaPreference?: WalletTxAaPreference;
-  aaStrict?: boolean;
   requestId?: string;
   calls?: WalletTxCallPayload[];
 };
@@ -156,7 +154,9 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined;
 }
 
-function normalizeAaPreference(value: unknown): WalletTxAaPreference | undefined {
+function normalizeAaPreference(
+  value: unknown,
+): WalletTxAaPreference | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
   if (
@@ -194,9 +194,10 @@ export function normalizePendingTxData(
     return undefined;
   }
 
-  const kind = typeof pendingEntry.kind === "string"
-    ? pendingEntry.kind.toLowerCase()
-    : undefined;
+  const kind =
+    typeof pendingEntry.kind === "string"
+      ? pendingEntry.kind.toLowerCase()
+      : undefined;
 
   if (kind === "native_transfer") {
     return undefined;
@@ -234,9 +235,11 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
       : typeof args.txId === "string"
         ? args.txId
         : undefined;
-  const aaPreference =
-    normalizeAaPreference(args.aa_preference ?? args.aaPreference) ?? "auto";
-  const aaStrict = parseBoolean(args.aa_strict ?? args.aaStrict);
+  // Backend AA hints are parsed for wire compatibility, then intentionally
+  // omitted. The frontend owns the execution policy: 7702 -> 4337 -> native
+  // wallet sends, with no backend-provided preference or strictness knobs.
+  normalizeAaPreference(args.aa_preference ?? args.aaPreference);
+  parseBoolean(args.aa_strict ?? args.aaStrict);
   const txId = txIds.length === 1 ? txIds[0] : undefined;
 
   return {
@@ -246,8 +249,6 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
     chainId,
     txId,
     txIds,
-    aaPreference,
-    aaStrict,
     requestId,
   };
 }
@@ -307,7 +308,8 @@ export function hydrateTxPayloadFromUserState(
         parseChainId(pendingEntry.chain_id) ??
         parseChainId(pendingEntry.chainId) ??
         parseChainId(payload.chainId),
-      from: typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
+      from:
+        typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
       gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : undefined,
       description:
         typeof pendingEntry.label === "string"
@@ -352,7 +354,8 @@ export function normalizeSolanaSignPayload(
   const args = getToolArgs(payload);
 
   const unsignedTxRaw = args.unsigned_tx ?? args.unsignedTx;
-  const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : undefined;
+  const unsignedTx =
+    typeof unsignedTxRaw === "string" ? unsignedTxRaw : undefined;
 
   const description =
     typeof args.description === "string" ? args.description : undefined;
@@ -370,9 +373,7 @@ export function normalizeSolanaSignPayload(
 /**
  * Normalize an EIP-712 signing request payload.
  */
-export function normalizeEip712Payload(
-  payload: unknown,
-): WalletEip712Payload {
+export function normalizeEip712Payload(payload: unknown): WalletEip712Payload {
   const args = getToolArgs(payload);
   const typedDataRaw =
     args.typed_data ?? args["712_typed_data"] ?? args.typedData;

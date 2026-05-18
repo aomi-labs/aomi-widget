@@ -26,13 +26,21 @@ var USER_STATE_KEY_ALIASES = {
   isConnected: "is_connected",
   ensName: "ens_name",
   svmAddress: "svm_address",
+  aaMode: "aa_mode",
+  smartAccount4337: "smart_account_4337",
+  smartAccount: "smart_account_4337",
+  smartAccountAddress: "smart_account_4337",
+  SmartAccount4337: "smart_account_4337",
+  delegation7702: "delegation_7702",
+  Delegation7702: "delegation_7702",
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
   pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id",
-  aaMode: "aa_mode",
-  smartAccount: "smart_account",
-  smartAccountAddress: "smart_account"
+  walletProvider: "wallet_provider",
+  authMethod: "auth_method",
+  sponsorProvider: "sponsor_provider",
+  sponsorAccount: "sponsor_account"
 };
 function parseUserStateChainId(value) {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
@@ -55,11 +63,48 @@ function parseUserStateChainId(value) {
 function normalizeAddressForComparison(value) {
   return typeof value === "string" ? value.toLowerCase() : void 0;
 }
+function parseUserStateWalletProvider(value) {
+  if (value === null) {
+    return null;
+  }
+  return value === "para" || value === "baseAccount" ? value : void 0;
+}
+var AUTH_METHODS = /* @__PURE__ */ new Set([
+  "google",
+  "apple",
+  "facebook",
+  "x",
+  "discord",
+  "github",
+  "farcaster",
+  "telegram",
+  "email",
+  "phone",
+  "wagmi"
+]);
+function parseUserStateAuthMethod(value) {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && AUTH_METHODS.has(value) ? value : void 0;
+}
+function parseUserStateSponsored(value) {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "boolean" ? value : void 0;
+}
+function parseUserStateSponsorProvider(value) {
+  if (value === null) {
+    return null;
+  }
+  return value === "alchemy" || value === "coinbase" || value === "pimlico" || value === "self" ? value : void 0;
+}
 function parseUserStateAAMode(value) {
   if (value === null) {
     return null;
   }
-  return value === "4337" || value === "7702" ? value : void 0;
+  return value === "none" || value === "4337" || value === "7702" ? value : void 0;
 }
 function parseUserStateOptionalAddress(value) {
   if (value === null) {
@@ -119,8 +164,29 @@ var UserState;
     if (!hasOwnKey(incoming, "aa_mode") && canPreserveAAContext && aaMode(previous) !== void 0) {
       reconciled.aa_mode = aaMode(previous);
     }
-    if (!hasOwnKey(incoming, "smart_account") && canPreserveAAContext && smartAccount(previous) !== void 0) {
-      reconciled.smart_account = smartAccount(previous);
+    if (!hasOwnKey(incoming, "smart_account_4337") && canPreserveAAContext && SmartAccount4337(previous) !== void 0) {
+      reconciled.smart_account_4337 = SmartAccount4337(previous);
+    }
+    if (!hasOwnKey(incoming, "delegation_7702") && canPreserveAAContext && Delegation7702(previous) !== void 0) {
+      reconciled.delegation_7702 = Delegation7702(previous);
+    }
+    if (!hasOwnKey(incoming, "ens_name") && canPreserveAAContext && ensName(previous) !== void 0) {
+      reconciled.ens_name = ensName(previous);
+    }
+    if (!hasOwnKey(incoming, "wallet_provider") && canPreserveAAContext && walletProvider(previous) !== void 0) {
+      reconciled.wallet_provider = walletProvider(previous);
+    }
+    if (!hasOwnKey(incoming, "auth_method") && canPreserveAAContext && authMethod(previous) !== void 0) {
+      reconciled.auth_method = authMethod(previous);
+    }
+    if (!hasOwnKey(incoming, "sponsored") && canPreserveAAContext && sponsored(previous) !== void 0) {
+      reconciled.sponsored = sponsored(previous);
+    }
+    if (!hasOwnKey(incoming, "sponsor_provider") && canPreserveAAContext && sponsorProvider(previous) !== void 0) {
+      reconciled.sponsor_provider = sponsorProvider(previous);
+    }
+    if (!hasOwnKey(incoming, "sponsor_account") && canPreserveAAContext && sponsorAccount(previous) !== void 0) {
+      reconciled.sponsor_account = sponsorAccount(previous);
     }
     if (isConnected(reconciled) === true && chainId(reconciled) === void 0) {
       delete reconciled.is_connected;
@@ -134,6 +200,21 @@ var UserState;
     return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
   }
   UserState2.address = address;
+  function aaMode(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateAAMode(normalized == null ? void 0 : normalized.aa_mode);
+  }
+  UserState2.aaMode = aaMode;
+  function SmartAccount4337(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.smart_account_4337);
+  }
+  UserState2.SmartAccount4337 = SmartAccount4337;
+  function Delegation7702(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.delegation_7702);
+  }
+  UserState2.Delegation7702 = Delegation7702;
   function svmAddress(userState) {
     const normalized = normalize(userState);
     const value = normalized == null ? void 0 : normalized.svm_address;
@@ -151,16 +232,37 @@ var UserState;
     return typeof isConnected2 === "boolean" ? isConnected2 : void 0;
   }
   UserState2.isConnected = isConnected;
-  function aaMode(userState) {
+  function ensName(userState) {
     const normalized = normalize(userState);
-    return parseUserStateAAMode(normalized == null ? void 0 : normalized.aa_mode);
+    const value = normalized == null ? void 0 : normalized.ens_name;
+    return typeof value === "string" && value.length > 0 ? value : void 0;
   }
-  UserState2.aaMode = aaMode;
-  function smartAccount(userState) {
+  UserState2.ensName = ensName;
+  function walletProvider(userState) {
     const normalized = normalize(userState);
-    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.smart_account);
+    return parseUserStateWalletProvider(normalized == null ? void 0 : normalized.wallet_provider);
   }
-  UserState2.smartAccount = smartAccount;
+  UserState2.walletProvider = walletProvider;
+  function authMethod(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateAuthMethod(normalized == null ? void 0 : normalized.auth_method);
+  }
+  UserState2.authMethod = authMethod;
+  function sponsored(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateSponsored(normalized == null ? void 0 : normalized.sponsored);
+  }
+  UserState2.sponsored = sponsored;
+  function sponsorProvider(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateSponsorProvider(normalized == null ? void 0 : normalized.sponsor_provider);
+  }
+  UserState2.sponsorProvider = sponsorProvider;
+  function sponsorAccount(userState) {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized == null ? void 0 : normalized.sponsor_account);
+  }
+  UserState2.sponsorAccount = sponsorAccount;
   function withExt(userState, key, value) {
     var _a;
     const normalizedUserState = (_a = normalize(userState)) != null ? _a : {};
@@ -174,15 +276,6 @@ var UserState;
   }
   UserState2.withExt = withExt;
 })(UserState || (UserState = {}));
-function getUserStateAAMode(userState) {
-  return UserState.aaMode(userState);
-}
-function getUserStateSmartAccount(userState) {
-  return UserState.smartAccount(userState);
-}
-function addUserStateExt(userState, key, value) {
-  return UserState.withExt(userState, key, value);
-}
 function isInlineCall(event) {
   return "InlineCall" in event;
 }
@@ -373,7 +466,7 @@ function createSseSubscriber({
 
 // src/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
-var API_KEY_HEADER = "X-API-Key";
+var APP_KEY_HEADER = "AOMI-APP-KEY";
 function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -409,7 +502,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   const url = `${baseUrl}${path}${query}`;
   const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
-    headers.set(API_KEY_HEADER, apiKey);
+    headers.set(APP_KEY_HEADER, apiKey);
   }
   const response = await fetchImpl(url, {
     method: "POST",
@@ -733,7 +826,7 @@ var AomiClient = class {
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
+      headers.set(APP_KEY_HEADER, apiKey);
     }
     const response = await this.rawFetchImpl(url, { headers });
     if (!response.ok) {
@@ -750,7 +843,7 @@ var AomiClient = class {
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
+      headers.set(APP_KEY_HEADER, apiKey);
     }
     const response = await this.rawFetchImpl(url, {
       headers
@@ -783,24 +876,24 @@ var AomiClient = class {
     );
   }
   /**
-   * List BYOK provider keys bound to the current session's client.
+   * List BYOK keys (one per LLM provider) bound to the current session's client.
    */
-  async listProviderKeys(sessionId) {
+  async listByokKeys(sessionId) {
     var _a;
     const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
     if (!response.ok) {
-      throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+      throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
     const data = await response.json();
-    return (_a = data.provider_keys) != null ? _a : [];
+    return (_a = data.byok_keys) != null ? _a : [];
   }
   /**
-   * Save or replace a BYOK provider key for the client bound to this session.
+   * Save or replace a BYOK key for the client bound to this session.
    */
-  async saveProviderKey(sessionId, provider, apiKey, label) {
+  async saveByokKey(sessionId, provider, byokKey, label) {
     const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
     const response = await this.fetchImpl(url, {
       method: "POST",
@@ -809,20 +902,20 @@ var AomiClient = class {
       }),
       body: JSON.stringify({
         provider,
-        api_key: apiKey,
+        byok_key: byokKey,
         label
       })
     });
     if (!response.ok) {
-      throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+      throw new Error(`Failed to save BYOK key: HTTP ${response.status}`);
     }
     const data = await response.json();
     return data.key;
   }
   /**
-   * Delete a BYOK provider key for the client bound to this session.
+   * Delete a BYOK key for the client bound to this session.
    */
-  async deleteProviderKey(sessionId, provider) {
+  async deleteByokKey(sessionId, provider) {
     const url = buildApiUrl(
       this.baseUrl,
       `/api/control/provider-keys/${encodeURIComponent(provider)}`
@@ -832,7 +925,7 @@ var AomiClient = class {
       headers: withSessionHeader(sessionId)
     });
     if (!response.ok) {
-      throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+      throw new Error(`Failed to delete BYOK key: HTTP ${response.status}`);
     }
     const data = await response.json();
     return data.deleted;
@@ -851,7 +944,7 @@ var AomiClient = class {
       withSessionHeader(sessionId, { "Content-Type": "application/json" })
     );
     if (this.apiKey) {
-      headers.set(API_KEY_HEADER, this.apiKey);
+      headers.set(APP_KEY_HEADER, this.apiKey);
     }
     const normalizedTransactions = transactions.map((transaction) => {
       var _a, _b;
@@ -968,11 +1061,6 @@ function unwrapSystemEvent(event) {
 }
 
 // src/aa/policy.ts
-function aaRequestedModeFromPreference(preference) {
-  if (preference === "none") return "none";
-  if (preference === "eip4337") return "4337";
-  return "7702";
-}
 function aaModeFromExecutionKind(executionKind) {
   if (!executionKind) return void 0;
   if (executionKind.endsWith("_4337")) return "4337";
@@ -1074,7 +1162,7 @@ function normalizePendingTxData(pendingEntry) {
   return data;
 }
 function normalizeTxPayload(payload) {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
@@ -1085,8 +1173,8 @@ function normalizeTxPayload(payload) {
   const data = typeof args.data === "string" ? args.data : void 0;
   const chainId = (_d = (_c = (_b = parseChainId(args.chainId)) != null ? _b : parseChainId(args.chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _d : parseChainId(ctx == null ? void 0 : ctx.userChainId);
   const requestId = typeof args.tx_id === "string" ? args.tx_id : typeof args.txId === "string" ? args.txId : void 0;
-  const aaPreference = (_f = normalizeAaPreference((_e = args.aa_preference) != null ? _e : args.aaPreference)) != null ? _f : "auto";
-  const aaStrict = parseBoolean((_g = args.aa_strict) != null ? _g : args.aaStrict);
+  normalizeAaPreference((_e = args.aa_preference) != null ? _e : args.aaPreference);
+  parseBoolean((_f = args.aa_strict) != null ? _f : args.aaStrict);
   const txId = txIds.length === 1 ? txIds[0] : void 0;
   return {
     to,
@@ -1095,8 +1183,6 @@ function normalizeTxPayload(payload) {
     chainId,
     txId,
     txIds,
-    aaPreference,
-    aaStrict,
     requestId
   };
 }
@@ -1241,11 +1327,48 @@ function toViemSignTypedDataArgs(payload) {
 }
 
 // src/session.ts
+var DEFAULT_AA_REQUESTED_MODE = "7702";
+function normalizeWalletFailure(reason) {
+  if (typeof reason === "string") {
+    return { error: reason };
+  }
+  return reason != null ? reason : {};
+}
+function walletFallbackAttemptsToWire(attempts) {
+  return attempts == null ? void 0 : attempts.map((attempt) => ({
+    order: attempt.order,
+    layer: attempt.layer,
+    mode: attempt.mode,
+    status: attempt.status,
+    provider: attempt.provider,
+    sponsored: attempt.sponsored,
+    reason: attempt.reason,
+    error: attempt.error,
+    execution_kind: attempt.executionKind
+  }));
+}
+function walletDebugTraceToWire(trace) {
+  return trace == null ? void 0 : trace.map((entry) => ({
+    layer: entry.layer,
+    step: entry.step,
+    status: entry.status,
+    mode: entry.mode,
+    provider: entry.provider,
+    execution_kind: entry.executionKind,
+    sponsored: entry.sponsored,
+    call_count: entry.callCount,
+    message: entry.message,
+    reason: entry.reason
+  }));
+}
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isNil(value) {
   return value === null || value === void 0;
+}
+function stableUserStateString(state) {
+  return JSON.stringify(sortJson(state != null ? state : {}));
 }
 function sortJson(value) {
   if (Array.isArray(value)) {
@@ -1310,8 +1433,15 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
+    const initialUserState = UserState.reconcile(
+      void 0,
+      sessionOptions == null ? void 0 : sessionOptions.userState
+    );
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+      initialUserState != null ? initialUserState : {},
+      "client_type",
+      sessionOptions.clientType
+    ) : initialUserState;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
     this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
     this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
@@ -1387,7 +1517,7 @@ var ClientSession = class extends TypedEventEmitter {
    * fail fast at runtime instead.
    */
   async resolve(requestId, result) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const req = this.walletRequests.find((request) => request.id === requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
@@ -1400,11 +1530,12 @@ var ClientSession = class extends TypedEventEmitter {
     this.removeWalletRequest(requestId);
     if (req.kind === "transaction" && result.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(req.payload.aaPreference);
+      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : DEFAULT_AA_REQUESTED_MODE;
       const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
       this.resolveUserState(__spreadProps(__spreadValues({}, (_d = this.userState) != null ? _d : {}), {
-        aa_mode: resolvedMode === "none" ? null : resolvedMode,
-        smart_account: resolvedMode === "4337" ? (_e = result.smartAccountAddress) != null ? _e : null : null
+        aa_mode: resolvedMode,
+        smart_account_4337: resolvedMode === "4337" ? (_e = result.SmartAccount4337) != null ? _e : null : null,
+        delegation_7702: resolvedMode === "7702" ? (_f = result.Delegation7702) != null ? _f : null : null
       }));
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash,
@@ -1415,11 +1546,11 @@ var ClientSession = class extends TypedEventEmitter {
         aa_resolved_mode: resolvedMode,
         aa_fallback_reason: result.aaFallbackReason,
         execution_kind: result.executionKind,
-        batched: (_f = result.batched) != null ? _f : pendingTxIds.length > 1,
-        call_count: (_g = result.callCount) != null ? _g : pendingTxIds.length,
+        batched: (_g = result.batched) != null ? _g : pendingTxIds.length > 1,
+        call_count: (_h = result.callCount) != null ? _h : pendingTxIds.length,
         sponsored: result.sponsored,
-        smart_account_address: result.smartAccountAddress,
-        delegation_address: result.delegationAddress
+        smart_account_4337: result.SmartAccount4337,
+        delegation_7702: result.Delegation7702
       });
     } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
@@ -1443,38 +1574,46 @@ var ClientSession = class extends TypedEventEmitter {
    * Sends an error to the backend and resumes polling.
    */
   async reject(requestId, reason) {
+    var _a, _b, _c, _d, _e;
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
+      const failure = normalizeWalletFailure(reason);
+      const requestedMode = (_a = failure.aaRequestedMode) != null ? _a : DEFAULT_AA_REQUESTED_MODE;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
-        error: reason != null ? reason : "Request rejected",
+        error: (_b = failure.error) != null ? _b : "Request rejected",
         pending_tx_ids: pendingTxIds,
         aa_requested_mode: requestedMode,
-        aa_resolved_mode: requestedMode,
-        aa_fallback_reason: void 0,
-        execution_kind: void 0,
-        batched: pendingTxIds.length > 1,
-        call_count: pendingTxIds.length,
-        sponsored: void 0,
-        smart_account_address: void 0,
-        delegation_address: void 0
+        aa_resolved_mode: (_c = failure.aaResolvedMode) != null ? _c : "none",
+        aa_fallback_reason: failure.aaFallbackReason,
+        execution_kind: failure.executionKind,
+        batched: (_d = failure.batched) != null ? _d : pendingTxIds.length > 1,
+        call_count: (_e = failure.callCount) != null ? _e : pendingTxIds.length,
+        sponsored: failure.sponsored,
+        aa_fallback_attempts: walletFallbackAttemptsToWire(
+          failure.aaFallbackAttempts
+        ),
+        wallet_debug_trace: walletDebugTraceToWire(failure.walletDebugTrace),
+        smart_account_4337: void 0,
+        delegation_7702: void 0
       });
     } else if (req.kind === "eip712_sign") {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet_eip712_response", __spreadValues({
         status: "failed",
-        error: reason != null ? reason : "Request rejected",
+        error: error != null ? error : "Request rejected",
         description: req.payload.description
       }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
     } else {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
         status: "rejected",
-        error: reason != null ? reason : "Request rejected",
+        error: error != null ? error : "Request rejected",
         description: req.payload.description
       }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
     }
@@ -1543,8 +1682,10 @@ var ClientSession = class extends TypedEventEmitter {
       this.resolveUserState(options.userState);
     }
   }
-  resolveUserState(userState) {
+  resolveUserState(userState, opts) {
+    const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
+    const nextSerialized = stableUserStateString(this.userState);
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
     if (address && isConnected !== false) {
@@ -1553,10 +1694,15 @@ var ClientSession = class extends TypedEventEmitter {
       this.publicKey = void 0;
     }
     this.syncWalletRequests();
+    if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
+      this.emit("user_state_updated", this.userState);
+    }
   }
   setClientType(clientType) {
     var _a;
-    this.resolveUserState(UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
+    this.resolveUserState(
+      UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType)
+    );
   }
   addExtValue(key, value) {
     var _a;
@@ -1583,18 +1729,27 @@ var ClientSession = class extends TypedEventEmitter {
     this.resolveUserState(nextState);
   }
   resolveWallet(address, chainId, aa) {
-    var _a, _b;
-    this.resolveUserState({
+    var _a, _b, _c, _d;
+    const resolvedAAMode = (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : (aa == null ? void 0 : aa.smartAccount4337) ? "4337" : (aa == null ? void 0 : aa.delegation7702) ? "7702" : "none";
+    const next = __spreadProps(__spreadValues({}, (_b = this.userState) != null ? _b : {}), {
       address,
+      aa_mode: resolvedAAMode,
       chain_id: chainId != null ? chainId : 1,
-      is_connected: true,
-      aa_mode: (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : null,
-      smart_account: (_b = aa == null ? void 0 : aa.smartAccount) != null ? _b : null
+      is_connected: true
     });
+    if ((aa == null ? void 0 : aa.smartAccount4337) !== void 0 || (aa == null ? void 0 : aa.delegation7702) !== void 0) {
+      next.smart_account_4337 = resolvedAAMode === "4337" ? (_c = aa == null ? void 0 : aa.smartAccount4337) != null ? _c : null : null;
+      next.delegation_7702 = resolvedAAMode === "7702" ? (_d = aa == null ? void 0 : aa.delegation7702) != null ? _d : null : null;
+    }
+    this.resolveUserState(next);
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1769,7 +1924,9 @@ var ClientSession = class extends TypedEventEmitter {
         timestamp
       };
     }
-    this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    this.walletRequests = existing ? this.walletRequests.map(
+      (request) => request.id === id ? req : request
+    ) : [...this.walletRequests, req];
     if (req.kind === "transaction") {
       const nextTxIds = txIdsFromPayload(req.payload);
       if (nextTxIds.length > 0) {
@@ -1881,10 +2038,9 @@ var ClientSession = class extends TypedEventEmitter {
       if (txIds.some((txId) => coveredPendingTxIds.has(txId))) {
         continue;
       }
-      const payload = hydrateTxPayloadFromUserState(
-        request.payload,
-        { pending_txs: pendingTxs != null ? pendingTxs : {} }
-      );
+      const payload = hydrateTxPayloadFromUserState(request.payload, {
+        pending_txs: pendingTxs != null ? pendingTxs : {}
+      });
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
@@ -1903,8 +2059,7 @@ var ClientSession = class extends TypedEventEmitter {
         const payload = hydrateTxPayloadFromUserState(
           {
             txId,
-            txIds: [txId],
-            aaPreference: "auto"
+            txIds: [txId]
           },
           {
             pending_txs: {
@@ -2178,23 +2333,21 @@ async function executeViaAA(callList, providerState, getPreferredRpcUrl) {
   }
   const txHash = receipt.transactionHash;
   const providerPrefix = account.provider.toLowerCase();
-  let delegationAddress = account.mode === "7702" ? account.delegationAddress : void 0;
-  if (account.mode === "7702" && !delegationAddress) {
-    delegationAddress = await resolve7702Delegation(
+  let Delegation7702 = account.mode === "7702" ? account.Delegation7702 : void 0;
+  if (account.mode === "7702" && !Delegation7702) {
+    Delegation7702 = await resolve7702Delegation(
       txHash,
       callList,
       getPreferredRpcUrl
     );
   }
-  return {
+  return __spreadValues(__spreadValues({
     txHash,
     txHashes: [txHash],
     executionKind: `${providerPrefix}_${account.mode}`,
     batched: callList.length > 1,
-    sponsored: resolved.sponsorship !== "disabled",
-    AAAddress: account.AAAddress,
-    delegationAddress
-  };
+    sponsored: resolved.sponsorship !== "disabled"
+  }, account.mode === "4337" && account.SmartAccount4337 ? { SmartAccount4337: account.SmartAccount4337 } : {}), Delegation7702 ? { Delegation7702 } : {});
 }
 async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl) {
   var _a, _b, _c, _d;
@@ -2349,10 +2502,7 @@ async function executeViaEoa({
       usedPaymasterService = Boolean(sendCallsCapabilities == null ? void 0 : sendCallsCapabilities.paymasterService);
       usedSendCalls = true;
     } catch (error) {
-      if (!canFallbackToSequentialWalletSends(
-        error,
-        requiresSponsoredSendCalls
-      )) {
+      if (!canFallbackToSequentialWalletSends(error)) {
         throw error;
       }
       await sendSequentially();
@@ -2360,12 +2510,13 @@ async function executeViaEoa({
   } else {
     await sendSequentially();
   }
+  const sponsoredResult = !usedSendCalls ? false : (sponsorship == null ? void 0 : sponsorship.mode) === "optional" ? void 0 : usedPaymasterService;
   return {
     txHash: hashes[hashes.length - 1],
     txHashes: hashes,
     executionKind: usedSendCalls ? nativeExecutionKind : "eoa",
     batched: normalizedCalls.length > 1,
-    sponsored: usedPaymasterService
+    sponsored: sponsoredResult
   };
 }
 function extractBatchTransactionHashes(batchResult) {
@@ -2444,11 +2595,18 @@ function isRecoverableOptionalPaymasterError(error) {
   const lowered = message.toLowerCase();
   return lowered.includes("paymaster") || lowered.includes("sponsor") || lowered.includes("erc-7677");
 }
-function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
-  if (requiresSponsoredSendCalls) {
-    return false;
-  }
-  return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
+function canFallbackToSequentialWalletSends(error) {
+  return !isUserRejectedRequestError(error) && (isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error) || isWalletSendCallsFailure(error));
+}
+function isWalletSendCallsFailure(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("sendcalls") || lowered.includes("preparecalls") || lowered.includes("wallet_preparecalls") || lowered.includes("wallet_sendcalls");
+}
+function isUserRejectedRequestError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("user rejected") || lowered.includes("user denied") || lowered.includes("rejected the request") || lowered.includes("request rejected") || lowered.includes("4001");
 }
 function toErrorMessage(error) {
   var _a;
@@ -2523,15 +2681,12 @@ function buildFeeAAWalletCall(fee, chainId) {
     chainId
   };
 }
-function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
-  var _a, _b;
+function appendFeeCallToPayload(payload, fee, defaultChainId) {
   const feeCall = normalizeSimulatedFee(fee);
   if (!feeCall) {
     return payload;
   }
   const calls = toPayloadCalls(payload, defaultChainId);
-  const forceAaPreference = (_a = options == null ? void 0 : options.forceAaPreference) != null ? _a : "eip7702";
-  const strictAa = (_b = options == null ? void 0 : options.strictAa) != null ? _b : true;
   return __spreadProps(__spreadValues({}, payload), {
     // Fee call must be the final call in the AA batch.
     calls: [
@@ -2542,11 +2697,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
         value: feeCall.amountWei.toString(),
         chainId: defaultChainId
       }
-    ],
-    // Force AA mode once fee is appended so single user tx + fee still batches via AA.
-    aaPreference: forceAaPreference,
-    // Do not silently downgrade fee-injected batch requests to EOA.
-    aaStrict: strictAa
+    ]
   });
 }
 
@@ -2639,14 +2790,36 @@ function createAlchemyAAProvider({
 import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 
 // src/aa/adapt.ts
-function adaptSmartAccount(account) {
-  const delegationAddress = account.mode === "7702" && account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() === account.smartAccountAddress.toLowerCase() ? void 0 : account.delegationAddress;
-  return {
-    provider: account.provider,
-    mode: account.mode,
-    executionAddress: account.smartAccountAddress,
-    AAAddress: account.smartAccountAddress,
-    delegationAddress,
+function normalizeAAProvider(value) {
+  const lowered = value.toLowerCase();
+  if (lowered === "alchemy" || lowered === "pimlico") {
+    return lowered;
+  }
+  throw new Error(`Unsupported AA provider from SDK: ${value}`);
+}
+function adaptSmartAccount(account, address) {
+  if (account.mode === "4337") {
+    return {
+      provider: normalizeAAProvider(account.provider),
+      mode: "4337",
+      address,
+      SmartAccount4337: account.smartAccountAddress,
+      sendTransaction: async (call) => {
+        const receipt = await account.sendTransaction(call);
+        return { transactionHash: receipt.transactionHash };
+      },
+      sendBatchTransaction: async (calls) => {
+        const receipt = await account.sendBatchTransaction(calls);
+        return { transactionHash: receipt.transactionHash };
+      }
+    };
+  }
+  const Delegation7702 = account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() !== account.smartAccountAddress.toLowerCase() ? account.delegationAddress : void 0;
+  return __spreadProps(__spreadValues({
+    provider: normalizeAAProvider(account.provider),
+    mode: "7702",
+    address
+  }, Delegation7702 ? { Delegation7702 } : {}), {
     sendTransaction: async (call) => {
       const receipt = await account.sendTransaction(call);
       return { transactionHash: receipt.transactionHash };
@@ -2655,7 +2828,7 @@ function adaptSmartAccount(account) {
       const receipt = await account.sendBatchTransaction(calls);
       return { transactionHash: receipt.transactionHash };
     }
-  };
+  });
 }
 function isAlchemySponsorshipLimitError(error) {
   const message = error instanceof Error ? error.message : String(error != null ? error : "");
@@ -2783,9 +2956,20 @@ async function createAlchemySdkState(params) {
       error: new Error("Alchemy AA account could not be initialized.")
     };
   }
+  const ownerAddress = "address" in params.ownerParams ? params.ownerParams.address : void 0;
+  if (!ownerAddress) {
+    return {
+      resolved: params.resolved,
+      account: null,
+      pending: false,
+      error: new Error(
+        "Alchemy AA session owner is missing a wallet address. Connect a wallet first."
+      )
+    };
+  }
   return {
     resolved: params.resolved,
-    account: adaptSmartAccount(smartAccount),
+    account: adaptSmartAccount(smartAccount, ownerAddress),
     pending: false,
     error: null
   };
@@ -2946,16 +3130,14 @@ async function createAlchemyWalletApisState(params) {
       throw error;
     }
   };
-  const smartAccount = {
+  const smartAccount = __spreadProps(__spreadValues({
     provider: "alchemy",
     mode: params.resolved.mode,
-    ownerAddress: signerAddress,
-    executionAddress: params.resolved.mode === "4337" ? accountAddress : signerAddress,
-    AAAddress: accountAddress,
-    delegationAddress: params.resolved.mode === "7702" ? ALCHEMY_7702_DELEGATION_ADDRESS : void 0,
+    address: signerAddress
+  }, params.resolved.mode === "4337" ? { SmartAccount4337: accountAddress } : { Delegation7702: ALCHEMY_7702_DELEGATION_ADDRESS }), {
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls)
-  };
+  });
   return {
     resolved: params.resolved,
     account: smartAccount,
@@ -3126,7 +3308,18 @@ async function createPimlicoAAState(options) {
         error: new Error("Pimlico AA account could not be initialized.")
       };
     }
-    const account = adaptPimlicoSdkAccount(smartAccount);
+    const ownerAddress = "address" in ownerParams.ownerParams ? ownerParams.ownerParams.address : void 0;
+    if (!ownerAddress) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: new Error(
+          "Pimlico AA session owner is missing a wallet address. Connect a wallet first."
+        )
+      };
+    }
+    const account = adaptPimlicoSdkAccount(smartAccount, ownerAddress);
     return {
       resolved: execution,
       account,
@@ -3204,16 +3397,30 @@ function rejectExternalWallet7702(signer) {
     "EIP-7702 mode is not supported with external wallets. Use an embedded wallet or 4337 mode."
   );
 }
-function adaptPimlicoSdkAccount(account) {
-  return {
-    provider: account.provider,
-    mode: account.mode,
-    executionAddress: account.smartAccountAddress,
-    AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+function adaptPimlicoSdkAccount(account, address) {
+  const lowered = account.provider.toLowerCase();
+  if (lowered !== "alchemy" && lowered !== "pimlico") {
+    throw new Error(`Unsupported AA provider from Pimlico SDK: ${account.provider}`);
+  }
+  const provider = lowered;
+  if (account.mode === "4337") {
+    return {
+      provider,
+      mode: "4337",
+      address,
+      SmartAccount4337: account.smartAccountAddress,
+      sendTransaction: async (call) => account.sendTransaction(call),
+      sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls)
+    };
+  }
+  return __spreadProps(__spreadValues({
+    provider,
+    mode: "7702",
+    address
+  }, account.delegationAddress ? { Delegation7702: account.delegationAddress } : {}), {
     sendTransaction: async (call) => account.sendTransaction(call),
     sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls)
-  };
+  });
 }
 async function createPimlicoPermissionlessState(params) {
   const { createSmartAccountClient } = await import("permissionless");
@@ -3316,10 +3523,17 @@ async function createPimlicoPermissionlessState(params) {
       throw error instanceof Error ? error : new Error(String(error));
     }
   };
-  const account = {
+  const account = params.mode === "4337" ? {
     provider: "pimlico",
-    mode: params.mode,
-    AAAddress: accountAddress,
+    mode: "4337",
+    address: signerAddress,
+    SmartAccount4337: accountAddress,
+    sendTransaction: async (call) => sendCalls([call]),
+    sendBatchTransaction: async (calls) => sendCalls(calls)
+  } : {
+    provider: "pimlico",
+    mode: "7702",
+    address: signerAddress,
     sendTransaction: async (call) => sendCalls([call]),
     sendBatchTransaction: async (calls) => sendCalls(calls)
   };
@@ -3367,7 +3581,6 @@ export {
   UserState,
   aaModeFromExecutionKind,
   adaptSmartAccount,
-  addUserStateExt,
   appendFeeCallToPayload,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
@@ -3376,8 +3589,6 @@ export {
   createPimlicoAAProvider,
   executeWalletCalls,
   getAAChainConfig,
-  getUserStateAAMode,
-  getUserStateSmartAccount,
   getWalletExecutorReady,
   hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,

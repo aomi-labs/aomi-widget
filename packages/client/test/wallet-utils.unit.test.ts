@@ -20,7 +20,6 @@ describe("wallet payload normalization", () => {
     ).toEqual({
       txIds: [7],
       txId: 7,
-      aaPreference: "auto",
       requestId: undefined,
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "0",
@@ -39,8 +38,6 @@ describe("wallet payload normalization", () => {
     ).toEqual({
       txIds: [17],
       txId: 17,
-      aaPreference: "eip4337",
-      aaStrict: true,
       requestId: undefined,
       to: undefined,
       value: undefined,
@@ -54,7 +51,6 @@ describe("wallet payload normalization", () => {
       normalizeTxPayload({
         tx_ids: [22],
         aa_preference: "eip7702",
-        aaStrict: true,
         to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
         value: "1000",
         data: "0x1234",
@@ -62,8 +58,6 @@ describe("wallet payload normalization", () => {
     ).toEqual({
       txIds: [22],
       txId: 22,
-      aaPreference: "eip7702",
-      aaStrict: true,
       requestId: undefined,
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "1000",
@@ -86,7 +80,6 @@ describe("wallet payload normalization", () => {
       {
         txId: 9,
         txIds: [9],
-        aaPreference: "auto",
       },
       {
         pending_txs: {
@@ -104,7 +97,6 @@ describe("wallet payload normalization", () => {
     expect(hydrated).toEqual({
       txId: 9,
       txIds: [9],
-      aaPreference: "auto",
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "5",
       data: "0x",
@@ -129,7 +121,6 @@ describe("wallet payload normalization", () => {
       {
         txId: 9,
         txIds: [9],
-        aaPreference: "auto",
       },
       {
         pending_txs: {
@@ -148,7 +139,6 @@ describe("wallet payload normalization", () => {
     expect(hydrated).toEqual({
       txId: 9,
       txIds: [9],
-      aaPreference: "auto",
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "0",
       data: undefined,

@@ -7,9 +7,7 @@ import {
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
-import {
-  aaModeFromExecutionKind,
-} from "../../aa/policy";
+import { aaModeFromExecutionKind } from "../../aa/policy";
 import {
   toViemSignTypedDataArgs,
   type WalletEip712Payload,
@@ -17,7 +15,10 @@ import {
 import type { AomiSimulateFee, AomiSimulateResponse } from "../../types";
 import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
-import { parseSolanaKeypairSecret, signSolanaTransaction } from "../solana-signer";
+import {
+  parseSolanaKeypairSecret,
+  signSolanaTransaction,
+} from "../solana-signer";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -38,6 +39,11 @@ import {
 import type { CliConfig } from "../types";
 import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
 import { resolveAlchemyApiKey } from "../../aa/alchemy/defaults";
+
+type CliExecutionFailure = {
+  decision: CliExecutionDecision;
+  message: string;
+};
 
 export async function txCommand(): Promise<void> {
   const cli = CliSession.load();
@@ -138,11 +144,7 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
     return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
   }
 
-  return (
-    chain.rpcUrls.default.http[0] ??
-    chain.rpcUrls.public?.http[0] ??
-    ""
-  );
+  return chain.rpcUrls.default.http[0] ?? chain.rpcUrls.public?.http[0] ?? "";
 }
 
 function buildCliTxCompletionMetadata(params: {
@@ -160,7 +162,9 @@ function buildCliTxCompletionMetadata(params: {
       : "none";
   const resolvedMode =
     aaModeFromExecutionKind(params.execution.executionKind) ??
-    (params.finalDecision.execution === "aa" ? params.finalDecision.aaMode : "none");
+    (params.finalDecision.execution === "aa"
+      ? params.finalDecision.aaMode
+      : "none");
 
   let fallbackReason: string | undefined;
   if (requestedMode === "7702" && resolvedMode === "4337") {
@@ -174,6 +178,117 @@ function buildCliTxCompletionMetadata(params: {
     aa_resolved_mode: resolvedMode,
     aa_fallback_reason: fallbackReason,
   };
+}
+
+function cliDecisionMode(
+  decision: CliExecutionDecision,
+): "4337" | "7702" | "none" {
+  return decision.execution === "aa" ? decision.aaMode : "none";
+}
+
+function cliDecisionProvider(
+  decision: CliExecutionDecision,
+): string | undefined {
+  return decision.execution === "aa" ? decision.provider : undefined;
+}
+
+function buildCliTxFailurePayload(params: {
+  pendingTx: PendingTx;
+  requestedDecision: CliExecutionDecision;
+  failures: CliExecutionFailure[];
+  callCount: number;
+  fallbackReason: string;
+}): Record<string, unknown> {
+  const requestedMode = cliDecisionMode(params.requestedDecision);
+  const fallbackAttempts = params.failures.map((failure, index) => ({
+    order: index + 1,
+    layer: "cli.sign.strategy",
+    mode: cliDecisionMode(failure.decision),
+    status: "failed",
+    provider: cliDecisionProvider(failure.decision),
+    error: failure.message,
+  }));
+  const lastFailureMessage =
+    params.failures[params.failures.length - 1]?.message ??
+    "CLI execution failed";
+
+  return {
+    txHash: "",
+    status: "failed",
+    error: lastFailureMessage,
+    pending_tx_ids:
+      params.pendingTx.txId !== undefined ? [params.pendingTx.txId] : [],
+    aa_requested_mode: requestedMode,
+    aa_resolved_mode: "none",
+    aa_fallback_reason: params.fallbackReason,
+    execution_kind: undefined,
+    batched: params.callCount > 1,
+    call_count: params.callCount,
+    sponsored: undefined,
+    aa_fallback_attempts: fallbackAttempts,
+    wallet_debug_trace: [
+      {
+        layer: "cli.sign",
+        step: "strategy.plan",
+        status: "started",
+        mode: requestedMode,
+        call_count: params.callCount,
+        message: fallbackAttempts
+          .map((attempt) =>
+            attempt.provider
+              ? `${attempt.mode}:${attempt.provider}`
+              : attempt.mode,
+          )
+          .join(" -> "),
+      },
+      ...params.failures.map((failure) => ({
+        layer: "cli.sign",
+        step: "strategy.execute",
+        status: "failed",
+        mode: cliDecisionMode(failure.decision),
+        provider: cliDecisionProvider(failure.decision),
+        call_count: params.callCount,
+        message: failure.message,
+      })),
+      {
+        layer: "cli.sign",
+        step: "strategy.execute",
+        status: "terminal",
+        mode: "none",
+        call_count: params.callCount,
+        reason: params.fallbackReason,
+        message: lastFailureMessage,
+      },
+    ],
+    smart_account_4337: undefined,
+    delegation_7702: undefined,
+  };
+}
+
+async function notifyCliTxFailures(params: {
+  cli: CliSession;
+  session: ReturnType<CliSession["createClientSession"]>;
+  pendingTxs: PendingTx[];
+  requestedDecision: CliExecutionDecision;
+  failures: CliExecutionFailure[];
+  callCount: number;
+  fallbackReason: string;
+}): Promise<void> {
+  for (const pendingTx of params.pendingTxs) {
+    await params.session.client.sendSystemMessage(
+      params.cli.sessionId,
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: buildCliTxFailurePayload({
+          pendingTx,
+          requestedDecision: params.requestedDecision,
+          failures: params.failures,
+          callCount: params.callCount,
+          fallbackReason: params.fallbackReason,
+        }),
+      }),
+    );
+  }
 }
 
 async function simulatePendingTransactions(params: {
@@ -301,7 +416,14 @@ async function executeCliTransaction(params: {
   providerState: Awaited<ReturnType<typeof createCliProviderState>>;
   callList: ReturnType<typeof pendingTxToCallList>;
 }): Promise<ExecutionResult> {
-  const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
+  const {
+    privateKey,
+    currentChainId,
+    chainsById,
+    rpcUrl,
+    providerState,
+    callList,
+  } = params;
   const unsupportedWalletMethod = async (): Promise<never> => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
   };
@@ -316,12 +438,15 @@ async function executeCliTransaction(params: {
     sendTransactionAsync: unsupportedWalletMethod,
     switchChainAsync: async () => undefined,
     chainsById,
-    getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl),
+    getPreferredRpcUrl: (resolvedChain) =>
+      getPreferredRpcUrl(resolvedChain, rpcUrl),
   });
 }
 
-
-export async function signCommand(config: CliConfig, txIds: string[]): Promise<void> {
+export async function signCommand(
+  config: CliConfig,
+  txIds: string[],
+): Promise<void> {
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs.",
@@ -329,7 +454,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
   }
   const uniqueIds = Array.from(new Set(txIds));
   if (uniqueIds.length !== txIds.length) {
-    fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+    fatal(
+      "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.",
+    );
   }
 
   const cli = CliSession.load();
@@ -356,8 +483,12 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     // two authoritative arrays (EVM/EIP-712 or Solana) — backend ids are
     // unique across kinds. Mixing kinds in a single invocation is a UX
     // error, so dispatch wholesale.
-    const solanaIds = uniqueIds.filter((id) => cli.findPendingSolTx(id) !== undefined);
-    const evmIds = uniqueIds.filter((id) => cli.findPendingTx(id) !== undefined);
+    const solanaIds = uniqueIds.filter(
+      (id) => cli.findPendingSolTx(id) !== undefined,
+    );
+    const evmIds = uniqueIds.filter(
+      (id) => cli.findPendingTx(id) !== undefined,
+    );
     const unknownIds = uniqueIds.filter(
       (id) =>
         cli.findPendingSolTx(id) === undefined &&
@@ -365,9 +496,13 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     );
     if (unknownIds.length > 0) {
       const available =
-        [...cli.pendingTxs, ...cli.pendingSolTxs].map((tx) => tx.id).join(", ") || "(none)";
+        [...cli.pendingTxs, ...cli.pendingSolTxs]
+          .map((tx) => tx.id)
+          .join(", ") || "(none)";
       const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
-      fatal(`${label} "${unknownIds.join('", "')}" not found.\nAvailable: ${available}`);
+      fatal(
+        `${label} "${unknownIds.join('", "')}" not found.\nAvailable: ${available}`,
+      );
     }
     if (solanaIds.length > 0 && evmIds.length > 0) {
       fatal(
@@ -378,9 +513,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     // Solana sign branch: singular, no EVM key, no chain/RPC needed.
     if (solanaIds.length > 0) {
       if (solanaIds.length > 1) {
-        fatal(
-          "Solana signing is singular — pass exactly one tx-id at a time.",
-        );
+        fatal("Solana signing is singular — pass exactly one tx-id at a time.");
       }
       const solanaTx = cli.requirePendingSolTx(solanaIds[0]);
       await signSolanaPending({
@@ -418,7 +551,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     }
 
     const rpcUrl = config.chainRpcUrl;
-    const resolvedChainIds = pendingTxs.map((tx) => tx.chainId ?? cli.chainId ?? 1);
+    const resolvedChainIds = pendingTxs.map(
+      (tx) => tx.chainId ?? cli.chainId ?? 1,
+    );
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
     const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
@@ -433,16 +568,23 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
 
     let signedRecords: SignedTx[] = [];
-    let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    let backendNotifications: Array<{
+      type: string;
+      payload: Record<string, unknown>;
+    }> = [];
     let resolvedUserStateAAMode: "4337" | "7702" | null = null;
-    let resolvedUserStateSmartAccount: string | null = null;
+    let resolvedUserStateSmartAccount4337: string | null = null;
+    let resolvedUserStateDelegation7702: string | null = null;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
-      console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
+      console.log(
+        `Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`,
+      );
       for (const tx of pendingTxs) {
         console.log(`Tx:      ${tx.id} -> ${tx.to}`);
         if (tx.value) console.log(`Value:   ${tx.value}`);
-        if (tx.chainId ?? cli.chainId) console.log(`Chain:   ${tx.chainId ?? cli.chainId}`);
+        if (tx.chainId ?? cli.chainId)
+          console.log(`Chain:   ${tx.chainId ?? cli.chainId}`);
         if (tx.data) {
           console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
@@ -460,7 +602,9 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         rpcUrl &&
         new Set(baseCallList.map((call) => call.chainId)).size > 1
       ) {
-        fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
+        fatal(
+          "A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.",
+        );
       }
 
       const simulationDecision = resolveCliExecutionDecision({
@@ -480,17 +624,17 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
             })
           : undefined;
       const simulationAAMode =
-        simulationDecision.execution === "aa" ? simulationDecision.aaMode : null;
+        simulationDecision.execution === "aa"
+          ? simulationDecision.aaMode
+          : null;
       const simulationSmartAccount =
         simulationAAMode === "4337"
-          ? simulationProviderState?.account?.AAAddress ??
-            simulationProviderState?.account?.executionAddress ??
-            null
+          ? (simulationProviderState?.account?.SmartAccount4337 ?? null)
           : null;
 
       session.resolveWallet(account.address, primaryChainId, {
         aaMode: simulationAAMode,
-        smartAccount: simulationSmartAccount,
+        smartAccount4337: simulationSmartAccount,
       });
       await session.syncUserState();
 
@@ -560,7 +704,11 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         });
 
         let executionCallList = decisionCallList;
-        if (autoFeeCall && d.execution === "aa" && ps.resolved?.sponsorship !== "disabled") {
+        if (
+          autoFeeCall &&
+          d.execution === "aa" &&
+          ps.resolved?.sponsorship !== "disabled"
+        ) {
           console.log(
             `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`,
           );
@@ -579,27 +727,63 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
       let finalDecision: CliExecutionDecision = decision;
       let execution!: ExecutionResult;
-      const failures: Array<{ decision: CliExecutionDecision; message: string }> = [];
+      const failures: Array<{
+        decision: CliExecutionDecision;
+        message: string;
+      }> = [];
 
       for (const strategy of strategies) {
         if (failures.length > 0) {
           const prev = strategies[failures.length - 1]!;
-          console.log(`${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1]!.message}`);
-          console.log(`Retrying with ${describeExecutionDecision(strategy)}...`);
+          console.log(
+            `${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1]!.message}`,
+          );
+          console.log(
+            `Retrying with ${describeExecutionDecision(strategy)}...`,
+          );
         }
         try {
           execution = await runWithDecision(strategy);
           finalDecision = strategy;
           break;
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message =
+            error instanceof Error ? error.message : String(error);
           failures.push({ decision: strategy, message });
           if (strategy === strategies[strategies.length - 1]) {
+            const fallbackReason =
+              config.execution === "aa"
+                ? "aa_all_modes_failed"
+                : "all_execution_paths_failed";
+            try {
+              await notifyCliTxFailures({
+                cli,
+                session,
+                pendingTxs,
+                requestedDecision: decision,
+                failures,
+                callCount: decisionCallList.length,
+                fallbackReason,
+              });
+            } catch (notifyError) {
+              console.warn(
+                `${DIM}Failed to notify backend about wallet failure: ${
+                  notifyError instanceof Error
+                    ? notifyError.message
+                    : String(notifyError)
+                }${RESET}`,
+              );
+            }
             if (config.execution === "aa") {
               fatal(
                 `❌ AA execution failed with all modes.\n` +
-                failures.map((f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`).join("\n") +
-                "\nUse `--eoa` to sign without account abstraction.",
+                  failures
+                    .map(
+                      (f) =>
+                        `  ${describeExecutionDecision(f.decision)}: ${f.message}`,
+                    )
+                    .join("\n") +
+                  "\nUse `--eoa` to sign without account abstraction.",
               );
             }
             throw error;
@@ -614,11 +798,11 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       if (execution.sponsored) {
         console.log("Gas:     sponsored");
       }
-      if (execution.AAAddress) {
-        console.log(`AA:      ${execution.AAAddress}`);
+      if (execution.SmartAccount4337) {
+        console.log(`AA:      ${execution.SmartAccount4337}`);
       }
-      if (execution.delegationAddress) {
-        console.log(`Deleg:   ${execution.delegationAddress}`);
+      if (execution.Delegation7702) {
+        console.log(`Deleg:   ${execution.Delegation7702}`);
       }
 
       const executionUsedAA =
@@ -627,8 +811,14 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         executionUsedAA && finalDecision.execution === "aa"
           ? finalDecision.aaMode
           : null;
-      resolvedUserStateSmartAccount =
-        resolvedUserStateAAMode === "4337" ? execution.AAAddress ?? null : null;
+      resolvedUserStateSmartAccount4337 =
+        resolvedUserStateAAMode === "4337"
+          ? (execution.SmartAccount4337 ?? null)
+          : null;
+      resolvedUserStateDelegation7702 =
+        resolvedUserStateAAMode === "7702"
+          ? (execution.Delegation7702 ?? null)
+          : null;
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -660,13 +850,15 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           batched: execution.batched,
           call_count: execution.txHashes.length,
           sponsored: execution.sponsored,
-          smart_account_address: execution.AAAddress,
-          delegation_address: execution.delegationAddress,
+          smart_account_4337: execution.SmartAccount4337,
+          delegation_7702: execution.Delegation7702,
         },
       }));
     } else {
       if (pendingTxs.length > 1) {
-        fatal("Batch signing is only supported for transaction requests, not EIP-712 requests.");
+        fatal(
+          "Batch signing is only supported for transaction requests, not EIP-712 requests.",
+        );
       }
 
       const pendingTx = pendingTxs[0];
@@ -693,32 +885,37 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
       console.log(`✅ Signed! Signature: ${signature.slice(0, 20)}...`);
 
-      signedRecords = [{
-        id: pendingTx.id,
-        kind: "eip712_sign",
-        signature,
-        from: account.address,
-        description: pendingTx.description,
-        timestamp: Date.now(),
-      }];
-      backendNotifications = [{
-        type: "wallet_eip712_response",
-        payload: {
-          status: "success",
+      signedRecords = [
+        {
+          id: pendingTx.id,
+          kind: "eip712_sign",
           signature,
+          from: account.address,
           description: pendingTx.description,
-          ...(pendingTx.eip712Id !== undefined
-            ? { pending_eip712_id: pendingTx.eip712Id }
-            : {}),
+          timestamp: Date.now(),
         },
-      }];
+      ];
+      backendNotifications = [
+        {
+          type: "wallet_eip712_response",
+          payload: {
+            status: "success",
+            signature,
+            description: pendingTx.description,
+            ...(pendingTx.eip712Id !== undefined
+              ? { pending_eip712_id: pendingTx.eip712Id }
+              : {}),
+          },
+        },
+      ];
     }
 
     // Persist signer state and notify the backend with authoritative staged ids.
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
       aaMode: resolvedUserStateAAMode,
-      smartAccount: resolvedUserStateSmartAccount,
+      smartAccount4337: resolvedUserStateSmartAccount4337,
+      delegation7702: resolvedUserStateDelegation7702,
     });
 
     for (const backendNotification of backendNotifications) {

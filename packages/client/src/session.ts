@@ -31,10 +31,7 @@ import {
 } from "./types";
 import { TypedEventEmitter } from "./event";
 import { unwrapSystemEvent } from "./event";
-import {
-  aaModeFromExecutionKind,
-  aaRequestedModeFromPreference,
-} from "./aa/policy";
+import { aaModeFromExecutionKind } from "./aa/policy";
 import {
   normalizeTxPayload,
   hydrateTxPayloadFromUserState,
@@ -50,6 +47,54 @@ import {
 // =============================================================================
 
 export type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
+
+const DEFAULT_AA_REQUESTED_MODE = "7702" as const;
+
+export type WalletTxAAMode = "4337" | "7702" | "none";
+
+export type WalletTxDebugTraceEntry = {
+  layer: string;
+  step: string;
+  status:
+    | "started"
+    | "resolved"
+    | "skipped"
+    | "failed"
+    | "fallback"
+    | "terminal";
+  mode?: WalletTxAAMode;
+  provider?: string;
+  executionKind?: string;
+  sponsored?: boolean;
+  callCount?: number;
+  message?: string;
+  reason?: string;
+};
+
+export type WalletTxFallbackAttempt = {
+  order: number;
+  layer: string;
+  mode: WalletTxAAMode;
+  status: "skipped" | "failed" | "succeeded";
+  provider?: string;
+  sponsored?: boolean;
+  reason?: string;
+  error?: string;
+  executionKind?: string;
+};
+
+export type WalletTxFailureMetadata = {
+  error?: string;
+  aaRequestedMode?: WalletTxAAMode;
+  aaResolvedMode?: WalletTxAAMode;
+  aaFallbackReason?: string;
+  executionKind?: string;
+  batched?: boolean;
+  callCount?: number;
+  sponsored?: boolean;
+  aaFallbackAttempts?: WalletTxFallbackAttempt[];
+  walletDebugTrace?: WalletTxDebugTraceEntry[];
+};
 
 /**
  * Tagged union of in-flight wallet requests. The `kind` field is the
@@ -100,15 +145,15 @@ export type WalletRequestResult =
       kind: "transaction";
       txHash: string;
       amount?: string;
-      aaRequestedMode?: "4337" | "7702" | "none";
-      aaResolvedMode?: "4337" | "7702" | "none";
+      aaRequestedMode?: WalletTxAAMode;
+      aaResolvedMode?: WalletTxAAMode;
       aaFallbackReason?: string;
       executionKind?: string;
       batched?: boolean;
       callCount?: number;
       sponsored?: boolean;
-      smartAccountAddress?: string;
-      delegationAddress?: string;
+      SmartAccount4337?: string;
+      Delegation7702?: string;
     }
   | {
       kind: "eip712_sign";
@@ -119,6 +164,48 @@ export type WalletRequestResult =
       /** Base64 of the full signed Solana transaction bytes. */
       signedTx: string;
     };
+
+function normalizeWalletFailure(
+  reason?: string | WalletTxFailureMetadata,
+): WalletTxFailureMetadata {
+  if (typeof reason === "string") {
+    return { error: reason };
+  }
+  return reason ?? {};
+}
+
+function walletFallbackAttemptsToWire(
+  attempts: WalletTxFallbackAttempt[] | undefined,
+): Array<Record<string, unknown>> | undefined {
+  return attempts?.map((attempt) => ({
+    order: attempt.order,
+    layer: attempt.layer,
+    mode: attempt.mode,
+    status: attempt.status,
+    provider: attempt.provider,
+    sponsored: attempt.sponsored,
+    reason: attempt.reason,
+    error: attempt.error,
+    execution_kind: attempt.executionKind,
+  }));
+}
+
+function walletDebugTraceToWire(
+  trace: WalletTxDebugTraceEntry[] | undefined,
+): Array<Record<string, unknown>> | undefined {
+  return trace?.map((entry) => ({
+    layer: entry.layer,
+    step: entry.step,
+    status: entry.status,
+    mode: entry.mode,
+    provider: entry.provider,
+    execution_kind: entry.executionKind,
+    sponsored: entry.sponsored,
+    call_count: entry.callCount,
+    message: entry.message,
+    reason: entry.reason,
+  }));
+}
 
 export type SendResult = {
   messages: AomiMessage[];
@@ -131,6 +218,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNil(value: unknown): value is null | undefined {
   return value === null || value === undefined;
+}
+
+function stableUserStateString(state: UserStateShape | undefined): string {
+  return JSON.stringify(sortJson(state ?? {}));
 }
 
 function sortJson(value: unknown): unknown {
@@ -250,6 +341,16 @@ export type SessionEventMap = {
   title_changed: { title: string };
   /** Messages updated (new messages from poll or send response). */
   messages: AomiMessage[];
+  /**
+   * Session-side UserState changed (e.g. post-tx writes from `resolveUserState`).
+   * The React UserContext subscribes to this so per-tx fields written by the
+   * Session reach `useUser()` without each consumer polling.
+   *
+   * Not emitted when the caller passes `{ skipEmit: true }` to
+   * `resolveUserState` — used by the React→Session direction to break the
+   * feedback loop (React→Session→event→setUser→React).
+   */
+  user_state_updated: UserStateShape;
   /** AI started processing. */
   processing_start: undefined;
   /** AI finished processing. */
@@ -317,9 +418,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
-    const initialUserState = UserState.reconcile(undefined, sessionOptions?.userState);
+    const initialUserState = UserState.reconcile(
+      undefined,
+      sessionOptions?.userState,
+    );
     this.userState = sessionOptions?.clientType
-      ? UserState.withExt(initialUserState ?? {}, "client_type", sessionOptions.clientType)
+      ? UserState.withExt(
+          initialUserState ?? {},
+          "client_type",
+          sessionOptions.clientType,
+        )
       : initialUserState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.syncPendingTxRequestsFromUserState =
@@ -426,18 +534,20 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction" && result.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode =
-        result.aaRequestedMode ??
-        aaRequestedModeFromPreference(req.payload.aaPreference);
+      const requestedMode = result.aaRequestedMode ?? DEFAULT_AA_REQUESTED_MODE;
       const resolvedMode =
         result.aaResolvedMode ??
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
+      // Session owns execution-derived AA fields; provider/auth metadata flows
+      // through the auth-adapter identity sync path instead.
       this.resolveUserState({
         ...(this.userState ?? {}),
-        aa_mode: resolvedMode === "none" ? null : resolvedMode,
-        smart_account:
-          resolvedMode === "4337" ? result.smartAccountAddress ?? null : null,
+        aa_mode: resolvedMode,
+        smart_account_4337:
+          resolvedMode === "4337" ? (result.SmartAccount4337 ?? null) : null,
+        delegation_7702:
+          resolvedMode === "7702" ? (result.Delegation7702 ?? null) : null,
       });
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash,
@@ -451,8 +561,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         batched: result.batched ?? pendingTxIds.length > 1,
         call_count: result.callCount ?? pendingTxIds.length,
         sponsored: result.sponsored,
-        smart_account_address: result.smartAccountAddress,
-        delegation_address: result.delegationAddress,
+        smart_account_4337: result.SmartAccount4337,
+        delegation_7702: result.Delegation7702,
       });
     } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", {
@@ -484,7 +594,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * Reject a pending wallet request.
    * Sends an error to the backend and resumes polling.
    */
-  async reject(requestId: string, reason?: string): Promise<void> {
+  async reject(
+    requestId: string,
+    reason?: string | WalletTxFailureMetadata,
+  ): Promise<void> {
     const req = this.removeWalletRequest(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
@@ -492,35 +605,43 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
+      const failure = normalizeWalletFailure(reason);
+      const requestedMode =
+        failure.aaRequestedMode ?? DEFAULT_AA_REQUESTED_MODE;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
-        error: reason ?? "Request rejected",
+        error: failure.error ?? "Request rejected",
         pending_tx_ids: pendingTxIds,
         aa_requested_mode: requestedMode,
-        aa_resolved_mode: requestedMode,
-        aa_fallback_reason: undefined,
-        execution_kind: undefined,
-        batched: pendingTxIds.length > 1,
-        call_count: pendingTxIds.length,
-        sponsored: undefined,
-        smart_account_address: undefined,
-        delegation_address: undefined,
+        aa_resolved_mode: failure.aaResolvedMode ?? "none",
+        aa_fallback_reason: failure.aaFallbackReason,
+        execution_kind: failure.executionKind,
+        batched: failure.batched ?? pendingTxIds.length > 1,
+        call_count: failure.callCount ?? pendingTxIds.length,
+        sponsored: failure.sponsored,
+        aa_fallback_attempts: walletFallbackAttemptsToWire(
+          failure.aaFallbackAttempts,
+        ),
+        wallet_debug_trace: walletDebugTraceToWire(failure.walletDebugTrace),
+        smart_account_4337: undefined,
+        delegation_7702: undefined,
       });
     } else if (req.kind === "eip712_sign") {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet_eip712_response", {
         status: "failed",
-        error: reason ?? "Request rejected",
+        error: error ?? "Request rejected",
         description: req.payload.description,
         ...(req.payload.eip712Id !== undefined
           ? { pending_eip712_id: req.payload.eip712Id }
           : {}),
       });
     } else {
+      const error = normalizeWalletFailure(reason).error;
       await this.sendSystemEvent("wallet::solana_sign_complete", {
         status: "rejected",
-        error: reason ?? "Request rejected",
+        error: error ?? "Request rejected",
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -603,25 +724,37 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  resolveUserState(userState: UserStateShape): void {
+  resolveUserState(
+    userState: UserStateShape,
+    opts?: { skipEmit?: boolean },
+  ): void {
+    const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
+    const nextSerialized = stableUserStateString(this.userState);
 
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
-    if (
-      address &&
-      isConnected !== false
-    ) {
+    if (address && isConnected !== false) {
       this.publicKey = address;
     } else {
       this.publicKey = undefined;
     }
 
     this.syncWalletRequests();
+
+    if (
+      !opts?.skipEmit &&
+      this.userState &&
+      previousSerialized !== nextSerialized
+    ) {
+      this.emit("user_state_updated", this.userState);
+    }
   }
 
   setClientType(clientType: AomiClientType): void {
-    this.resolveUserState(UserState.withExt(this.userState ?? {}, "client_type", clientType));
+    this.resolveUserState(
+      UserState.withExt(this.userState ?? {}, "client_type", clientType),
+    );
   }
 
   addExtValue(key: string, value: unknown): void {
@@ -658,22 +791,48 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     chainId?: number,
     aa?: {
       aaMode?: UserStateAAMode | null;
-      smartAccount?: string | null;
+      smartAccount4337?: string | null;
+      delegation7702?: string | null;
     },
   ): void {
-    this.resolveUserState({
+    const resolvedAAMode =
+      aa?.aaMode ??
+      (aa?.smartAccount4337 ? "4337" : aa?.delegation7702 ? "7702" : "none");
+    // Spread the current userState so session-scoped metadata (e.g.
+    // `ext.client_type`) carries through. The reconciler only preserves
+    // connection-scoped fields, so without this spread the CLI tx-complete
+    // path would silently drop `ext`.
+    const next: UserStateShape = {
+      ...(this.userState ?? {}),
       address,
+      aa_mode: resolvedAAMode,
       chain_id: chainId ?? 1,
       is_connected: true,
-      aa_mode: aa?.aaMode ?? null,
-      smart_account: aa?.smartAccount ?? null,
-    });
+    };
+    // Per-tx AA address fields are written mode-exclusively when the
+    // caller explicitly hands them in (post-tx-complete path). Connection
+    // prep / simulation calls omit them so the reconciler preserves
+    // whatever the previous tx left in place.
+    if (
+      aa?.smartAccount4337 !== undefined ||
+      aa?.delegation7702 !== undefined
+    ) {
+      next.smart_account_4337 =
+        resolvedAAMode === "4337" ? (aa?.smartAccount4337 ?? null) : null;
+      next.delegation_7702 =
+        resolvedAAMode === "7702" ? (aa?.delegation7702 ?? null) : null;
+    }
+    this.resolveUserState(next);
   }
 
   async syncUserState(): Promise<AomiStateResponse> {
     this.assertOpen();
 
-    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId,
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -907,7 +1066,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     this.walletRequests = existing
-      ? this.walletRequests.map((request) => (request.id === id ? req : request))
+      ? this.walletRequests.map((request) =>
+          request.id === id ? req : request,
+        )
       : [...this.walletRequests, req];
 
     if (req.kind === "transaction") {
@@ -943,10 +1104,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   // Internal — Helpers
   // ===========================================================================
 
-  private async sendSystemEvent(
-    type: string,
-    payload: unknown,
-  ): Promise<void> {
+  private async sendSystemEvent(type: string, payload: unknown): Promise<void> {
     const message = JSON.stringify({ type, payload });
     await this.client.sendSystemMessage(this.sessionId, message);
   }
@@ -965,7 +1123,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  private assertUserStateAligned(actualUserState?: UserStateShape | null): void {
+  private assertUserStateAligned(
+    actualUserState?: UserStateShape | null,
+  ): void {
     const expectedUserState = UserState.normalize(this.userState);
     const normalizedActualUserState = UserState.reconcile(
       expectedUserState,
@@ -991,7 +1151,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   ): string {
     if (kind === "transaction") {
       const txPayload = payload as WalletTxPayload;
-      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
+      if (
+        typeof txPayload.requestId === "string" &&
+        txPayload.requestId.length > 0
+      ) {
         return `txreq-${txPayload.requestId}`;
       }
       const txIds = txIdsFromPayload(txPayload);
@@ -1055,10 +1218,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       if (txIds.some((txId) => coveredPendingTxIds.has(txId))) {
         continue;
       }
-      const payload = hydrateTxPayloadFromUserState(
-        request.payload,
-        { pending_txs: pendingTxs ?? {} },
-      );
+      const payload = hydrateTxPayloadFromUserState(request.payload, {
+        pending_txs: pendingTxs ?? {},
+      });
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
@@ -1079,7 +1241,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           {
             txId,
             txIds: [txId],
-            aaPreference: "auto",
           },
           {
             pending_txs: {
@@ -1094,8 +1255,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           kind: "transaction",
           payload,
           timestamp:
-            this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
-            Date.now(),
+            this.walletRequests.find((request) => request.id === requestId)
+              ?.timestamp ?? Date.now(),
         });
       }
     }
@@ -1113,8 +1274,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         kind: "eip712_sign",
         payload,
         timestamp:
-          this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+          this.walletRequests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
       });
     }
 
@@ -1131,8 +1292,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         kind: "solana_sign",
         payload,
         timestamp:
-          this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+          this.walletRequests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
       });
     }
 

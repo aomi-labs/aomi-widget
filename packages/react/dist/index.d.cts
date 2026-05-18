@@ -1,5 +1,5 @@
-import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse } from '@aomi-labs/client';
-export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, WalletTxFailureMetadata, AomiSimulateResponse } from '@aomi-labs/client';
+export { AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignPayload, WalletTxAAMode, WalletTxDebugTraceEntry, WalletTxFailureMetadata, WalletTxFallbackAttempt, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
@@ -29,9 +29,10 @@ type RuntimeUserStateProviderProps = {
     children: ReactNode;
     sessionManager: SessionManager;
     getUserState: () => UserState;
+    setUser: (data: Partial<UserState>) => void;
     onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
-declare function RuntimeUserStateProvider({ children, sessionManager, getUserState, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
+declare function RuntimeUserStateProvider({ children, sessionManager, getUserState, setUser, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
 
 type ThreadContext = {
     currentThreadId: string;
@@ -171,8 +172,8 @@ type WalletHandlerApi = {
      * this and throws on mismatch.
      */
     resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
-    /** Fail a request — sends error to backend via ClientSession */
-    rejectRequest: (id: string, error?: string) => Promise<void>;
+    /** Fail a request — sends error/debug metadata to backend via ClientSession */
+    rejectRequest: (id: string, error?: string | WalletTxFailureMetadata) => Promise<void>;
 };
 declare function useWalletHandler({ getSession, }: WalletHandlerConfig): WalletHandlerApi;
 
@@ -230,7 +231,7 @@ type AomiRuntimeApi = {
     /** Complete a wallet request after the backend acknowledges the response */
     resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
     /** Fail a wallet request after the backend acknowledges the error */
-    rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+    rejectWalletRequest: (id: string, error?: string | WalletTxFailureMetadata) => Promise<void>;
     /** Simulate a batch against the current thread session context. */
     simulateBatchTransactions: (transactions: Array<{
         to: string;
@@ -315,7 +316,21 @@ declare function useUser(): {
     getUserState: () => UserState;
     onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
-declare function UserContextProvider({ children }: {
+/**
+ * Idempotent provider: if a parent already provided `UserContext`, render
+ * children straight through. Otherwise mount a fresh store.
+ *
+ * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the auth-adapter
+ * layers (`AomiParaProvider` / `AomiBaseAccountProvider`) both want to be
+ * usable standalone. Each historically wrapped with `<ExtUserProvider>` —
+ * but when they nest, the inner provider created a *second* store that
+ * shadowed the outer. The chat composer would read from one store while
+ * `AomiAuthAdapterSync` wrote to another, so wallet connects never
+ * propagated to the chat's `user_state`. Collapsing nested mounts to the
+ * outermost store fixes that without forcing host apps to wire the
+ * provider themselves.
+ */
+declare function ExtUserProvider({ children }: {
     children: ReactNode;
 }): react_jsx_runtime.JSX.Element;
 
@@ -352,8 +367,8 @@ declare const getChainInfo: (chainId: number | undefined) => ChainInfo | undefin
  */
 declare function resolveAutoModel(models: string[]): string | null;
 
-/** A stored provider API key (BYOK) */
-type StoredProviderKey = {
+/** A stored BYOK entry for an LLM provider */
+type StoredByokKey = {
     apiKey: string;
     keyPrefix: string;
     label?: string;
@@ -376,8 +391,8 @@ type ControlState = {
     defaultModel: string | null;
     /** Default app (from authorizedApps) */
     defaultApp: string | null;
-    /** Provider API keys stored locally (BYOK) — keyed by provider name */
-    providerKeys: Record<string, StoredProviderKey>;
+    /** BYOK entries stored locally — keyed by LLM provider name */
+    byokKeys: Record<string, StoredByokKey>;
 };
 type ControlContextApi = {
     /** Global state (apiKey, clientId, available models/apps) */
@@ -388,14 +403,14 @@ type ControlContextApi = {
     ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
     /** Clear all secrets from the backend vault */
     clearSecrets: () => Promise<void>;
-    /** Store a provider API key (BYOK) in localStorage and ingest into backend vault */
-    setProviderKey: (provider: string, apiKey: string, label?: string) => Promise<void>;
-    /** Remove a provider API key from localStorage and backend vault */
-    removeProviderKey: (provider: string) => Promise<void>;
-    /** Get all stored provider keys (metadata only — keys are in state.providerKeys) */
-    getProviderKeys: () => Record<string, StoredProviderKey>;
-    /** Check if a provider key is stored */
-    hasProviderKey: (provider?: string) => boolean;
+    /** Store a BYOK entry for an LLM provider in localStorage and ingest into backend vault */
+    setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
+    /** Remove a BYOK entry from localStorage and backend vault */
+    removeByok: (provider: string) => Promise<void>;
+    /** Get all stored BYOK entries (metadata only — keys are in state.byokKeys) */
+    getByokKeys: () => Record<string, StoredByokKey>;
+    /** Check if a BYOK entry is stored */
+    hasByok: (provider?: string) => boolean;
     /** Fetch available models from backend */
     getAvailableModels: () => Promise<string[]>;
     /** Fetch authorized apps from backend */
@@ -441,4 +456,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredModelPreference, type StoredProviderKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, UserContextProvider, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ChainInfo, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type StoredModelPreference, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };

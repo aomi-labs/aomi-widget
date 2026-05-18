@@ -56,7 +56,7 @@ Replace `apps/portal`'s forked chat/widget stack with direct `@aomi-labs/widget-
   - remove duplicated runtime controls such as the separate "App API Key" editor and any local-only theme/preferences surfaces that are no longer part of the product.
 - Reuse shared control/runtime state on `/settings`:
   - wire `settings-runtime-provider.tsx` into the settings route,
-  - make it provide `ThreadContextProvider`, `UserContextProvider`, and `ControlContextProvider`,
+  - make it provide `ThreadContextProvider`, `ExtUserProvider`, and `ControlContextProvider`,
   - sync wallet identity from `useAomiAuthAdapter()` into `useUser()` so settings pages use the same persisted API key, client id, and provider-key conventions as the widget.
 - Treat `/` and `/settings` as separate provider trees.
   - Shared behavior across route navigations should come from persisted storage and wallet identity rehydration, not from live React state surviving navigation.

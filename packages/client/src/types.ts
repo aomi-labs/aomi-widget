@@ -6,15 +6,54 @@
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
  */
-export type UserStateAAMode = "4337" | "7702";
+export type UserStateAAMode = "none" | "4337" | "7702";
+export type UserStateWalletProvider = "para" | "baseAccount";
+export type UserStateAuthMethod =
+  | "google"
+  | "apple"
+  | "facebook"
+  | "x"
+  | "discord"
+  | "github"
+  | "farcaster"
+  | "telegram"
+  | "email"
+  | "phone"
+  | "wagmi";
+export type UserStateSponsorProvider =
+  | "alchemy"
+  | "coinbase"
+  | "pimlico"
+  | "self";
 
 export interface UserState extends Record<string, unknown> {
+  /** Connected EVM account address (0x...). */
   address?: string | null;
   chain_id?: number | string | null;
   is_connected?: boolean | null;
-  svm_address?: string | null;
+  ens_name?: string | null;
+  ext?: Record<string, unknown> | null;
   aa_mode?: UserStateAAMode | null;
-  smart_account?: string | null;
+  /** 4337 smart account address — populated after a 4337 tx resolves. */
+  smart_account_4337?: string | null;
+  /** 7702 delegation contract address — populated after a 7702 tx resolves. */
+  delegation_7702?: string | null;
+  svm_address?: string | null;
+  wallet_provider?: UserStateWalletProvider | null;
+  auth_method?: UserStateAuthMethod | null;
+  sponsored?: boolean | null;
+  sponsor_provider?: UserStateSponsorProvider | null;
+  sponsor_account?: string | null;
+
+  /**
+   * Backend-pushed in-flight wallet requests. Shape is owned by the backend;
+   * parsed by helpers like `pendingTxsFromBackendUserState`. The client
+   * forwards them transparently via reconciliation.
+   */
+  pending_txs?: Record<string, unknown> | null;
+  pending_eip712s?: Record<string, unknown> | null;
+  pending_solana_txs?: Record<string, unknown> | null;
+  next_id?: number | null;
 }
 
 /**
@@ -31,13 +70,21 @@ const USER_STATE_KEY_ALIASES: Record<string, string> = {
   isConnected: "is_connected",
   ensName: "ens_name",
   svmAddress: "svm_address",
+  aaMode: "aa_mode",
+  smartAccount4337: "smart_account_4337",
+  smartAccount: "smart_account_4337",
+  smartAccountAddress: "smart_account_4337",
+  SmartAccount4337: "smart_account_4337",
+  delegation7702: "delegation_7702",
+  Delegation7702: "delegation_7702",
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
   pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id",
-  aaMode: "aa_mode",
-  smartAccount: "smart_account",
-  smartAccountAddress: "smart_account",
+  walletProvider: "wallet_provider",
+  authMethod: "auth_method",
+  sponsorProvider: "sponsor_provider",
+  sponsorAccount: "sponsor_account",
 };
 
 function parseUserStateChainId(value: unknown): number | undefined {
@@ -66,11 +113,70 @@ function normalizeAddressForComparison(value: string | undefined): string | unde
   return typeof value === "string" ? value.toLowerCase() : undefined;
 }
 
-function parseUserStateAAMode(value: unknown): UserStateAAMode | null | undefined {
+function parseUserStateWalletProvider(
+  value: unknown,
+): UserStateWalletProvider | null | undefined {
   if (value === null) {
     return null;
   }
-  return value === "4337" || value === "7702" ? value : undefined;
+  return value === "para" || value === "baseAccount" ? value : undefined;
+}
+
+const AUTH_METHODS = new Set<UserStateAuthMethod>([
+  "google",
+  "apple",
+  "facebook",
+  "x",
+  "discord",
+  "github",
+  "farcaster",
+  "telegram",
+  "email",
+  "phone",
+  "wagmi",
+]);
+
+function parseUserStateAuthMethod(
+  value: unknown,
+): UserStateAuthMethod | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && AUTH_METHODS.has(value as UserStateAuthMethod)
+    ? (value as UserStateAuthMethod)
+    : undefined;
+}
+
+function parseUserStateSponsored(value: unknown): boolean | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function parseUserStateSponsorProvider(
+  value: unknown,
+): UserStateSponsorProvider | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return value === "alchemy" ||
+    value === "coinbase" ||
+    value === "pimlico" ||
+    value === "self"
+    ? value
+    : undefined;
+}
+
+function parseUserStateAAMode(
+  value: unknown,
+): UserStateAAMode | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return value === "none" || value === "4337" || value === "7702"
+    ? value
+    : undefined;
 }
 
 function parseUserStateOptionalAddress(
@@ -177,11 +283,67 @@ export namespace UserState {
     }
 
     if (
-      !hasOwnKey(incoming, "smart_account") &&
+      !hasOwnKey(incoming, "smart_account_4337") &&
       canPreserveAAContext &&
-      smartAccount(previous) !== undefined
+      SmartAccount4337(previous) !== undefined
     ) {
-      reconciled.smart_account = smartAccount(previous);
+      reconciled.smart_account_4337 = SmartAccount4337(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "delegation_7702") &&
+      canPreserveAAContext &&
+      Delegation7702(previous) !== undefined
+    ) {
+      reconciled.delegation_7702 = Delegation7702(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "ens_name") &&
+      canPreserveAAContext &&
+      ensName(previous) !== undefined
+    ) {
+      reconciled.ens_name = ensName(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "wallet_provider") &&
+      canPreserveAAContext &&
+      walletProvider(previous) !== undefined
+    ) {
+      reconciled.wallet_provider = walletProvider(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "auth_method") &&
+      canPreserveAAContext &&
+      authMethod(previous) !== undefined
+    ) {
+      reconciled.auth_method = authMethod(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "sponsored") &&
+      canPreserveAAContext &&
+      sponsored(previous) !== undefined
+    ) {
+      reconciled.sponsored = sponsored(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "sponsor_provider") &&
+      canPreserveAAContext &&
+      sponsorProvider(previous) !== undefined
+    ) {
+      reconciled.sponsor_provider = sponsorProvider(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "sponsor_account") &&
+      canPreserveAAContext &&
+      sponsorAccount(previous) !== undefined
+    ) {
+      reconciled.sponsor_account = sponsorAccount(previous);
     }
 
     // Never keep `is_connected: true` without a valid chain id.
@@ -196,6 +358,27 @@ export namespace UserState {
     const normalized = normalize(userState);
     const address = normalized?.address;
     return typeof address === "string" && address.length > 0 ? address : undefined;
+  }
+
+  export function aaMode(
+    userState?: UserState | null,
+  ): UserStateAAMode | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateAAMode(normalized?.aa_mode);
+  }
+
+  export function SmartAccount4337(
+    userState?: UserState | null,
+  ): string | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized?.smart_account_4337);
+  }
+
+  export function Delegation7702(
+    userState?: UserState | null,
+  ): string | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalAddress(normalized?.delegation_7702);
   }
 
   /**
@@ -219,18 +402,45 @@ export namespace UserState {
     return typeof isConnected === "boolean" ? isConnected : undefined;
   }
 
-  export function aaMode(
-    userState?: UserState | null,
-  ): UserStateAAMode | null | undefined {
+  export function ensName(userState?: UserState | null): string | undefined {
     const normalized = normalize(userState);
-    return parseUserStateAAMode(normalized?.aa_mode);
+    const value = normalized?.ens_name;
+    return typeof value === "string" && value.length > 0 ? value : undefined;
   }
 
-  export function smartAccount(
+  export function walletProvider(
+    userState?: UserState | null,
+  ): UserStateWalletProvider | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateWalletProvider(normalized?.wallet_provider);
+  }
+
+  export function authMethod(
+    userState?: UserState | null,
+  ): UserStateAuthMethod | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateAuthMethod(normalized?.auth_method);
+  }
+
+  export function sponsored(
+    userState?: UserState | null,
+  ): boolean | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateSponsored(normalized?.sponsored);
+  }
+
+  export function sponsorProvider(
+    userState?: UserState | null,
+  ): UserStateSponsorProvider | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateSponsorProvider(normalized?.sponsor_provider);
+  }
+
+  export function sponsorAccount(
     userState?: UserState | null,
   ): string | null | undefined {
     const normalized = normalize(userState);
-    return parseUserStateOptionalAddress(normalized?.smart_account);
+    return parseUserStateOptionalAddress(normalized?.sponsor_account);
   }
 
   /**
@@ -258,50 +468,6 @@ export namespace UserState {
       },
     };
   }
-}
-
-export function normalizeUserState(
-  userState?: UserState | null,
-): UserState | undefined {
-  return UserState.normalize(userState);
-}
-
-export function getUserStateAddress(
-  userState?: UserState | null,
-): string | undefined {
-  return UserState.address(userState);
-}
-
-export function getUserStateChainId(
-  userState?: UserState | null,
-): number | undefined {
-  return UserState.chainId(userState);
-}
-
-export function getUserStateIsConnected(
-  userState?: UserState | null,
-): boolean | undefined {
-  return UserState.isConnected(userState);
-}
-
-export function getUserStateAAMode(
-  userState?: UserState | null,
-): UserStateAAMode | null | undefined {
-  return UserState.aaMode(userState);
-}
-
-export function getUserStateSmartAccount(
-  userState?: UserState | null,
-): string | null | undefined {
-  return UserState.smartAccount(userState);
-}
-
-export function addUserStateExt(
-  userState: UserState,
-  key: string,
-  value: unknown,
-): UserState {
-  return UserState.withExt(userState, key, value);
 }
 
 // =============================================================================
@@ -438,24 +604,24 @@ export interface AomiCreateThreadResponse {
 
 /**
  * GET/POST /api/control/provider-keys
- * Lists or saves BYOK provider keys for the bound client.
+ * Lists or saves BYOK keys (one per LLM provider) for the bound client.
  */
-export interface AomiProviderKeyEntry {
+export interface AomiByokKeyEntry {
   provider: string;
   key_prefix: string;
   label?: string | null;
   is_active: boolean;
 }
 
-export interface AomiListProviderKeysResponse {
-  provider_keys: AomiProviderKeyEntry[];
+export interface AomiListByokKeysResponse {
+  byok_keys: AomiByokKeyEntry[];
 }
 
-export interface AomiSaveProviderKeyResponse {
-  key: AomiProviderKeyEntry;
+export interface AomiSaveByokKeyResponse {
+  key: AomiByokKeyEntry;
 }
 
-export interface AomiDeleteProviderKeyResponse {
+export interface AomiDeleteByokKeyResponse {
   deleted: boolean;
 }
 

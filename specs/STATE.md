@@ -356,7 +356,7 @@ aomi aa status|set|test|reset
 ### Event System
 
 - Added `EventContextProvider` for inbound/outbound system events
-- Added `UserContextProvider` for wallet/user state (replaces local state)
+- Added `ExtUserProvider` for wallet/user state (replaces local state)
 - Wallet state changes auto-synced via `onUserStateChange` subscription
 - Handler hooks: `useWalletHandler()`, `useNotificationHandler()`
 
@@ -385,7 +385,7 @@ aomi aa status|set|test|reset
 AomiRuntimeProvider
 └── ThreadContextProvider
     └── NotificationContextProvider
-        └── UserContextProvider
+        └── ExtUserProvider
             └── ControlContextProvider (receives getThreadMetadata, updateThreadMetadata)
                 └── EventContextProvider
                     └── AomiRuntimeCore (syncs isRunning → threadMetadata.control.isProcessing)

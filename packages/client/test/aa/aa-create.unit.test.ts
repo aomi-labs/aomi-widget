@@ -191,8 +191,8 @@ describe("createAAProviderState", () => {
     expect(state.account).toMatchObject({
       provider: "alchemy",
       mode: "7702",
-      AAAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
-      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
+      address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+      Delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
     });
     expect(state.error).toBeNull();
   });
@@ -236,7 +236,7 @@ describe("createAAProviderState", () => {
       sponsorship: "optional",
     });
     expect(state.account).toMatchObject({
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       mode: "4337",
     });
   });
@@ -278,7 +278,7 @@ describe("createAAProviderState", () => {
       accountAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     });
     expect(state.account).toMatchObject({
-      AAAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      SmartAccount4337: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       mode: "4337",
     });
     expect(state.error).toBeNull();
@@ -313,7 +313,7 @@ describe("createAAProviderState", () => {
     expect(state.account).toMatchObject({
       provider: "pimlico",
       mode: "7702",
-      AAAddress: DIRECT_OWNER_ADDRESS,
+      address: DIRECT_OWNER_ADDRESS,
     });
     expect(state.error).toBeNull();
   });
@@ -432,9 +432,10 @@ describe("createAAProviderState owner modes", () => {
       }),
     );
     expect(state.account).toMatchObject({
-      provider: "ALCHEMY",
+      provider: "alchemy",
       mode: "4337",
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      address: "0x1234567890123456789012345678901234567890",
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
   });
 
@@ -469,7 +470,7 @@ describe("createAAProviderState owner modes", () => {
     expect(state.account).toMatchObject({
       provider: "pimlico",
       mode: "4337",
-      AAAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+      SmartAccount4337: "0xcccccccccccccccccccccccccccccccccccccccc",
     });
   });
 

@@ -19,6 +19,7 @@ import {
 } from "wagmi/chains";
 import { defineChain, type Chain } from "viem";
 import { AomiWalletProvider } from "@aomi-labs/widget-lib";
+import { isFullTestnet } from "@aomi-labs/widget-lib";
 
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
@@ -53,15 +54,76 @@ const walletConnectProjectId =
   process.env.NEXT_PUBLIC_PROJECT_ID?.trim() ||
   "";
 
+const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() ?? "";
+
 const paraEnvironment =
   (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
   Environment.BETA;
 
+function normalizeRpcUrl(value: string | undefined): string | undefined {
+  const rpcUrl = value?.trim();
+  if (!rpcUrl) return undefined;
+
+  try {
+    return new URL(rpcUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveAlchemyRpcUrl(network: string): string | undefined {
+  return alchemyApiKey
+    ? `https://${network}.g.alchemy.com/v2/${alchemyApiKey}`
+    : undefined;
+}
+
+function resolveRpcUrl(chainId: number): string | undefined {
+  switch (chainId) {
+    case mainnet.id:
+      return normalizeRpcUrl(
+        process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL ??
+          process.env.NEXT_PUBLIC_MAINNET_RPC_URL ??
+          resolveAlchemyRpcUrl("eth-mainnet"),
+      );
+    case base.id:
+      return normalizeRpcUrl(
+        process.env.NEXT_PUBLIC_BASE_RPC_URL ??
+          resolveAlchemyRpcUrl("base-mainnet"),
+      );
+    default:
+      return undefined;
+  }
+}
+
+function withConfiguredRpc(chain: Chain): Chain {
+  const rpcUrl = resolveRpcUrl(chain.id);
+  if (!rpcUrl) return chain;
+
+  return {
+    ...chain,
+    rpcUrls: {
+      ...chain.rpcUrls,
+      default: {
+        ...chain.rpcUrls.default,
+        http: [rpcUrl],
+      },
+      public: chain.rpcUrls.public
+        ? {
+            ...chain.rpcUrls.public,
+            http: [rpcUrl],
+          }
+        : {
+            http: [rpcUrl],
+          },
+    },
+  };
+}
+
 const defaultNetworks = [
-  mainnet,
+  withConfiguredRpc(mainnet),
   arbitrum,
   optimism,
-  base,
+  withConfiguredRpc(base),
   polygon,
   sepolia,
   linea,
@@ -91,6 +153,7 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
   const { switchChain } = useSwitchChain();
 
   useEffect(() => {
+    if (isFullTestnet()) return;
     if (!useLocalhost) return;
     if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
 

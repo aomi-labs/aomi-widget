@@ -8,9 +8,11 @@ import {
   toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletRequest,
+  type WalletTxFailureMetadata,
   type WalletTxPayload,
 } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
+import { getAomiTxFailureMetadata } from "../lib/aomi-auth-adapter/wallet-execution";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
@@ -47,6 +49,39 @@ function toSimulationTransactions(payload: WalletTxPayload): Array<{
   ];
 }
 
+function txCallCount(payload: WalletTxPayload): number {
+  return Array.isArray(payload.calls) && payload.calls.length > 0
+    ? payload.calls.length
+    : 1;
+}
+
+function buildRuntimeTxFailure(
+  message: string,
+  payload?: WalletTxPayload,
+  metadata?: WalletTxFailureMetadata,
+): WalletTxFailureMetadata {
+  const callCount = payload ? txCallCount(payload) : metadata?.callCount;
+  return {
+    ...metadata,
+    error: message,
+    aaRequestedMode: metadata?.aaRequestedMode ?? "7702",
+    aaResolvedMode: metadata?.aaResolvedMode ?? "none",
+    batched: metadata?.batched ?? (callCount ? callCount > 1 : undefined),
+    callCount,
+    walletDebugTrace: [
+      {
+        layer: "RuntimeTxHandler.processRequest",
+        step: "transaction",
+        status: "failed",
+        mode: metadata?.aaResolvedMode ?? "none",
+        callCount,
+        message,
+      },
+      ...(metadata?.walletDebugTrace ?? []),
+    ],
+  };
+}
+
 /**
  * Invisible bridge component that processes wallet transaction and EIP-712
  * signing requests from the AI backend through the active Aomi auth adapter.
@@ -60,6 +95,7 @@ export function RuntimeTxHandler() {
     resolveWalletRequest,
     rejectWalletRequest,
     simulateBatchTransactions,
+    showNotification,
   } = useAomiRuntime();
   const adapter = useAomiAuthAdapter();
   const { chainId: currentChainId } = adapter.identity;
@@ -86,7 +122,12 @@ export function RuntimeTxHandler() {
               });
 
           if (!adapter.sendTransaction) {
-            await rejectWalletRequest(req.id, "Wallet provider is not ready");
+            await rejectWalletRequest(
+              req.id,
+              buildRuntimeTxFailure("Wallet provider is not ready", payload, {
+                aaFallbackReason: "wallet_provider_not_ready",
+              }),
+            );
             return;
           }
 
@@ -102,27 +143,32 @@ export function RuntimeTxHandler() {
               chainId: defaultChainId,
             },
           );
-          if (!simulationResult.fee) {
-            throw new Error("missing_simulated_fee");
-          }
 
-          const payloadWithFee = appendFeeCallToPayload(
-            payload,
-            simulationResult.fee,
-            defaultChainId,
-            // Fee-injected batches must be allowed to fall back from AA
-            // to sequential EOA sends if the wallet/bundler fails after
-            // sign — otherwise transient post-sign failures (e.g. wallet
-            // pricing middleware rejection) become hard errors with no
-            // recovery path.
-            { strictAa: false },
-          );
+          // Fee injection is the production path: simulation succeeds,
+          // returns a non-zero fee, and we append it to the batch so Aomi
+          // gets paid with the user's tx. AA routing is no longer encoded
+          // on the payload; the frontend execution layer always tries
+          // 7702 -> 4337 -> native wallet sends.
+          const payloadWithFee = simulationResult.fee
+            ? appendFeeCallToPayload(
+                payload,
+                simulationResult.fee,
+                defaultChainId,
+              )
+            : payload;
           if (payloadWithFee === payload) {
-            throw new Error("missing_fee_payment_tx");
+            showNotification({
+              type: "notice",
+              title: "Proceeding without fee on failed simulation",
+              duration: 6000,
+            });
           }
 
           const result = await adapter.sendTransaction(payloadWithFee);
-          await resolveWalletRequest(req.id, { kind: "transaction", ...result });
+          await resolveWalletRequest(req.id, {
+            kind: "transaction",
+            ...result,
+          });
           return;
         }
 
@@ -143,7 +189,10 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.signSolanaTransaction(req.payload);
-          await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
+          await resolveWalletRequest(req.id, {
+            kind: "solana_sign",
+            ...result,
+          });
           return;
         }
 
@@ -179,11 +228,21 @@ export function RuntimeTxHandler() {
         });
         await resolveWalletRequest(req.id, { kind: "eip712_sign", ...result });
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Request failed";
         console.error("[RuntimeTxHandler] Request failed:", error);
-        await rejectWalletRequest(
-          req.id,
-          error instanceof Error ? error.message : "Request failed",
-        );
+        if (req.kind === "transaction") {
+          await rejectWalletRequest(
+            req.id,
+            buildRuntimeTxFailure(
+              message,
+              req.payload,
+              getAomiTxFailureMetadata(error),
+            ),
+          );
+        } else {
+          await rejectWalletRequest(req.id, message);
+        }
       }
     }
   }, [
@@ -194,6 +253,7 @@ export function RuntimeTxHandler() {
     resolveWalletRequest,
     rejectWalletRequest,
     simulateBatchTransactions,
+    showNotification,
   ]);
 
   return null;

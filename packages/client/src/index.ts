@@ -27,6 +27,9 @@ export type {
   AomiSystemResponse,
   AomiThread,
   UserStateAAMode,
+  UserStateAuthMethod,
+  UserStateWalletProvider,
+  UserStateSponsorProvider,
   Logger,
 } from "./types";
 
@@ -36,11 +39,8 @@ export type {
 
 export {
   UserState,
-  addUserStateExt,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
-  getUserStateAAMode,
-  getUserStateSmartAccount,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
@@ -60,6 +60,10 @@ export type {
   WalletRequest,
   WalletRequestKind,
   WalletRequestResult,
+  WalletTxAAMode,
+  WalletTxDebugTraceEntry,
+  WalletTxFailureMetadata,
+  WalletTxFallbackAttempt,
 } from "./session";
 
 // =============================================================================
@@ -87,7 +91,6 @@ export {
 export type {
   WalletTxPayload,
   WalletTxCallPayload,
-  WalletTxAaPreference,
   WalletEip712Payload,
   WalletSolanaSignPayload,
   ViemSignTypedDataArgs,

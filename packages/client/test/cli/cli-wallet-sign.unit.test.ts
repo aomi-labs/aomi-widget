@@ -20,9 +20,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("viem/accounts", async () => {
-  const actual = await vi.importActual<typeof import("viem/accounts")>(
-    "viem/accounts",
-  );
+  const actual =
+    await vi.importActual<typeof import("viem/accounts")>("viem/accounts");
   return {
     ...actual,
     privateKeyToAccount: vi.fn(() => ({ address: MOCK_ADDRESS })),
@@ -45,9 +44,8 @@ vi.mock("../../src/session", () => ({
 }));
 
 vi.mock("../../src/aa", async () => {
-  const actual = await vi.importActual<typeof import("../../src/aa")>(
-    "../../src/aa",
-  );
+  const actual =
+    await vi.importActual<typeof import("../../src/aa")>("../../src/aa");
   return {
     ...actual,
     executeWalletCalls: mocks.executeWalletCalls,
@@ -55,9 +53,9 @@ vi.mock("../../src/aa", async () => {
 });
 
 vi.mock("../../src/cli/execution", async () => {
-  const actual = await vi.importActual<typeof import("../../src/cli/execution")>(
-    "../../src/cli/execution",
-  );
+  const actual = await vi.importActual<
+    typeof import("../../src/cli/execution")
+  >("../../src/cli/execution");
   return {
     ...actual,
     createCliProviderState: mocks.createCliProviderState,
@@ -134,7 +132,9 @@ describe("CLI wallet sign simulation integration", () => {
     mocks.createCliProviderState.mockResolvedValue({ providerState: "mock" });
     mocks.describeExecutionDecision.mockReturnValue("EOA");
     mocks.resolveCliExecutionDecision.mockReturnValue({ execution: "eoa" });
-    mocks.syncPendingTxsFromUserState.mockImplementation((state) => state.pendingTxs ?? []);
+    mocks.syncPendingTxsFromUserState.mockImplementation(
+      (state) => state.pendingTxs ?? [],
+    );
     mocks.executeWalletCalls.mockResolvedValue({
       txHash: "0xabc",
       txHashes: ["0xabc"],
@@ -270,7 +270,7 @@ describe("CLI wallet sign simulation integration", () => {
     );
     expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
       aaMode: null,
-      smartAccount: null,
+      smartAccount4337: null,
     });
 
     expect(mocks.createCliProviderState).toHaveBeenCalledWith(
@@ -466,7 +466,8 @@ describe("CLI wallet sign simulation integration", () => {
 
     await signCommand(
       {
-        privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
@@ -494,7 +495,7 @@ describe("CLI wallet sign simulation integration", () => {
     );
     expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
       aaMode: "7702",
-      smartAccount: null,
+      smartAccount4337: null,
     });
 
     // planning 7702 + execution 7702 + execution 4337
@@ -502,7 +503,9 @@ describe("CLI wallet sign simulation integration", () => {
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
     expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
     expect(mocks.sendSystemMessage.mock.calls[0]?.[0]).toBe("session-1");
-    expect(JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string)).toMatchObject({
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
       type: "wallet:tx_complete",
       payload: {
         pending_tx_ids: [1],
@@ -538,7 +541,8 @@ describe("CLI wallet sign simulation integration", () => {
     await expect(
       signCommand(
         {
-          privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           baseUrl: "http://127.0.0.1:8080",
           app: "default",
           apiKey: "test-key",
@@ -552,6 +556,46 @@ describe("CLI wallet sign simulation integration", () => {
     // Both AA modes tried, no third attempt (no EOA)
     expect(mocks.createCliProviderState).toHaveBeenCalledTimes(3);
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
+    expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        status: "failed",
+        error: "4337 failed",
+        pending_tx_ids: [1],
+        aa_requested_mode: "7702",
+        aa_resolved_mode: "none",
+        aa_fallback_reason: "aa_all_modes_failed",
+        aa_fallback_attempts: [
+          {
+            order: 1,
+            layer: "cli.sign.strategy",
+            mode: "7702",
+            status: "failed",
+            provider: "alchemy",
+            error: "7702 failed",
+          },
+          {
+            order: 2,
+            layer: "cli.sign.strategy",
+            mode: "4337",
+            status: "failed",
+            provider: "alchemy",
+            error: "4337 failed",
+          },
+        ],
+        wallet_debug_trace: expect.arrayContaining([
+          expect.objectContaining({
+            layer: "cli.sign",
+            step: "strategy.execute",
+            status: "terminal",
+            reason: "aa_all_modes_failed",
+          }),
+        ]),
+      },
+    });
   });
 
   it("falls back through 7702→4337→EOA in auto mode when both AA modes fail", async () => {
@@ -585,7 +629,8 @@ describe("CLI wallet sign simulation integration", () => {
 
     await signCommand(
       {
-        privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
@@ -620,7 +665,9 @@ describe("CLI wallet sign simulation integration", () => {
       error: null,
     });
     mocks.executeWalletCalls.mockRejectedValue(
-      new Error("wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted"),
+      new Error(
+        "wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted",
+      ),
     );
 
     await expect(

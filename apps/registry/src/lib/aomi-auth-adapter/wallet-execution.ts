@@ -4,6 +4,9 @@ import type { Chain } from "viem";
 import type {
   NativeWalletExecutionPolicy as ClientNativeWalletExecutionPolicy,
   SponsorshipPaymasterServiceContext,
+  WalletTxDebugTraceEntry,
+  WalletTxFailureMetadata,
+  WalletTxFallbackAttempt,
   WalletTxPayload,
 } from "@aomi-labs/react";
 import {
@@ -77,14 +80,37 @@ export function getPreferredRpcUrl(chain: Chain): string {
   return chain.rpcUrls.default.http[0] ?? chain.rpcUrls.public?.http[0] ?? "";
 }
 
-export function resolveRequestedAAMode(
-  payload: WalletTxPayload,
-  isBatch: boolean,
-): RequestedAAMode {
-  if (!isBatch) return "none";
-  if (payload.aaPreference === "none") return "none";
-  if (payload.aaPreference === "eip4337") return "4337";
-  return "7702";
+const DEFAULT_AA_REQUESTED_MODE: RequestedAAMode = "7702";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export class AomiTxExecutionError extends Error {
+  metadata: WalletTxFailureMetadata;
+
+  constructor(
+    message: string,
+    metadata: WalletTxFailureMetadata,
+    cause?: unknown,
+  ) {
+    super(message);
+    this.name = "AomiTxExecutionError";
+    this.metadata = metadata;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+export function getAomiTxFailureMetadata(
+  error: unknown,
+): WalletTxFailureMetadata | undefined {
+  return error instanceof AomiTxExecutionError ? error.metadata : undefined;
+}
+
+export function resolveRequestedAAMode(): RequestedAAMode {
+  return DEFAULT_AA_REQUESTED_MODE;
 }
 
 export function normalizeAtomicCapabilities(
@@ -118,40 +144,24 @@ export function normalizeAtomicCapabilities(
   return normalized as Parameters<typeof executeWalletCalls>[0]["capabilities"];
 }
 
-function buildAaAttempts(
-  aaRequestedMode: RequestedAAMode,
-  shouldUseExternalSigner: boolean,
-): Array<{
+function buildAaAttempts(): Array<{
   requestedMode: Exclude<RequestedAAMode, "none">;
   sponsored?: boolean;
 }> {
-  if (aaRequestedMode === "7702") {
-    if (shouldUseExternalSigner) {
-      return [{ requestedMode: "4337", sponsored: true }];
-    }
-    return [
-      { requestedMode: "7702" },
-      { requestedMode: "4337", sponsored: true },
-    ];
-  }
-
-  if (aaRequestedMode === "4337") {
-    return [{ requestedMode: "4337", sponsored: true }];
-  }
-
-  return [];
+  return [
+    { requestedMode: "7702" },
+    { requestedMode: "4337", sponsored: true },
+  ];
 }
 
 function resolveNativeWalletExecutionPolicy({
   policy,
   chainId,
-  requiresAtomicForBatch,
 }: {
   policy?: NativeWalletExecutionPolicy;
   chainId: number;
-  requiresAtomicForBatch: boolean;
 }): ClientNativeWalletExecutionPolicy | undefined {
-  if (!policy && !requiresAtomicForBatch) {
+  if (!policy) {
     return undefined;
   }
 
@@ -169,8 +179,7 @@ function resolveNativeWalletExecutionPolicy({
 
   return {
     executionKind: policy?.executionKind,
-    requiresAtomicForBatch:
-      requiresAtomicForBatch || policy?.requiresAtomicForBatch,
+    requiresAtomicForBatch: policy?.requiresAtomicForBatch,
     sendCallsTimeoutMs: policy?.sendCallsTimeoutMs,
     sendCallsVersion: policy?.sendCallsVersion,
     sponsorship,
@@ -194,12 +203,68 @@ export async function executeAdapterTransaction({
   shouldUseExternalSigner?: boolean;
   resolveAAProviderState?: ResolveAAProviderState;
 }): Promise<AomiTxResult> {
+  const debugTrace: WalletTxDebugTraceEntry[] = [];
+  const fallbackAttempts: WalletTxFallbackAttempt[] = [];
+
+  const buildFailureMetadata = (params: {
+    error: string;
+    aaResolvedMode?: RequestedAAMode;
+    aaFallbackReason?: string;
+    executionKind?: string;
+    sponsored?: boolean;
+  }): WalletTxFailureMetadata => ({
+    error: params.error,
+    aaRequestedMode: DEFAULT_AA_REQUESTED_MODE,
+    aaResolvedMode: params.aaResolvedMode ?? "none",
+    aaFallbackReason: params.aaFallbackReason,
+    executionKind: params.executionKind,
+    batched:
+      Array.isArray(payload.calls) && payload.calls.length > 0
+        ? payload.calls.length > 1
+        : false,
+    callCount:
+      Array.isArray(payload.calls) && payload.calls.length > 0
+        ? payload.calls.length
+        : 1,
+    sponsored: params.sponsored,
+    aaFallbackAttempts: fallbackAttempts,
+    walletDebugTrace: debugTrace,
+  });
+
   if (!payload.to && (!payload.calls || payload.calls.length === 0)) {
-    throw new Error("pending_transaction_missing_call_data");
+    const message = "pending_transaction_missing_call_data";
+    debugTrace.push({
+      layer: "executeAdapterTransaction",
+      step: "payload.validate",
+      status: "terminal",
+      message,
+    });
+    throw new AomiTxExecutionError(
+      message,
+      buildFailureMetadata({
+        error: message,
+        aaFallbackReason: "payload_missing_call_data",
+      }),
+    );
   }
 
   if (!state.sendTransactionAsync) {
-    throw new Error("wallet_send_transaction_not_supported");
+    const message = "wallet_send_transaction_not_supported";
+    debugTrace.push({
+      layer: "executeAdapterTransaction",
+      step: "native.prepare",
+      status: "terminal",
+      mode: "none",
+      message,
+    });
+    throw new AomiTxExecutionError(
+      message,
+      buildFailureMetadata({
+        error: message,
+        aaFallbackReason: "native_wallet_send_transaction_missing",
+        executionKind: "eoa",
+      }),
+    );
   }
   const sendTransactionAsync = state.sendTransactionAsync;
 
@@ -207,21 +272,10 @@ export async function executeAdapterTransaction({
     payload,
     payload.chainId ?? state.currentChainId ?? 1,
   );
-  const isBatch = callList.length > 1;
-  const aaRequestedMode = resolveRequestedAAMode(payload, isBatch);
-  const requiresSponsoredExecution =
-    state.nativeWalletExecution?.sponsorship?.mode === "required";
-  // Atomic-required is a payload-level intent (`aaStrict === true`),
-  // independent of the provider's sponsorship mode. Conflating them
-  // (commit 1d406d2) forces every sponsored batch into atomic+no-fallback
-  // and breaks fee-injected 2-call batches when the wallet/bundler errors
-  // after sign. `requiresSponsoredExecution` still drives fail-closed
-  // semantics in the AA-failure exit path below.
-  const requiresAtomicForBatch = isBatch && payload.aaStrict === true;
+  const aaRequestedMode = resolveRequestedAAMode();
   const nativeWalletExecution = resolveNativeWalletExecutionPolicy({
     policy: state.nativeWalletExecution,
     chainId: callList[0]?.chainId ?? state.currentChainId ?? 1,
-    requiresAtomicForBatch,
   });
 
   const executeWithProviderState = async (providerState: WalletProviderState) =>
@@ -258,24 +312,83 @@ export async function executeAdapterTransaction({
   let lastAAError: unknown;
   let sawUnresolvedAAProviderState = false;
   const aaStateResolver = resolveAAProviderState;
-  const aaAttempts = aaStateResolver
-    ? buildAaAttempts(aaRequestedMode, shouldUseExternalSigner)
-    : [];
+  const aaAttempts = aaStateResolver ? buildAaAttempts() : [];
 
   if (aaAttempts.length === 0) {
-    execution = await executeWithProviderState(DISABLED_PROVIDER_STATE);
+    debugTrace.push({
+      layer: "executeAdapterTransaction",
+      step: "native.execute",
+      status: "started",
+      mode: "none",
+      callCount: callList.length,
+    });
+    try {
+      execution = await executeWithProviderState(DISABLED_PROVIDER_STATE);
+    } catch (error) {
+      const message = errorMessage(error);
+      debugTrace.push({
+        layer: "executeAdapterTransaction",
+        step: "native.execute",
+        status: "terminal",
+        mode: "none",
+        callCount: callList.length,
+        message,
+      });
+      throw new AomiTxExecutionError(
+        message,
+        buildFailureMetadata({
+          error: message,
+          aaFallbackReason: "native_wallet_execution_failed",
+          executionKind: "eoa",
+          sponsored: false,
+        }),
+        error,
+      );
+    }
   } else {
     if (!aaStateResolver) {
       throw new Error("aa_provider_state_resolver_missing");
     }
-    for (const attempt of aaAttempts) {
-      const attemptState = await aaStateResolver({
-        callList,
-        chainsById: state.chainsById,
-        requestedMode: attempt.requestedMode,
-        shouldUseExternalSigner,
+    for (const [index, attempt] of aaAttempts.entries()) {
+      debugTrace.push({
+        layer: "executeAdapterTransaction",
+        step: "aa.resolve_provider_state",
+        status: "started",
+        mode: attempt.requestedMode,
         sponsored: attempt.sponsored,
+        callCount: callList.length,
       });
+      let attemptState: Awaited<ReturnType<ResolveAAProviderState>>;
+      try {
+        attemptState = await aaStateResolver({
+          callList,
+          chainsById: state.chainsById,
+          requestedMode: attempt.requestedMode,
+          shouldUseExternalSigner,
+          sponsored: attempt.sponsored,
+        });
+      } catch (error) {
+        const message = errorMessage(error);
+        lastAAError = error;
+        fallbackAttempts.push({
+          order: index + 1,
+          layer: "aa.resolve_provider_state",
+          mode: attempt.requestedMode,
+          status: "failed",
+          sponsored: attempt.sponsored,
+          error: message,
+        });
+        debugTrace.push({
+          layer: "executeAdapterTransaction",
+          step: "aa.resolve_provider_state",
+          status: "failed",
+          mode: attempt.requestedMode,
+          sponsored: attempt.sponsored,
+          callCount: callList.length,
+          message,
+        });
+        continue;
+      }
 
       if (attemptState.fallbackReason && !finalFallbackReason) {
         finalFallbackReason = attemptState.fallbackReason;
@@ -283,11 +396,68 @@ export async function executeAdapterTransaction({
 
       if (!hasResolvedAAProviderState(attemptState.providerState)) {
         sawUnresolvedAAProviderState = true;
+        const reason =
+          attemptState.fallbackReason ?? "aa_provider_state_unresolved";
+        fallbackAttempts.push({
+          order: index + 1,
+          layer: "aa.resolve_provider_state",
+          mode: attempt.requestedMode,
+          status: "skipped",
+          sponsored: attempt.sponsored,
+          reason,
+        });
+        debugTrace.push({
+          layer: "executeAdapterTransaction",
+          step: "aa.resolve_provider_state",
+          status: "skipped",
+          mode: attempt.requestedMode,
+          sponsored: attempt.sponsored,
+          callCount: callList.length,
+          reason,
+        });
         continue;
       }
 
+      const provider = attemptState.providerState.resolved?.provider;
+      debugTrace.push({
+        layer: "executeAdapterTransaction",
+        step: "aa.resolve_provider_state",
+        status: "resolved",
+        mode: attempt.requestedMode,
+        provider,
+        sponsored: attempt.sponsored,
+        callCount: callList.length,
+      });
+      debugTrace.push({
+        layer: "executeAdapterTransaction",
+        step: "aa.execute",
+        status: "started",
+        mode: attempt.requestedMode,
+        provider,
+        sponsored: attempt.sponsored,
+        callCount: callList.length,
+      });
       try {
         execution = await executeWithProviderState(attemptState.providerState);
+        fallbackAttempts.push({
+          order: index + 1,
+          layer: "aa.execute",
+          mode: attempt.requestedMode,
+          status: "succeeded",
+          provider,
+          sponsored: execution.sponsored,
+          executionKind: execution.executionKind,
+        });
+        debugTrace.push({
+          layer: "executeAdapterTransaction",
+          step: "aa.execute",
+          status: "resolved",
+          mode: attempt.requestedMode,
+          provider,
+          executionKind: execution.executionKind,
+          sponsored: execution.sponsored,
+          callCount: callList.length,
+        });
         if (
           aaRequestedMode === "7702" &&
           attempt.requestedMode === "4337" &&
@@ -298,36 +468,110 @@ export async function executeAdapterTransaction({
         break;
       } catch (error) {
         lastAAError = error;
+        const message = errorMessage(error);
+        fallbackAttempts.push({
+          order: index + 1,
+          layer: "aa.execute",
+          mode: attempt.requestedMode,
+          status: "failed",
+          provider,
+          sponsored: attempt.sponsored,
+          error: message,
+        });
+        debugTrace.push({
+          layer: "executeAdapterTransaction",
+          step: "aa.execute",
+          status: "failed",
+          mode: attempt.requestedMode,
+          provider,
+          sponsored: attempt.sponsored,
+          callCount: callList.length,
+          message,
+        });
         console.warn("[aomi-auth-adapter] AA attempt failed", {
           requestedMode: attempt.requestedMode,
-          error: error instanceof Error ? error.message : String(error),
+          error: message,
         });
       }
     }
 
     if (!execution) {
-      if (requiresSponsoredExecution) {
-        throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
-      }
-      if (payload.aaStrict && lastAAError && !sawUnresolvedAAProviderState) {
-        throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
-      }
+      const fallbackError =
+        lastAAError === undefined ? undefined : errorMessage(lastAAError);
       console.warn(
         "[aomi-auth-adapter] All AA attempts failed; falling back to native wallet",
         {
-          error:
-            lastAAError instanceof Error
-              ? lastAAError.message
-              : String(lastAAError ?? "unknown"),
+          error: fallbackError ?? "unknown",
         },
       );
-      execution = await executeWithProviderState(DISABLED_PROVIDER_STATE);
       finalFallbackReason = finalFallbackReason ?? "aa_failed_fallback_eoa";
+      debugTrace.push({
+        layer: "executeAdapterTransaction",
+        step: "native.fallback",
+        status: "fallback",
+        mode: "none",
+        callCount: callList.length,
+        reason: finalFallbackReason,
+        message: fallbackError,
+      });
+      debugTrace.push({
+        layer: "executeAdapterTransaction",
+        step: "native.execute",
+        status: "started",
+        mode: "none",
+        callCount: callList.length,
+        reason: finalFallbackReason,
+      });
+      try {
+        execution = await executeWithProviderState(DISABLED_PROVIDER_STATE);
+      } catch (error) {
+        const message = errorMessage(error);
+        debugTrace.push({
+          layer: "executeAdapterTransaction",
+          step: "native.execute",
+          status: "terminal",
+          mode: "none",
+          callCount: callList.length,
+          reason: finalFallbackReason,
+          message,
+        });
+        throw new AomiTxExecutionError(
+          message,
+          buildFailureMetadata({
+            error: message,
+            aaFallbackReason: finalFallbackReason,
+            executionKind: "eoa",
+            sponsored: false,
+          }),
+          error,
+        );
+      }
     }
   }
 
   if (!execution.txHash) {
-    throw new Error("wallet_execution_missing_transaction_hash");
+    const message = "wallet_execution_missing_transaction_hash";
+    debugTrace.push({
+      layer: "executeAdapterTransaction",
+      step: "wallet.result",
+      status: "terminal",
+      mode: aaModeFromExecutionKind(execution.executionKind) ?? "none",
+      executionKind: execution.executionKind,
+      sponsored: execution.sponsored,
+      callCount: callList.length,
+      message,
+    });
+    throw new AomiTxExecutionError(
+      message,
+      buildFailureMetadata({
+        error: message,
+        aaResolvedMode:
+          aaModeFromExecutionKind(execution.executionKind) ?? "none",
+        aaFallbackReason: finalFallbackReason,
+        executionKind: execution.executionKind,
+        sponsored: execution.sponsored,
+      }),
+    );
   }
 
   const aaResolvedMode: RequestedAAMode =
@@ -349,7 +593,7 @@ export async function executeAdapterTransaction({
     batched: execution.batched,
     callCount: callList.length,
     sponsored: execution.sponsored,
-    smartAccountAddress: execution.AAAddress,
-    delegationAddress: execution.delegationAddress,
+    SmartAccount4337: execution.SmartAccount4337,
+    Delegation7702: execution.Delegation7702,
   };
 }

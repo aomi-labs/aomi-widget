@@ -27,7 +27,8 @@ type WalletSnapshot = {
   publicKey?: string;
   chainId?: number;
   aaMode?: UserStateAAMode | null;
-  smartAccount?: string | null;
+  smartAccount4337?: string | null;
+  delegation7702?: string | null;
 };
 
 function normalizeAddress(address: string | undefined): string | undefined {
@@ -53,8 +54,10 @@ export function shouldBroadcastWalletStateChange(
     normalizeAddress(previous?.publicKey) !== normalizeAddress(next.publicKey) ||
     previous?.chainId !== next.chainId ||
     previous?.aaMode !== next.aaMode ||
-    normalizeAddress(previous?.smartAccount ?? undefined) !==
-      normalizeAddress(next.smartAccount ?? undefined)
+    normalizeAddress(previous?.smartAccount4337 ?? undefined) !==
+      normalizeAddress(next.smartAccount4337 ?? undefined) ||
+    normalizeAddress(previous?.delegation7702 ?? undefined) !==
+      normalizeAddress(next.delegation7702 ?? undefined)
   );
 }
 
@@ -75,16 +78,22 @@ export async function syncWalletStateForChat(
 
   session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
     aaMode: next.aaMode ?? null,
-    smartAccount: next.smartAccount ?? null,
+    smartAccount4337: next.smartAccount4337 ?? null,
+    delegation7702: next.delegation7702 ?? null,
   }));
   await session.syncUserState();
 
+  const aaMode =
+    next.aaMode === "4337" || next.aaMode === "7702"
+      ? next.aaMode
+      : "none";
   const payload: Record<string, unknown> = {
     address: next.publicKey,
     chainId: next.chainId,
     isConnected: true,
-    aa_mode: next.aaMode ?? null,
-    smart_account: next.smartAccount ?? null,
+    aa_mode: aaMode,
+    smart_account_4337: next.smartAccount4337 ?? null,
+    delegation_7702: next.delegation7702 ?? null,
   };
 
   await session.client.sendSystemMessage(
@@ -103,11 +112,12 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
 
   const previousCli = config.freshSession ? null : CliSession.load();
   const previousWallet = previousCli
-    ? {
+      ? {
         publicKey: previousCli.publicKey,
         chainId: previousCli.chainId,
         aaMode: previousCli.toState().aaMode ?? null,
-        smartAccount: previousCli.toState().smartAccount ?? null,
+        smartAccount4337: previousCli.toState().smartAccount4337 ?? null,
+        delegation7702: previousCli.toState().delegation7702 ?? null,
       }
     : null;
   const cli = CliSession.loadOrCreate(config);
@@ -123,7 +133,8 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
         publicKey: cli.publicKey,
         chainId: cli.chainId,
         aaMode: cli.toState().aaMode ?? null,
-        smartAccount: cli.toState().smartAccount ?? null,
+        smartAccount4337: cli.toState().smartAccount4337 ?? null,
+        delegation7702: cli.toState().delegation7702 ?? null,
       },
       cli,
       session,

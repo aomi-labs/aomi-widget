@@ -1,13 +1,4 @@
-import type { WalletTxAaPreference } from "../wallet-utils";
 import type { AAMode, AASponsorship } from "./types";
-
-export function aaRequestedModeFromPreference(
-  preference: WalletTxAaPreference | undefined,
-): "4337" | "7702" | "none" {
-  if (preference === "none") return "none";
-  if (preference === "eip4337") return "4337";
-  return "7702";
-}
 
 export function aaModeFromExecutionKind(
   executionKind: string | undefined,

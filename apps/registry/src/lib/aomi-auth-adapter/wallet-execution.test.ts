@@ -5,7 +5,10 @@ import {
   type WalletTxPayload,
 } from "@aomi-labs/react";
 
-import { executeAdapterTransaction } from "./wallet-execution";
+import {
+  AomiTxExecutionError,
+  executeAdapterTransaction,
+} from "./wallet-execution";
 
 const CALLS: NonNullable<WalletTxPayload["calls"]> = [
   {
@@ -24,11 +27,18 @@ const CALLS: NonNullable<WalletTxPayload["calls"]> = [
   },
 ];
 
-function strictFeeBatchPayload(): WalletTxPayload {
+function batchPayload(): WalletTxPayload {
   return {
-    aaPreference: "eip7702",
-    aaStrict: true,
     calls: CALLS,
+  };
+}
+
+function singleCallPayload(): WalletTxPayload {
+  return {
+    to: "0x1111111111111111111111111111111111111111",
+    value: "1",
+    data: "0x",
+    chainId: 1,
   };
 }
 
@@ -46,7 +56,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
     });
 
     const result = await executeAdapterTransaction({
-      payload: strictFeeBatchPayload(),
+      payload: batchPayload(),
       state: {
         currentChainId: 1,
         sendCallsSyncAsync,
@@ -72,6 +82,40 @@ describe("executeAdapterTransaction fallback behavior", () => {
     });
   });
 
+  it("routes single-call Para transactions through AA resolution", async () => {
+    const sendTransactionAsync = vi.fn().mockResolvedValue("0x111");
+    const resolveAAProviderState = vi.fn().mockResolvedValue({
+      providerState: DISABLED_PROVIDER_STATE,
+      resolvedMode: "7702",
+      fallbackReason: "aa_provider_not_configured_fallback_eoa",
+    });
+
+    const result = await executeAdapterTransaction({
+      payload: singleCallPayload(),
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+      },
+      shouldUseExternalSigner: false,
+      resolveAAProviderState,
+    });
+
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(2);
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      txHash: "0x111",
+      aaRequestedMode: "7702",
+      aaResolvedMode: "none",
+      aaFallbackReason: "aa_provider_not_configured_fallback_eoa",
+      executionKind: "eoa",
+      batched: false,
+      sponsored: false,
+    });
+  });
+
   it("keeps Base Account atomic batching optional unless sponsorship is required", async () => {
     const sendCallsSyncAsync = vi
       .fn()
@@ -84,7 +128,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
       .mockResolvedValueOnce("0x222");
 
     const result = await executeAdapterTransaction({
-      payload: strictFeeBatchPayload(),
+      payload: batchPayload(),
       state: {
         currentChainId: 1,
         capabilities: {
@@ -124,7 +168,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
     });
   });
 
-  it("requires sponsored atomic sendCalls for Base Account fee batches", async () => {
+  it("passes sponsored sendCalls for Base Account fee batches", async () => {
     const sendCallsSyncAsync = vi.fn().mockResolvedValue({
       receipts: [{ transactionHash: "0x111" }, { transactionHash: "0x222" }],
       status: "success",
@@ -132,7 +176,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
     const sendTransactionAsync = vi.fn();
 
     const result = await executeAdapterTransaction({
-      payload: strictFeeBatchPayload(),
+      payload: batchPayload(),
       state: {
         currentChainId: 1,
         capabilities: {
@@ -161,13 +205,13 @@ describe("executeAdapterTransaction fallback behavior", () => {
       chainId: 1,
       calls: expect.any(Array),
       capabilities: {
-        atomic: { required: true },
+        atomic: { optional: true },
         paymasterService: {
           url: "https://paymaster.example.test",
           context: {},
         },
       },
-      forceAtomic: true,
+      forceAtomic: false,
       status: expect.any(Function),
       throwOnFailure: true,
       timeout: 45_000,
@@ -184,40 +228,46 @@ describe("executeAdapterTransaction fallback behavior", () => {
     });
   });
 
-  it("does not fall back to sequential sends when sponsored atomic sendCalls fails", async () => {
+  it("falls back to sequential sends when sponsored sendCalls fails", async () => {
     const sendCallsSyncAsync = vi
       .fn()
       .mockRejectedValue(new Error("wallet_prepareCalls failed"));
-    const sendTransactionAsync = vi.fn();
+    const sendTransactionAsync = vi
+      .fn()
+      .mockResolvedValueOnce("0x111")
+      .mockResolvedValueOnce("0x222");
 
-    await expect(
-      executeAdapterTransaction({
-        payload: strictFeeBatchPayload(),
-        state: {
-          currentChainId: 1,
-          capabilities: {
-            "eip155:1": {
-              atomic: { status: "ready" },
-              paymasterService: { supported: true },
-            },
+    const result = await executeAdapterTransaction({
+      payload: batchPayload(),
+      state: {
+        currentChainId: 1,
+        capabilities: {
+          "eip155:1": {
+            atomic: { status: "ready" },
+            paymasterService: { supported: true },
           },
-          nativeWalletExecution: {
-            executionKind: "base_account_4337",
-            sponsorship: {
-              mode: "required",
-              getPaymasterServiceUrl: () => "https://paymaster.example.test",
-            },
-          },
-          sendCallsSyncAsync,
-          sendTransactionAsync,
-          switchChainAsync: vi.fn(),
-          chainsById: { [mainnet.id]: mainnet },
         },
-      }),
-    ).rejects.toThrow("wallet_prepareCalls failed");
+        nativeWalletExecution: {
+          executionKind: "base_account_4337",
+          sponsorship: {
+            mode: "required",
+            getPaymasterServiceUrl: () => "https://paymaster.example.test",
+          },
+        },
+        sendCallsSyncAsync,
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+      },
+    });
 
     expect(sendCallsSyncAsync).toHaveBeenCalledTimes(1);
-    expect(sendTransactionAsync).not.toHaveBeenCalled();
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      txHash: "0x222",
+      aaResolvedMode: "none",
+      executionKind: "eoa",
+    });
   });
 
   it("does not submit native wallet fallback twice when unresolved AA fallback times out", async () => {
@@ -234,7 +284,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
 
     await expect(
       executeAdapterTransaction({
-        payload: strictFeeBatchPayload(),
+        payload: batchPayload(),
         state: {
           currentChainId: 1,
           capabilities: {
@@ -250,13 +300,83 @@ describe("executeAdapterTransaction fallback behavior", () => {
       }),
     ).rejects.toThrow("Timed out while waiting for call bundle");
 
-    expect(resolveAAProviderState).toHaveBeenCalledTimes(1);
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(2);
     expect(sendCallsSyncAsync).toHaveBeenCalledTimes(1);
     expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 
-  it("fails closed for aaStrict when resolved AA execution fails without an unresolved-provider fallback", async () => {
-    const sendTransactionAsync = vi.fn();
+  it("throws terminal failure metadata with AA fallback attempts", async () => {
+    const sendTransactionAsync = vi
+      .fn()
+      .mockRejectedValue(new Error("native failed"));
+    const resolveAAProviderState = vi.fn().mockResolvedValue({
+      providerState: DISABLED_PROVIDER_STATE,
+      resolvedMode: "7702",
+      fallbackReason: "aa_provider_not_configured_fallback_eoa",
+    });
+
+    try {
+      await executeAdapterTransaction({
+        payload: batchPayload(),
+        state: {
+          currentChainId: 1,
+          sendCallsSyncAsync: vi.fn(),
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+        },
+        shouldUseExternalSigner: false,
+        resolveAAProviderState,
+      });
+      throw new Error("expected executeAdapterTransaction to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AomiTxExecutionError);
+      expect((error as AomiTxExecutionError).metadata).toMatchObject({
+        error: "native failed",
+        aaRequestedMode: "7702",
+        aaResolvedMode: "none",
+        aaFallbackReason: "aa_provider_not_configured_fallback_eoa",
+        executionKind: "eoa",
+        batched: true,
+        callCount: 2,
+        sponsored: false,
+        aaFallbackAttempts: [
+          {
+            order: 1,
+            layer: "aa.resolve_provider_state",
+            mode: "7702",
+            status: "skipped",
+          },
+          {
+            order: 2,
+            layer: "aa.resolve_provider_state",
+            mode: "4337",
+            status: "skipped",
+          },
+        ],
+        walletDebugTrace: expect.arrayContaining([
+          expect.objectContaining({
+            layer: "executeAdapterTransaction",
+            step: "native.fallback",
+            status: "fallback",
+            mode: "none",
+          }),
+          expect.objectContaining({
+            layer: "executeAdapterTransaction",
+            step: "native.execute",
+            status: "terminal",
+            message: "native failed",
+          }),
+        ]),
+      });
+    }
+  });
+
+  it("falls back to native sends when resolved AA execution fails", async () => {
+    const sendTransactionAsync = vi
+      .fn()
+      .mockResolvedValueOnce("0x111")
+      .mockResolvedValueOnce("0x222");
     const resolveAAProviderState = vi.fn().mockResolvedValue({
       providerState: {
         resolved: {
@@ -273,25 +393,25 @@ describe("executeAdapterTransaction fallback behavior", () => {
       resolvedMode: "4337",
     });
 
-    await expect(
-      executeAdapterTransaction({
-        payload: {
-          ...strictFeeBatchPayload(),
-          aaPreference: "eip4337",
-        },
-        state: {
-          currentChainId: 1,
-          sendCallsSyncAsync: vi.fn(),
-          sendTransactionAsync,
-          switchChainAsync: vi.fn(),
-          chainsById: { [mainnet.id]: mainnet },
-        },
-        resolveAAProviderState,
-      }),
-    ).rejects.toThrow("aa_required_execution_failed");
+    const result = await executeAdapterTransaction({
+      payload: batchPayload(),
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+      },
+      resolveAAProviderState,
+    });
 
-    expect(resolveAAProviderState).toHaveBeenCalledTimes(1);
-    expect(sendTransactionAsync).not.toHaveBeenCalled();
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(2);
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      txHash: "0x222",
+      aaResolvedMode: "none",
+      executionKind: "eoa",
+    });
   });
 
   it("keeps native fallback when a resolved AA failure is followed by unresolved AA setup", async () => {
@@ -323,7 +443,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
       });
 
     const result = await executeAdapterTransaction({
-      payload: strictFeeBatchPayload(),
+      payload: batchPayload(),
       state: {
         currentChainId: 1,
         sendCallsSyncAsync: vi.fn(),

@@ -1,6 +1,6 @@
 {
   "name": "aomi-widget",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "packageManager": "pnpm@10.28.0",
   "description": "AI-powered assistant UI widget library",
@@ -75,6 +75,9 @@
     "prettier:fix": "prettier --write .",
     "test": "vitest",
     "generate:theme": "node ./scripts/generate-theme.mjs",
+    "repowiki": "./scripts/repowiki",
+    "repowiki:refresh": "./scripts/repowiki refresh",
+    "repowiki:doctor": "./scripts/repowiki doctor",
     "prepublishOnly": "pnpm run build:lib",
     "deploy:registry": "./scripts/deploy-registry.sh"
   },

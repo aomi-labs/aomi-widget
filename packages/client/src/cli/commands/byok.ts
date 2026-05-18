@@ -6,12 +6,12 @@ import { printDataFileLocation } from "../output";
 
 const SUPPORTED_PROVIDERS = new Set(["openai", "anthropic", "openrouter"]);
 
-function parseProviderKeyArg(input: string): { provider: string; apiKey: string } {
-  const [providerPart, apiKeyPart] = input.split(/:(.+)/, 2);
+function parseByokKeyArg(input: string): { provider: string; byokKey: string } {
+  const [providerPart, byokKeyPart] = input.split(/:(.+)/, 2);
   const provider = providerPart?.trim().toLowerCase();
-  const apiKey = apiKeyPart?.trim();
+  const byokKey = byokKeyPart?.trim();
 
-  if (!provider || !apiKey) {
+  if (!provider || !byokKey) {
     fatal(
       "Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)",
     );
@@ -23,10 +23,10 @@ function parseProviderKeyArg(input: string): { provider: string; apiKey: string 
     );
   }
 
-  return { provider, apiKey };
+  return { provider, byokKey };
 }
 
-async function createProviderKeyClient(
+async function createByokKeyClient(
   config: CliConfig,
 ): Promise<{ cli: CliSession; client: AomiClient }> {
   const cli = CliSession.loadOrCreate(config);
@@ -36,20 +36,20 @@ async function createProviderKeyClient(
   });
 
   // Bind the active session to the stable client id in the backend vault so
-  // provider-key endpoints can resolve the right SecretVault namespace.
+  // BYOK-key endpoints can resolve the right SecretVault namespace.
   await client.fetchState(cli.sessionId, undefined, cli.ensureClientId());
 
   return { cli, client };
 }
 
-export async function saveProviderKeyCommand(
+export async function saveByokKeyCommand(
   config: CliConfig,
-  providerKey: string,
+  byokKeyInput: string,
   options?: { printLocation?: boolean },
 ): Promise<void> {
-  const { provider, apiKey } = parseProviderKeyArg(providerKey);
-  const { cli, client } = await createProviderKeyClient(config);
-  const saved = await client.saveProviderKey(cli.sessionId, provider, apiKey);
+  const { provider, byokKey } = parseByokKeyArg(byokKeyInput);
+  const { cli, client } = await createByokKeyClient(config);
+  const saved = await client.saveByokKey(cli.sessionId, provider, byokKey);
 
   console.log(`BYOK key set for ${saved.provider}: ${saved.key_prefix}...`);
   if (options?.printLocation !== false) {
@@ -57,17 +57,17 @@ export async function saveProviderKeyCommand(
   }
 }
 
-export async function showProviderKeysCommand(
+export async function showByokKeysCommand(
   config: CliConfig,
   options?: { printLocation?: boolean },
 ): Promise<void> {
-  const { cli, client } = await createProviderKeyClient(config);
-  const providerKeys = await client.listProviderKeys(cli.sessionId);
+  const { cli, client } = await createByokKeyClient(config);
+  const byokKeys = await client.listByokKeys(cli.sessionId);
 
-  if (providerKeys.length === 0) {
-    console.log("No BYOK provider keys set. Using system keys.");
+  if (byokKeys.length === 0) {
+    console.log("No BYOK keys set. Using system keys.");
   } else {
-    for (const key of providerKeys) {
+    for (const key of byokKeys) {
       console.log(`  ${key.provider}: ${key.key_prefix}...`);
     }
   }
@@ -77,26 +77,26 @@ export async function showProviderKeysCommand(
   }
 }
 
-export async function clearProviderKeysCommand(
+export async function clearByokKeysCommand(
   config: CliConfig,
   options?: { printLocation?: boolean },
 ): Promise<void> {
-  const { cli, client } = await createProviderKeyClient(config);
-  const providerKeys = await client.listProviderKeys(cli.sessionId);
+  const { cli, client } = await createByokKeyClient(config);
+  const byokKeys = await client.listByokKeys(cli.sessionId);
 
-  if (providerKeys.length === 0) {
-    console.log("No BYOK provider keys set. Using system keys.");
+  if (byokKeys.length === 0) {
+    console.log("No BYOK keys set. Using system keys.");
     if (options?.printLocation !== false) {
       printDataFileLocation();
     }
     return;
   }
 
-  for (const key of providerKeys) {
-    await client.deleteProviderKey(cli.sessionId, key.provider);
+  for (const key of byokKeys) {
+    await client.deleteByokKey(cli.sessionId, key.provider);
   }
 
-  console.log("BYOK provider keys cleared. Using system keys.");
+  console.log("BYOK keys cleared. Using system keys.");
   if (options?.printLocation !== false) {
     printDataFileLocation();
   }

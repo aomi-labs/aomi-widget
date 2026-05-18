@@ -4,7 +4,10 @@ import { Hex, Chain, TransactionReceipt } from 'viem';
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
  */
-type UserStateAAMode = "4337" | "7702";
+type UserStateAAMode = "none" | "4337" | "7702";
+type UserStateWalletProvider = "para" | "baseAccount";
+type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
+type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
 /**
  * Known client surfaces that may want backend-specific UX strategies.
  * Additional string values are allowed for forward compatibility.
@@ -13,12 +16,32 @@ type AomiClientType = "ts_cli" | "web_ui" | (string & {});
 declare const CLIENT_TYPE_TS_CLI: AomiClientType;
 declare const CLIENT_TYPE_WEB_UI: AomiClientType;
 interface UserState extends Record<string, unknown> {
+    /** Connected EVM account address (0x...). */
     address?: string | null;
     chain_id?: number | string | null;
     is_connected?: boolean | null;
-    svm_address?: string | null;
+    ens_name?: string | null;
+    ext?: Record<string, unknown> | null;
     aa_mode?: UserStateAAMode | null;
-    smart_account?: string | null;
+    /** 4337 smart account address — populated after a 4337 tx resolves. */
+    smart_account_4337?: string | null;
+    /** 7702 delegation contract address — populated after a 7702 tx resolves. */
+    delegation_7702?: string | null;
+    svm_address?: string | null;
+    wallet_provider?: UserStateWalletProvider | null;
+    auth_method?: UserStateAuthMethod | null;
+    sponsored?: boolean | null;
+    sponsor_provider?: UserStateSponsorProvider | null;
+    sponsor_account?: string | null;
+    /**
+     * Backend-pushed in-flight wallet requests. Shape is owned by the backend;
+     * parsed by helpers like `pendingTxsFromBackendUserState`. The client
+     * forwards them transparently via reconciliation.
+     */
+    pending_txs?: Record<string, unknown> | null;
+    pending_eip712s?: Record<string, unknown> | null;
+    pending_solana_txs?: Record<string, unknown> | null;
+    next_id?: number | null;
 }
 declare namespace UserState {
     /**
@@ -32,6 +55,9 @@ declare namespace UserState {
      */
     function reconcile(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
     function address(userState?: UserState | null): string | undefined;
+    function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
+    function SmartAccount4337(userState?: UserState | null): string | null | undefined;
+    function Delegation7702(userState?: UserState | null): string | null | undefined;
     /**
      * Connected Solana wallet pubkey (base58). Independent of `address`,
      * which is the EVM address. A session may have either, both, or neither.
@@ -39,16 +65,17 @@ declare namespace UserState {
     function svmAddress(userState?: UserState | null): string | undefined;
     function chainId(userState?: UserState | null): number | undefined;
     function isConnected(userState?: UserState | null): boolean | undefined;
-    function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
-    function smartAccount(userState?: UserState | null): string | null | undefined;
+    function ensName(userState?: UserState | null): string | undefined;
+    function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
+    function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
+    function sponsored(userState?: UserState | null): boolean | null | undefined;
+    function sponsorProvider(userState?: UserState | null): UserStateSponsorProvider | null | undefined;
+    function sponsorAccount(userState?: UserState | null): string | null | undefined;
     /**
      * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
      */
     function withExt(userState: UserState, key: string, value: unknown): UserState;
 }
-declare function getUserStateAAMode(userState?: UserState | null): UserStateAAMode | null | undefined;
-declare function getUserStateSmartAccount(userState?: UserState | null): string | null | undefined;
-declare function addUserStateExt(userState: UserState, key: string, value: unknown): UserState;
 /**
  * Optional logger for debug output. Pass `console` or any compatible object.
  */
@@ -161,9 +188,9 @@ interface AomiCreateThreadResponse {
 }
 /**
  * GET/POST /api/control/provider-keys
- * Lists or saves BYOK provider keys for the bound client.
+ * Lists or saves BYOK keys (one per LLM provider) for the bound client.
  */
-interface AomiProviderKeyEntry {
+interface AomiByokKeyEntry {
     provider: string;
     key_prefix: string;
     label?: string | null;
@@ -355,17 +382,17 @@ declare class AomiClient {
         created: boolean;
     }>;
     /**
-     * List BYOK provider keys bound to the current session's client.
+     * List BYOK keys (one per LLM provider) bound to the current session's client.
      */
-    listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]>;
+    listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
     /**
-     * Save or replace a BYOK provider key for the client bound to this session.
+     * Save or replace a BYOK key for the client bound to this session.
      */
-    saveProviderKey(sessionId: string, provider: string, apiKey: string, label?: string): Promise<AomiProviderKeyEntry>;
+    saveByokKey(sessionId: string, provider: string, byokKey: string, label?: string): Promise<AomiByokKeyEntry>;
     /**
-     * Delete a BYOK provider key for the client bound to this session.
+     * Delete a BYOK key for the client bound to this session.
      */
-    deleteProviderKey(sessionId: string, provider: string): Promise<boolean>;
+    deleteByokKey(sessionId: string, provider: string): Promise<boolean>;
     /**
      * Simulate transactions as an atomic batch.
      * Each tx sees state changes from previous txs (e.g., approve → swap).
@@ -451,13 +478,22 @@ interface AAResolvedConfig {
 }
 /** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
 type AACallPayload = Omit<AAWalletCall, "chainId">;
+/**
+ * Smart account used for AA execution. `address` is the EOA signer — the same
+ * value the user sees as their connected wallet address (`AomiAuthIdentity.address`).
+ *
+ * Exactly one of the mode-discriminated address fields is meaningful:
+ * - `mode === "4337"` ⟹ `SmartAccount4337` is the AA contract address;
+ *   `Delegation7702` is undefined.
+ * - `mode === "7702"` ⟹ `Delegation7702` is the delegation target contract;
+ *   `SmartAccount4337` is undefined.
+ */
 interface SmartAccount {
-    provider: string;
-    mode: string;
-    ownerAddress?: Hex;
-    executionAddress?: Hex;
-    AAAddress?: Hex;
-    delegationAddress?: Hex;
+    provider: "alchemy" | "pimlico";
+    mode: "4337" | "7702";
+    address: Hex;
+    SmartAccount4337?: Hex;
+    Delegation7702?: Hex;
     sendTransaction: (call: AACallPayload) => Promise<{
         transactionHash: string;
     }>;
@@ -476,9 +512,22 @@ interface ExecutionResult {
     txHashes: string[];
     executionKind: string;
     batched: boolean;
-    sponsored: boolean;
-    AAAddress?: Hex;
-    delegationAddress?: Hex;
+    /**
+     * Whether gas was paid by a paymaster.
+     *
+     * - `true`: paymaster paid, verified by the protocol (4337 userOp success
+     *   requires paymaster validation; `sponsorship.mode === "required"`
+     *   fails the tx if the paymaster rejects).
+     * - `false`: no paymaster was attached (EOA path, or sendCalls fallback
+     *   to sequential after sponsored-batch error).
+     * - `undefined`: paymaster config was passed but the wallet may have
+     *   silently fallen back to user-paid (Base Account with
+     *   `sponsorship.mode === "optional"`). We cannot tell post-hoc without
+     *   decoding the userOp logs.
+     */
+    sponsored: boolean | undefined;
+    SmartAccount4337?: Hex;
+    Delegation7702?: Hex;
 }
 interface AtomicBatchArgs {
     calls: AACallPayload[];
@@ -550,7 +599,6 @@ declare function getWalletExecutorReady(providerState: AAState): boolean;
 declare const DEFAULT_AA_CONFIG: AAConfig;
 declare const DISABLED_PROVIDER_STATE: AAState;
 
-type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
 type WalletTxCallPayload = {
     txId: number;
     to: string;
@@ -568,8 +616,6 @@ type WalletTxPayload = {
     chainId?: number;
     txId?: number;
     txIds?: number[];
-    aaPreference?: WalletTxAaPreference;
-    aaStrict?: boolean;
     requestId?: string;
     calls?: WalletTxCallPayload[];
 };
@@ -655,6 +701,42 @@ declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSign
 declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
 
 type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
+type WalletTxAAMode = "4337" | "7702" | "none";
+type WalletTxDebugTraceEntry = {
+    layer: string;
+    step: string;
+    status: "started" | "resolved" | "skipped" | "failed" | "fallback" | "terminal";
+    mode?: WalletTxAAMode;
+    provider?: string;
+    executionKind?: string;
+    sponsored?: boolean;
+    callCount?: number;
+    message?: string;
+    reason?: string;
+};
+type WalletTxFallbackAttempt = {
+    order: number;
+    layer: string;
+    mode: WalletTxAAMode;
+    status: "skipped" | "failed" | "succeeded";
+    provider?: string;
+    sponsored?: boolean;
+    reason?: string;
+    error?: string;
+    executionKind?: string;
+};
+type WalletTxFailureMetadata = {
+    error?: string;
+    aaRequestedMode?: WalletTxAAMode;
+    aaResolvedMode?: WalletTxAAMode;
+    aaFallbackReason?: string;
+    executionKind?: string;
+    batched?: boolean;
+    callCount?: number;
+    sponsored?: boolean;
+    aaFallbackAttempts?: WalletTxFallbackAttempt[];
+    walletDebugTrace?: WalletTxDebugTraceEntry[];
+};
 /**
  * Tagged union of in-flight wallet requests. The `kind` field is the
  * discriminator — narrowing on it auto-narrows `payload` to the matching
@@ -699,15 +781,15 @@ type WalletRequestResult = {
     kind: "transaction";
     txHash: string;
     amount?: string;
-    aaRequestedMode?: "4337" | "7702" | "none";
-    aaResolvedMode?: "4337" | "7702" | "none";
+    aaRequestedMode?: WalletTxAAMode;
+    aaResolvedMode?: WalletTxAAMode;
     aaFallbackReason?: string;
     executionKind?: string;
     batched?: boolean;
     callCount?: number;
     sponsored?: boolean;
-    smartAccountAddress?: string;
-    delegationAddress?: string;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
 } | {
     kind: "eip712_sign";
     signature: string;
@@ -789,6 +871,16 @@ type SessionEventMap = {
     };
     /** Messages updated (new messages from poll or send response). */
     messages: AomiMessage[];
+    /**
+     * Session-side UserState changed (e.g. post-tx writes from `resolveUserState`).
+     * The React UserContext subscribes to this so per-tx fields written by the
+     * Session reach `useUser()` without each consumer polling.
+     *
+     * Not emitted when the caller passes `{ skipEmit: true }` to
+     * `resolveUserState` — used by the React→Session direction to break the
+     * feedback loop (React→Session→event→setUser→React).
+     */
+    user_state_updated: UserState;
     /** AI started processing. */
     processing_start: undefined;
     /** AI finished processing. */
@@ -862,7 +954,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      * Reject a pending wallet request.
      * Sends an error to the backend and resumes polling.
      */
-    reject(requestId: string, reason?: string): Promise<void>;
+    reject(requestId: string, reason?: string | WalletTxFailureMetadata): Promise<void>;
     /**
      * Cancel the AI's current response.
      */
@@ -883,13 +975,16 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     /** Whether the AI is currently processing. */
     getIsProcessing(): boolean;
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
-    resolveUserState(userState: UserState): void;
+    resolveUserState(userState: UserState, opts?: {
+        skipEmit?: boolean;
+    }): void;
     setClientType(clientType: AomiClientType): void;
     addExtValue(key: string, value: unknown): void;
     removeExtValue(key: string): void;
     resolveWallet(address: string, chainId?: number, aa?: {
         aaMode?: UserStateAAMode | null;
-        smartAccount?: string | null;
+        smartAccount4337?: string | null;
+        delegation7702?: string | null;
     }): void;
     syncUserState(): Promise<AomiStateResponse>;
     /** Whether the session is currently polling for state updates. */
@@ -930,10 +1025,7 @@ type NormalizedSimulatedFee = {
 };
 declare function normalizeSimulatedFee(fee: AomiSimulateFee): NormalizedSimulatedFee | null;
 declare function buildFeeAAWalletCall(fee: AomiSimulateFee, chainId: number): AAWalletCall | null;
-declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimulateFee, defaultChainId: number, options?: {
-    forceAaPreference?: WalletTxAaPreference;
-    strictAa?: boolean;
-}): WalletTxPayload;
+declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimulateFee, defaultChainId: number): WalletTxPayload;
 
 interface AlchemyHookParams {
     enabled: boolean;
@@ -1012,6 +1104,7 @@ interface CreatePimlicoAAProviderOptions<TAccount extends SmartAccount = SmartAc
 declare function createPimlicoAAProvider<TAccount extends SmartAccount = SmartAccount>({ accountAbstractionConfig, usePimlicoAA, chainsById, rpcUrl, }: CreatePimlicoAAProviderOptions<TAccount>): (calls: AAWalletCall[] | null, localPrivateKey: `0x${string}` | null) => AAState<TAccount>;
 
 type SdkSmartAccount = {
+    /** Para SDKs emit uppercase (e.g. "ALCHEMY", "PIMLICO"); normalized by the adapter. */
     provider: string;
     mode: AAMode;
     smartAccountAddress: Hex;
@@ -1021,11 +1114,15 @@ type SdkSmartAccount = {
 };
 /**
  * Bridges the provider SDK smart-account shape into the library's
- * SmartAccount interface:
- * - Maps `smartAccountAddress` → `AAAddress`
- * - Unwraps `TransactionReceipt` → `{ transactionHash }`
+ * `SmartAccount` interface.
+ *
+ * - `address` is the EOA signer — must be supplied by the caller (the SDK
+ *   account object only exposes the *executing* address, which differs from
+ *   the signer in 4337 mode).
+ * - `SmartAccount4337` is the AA contract address (only set in 4337 mode).
+ * - `Delegation7702` is the delegation target contract (only set in 7702 mode).
  */
-declare function adaptSmartAccount(account: SdkSmartAccount): SmartAccount;
+declare function adaptSmartAccount(account: SdkSmartAccount, address: Hex): SmartAccount;
 /**
  * Detects Alchemy gas sponsorship quota errors.
  */
@@ -1050,4 +1147,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, addUserStateExt, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getUserStateAAMode, getUserStateSmartAccount, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxAAMode, type WalletTxCallPayload, type WalletTxDebugTraceEntry, type WalletTxFailureMetadata, type WalletTxFallbackAttempt, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
