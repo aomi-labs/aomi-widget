@@ -1,7 +1,7 @@
 "use client";
 
 const SETTINGS_SESSION_KEY = "aomi_settings_session_id";
-const API_KEY_STORAGE_KEY = "aomi_api_key";
+const SECRET_STORAGE_KEY = "aomi_secret_key";
 
 function generateSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -29,12 +29,12 @@ export function getBackendUrl(): string {
   return process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
 }
 
-export function getSettingsApiKey(): string | null {
+export function getSettingsSecret(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const value = window.localStorage.getItem(API_KEY_STORAGE_KEY);
+  const value = window.localStorage.getItem(SECRET_STORAGE_KEY);
   if (!value) {
     return null;
   }
@@ -43,30 +43,30 @@ export function getSettingsApiKey(): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function setSettingsApiKey(apiKey: string | null): void {
+export function setSettingsSecret(secret: string | null): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  const value = apiKey?.trim();
+  const value = secret?.trim();
   if (value) {
-    window.localStorage.setItem(API_KEY_STORAGE_KEY, value);
+    window.localStorage.setItem(SECRET_STORAGE_KEY, value);
   } else {
-    window.localStorage.removeItem(API_KEY_STORAGE_KEY);
+    window.localStorage.removeItem(SECRET_STORAGE_KEY);
   }
 }
 
 export async function settingsApiFetch<T>(
   path: string,
-  options?: RequestInit & { apiKey?: string | null },
+  options?: RequestInit & { secret?: string | null },
 ): Promise<T> {
-  const { apiKey, ...requestInit } = options ?? {};
+  const { secret, ...requestInit } = options ?? {};
   const url = `${getBackendUrl()}${path}`;
   const headers = new Headers(requestInit.headers ?? {});
   headers.set("X-Session-Id", getSettingsSessionId());
-  const resolvedApiKey = apiKey === undefined ? getSettingsApiKey() : apiKey?.trim() || null;
-  if (resolvedApiKey) {
-    headers.set("X-API-Key", resolvedApiKey);
+  const resolvedSecret = secret === undefined ? getSettingsSecret() : secret?.trim() || null;
+  if (resolvedSecret) {
+    headers.set("AOMI-APP-KEY", resolvedSecret);
   }
   if (!headers.has("Content-Type") && requestInit.body) {
     headers.set("Content-Type", "application/json");

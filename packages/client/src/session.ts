@@ -107,8 +107,8 @@ export type WalletRequestResult =
       batched?: boolean;
       callCount?: number;
       sponsored?: boolean;
-      smartAccountAddress?: string;
-      delegationAddress?: string;
+      SmartAccount4337?: string;
+      Delegation7702?: string;
     }
   | {
       kind: "eip712_sign";
@@ -131,6 +131,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNil(value: unknown): value is null | undefined {
   return value === null || value === undefined;
+}
+
+function stableUserStateString(state: UserStateShape | undefined): string {
+  return JSON.stringify(sortJson(state ?? {}));
 }
 
 function sortJson(value: unknown): unknown {
@@ -250,6 +254,16 @@ export type SessionEventMap = {
   title_changed: { title: string };
   /** Messages updated (new messages from poll or send response). */
   messages: AomiMessage[];
+  /**
+   * Session-side UserState changed (e.g. post-tx writes from `resolveUserState`).
+   * The React UserContext subscribes to this so per-tx fields written by the
+   * Session reach `useUser()` without each consumer polling.
+   *
+   * Not emitted when the caller passes `{ skipEmit: true }` to
+   * `resolveUserState` — used by the React→Session direction to break the
+   * feedback loop (React→Session→event→setUser→React).
+   */
+  user_state_updated: UserStateShape;
   /** AI started processing. */
   processing_start: undefined;
   /** AI finished processing. */
@@ -433,11 +447,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         result.aaResolvedMode ??
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
+      // wallet_kind is provider-owned (constant per platform: Base="smart-account",
+      // Para="eoa") and forwarded via AomiAuthAdapterUserSync inside
+      // AomiAuthAdapterProvider. Session only writes per-tx-mutable fields here.
       this.resolveUserState({
         ...(this.userState ?? {}),
-        aa_mode: resolvedMode === "none" ? null : resolvedMode,
-        smart_account:
-          resolvedMode === "4337" ? result.smartAccountAddress ?? null : null,
+        aa_mode: resolvedMode,
+        smart_account_4337:
+          resolvedMode === "4337" ? result.SmartAccount4337 ?? null : null,
+        delegation_7702:
+          resolvedMode === "7702" ? result.Delegation7702 ?? null : null,
       });
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: result.txHash,
@@ -451,8 +470,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         batched: result.batched ?? pendingTxIds.length > 1,
         call_count: result.callCount ?? pendingTxIds.length,
         sponsored: result.sponsored,
-        smart_account_address: result.smartAccountAddress,
-        delegation_address: result.delegationAddress,
+        smart_account_4337: result.SmartAccount4337,
+        delegation_7702: result.Delegation7702,
       });
     } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", {
@@ -505,8 +524,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         batched: pendingTxIds.length > 1,
         call_count: pendingTxIds.length,
         sponsored: undefined,
-        smart_account_address: undefined,
-        delegation_address: undefined,
+        smart_account_4337: undefined,
+        delegation_7702: undefined,
       });
     } else if (req.kind === "eip712_sign") {
       await this.sendSystemEvent("wallet_eip712_response", {
@@ -603,8 +622,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  resolveUserState(userState: UserStateShape): void {
+  resolveUserState(
+    userState: UserStateShape,
+    opts?: { skipEmit?: boolean },
+  ): void {
+    const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
+    const nextSerialized = stableUserStateString(this.userState);
 
     const address = UserState.address(this.userState);
     const isConnected = UserState.isConnected(this.userState);
@@ -618,6 +642,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     this.syncWalletRequests();
+
+    if (!opts?.skipEmit && this.userState && previousSerialized !== nextSerialized) {
+      this.emit("user_state_updated", this.userState);
+    }
   }
 
   setClientType(clientType: AomiClientType): void {
@@ -659,15 +687,37 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     aa?: {
       aaMode?: UserStateAAMode | null;
       smartAccount?: string | null;
+      smartAccount4337?: string | null;
+      delegation7702?: string | null;
     },
   ): void {
-    this.resolveUserState({
+    const resolvedAAMode =
+      aa?.aaMode ?? (aa?.smartAccount === address ? "4337" : "none");
+    const resolvedWalletKind =
+      aa?.smartAccount === address ? "smart-account" : "eoa";
+    // Spread the current userState so session-scoped metadata (e.g.
+    // `ext.client_type`) carries through. The reconciler only preserves
+    // connection-scoped fields, so without this spread the CLI tx-complete
+    // path would silently drop `ext`.
+    const next: UserStateShape = {
+      ...(this.userState ?? {}),
       address,
+      wallet_kind: resolvedWalletKind,
+      aa_mode: resolvedAAMode,
       chain_id: chainId ?? 1,
       is_connected: true,
-      aa_mode: aa?.aaMode ?? null,
-      smart_account: aa?.smartAccount ?? null,
-    });
+    };
+    // Per-tx AA address fields are written mode-exclusively when the
+    // caller explicitly hands them in (post-tx-complete path). Connection
+    // prep / simulation calls omit them so the reconciler preserves
+    // whatever the previous tx left in place.
+    if (aa?.smartAccount4337 !== undefined || aa?.delegation7702 !== undefined) {
+      next.smart_account_4337 =
+        resolvedAAMode === "4337" ? aa?.smartAccount4337 ?? null : null;
+      next.delegation_7702 =
+        resolvedAAMode === "7702" ? aa?.delegation7702 ?? null : null;
+    }
+    this.resolveUserState(next);
   }
 
   async syncUserState(): Promise<AomiStateResponse> {

@@ -1,0 +1,167 @@
+[paths]
+index_dir = ".repowiki"
+generated_dir = "docs/generated"
+
+[embedding]
+provider = "openai"
+model = "text-embedding-3-small"
+
+[scan]
+include = [
+    "AGENTS.md",
+    "README.md",
+    "docs/index.md",
+    "docs/topics/**/*.md",
+    "docs/generated/**/*.md",
+    "specs/*.md",
+]
+exclude = [
+    ".claude/**",
+    ".codex/**",
+    ".git/**",
+    ".next/**",
+    ".repowiki/**",
+    ".turbo/**",
+    ".vercel/**",
+    "coverage/**",
+    "dist/**",
+    "memory/**",
+    "node_modules/**",
+    "apps/**/.next/**",
+    "apps/registry/dist/**",
+    "packages/**/dist/**",
+    "**/diffHistory.md",
+]
+
+[[source_rule]]
+name = "root-guidance"
+glob = "AGENTS.md"
+kind = "guide"
+default_status = "authoritative"
+default_area = "repo-overview"
+default_owner = "platform"
+require_metadata = false
+
+[[source_rule]]
+name = "root-readme"
+glob = "README.md"
+kind = "reference"
+default_status = "reference"
+default_area = "repo-overview"
+default_owner = "platform"
+require_metadata = false
+
+[[source_rule]]
+name = "docs-index"
+glob = "docs/index.md"
+kind = "index"
+default_status = "authoritative"
+default_area = "repowiki"
+default_owner = "platform"
+require_metadata = true
+
+[[source_rule]]
+name = "topics"
+glob = "docs/topics/**/*.md"
+kind = "topic"
+default_status = "authoritative"
+default_owner = "platform"
+require_metadata = true
+
+[[source_rule]]
+name = "generated"
+glob = "docs/generated/**/*.md"
+kind = "generated"
+default_status = "authoritative"
+default_owner = "platform"
+require_metadata = false
+
+[[source_rule]]
+name = "specs"
+glob = "specs/*.md"
+kind = "reference"
+default_status = "reference"
+default_area = "repo-overview"
+default_owner = "platform"
+require_metadata = false
+
+[[area]]
+name = "repo-overview"
+code = [
+    "package.json",
+    "pnpm-workspace.yaml",
+    "apps/landing/package.json",
+    "apps/registry/package.json",
+    "packages/client/package.json",
+    "packages/react/package.json",
+]
+docs = ["docs/topics/repo-overview.md"]
+owners = ["platform", "frontend"]
+
+[[area]]
+name = "widget-frame"
+code = [
+    "apps/registry/src/components/aomi-frame.tsx",
+    "apps/registry/src/components/assistant-ui/**",
+    "apps/registry/src/components/control-bar/**",
+    "apps/registry/src/index.ts",
+    "src/components/assistant-ui/runtime.tsx",
+]
+docs = ["docs/topics/widget-frame.md"]
+owners = ["frontend"]
+
+[[area]]
+name = "runtime-react"
+code = [
+    "packages/react/src/contexts/**",
+    "packages/react/src/handlers/**",
+    "packages/react/src/interface.tsx",
+    "packages/react/src/runtime/**",
+    "packages/react/src/state/**",
+    "packages/react/src/utils/**",
+]
+docs = ["docs/topics/runtime-react.md"]
+owners = ["frontend"]
+
+[[area]]
+name = "ts-client"
+code = [
+    "packages/client/src/client.ts",
+    "packages/client/src/event.ts",
+    "packages/client/src/index.ts",
+    "packages/client/src/session.ts",
+    "packages/client/src/sse.ts",
+    "packages/client/src/types.ts",
+]
+docs = ["docs/topics/ts-client.md"]
+owners = ["sdk"]
+
+[[area]]
+name = "cli"
+code = [
+    "packages/client/bin/**",
+    "packages/client/src/cli.ts",
+    "packages/client/src/cli/**",
+]
+docs = ["docs/topics/cli.md"]
+owners = ["sdk"]
+
+[[area]]
+name = "auth-adapter"
+code = [
+    "apps/registry/src/lib/aomi-auth-adapter/**",
+    "packages/react/src/runtime/user-state-provider.tsx",
+]
+docs = ["docs/topics/auth-adapter.md"]
+owners = ["frontend"]
+
+[[area]]
+name = "demo-apps"
+code = [
+    "apps/base/**",
+    "apps/landing/**",
+    "apps/portal/**",
+    "apps/telegram/**",
+]
+docs = ["docs/topics/demo-apps.md"]
+owners = ["frontend"]

@@ -610,11 +610,16 @@ describe("executeWalletCalls EOA capability handling", () => {
       timeout: 45_000,
       version: "1.0",
     });
+    // `sponsored` is intentionally `undefined` for optional-sponsorship:
+    // the wallet may silently fall back to user-paid while sendCalls still
+    // resolves, and we cannot verify post-hoc without decoding the userOp
+    // logs. `required` mode would report `true` because the protocol fails
+    // the tx if the paymaster rejects.
     expect(result).toMatchObject({
       txHash: "0xdef",
       executionKind: "base_account_4337",
-      sponsored: true,
     });
+    expect(result.sponsored).toBeUndefined();
   });
 
   it("does not forward ERC20 payment context for wallet-native sponsorship", async () => {

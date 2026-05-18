@@ -79,12 +79,20 @@ export async function syncWalletStateForChat(
   }));
   await session.syncUserState();
 
+  const aaMode =
+    next.aaMode === "4337" || next.aaMode === "7702"
+      ? next.aaMode
+      : "none";
+  const walletKind =
+    next.smartAccount && next.smartAccount === next.publicKey
+      ? "smart-account"
+      : "eoa";
   const payload: Record<string, unknown> = {
     address: next.publicKey,
     chainId: next.chainId,
     isConnected: true,
-    aa_mode: next.aaMode ?? null,
-    smart_account: next.smartAccount ?? null,
+    wallet_kind: walletKind,
+    aa_mode: aaMode,
   };
 
   await session.client.sendSystemMessage(

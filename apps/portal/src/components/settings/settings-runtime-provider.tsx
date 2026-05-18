@@ -1,13 +1,12 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { AomiAuthRuntimeUserSync } from "@aomi-labs/widget-lib";
 import {
   AomiClient,
   ControlContextProvider,
   ThreadContextProvider,
   UserState,
-  UserContextProvider,
+  ExtUserProvider,
   useThreadContext,
   useUser,
 } from "@aomi-labs/react";
@@ -56,15 +55,14 @@ export function SettingsRuntimeProvider({
 
   return (
     <ThreadContextProvider initialThreadId={sessionId}>
-      <UserContextProvider>
-        <AomiAuthRuntimeUserSync />
+      <ExtUserProvider>
         <SettingsRuntimeInner
           aomiClient={aomiClient}
           sessionId={sessionId}
         >
           {children}
         </SettingsRuntimeInner>
-      </UserContextProvider>
+      </ExtUserProvider>
     </ThreadContextProvider>
   );
 }

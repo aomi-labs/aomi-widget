@@ -230,8 +230,8 @@ describe("CLI wallet generic AA execution", () => {
         aaMode: "7702",
         batched: true,
         sponsored: true,
-        AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        smartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        Delegation7702: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         to: "0x1111111111111111111111111111111111111111",
         value: "10",
         timestamp: 0,
@@ -244,7 +244,7 @@ describe("CLI wallet generic AA execution", () => {
     expect(line).toContain("mode: 7702");
     expect(line).toContain("txs: 2");
     expect(line).toContain("sponsored");
-    expect(line).toContain("aa: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(line).toContain("4337: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     expect(line).toContain(
       "delegation: 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     );

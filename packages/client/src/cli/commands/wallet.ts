@@ -436,6 +436,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
     let resolvedUserStateAAMode: "4337" | "7702" | null = null;
     let resolvedUserStateSmartAccount: string | null = null;
+    let resolvedUserStateSmartAccount4337: string | null = null;
+    let resolvedUserStateDelegation7702: string | null = null;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
@@ -483,9 +485,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         simulationDecision.execution === "aa" ? simulationDecision.aaMode : null;
       const simulationSmartAccount =
         simulationAAMode === "4337"
-          ? simulationProviderState?.account?.AAAddress ??
-            simulationProviderState?.account?.executionAddress ??
-            null
+          ? simulationProviderState?.account?.SmartAccount4337 ?? null
           : null;
 
       session.resolveWallet(account.address, primaryChainId, {
@@ -614,11 +614,11 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       if (execution.sponsored) {
         console.log("Gas:     sponsored");
       }
-      if (execution.AAAddress) {
-        console.log(`AA:      ${execution.AAAddress}`);
+      if (execution.SmartAccount4337) {
+        console.log(`AA:      ${execution.SmartAccount4337}`);
       }
-      if (execution.delegationAddress) {
-        console.log(`Deleg:   ${execution.delegationAddress}`);
+      if (execution.Delegation7702) {
+        console.log(`Deleg:   ${execution.Delegation7702}`);
       }
 
       const executionUsedAA =
@@ -628,7 +628,17 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           ? finalDecision.aaMode
           : null;
       resolvedUserStateSmartAccount =
-        resolvedUserStateAAMode === "4337" ? execution.AAAddress ?? null : null;
+        resolvedUserStateAAMode === "4337"
+          ? execution.SmartAccount4337 ?? null
+          : null;
+      resolvedUserStateSmartAccount4337 =
+        resolvedUserStateAAMode === "4337"
+          ? execution.SmartAccount4337 ?? null
+          : null;
+      resolvedUserStateDelegation7702 =
+        resolvedUserStateAAMode === "7702"
+          ? execution.Delegation7702 ?? null
+          : null;
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -660,8 +670,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
           batched: execution.batched,
           call_count: execution.txHashes.length,
           sponsored: execution.sponsored,
-          smart_account_address: execution.AAAddress,
-          delegation_address: execution.delegationAddress,
+          smart_account_4337: execution.SmartAccount4337,
+          delegation_7702: execution.Delegation7702,
         },
       }));
     } else {
@@ -719,6 +729,8 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     session.resolveWallet(account.address, primaryChainId, {
       aaMode: resolvedUserStateAAMode,
       smartAccount: resolvedUserStateSmartAccount,
+      smartAccount4337: resolvedUserStateSmartAccount4337,
+      delegation7702: resolvedUserStateDelegation7702,
     });
 
     for (const backendNotification of backendNotifications) {

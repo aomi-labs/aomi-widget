@@ -116,7 +116,20 @@ export async function createPimlicoAAState(
       };
     }
 
-    const account = adaptPimlicoSdkAccount(smartAccount);
+    const ownerAddress = "address" in ownerParams.ownerParams
+      ? (ownerParams.ownerParams.address as Hex | undefined)
+      : undefined;
+    if (!ownerAddress) {
+      return {
+        resolved: execution,
+        account: null,
+        pending: false,
+        error: new Error(
+          "Pimlico AA session owner is missing a wallet address. Connect a wallet first.",
+        ),
+      };
+    }
+    const account = adaptPimlicoSdkAccount(smartAccount, ownerAddress);
     return {
       resolved: execution,
       account,
@@ -221,26 +234,47 @@ function rejectExternalWallet7702(signer: unknown): void {
   );
 }
 
-function adaptPimlicoSdkAccount(account: {
-  provider: string;
-  mode: AAMode;
-  smartAccountAddress: Hex;
-  delegationAddress?: Hex;
-  sendTransaction: (
-    call: { to: Hex; value: bigint; data?: Hex },
-    options?: unknown,
-  ) => Promise<{ transactionHash: string }>;
-  sendBatchTransaction: (
-    calls: Array<{ to: Hex; value: bigint; data?: Hex }>,
-    options?: unknown,
-  ) => Promise<{ transactionHash: string }>;
-}): SmartAccount {
+function adaptPimlicoSdkAccount(
+  account: {
+    /** Para SDK emits uppercase; coerced below. */
+    provider: string;
+    mode: AAMode;
+    smartAccountAddress: Hex;
+    delegationAddress?: Hex;
+    sendTransaction: (
+      call: { to: Hex; value: bigint; data?: Hex },
+      options?: unknown,
+    ) => Promise<{ transactionHash: string }>;
+    sendBatchTransaction: (
+      calls: Array<{ to: Hex; value: bigint; data?: Hex }>,
+      options?: unknown,
+    ) => Promise<{ transactionHash: string }>;
+  },
+  address: Hex,
+): SmartAccount {
+  const lowered = account.provider.toLowerCase();
+  if (lowered !== "alchemy" && lowered !== "pimlico") {
+    throw new Error(`Unsupported AA provider from Pimlico SDK: ${account.provider}`);
+  }
+  const provider = lowered;
+
+  if (account.mode === "4337") {
+    return {
+      provider,
+      mode: "4337",
+      address,
+      SmartAccount4337: account.smartAccountAddress,
+      sendTransaction: async (call) => account.sendTransaction(call),
+      sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls),
+    };
+  }
   return {
-    provider: account.provider,
-    mode: account.mode,
-    executionAddress: account.smartAccountAddress,
-    AAAddress: account.smartAccountAddress,
-    delegationAddress: account.delegationAddress,
+    provider,
+    mode: "7702",
+    address,
+    ...(account.delegationAddress
+      ? { Delegation7702: account.delegationAddress }
+      : {}),
     sendTransaction: async (call) => account.sendTransaction(call),
     sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls),
   };
@@ -393,13 +427,23 @@ async function createPimlicoPermissionlessState(params: {
     }
   };
 
-  const account: SmartAccount = {
-    provider: "pimlico",
-    mode: params.mode,
-    AAAddress: accountAddress,
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls),
-  };
+  const account: SmartAccount =
+    params.mode === "4337"
+      ? {
+          provider: "pimlico",
+          mode: "4337",
+          address: signerAddress,
+          SmartAccount4337: accountAddress,
+          sendTransaction: async (call) => sendCalls([call]),
+          sendBatchTransaction: async (calls) => sendCalls(calls),
+        }
+      : {
+          provider: "pimlico",
+          mode: "7702",
+          address: signerAddress,
+          sendTransaction: async (call) => sendCalls([call]),
+          sendBatchTransaction: async (calls) => sendCalls(calls),
+        };
 
   return {
     resolved: params.resolved,
