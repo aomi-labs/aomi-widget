@@ -270,7 +270,7 @@ describe("CLI wallet sign simulation integration", () => {
     );
     expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
       aaMode: null,
-      smartAccount: null,
+      smartAccount4337: null,
     });
 
     expect(mocks.createCliProviderState).toHaveBeenCalledWith(
@@ -494,7 +494,7 @@ describe("CLI wallet sign simulation integration", () => {
     );
     expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
       aaMode: "7702",
-      smartAccount: null,
+      smartAccount4337: null,
     });
 
     // planning 7702 + execution 7702 + execution 4337

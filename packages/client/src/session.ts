@@ -447,9 +447,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         result.aaResolvedMode ??
         aaModeFromExecutionKind(result.executionKind) ??
         requestedMode;
-      // wallet_kind is provider-owned (constant per platform: Base="smart-account",
-      // Para="eoa") and forwarded via AomiAuthAdapterUserSync inside
-      // AomiAuthAdapterProvider. Session only writes per-tx-mutable fields here.
+      // Session owns execution-derived AA fields; provider/auth metadata flows
+      // through the auth-adapter identity sync path instead.
       this.resolveUserState({
         ...(this.userState ?? {}),
         aa_mode: resolvedMode,
@@ -686,15 +685,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     chainId?: number,
     aa?: {
       aaMode?: UserStateAAMode | null;
-      smartAccount?: string | null;
       smartAccount4337?: string | null;
       delegation7702?: string | null;
     },
   ): void {
     const resolvedAAMode =
-      aa?.aaMode ?? (aa?.smartAccount === address ? "4337" : "none");
-    const resolvedWalletKind =
-      aa?.smartAccount === address ? "smart-account" : "eoa";
+      aa?.aaMode ??
+      (aa?.smartAccount4337 ? "4337" : aa?.delegation7702 ? "7702" : "none");
     // Spread the current userState so session-scoped metadata (e.g.
     // `ext.client_type`) carries through. The reconciler only preserves
     // connection-scoped fields, so without this spread the CLI tx-complete
@@ -702,7 +699,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const next: UserStateShape = {
       ...(this.userState ?? {}),
       address,
-      wallet_kind: resolvedWalletKind,
       aa_mode: resolvedAAMode,
       chain_id: chainId ?? 1,
       is_connected: true,

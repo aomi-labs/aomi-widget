@@ -71,7 +71,8 @@ export function buildCliUserState(
   chainId?: number,
   aa?: {
     aaMode?: UserStateAAMode | null;
-    smartAccount?: string | null;
+    smartAccount4337?: string | null;
+    delegation7702?: string | null;
   },
 ): UserState {
   const userState: UserState = {};
@@ -90,11 +91,17 @@ export function buildCliUserState(
 
   if (aa?.aaMode === "4337" || aa?.aaMode === "7702") {
     userState.aa_mode = aa.aaMode;
-    userState.wallet_kind =
-      publicKey && aa.smartAccount === publicKey ? "smart-account" : "eoa";
+    if (aa.aaMode === "4337") {
+      userState.smart_account_4337 = aa.smartAccount4337 ?? null;
+      userState.delegation_7702 = null;
+    } else {
+      userState.smart_account_4337 = null;
+      userState.delegation_7702 = aa.delegation7702 ?? null;
+    }
   } else if (aa?.aaMode === null) {
     userState.aa_mode = "none";
-    userState.wallet_kind = "eoa";
+    userState.smart_account_4337 = null;
+    userState.delegation_7702 = null;
   }
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
@@ -254,12 +261,12 @@ export function walletSnapshotFromUserState(
   publicKey?: string;
   chainId?: number;
   aaMode?: UserStateAAMode | null;
-  smartAccount?: string | null;
+  smartAccount4337?: string | null;
+  delegation7702?: string | null;
 } {
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
   const sessionAAMode = UserState.aaMode(userState);
-  const walletKind = UserState.walletKind(userState);
 
   const aaMode: UserStateAAMode | null | undefined =
     sessionAAMode === "4337" || sessionAAMode === "7702"
@@ -268,13 +275,16 @@ export function walletSnapshotFromUserState(
         ? null
         : undefined;
 
-  const smartAccount: string | null | undefined =
-    walletKind === "smart-account" ? address ?? null : null;
+  const smartAccount4337 =
+    aaMode === "4337" ? UserState.SmartAccount4337(userState) ?? null : null;
+  const delegation7702 =
+    aaMode === "7702" ? UserState.Delegation7702(userState) ?? null : null;
 
   return {
     publicKey: isConnected === false ? undefined : address,
     chainId: UserState.chainId(userState),
     aaMode,
-    smartAccount,
+    smartAccount4337,
+    delegation7702,
   };
 }

@@ -102,7 +102,8 @@ export type CliSessionState = {
   privateKey?: string;
   chainId?: number;
   aaMode?: UserStateAAMode | null;
-  smartAccount?: string | null;
+  smartAccount4337?: string | null;
+  delegation7702?: string | null;
   pendingTxs?: PendingTx[];
   pendingSolTxs?: PendingSolTx[];
   signedTxs?: SignedTx[];
@@ -140,6 +141,7 @@ type LegacySignedTx = SignedTx & {
 };
 
 type LegacyStoredSessionState = Omit<StoredSessionState, "signedTxs"> & {
+  smartAccount?: string | null;
   signedTxs?: LegacySignedTx[];
 };
 
@@ -192,7 +194,8 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     privateKey: stored.privateKey,
     chainId: stored.chainId,
     aaMode: stored.aaMode,
-    smartAccount: stored.smartAccount,
+    smartAccount4337: stored.smartAccount4337,
+    delegation7702: stored.delegation7702,
     pendingTxs: stored.pendingTxs,
     pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
@@ -236,7 +239,8 @@ function readStoredSession(path: string): StoredSessionState | null {
       privateKey: parsed.privateKey,
       chainId: parsed.chainId,
       aaMode: parsed.aaMode,
-      smartAccount: parsed.smartAccount,
+      smartAccount4337: parsed.smartAccount4337 ?? parsed.smartAccount,
+      delegation7702: parsed.delegation7702,
       pendingTxs: parsed.pendingTxs,
       pendingSolTxs: parsed.pendingSolTxs,
       signedTxs: normalizeSignedTxs(parsed.signedTxs),
@@ -336,7 +340,10 @@ function migrateLegacyStateIfNeeded(): void {
   try {
     const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
     const legacy = JSON.parse(raw) as Partial<
-      Omit<CliSessionState, "signedTxs"> & { signedTxs?: LegacySignedTx[] }
+      Omit<CliSessionState, "signedTxs"> & {
+        smartAccount?: string | null;
+        signedTxs?: LegacySignedTx[];
+      }
     >;
     if (!legacy.sessionId || !legacy.baseUrl) {
       return;
@@ -345,6 +352,7 @@ function migrateLegacyStateIfNeeded(): void {
     const now = Date.now();
     const migrated: StoredSessionState = {
       ...legacy,
+      smartAccount4337: legacy.smartAccount4337 ?? legacy.smartAccount,
       signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
@@ -637,10 +645,16 @@ export function syncPendingTxsFromUserState(
     state.aaMode = null;
   }
 
-  if (walletSnapshot.smartAccount !== undefined) {
-    state.smartAccount = walletSnapshot.smartAccount;
+  if (walletSnapshot.smartAccount4337 !== undefined) {
+    state.smartAccount4337 = walletSnapshot.smartAccount4337;
   } else if (isConnected === false) {
-    state.smartAccount = null;
+    state.smartAccount4337 = null;
+  }
+
+  if (walletSnapshot.delegation7702 !== undefined) {
+    state.delegation7702 = walletSnapshot.delegation7702;
+  } else if (isConnected === false) {
+    state.delegation7702 = null;
   }
 
   state.pendingTxs = pendingTxsFromBackendUserState(

@@ -28,7 +28,6 @@ export type {
   AomiThread,
   UserStateAAMode,
   UserStateAuthMethod,
-  UserStateWalletKind,
   UserStateWalletProvider,
   UserStateSponsorProvider,
   Logger,

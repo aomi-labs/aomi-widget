@@ -109,6 +109,8 @@ function useWalletStateSync(
       is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
       ens_name:
         typeof nextUser.ens_name === "string" ? nextUser.ens_name : undefined,
+      svm_address: UserStateHelpers.svmAddress(nextUser) ?? undefined,
+      aa_mode: UserStateHelpers.aaMode(nextUser) ?? undefined,
       wallet_provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
       auth_method: UserStateHelpers.authMethod(nextUser) ?? undefined,
       sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
@@ -138,6 +140,8 @@ function useWalletStateSync(
         prevWalletState.chain_id === nextWalletState.chain_id &&
         prevWalletState.is_connected === nextWalletState.is_connected &&
         prevWalletState.ens_name === nextWalletState.ens_name &&
+        prevWalletState.svm_address === nextWalletState.svm_address &&
+        prevWalletState.aa_mode === nextWalletState.aa_mode &&
         prevWalletState.wallet_provider === nextWalletState.wallet_provider &&
         prevWalletState.auth_method === nextWalletState.auth_method &&
         prevWalletState.sponsored === nextWalletState.sponsored &&

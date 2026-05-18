@@ -435,7 +435,6 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     let signedRecords: SignedTx[] = [];
     let backendNotifications: Array<{ type: string; payload: Record<string, unknown> }> = [];
     let resolvedUserStateAAMode: "4337" | "7702" | null = null;
-    let resolvedUserStateSmartAccount: string | null = null;
     let resolvedUserStateSmartAccount4337: string | null = null;
     let resolvedUserStateDelegation7702: string | null = null;
 
@@ -490,7 +489,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
 
       session.resolveWallet(account.address, primaryChainId, {
         aaMode: simulationAAMode,
-        smartAccount: simulationSmartAccount,
+        smartAccount4337: simulationSmartAccount,
       });
       await session.syncUserState();
 
@@ -627,10 +626,6 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
         executionUsedAA && finalDecision.execution === "aa"
           ? finalDecision.aaMode
           : null;
-      resolvedUserStateSmartAccount =
-        resolvedUserStateAAMode === "4337"
-          ? execution.SmartAccount4337 ?? null
-          : null;
       resolvedUserStateSmartAccount4337 =
         resolvedUserStateAAMode === "4337"
           ? execution.SmartAccount4337 ?? null
@@ -728,7 +723,6 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
       aaMode: resolvedUserStateAAMode,
-      smartAccount: resolvedUserStateSmartAccount,
       smartAccount4337: resolvedUserStateSmartAccount4337,
       delegation7702: resolvedUserStateDelegation7702,
     });

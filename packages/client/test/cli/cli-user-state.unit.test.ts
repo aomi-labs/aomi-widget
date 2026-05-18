@@ -15,7 +15,8 @@ describe("CLI user state AA fields", () => {
       ext: { client_type: "ts_cli" },
     });
     expect(state.aa_mode).toBeUndefined();
-    expect(state.wallet_kind).toBeUndefined();
+    expect(state.smart_account_4337).toBeUndefined();
+    expect(state.delegation_7702).toBeUndefined();
   });
 
   it("maps null aaMode input to aa_mode=none", () => {
@@ -24,39 +25,42 @@ describe("CLI user state AA fields", () => {
       chain_id: 8453,
       is_connected: true,
       aa_mode: "none",
-      wallet_kind: "eoa",
+      smart_account_4337: null,
+      delegation_7702: null,
     });
   });
 
-  it("maps 4337 with separate smart account to eoa walletKind", () => {
+  it("maps 4337 with a known smart account into canonical AA fields", () => {
     expect(
       buildCliUserState("0xabc", 8453, {
         aaMode: "4337",
-        smartAccount: "0xdef",
+        smartAccount4337: "0xdef",
       }),
     ).toMatchObject({
       address: "0xabc",
       chain_id: 8453,
       is_connected: true,
       aa_mode: "4337",
-      wallet_kind: "eoa",
+      smart_account_4337: "0xdef",
+      delegation_7702: null,
     });
   });
 
-  it("derives aaMode and smartAccount from new UserState schema", () => {
+  it("derives aaMode and smartAccount4337 from canonical UserState", () => {
     const snapshot = walletSnapshotFromUserState({
       address: "0xdef",
       chain_id: 8453,
       is_connected: true,
-      wallet_kind: "smart-account",
       aa_mode: "4337",
+      smart_account_4337: "0xaaa",
     });
 
     expect(snapshot).toEqual({
       publicKey: "0xdef",
       chainId: 8453,
       aaMode: "4337",
-      smartAccount: "0xdef",
+      smartAccount4337: "0xaaa",
+      delegation7702: null,
     });
   });
 });

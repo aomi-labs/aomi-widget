@@ -7,7 +7,6 @@
  * Typically wallet connection info, but can be any key-value data.
  */
 export type UserStateAAMode = "none" | "4337" | "7702";
-export type UserStateWalletKind = "eoa" | "smart-account";
 export type UserStateWalletProvider = "para" | "baseAccount";
 export type UserStateAuthMethod =
   | "google"
@@ -28,20 +27,17 @@ export type UserStateSponsorProvider =
   | "self";
 
 export interface UserState extends Record<string, unknown> {
-  /**
-   * Connected account address. When `wallet_kind === "smart-account"` this is
-   * the smart account address; when `wallet_kind === "eoa"` it is the EOA.
-   */
+  /** Connected EVM account address (0x...). */
   address?: string | null;
-  wallet_kind?: UserStateWalletKind | null;
+  chain_id?: number | string | null;
+  is_connected?: boolean | null;
+  ens_name?: string | null;
+  ext?: Record<string, unknown> | null;
   aa_mode?: UserStateAAMode | null;
   /** 4337 smart account address — populated after a 4337 tx resolves. */
   smart_account_4337?: string | null;
   /** 7702 delegation contract address — populated after a 7702 tx resolves. */
   delegation_7702?: string | null;
-  chain_id?: number | string | null;
-  is_connected?: boolean | null;
-  ens_name?: string | null;
   svm_address?: string | null;
   wallet_provider?: UserStateWalletProvider | null;
   auth_method?: UserStateAuthMethod | null;
@@ -74,9 +70,12 @@ const USER_STATE_KEY_ALIASES: Record<string, string> = {
   isConnected: "is_connected",
   ensName: "ens_name",
   svmAddress: "svm_address",
-  walletKind: "wallet_kind",
   aaMode: "aa_mode",
+  smartAccount4337: "smart_account_4337",
+  smartAccount: "smart_account_4337",
+  smartAccountAddress: "smart_account_4337",
   SmartAccount4337: "smart_account_4337",
+  delegation7702: "delegation_7702",
   Delegation7702: "delegation_7702",
   pendingTxs: "pending_txs",
   pendingEip712s: "pending_eip712s",
@@ -167,15 +166,6 @@ function parseUserStateSponsorProvider(
     value === "self"
     ? value
     : undefined;
-}
-
-function parseUserStateWalletKind(
-  value: unknown,
-): UserStateWalletKind | null | undefined {
-  if (value === null) {
-    return null;
-  }
-  return value === "eoa" || value === "smart-account" ? value : undefined;
 }
 
 function parseUserStateAAMode(
@@ -285,14 +275,6 @@ export namespace UserState {
       (sameAddress || (!incomingAddress && !!previousAddress));
 
     if (
-      !hasOwnKey(incoming, "wallet_kind") &&
-      canPreserveAAContext &&
-      walletKind(previous) !== undefined
-    ) {
-      reconciled.wallet_kind = walletKind(previous);
-    }
-
-    if (
       !hasOwnKey(incoming, "aa_mode") &&
       canPreserveAAContext &&
       aaMode(previous) !== undefined
@@ -376,13 +358,6 @@ export namespace UserState {
     const normalized = normalize(userState);
     const address = normalized?.address;
     return typeof address === "string" && address.length > 0 ? address : undefined;
-  }
-
-  export function walletKind(
-    userState?: UserState | null,
-  ): UserStateWalletKind | null | undefined {
-    const normalized = normalize(userState);
-    return parseUserStateWalletKind(normalized?.wallet_kind);
   }
 
   export function aaMode(

@@ -129,7 +129,6 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
           address: undefined,
           chain_id: undefined,
           ens_name: undefined,
-          wallet_kind: undefined,
           aa_mode: undefined,
           smart_account_4337: undefined,
           delegation_7702: undefined,

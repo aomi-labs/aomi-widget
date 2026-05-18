@@ -36,7 +36,6 @@ describe("ExtUserProvider.setUser", () => {
         address: "0x1111111111111111111111111111111111111111",
         chain_id: 8453,
         is_connected: true,
-        wallet_kind: "smart-account",
         aa_mode: "4337",
         smart_account_4337: "0x2222222222222222222222222222222222222222",
         delegation_7702: "0x3333333333333333333333333333333333333333",
@@ -62,7 +61,6 @@ describe("ExtUserProvider.setUser", () => {
     expect(u.address).toBeUndefined();
     expect(u.chain_id).toBeUndefined();
     expect(u.ens_name).toBeUndefined();
-    expect(u.wallet_kind).toBeUndefined();
     expect(u.aa_mode).toBeUndefined();
     expect(u.smart_account_4337).toBeUndefined();
     expect(u.delegation_7702).toBeUndefined();
@@ -85,7 +83,6 @@ describe("ExtUserProvider.setUser", () => {
         address: "0x1111111111111111111111111111111111111111",
         chain_id: 8453,
         is_connected: true,
-        wallet_kind: "smart-account",
         aa_mode: "4337",
         smart_account_4337: "0x2222222222222222222222222222222222222222",
         delegation_7702: "0x3333333333333333333333333333333333333333",
@@ -107,7 +104,6 @@ describe("ExtUserProvider.setUser", () => {
     expect(u.address).toBe("0x4444444444444444444444444444444444444444");
     // Identity-static fields persist across the in-place switch.
     expect(u.wallet_provider).toBe("para");
-    expect(u.wallet_kind).toBe("smart-account");
     expect(u.chain_id).toBe(8453);
     // Per-tx AA outputs + ens + pending maps belonged to the prior address.
     expect(u.aa_mode).toBeUndefined();

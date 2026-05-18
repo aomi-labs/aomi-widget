@@ -31,10 +31,9 @@ function AomiAuthAdapterSync({
     // here. They are session-owned: `session.ts` writes them on tx-complete
     // and providers read them back via `useUser()`. Forwarding them from
     // identity would create a write loop (UserState -> identity -> setUser
-    // -> UserState). walletKind is provider-static and forwarded normally.
+    // -> UserState).
     setUser({
       address: identity.address ?? undefined,
-      walletKind: identity.walletKind ?? undefined,
       chainId: identity.chainId ?? undefined,
       isConnected: identity.isConnected,
       svmAddress: identity.svmAddress ?? undefined,
@@ -57,7 +56,6 @@ function AomiAuthAdapterSync({
     identity.authMethod,
     identity.chainId,
     identity.isConnected,
-    identity.walletKind,
     identity.sponsorAccount,
     identity.sponsorProvider,
     identity.sponsored,

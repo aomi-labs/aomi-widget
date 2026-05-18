@@ -66,7 +66,6 @@ describe("AomiAuthAdapterProvider user sync", () => {
         chain_id: 8453,
         is_connected: true,
         wallet_provider: "baseAccount",
-        wallet_kind: "smart-account",
         sponsored: true,
         sponsor_provider: "coinbase",
       });

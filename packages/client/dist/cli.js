@@ -19,6 +19,18 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __objRest = (source, exclude) => {
+  var target = {};
+  for (var prop in source)
+    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && __getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(source)) {
+      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+        target[prop] = source[prop];
+    }
+  return target;
+};
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -303,12 +315,6 @@ function parseUserStateSponsorProvider(value) {
   }
   return value === "alchemy" || value === "coinbase" || value === "pimlico" || value === "self" ? value : void 0;
 }
-function parseUserStateWalletKind(value) {
-  if (value === null) {
-    return null;
-  }
-  return value === "eoa" || value === "smart-account" ? value : void 0;
-}
 function parseUserStateAAMode(value) {
   if (value === null) {
     return null;
@@ -346,9 +352,12 @@ var init_types = __esm({
       isConnected: "is_connected",
       ensName: "ens_name",
       svmAddress: "svm_address",
-      walletKind: "wallet_kind",
       aaMode: "aa_mode",
+      smartAccount4337: "smart_account_4337",
+      smartAccount: "smart_account_4337",
+      smartAccountAddress: "smart_account_4337",
       SmartAccount4337: "smart_account_4337",
+      delegation7702: "delegation_7702",
       Delegation7702: "delegation_7702",
       pendingTxs: "pending_txs",
       pendingEip712s: "pending_eip712s",
@@ -417,9 +426,6 @@ var init_types = __esm({
           }
         }
         const canPreserveAAContext = canPreserveConnectedWalletContext && previous !== void 0 && (sameAddress || !incomingAddress && !!previousAddress);
-        if (!hasOwnKey(incoming, "wallet_kind") && canPreserveAAContext && walletKind(previous) !== void 0) {
-          reconciled.wallet_kind = walletKind(previous);
-        }
         if (!hasOwnKey(incoming, "aa_mode") && canPreserveAAContext && aaMode(previous) !== void 0) {
           reconciled.aa_mode = aaMode(previous);
         }
@@ -459,11 +465,6 @@ var init_types = __esm({
         return typeof address2 === "string" && address2.length > 0 ? address2 : void 0;
       }
       UserState2.address = address;
-      function walletKind(userState) {
-        const normalized = normalize(userState);
-        return parseUserStateWalletKind(normalized == null ? void 0 : normalized.wallet_kind);
-      }
-      UserState2.walletKind = walletKind;
       function aaMode(userState) {
         const normalized = normalize(userState);
         return parseUserStateAAMode(normalized == null ? void 0 : normalized.aa_mode);
@@ -759,7 +760,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   const url = `${baseUrl}${path}${query}`;
   const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
-    headers.set(API_KEY_HEADER, apiKey);
+    headers.set(APP_KEY_HEADER, apiKey);
   }
   const response = await fetchImpl(url, {
     method: "POST",
@@ -770,14 +771,14 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, API_KEY_HEADER, AomiClient;
+var SESSION_ID_HEADER, APP_KEY_HEADER, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
     init_types();
     init_sse();
     SESSION_ID_HEADER = "X-Session-Id";
-    API_KEY_HEADER = "X-API-Key";
+    APP_KEY_HEADER = "AOMI-APP-KEY";
     AomiClient = class {
       constructor(options) {
         var _a3;
@@ -1091,7 +1092,7 @@ var init_client = __esm({
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
-          headers.set(API_KEY_HEADER, apiKey);
+          headers.set(APP_KEY_HEADER, apiKey);
         }
         const response = await this.rawFetchImpl(url, { headers });
         if (!response.ok) {
@@ -1108,7 +1109,7 @@ var init_client = __esm({
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
-          headers.set(API_KEY_HEADER, apiKey);
+          headers.set(APP_KEY_HEADER, apiKey);
         }
         const response = await this.rawFetchImpl(url, {
           headers
@@ -1141,24 +1142,24 @@ var init_client = __esm({
         );
       }
       /**
-       * List BYOK provider keys bound to the current session's client.
+       * List BYOK keys (one per LLM provider) bound to the current session's client.
        */
-      async listProviderKeys(sessionId) {
+      async listByokKeys(sessionId) {
         var _a3;
         const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
-          throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+          throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
         }
         const data = await response.json();
-        return (_a3 = data.provider_keys) != null ? _a3 : [];
+        return (_a3 = data.byok_keys) != null ? _a3 : [];
       }
       /**
-       * Save or replace a BYOK provider key for the client bound to this session.
+       * Save or replace a BYOK key for the client bound to this session.
        */
-      async saveProviderKey(sessionId, provider, apiKey, label) {
+      async saveByokKey(sessionId, provider, byokKey, label) {
         const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
         const response = await this.fetchImpl(url, {
           method: "POST",
@@ -1167,20 +1168,20 @@ var init_client = __esm({
           }),
           body: JSON.stringify({
             provider,
-            api_key: apiKey,
+            byok_key: byokKey,
             label
           })
         });
         if (!response.ok) {
-          throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+          throw new Error(`Failed to save BYOK key: HTTP ${response.status}`);
         }
         const data = await response.json();
         return data.key;
       }
       /**
-       * Delete a BYOK provider key for the client bound to this session.
+       * Delete a BYOK key for the client bound to this session.
        */
-      async deleteProviderKey(sessionId, provider) {
+      async deleteByokKey(sessionId, provider) {
         const url = buildApiUrl(
           this.baseUrl,
           `/api/control/provider-keys/${encodeURIComponent(provider)}`
@@ -1190,7 +1191,7 @@ var init_client = __esm({
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
-          throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+          throw new Error(`Failed to delete BYOK key: HTTP ${response.status}`);
         }
         const data = await response.json();
         return data.deleted;
@@ -1209,7 +1210,7 @@ var init_client = __esm({
           withSessionHeader(sessionId, { "Content-Type": "application/json" })
         );
         if (this.apiKey) {
-          headers.set(API_KEY_HEADER, this.apiKey);
+          headers.set(APP_KEY_HEADER, this.apiKey);
         }
         const normalizedTransactions = transactions.map((transaction) => {
           var _a3, _b;
@@ -1981,11 +1982,9 @@ var init_session = __esm({
       }
       resolveWallet(address, chainId, aa) {
         var _a3, _b, _c, _d;
-        const resolvedAAMode = (_a3 = aa == null ? void 0 : aa.aaMode) != null ? _a3 : (aa == null ? void 0 : aa.smartAccount) === address ? "4337" : "none";
-        const resolvedWalletKind = (aa == null ? void 0 : aa.smartAccount) === address ? "smart-account" : "eoa";
+        const resolvedAAMode = (_a3 = aa == null ? void 0 : aa.aaMode) != null ? _a3 : (aa == null ? void 0 : aa.smartAccount4337) ? "4337" : (aa == null ? void 0 : aa.delegation7702) ? "7702" : "none";
         const next = __spreadProps(__spreadValues({}, (_b = this.userState) != null ? _b : {}), {
           address,
-          wallet_kind: resolvedWalletKind,
           aa_mode: resolvedAAMode,
           chain_id: chainId != null ? chainId : 1,
           is_connected: true
@@ -2413,6 +2412,7 @@ function txTimestamp(existingById, id, fallbackNow) {
   return (_b = (_a3 = existingById.get(id)) == null ? void 0 : _a3.timestamp) != null ? _b : fallbackNow;
 }
 function buildCliUserState(publicKey, chainId, aa) {
+  var _a3, _b;
   const userState = {};
   if (publicKey !== void 0) {
     userState.address = publicKey;
@@ -2425,10 +2425,17 @@ function buildCliUserState(publicKey, chainId, aa) {
   }
   if ((aa == null ? void 0 : aa.aaMode) === "4337" || (aa == null ? void 0 : aa.aaMode) === "7702") {
     userState.aa_mode = aa.aaMode;
-    userState.wallet_kind = publicKey && aa.smartAccount === publicKey ? "smart-account" : "eoa";
+    if (aa.aaMode === "4337") {
+      userState.smart_account_4337 = (_a3 = aa.smartAccount4337) != null ? _a3 : null;
+      userState.delegation_7702 = null;
+    } else {
+      userState.smart_account_4337 = null;
+      userState.delegation_7702 = (_b = aa.delegation7702) != null ? _b : null;
+    }
   } else if ((aa == null ? void 0 : aa.aaMode) === null) {
     userState.aa_mode = "none";
-    userState.wallet_kind = "eoa";
+    userState.smart_account_4337 = null;
+    userState.delegation_7702 = null;
   }
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
@@ -2554,17 +2561,19 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
   return next;
 }
 function walletSnapshotFromUserState(userState) {
+  var _a3, _b;
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
   const sessionAAMode = UserState.aaMode(userState);
-  const walletKind = UserState.walletKind(userState);
   const aaMode = sessionAAMode === "4337" || sessionAAMode === "7702" ? sessionAAMode : sessionAAMode === "none" ? null : void 0;
-  const smartAccount = walletKind === "smart-account" ? address != null ? address : null : null;
+  const smartAccount4337 = aaMode === "4337" ? (_a3 = UserState.SmartAccount4337(userState)) != null ? _a3 : null : null;
+  const delegation7702 = aaMode === "7702" ? (_b = UserState.Delegation7702(userState)) != null ? _b : null : null;
   return {
     publicKey: isConnected === false ? void 0 : address,
     chainId: UserState.chainId(userState),
     aaMode,
-    smartAccount
+    smartAccount4337,
+    delegation7702
   };
 }
 var init_user_state = __esm({
@@ -2618,7 +2627,8 @@ function toCliSessionState(stored) {
     privateKey: stored.privateKey,
     chainId: stored.chainId,
     aaMode: stored.aaMode,
-    smartAccount: stored.smartAccount,
+    smartAccount4337: stored.smartAccount4337,
+    delegation7702: stored.delegation7702,
     pendingTxs: stored.pendingTxs,
     pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
@@ -2626,8 +2636,18 @@ function toCliSessionState(stored) {
     secretHandles: stored.secretHandles
   };
 }
+function normalizeSignedTx(tx) {
+  var _b;
+  const _a3 = tx, { AAAddress: _legacyAAAddress } = _a3, rest = __objRest(_a3, ["AAAddress"]);
+  return __spreadProps(__spreadValues({}, rest), {
+    smartAccount4337: (_b = tx.smartAccount4337) != null ? _b : tx.AAAddress
+  });
+}
+function normalizeSignedTxs(signedTxs) {
+  return signedTxs == null ? void 0 : signedTxs.map(normalizeSignedTx);
+}
 function readStoredSession(path) {
-  var _a3;
+  var _a3, _b;
   try {
     const raw = readFileSync(path, "utf-8");
     const parsed = JSON.parse(raw);
@@ -2646,10 +2666,11 @@ function readStoredSession(path) {
       privateKey: parsed.privateKey,
       chainId: parsed.chainId,
       aaMode: parsed.aaMode,
-      smartAccount: parsed.smartAccount,
+      smartAccount4337: (_b = parsed.smartAccount4337) != null ? _b : parsed.smartAccount,
+      delegation7702: parsed.delegation7702,
       pendingTxs: parsed.pendingTxs,
       pendingSolTxs: parsed.pendingSolTxs,
-      signedTxs: parsed.signedTxs,
+      signedTxs: normalizeSignedTxs(parsed.signedTxs),
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
@@ -2710,6 +2731,7 @@ function getNextLocalId(sessions) {
   return maxLocalId + 1;
 }
 function migrateLegacyStateIfNeeded() {
+  var _a3;
   if (_migrationDone) return;
   _migrationDone = true;
   if (!existsSync(LEGACY_STATE_FILE)) return;
@@ -2725,6 +2747,8 @@ function migrateLegacyStateIfNeeded() {
     }
     const now = Date.now();
     const migrated = __spreadProps(__spreadValues({}, legacy), {
+      smartAccount4337: (_a3 = legacy.smartAccount4337) != null ? _a3 : legacy.smartAccount,
+      signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
       updatedAt: now
@@ -2865,10 +2889,15 @@ function syncPendingTxsFromUserState(state, userState) {
   } else if (isConnected === false) {
     state.aaMode = null;
   }
-  if (walletSnapshot.smartAccount !== void 0) {
-    state.smartAccount = walletSnapshot.smartAccount;
+  if (walletSnapshot.smartAccount4337 !== void 0) {
+    state.smartAccount4337 = walletSnapshot.smartAccount4337;
   } else if (isConnected === false) {
-    state.smartAccount = null;
+    state.smartAccount4337 = null;
+  }
+  if (walletSnapshot.delegation7702 !== void 0) {
+    state.delegation7702 = walletSnapshot.delegation7702;
+  } else if (isConnected === false) {
+    state.delegation7702 = null;
   }
   state.pendingTxs = pendingTxsFromBackendUserState(
     normalizedUserState,
@@ -3199,7 +3228,7 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession() {
-        var _a3, _b;
+        var _a3, _b, _c;
         const session = new ClientSession(
           { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
           {
@@ -3212,7 +3241,8 @@ Available: ${available}`);
         );
         session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
           aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
-          smartAccount: (_b = this.state.smartAccount) != null ? _b : null
+          smartAccount4337: (_b = this.state.smartAccount4337) != null ? _b : null,
+          delegation7702: (_c = this.state.delegation7702) != null ? _c : null
         }));
         return session;
       }
@@ -3418,30 +3448,31 @@ function extractMentionedTxIds(content) {
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 function shouldBroadcastWalletStateChange(config, previous, next) {
-  var _a3, _b;
+  var _a3, _b, _c, _d;
   if (!config.privateKey || !next.publicKey || next.chainId === void 0) {
     return false;
   }
-  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
+  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount4337) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount4337) != null ? _b : void 0) || normalizeAddress2((_c = previous == null ? void 0 : previous.delegation7702) != null ? _c : void 0) !== normalizeAddress2((_d = next.delegation7702) != null ? _d : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3, _b;
+  var _a3, _b, _c, _d, _e;
   if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
     return;
   }
   session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
     aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
-    smartAccount: (_b = next.smartAccount) != null ? _b : null
+    smartAccount4337: (_b = next.smartAccount4337) != null ? _b : null,
+    delegation7702: (_c = next.delegation7702) != null ? _c : null
   }));
   await session.syncUserState();
   const aaMode = next.aaMode === "4337" || next.aaMode === "7702" ? next.aaMode : "none";
-  const walletKind = next.smartAccount && next.smartAccount === next.publicKey ? "smart-account" : "eoa";
   const payload = {
     address: next.publicKey,
     chainId: next.chainId,
     isConnected: true,
-    wallet_kind: walletKind,
-    aa_mode: aaMode
+    aa_mode: aaMode,
+    smart_account_4337: (_d = next.smartAccount4337) != null ? _d : null,
+    delegation_7702: (_e = next.delegation7702) != null ? _e : null
   };
   await session.client.sendSystemMessage(
     cli.sessionId,
@@ -3452,7 +3483,7 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
   );
 }
 async function chatCommand(config, message, verbose) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e, _f;
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
@@ -3461,7 +3492,8 @@ async function chatCommand(config, message, verbose) {
     publicKey: previousCli.publicKey,
     chainId: previousCli.chainId,
     aaMode: (_a3 = previousCli.toState().aaMode) != null ? _a3 : null,
-    smartAccount: (_b = previousCli.toState().smartAccount) != null ? _b : null
+    smartAccount4337: (_b = previousCli.toState().smartAccount4337) != null ? _b : null,
+    delegation7702: (_c = previousCli.toState().delegation7702) != null ? _c : null
   } : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
@@ -3474,8 +3506,9 @@ async function chatCommand(config, message, verbose) {
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
-        aaMode: (_c = cli.toState().aaMode) != null ? _c : null,
-        smartAccount: (_d = cli.toState().smartAccount) != null ? _d : null
+        aaMode: (_d = cli.toState().aaMode) != null ? _d : null,
+        smartAccount4337: (_e = cli.toState().smartAccount4337) != null ? _e : null,
+        delegation7702: (_f = cli.toState().delegation7702) != null ? _f : null
       },
       cli,
       session
@@ -5217,7 +5250,7 @@ function toSignedTransactionRecord(tx, execution, from, chainId, timestamp, aaPr
     aaMode,
     batched: execution.batched,
     sponsored: execution.sponsored,
-    AAAddress: execution.SmartAccount4337,
+    smartAccount4337: execution.SmartAccount4337,
     Delegation7702: execution.Delegation7702,
     from,
     to: tx.to,
@@ -5256,7 +5289,7 @@ function formatSignedTxLine(tx, prefix) {
       parts.push(`txs: ${tx.txHashes.length}`);
     }
     if (tx.sponsored) parts.push("sponsored");
-    if (tx.AAAddress) parts.push(`aa: ${tx.AAAddress}`);
+    if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);
     if (tx.Delegation7702) parts.push(`delegation: ${tx.Delegation7702}`);
     if (tx.to) parts.push(`to: ${tx.to}`);
     if (tx.value) parts.push(`value: ${tx.value}`);
@@ -5498,7 +5531,7 @@ async function executeCliTransaction(params) {
   });
 }
 async function signCommand(config, txIds) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
@@ -5591,7 +5624,6 @@ Available: ${available}`);
     let signedRecords = [];
     let backendNotifications = [];
     let resolvedUserStateAAMode = null;
-    let resolvedUserStateSmartAccount = null;
     let resolvedUserStateSmartAccount4337 = null;
     let resolvedUserStateDelegation7702 = null;
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
@@ -5630,7 +5662,7 @@ Available: ${available}`);
       const simulationSmartAccount = simulationAAMode === "4337" ? (_e = (_d = simulationProviderState == null ? void 0 : simulationProviderState.account) == null ? void 0 : _d.SmartAccount4337) != null ? _e : null : null;
       session.resolveWallet(account.address, primaryChainId, {
         aaMode: simulationAAMode,
-        smartAccount: simulationSmartAccount
+        smartAccount4337: simulationSmartAccount
       });
       await session.syncUserState();
       let simFee;
@@ -5743,9 +5775,8 @@ Available: ${available}`);
       }
       const executionUsedAA = finalDecision.execution === "aa" && execution.executionKind !== "eoa";
       resolvedUserStateAAMode = executionUsedAA && finalDecision.execution === "aa" ? finalDecision.aaMode : null;
-      resolvedUserStateSmartAccount = resolvedUserStateAAMode === "4337" ? (_h = execution.SmartAccount4337) != null ? _h : null : null;
-      resolvedUserStateSmartAccount4337 = resolvedUserStateAAMode === "4337" ? (_i = execution.SmartAccount4337) != null ? _i : null : null;
-      resolvedUserStateDelegation7702 = resolvedUserStateAAMode === "7702" ? (_j = execution.Delegation7702) != null ? _j : null : null;
+      resolvedUserStateSmartAccount4337 = resolvedUserStateAAMode === "4337" ? (_h = execution.SmartAccount4337) != null ? _h : null : null;
+      resolvedUserStateDelegation7702 = resolvedUserStateAAMode === "7702" ? (_i = execution.Delegation7702) != null ? _i : null : null;
       signedRecords = pendingTxs.map(
         (tx, index) => toSignedTransactionRecord(
           tx,
@@ -5820,7 +5851,6 @@ Available: ${available}`);
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
       aaMode: resolvedUserStateAAMode,
-      smartAccount: resolvedUserStateSmartAccount,
       smartAccount4337: resolvedUserStateSmartAccount4337,
       delegation7702: resolvedUserStateDelegation7702
     });
@@ -6018,7 +6048,7 @@ function toSignedTxMetadata(tx) {
     aaMode: (_e = tx.aaMode) != null ? _e : null,
     batched: (_f = tx.batched) != null ? _f : null,
     sponsored: (_g = tx.sponsored) != null ? _g : null,
-    AAAddress: (_h = tx.AAAddress) != null ? _h : null,
+    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
     Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
     signature: (_j = tx.signature) != null ? _j : null,
     from: (_k = tx.from) != null ? _k : null,
@@ -6684,12 +6714,12 @@ var init_secrets = __esm({
   }
 });
 
-// src/cli/commands/provider-keys.ts
-function parseProviderKeyArg(input2) {
-  const [providerPart, apiKeyPart] = input2.split(/:(.+)/, 2);
+// src/cli/commands/byok.ts
+function parseByokKeyArg(input2) {
+  const [providerPart, byokKeyPart] = input2.split(/:(.+)/, 2);
   const provider = providerPart == null ? void 0 : providerPart.trim().toLowerCase();
-  const apiKey = apiKeyPart == null ? void 0 : apiKeyPart.trim();
-  if (!provider || !apiKey) {
+  const byokKey = byokKeyPart == null ? void 0 : byokKeyPart.trim();
+  if (!provider || !byokKey) {
     fatal(
       "Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)"
     );
@@ -6699,9 +6729,9 @@ function parseProviderKeyArg(input2) {
       `Unknown provider "${provider}". Supported: anthropic, openai, openrouter`
     );
   }
-  return { provider, apiKey };
+  return { provider, byokKey };
 }
-async function createProviderKeyClient(config) {
+async function createByokKeyClient(config) {
   const cli = CliSession.loadOrCreate(config);
   const client = new AomiClient({
     baseUrl: cli.baseUrl,
@@ -6710,22 +6740,22 @@ async function createProviderKeyClient(config) {
   await client.fetchState(cli.sessionId, void 0, cli.ensureClientId());
   return { cli, client };
 }
-async function saveProviderKeyCommand(config, providerKey, options) {
-  const { provider, apiKey } = parseProviderKeyArg(providerKey);
-  const { cli, client } = await createProviderKeyClient(config);
-  const saved = await client.saveProviderKey(cli.sessionId, provider, apiKey);
+async function saveByokKeyCommand(config, byokKeyInput, options) {
+  const { provider, byokKey } = parseByokKeyArg(byokKeyInput);
+  const { cli, client } = await createByokKeyClient(config);
+  const saved = await client.saveByokKey(cli.sessionId, provider, byokKey);
   console.log(`BYOK key set for ${saved.provider}: ${saved.key_prefix}...`);
   if ((options == null ? void 0 : options.printLocation) !== false) {
     printDataFileLocation();
   }
 }
-async function showProviderKeysCommand(config, options) {
-  const { cli, client } = await createProviderKeyClient(config);
-  const providerKeys = await client.listProviderKeys(cli.sessionId);
-  if (providerKeys.length === 0) {
-    console.log("No BYOK provider keys set. Using system keys.");
+async function showByokKeysCommand(config, options) {
+  const { cli, client } = await createByokKeyClient(config);
+  const byokKeys = await client.listByokKeys(cli.sessionId);
+  if (byokKeys.length === 0) {
+    console.log("No BYOK keys set. Using system keys.");
   } else {
-    for (const key of providerKeys) {
+    for (const key of byokKeys) {
       console.log(`  ${key.provider}: ${key.key_prefix}...`);
     }
   }
@@ -6733,27 +6763,27 @@ async function showProviderKeysCommand(config, options) {
     printDataFileLocation();
   }
 }
-async function clearProviderKeysCommand(config, options) {
-  const { cli, client } = await createProviderKeyClient(config);
-  const providerKeys = await client.listProviderKeys(cli.sessionId);
-  if (providerKeys.length === 0) {
-    console.log("No BYOK provider keys set. Using system keys.");
+async function clearByokKeysCommand(config, options) {
+  const { cli, client } = await createByokKeyClient(config);
+  const byokKeys = await client.listByokKeys(cli.sessionId);
+  if (byokKeys.length === 0) {
+    console.log("No BYOK keys set. Using system keys.");
     if ((options == null ? void 0 : options.printLocation) !== false) {
       printDataFileLocation();
     }
     return;
   }
-  for (const key of providerKeys) {
-    await client.deleteProviderKey(cli.sessionId, key.provider);
+  for (const key of byokKeys) {
+    await client.deleteByokKey(cli.sessionId, key.provider);
   }
-  console.log("BYOK provider keys cleared. Using system keys.");
+  console.log("BYOK keys cleared. Using system keys.");
   if ((options == null ? void 0 : options.printLocation) !== false) {
     printDataFileLocation();
   }
 }
 var SUPPORTED_PROVIDERS;
-var init_provider_keys = __esm({
-  "src/cli/commands/provider-keys.ts"() {
+var init_byok = __esm({
+  "src/cli/commands/byok.ts"() {
     "use strict";
     init_client();
     init_cli_session();
@@ -6820,14 +6850,14 @@ async function handleKeyCommand(config, command) {
     fatal("Usage: /key <provider:key> | /key show | /key clear");
   }
   if (command === "show") {
-    await showProviderKeysCommand(config, { printLocation: false });
+    await showByokKeysCommand(config, { printLocation: false });
     return;
   }
   if (command === "clear") {
-    await clearProviderKeysCommand(config, { printLocation: false });
+    await clearByokKeysCommand(config, { printLocation: false });
     return;
   }
-  await saveProviderKeyCommand(config, command, { printLocation: false });
+  await saveByokKeyCommand(config, command, { printLocation: false });
 }
 async function handleReplLine(config, line, showTool) {
   const trimmed = line.trim();
@@ -6894,9 +6924,9 @@ async function runRootCli(args) {
   const config = buildCliConfig(args);
   const prompt = str2(args.prompt);
   const showTool = args["show-tool"] === true;
-  const providerKey = str2(args["provider-key"]);
-  if (providerKey) {
-    await saveProviderKeyCommand(config, providerKey, { printLocation: false });
+  const byokKey = str2(args["provider-key"]);
+  if (byokKey) {
+    await saveByokKeyCommand(config, byokKey, { printLocation: false });
   }
   if (prompt) {
     await chatCommand(config, prompt, showTool);
@@ -6909,7 +6939,7 @@ var init_repl = __esm({
     "use strict";
     init_chat();
     init_control();
-    init_provider_keys();
+    init_byok();
     init_shared();
     init_cli_session();
     init_errors();

@@ -61,20 +61,19 @@ describe("CLI UserState — Table A connect-time", () => {
       is_connected: true,
       ext: { client_type: "ts_cli" },
     });
-    // Per Table A: aa_mode and wallet_kind are absent (not "none"/"eoa").
+    // Per Table A: aa_mode is absent when CLI AA is unspecified.
     expect(state).not.toHaveProperty("aa_mode");
-    expect(state).not.toHaveProperty("wallet_kind");
     expect(state).not.toHaveProperty("smart_account_4337");
     expect(state).not.toHaveProperty("delegation_7702");
 
     session.close();
   });
 
-  it("CLI --aa 4337: wallet_kind=eoa, aa_mode=4337", () => {
+  it("CLI --aa 4337: writes aa_mode=4337 and smart_account_4337", () => {
     const session = makeSession(
       buildCliUserState(EOA, CHAIN_ID, {
         aaMode: "4337",
-        smartAccount: SMART_ACCOUNT_4337,
+        smartAccount4337: SMART_ACCOUNT_4337,
       }),
     );
     const state = session.getUserState();
@@ -83,18 +82,16 @@ describe("CLI UserState — Table A connect-time", () => {
       address: EOA,
       chain_id: CHAIN_ID,
       is_connected: true,
-      wallet_kind: "eoa",
       aa_mode: "4337",
+      smart_account_4337: SMART_ACCOUNT_4337,
+      delegation_7702: null,
       ext: { client_type: "ts_cli" },
     });
-    // Connect-time does not yet write the per-tx address fields.
-    expect(state).not.toHaveProperty("smart_account_4337");
-    expect(state).not.toHaveProperty("delegation_7702");
 
     session.close();
   });
 
-  it("CLI --aa 7702: wallet_kind=eoa, aa_mode=7702", () => {
+  it("CLI --aa 7702: writes aa_mode=7702 and null mode-exclusive AA fields", () => {
     const session = makeSession(
       buildCliUserState(EOA, CHAIN_ID, { aaMode: "7702" }),
     );
@@ -104,12 +101,11 @@ describe("CLI UserState — Table A connect-time", () => {
       address: EOA,
       chain_id: CHAIN_ID,
       is_connected: true,
-      wallet_kind: "eoa",
       aa_mode: "7702",
+      smart_account_4337: null,
+      delegation_7702: null,
       ext: { client_type: "ts_cli" },
     });
-    expect(state).not.toHaveProperty("smart_account_4337");
-    expect(state).not.toHaveProperty("delegation_7702");
 
     session.close();
   });
@@ -121,7 +117,7 @@ describe("CLI UserState — Table A connect-time", () => {
 //
 // CLI's wallet.ts post-tx path is:
 //   session.resolveWallet(account.address, chainId, {
-//     aaMode, smartAccount, smartAccount4337, delegation7702,
+//     aaMode, smartAccount4337, delegation7702,
 //   });
 //
 // We replay that call directly here. The session reducer is the same code
@@ -132,13 +128,12 @@ describe("CLI UserState — Table B post-tx writes", () => {
     const session = makeSession(
       buildCliUserState(EOA, CHAIN_ID, {
         aaMode: "4337",
-        smartAccount: SMART_ACCOUNT_4337,
+        smartAccount4337: SMART_ACCOUNT_4337,
       }),
     );
 
     session.resolveWallet(EOA, CHAIN_ID, {
       aaMode: "4337",
-      smartAccount: SMART_ACCOUNT_4337,
       smartAccount4337: SMART_ACCOUNT_4337,
       delegation7702: null,
     });
@@ -147,9 +142,6 @@ describe("CLI UserState — Table B post-tx writes", () => {
       address: EOA,
       chain_id: CHAIN_ID,
       is_connected: true,
-      // CLI EOA address ≠ smart account address ⟹ wallet_kind is "eoa"
-      // (not "smart-account"). Matches Table A "CLI --aa 4337" row.
-      wallet_kind: "eoa",
       aa_mode: "4337",
       smart_account_4337: SMART_ACCOUNT_4337,
       delegation_7702: null,
@@ -166,7 +158,6 @@ describe("CLI UserState — Table B post-tx writes", () => {
 
     session.resolveWallet(EOA, CHAIN_ID, {
       aaMode: "7702",
-      smartAccount: null,
       smartAccount4337: null,
       delegation7702: DELEGATION_7702,
     });
@@ -175,7 +166,6 @@ describe("CLI UserState — Table B post-tx writes", () => {
       address: EOA,
       chain_id: CHAIN_ID,
       is_connected: true,
-      wallet_kind: "eoa",
       aa_mode: "7702",
       smart_account_4337: null,
       delegation_7702: DELEGATION_7702,
@@ -193,7 +183,6 @@ describe("CLI UserState — Table B post-tx writes", () => {
     // 7702 tx first.
     session.resolveWallet(EOA, CHAIN_ID, {
       aaMode: "7702",
-      smartAccount: null,
       smartAccount4337: null,
       delegation7702: DELEGATION_7702,
     });
@@ -206,7 +195,6 @@ describe("CLI UserState — Table B post-tx writes", () => {
     // Then a 4337 tx — Table B says writes are mode-exclusive on each call.
     session.resolveWallet(EOA, CHAIN_ID, {
       aaMode: "4337",
-      smartAccount: SMART_ACCOUNT_4337,
       smartAccount4337: SMART_ACCOUNT_4337,
       delegation7702: null,
     });
@@ -223,14 +211,13 @@ describe("CLI UserState — Table B post-tx writes", () => {
     const session = makeSession(
       buildCliUserState(EOA, CHAIN_ID, {
         aaMode: "4337",
-        smartAccount: SMART_ACCOUNT_4337,
+        smartAccount4337: SMART_ACCOUNT_4337,
       }),
     );
 
     // Previous 4337 tx populated the address.
     session.resolveWallet(EOA, CHAIN_ID, {
       aaMode: "4337",
-      smartAccount: SMART_ACCOUNT_4337,
       smartAccount4337: SMART_ACCOUNT_4337,
       delegation7702: null,
     });
@@ -239,7 +226,6 @@ describe("CLI UserState — Table B post-tx writes", () => {
     // address fields (this matches wallet.ts:489 simulation call site).
     session.resolveWallet(EOA, CHAIN_ID, {
       aaMode: "4337",
-      smartAccount: SMART_ACCOUNT_4337,
     });
 
     // Per Table B note: smart_account_4337 should NOT be wiped by a
