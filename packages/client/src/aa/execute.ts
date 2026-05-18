@@ -374,12 +374,7 @@ async function executeViaEoa({
       usedPaymasterService = Boolean(sendCallsCapabilities?.paymasterService);
       usedSendCalls = true;
     } catch (error) {
-      if (
-        !canFallbackToSequentialWalletSends(
-          error,
-          requiresSponsoredSendCalls,
-        )
-      ) {
+      if (!canFallbackToSequentialWalletSends(error)) {
         throw error;
       }
       await sendSequentially();
@@ -530,17 +525,35 @@ function isRecoverableOptionalPaymasterError(error: unknown): boolean {
   );
 }
 
-function canFallbackToSequentialWalletSends(
-  error: unknown,
-  requiresSponsoredSendCalls: boolean,
-): boolean {
-  if (requiresSponsoredSendCalls) {
-    return false;
-  }
-
+function canFallbackToSequentialWalletSends(error: unknown): boolean {
   return (
-    isUnsupportedAtomicCapabilityError(error) ||
-    isRecoverableOptionalPaymasterError(error)
+    !isUserRejectedRequestError(error) &&
+    (isUnsupportedAtomicCapabilityError(error) ||
+      isRecoverableOptionalPaymasterError(error) ||
+      isWalletSendCallsFailure(error))
+  );
+}
+
+function isWalletSendCallsFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    lowered.includes("sendcalls") ||
+    lowered.includes("preparecalls") ||
+    lowered.includes("wallet_preparecalls") ||
+    lowered.includes("wallet_sendcalls")
+  );
+}
+
+function isUserRejectedRequestError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return (
+    lowered.includes("user rejected") ||
+    lowered.includes("user denied") ||
+    lowered.includes("rejected the request") ||
+    lowered.includes("request rejected") ||
+    lowered.includes("4001")
   );
 }
 

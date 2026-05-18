@@ -576,8 +576,6 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
                 chainsById,
                 getPreferredRpcUrl,
               },
-              forceAA: true,
-              preferAAForSingleCall: true,
               shouldUseExternalSigner,
               resolveAAProviderState: (params) =>
                 resolveParaAAProviderState({

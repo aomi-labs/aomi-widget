@@ -106,19 +106,14 @@ export function RuntimeTxHandler() {
 
           // Fee injection is the production path: simulation succeeds,
           // returns a non-zero fee, and we append it to the batch so Aomi
-          // gets paid atomically with the user's tx. Simulation can come
-          // back without a fee for test / 0-balance / unsupported-chain
-          // scenarios — in that case we still want the wallet to pop so
-          // the user can sign (and have the tx revert on-chain if
-          // applicable) rather than silently rejecting. `strictAa: false`
-          // lets the fee-injected batch fall back from AA to sequential
-          // EOA sends if the wallet/bundler fails after sign.
+          // gets paid with the user's tx. AA routing is no longer encoded
+          // on the payload; the frontend execution layer always tries
+          // 7702 -> 4337 -> native wallet sends.
           const payloadWithFee = simulationResult.fee
             ? appendFeeCallToPayload(
                 payload,
                 simulationResult.fee,
                 defaultChainId,
-                { strictAa: false },
               )
             : payload;
           if (payloadWithFee === payload) {
@@ -130,7 +125,10 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.sendTransaction(payloadWithFee);
-          await resolveWalletRequest(req.id, { kind: "transaction", ...result });
+          await resolveWalletRequest(req.id, {
+            kind: "transaction",
+            ...result,
+          });
           return;
         }
 
@@ -151,7 +149,10 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.signSolanaTransaction(req.payload);
-          await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
+          await resolveWalletRequest(req.id, {
+            kind: "solana_sign",
+            ...result,
+          });
           return;
         }
 

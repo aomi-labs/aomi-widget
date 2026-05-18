@@ -1129,11 +1129,6 @@ function unwrapSystemEvent(event) {
 }
 
 // src/aa/policy.ts
-function aaRequestedModeFromPreference(preference) {
-  if (preference === "none") return "none";
-  if (preference === "eip4337") return "4337";
-  return "7702";
-}
 function aaModeFromExecutionKind(executionKind) {
   if (!executionKind) return void 0;
   if (executionKind.endsWith("_4337")) return "4337";
@@ -1235,7 +1230,7 @@ function normalizePendingTxData(pendingEntry) {
   return data;
 }
 function normalizeTxPayload(payload) {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const ctx = asRecord(root == null ? void 0 : root.ctx);
@@ -1246,8 +1241,8 @@ function normalizeTxPayload(payload) {
   const data = typeof args.data === "string" ? args.data : void 0;
   const chainId = (_d = (_c = (_b = parseChainId(args.chainId)) != null ? _b : parseChainId(args.chain_id)) != null ? _c : parseChainId(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _d : parseChainId(ctx == null ? void 0 : ctx.userChainId);
   const requestId = typeof args.tx_id === "string" ? args.tx_id : typeof args.txId === "string" ? args.txId : void 0;
-  const aaPreference = (_f = normalizeAaPreference((_e = args.aa_preference) != null ? _e : args.aaPreference)) != null ? _f : "auto";
-  const aaStrict = parseBoolean((_g = args.aa_strict) != null ? _g : args.aaStrict);
+  normalizeAaPreference((_e = args.aa_preference) != null ? _e : args.aaPreference);
+  parseBoolean((_f = args.aa_strict) != null ? _f : args.aaStrict);
   const txId = txIds.length === 1 ? txIds[0] : void 0;
   return {
     to,
@@ -1256,8 +1251,6 @@ function normalizeTxPayload(payload) {
     chainId,
     txId,
     txIds,
-    aaPreference,
-    aaStrict,
     requestId
   };
 }
@@ -1402,6 +1395,7 @@ function toViemSignTypedDataArgs(payload) {
 }
 
 // src/session.ts
+var DEFAULT_AA_REQUESTED_MODE = "7702";
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1474,8 +1468,15 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
+    const initialUserState = UserState.reconcile(
+      void 0,
+      sessionOptions == null ? void 0 : sessionOptions.userState
+    );
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+      initialUserState != null ? initialUserState : {},
+      "client_type",
+      sessionOptions.clientType
+    ) : initialUserState;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
     this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
     this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
@@ -1564,7 +1565,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.removeWalletRequest(requestId);
     if (req.kind === "transaction" && result.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(req.payload.aaPreference);
+      const requestedMode = (_a = result.aaRequestedMode) != null ? _a : DEFAULT_AA_REQUESTED_MODE;
       const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
       this.resolveUserState(__spreadProps(__spreadValues({}, (_d = this.userState) != null ? _d : {}), {
         aa_mode: resolvedMode,
@@ -1614,7 +1615,7 @@ var ClientSession = class extends TypedEventEmitter {
     }
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
+      const requestedMode = DEFAULT_AA_REQUESTED_MODE;
       await this.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
@@ -1726,7 +1727,9 @@ var ClientSession = class extends TypedEventEmitter {
   }
   setClientType(clientType) {
     var _a;
-    this.resolveUserState(UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
+    this.resolveUserState(
+      UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType)
+    );
   }
   addExtValue(key, value) {
     var _a;
@@ -1769,7 +1772,11 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;
@@ -1944,7 +1951,9 @@ var ClientSession = class extends TypedEventEmitter {
         timestamp
       };
     }
-    this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
+    this.walletRequests = existing ? this.walletRequests.map(
+      (request) => request.id === id ? req : request
+    ) : [...this.walletRequests, req];
     if (req.kind === "transaction") {
       const nextTxIds = txIdsFromPayload(req.payload);
       if (nextTxIds.length > 0) {
@@ -2056,10 +2065,9 @@ var ClientSession = class extends TypedEventEmitter {
       if (txIds.some((txId) => coveredPendingTxIds.has(txId))) {
         continue;
       }
-      const payload = hydrateTxPayloadFromUserState(
-        request.payload,
-        { pending_txs: pendingTxs != null ? pendingTxs : {} }
-      );
+      const payload = hydrateTxPayloadFromUserState(request.payload, {
+        pending_txs: pendingTxs != null ? pendingTxs : {}
+      });
       const requestId = this.getWalletRequestId("transaction", payload);
       nextRequests.push({
         id: requestId,
@@ -2078,8 +2086,7 @@ var ClientSession = class extends TypedEventEmitter {
         const payload = hydrateTxPayloadFromUserState(
           {
             txId,
-            txIds: [txId],
-            aaPreference: "auto"
+            txIds: [txId]
           },
           {
             pending_txs: {
@@ -2522,10 +2529,7 @@ async function executeViaEoa({
       usedPaymasterService = Boolean(sendCallsCapabilities == null ? void 0 : sendCallsCapabilities.paymasterService);
       usedSendCalls = true;
     } catch (error) {
-      if (!canFallbackToSequentialWalletSends(
-        error,
-        requiresSponsoredSendCalls
-      )) {
+      if (!canFallbackToSequentialWalletSends(error)) {
         throw error;
       }
       await sendSequentially();
@@ -2618,11 +2622,18 @@ function isRecoverableOptionalPaymasterError(error) {
   const lowered = message.toLowerCase();
   return lowered.includes("paymaster") || lowered.includes("sponsor") || lowered.includes("erc-7677");
 }
-function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
-  if (requiresSponsoredSendCalls) {
-    return false;
-  }
-  return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
+function canFallbackToSequentialWalletSends(error) {
+  return !isUserRejectedRequestError(error) && (isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error) || isWalletSendCallsFailure(error));
+}
+function isWalletSendCallsFailure(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("sendcalls") || lowered.includes("preparecalls") || lowered.includes("wallet_preparecalls") || lowered.includes("wallet_sendcalls");
+}
+function isUserRejectedRequestError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowered = message.toLowerCase();
+  return lowered.includes("user rejected") || lowered.includes("user denied") || lowered.includes("rejected the request") || lowered.includes("request rejected") || lowered.includes("4001");
 }
 function toErrorMessage(error) {
   var _a;
@@ -2697,15 +2708,12 @@ function buildFeeAAWalletCall(fee, chainId) {
     chainId
   };
 }
-function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
-  var _a, _b;
+function appendFeeCallToPayload(payload, fee, defaultChainId) {
   const feeCall = normalizeSimulatedFee(fee);
   if (!feeCall) {
     return payload;
   }
   const calls = toPayloadCalls(payload, defaultChainId);
-  const forceAaPreference = (_a = options == null ? void 0 : options.forceAaPreference) != null ? _a : "eip7702";
-  const strictAa = (_b = options == null ? void 0 : options.strictAa) != null ? _b : true;
   return __spreadProps(__spreadValues({}, payload), {
     // Fee call must be the final call in the AA batch.
     calls: [
@@ -2716,11 +2724,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
         value: feeCall.amountWei.toString(),
         chainId: defaultChainId
       }
-    ],
-    // Force AA mode once fee is appended so single user tx + fee still batches via AA.
-    aaPreference: forceAaPreference,
-    // Do not silently downgrade fee-injected batch requests to EOA.
-    aaStrict: strictAa
+    ]
   });
 }
 

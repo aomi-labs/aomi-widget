@@ -127,7 +127,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       userState?: Record<string, unknown> | null,
     ) => Record<string, unknown> | undefined;
     address: (userState?: Record<string, unknown> | null) => string | undefined;
-    isConnected: (userState?: Record<string, unknown> | null) => boolean | undefined;
+    isConnected: (
+      userState?: Record<string, unknown> | null,
+    ) => boolean | undefined;
   };
 
   // Mock class defined inside the factory
@@ -175,7 +177,8 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           userState?: Record<string, unknown>;
         },
       ) => {
-        const fn = mockState.config.sendMessage ?? mockState.config.postChatMessage;
+        const fn =
+          mockState.config.sendMessage ?? mockState.config.postChatMessage;
         return fn
           ? await fn(sessionId, message, options)
           : { is_processing: true, messages: [] };
@@ -184,7 +187,8 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     sendSystemMessage = vi.fn(async (sessionId: string, message: string) => {
       const fn =
-        mockState.config.sendSystemMessage ?? mockState.config.postSystemMessage;
+        mockState.config.sendSystemMessage ??
+        mockState.config.postSystemMessage;
       return fn
         ? await fn(sessionId, message)
         : { res: { sender: "system", content: message } };
@@ -192,9 +196,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     interrupt = vi.fn(async (sessionId: string) => {
       const fn = mockState.config.interrupt ?? mockState.config.postInterrupt;
-      return fn
-        ? await fn(sessionId)
-        : { is_processing: false, messages: [] };
+      return fn ? await fn(sessionId) : { is_processing: false, messages: [] };
     });
 
     renameThread = vi.fn(async (sessionId: string, title: string) => {
@@ -296,13 +298,27 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     constructor(
       clientOrOptions: unknown,
-      opts?: { sessionId?: string; app?: string; publicKey?: string; apiKey?: string; clientId?: string; userState?: Record<string, unknown>; [key: string]: unknown },
+      opts?: {
+        sessionId?: string;
+        app?: string;
+        publicKey?: string;
+        apiKey?: string;
+        clientId?: string;
+        userState?: Record<string, unknown>;
+        [key: string]: unknown;
+      },
     ) {
       // If passed a MockAomiClient, use it directly
-      if (clientOrOptions && typeof (clientOrOptions as Record<string, unknown>).sendMessage === "function") {
+      if (
+        clientOrOptions &&
+        typeof (clientOrOptions as Record<string, unknown>).sendMessage ===
+          "function"
+      ) {
         this.client = clientOrOptions as InstanceType<typeof MockAomiClient>;
       } else {
-        this.client = new MockAomiClient(clientOrOptions as { baseUrl: string });
+        this.client = new MockAomiClient(
+          clientOrOptions as { baseUrl: string },
+        );
       }
       this.sessionId = opts?.sessionId ?? "mock-session";
       this._app = opts?.app;
@@ -320,7 +336,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     on(type: string, handler: (...args: unknown[]) => void) {
       if (!this.listeners.has(type)) this.listeners.set(type, new Set());
       this.listeners.get(type)!.add(handler);
-      return () => { this.listeners.get(type)?.delete(handler); };
+      return () => {
+        this.listeners.get(type)?.delete(handler);
+      };
     }
 
     private emit(type: string, ...args: unknown[]) {
@@ -333,7 +351,8 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
-        publicKey: this._publicKey ?? (this._userState?.address as string | undefined),
+        publicKey:
+          this._publicKey ?? (this._userState?.address as string | undefined),
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -355,7 +374,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     }
 
     async fetchCurrentState() {
-      const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
+      const state = await this.client.fetchState(
+        this.sessionId,
+        this._userState,
+        this._clientId,
+      );
       this.applyState(state);
       this._isProcessing = !!state?.is_processing;
     }
@@ -376,15 +399,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           : UserState.address(normalized);
       this.syncWalletRequests();
     }
-    syncRuntimeOptions(
-      options: {
-        app: string;
-        publicKey?: string;
-        apiKey?: string;
-        clientId?: string;
-        userState?: Record<string, unknown>;
-      },
-    ) {
+    syncRuntimeOptions(options: {
+      app: string;
+      publicKey?: string;
+      apiKey?: string;
+      clientId?: string;
+      userState?: Record<string, unknown>;
+    }) {
       this._app = options.app;
       this._publicKey = options.publicKey;
       this._apiKey = options.apiKey;
@@ -398,7 +419,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (this._pollTimer) return;
       this._pollTimer = setInterval(async () => {
         try {
-          const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
+          const state = await this.client.fetchState(
+            this.sessionId,
+            this._userState,
+            this._clientId,
+          );
           this.applyState(state);
           if (!state?.is_processing) {
             this.stopPolling();
@@ -416,14 +441,31 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         this._pollTimer = null;
       }
     }
-    getIsProcessing() { return this._isProcessing; }
-    getIsPolling() { return this._pollTimer !== null; }
-    getMessages() { return this._messages; }
-    getTitle() { return this._title; }
-    getPendingRequests() { return [...this._walletRequests]; }
-    getUserState() { return this._userState ? { ...this._userState } : undefined; }
-    close() { this.stopPolling(); this.listeners.clear(); }
-    removeAllListeners() { this.listeners.clear(); }
+    getIsProcessing() {
+      return this._isProcessing;
+    }
+    getIsPolling() {
+      return this._pollTimer !== null;
+    }
+    getMessages() {
+      return this._messages;
+    }
+    getTitle() {
+      return this._title;
+    }
+    getPendingRequests() {
+      return [...this._walletRequests];
+    }
+    getUserState() {
+      return this._userState ? { ...this._userState } : undefined;
+    }
+    close() {
+      this.stopPolling();
+      this.listeners.clear();
+    }
+    removeAllListeners() {
+      this.listeners.clear();
+    }
 
     private applyState(
       state?:
@@ -461,13 +503,19 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         this._userState?.pending_txs &&
         typeof this._userState.pending_txs === "object" &&
         !Array.isArray(this._userState.pending_txs)
-          ? (this._userState.pending_txs as Record<string, Record<string, unknown>>)
+          ? (this._userState.pending_txs as Record<
+              string,
+              Record<string, unknown>
+            >)
           : {};
       const pendingEip712s =
         this._userState?.pending_eip712s &&
         typeof this._userState.pending_eip712s === "object" &&
         !Array.isArray(this._userState.pending_eip712s)
-          ? (this._userState.pending_eip712s as Record<string, Record<string, unknown>>)
+          ? (this._userState.pending_eip712s as Record<
+              string,
+              Record<string, unknown>
+            >)
           : {};
 
       this._walletRequests = [
@@ -480,7 +528,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
               ...payload,
               txId: Number(id),
               txIds: [Number(id)],
-              aaPreference: "auto",
             },
             timestamp: Date.now(),
           })),
@@ -515,7 +562,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
-import { useControl, type ControlContextApi } from "../../contexts/control-context";
+import {
+  useControl,
+  type ControlContextApi,
+} from "../../contexts/control-context";
 import { useThreadContext } from "../../contexts/thread-context";
 
 // =============================================================================

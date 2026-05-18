@@ -87,7 +87,6 @@ export {
 export type {
   WalletTxPayload,
   WalletTxCallPayload,
-  WalletTxAaPreference,
   WalletEip712Payload,
   WalletSolanaSignPayload,
   ViemSignTypedDataArgs,

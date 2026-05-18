@@ -1,10 +1,6 @@
 import { getAddress, type Hex } from "viem";
 import type { AomiSimulateFee } from "../types";
-import type {
-  WalletTxAaPreference,
-  WalletTxCallPayload,
-  WalletTxPayload,
-} from "../wallet-utils";
+import type { WalletTxCallPayload, WalletTxPayload } from "../wallet-utils";
 import type { AAWalletCall } from "./types";
 
 /** Max fee auto-injection threshold (0.05 native token). */
@@ -79,10 +75,6 @@ export function appendFeeCallToPayload(
   payload: WalletTxPayload,
   fee: AomiSimulateFee,
   defaultChainId: number,
-  options?: {
-    forceAaPreference?: WalletTxAaPreference;
-    strictAa?: boolean;
-  },
 ): WalletTxPayload {
   const feeCall = normalizeSimulatedFee(fee);
   if (!feeCall) {
@@ -90,8 +82,6 @@ export function appendFeeCallToPayload(
   }
 
   const calls = toPayloadCalls(payload, defaultChainId);
-  const forceAaPreference = options?.forceAaPreference ?? "eip7702";
-  const strictAa = options?.strictAa ?? true;
 
   return {
     ...payload,
@@ -105,9 +95,5 @@ export function appendFeeCallToPayload(
         chainId: defaultChainId,
       },
     ],
-    // Force AA mode once fee is appended so single user tx + fee still batches via AA.
-    aaPreference: forceAaPreference,
-    // Do not silently downgrade fee-injected batch requests to EOA.
-    aaStrict: strictAa,
   };
 }
