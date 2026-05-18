@@ -3,6 +3,7 @@
 import type { Chain } from "viem";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "@aomi-labs/react";
@@ -31,6 +32,16 @@ export type AomiAuthIdentity = {
    */
   aaMode?: "4337" | "7702";
   smartAccount?: string;
+  solanaCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
+  solanaWalletName?: string;
+  solanaTransport?: "extension" | "embedded" | "mwa";
+  solanaCapabilities?: {
+    canSignMessage?: boolean;
+    canSignTransaction?: boolean;
+    canSignAllTransactions?: boolean;
+    canSendTransaction?: boolean;
+    canSignAndSendTransaction?: boolean;
+  };
 };
 
 export type AomiTxResult = {
@@ -86,4 +97,15 @@ export type AomiAuthAdapter = {
   signSolanaTransaction?: (
     payload: WalletSolanaSignPayload,
   ) => Promise<{ signedTx: string }>;
+  signSolanaMessage?: (
+    payload: WalletSolanaSignMessagePayload,
+  ) => Promise<{ signature: string }>;
+  sendSolanaTransaction?: (
+    payload: WalletSolanaSignPayload,
+  ) => Promise<{ signature: string; signedTx?: string }>;
+  signAndSendSolanaTransaction?: (
+    payload: WalletSolanaSignPayload,
+  ) => Promise<{ signature: string; signedTx?: string }>;
+  solanaRpcHttpUrl?: string;
+  solanaRpcWsUrl?: string;
 };

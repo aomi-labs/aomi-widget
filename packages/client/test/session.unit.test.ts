@@ -58,10 +58,12 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("ping");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      address: "0xabc",
-      chain_id: 1,
-      is_connected: true,
-      ens_name: "wallet.eth",
+      connection: { is_connected: true },
+      evm: {
+        address: "0xabc",
+        chain_id: 1,
+        ens_name: "wallet.eth",
+      },
       ext: {
         SIMMER_API_KEY: "sk_live_2",
         PARA_API_KEY: "para_live_2",
@@ -84,7 +86,9 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("first");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      address: "0xdef",
+      evm: {
+        address: "0xdef",
+      },
       ext: { SIMMER_API_KEY: "sk_live_3" },
     });
 
@@ -92,7 +96,9 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("second");
 
     expect(sendMessage.mock.calls[1][2]?.userState).toEqual({
-      address: "0xdef",
+      evm: {
+        address: "0xdef",
+      },
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -128,7 +134,9 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("hello from web");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      address: "0x123",
+      evm: {
+        address: "0x123",
+      },
       ext: { client_type: CLIENT_TYPE_WEB_UI },
     });
 
@@ -191,9 +199,11 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("keep chain");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
+      connection: { is_connected: true },
+      evm: {
+        address: "0xabc",
+        chain_id: 8453,
+      },
     });
 
     session.close();
@@ -226,11 +236,15 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("keep aa state");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      aa_mode: "4337",
-      smart_account: "0xsmart",
+      connection: { is_connected: true },
+      evm: {
+        address: "0xabc",
+        chain_id: 8453,
+        aa: {
+          mode: "4337",
+          smart_account: "0xsmart",
+        },
+      },
     });
 
     session.close();
@@ -242,9 +256,13 @@ describe("ClientSession ext helpers", () => {
       aaMode: "4337",
       smartAccount: "0xsmart",
     })).toMatchObject({
-      address: "0xabc",
-      aa_mode: "4337",
-      smart_account: "0xsmart",
+      evm: {
+        address: "0xabc",
+        aa: {
+          mode: "4337",
+          smart_account: "0xsmart",
+        },
+      },
     });
   });
 
@@ -609,12 +627,18 @@ describe("ClientSession ext helpers", () => {
     });
 
     expect(session.getUserState()).toMatchObject({
-      aa_mode: "7702",
-      smart_account: null,
-      pending_txs: {
-        7: expect.objectContaining({
-          chain_id: 8453,
-        }),
+      evm: {
+        aa: {
+          mode: "7702",
+          smart_account: null,
+        },
+      },
+      pending: {
+        evm_txs: {
+          7: expect.objectContaining({
+            chain_id: 8453,
+          }),
+        },
       },
     });
 

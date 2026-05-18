@@ -74,6 +74,17 @@ export type WalletSolanaSignPayload = {
   pendingSolanaId?: number;
 };
 
+export type WalletSolanaSignMessagePayload = {
+  /** Base64 of the raw message bytes to sign. */
+  message?: string;
+  /** Human-readable summary shown alongside the wallet's decoded preview. */
+  description?: string;
+  /** CAIP-2 cluster string (`"solana:mainnet"` / `"solana:devnet"`). */
+  cluster?: string;
+  /** Server-side correlation id for the staged sign request. */
+  pendingSolanaId?: number;
+};
+
 export type ViemSignTypedDataArgs = {
   domain?: Record<string, unknown>;
   types: Record<string, Array<{ name: string; type: string }>>;
@@ -272,7 +283,8 @@ export function hydrateTxPayloadFromUserState(
   }
 
   const normalizedUserState = asRecord(userState);
-  const pendingTxsRaw = asRecord(normalizedUserState?.pending_txs);
+  const pending = asRecord(normalizedUserState?.pending);
+  const pendingTxsRaw = asRecord(pending?.evm_txs);
   if (!pendingTxsRaw) {
     if (strict) {
       throw new Error("pending_tx_not_found");
@@ -365,6 +377,27 @@ export function normalizeSolanaSignPayload(
     parsePendingId(args.pending_solana_id);
 
   return { unsignedTx, description, cluster, pendingSolanaId };
+}
+
+export function normalizeSolanaSignMessagePayload(
+  payload: unknown,
+): WalletSolanaSignMessagePayload {
+  const args = getToolArgs(payload);
+
+  const messageRaw = args.message_base64 ?? args.messageBase64 ?? args.message;
+  const message = typeof messageRaw === "string" ? messageRaw : undefined;
+
+  const description =
+    typeof args.description === "string" ? args.description : undefined;
+
+  const clusterRaw = args.cluster;
+  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+
+  const pendingSolanaId =
+    parsePendingId(args.pendingSolanaId) ??
+    parsePendingId(args.pending_solana_id);
+
+  return { message, description, cluster, pendingSolanaId };
 }
 
 /**

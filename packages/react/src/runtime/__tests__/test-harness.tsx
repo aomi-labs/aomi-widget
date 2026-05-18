@@ -333,7 +333,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
-        publicKey: this._publicKey ?? (this._userState?.address as string | undefined),
+        publicKey:
+          this._publicKey ??
+          UserState.address(this._userState) ??
+          UserState.solanaAddress(this._userState),
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -373,7 +376,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       this._publicKey =
         UserState.isConnected(normalized) === false
           ? undefined
-          : UserState.address(normalized);
+          : UserState.address(normalized) ?? UserState.solanaAddress(normalized);
       this.syncWalletRequests();
     }
     syncRuntimeOptions(
@@ -458,16 +461,16 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     private syncWalletRequests() {
       const pendingTxs =
-        this._userState?.pending_txs &&
-        typeof this._userState.pending_txs === "object" &&
-        !Array.isArray(this._userState.pending_txs)
-          ? (this._userState.pending_txs as Record<string, Record<string, unknown>>)
+        this._userState?.pending?.evm_txs &&
+        typeof this._userState.pending.evm_txs === "object" &&
+        !Array.isArray(this._userState.pending.evm_txs)
+          ? (this._userState.pending.evm_txs as Record<string, Record<string, unknown>>)
           : {};
       const pendingEip712s =
-        this._userState?.pending_eip712s &&
-        typeof this._userState.pending_eip712s === "object" &&
-        !Array.isArray(this._userState.pending_eip712s)
-          ? (this._userState.pending_eip712s as Record<string, Record<string, unknown>>)
+        this._userState?.pending?.eip712_requests &&
+        typeof this._userState.pending.eip712_requests === "object" &&
+        !Array.isArray(this._userState.pending.eip712_requests)
+          ? (this._userState.pending.eip712_requests as Record<string, Record<string, unknown>>)
           : {};
 
       this._walletRequests = [

@@ -9,12 +9,46 @@
 export type UserStateAAMode = "4337" | "7702";
 
 export interface UserState extends Record<string, unknown> {
-  address?: string | null;
-  chain_id?: number | string | null;
-  is_connected?: boolean | null;
-  svm_address?: string | null;
-  aa_mode?: UserStateAAMode | null;
-  smart_account?: string | null;
+  connection?: {
+    is_connected?: boolean | null;
+    primary_family?: "evm" | "solana" | "dual" | null;
+    provider?: string | null;
+    provider_label?: string | null;
+  };
+  evm?: {
+    address?: string | null;
+    chain_id?: number | string | null;
+    ens_name?: string | null;
+    aa?: {
+      mode?: UserStateAAMode | null;
+      smart_account?: string | null;
+      provider?: "alchemy" | "pimlico" | null;
+    };
+    sponsorship?: {
+      eligible?: boolean | null;
+      required?: boolean | null;
+      mode?: "disabled" | "optional" | "required" | null;
+    };
+  };
+  solana?: {
+    address?: string | null;
+    cluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet" | null;
+    wallet_name?: string | null;
+    transport?: "extension" | "embedded" | "mwa" | null;
+    capabilities?: {
+      can_sign_message?: boolean | null;
+      can_sign_transaction?: boolean | null;
+      can_sign_all_transactions?: boolean | null;
+      can_send_transaction?: boolean | null;
+      can_sign_and_send_transaction?: boolean | null;
+    };
+  };
+  pending?: {
+    evm_txs?: Record<string, unknown>;
+    eip712_requests?: Record<string, unknown>;
+    solana_requests?: Record<string, unknown>;
+  };
+  ext?: Record<string, unknown> | null;
 }
 
 /**
@@ -26,19 +60,51 @@ export type AomiClientType = "ts_cli" | "web_ui" | (string & {});
 export const CLIENT_TYPE_TS_CLI: AomiClientType = "ts_cli";
 export const CLIENT_TYPE_WEB_UI: AomiClientType = "web_ui";
 
-const USER_STATE_KEY_ALIASES: Record<string, string> = {
-  chainId: "chain_id",
-  isConnected: "is_connected",
-  ensName: "ens_name",
-  svmAddress: "svm_address",
-  pendingTxs: "pending_txs",
-  pendingEip712s: "pending_eip712s",
-  pendingSolanaTxs: "pending_solana_txs",
-  nextId: "next_id",
-  aaMode: "aa_mode",
-  smartAccount: "smart_account",
-  smartAccountAddress: "smart_account",
-};
+const USER_STATE_ROOT_ALIAS_KEYS = new Set([
+  "address",
+  "chain_id",
+  "chainId",
+  "is_connected",
+  "isConnected",
+  "ens_name",
+  "ensName",
+  "svm_address",
+  "svmAddress",
+  "aa_mode",
+  "aaMode",
+  "smart_account",
+  "smartAccount",
+  "smartAccountAddress",
+  "sponsorship",
+  "pending_txs",
+  "pendingTxs",
+  "pending_eip712s",
+  "pendingEip712s",
+  "pending_solana_txs",
+  "pendingSolanaTxs",
+  "next_id",
+  "nextId",
+  "connection",
+  "evm",
+  "solana",
+  "pending",
+  "ext",
+]);
+
+type UnknownRecord = Record<string, unknown>;
+type UserStateConnection = NonNullable<UserState["connection"]>;
+type UserStateEvm = NonNullable<UserState["evm"]>;
+type UserStateEvmAa = NonNullable<UserStateEvm["aa"]>;
+type UserStateEvmSponsorship = NonNullable<UserStateEvm["sponsorship"]>;
+type UserStateSolana = NonNullable<UserState["solana"]>;
+type UserStateSolanaCapabilities = NonNullable<UserStateSolana["capabilities"]>;
+
+function asRecord(value: unknown): UnknownRecord | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as UnknownRecord;
+}
 
 function parseUserStateChainId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
@@ -60,6 +126,22 @@ function parseUserStateChainId(value: unknown): number | undefined {
 
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseUserStateConnectionFamily(
+  value: unknown,
+): UserStateConnection["primary_family"] | undefined {
+  return value === "evm" || value === "solana" || value === "dual"
+    ? value
+    : undefined;
+}
+
+function parseUserStateRawChainId(
+  value: unknown,
+): UserStateEvm["chain_id"] | undefined {
+  return typeof value === "number" || typeof value === "string" || value === null
+    ? value
+    : undefined;
 }
 
 function normalizeAddressForComparison(value: string | undefined): string | undefined {
@@ -86,6 +168,291 @@ function hasOwnKey(record: UserState | undefined, key: string): boolean {
   return record !== undefined && Object.prototype.hasOwnProperty.call(record, key);
 }
 
+function compactRecord<T extends Record<string, unknown>>(value: T): T | undefined {
+  const entries = Object.entries(value).filter(([, entry]) => entry !== undefined);
+  if (entries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(entries) as T;
+}
+
+function normalizeConnectionState(
+  userState: UserState,
+): UserState["connection"] | undefined {
+  const root = userState as UnknownRecord;
+  const connection = asRecord(userState.connection);
+  return compactRecord<UserStateConnection>({
+    is_connected:
+      typeof connection?.is_connected === "boolean"
+        ? connection.is_connected
+        : typeof connection?.isConnected === "boolean"
+          ? connection.isConnected
+          : typeof root.is_connected === "boolean"
+            ? root.is_connected
+            : typeof root.isConnected === "boolean"
+              ? root.isConnected
+              : undefined,
+    primary_family:
+      parseUserStateConnectionFamily(connection?.primary_family) ??
+      parseUserStateConnectionFamily(connection?.primaryFamily),
+    provider:
+      typeof connection?.provider === "string"
+        ? connection.provider
+        : undefined,
+    provider_label:
+      typeof connection?.provider_label === "string"
+        ? connection.provider_label
+        : typeof connection?.providerLabel === "string"
+          ? connection.providerLabel
+          : undefined,
+  });
+}
+
+function normalizeEvmState(userState: UserState): UserState["evm"] | undefined {
+  const root = userState as UnknownRecord;
+  const evm = asRecord(userState.evm);
+  const evmAa = asRecord(evm?.aa);
+  const evmSponsorship = asRecord(evm?.sponsorship);
+
+  const aa = compactRecord<UserStateEvmAa>({
+    mode:
+      parseUserStateAAMode(evmAa?.mode) ??
+      parseUserStateAAMode(evmAa?.aa_mode) ??
+      parseUserStateAAMode(root.aa_mode) ??
+      parseUserStateAAMode(root.aaMode),
+    smart_account:
+      parseUserStateOptionalAddress(evmAa?.smart_account) ??
+      parseUserStateOptionalAddress(evmAa?.smartAccount) ??
+      parseUserStateOptionalAddress(root.smart_account) ??
+      parseUserStateOptionalAddress(root.smartAccount) ??
+      parseUserStateOptionalAddress(root.smartAccountAddress),
+    provider:
+      evmAa?.provider === "alchemy" || evmAa?.provider === "pimlico"
+        ? evmAa.provider
+        : undefined,
+  });
+
+  const sponsorship = compactRecord<UserStateEvmSponsorship>({
+    eligible:
+      typeof evmSponsorship?.eligible === "boolean"
+        ? evmSponsorship.eligible
+        : undefined,
+    required:
+      typeof evmSponsorship?.required === "boolean"
+        ? evmSponsorship.required
+        : undefined,
+    mode:
+      evmSponsorship?.mode === "disabled" ||
+      evmSponsorship?.mode === "optional" ||
+      evmSponsorship?.mode === "required"
+        ? evmSponsorship.mode
+        : undefined,
+  });
+
+  return compactRecord<UserStateEvm>({
+    address:
+      parseUserStateOptionalAddress(evm?.address) ??
+      parseUserStateOptionalAddress(root.address),
+    chain_id:
+      parseUserStateRawChainId(evm?.chain_id) ??
+      parseUserStateRawChainId(evm?.chainId) ??
+      parseUserStateRawChainId(root.chain_id) ??
+      parseUserStateRawChainId(root.chainId),
+    ens_name:
+      parseUserStateOptionalAddress(evm?.ens_name) ??
+      parseUserStateOptionalAddress(evm?.ensName) ??
+      parseUserStateOptionalAddress(root.ens_name) ??
+      parseUserStateOptionalAddress(root.ensName),
+    aa,
+    sponsorship:
+      sponsorship ??
+      (asRecord(root.sponsorship) as UserStateEvmSponsorship | undefined),
+  });
+}
+
+function normalizeSolanaState(
+  userState: UserState,
+): UserState["solana"] | undefined {
+  const root = userState as UnknownRecord;
+  const solana = asRecord(userState.solana);
+  const capabilities = asRecord(solana?.capabilities);
+
+  return compactRecord<UserStateSolana>({
+    address:
+      parseUserStateOptionalAddress(solana?.address) ??
+      parseUserStateOptionalAddress(root.solanaAddress) ??
+      parseUserStateOptionalAddress(root.svm_address) ??
+      parseUserStateOptionalAddress(root.svmAddress),
+    cluster:
+      solana?.cluster === "solana:mainnet" ||
+      solana?.cluster === "solana:devnet" ||
+      solana?.cluster === "solana:testnet"
+        ? solana.cluster
+        : undefined,
+    wallet_name:
+      parseUserStateOptionalAddress(solana?.wallet_name) ??
+      parseUserStateOptionalAddress(solana?.walletName),
+    transport:
+      solana?.transport === "extension" ||
+      solana?.transport === "embedded" ||
+      solana?.transport === "mwa"
+        ? solana.transport
+        : undefined,
+    capabilities: compactRecord<UserStateSolanaCapabilities>({
+      can_sign_message:
+        typeof capabilities?.can_sign_message === "boolean"
+          ? capabilities.can_sign_message
+          : typeof capabilities?.canSignMessage === "boolean"
+            ? capabilities.canSignMessage
+            : undefined,
+      can_sign_transaction:
+        typeof capabilities?.can_sign_transaction === "boolean"
+          ? capabilities.can_sign_transaction
+          : typeof capabilities?.canSignTransaction === "boolean"
+            ? capabilities.canSignTransaction
+            : undefined,
+      can_sign_all_transactions:
+        typeof capabilities?.can_sign_all_transactions === "boolean"
+          ? capabilities.can_sign_all_transactions
+          : typeof capabilities?.canSignAllTransactions === "boolean"
+            ? capabilities.canSignAllTransactions
+            : undefined,
+      can_send_transaction:
+        typeof capabilities?.can_send_transaction === "boolean"
+          ? capabilities.can_send_transaction
+          : typeof capabilities?.canSendTransaction === "boolean"
+            ? capabilities.canSendTransaction
+            : undefined,
+      can_sign_and_send_transaction:
+        typeof capabilities?.can_sign_and_send_transaction === "boolean"
+          ? capabilities.can_sign_and_send_transaction
+          : typeof capabilities?.canSignAndSendTransaction === "boolean"
+            ? capabilities.canSignAndSendTransaction
+            : undefined,
+    }),
+  });
+}
+
+function normalizePendingState(
+  userState: UserState,
+): UserState["pending"] | undefined {
+  const root = userState as UnknownRecord;
+  const pending = asRecord(userState.pending);
+  return compactRecord({
+    evm_txs:
+      asRecord(pending?.evm_txs) ??
+      asRecord(pending?.evmTxs) ??
+      asRecord(root.pending_txs) ??
+      asRecord(root.pendingTxs),
+    eip712_requests:
+      asRecord(pending?.eip712_requests) ??
+      asRecord(pending?.eip712Requests) ??
+      asRecord(root.pending_eip712s) ??
+      asRecord(root.pendingEip712s),
+    solana_requests:
+      asRecord(pending?.solana_requests) ??
+      asRecord(pending?.solanaRequests) ??
+      asRecord(root.pending_solana_txs) ??
+      asRecord(root.pendingSolanaTxs),
+  });
+}
+
+function clearDisconnectedWalletState(
+  userState: UserState,
+): UserState {
+  const next = UserState.normalize(userState) ?? {};
+  return {
+    ...next,
+    connection: {
+      ...(next.connection ?? {}),
+      is_connected: false,
+      primary_family: null,
+    },
+    evm: compactRecord({
+      ...(next.evm ?? {}),
+      address: undefined,
+      chain_id: undefined,
+      ens_name: undefined,
+      aa: compactRecord({
+        ...(next.evm?.aa ?? {}),
+        mode: null,
+        smart_account: null,
+        provider: null,
+      }),
+    }),
+    solana: compactRecord({
+      ...(next.solana ?? {}),
+      address: undefined,
+      wallet_name: undefined,
+      transport: undefined,
+      capabilities: undefined,
+    }),
+  };
+}
+
+function mergeNormalizedUserState(
+  previous: UserState | undefined,
+  incoming: UserState,
+): UserState {
+  return {
+    ...(previous ?? {}),
+    ...incoming,
+    connection:
+      previous?.connection || incoming.connection
+        ? {
+            ...(previous?.connection ?? {}),
+            ...(incoming.connection ?? {}),
+          }
+        : undefined,
+    evm:
+      previous?.evm || incoming.evm
+        ? {
+            ...(previous?.evm ?? {}),
+            ...(incoming.evm ?? {}),
+            aa:
+              previous?.evm?.aa || incoming.evm?.aa
+                ? {
+                    ...(previous?.evm?.aa ?? {}),
+                    ...(incoming.evm?.aa ?? {}),
+                  }
+                : undefined,
+            sponsorship:
+              previous?.evm?.sponsorship || incoming.evm?.sponsorship
+                ? {
+                    ...(previous?.evm?.sponsorship ?? {}),
+                    ...(incoming.evm?.sponsorship ?? {}),
+                  }
+                : undefined,
+          }
+        : undefined,
+    solana:
+      previous?.solana || incoming.solana
+        ? {
+            ...(previous?.solana ?? {}),
+            ...(incoming.solana ?? {}),
+            capabilities:
+              previous?.solana?.capabilities || incoming.solana?.capabilities
+                ? {
+                    ...(previous?.solana?.capabilities ?? {}),
+                    ...(incoming.solana?.capabilities ?? {}),
+                  }
+                : undefined,
+          }
+        : undefined,
+    pending:
+      previous?.pending || incoming.pending
+        ? {
+            ...(previous?.pending ?? {}),
+            ...(incoming.pending ?? {}),
+          }
+        : undefined,
+    ext:
+      incoming.ext !== undefined
+        ? incoming.ext
+        : previous?.ext,
+  };
+}
+
 export namespace UserState {
   /**
    * Canonicalize client-side user state to the backend's snake_case `UserState`.
@@ -97,12 +464,23 @@ export namespace UserState {
     }
 
     const normalized: UserState = {};
+    const connection = normalizeConnectionState(userState);
+    const evm = normalizeEvmState(userState);
+    const solana = normalizeSolanaState(userState);
+    const pending = normalizePendingState(userState);
+    const ext = asRecord(userState.ext);
+
+    if (connection) normalized.connection = connection;
+    if (evm) normalized.evm = evm;
+    if (solana) normalized.solana = solana;
+    if (pending) normalized.pending = pending;
+    if (ext) normalized.ext = ext;
+
     for (const [key, value] of Object.entries(userState)) {
-      const normalizedKey = USER_STATE_KEY_ALIASES[key] ?? key;
-      if (normalizedKey in normalized) {
+      if (USER_STATE_ROOT_ALIAS_KEYS.has(key)) {
         continue;
       }
-      normalized[normalizedKey] = value;
+      normalized[key] = value;
     }
 
     return normalized;
@@ -122,10 +500,12 @@ export namespace UserState {
     }
 
     const previous = normalize(previousUserState);
-    const reconciled: UserState = { ...incoming };
+    const reconciled = mergeNormalizedUserState(previous, incoming);
 
     const previousAddress = address(previous);
     const incomingAddress = address(incoming);
+    const previousSolanaAddress = solanaAddress(previous);
+    const incomingSolanaAddress = solanaAddress(incoming);
     const incomingConnected = isConnected(incoming);
     const incomingChainId = chainId(incoming);
 
@@ -136,18 +516,21 @@ export namespace UserState {
         normalizeAddressForComparison(incomingAddress);
 
     if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
-      reconciled.address = previousAddress;
+      reconciled.evm = {
+        ...(reconciled.evm ?? {}),
+        address: previousAddress,
+      };
     }
 
-    // Same preservation rule for the SVM (Solana) pubkey: if the incoming
-    // snapshot omits `svm_address` but we previously had one and the
-    // connection isn't being explicitly broken, keep it. EVM and SVM
-    // identities are independent — neither field's presence implies the
-    // other.
-    const previousSvm = svmAddress(previous);
-    const incomingSvm = svmAddress(incoming);
-    if (!incomingSvm && canPreserveConnectedWalletContext && previousSvm) {
-      reconciled.svm_address = previousSvm;
+    if (
+      !incomingSolanaAddress &&
+      canPreserveConnectedWalletContext &&
+      previousSolanaAddress
+    ) {
+      reconciled.solana = {
+        ...(reconciled.solana ?? {}),
+        address: previousSolanaAddress,
+      };
     }
 
     if (
@@ -159,7 +542,10 @@ export namespace UserState {
       const canPreserveChain =
         sameAddress || (!incomingAddress && !!previousAddress);
       if (canPreserveChain) {
-        reconciled.chain_id = chainId(previous);
+        reconciled.evm = {
+          ...(reconciled.evm ?? {}),
+          chain_id: chainId(previous),
+        };
       }
     }
 
@@ -169,24 +555,35 @@ export namespace UserState {
       (sameAddress || (!incomingAddress && !!previousAddress));
 
     if (
-      !hasOwnKey(incoming, "aa_mode") &&
+      !hasOwnKey(incoming.evm?.aa as UserState | undefined, "mode") &&
       canPreserveAAContext &&
       aaMode(previous) !== undefined
     ) {
-      reconciled.aa_mode = aaMode(previous);
+      reconciled.evm = {
+        ...(reconciled.evm ?? {}),
+        aa: {
+          ...(reconciled.evm?.aa ?? {}),
+          mode: aaMode(previous),
+        },
+      };
     }
 
     if (
-      !hasOwnKey(incoming, "smart_account") &&
+      !hasOwnKey(incoming.evm?.aa as UserState | undefined, "smart_account") &&
       canPreserveAAContext &&
       smartAccount(previous) !== undefined
     ) {
-      reconciled.smart_account = smartAccount(previous);
+      reconciled.evm = {
+        ...(reconciled.evm ?? {}),
+        aa: {
+          ...(reconciled.evm?.aa ?? {}),
+          smart_account: smartAccount(previous),
+        },
+      };
     }
 
-    // Never keep `is_connected: true` without a valid chain id.
-    if (isConnected(reconciled) === true && chainId(reconciled) === undefined) {
-      delete reconciled.is_connected;
+    if (incoming.connection?.is_connected === false) {
+      return clearDisconnectedWalletState(reconciled);
     }
 
     return reconciled;
@@ -194,7 +591,7 @@ export namespace UserState {
 
   export function address(userState?: UserState | null): string | undefined {
     const normalized = normalize(userState);
-    const address = normalized?.address;
+    const address = normalized?.evm?.address;
     return typeof address === "string" && address.length > 0 ? address : undefined;
   }
 
@@ -202,35 +599,43 @@ export namespace UserState {
    * Connected Solana wallet pubkey (base58). Independent of `address`,
    * which is the EVM address. A session may have either, both, or neither.
    */
-  export function svmAddress(userState?: UserState | null): string | undefined {
+  export function solanaAddress(userState?: UserState | null): string | undefined {
     const normalized = normalize(userState);
-    const value = normalized?.svm_address;
+    const value = normalized?.solana?.address;
     return typeof value === "string" && value.length > 0 ? value : undefined;
   }
 
+  export const svmAddress = solanaAddress;
+
   export function chainId(userState?: UserState | null): number | undefined {
     const normalized = normalize(userState);
-    return parseUserStateChainId(normalized?.chain_id);
+    return parseUserStateChainId(normalized?.evm?.chain_id);
   }
 
   export function isConnected(userState?: UserState | null): boolean | undefined {
     const normalized = normalize(userState);
-    const isConnected = normalized?.is_connected;
-    return typeof isConnected === "boolean" ? isConnected : undefined;
+    const connectionFlag = normalized?.connection?.is_connected;
+    if (connectionFlag === false) {
+      return false;
+    }
+    if (connectionFlag === true) {
+      return true;
+    }
+    return Boolean(address(normalized) || solanaAddress(normalized));
   }
 
   export function aaMode(
     userState?: UserState | null,
   ): UserStateAAMode | null | undefined {
     const normalized = normalize(userState);
-    return parseUserStateAAMode(normalized?.aa_mode);
+    return parseUserStateAAMode(normalized?.evm?.aa?.mode);
   }
 
   export function smartAccount(
     userState?: UserState | null,
   ): string | null | undefined {
     const normalized = normalize(userState);
-    return parseUserStateOptionalAddress(normalized?.smart_account);
+    return parseUserStateOptionalAddress(normalized?.evm?.aa?.smart_account);
   }
 
   /**
@@ -276,6 +681,12 @@ export function getUserStateChainId(
   userState?: UserState | null,
 ): number | undefined {
   return UserState.chainId(userState);
+}
+
+export function getUserStateSolanaAddress(
+  userState?: UserState | null,
+): string | undefined {
+  return UserState.solanaAddress(userState);
 }
 
 export function getUserStateIsConnected(

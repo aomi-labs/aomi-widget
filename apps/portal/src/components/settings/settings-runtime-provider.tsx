@@ -36,7 +36,7 @@ function SettingsRuntimeInner({
     <ControlContextProvider
       aomiClient={aomiClient}
       sessionId={sessionId}
-      publicKey={UserState.address(user)}
+      publicKey={UserState.address(user) ?? UserState.solanaAddress(user)}
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
     >

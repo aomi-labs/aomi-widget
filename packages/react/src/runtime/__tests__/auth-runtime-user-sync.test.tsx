@@ -58,9 +58,16 @@ describe("AomiAuthRuntimeUserSync", () => {
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
       expect(state).toMatchObject({
-        address: "0x1111111111111111111111111111111111111111",
-        chain_id: 8453,
-        is_connected: true,
+        connection: {
+          is_connected: true,
+          primary_family: "evm",
+          provider: "baseAccount",
+          provider_label: "Base Account",
+        },
+        evm: {
+          address: "0x1111111111111111111111111111111111111111",
+          chain_id: 8453,
+        },
         ext: {
           wallet_provider: "baseAccount",
           wallet_provider_label: "Base Account",

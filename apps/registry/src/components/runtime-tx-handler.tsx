@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Connection as SolanaConnection } from "@solana/web3.js";
 import {
+  UserState,
   appendFeeCallToPayload,
   hydrateTxPayloadFromUserState,
   parseChainId,
@@ -14,6 +16,13 @@ import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
+}
+
+function decodeBase64(value: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
 }
 
 function toSimulationTransactions(payload: WalletTxPayload): Array<{
@@ -98,7 +107,7 @@ export function RuntimeTxHandler() {
           const simulationResult = await simulateBatchTransactions(
             toSimulationTransactions(payload),
             {
-              from: typeof user.address === "string" ? user.address : undefined,
+              from: UserState.address(user),
               chainId: defaultChainId,
             },
           );
@@ -144,6 +153,93 @@ export function RuntimeTxHandler() {
 
           const result = await adapter.signSolanaTransaction(req.payload);
           await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
+          return;
+        }
+
+        if (req.kind === "solana_sign_message") {
+          if (!adapter.signSolanaMessage) {
+            await rejectWalletRequest(
+              req.id,
+              "Solana wallet provider is not ready",
+            );
+            return;
+          }
+          if (!req.payload.message) {
+            await rejectWalletRequest(req.id, "Missing message payload");
+            return;
+          }
+
+          const result = await adapter.signSolanaMessage(req.payload);
+          await resolveWalletRequest(req.id, {
+            kind: "solana_sign_message",
+            ...result,
+          });
+          return;
+        }
+
+        if (
+          req.kind === "solana_send" ||
+          req.kind === "solana_sign_and_send"
+        ) {
+          if (!req.payload.unsignedTx) {
+            await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
+            return;
+          }
+
+          if (
+            req.kind === "solana_sign_and_send" &&
+            adapter.signAndSendSolanaTransaction
+          ) {
+            const result = await adapter.signAndSendSolanaTransaction(
+              req.payload,
+            );
+            await resolveWalletRequest(req.id, {
+              kind: "solana_sign_and_send",
+              ...result,
+            });
+            return;
+          }
+
+          if (adapter.sendSolanaTransaction) {
+            const result = await adapter.sendSolanaTransaction(req.payload);
+            await resolveWalletRequest(req.id, {
+              kind: req.kind,
+              ...result,
+            });
+            return;
+          }
+
+          if (!adapter.signSolanaTransaction) {
+            await rejectWalletRequest(
+              req.id,
+              "Solana wallet provider is not ready",
+            );
+            return;
+          }
+
+          if (!adapter.solanaRpcHttpUrl) {
+            await rejectWalletRequest(
+              req.id,
+              "Solana RPC is not configured for broadcast",
+            );
+            return;
+          }
+
+          const signResult = await adapter.signSolanaTransaction(req.payload);
+          const connection = new SolanaConnection(
+            adapter.solanaRpcHttpUrl,
+            "confirmed",
+          );
+          const signature = await connection.sendRawTransaction(
+            decodeBase64(signResult.signedTx),
+          );
+          await connection.confirmTransaction(signature, "confirmed");
+
+          await resolveWalletRequest(req.id, {
+            kind: req.kind,
+            signature,
+            signedTx: signResult.signedTx,
+          });
           return;
         }
 

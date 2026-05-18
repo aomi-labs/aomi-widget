@@ -74,8 +74,8 @@ describe("AomiRuntimeProvider", () => {
     const { api } = renderRuntime();
 
     // Default user state
-    expect(api.user.is_connected).toBe(false);
-    expect(api.user.address).toBeUndefined();
+    expect(api.user.connection?.is_connected).toBe(false);
+    expect(api.user.evm?.address).toBeUndefined();
 
     // Default thread state
     expect(api.currentThreadId).toBeDefined();

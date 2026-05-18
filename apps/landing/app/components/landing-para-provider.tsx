@@ -154,6 +154,13 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
       networks={networks}
       externalWallets={adapterWallets}
       oAuthMethods={oAuthMethods}
+      solana={{
+        cluster: "solana:devnet",
+        rpcHttpUrl:
+          process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+          "https://api.devnet.solana.com",
+        preferDirectSend: true,
+      }}
     >
       {content}
     </AomiWalletProvider>

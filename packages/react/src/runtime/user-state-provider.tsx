@@ -89,6 +89,20 @@ function stableStateString(state: UserState): string {
   return JSON.stringify(state ?? {});
 }
 
+function normalizeWalletId(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return value.startsWith("0x") ? value.toLowerCase() : value;
+}
+
+function getConnectedWalletId(userState: UserState): string | undefined {
+  return (
+    UserStateHelpers.address(userState) ??
+    UserStateHelpers.solanaAddress(userState)
+  );
+}
+
 function useWalletStateSync(
   context: Pick<
     RuntimeUserStateContext,
@@ -103,11 +117,21 @@ function useWalletStateSync(
 
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
-      address: UserStateHelpers.address(nextUser),
-      chain_id: UserStateHelpers.chainId(nextUser),
-      is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
-      ens_name:
-        typeof nextUser.ens_name === "string" ? nextUser.ens_name : undefined,
+      connection: {
+        is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
+        primary_family: nextUser.connection?.primary_family,
+      },
+      evm: {
+        address: UserStateHelpers.address(nextUser),
+        chain_id: UserStateHelpers.chainId(nextUser),
+        ens_name:
+          typeof nextUser.evm?.ens_name === "string"
+            ? nextUser.evm.ens_name
+            : undefined,
+      },
+      solana: {
+        address: UserStateHelpers.solanaAddress(nextUser),
+      },
     }),
     [getUserState],
   );
@@ -120,13 +144,11 @@ function useWalletStateSync(
     const unsubscribe = onUserStateChange(async (newUser) => {
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      const previousAddress = prevWalletState.address?.toLowerCase();
-      const nextAddress = nextWalletState.address?.toLowerCase();
+      const previousAddress = normalizeWalletId(prevWalletState.evm?.address);
+      const nextAddress = normalizeWalletId(nextWalletState.evm?.address);
       if (
-        prevWalletState.address === nextWalletState.address &&
-        prevWalletState.chain_id === nextWalletState.chain_id &&
-        prevWalletState.is_connected === nextWalletState.is_connected &&
-        prevWalletState.ens_name === nextWalletState.ens_name
+        stableStateString(prevWalletState as UserState) ===
+          stableStateString(nextWalletState as UserState)
       ) {
         return;
       }
@@ -266,9 +288,9 @@ function useRemoteThreadListSync(
 
   useEffect(() => {
     const userAddress = UserStateHelpers.isConnected(user)
-      ? UserStateHelpers.address(user)
+      ? getConnectedWalletId(user)
       : undefined;
-    const normalizedUserAddress = userAddress?.toLowerCase();
+    const normalizedUserAddress = normalizeWalletId(userAddress);
     const previousAddress = lastConnectedAddressRef.current;
     const walletChanged =
       previousAddress !== undefined &&
