@@ -248,13 +248,13 @@ export function AppKeys() {
               value={labelInput}
               onChange={(event) => setLabelInput(event.target.value)}
               placeholder="Trading bot"
-              className="h-11 rounded-full px-5 py-3"
+              className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
             />
           </div>
-          <div>
+          <div className="space-y-3">
             <label
               htmlFor="manual-app-key-input"
-              className="text-foreground mb-2 block text-sm font-medium"
+              className="text-foreground block text-sm font-medium"
             >
               App Key Value (optional)
             </label>
@@ -264,9 +264,9 @@ export function AppKeys() {
               value={manualKeyInput}
               onChange={(event) => setManualKeyInput(event.target.value)}
               placeholder="Leave empty to auto-generate"
-              className="h-11 rounded-full px-5 py-3"
+              className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
             />
-            <p className="text-muted-foreground mt-2 text-sm">
+            <p className="text-muted-foreground text-sm">
               Leave blank to create a secure generated key.
             </p>
           </div>

@@ -284,9 +284,9 @@ export function Secrets() {
         </div>
       )}
 
-      <div className="border-input bg-background space-y-5 rounded-3xl border p-5">
+      <div className="border-input bg-background space-y-5 rounded-3xl border p-6">
         <div className="space-y-3">
-          <p className="text-foreground text-sm font-medium">App</p>
+          <p className="pl-2 pb-2 text-foreground text-lg font-medium">App</p>
           {appsWithSecrets.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               No apps declare secret slots in this session.
@@ -316,15 +316,15 @@ export function Secrets() {
 
         {activeDescriptor && (
           <>
-            <h4 className="text-foreground text-base font-semibold">
+            <h4 className="pl-2 text-foreground text-base font-semibold">
               Add Secret for {activeDescriptor.name}
             </h4>
             <div className="space-y-4">
               {activeSlots.map((slot) => (
-                <div key={slot.name} className="space-y-2">
+                <div key={slot.name} className="space-y-4">
                   <label
                     htmlFor={`slot-${activeDescriptor.name}-${slot.name}`}
-                    className="text-foreground flex items-center gap-2 text-sm font-medium"
+                    className="pl-2 text-foreground flex items-center gap-2 text-sm font-medium"
                   >
                     <span className="font-mono">{slot.name}</span>
                     {slot.required ? (
@@ -351,9 +351,9 @@ export function Secrets() {
                         : "Paste the value from the provider's dashboard"
                     }
                     autoComplete="off"
-                    className="h-11 rounded-full px-5 py-3"
+                    className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
                   />
-                  <p className="text-muted-foreground text-xs">
+                  <p className="pl-2 text-muted-foreground text-sm">
                     {slot.description}
                   </p>
                 </div>
@@ -365,7 +365,7 @@ export function Secrets() {
                     void handleSave();
                   }}
                   disabled={!canSave}
-                  className="rounded-full px-6"
+                  className="rounded-full px-6 mb-2"
                 >
                   {saving ? "Saving..." : "Save secret"}
                 </Button>
@@ -376,7 +376,7 @@ export function Secrets() {
       </div>
 
       <div className="space-y-4">
-        <h4 className="text-foreground text-base font-semibold">Saved</h4>
+        <h2 className="text-foreground text-lg font-medium">Saved</h2>
         {savedApps.length === 0 ? (
           <p className="text-muted-foreground text-sm">No secrets saved.</p>
         ) : (
