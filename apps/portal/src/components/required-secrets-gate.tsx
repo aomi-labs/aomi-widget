@@ -97,7 +97,7 @@ export function RequiredSecretsGate() {
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm">
-      <div className="bg-background border-input mx-4 w-full max-w-md space-y-5 rounded-3xl border p-6 shadow-xl">
+      <div className="bg-background border-input mx-4 w-full max-w-md space-y-5 rounded-3xl border p-8 shadow-xl">
         <div className="space-y-2">
           <h2 className="text-foreground text-lg font-semibold">
             {currentApp} requires API key
@@ -109,9 +109,9 @@ export function RequiredSecretsGate() {
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           {missingRequired.map((slot) => (
-            <div key={slot.name} className="space-y-2">
+            <div key={slot.name} className="space-y-3">
               <label
                 htmlFor={`gate-${currentApp}-${slot.name}`}
                 className="text-foreground block text-sm font-mono font-medium"
@@ -130,7 +130,7 @@ export function RequiredSecretsGate() {
                 }
                 placeholder="Paste the value from the provider's dashboard"
                 autoComplete="off"
-                className="h-11 rounded-full px-5 py-3"
+                className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
               />
               <p className="text-muted-foreground text-xs">{slot.description}</p>
             </div>

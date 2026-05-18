@@ -429,13 +429,17 @@ export async function Apps() {
             const isPurpleCard = index % 2 === 1;
 
             return (
-              <a
+              <div
                 key={appId}
-                href={buildPortalHref(appId)}
-                className={`group flex min-h-[220px] flex-col rounded-[2rem] p-6 transition-transform duration-300 hover:-translate-y-1 ${
+                className={`group relative flex min-h-[220px] flex-col rounded-[2rem] p-6 transition-transform duration-300 hover:-translate-y-1 ${
                   isPurpleCard ? "bg-[#e3d8e6]" : "bg-white"
                 }`}
               >
+                <a
+                  href={buildPortalHref(appId)}
+                  aria-label={`Open ${metadata.title} portal`}
+                  className="absolute inset-0 z-0 rounded-[2rem]"
+                />
                 <div className="mb-5 flex flex-wrap items-center gap-2">
                   <span className="font-geist rounded-full bg-stone-900 px-3 py-1 text-[11px] font-medium tracking-wide text-white">
                     {metadata.category}
@@ -451,7 +455,7 @@ export async function Apps() {
                   </span>
                 </div>
 
-                <div className="flex flex-1 flex-col">
+                <div className="pointer-events-none flex flex-1 flex-col">
                   <div className="mb-2 flex items-center gap-3">
                     <h3 className="font-serif text-2xl tracking-tight text-stone-900">
                       {metadata.title}
@@ -476,7 +480,7 @@ export async function Apps() {
                       href={metadata.websiteUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="font-geist mt-2 w-fit text-xs text-stone-500 underline underline-offset-4 transition-colors hover:text-stone-700"
+                      className="font-geist pointer-events-auto relative z-10 mt-2 w-fit text-xs text-stone-500 underline underline-offset-4 transition-colors hover:text-stone-700"
                     >
                       {formatWebsiteLabel(metadata.websiteUrl)}
                     </a>
@@ -489,7 +493,7 @@ export async function Apps() {
                     </span>
                   </div>
                 </div>
-              </a>
+              </div>
             );
           })}
 
