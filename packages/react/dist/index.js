@@ -2927,6 +2927,7 @@ function useNotificationHandler({
 }
 export {
   AomiClient2 as AomiClient,
+  AomiRuntimeApiProvider,
   AomiRuntimeProvider,
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,

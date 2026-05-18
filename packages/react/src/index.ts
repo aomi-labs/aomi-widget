@@ -43,7 +43,7 @@ export { RuntimeUserStateProvider } from "./runtime/user-state-provider";
 // =============================================================================
 // Unified Runtime API
 // =============================================================================
-export { useAomiRuntime } from "./interface";
+export { AomiRuntimeApiProvider, useAomiRuntime } from "./interface";
 export type { AomiRuntimeApi } from "./interface";
 
 // =============================================================================

@@ -51,6 +51,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   AomiClient: () => import_client8.AomiClient,
+  AomiRuntimeApiProvider: () => AomiRuntimeApiProvider,
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   ControlContextProvider: () => ControlContextProvider,
   DISABLED_PROVIDER_STATE: () => import_client9.DISABLED_PROVIDER_STATE,
@@ -2934,6 +2935,7 @@ function useNotificationHandler({
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AomiClient,
+  AomiRuntimeApiProvider,
   AomiRuntimeProvider,
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
