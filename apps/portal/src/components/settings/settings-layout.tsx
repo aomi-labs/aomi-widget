@@ -9,7 +9,8 @@ import { Secrets } from "./secrets";
 import { Byok } from "./byok";
 
 export function SettingsLayout() {
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general");
+  const [activeCategory, setActiveCategory] =
+    useState<SettingsCategory>("general");
 
   const renderContent = () => {
     switch (activeCategory) {
@@ -29,10 +30,15 @@ export function SettingsLayout() {
   };
 
   return (
-    <div className="h-screen w-full flex bg-background">
-      <SettingsSidebar activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-3xl mx-auto">{renderContent()}</div>
+    <div className="bg-background flex h-screen w-full min-w-0">
+      <SettingsSidebar
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+      />
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-8 py-10 lg:px-12">
+        <div className="mx-auto w-full min-w-0 max-w-4xl">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );
