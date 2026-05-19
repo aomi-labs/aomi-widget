@@ -229,6 +229,25 @@ export const registry: RegistryComponent[] = [
     description:
       "Base Account-backed Aomi auth adapter provider using wagmi native wallet execution.",
   },
+  {
+    name: "aomi-privy-provider",
+    file: [
+      "lib/aomi-auth-adapter/providers/privy.tsx",
+      "lib/aomi-auth-adapter/safe-wagmi-hooks.ts",
+    ],
+    dependencies: [
+      "@aomi-labs/react",
+      "@privy-io/react-auth",
+      "@privy-io/wagmi",
+      "@solana/web3.js",
+      "@tanstack/react-query",
+      "viem",
+      "wagmi",
+    ],
+    registryDependencies: [aomi("aomi-auth-adapter")],
+    description:
+      "Privy-backed Aomi auth adapter using Privy's hosted smart wallets (EVM 4337) and Privy's embedded Solana wallets. Bundler, paymaster, and AA implementation are configured in the integrator's Privy dashboard.",
+  },
   // === SHADCN UI PRIMITIVES ===
   {
     name: "button",
