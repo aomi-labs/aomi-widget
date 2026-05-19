@@ -3,6 +3,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useControl, type AomiAppDescriptor } from "@aomi-labs/react";
 import { Button, Input } from "@aomi-labs/widget-lib";
+import {
+  settingsActionRowClass,
+  settingsBodyTextClass,
+  settingsCardStackClass,
+  settingsCardTitleClass,
+  settingsDescriptionClass,
+  settingsInputClass,
+  settingsPageClass,
+  settingsPillClass,
+  settingsPrimaryButtonClass,
+  settingsStatusClass,
+  settingsSubTitleClass,
+  settingsTableCardClass,
+  settingsTitleClass,
+} from "./settings-styles";
 
 type StoredEntry = {
   valuePrefix: string;
@@ -56,10 +71,7 @@ export function Secrets() {
     useControl();
 
   const appsWithSecrets = useMemo<AomiAppDescriptor[]>(
-    () =>
-      state.appDescriptors.filter(
-        (d) => (d.secrets ?? []).length > 0,
-      ),
+    () => state.appDescriptors.filter((d) => (d.secrets ?? []).length > 0),
     [state.appDescriptors],
   );
 
@@ -123,7 +135,10 @@ export function Secrets() {
     () => appsWithSecrets.find((d) => d.name === selectedApp),
     [appsWithSecrets, selectedApp],
   );
-  const activeSlots = activeDescriptor?.secrets ?? [];
+  const activeSlots = useMemo(
+    () => activeDescriptor?.secrets ?? [],
+    [activeDescriptor],
+  );
 
   const requiredMissing = useMemo(
     () =>
@@ -136,7 +151,10 @@ export function Secrets() {
     (s) => (slotValues[s.name] ?? "").trim().length > 0,
   );
   const canSave =
-    !saving && Boolean(state.clientId) && hasAnyValue && requiredMissing.length === 0;
+    !saving &&
+    Boolean(state.clientId) &&
+    hasAnyValue &&
+    requiredMissing.length === 0;
 
   const handleSave = useCallback(async () => {
     if (!canSave || !selectedApp) return;
@@ -156,7 +174,10 @@ export function Secrets() {
         const appPrev = prev[selectedApp] ?? {};
         const appNext = { ...appPrev };
         for (const [name, value] of Object.entries(payload)) {
-          appNext[name] = { valuePrefix: buildValuePrefix(value), addedAt: now };
+          appNext[name] = {
+            valuePrefix: buildValuePrefix(value),
+            addedAt: now,
+          };
         }
         const next = { ...prev, [selectedApp]: appNext };
         writeIndex(next);
@@ -172,8 +193,7 @@ export function Secrets() {
     } catch (error) {
       setStatus({
         type: "error",
-        text:
-          error instanceof Error ? error.message : "Failed to save secrets",
+        text: error instanceof Error ? error.message : "Failed to save secrets",
       });
     } finally {
       setSaving(false);
@@ -256,17 +276,17 @@ export function Secrets() {
   );
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">Secrets</h3>
-        <p className="text-muted-foreground text-sm">
+    <div className={settingsPageClass}>
+      <div className="space-y-4">
+        <h1 className={settingsTitleClass}>Secrets</h1>
+        <p className={settingsDescriptionClass}>
           API credentials for external services Aomi tools call on your behalf
           (e.g. <code>LIMITLESS_API_KEY</code>, <code>OKX_API_KEY</code>).
-          Stored in the backend vault scoped to this browser and the chosen
-          app; tools receive them as opaque <code>$SECRET:NAME</code> handles.
+          Stored in the backend vault scoped to this browser and the chosen app;
+          tools receive them as opaque <code>$SECRET:NAME</code> handles.
         </p>
         {!state.clientId && (
-          <p className="text-muted-foreground mt-2 text-sm">
+          <p className={settingsBodyTextClass}>
             Waiting for client id to initialize…
           </p>
         )}
@@ -274,25 +294,25 @@ export function Secrets() {
 
       {status && (
         <div
-          className={`rounded-2xl p-3 text-sm ${
+          className={`${settingsStatusClass} ${
             status.type === "success"
-              ? "border border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
-              : "bg-destructive/10 border-destructive/20 text-destructive border"
+              ? "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
+              : "border-destructive/20 bg-destructive/10 text-destructive"
           }`}
         >
           {status.text}
         </div>
       )}
 
-      <div className="border-input bg-background space-y-5 rounded-3xl border p-6">
-        <div className="space-y-3">
-          <p className="pl-2 pb-2 text-foreground text-lg font-medium">App</p>
+      <div className={`${settingsCardStackClass} space-y-6`}>
+        <div className="space-y-4">
+          <p className={settingsCardTitleClass}>App</p>
           {appsWithSecrets.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
+            <p className={settingsBodyTextClass}>
               No apps declare secret slots in this session.
             </p>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-0 flex-wrap gap-2">
               {appsWithSecrets.map((descriptor) => {
                 const active = selectedApp === descriptor.name;
                 return (
@@ -300,10 +320,10 @@ export function Secrets() {
                     key={descriptor.name}
                     type="button"
                     onClick={() => setSelectedApp(descriptor.name)}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`${settingsPillClass} ${
                       active
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background text-foreground border-input hover:bg-accent"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background text-foreground hover:bg-accent"
                     }`}
                   >
                     {descriptor.name}
@@ -316,21 +336,23 @@ export function Secrets() {
 
         {activeDescriptor && (
           <>
-            <h4 className="pl-2 text-foreground text-base font-semibold">
+            <h2 className={settingsCardTitleClass}>
               Add Secret for {activeDescriptor.name}
-            </h4>
-            <div className="space-y-4">
+            </h2>
+            <div className="min-w-0 space-y-5">
               {activeSlots.map((slot) => (
                 <div key={slot.name} className="space-y-4">
                   <label
                     htmlFor={`slot-${activeDescriptor.name}-${slot.name}`}
-                    className="pl-2 text-foreground flex items-center gap-2 text-sm font-medium"
+                    className="text-foreground flex items-baseline gap-2 pl-2 text-sm font-medium"
                   >
-                    <span className="font-mono">{slot.name}</span>
+                    <span className="font-mono tracking-[0.02em]">
+                      {slot.name}
+                    </span>
                     {slot.required ? (
-                      <span className="text-destructive text-xs">required</span>
+                      <span className="text-destructive text-sm">required</span>
                     ) : (
-                      <span className="text-muted-foreground text-xs">
+                      <span className="text-muted-foreground text-sm">
                         optional
                       </span>
                     )}
@@ -351,21 +373,19 @@ export function Secrets() {
                         : "Paste the value from the provider's dashboard"
                     }
                     autoComplete="off"
-                    className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
+                    className={settingsInputClass}
                   />
-                  <p className="pl-2 text-muted-foreground text-sm">
-                    {slot.description}
-                  </p>
+                  <p className={settingsBodyTextClass}>{slot.description}</p>
                 </div>
               ))}
-              <div className="flex justify-end">
+              <div className={settingsActionRowClass}>
                 <Button
                   type="button"
                   onClick={() => {
                     void handleSave();
                   }}
                   disabled={!canSave}
-                  className="rounded-full px-6 mb-2"
+                  className={`${settingsPrimaryButtonClass} mb-2`}
                 >
                   {saving ? "Saving..." : "Save secret"}
                 </Button>
@@ -376,15 +396,30 @@ export function Secrets() {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-foreground text-lg font-medium">Saved</h2>
+        <h2 className={settingsSubTitleClass}>Saved Secrets</h2>
         {savedApps.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No secrets saved.</p>
+          <div className={settingsTableCardClass}>
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-muted-foreground text-center">
+                  <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">Preview</th>
+                  <th className="px-3 py-2">Added</th>
+                  <th className="px-3 py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="text-muted-foreground px-3 py-4 text-center" colSpan={4}>
+                    No secrets saved.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         ) : (
           savedApps.map(([app, slots]) => (
-            <div
-              key={app}
-              className="border-input bg-background overflow-x-auto rounded-3xl border p-2"
-            >
+            <div key={app} className={settingsTableCardClass}>
               <div className="flex items-center justify-between px-3 py-2">
                 <span className="text-foreground font-medium">{app}</span>
                 <Button
