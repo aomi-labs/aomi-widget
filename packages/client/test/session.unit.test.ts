@@ -86,19 +86,29 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("first");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
+      connection: { is_connected: true },
       evm: {
         address: "0xdef",
+        aa: undefined,
+        sponsorship: undefined,
       },
       ext: { SIMMER_API_KEY: "sk_live_3" },
+      pending: undefined,
+      solana: undefined,
     });
 
     session.removeExtValue("SIMMER_API_KEY");
     await session.sendAsync("second");
 
     expect(sendMessage.mock.calls[1][2]?.userState).toEqual({
+      connection: { is_connected: true },
       evm: {
         address: "0xdef",
+        aa: undefined,
+        sponsorship: undefined,
       },
+      pending: undefined,
+      solana: undefined,
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -134,6 +144,7 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("hello from web");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
+      connection: { is_connected: true },
       evm: {
         address: "0x123",
       },
@@ -630,7 +641,6 @@ describe("ClientSession ext helpers", () => {
       evm: {
         aa: {
           mode: "7702",
-          smart_account: null,
         },
       },
       pending: {
@@ -992,6 +1002,53 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("emits wallet_solana_send_request from a backend wallet_tx_request svm payload", async () => {
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-solana-send-4" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet_tx_request",
+          payload: {
+            chain_kind: "svm",
+            svm_tx_ids: [14],
+            request_kind: "send_transaction",
+            unsigned_tx: "U0VORE1F",
+            description: "transfer SOL",
+            cluster: "solana:devnet",
+            pending_solana_id: 14,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_send_request", resolve);
+    });
+
+    await session.sendAsync("send solana through backend svm flow");
+    const request = (await requestPromise) as {
+      id: string;
+      kind: string;
+      payload: {
+        unsignedTx?: string;
+        description?: string;
+        cluster?: string;
+        pendingSolanaId?: number;
+      };
+    };
+
+    expect(request.id).toBe("solana_send-14");
+    expect(request.kind).toBe("solana_send");
+    expect(request.payload.unsignedTx).toBe("U0VORE1F");
+    expect(request.payload.pendingSolanaId).toBe(14);
+
+    session.close();
+  });
+
   it("rebuilds solana_sign requests from user_state.pending_solana_txs", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
@@ -1043,7 +1100,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("rebuilds solana_send requests from nested user_state.pending.solana_requests", async () => {
+  it("rebuilds solana_send requests from nested user_state.pending.solana_txs", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-solana-send-3",
@@ -1072,7 +1129,7 @@ describe("ClientSession ext helpers", () => {
           cluster: "solana:devnet",
         },
         pending: {
-          solana_requests: {
+          solana_txs: {
             21: {
               request_kind: "send_transaction",
               description: "bridge back to main wallet",
@@ -1100,6 +1157,69 @@ describe("ClientSession ext helpers", () => {
     expect(solana?.id).toBe("solana_send-21");
     expect(solana?.payload.unsignedTx).toBe("U0VORE1F");
     expect(solana?.payload.pendingSolanaId).toBe(21);
+
+    session.close();
+  });
+
+  it("rebuilds eip712 requests from canonical user_state.pending.evm_sigs", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-eip712-sigs-1",
+      userState: {
+        connection: {
+          is_connected: true,
+          primary_family: "evm",
+        },
+        evm: {
+          address: "0xabc",
+          chain_id: 8453,
+        },
+      },
+    });
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        connection: {
+          is_connected: true,
+          primary_family: "evm",
+        },
+        evm: {
+          address: "0xabc",
+          chain_id: 8453,
+        },
+        pending: {
+          evm_sigs: {
+            11: {
+              description: "Permit2 signature",
+              typed_data: {
+                domain: { chainId: 8453, name: "Permit2" },
+                types: { Permit: [{ name: "owner", type: "address" }] },
+                primaryType: "Permit",
+                message: { owner: "0xabc" },
+              },
+            },
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    const changedPromise = new Promise<unknown>((resolve) => {
+      session.once("wallet_requests_changed", resolve);
+    });
+
+    await session.fetchCurrentState();
+    const requests = (await changedPromise) as Array<{
+      id: string;
+      kind: string;
+      payload: { eip712Id?: number };
+    }>;
+
+    const eip712 = requests.find((r) => r.kind === "eip712_sign");
+    expect(eip712).toBeDefined();
+    expect(eip712?.id).toBe("eip712-11");
+    expect(eip712?.payload.eip712Id).toBe(11);
 
     session.close();
   });

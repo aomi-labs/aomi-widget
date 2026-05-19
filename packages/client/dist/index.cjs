@@ -80,6 +80,7 @@ __export(index_exports, {
   normalizeSimulatedFee: () => normalizeSimulatedFee,
   normalizeSolanaSignMessagePayload: () => normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload: () => normalizeSolanaSignPayload,
+  normalizeSolanaWalletRequest: () => normalizeSolanaWalletRequest,
   normalizeTxPayload: () => normalizeTxPayload,
   parseChainId: () => parseChainId,
   resolvePimlicoConfig: () => resolvePimlicoConfig,
@@ -111,10 +112,14 @@ var USER_STATE_ROOT_ALIAS_KEYS = /* @__PURE__ */ new Set([
   "sponsorship",
   "pending_txs",
   "pendingTxs",
+  "pending_evm_sigs",
+  "pendingEvmSigs",
   "pending_eip712s",
   "pendingEip712s",
   "pending_solana_txs",
   "pendingSolanaTxs",
+  "pending_solana_sigs",
+  "pendingSolanaSigs",
   "next_id",
   "nextId",
   "connection",
@@ -233,13 +238,14 @@ function normalizeSolanaState(userState) {
   });
 }
 function normalizePendingState(userState) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
   const root = userState;
   const pending = asRecord(userState.pending);
   return compactRecord({
     evm_txs: (_c = (_b = (_a = asRecord(pending == null ? void 0 : pending.evm_txs)) != null ? _a : asRecord(pending == null ? void 0 : pending.evmTxs)) != null ? _b : asRecord(root.pending_txs)) != null ? _c : asRecord(root.pendingTxs),
-    eip712_requests: (_f = (_e = (_d = asRecord(pending == null ? void 0 : pending.eip712_requests)) != null ? _d : asRecord(pending == null ? void 0 : pending.eip712Requests)) != null ? _e : asRecord(root.pending_eip712s)) != null ? _f : asRecord(root.pendingEip712s),
-    solana_requests: (_i = (_h = (_g = asRecord(pending == null ? void 0 : pending.solana_requests)) != null ? _g : asRecord(pending == null ? void 0 : pending.solanaRequests)) != null ? _h : asRecord(root.pending_solana_txs)) != null ? _i : asRecord(root.pendingSolanaTxs)
+    evm_sigs: (_j = (_i = (_h = (_g = (_f = (_e = (_d = asRecord(pending == null ? void 0 : pending.evm_sigs)) != null ? _d : asRecord(pending == null ? void 0 : pending.evmSigs)) != null ? _e : asRecord(pending == null ? void 0 : pending.eip712_requests)) != null ? _f : asRecord(pending == null ? void 0 : pending.eip712Requests)) != null ? _g : asRecord(root.pending_evm_sigs)) != null ? _h : asRecord(root.pendingEvmSigs)) != null ? _i : asRecord(root.pending_eip712s)) != null ? _j : asRecord(root.pendingEip712s),
+    solana_txs: (_o = (_n = (_m = (_l = (_k = asRecord(pending == null ? void 0 : pending.solana_txs)) != null ? _k : asRecord(pending == null ? void 0 : pending.solanaTxs)) != null ? _l : asRecord(pending == null ? void 0 : pending.solana_requests)) != null ? _m : asRecord(pending == null ? void 0 : pending.solanaRequests)) != null ? _n : asRecord(root.pending_solana_txs)) != null ? _o : asRecord(root.pendingSolanaTxs),
+    solana_sigs: (_r = (_q = (_p = asRecord(pending == null ? void 0 : pending.solana_sigs)) != null ? _p : asRecord(pending == null ? void 0 : pending.solanaSigs)) != null ? _q : asRecord(root.pending_solana_sigs)) != null ? _r : asRecord(root.pendingSolanaSigs)
   });
 }
 function clearDisconnectedWalletState(userState) {
@@ -294,12 +300,12 @@ var UserState;
     const evm = normalizeEvmState(userState);
     const solana = normalizeSolanaState(userState);
     const pending = normalizePendingState(userState);
-    const ext = asRecord(userState.ext);
+    const ext = userState.ext === null ? null : asRecord(userState.ext);
     if (connection) normalized.connection = connection;
     if (evm) normalized.evm = evm;
     if (solana) normalized.solana = solana;
     if (pending) normalized.pending = pending;
-    if (ext) normalized.ext = ext;
+    if (ext !== void 0) normalized.ext = ext;
     for (const [key, value] of Object.entries(userState)) {
       if (USER_STATE_ROOT_ALIAS_KEYS.has(key)) {
         continue;
@@ -1246,6 +1252,25 @@ function getToolArgs(payload) {
   const nestedArgs = asRecord2(root == null ? void 0 : root.args);
   return (_a = nestedArgs != null ? nestedArgs : root) != null ? _a : {};
 }
+function parseChainKind(value) {
+  return value === "evm" || value === "svm" ? value : void 0;
+}
+function inferSolanaRequestKind(payload) {
+  const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
+  switch (rawKind) {
+    case "solana_sign_message":
+    case "sign_message":
+      return "solana_sign_message";
+    case "solana_send":
+    case "send_transaction":
+      return "solana_send";
+    case "solana_sign_and_send":
+    case "sign_and_send_transaction":
+      return "solana_sign_and_send";
+    default:
+      return "solana_sign";
+  }
+}
 function parseChainId(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return void 0;
@@ -1350,7 +1375,7 @@ function normalizeTxPayload(payload) {
   };
 }
 function hydrateTxPayloadFromUserState(payload, userState, options) {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const strict = (options == null ? void 0 : options.strict) === true;
   const txIds = Array.isArray(payload.txIds) && payload.txIds.length > 0 ? payload.txIds : payload.txId !== void 0 ? [payload.txId] : [];
   if (txIds.length === 0) {
@@ -1361,7 +1386,7 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
   }
   const normalizedUserState = asRecord2(userState);
   const pending = asRecord2(normalizedUserState == null ? void 0 : normalizedUserState.pending);
-  const pendingTxsRaw = asRecord2(pending == null ? void 0 : pending.evm_txs);
+  const pendingTxsRaw = (_b = (_a = asRecord2(pending == null ? void 0 : pending.evm_txs)) != null ? _a : asRecord2(normalizedUserState == null ? void 0 : normalizedUserState.pending_txs)) != null ? _b : asRecord2(normalizedUserState == null ? void 0 : normalizedUserState.pendingTxs);
   if (!pendingTxsRaw) {
     if (strict) {
       throw new Error("pending_tx_not_found");
@@ -1389,7 +1414,7 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
       to,
       value: parseValue(pendingEntry.value),
       data: normalizePendingTxData(pendingEntry),
-      chainId: (_b = (_a = parseChainId(pendingEntry.chain_id)) != null ? _a : parseChainId(pendingEntry.chainId)) != null ? _b : parseChainId(payload.chainId),
+      chainId: (_d = (_c = parseChainId(pendingEntry.chain_id)) != null ? _c : parseChainId(pendingEntry.chainId)) != null ? _d : parseChainId(payload.chainId),
       from: typeof pendingEntry.from === "string" ? pendingEntry.from : void 0,
       gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : void 0,
       description: typeof pendingEntry.label === "string" ? pendingEntry.label : typeof pendingEntry.description === "string" ? pendingEntry.description : void 0
@@ -1404,11 +1429,11 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
   const first = calls[0];
   return __spreadProps(__spreadValues({}, payload), {
     txIds,
-    txId: (_c = payload.txId) != null ? _c : first.txId,
-    to: (_d = payload.to) != null ? _d : first.to,
-    value: (_e = payload.value) != null ? _e : first.value,
-    data: (_f = payload.data) != null ? _f : first.data,
-    chainId: (_g = payload.chainId) != null ? _g : first.chainId,
+    txId: (_e = payload.txId) != null ? _e : first.txId,
+    to: (_f = payload.to) != null ? _f : first.to,
+    value: (_g = payload.value) != null ? _g : first.value,
+    data: (_h = payload.data) != null ? _h : first.data,
+    chainId: (_i = payload.chainId) != null ? _i : first.chainId,
     calls
   });
 }
@@ -1433,6 +1458,23 @@ function normalizeSolanaSignMessagePayload(payload) {
   const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
   const pendingSolanaId = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id);
   return { message, description, cluster, pendingSolanaId };
+}
+function normalizeSolanaWalletRequest(payload) {
+  var _a;
+  const root = asRecord2(payload);
+  const args = getToolArgs(payload);
+  const solanaRequest = __spreadValues(__spreadValues({}, root != null ? root : {}), args);
+  const chainKind = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(root == null ? void 0 : root.chain_kind);
+  if (chainKind !== "svm") {
+    return null;
+  }
+  const kind = inferSolanaRequestKind(solanaRequest);
+  if (kind === "solana_sign_message") {
+    const normalized2 = normalizeSolanaSignMessagePayload(payload);
+    return normalized2.message ? { kind, payload: normalized2 } : null;
+  }
+  const normalized = normalizeSolanaSignPayload(payload);
+  return normalized.unsignedTx ? { kind, payload: normalized } : null;
 }
 function normalizeEip712Payload(payload) {
   var _a, _b, _c, _d;
@@ -1551,7 +1593,7 @@ function txIdsFromPayload(payload) {
   }
   return [];
 }
-function inferSolanaRequestKind(payload) {
+function inferSolanaRequestKind2(payload) {
   const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
   switch (rawKind) {
     case "solana_sign_message":
@@ -1894,13 +1936,19 @@ var ClientSession = class extends TypedEventEmitter {
     if (!isRecord(currentExt)) return;
     const nextExt = __spreadValues({}, currentExt);
     delete nextExt[key];
-    const nextState = __spreadValues({}, this.userState);
     if (Object.keys(nextExt).length === 0) {
-      delete nextState["ext"];
+      this.resolveUserState(__spreadProps(__spreadValues({}, this.userState), {
+        ext: null
+      }));
+      if (this.userState) {
+        delete this.userState["ext"];
+      }
+      return;
     } else {
-      nextState["ext"] = nextExt;
+      this.resolveUserState(__spreadProps(__spreadValues({}, this.userState), {
+        ext: nextExt
+      }));
     }
-    this.resolveUserState(nextState);
   }
   resolveWallet(address, chainId, aa) {
     var _a, _b;
@@ -2023,11 +2071,42 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   dispatchSystemEvents(events) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     for (const event of events) {
       const unwrapped = unwrapSystemEvent(event);
       if (!unwrapped) continue;
       if (unwrapped.type === "wallet_tx_request") {
+        const solanaRequest = normalizeSolanaWalletRequest(
+          (_a = unwrapped.payload) != null ? _a : {}
+        );
+        if (solanaRequest) {
+          if (solanaRequest.kind === "solana_send") {
+            const req = this.enqueueWalletRequest(
+              "solana_send",
+              solanaRequest.payload
+            );
+            this.emit("wallet_solana_send_request", req);
+          } else if (solanaRequest.kind === "solana_sign_and_send") {
+            const req = this.enqueueWalletRequest(
+              "solana_sign_and_send",
+              solanaRequest.payload
+            );
+            this.emit("wallet_solana_sign_and_send_request", req);
+          } else if (solanaRequest.kind === "solana_sign_message") {
+            const req = this.enqueueWalletRequest(
+              "solana_sign_message",
+              solanaRequest.payload
+            );
+            this.emit("wallet_solana_sign_message_request", req);
+          } else {
+            const req = this.enqueueWalletRequest(
+              "solana_sign",
+              solanaRequest.payload
+            );
+            this.emit("wallet_solana_sign_request", req);
+          }
+          continue;
+        }
         const normalizedPayload = normalizeTxPayload(unwrapped.payload);
         const payload = normalizedPayload ? hydrateTxPayloadFromUserState(normalizedPayload, this.userState) : null;
         if (payload) {
@@ -2035,25 +2114,25 @@ var ClientSession = class extends TypedEventEmitter {
           this.emit("wallet_tx_request", req);
         }
       } else if (unwrapped.type === "wallet_eip712_request") {
-        const payload = normalizeEip712Payload((_a = unwrapped.payload) != null ? _a : {});
+        const payload = normalizeEip712Payload((_b = unwrapped.payload) != null ? _b : {});
         const req = this.enqueueWalletRequest("eip712_sign", payload);
         this.emit("wallet_eip712_request", req);
       } else if (unwrapped.type === "wallet::solana_sign_request") {
-        const payload = normalizeSolanaSignPayload((_b = unwrapped.payload) != null ? _b : {});
+        const payload = normalizeSolanaSignPayload((_c = unwrapped.payload) != null ? _c : {});
         const req = this.enqueueWalletRequest("solana_sign", payload);
         this.emit("wallet_solana_sign_request", req);
       } else if (unwrapped.type === "wallet::solana_sign_message_request") {
         const payload = normalizeSolanaSignMessagePayload(
-          (_c = unwrapped.payload) != null ? _c : {}
+          (_d = unwrapped.payload) != null ? _d : {}
         );
         const req = this.enqueueWalletRequest("solana_sign_message", payload);
         this.emit("wallet_solana_sign_message_request", req);
       } else if (unwrapped.type === "wallet::solana_send_request") {
-        const payload = normalizeSolanaSignPayload((_d = unwrapped.payload) != null ? _d : {});
+        const payload = normalizeSolanaSignPayload((_e = unwrapped.payload) != null ? _e : {});
         const req = this.enqueueWalletRequest("solana_send", payload);
         this.emit("wallet_solana_send_request", req);
       } else if (unwrapped.type === "wallet::solana_sign_and_send_request") {
-        const payload = normalizeSolanaSignPayload((_e = unwrapped.payload) != null ? _e : {});
+        const payload = normalizeSolanaSignPayload((_f = unwrapped.payload) != null ? _f : {});
         const req = this.enqueueWalletRequest("solana_sign_and_send", payload);
         this.emit("wallet_solana_sign_and_send_request", req);
       } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
@@ -2211,11 +2290,12 @@ var ClientSession = class extends TypedEventEmitter {
     return `wreq-${this.walletRequestNextId++}`;
   }
   syncWalletRequests() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
     const nextRequests = [];
     const pendingTxs = isRecord((_b = (_a = this.userState) == null ? void 0 : _a.pending) == null ? void 0 : _b.evm_txs) ? (_d = (_c = this.userState) == null ? void 0 : _c.pending) == null ? void 0 : _d.evm_txs : void 0;
-    const pendingEip712s = isRecord((_f = (_e = this.userState) == null ? void 0 : _e.pending) == null ? void 0 : _f.eip712_requests) ? (_h = (_g = this.userState) == null ? void 0 : _g.pending) == null ? void 0 : _h.eip712_requests : void 0;
-    const pendingSolanaTxs = isRecord((_j = (_i = this.userState) == null ? void 0 : _i.pending) == null ? void 0 : _j.solana_requests) ? (_l = (_k = this.userState) == null ? void 0 : _k.pending) == null ? void 0 : _l.solana_requests : void 0;
+    const pendingEip712s = isRecord((_f = (_e = this.userState) == null ? void 0 : _e.pending) == null ? void 0 : _f.evm_sigs) ? (_h = (_g = this.userState) == null ? void 0 : _g.pending) == null ? void 0 : _h.evm_sigs : void 0;
+    const pendingSolanaTxs = isRecord((_j = (_i = this.userState) == null ? void 0 : _i.pending) == null ? void 0 : _j.solana_txs) ? (_l = (_k = this.userState) == null ? void 0 : _k.pending) == null ? void 0 : _l.solana_txs : void 0;
+    const pendingSolanaSigs = isRecord((_n = (_m = this.userState) == null ? void 0 : _m.pending) == null ? void 0 : _n.solana_sigs) ? (_p = (_o = this.userState) == null ? void 0 : _o.pending) == null ? void 0 : _p.solana_sigs : void 0;
     const pendingTxEntries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
     const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
     const coveredPendingTxIds = /* @__PURE__ */ new Set();
@@ -2274,7 +2354,7 @@ var ClientSession = class extends TypedEventEmitter {
           id: requestId,
           kind: "transaction",
           payload,
-          timestamp: (_n = (_m = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _m.timestamp) != null ? _n : Date.now()
+          timestamp: (_r = (_q = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _q.timestamp) != null ? _r : Date.now()
         });
       }
     }
@@ -2289,14 +2369,14 @@ var ClientSession = class extends TypedEventEmitter {
         id: requestId,
         kind: "eip712_sign",
         payload,
-        timestamp: (_p = (_o = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _o.timestamp) != null ? _p : Date.now()
+        timestamp: (_t = (_s = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _s.timestamp) != null ? _t : Date.now()
       });
     }
     for (const [id, raw] of Object.entries(pendingSolanaTxs != null ? pendingSolanaTxs : {}).sort(
       (left, right) => Number(left[0]) - Number(right[0])
     )) {
       const entry = isRecord(raw) ? raw : {};
-      const solanaKind = inferSolanaRequestKind(entry);
+      const solanaKind = inferSolanaRequestKind2(entry);
       const payload = solanaKind === "solana_sign_message" ? normalizeSolanaSignMessagePayload(__spreadProps(__spreadValues({}, entry), {
         pending_solana_id: Number(id)
       })) : normalizeSolanaSignPayload(__spreadProps(__spreadValues({}, entry), {
@@ -2307,7 +2387,25 @@ var ClientSession = class extends TypedEventEmitter {
         id: requestId,
         kind: solanaKind,
         payload,
-        timestamp: (_r = (_q = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _q.timestamp) != null ? _r : Date.now()
+        timestamp: (_v = (_u = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _u.timestamp) != null ? _v : Date.now()
+      });
+    }
+    for (const [id, raw] of Object.entries(pendingSolanaSigs != null ? pendingSolanaSigs : {}).sort(
+      (left, right) => Number(left[0]) - Number(right[0])
+    )) {
+      const entry = isRecord(raw) ? raw : {};
+      const solanaKind = inferSolanaRequestKind2(entry);
+      const payload = solanaKind === "solana_sign_message" ? normalizeSolanaSignMessagePayload(__spreadProps(__spreadValues({}, entry), {
+        pending_solana_id: Number(id)
+      })) : normalizeSolanaSignPayload(__spreadProps(__spreadValues({}, entry), {
+        pending_solana_id: Number(id)
+      }));
+      const requestId = this.getWalletRequestId(solanaKind, payload);
+      nextRequests.push({
+        id: requestId,
+        kind: solanaKind,
+        payload,
+        timestamp: (_x = (_w = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _w.timestamp) != null ? _x : Date.now()
       });
     }
     if (nextRequests.length === this.walletRequests.length && nextRequests.every((request, index) => {
@@ -3751,6 +3849,7 @@ async function createAAProviderState(options) {
   normalizeSimulatedFee,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload,
+  normalizeSolanaWalletRequest,
   normalizeTxPayload,
   parseChainId,
   resolvePimlicoConfig,

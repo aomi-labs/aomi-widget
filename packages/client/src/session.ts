@@ -39,6 +39,7 @@ import {
   normalizeTxPayload,
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaWalletRequest,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload,
   type WalletTxPayload,
@@ -790,13 +791,21 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const nextExt = { ...currentExt };
     delete nextExt[key];
 
-    const nextState = { ...this.userState };
     if (Object.keys(nextExt).length === 0) {
-      delete nextState["ext"];
+      this.resolveUserState({
+        ...this.userState,
+        ext: null,
+      });
+      if (this.userState) {
+        delete this.userState["ext"];
+      }
+      return;
     } else {
-      nextState["ext"] = nextExt;
+      this.resolveUserState({
+        ...this.userState,
+        ext: nextExt,
+      });
     }
-    this.resolveUserState(nextState);
   }
 
   resolveWallet(
@@ -959,6 +968,38 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       if (!unwrapped) continue;
 
       if (unwrapped.type === "wallet_tx_request") {
+        const solanaRequest = normalizeSolanaWalletRequest(
+          unwrapped.payload ?? {},
+        );
+        if (solanaRequest) {
+          if (solanaRequest.kind === "solana_send") {
+            const req = this.enqueueWalletRequest(
+              "solana_send",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_send_request", req);
+          } else if (solanaRequest.kind === "solana_sign_and_send") {
+            const req = this.enqueueWalletRequest(
+              "solana_sign_and_send",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_sign_and_send_request", req);
+          } else if (solanaRequest.kind === "solana_sign_message") {
+            const req = this.enqueueWalletRequest(
+              "solana_sign_message",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_sign_message_request", req);
+          } else {
+            const req = this.enqueueWalletRequest(
+              "solana_sign",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_sign_request", req);
+          }
+          continue;
+        }
+
         const normalizedPayload = normalizeTxPayload(unwrapped.payload);
         const payload = normalizedPayload
           ? hydrateTxPayloadFromUserState(normalizedPayload, this.userState)
@@ -1215,11 +1256,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const pendingTxs = isRecord(this.userState?.pending?.evm_txs)
       ? this.userState?.pending?.evm_txs
       : undefined;
-    const pendingEip712s = isRecord(this.userState?.pending?.eip712_requests)
-      ? this.userState?.pending?.eip712_requests
+    const pendingEip712s = isRecord(this.userState?.pending?.evm_sigs)
+      ? this.userState?.pending?.evm_sigs
       : undefined;
-    const pendingSolanaTxs = isRecord(this.userState?.pending?.solana_requests)
-      ? this.userState?.pending?.solana_requests
+    const pendingSolanaTxs = isRecord(this.userState?.pending?.solana_txs)
+      ? this.userState?.pending?.solana_txs
+      : undefined;
+    const pendingSolanaSigs = isRecord(this.userState?.pending?.solana_sigs)
+      ? this.userState?.pending?.solana_sigs
       : undefined;
 
     const pendingTxEntries = Object.entries(pendingTxs ?? {})
@@ -1318,6 +1362,32 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     for (const [id, raw] of Object.entries(pendingSolanaTxs ?? {}).sort(
+      (left, right) => Number(left[0]) - Number(right[0]),
+    )) {
+      const entry = isRecord(raw) ? raw : {};
+      const solanaKind = inferSolanaRequestKind(entry);
+      const payload =
+        solanaKind === "solana_sign_message"
+          ? normalizeSolanaSignMessagePayload({
+              ...entry,
+              pending_solana_id: Number(id),
+            })
+          : normalizeSolanaSignPayload({
+              ...entry,
+              pending_solana_id: Number(id),
+            });
+      const requestId = this.getWalletRequestId(solanaKind, payload);
+      nextRequests.push({
+        id: requestId,
+        kind: solanaKind,
+        payload,
+        timestamp:
+          this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
+          Date.now(),
+      });
+    }
+
+    for (const [id, raw] of Object.entries(pendingSolanaSigs ?? {}).sort(
       (left, right) => Number(left[0]) - Number(right[0]),
     )) {
       const entry = isRecord(raw) ? raw : {};

@@ -467,10 +467,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           ? (this._userState.pending.evm_txs as Record<string, Record<string, unknown>>)
           : {};
       const pendingEip712s =
-        this._userState?.pending?.eip712_requests &&
-        typeof this._userState.pending.eip712_requests === "object" &&
-        !Array.isArray(this._userState.pending.eip712_requests)
-          ? (this._userState.pending.eip712_requests as Record<string, Record<string, unknown>>)
+        this._userState?.pending?.evm_sigs &&
+        typeof this._userState.pending.evm_sigs === "object" &&
+        !Array.isArray(this._userState.pending.evm_sigs)
+          ? (this._userState.pending.evm_sigs as Record<string, Record<string, unknown>>)
           : {};
 
       this._walletRequests = [

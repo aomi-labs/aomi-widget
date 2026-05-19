@@ -143,7 +143,7 @@ export function pendingTxsFromBackendUserState(
     });
   }
 
-  const pendingEip712s = asRecord(normalizedUserState.pending?.eip712_requests) ?? {};
+  const pendingEip712s = asRecord(normalizedUserState.pending?.evm_sigs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -180,7 +180,7 @@ export function pendingTxsFromBackendUserState(
 
 /**
  * Rebuild the local Solana pending list from the backend's authoritative
- * `pending.solana_requests` map. Mirrors [`pendingTxsFromBackendUserState`] but
+ * `pending.solana_txs` map. Mirrors [`pendingTxsFromBackendUserState`] but
  * for the Solana domain only — kept in its own function so the caller's
  * EVM/EIP-712 state and Solana state stay in separate arrays rather than
  * a discriminated union.
@@ -198,7 +198,7 @@ export function pendingSolTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const next: PendingSolTx[] = [];
 
-  const pendingSolanaTxs = asRecord(normalizedUserState.pending?.solana_requests) ?? {};
+  const pendingSolanaTxs = asRecord(normalizedUserState.pending?.solana_txs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);

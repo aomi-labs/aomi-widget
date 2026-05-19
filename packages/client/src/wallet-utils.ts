@@ -85,6 +85,15 @@ export type WalletSolanaSignMessagePayload = {
   pendingSolanaId?: number;
 };
 
+export type NormalizedSolanaWalletRequest = {
+  kind:
+    | "solana_sign"
+    | "solana_sign_message"
+    | "solana_send"
+    | "solana_sign_and_send";
+  payload: WalletSolanaSignPayload | WalletSolanaSignMessagePayload;
+};
+
 export type ViemSignTypedDataArgs = {
   domain?: Record<string, unknown>;
   types: Record<string, Array<{ name: string; type: string }>>;
@@ -108,6 +117,37 @@ function getToolArgs(payload: unknown): UnknownRecord {
   const root = asRecord(payload);
   const nestedArgs = asRecord(root?.args);
   return nestedArgs ?? root ?? {};
+}
+
+function parseChainKind(value: unknown): "evm" | "svm" | undefined {
+  return value === "evm" || value === "svm" ? value : undefined;
+}
+
+export function inferSolanaRequestKind(
+  payload: Record<string, unknown>,
+): NormalizedSolanaWalletRequest["kind"] {
+  const rawKind =
+    typeof payload.kind === "string"
+      ? payload.kind
+      : typeof payload.request_kind === "string"
+        ? payload.request_kind
+        : typeof payload.requestKind === "string"
+          ? payload.requestKind
+          : undefined;
+
+  switch (rawKind) {
+    case "solana_sign_message":
+    case "sign_message":
+      return "solana_sign_message";
+    case "solana_send":
+    case "send_transaction":
+      return "solana_send";
+    case "solana_sign_and_send":
+    case "sign_and_send_transaction":
+      return "solana_sign_and_send";
+    default:
+      return "solana_sign";
+  }
 }
 
 export function parseChainId(value: unknown): number | undefined {
@@ -284,7 +324,10 @@ export function hydrateTxPayloadFromUserState(
 
   const normalizedUserState = asRecord(userState);
   const pending = asRecord(normalizedUserState?.pending);
-  const pendingTxsRaw = asRecord(pending?.evm_txs);
+  const pendingTxsRaw =
+    asRecord(pending?.evm_txs) ??
+    asRecord(normalizedUserState?.pending_txs) ??
+    asRecord(normalizedUserState?.pendingTxs);
   if (!pendingTxsRaw) {
     if (strict) {
       throw new Error("pending_tx_not_found");
@@ -398,6 +441,31 @@ export function normalizeSolanaSignMessagePayload(
     parsePendingId(args.pending_solana_id);
 
   return { message, description, cluster, pendingSolanaId };
+}
+
+export function normalizeSolanaWalletRequest(
+  payload: unknown,
+): NormalizedSolanaWalletRequest | null {
+  const root = asRecord(payload);
+  const args = getToolArgs(payload);
+  const solanaRequest = {
+    ...(root ?? {}),
+    ...args,
+  };
+  const chainKind =
+    parseChainKind(args.chain_kind) ?? parseChainKind(root?.chain_kind);
+  if (chainKind !== "svm") {
+    return null;
+  }
+
+  const kind = inferSolanaRequestKind(solanaRequest);
+  if (kind === "solana_sign_message") {
+    const normalized = normalizeSolanaSignMessagePayload(payload);
+    return normalized.message ? { kind, payload: normalized } : null;
+  }
+
+  const normalized = normalizeSolanaSignPayload(payload);
+  return normalized.unsignedTx ? { kind, payload: normalized } : null;
 }
 
 /**

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaWalletRequest,
   normalizeTxPayload,
 } from "../src/index";
 
@@ -209,6 +210,28 @@ describe("wallet payload normalization", () => {
         message: { owner: "0x123" },
       },
       description: "Permit2 signature",
+    });
+  });
+
+  it("normalizes backend svm wallet_tx_request payloads into a Solana send request", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        svm_tx_ids: [12],
+        request_kind: "send_transaction",
+        unsigned_tx: "U0VORE1F",
+        cluster: "solana:devnet",
+        description: "send 0.01 SOL",
+        pending_solana_id: 12,
+      }),
+    ).toEqual({
+      kind: "solana_send",
+      payload: {
+        unsignedTx: "U0VORE1F",
+        description: "send 0.01 SOL",
+        cluster: "solana:devnet",
+        pendingSolanaId: 12,
+      },
     });
   });
 });

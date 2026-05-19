@@ -45,6 +45,9 @@ export interface UserState extends Record<string, unknown> {
   };
   pending?: {
     evm_txs?: Record<string, unknown>;
+    evm_sigs?: Record<string, unknown>;
+    solana_txs?: Record<string, unknown>;
+    solana_sigs?: Record<string, unknown>;
     eip712_requests?: Record<string, unknown>;
     solana_requests?: Record<string, unknown>;
   };
@@ -78,10 +81,14 @@ const USER_STATE_ROOT_ALIAS_KEYS = new Set([
   "sponsorship",
   "pending_txs",
   "pendingTxs",
+  "pending_evm_sigs",
+  "pendingEvmSigs",
   "pending_eip712s",
   "pendingEip712s",
   "pending_solana_txs",
   "pendingSolanaTxs",
+  "pending_solana_sigs",
+  "pendingSolanaSigs",
   "next_id",
   "nextId",
   "connection",
@@ -344,16 +351,27 @@ function normalizePendingState(
       asRecord(pending?.evmTxs) ??
       asRecord(root.pending_txs) ??
       asRecord(root.pendingTxs),
-    eip712_requests:
+    evm_sigs:
+      asRecord(pending?.evm_sigs) ??
+      asRecord(pending?.evmSigs) ??
       asRecord(pending?.eip712_requests) ??
       asRecord(pending?.eip712Requests) ??
+      asRecord(root.pending_evm_sigs) ??
+      asRecord(root.pendingEvmSigs) ??
       asRecord(root.pending_eip712s) ??
       asRecord(root.pendingEip712s),
-    solana_requests:
+    solana_txs:
+      asRecord(pending?.solana_txs) ??
+      asRecord(pending?.solanaTxs) ??
       asRecord(pending?.solana_requests) ??
       asRecord(pending?.solanaRequests) ??
       asRecord(root.pending_solana_txs) ??
       asRecord(root.pendingSolanaTxs),
+    solana_sigs:
+      asRecord(pending?.solana_sigs) ??
+      asRecord(pending?.solanaSigs) ??
+      asRecord(root.pending_solana_sigs) ??
+      asRecord(root.pendingSolanaSigs),
   });
 }
 
@@ -468,13 +486,13 @@ export namespace UserState {
     const evm = normalizeEvmState(userState);
     const solana = normalizeSolanaState(userState);
     const pending = normalizePendingState(userState);
-    const ext = asRecord(userState.ext);
+    const ext = userState.ext === null ? null : asRecord(userState.ext);
 
     if (connection) normalized.connection = connection;
     if (evm) normalized.evm = evm;
     if (solana) normalized.solana = solana;
     if (pending) normalized.pending = pending;
-    if (ext) normalized.ext = ext;
+    if (ext !== undefined) normalized.ext = ext;
 
     for (const [key, value] of Object.entries(userState)) {
       if (USER_STATE_ROOT_ALIAS_KEYS.has(key)) {
