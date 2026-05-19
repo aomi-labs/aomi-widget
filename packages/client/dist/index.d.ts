@@ -966,6 +966,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     /** Whether the AI is currently processing. */
     getIsProcessing(): boolean;
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
+    private commitUserState;
     resolveUserState(userState: UserState): void;
     setClientType(clientType: AomiClientType): void;
     addExtValue(key: string, value: unknown): void;

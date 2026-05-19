@@ -2106,9 +2106,9 @@ var init_session = __esm({
           this.resolveUserState(options.userState);
         }
       }
-      resolveUserState(userState) {
+      commitUserState(userState) {
         var _a3;
-        this.userState = UserState.reconcile(this.userState, userState);
+        this.userState = userState;
         const address = (_a3 = UserState.address(this.userState)) != null ? _a3 : UserState.solanaAddress(this.userState);
         const isConnected = UserState.isConnected(this.userState);
         if (address && isConnected !== false) {
@@ -2117,6 +2117,9 @@ var init_session = __esm({
           this.publicKey = void 0;
         }
         this.syncWalletRequests();
+      }
+      resolveUserState(userState) {
+        this.commitUserState(UserState.reconcile(this.userState, userState));
       }
       setClientType(clientType) {
         var _a3;
@@ -2138,19 +2141,13 @@ var init_session = __esm({
         if (!isRecord(currentExt)) return;
         const nextExt = __spreadValues({}, currentExt);
         delete nextExt[key];
+        const nextState = __spreadValues({}, this.userState);
         if (Object.keys(nextExt).length === 0) {
-          this.resolveUserState(__spreadProps(__spreadValues({}, this.userState), {
-            ext: null
-          }));
-          if (this.userState) {
-            delete this.userState["ext"];
-          }
-          return;
+          delete nextState["ext"];
         } else {
-          this.resolveUserState(__spreadProps(__spreadValues({}, this.userState), {
-            ext: nextExt
-          }));
+          nextState["ext"] = nextExt;
         }
+        this.commitUserState(UserState.normalize(nextState));
       }
       resolveWallet(address, chainId, aa) {
         var _a3, _b;
