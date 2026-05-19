@@ -748,8 +748,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  resolveUserState(userState: UserStateShape): void {
-    this.userState = UserState.reconcile(this.userState, userState);
+  private commitUserState(userState: UserStateShape | undefined): void {
+    this.userState = userState;
 
     const address =
       UserState.address(this.userState) ??
@@ -765,6 +765,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
 
     this.syncWalletRequests();
+  }
+
+  resolveUserState(userState: UserStateShape): void {
+    this.commitUserState(UserState.reconcile(this.userState, userState));
   }
 
   setClientType(clientType: AomiClientType): void {
@@ -791,21 +795,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const nextExt = { ...currentExt };
     delete nextExt[key];
 
+    const nextState = { ...this.userState };
     if (Object.keys(nextExt).length === 0) {
-      this.resolveUserState({
-        ...this.userState,
-        ext: null,
-      });
-      if (this.userState) {
-        delete this.userState["ext"];
-      }
-      return;
+      delete nextState["ext"];
     } else {
-      this.resolveUserState({
-        ...this.userState,
-        ext: nextExt,
-      });
+      nextState["ext"] = nextExt;
     }
+    this.commitUserState(UserState.normalize(nextState));
   }
 
   resolveWallet(

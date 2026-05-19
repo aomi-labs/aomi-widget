@@ -62,6 +62,7 @@ import {
   type WalletProviderState,
 } from "../wallet-execution";
 import {
+  connectPreferredSolanaWallet,
   DEFAULT_SOLANA_ENDPOINT,
   DEFAULT_SOLANA_CLUSTER,
   ParaSolanaWrapper,
@@ -464,6 +465,22 @@ export function AomiParaAdapterProvider({
         paraModal?.openModal({ step: "AUTH_MAIN" });
       },
       openAccountUI: async () => {
+        // Once the Para session exists, prefer a direct Solana wallet attach
+        // over sending the user back through Para's EVM-oriented account flow.
+        if (!solanaWallet.publicKey) {
+          try {
+            const result = await connectPreferredSolanaWallet(solanaWallet);
+            if (result === "connected") {
+              return;
+            }
+          } catch (error) {
+            console.warn(
+              "[aomi-auth-adapter] Solana wallet attach failed",
+              error,
+            );
+            return;
+          }
+        }
         paraModal?.openModal({ step: "ACCOUNT_MAIN" });
       },
       switchChain: switchChainAsync
@@ -522,7 +539,10 @@ export function AomiParaAdapterProvider({
     sendTransactionAsync,
     signTypedDataAsync,
     resolvedAdapterSolanaConfig,
+    solanaWallet.connect,
     solanaWallet.publicKey,
+    solanaWallet.select,
+    solanaWallet.wallets,
     solanaWallet.walletName,
     switchChainAsync,
     wagmiAddress,
@@ -659,16 +679,20 @@ export function AomiParaProvider({
             enabled={solanaEnabled}
             config={solanaProviderConfig}
           >
-            <AomiParaAdapterProvider solanaConfig={resolvedSolanaConfig}>
-              {children}
-            </AomiParaAdapterProvider>
+            {(solanaReady) =>
+              solanaReady ? (
+                <AomiParaAdapterProvider solanaConfig={resolvedSolanaConfig}>
+                  {children}
+                </AomiParaAdapterProvider>
+              ) : (
+                children
+              )
+            }
           </ParaSolanaWrapper>
         </ParaProvider>
       ) : (
-        // No Para API key → no Para session, no Solana session either.
-        <AomiParaAdapterProvider solanaConfig={resolvedSolanaConfig}>
-          {children}
-        </AomiParaAdapterProvider>
+        // No Para API key → render the page with the disconnected adapter default.
+        children
       )}
     </QueryClientProvider>
   );

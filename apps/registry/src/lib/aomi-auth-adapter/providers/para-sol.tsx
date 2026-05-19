@@ -46,7 +46,19 @@ export type ResolvedSolanaConfig = {
 export type SafeSolanaWalletState = {
   publicKey: string | undefined;
   connected: boolean;
+  connecting: boolean;
+  disconnecting: boolean;
   walletName: string | undefined;
+  wallets: Array<{
+    adapter: {
+      name: string;
+      readyState: SolanaWalletReadyState;
+    };
+    readyState: SolanaWalletReadyState;
+  }>;
+  select: ((walletName: SolanaWalletName) => void) | undefined;
+  connect: (() => Promise<void>) | undefined;
+  disconnect: (() => Promise<void>) | undefined;
   signTransaction:
     | ((
         tx: VersionedTransaction | SolanaTransaction,
@@ -75,13 +87,26 @@ export const DEFAULT_SOLANA_WALLETS: SolanaWalletList = [
 ];
 export const DEFAULT_SOLANA_CLUSTER = "solana:devnet" as const;
 
+type SolanaWalletReadyState =
+  | "Installed"
+  | "NotDetected"
+  | "Loadable"
+  | "Unsupported";
+type SolanaWalletName = Parameters<ReturnType<typeof useSolanaWallet>["select"]>[0];
+
 export function useSafeSolanaWallet(): SafeSolanaWalletState {
   try {
     const wallet = useSolanaWallet();
     return {
       publicKey: wallet.publicKey?.toBase58(),
       connected: wallet.connected,
+      connecting: wallet.connecting,
+      disconnecting: wallet.disconnecting,
       walletName: wallet.wallet?.adapter?.name,
+      wallets: wallet.wallets,
+      select: wallet.select,
+      connect: wallet.connect,
+      disconnect: wallet.disconnect,
       signTransaction: wallet.signTransaction,
       signAllTransactions: wallet.signAllTransactions,
       signMessage: wallet.signMessage,
@@ -91,7 +116,13 @@ export function useSafeSolanaWallet(): SafeSolanaWalletState {
     return {
       publicKey: undefined,
       connected: false,
+      connecting: false,
+      disconnecting: false,
       walletName: undefined,
+      wallets: [],
+      select: undefined,
+      connect: undefined,
+      disconnect: undefined,
       signTransaction: undefined,
       signAllTransactions: undefined,
       signMessage: undefined,
@@ -162,6 +193,56 @@ export function resolveParaSolanaConfig(
     mobileChain: solana?.mobileChain ?? (cluster as SolanaMobileChain),
     preferDirectSend: solana?.preferDirectSend ?? true,
   };
+}
+
+function isUsableWalletReadyState(readyState: SolanaWalletReadyState): boolean {
+  return readyState === "Installed" || readyState === "Loadable";
+}
+
+function walletPriority(name: string): number {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("phantom")) return 0;
+  if (normalized.includes("solflare")) return 1;
+  if (normalized.includes("backpack")) return 2;
+  if (normalized.includes("glow")) return 3;
+  return 10;
+}
+
+function pickPreferredSolanaWallet(wallet: SafeSolanaWalletState) {
+  return [...wallet.wallets]
+    .filter((candidate) => isUsableWalletReadyState(candidate.readyState))
+    .sort((left, right) => {
+      const installedDelta =
+        Number(left.readyState === "Installed") -
+        Number(right.readyState === "Installed");
+      if (installedDelta !== 0) {
+        return -installedDelta;
+      }
+      return (
+        walletPriority(left.adapter.name) - walletPriority(right.adapter.name)
+      );
+    })[0];
+}
+
+export async function connectPreferredSolanaWallet(
+  wallet: SafeSolanaWalletState,
+): Promise<"connected" | "unavailable"> {
+  if (wallet.publicKey || wallet.connected) {
+    return "connected";
+  }
+
+  if (!wallet.select || !wallet.connect) {
+    return "unavailable";
+  }
+
+  const selectedWallet = pickPreferredSolanaWallet(wallet);
+  if (!selectedWallet) {
+    return "unavailable";
+  }
+
+  wallet.select(selectedWallet.adapter.name as SolanaWalletName);
+  await wallet.connect();
+  return "connected";
 }
 
 export function getSolanaCapabilitySnapshot(wallet: SafeSolanaWalletState) {
@@ -262,7 +343,7 @@ export function ParaSolanaWrapper({
 }: {
   enabled: boolean;
   config: ParaSolanaProviderConfig;
-  children: ReactNode;
+  children: (solanaReady: boolean) => ReactNode;
 }) {
   let para: unknown;
   try {
@@ -271,7 +352,7 @@ export function ParaSolanaWrapper({
     para = null;
   }
   if (!enabled || !para) {
-    return <>{children}</>;
+    return <>{children(false)}</>;
   }
   return (
     <ParaSolanaProvider
@@ -281,7 +362,7 @@ export function ParaSolanaWrapper({
         walletsWithFullAuth: "ALL",
       }}
     >
-      {children}
+      {children(true)}
     </ParaSolanaProvider>
   );
 }

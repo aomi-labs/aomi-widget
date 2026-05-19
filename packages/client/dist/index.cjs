@@ -1904,9 +1904,9 @@ var ClientSession = class extends TypedEventEmitter {
       this.resolveUserState(options.userState);
     }
   }
-  resolveUserState(userState) {
+  commitUserState(userState) {
     var _a;
-    this.userState = UserState.reconcile(this.userState, userState);
+    this.userState = userState;
     const address = (_a = UserState.address(this.userState)) != null ? _a : UserState.solanaAddress(this.userState);
     const isConnected = UserState.isConnected(this.userState);
     if (address && isConnected !== false) {
@@ -1915,6 +1915,9 @@ var ClientSession = class extends TypedEventEmitter {
       this.publicKey = void 0;
     }
     this.syncWalletRequests();
+  }
+  resolveUserState(userState) {
+    this.commitUserState(UserState.reconcile(this.userState, userState));
   }
   setClientType(clientType) {
     var _a;
@@ -1936,19 +1939,13 @@ var ClientSession = class extends TypedEventEmitter {
     if (!isRecord(currentExt)) return;
     const nextExt = __spreadValues({}, currentExt);
     delete nextExt[key];
+    const nextState = __spreadValues({}, this.userState);
     if (Object.keys(nextExt).length === 0) {
-      this.resolveUserState(__spreadProps(__spreadValues({}, this.userState), {
-        ext: null
-      }));
-      if (this.userState) {
-        delete this.userState["ext"];
-      }
-      return;
+      delete nextState["ext"];
     } else {
-      this.resolveUserState(__spreadProps(__spreadValues({}, this.userState), {
-        ext: nextExt
-      }));
+      nextState["ext"] = nextExt;
     }
+    this.commitUserState(UserState.normalize(nextState));
   }
   resolveWallet(address, chainId, aa) {
     var _a, _b;
