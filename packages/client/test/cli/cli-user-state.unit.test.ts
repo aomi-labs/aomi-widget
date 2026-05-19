@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCliUserState,
+  pendingSolTxsFromBackendUserState,
   pendingTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "../../src/cli/user-state";
@@ -8,11 +9,14 @@ import {
 describe("CLI user state AA fields", () => {
   it("builds explicit null AA state by default", () => {
     expect(buildCliUserState("0xabc", 8453)).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      aa_mode: null,
-      smart_account: null,
+      connection: {
+        is_connected: true,
+        primary_family: "evm",
+      },
+      evm: {
+        address: "0xabc",
+        chain_id: 8453,
+      },
       ext: { client_type: "ts_cli" },
     });
   });
@@ -88,5 +92,59 @@ describe("pendingTxsFromBackendUserState", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].data).toBe("0xdeadbeef");
+  });
+
+  it("rebuilds eip712 requests from canonical pending.evm_sigs", () => {
+    const result = pendingTxsFromBackendUserState({
+      pending: {
+        evm_sigs: {
+          11: {
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0xabc" },
+            },
+          },
+        },
+      },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: "tx-11",
+      kind: "eip712_sign",
+      eip712Id: 11,
+      description: "Permit2 signature",
+    });
+  });
+});
+
+describe("pendingSolTxsFromBackendUserState", () => {
+  it("rebuilds Solana requests from canonical pending.solana_txs", () => {
+    const result = pendingSolTxsFromBackendUserState({
+      pending: {
+        solana_txs: {
+          21: {
+            request_kind: "send_transaction",
+            description: "bridge back to main wallet",
+            cluster: "solana:devnet",
+            unsigned_tx: "U0VORE1F",
+            signer: "So1aBcExampleSigner",
+          },
+        },
+      },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: "tx-21",
+      solanaId: 21,
+      unsignedTx: "U0VORE1F",
+      description: "bridge back to main wallet",
+      cluster: "solana:devnet",
+      signer: "So1aBcExampleSigner",
+    });
   });
 });
