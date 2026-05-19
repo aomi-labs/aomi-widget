@@ -3,6 +3,21 @@
 import { useCallback, useMemo, useState } from "react";
 import { useControl } from "@aomi-labs/react";
 import { Button, Input } from "@aomi-labs/widget-lib";
+import {
+  settingsActionRowClass,
+  settingsBodyTextClass,
+  settingsCardStackClass,
+  settingsCardTitleClass,
+  settingsDescriptionClass,
+  settingsInputClass,
+  settingsPageClass,
+  settingsPillClass,
+  settingsPrimaryButtonClass,
+  settingsStatusClass,
+  settingsSubTitleClass,
+  settingsTableCardClass,
+  settingsTitleClass,
+} from "./settings-styles";
 
 const PROVIDERS = [
   { id: "openai", label: "OpenAI" },
@@ -12,12 +27,16 @@ const PROVIDERS = [
 
 export function Byok() {
   const { state, setByok, removeByok } = useControl();
-  const [selectedProvider, setSelectedProvider] = useState<(typeof PROVIDERS)[number]["id"]>("openai");
+  const [selectedProvider, setSelectedProvider] =
+    useState<(typeof PROVIDERS)[number]["id"]>("openai");
   const [byokInput, setByokInput] = useState("");
   const [labelInput, setLabelInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingProvider, setDeletingProvider] = useState<string | null>(null);
-  const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [status, setStatus] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const byokKeys = useMemo(
     () =>
       Object.entries(state.byokKeys).map(([provider, entry]) => ({
@@ -50,7 +69,8 @@ export function Byok() {
     } catch (error) {
       setStatus({
         type: "error",
-        text: error instanceof Error ? error.message : "Failed to save BYOK key",
+        text:
+          error instanceof Error ? error.message : "Failed to save BYOK key",
       });
     } finally {
       setSaving(false);
@@ -67,7 +87,10 @@ export function Byok() {
       } catch (error) {
         setStatus({
           type: "error",
-          text: error instanceof Error ? error.message : "Failed to delete BYOK key",
+          text:
+            error instanceof Error
+              ? error.message
+              : "Failed to delete BYOK key",
         });
       } finally {
         setDeletingProvider(null);
@@ -77,21 +100,22 @@ export function Byok() {
   );
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">LLM Keys</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className={settingsPageClass}>
+      <div className="space-y-4">
+        <h1 className={settingsTitleClass}>BYOK</h1>
+        <p className={settingsDescriptionClass}>
           Bring your own LLM provider keys for OpenAI, Anthropic, or OpenRouter.
           BYOK usage is recorded, but it does not consume Aomi credits.
         </p>
       </div>
 
-      <section className="rounded-2xl border border-border bg-card p-6 space-y-4">
+      <section className={settingsCardStackClass}>
         <div className="space-y-2">
-          <h2 className="text-lg font-medium">Add or Update Key</h2>
-          <p className="text-sm text-muted-foreground">
-            One active key is stored per provider. Saving a new one replaces the previous value.
-            Keys are stored in your browser and synchronized with the backend vault.
+          <h2 className={settingsCardTitleClass}>Add or Update Key</h2>
+          <p className={settingsBodyTextClass}>
+            One active key is stored per provider. Saving a new one replaces the
+            previous value. Keys are stored in your browser and synchronized
+            with the backend vault.
           </p>
         </div>
 
@@ -103,7 +127,7 @@ export function Byok() {
                 key={provider.id}
                 type="button"
                 onClick={() => setSelectedProvider(provider.id)}
-                className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                className={`${settingsPillClass} ${
                   active
                     ? "border-foreground bg-foreground text-background"
                     : "border-border bg-background text-foreground hover:border-foreground/40"
@@ -120,6 +144,7 @@ export function Byok() {
             value={labelInput}
             onChange={(event) => setLabelInput(event.target.value)}
             placeholder="Label (optional)"
+            className={settingsInputClass}
           />
           <Input
             value={byokInput}
@@ -127,61 +152,89 @@ export function Byok() {
             placeholder="Paste LLM provider key"
             type="password"
             autoComplete="off"
+            className={settingsInputClass}
           />
         </div>
 
-        <Button onClick={() => void handleSave()} disabled={!canSave}>
-          {saving ? "Saving..." : "Save Key"}
-        </Button>
+        <div className={settingsActionRowClass}>
+          <Button
+            onClick={() => void handleSave()}
+            disabled={!canSave}
+            className={settingsPrimaryButtonClass}
+          >
+            {saving ? "Saving..." : "Save Key"}
+          </Button>
+        </div>
 
         {status && (
           <p
-            className={`text-sm ${status.type === "error" ? "text-destructive" : "text-emerald-600"}`}
+            className={`${settingsStatusClass} ${
+              status.type === "error"
+                ? "border-destructive/20 bg-destructive/10 text-destructive"
+                : "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
+            }`}
           >
             {status.text}
           </p>
         )}
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-6 space-y-4">
+      <section className="space-y-4">
         <div className="space-y-2">
-          <h2 className="text-lg font-medium">Stored Keys</h2>
-          <p className="text-sm text-muted-foreground">
-            Keys are mirrored in local browser state and synchronized with the backend vault.
+          <h2 className={settingsSubTitleClass}>Stored Keys</h2>
+          <p className={settingsBodyTextClass}>
+            Keys are mirrored in local browser state and synchronized with the
+            backend vault.
           </p>
         </div>
 
-        {byokKeys.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No BYOK keys saved.</p>
-        ) : (
-          <div className="space-y-3">
-            {byokKeys.map((key) => (
-              <div
-                key={key.provider}
-                className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background p-4 md:flex-row md:items-center md:justify-between"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium capitalize">{key.provider}</span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {key.keyPrefix}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {key.label?.trim() ? key.label : "No label"}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  disabled={deletingProvider === key.provider}
-                  onClick={() => void handleDelete(key.provider)}
-                >
-                  {deletingProvider === key.provider ? "Removing..." : "Delete"}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className={settingsTableCardClass}>
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground text-center">
+                <th className="px-3 py-2">Provider</th>
+                <th className="px-3 py-2">Preview</th>
+                <th className="px-3 py-2">Label</th>
+                <th className="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byokKeys.length === 0 ? (
+                <tr>
+                  <td className="text-muted-foreground px-3 py-4 text-center" colSpan={4}>
+                    No BYOK keys saved.
+                  </td>
+                </tr>
+              ) : (
+                byokKeys.map((key) => (
+                  <tr key={key.provider} className="border-border border-t">
+                    <td className="text-foreground px-3 py-3 text-center font-medium capitalize">
+                      {key.provider}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs">
+                        {key.keyPrefix}
+                      </span>
+                    </td>
+                    <td className="text-muted-foreground px-3 py-3 text-center">
+                      {key.label?.trim() ? key.label : "No label"}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <Button
+                        variant="outline"
+                        disabled={deletingProvider === key.provider}
+                        onClick={() => void handleDelete(key.provider)}
+                        className="rounded-full"
+                      >
+                        {deletingProvider === key.provider ? "Removing..." : "Delete"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

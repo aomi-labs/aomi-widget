@@ -1,6 +1,13 @@
 "use client";
 
-import { Settings, Layers, ArrowLeft, KeyRound, Lock, Unplug } from "lucide-react";
+import {
+  Settings,
+  Layers,
+  ArrowLeft,
+  KeyRound,
+  Lock,
+  Unplug,
+} from "lucide-react";
 import Link from "next/link";
 
 export type SettingsCategory =
@@ -21,10 +28,10 @@ const categories: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   { id: "general", label: "General", icon: Settings },
-  { id: "apps", label: "Apps", icon: Layers },
+  { id: "apps", label: "Usage", icon: Layers },
   { id: "app-keys", label: "App Keys", icon: KeyRound },
   { id: "secrets", label: "Secrets", icon: Lock },
-  { id: "byok", label: "LLM Keys", icon: Unplug },
+  { id: "byok", label: "BYOK", icon: Unplug },
 ];
 
 const AomiLogo = ({ className }: { className?: string }) => (
@@ -47,9 +54,12 @@ const AomiLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export function SettingsSidebar({ activeCategory, onCategoryChange }: SettingsSidebarProps) {
+export function SettingsSidebar({
+  activeCategory,
+  onCategoryChange,
+}: SettingsSidebarProps) {
   return (
-    <div className="w-64 bg-sidebar h-full overflow-y-auto flex flex-col">
+    <div className="bg-sidebar flex h-full w-64 flex-col overflow-y-auto">
       {/* Header with logo */}
       <div className="p-5">
         <Link
@@ -58,23 +68,23 @@ export function SettingsSidebar({ activeCategory, onCategoryChange }: SettingsSi
           rel="noopener noreferrer"
           className="flex items-center"
         >
-          <AomiLogo className="size-6 text-sidebar-foreground" />
+          <AomiLogo className="text-sidebar-foreground size-6" />
         </Link>
       </div>
 
       {/* Back to chat */}
-      <div className="px-3 mb-2">
+      <div className="mb-2 px-3">
         <Link
           href="/"
-          className="flex items-center gap-2 px-3 py-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
+          className="text-sidebar-foreground/70 hover:text-sidebar-foreground flex items-center gap-2 px-3 py-2 text-sm transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="h-4 w-4" />
           <span>Back to chat</span>
         </Link>
       </div>
 
       {/* Nav items */}
-      <nav className="px-3 space-y-1">
+      <nav className="space-y-1 px-3">
         {categories.map((category) => {
           const Icon = category.icon;
           const isActive = activeCategory === category.id;
@@ -82,13 +92,13 @@ export function SettingsSidebar({ activeCategory, onCategoryChange }: SettingsSi
             <button
               key={category.id}
               onClick={() => onCategoryChange(category.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="h-4 w-4" />
               <span>{category.label}</span>
             </button>
           );
