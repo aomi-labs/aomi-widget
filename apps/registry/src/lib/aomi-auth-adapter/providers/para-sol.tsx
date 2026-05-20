@@ -22,10 +22,7 @@ import type {
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
 } from "@aomi-labs/react";
-import type {
-  SolanaCluster,
-  SolanaNetworkOption,
-} from "../types";
+import type { SolanaCluster, SolanaNetworkOption } from "../types";
 import {
   DEFAULT_SOLANA_CLUSTER,
   DEFAULT_SOLANA_RPC_HTTP_URLS,
@@ -105,7 +102,9 @@ type SolanaWalletReadyState =
   | "NotDetected"
   | "Loadable"
   | "Unsupported";
-type SolanaWalletName = Parameters<ReturnType<typeof useSolanaWallet>["select"]>[0];
+type SolanaWalletName = Parameters<
+  ReturnType<typeof useSolanaWallet>["select"]
+>[0];
 
 export function useSafeSolanaWallet(): SafeSolanaWalletState {
   try {
@@ -192,7 +191,10 @@ export function resolveParaSolanaConfig(
   selectedNetworkId?: string,
 ): ResolvedSolanaConfig {
   const networks = normalizeSolanaNetworkOptions(solana);
-  const activeNetwork = resolveSelectedSolanaNetwork(networks, selectedNetworkId);
+  const activeNetwork = resolveSelectedSolanaNetwork(
+    networks,
+    selectedNetworkId,
+  );
   const cluster = activeNetwork.cluster;
   return {
     enabled: solana?.enabled ?? true,
@@ -238,7 +240,7 @@ function pickPreferredSolanaWallet(wallet: SafeSolanaWalletState) {
 
 export async function connectPreferredSolanaWallet(
   wallet: SafeSolanaWalletState,
-): Promise<"connected" | "unavailable"> {
+): Promise<"connected" | "selecting" | "unavailable"> {
   if (wallet.publicKey || wallet.connected) {
     return "connected";
   }
@@ -247,14 +249,18 @@ export async function connectPreferredSolanaWallet(
     return "unavailable";
   }
 
+  if (wallet.walletName) {
+    await wallet.connect();
+    return "connected";
+  }
+
   const selectedWallet = pickPreferredSolanaWallet(wallet);
   if (!selectedWallet) {
     return "unavailable";
   }
 
   wallet.select(selectedWallet.adapter.name as SolanaWalletName);
-  await wallet.connect();
-  return "connected";
+  return "selecting";
 }
 
 export function getSolanaCapabilitySnapshot(wallet: SafeSolanaWalletState) {
@@ -302,7 +308,9 @@ export function buildParaSolanaMethods(
           if (!payload.unsignedTx) {
             throw new Error("Missing unsigned_tx payload");
           }
-          const tx = deserializeSolanaTransaction(decodeBase64(payload.unsignedTx));
+          const tx = deserializeSolanaTransaction(
+            decodeBase64(payload.unsignedTx),
+          );
           const signed = await signTransaction(tx);
           return { signedTx: encodeBase64(signed.serialize()) };
         }
@@ -321,7 +329,10 @@ export function buildParaSolanaMethods(
           if (!payload.unsignedTx) {
             throw new Error("Missing unsigned_tx payload");
           }
-          const connection = new SolanaConnection(config.rpcHttpUrl, "confirmed");
+          const connection = new SolanaConnection(
+            config.rpcHttpUrl,
+            "confirmed",
+          );
           const signature = await sendTransaction(
             deserializeSolanaTransaction(decodeBase64(payload.unsignedTx)),
             connection,
@@ -335,7 +346,10 @@ export function buildParaSolanaMethods(
             if (!payload.unsignedTx) {
               throw new Error("Missing unsigned_tx payload");
             }
-            const connection = new SolanaConnection(config.rpcHttpUrl, "confirmed");
+            const connection = new SolanaConnection(
+              config.rpcHttpUrl,
+              "confirmed",
+            );
             const signature = await sendTransaction(
               deserializeSolanaTransaction(decodeBase64(payload.unsignedTx)),
               connection,
