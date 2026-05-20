@@ -917,7 +917,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await this.rawFetchImpl(url, { headers });
+    const response = await this.fetchImpl(url, { headers });
     if (!response.ok) {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
@@ -934,7 +934,7 @@ var AomiClient = class {
     if (apiKey) {
       headers.set(API_KEY_HEADER, apiKey);
     }
-    const response = await this.rawFetchImpl(url, {
+    const response = await this.fetchImpl(url, {
       headers
     });
     if (!response.ok) {

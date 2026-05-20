@@ -22,10 +22,21 @@ import type {
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
 } from "@aomi-labs/react";
+import type {
+  SolanaCluster,
+  SolanaNetworkOption,
+} from "../types";
+import {
+  DEFAULT_SOLANA_CLUSTER,
+  DEFAULT_SOLANA_RPC_HTTP_URLS,
+  normalizeSolanaNetworkOptions,
+  resolveSelectedSolanaNetwork,
+} from "../solana-networks";
 
 export type ParaSolanaOptions = {
   enabled?: boolean;
-  cluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
+  networks?: readonly SolanaNetworkOption[];
+  cluster?: SolanaCluster;
   rpcHttpUrl?: string;
   rpcWsUrl?: string;
   wallets?: SolanaWalletList;
@@ -35,7 +46,9 @@ export type ParaSolanaOptions = {
 
 export type ResolvedSolanaConfig = {
   enabled: boolean;
-  cluster: "solana:mainnet" | "solana:devnet" | "solana:testnet";
+  networks: readonly SolanaNetworkOption[];
+  activeNetwork: SolanaNetworkOption;
+  cluster: SolanaCluster;
   rpcHttpUrl: string;
   rpcWsUrl?: string;
   wallets: SolanaWalletList;
@@ -78,14 +91,14 @@ export type SafeSolanaWalletState = {
     | undefined;
 };
 
-export const DEFAULT_SOLANA_ENDPOINT = "https://api.devnet.solana.com";
+export const DEFAULT_SOLANA_ENDPOINT =
+  DEFAULT_SOLANA_RPC_HTTP_URLS[DEFAULT_SOLANA_CLUSTER];
 export const DEFAULT_SOLANA_WALLETS: SolanaWalletList = [
   phantomWallet,
   solflareWallet,
   backpackWallet,
   glowWallet,
 ];
-export const DEFAULT_SOLANA_CLUSTER = "solana:devnet" as const;
 
 type SolanaWalletReadyState =
   | "Installed"
@@ -176,19 +189,18 @@ export function detectSolanaTransport(
 
 export function resolveParaSolanaConfig(
   solana?: ParaSolanaOptions,
+  selectedNetworkId?: string,
 ): ResolvedSolanaConfig {
-  const cluster = solana?.cluster ?? DEFAULT_SOLANA_CLUSTER;
+  const networks = normalizeSolanaNetworkOptions(solana);
+  const activeNetwork = resolveSelectedSolanaNetwork(networks, selectedNetworkId);
+  const cluster = activeNetwork.cluster;
   return {
     enabled: solana?.enabled ?? true,
+    networks,
+    activeNetwork,
     cluster,
-    rpcHttpUrl:
-      solana?.rpcHttpUrl ??
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
-      DEFAULT_SOLANA_ENDPOINT,
-    rpcWsUrl:
-      solana?.rpcWsUrl ??
-      process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL ??
-      undefined,
+    rpcHttpUrl: activeNetwork.rpcHttpUrl,
+    rpcWsUrl: activeNetwork.rpcWsUrl,
     wallets: solana?.wallets ?? DEFAULT_SOLANA_WALLETS,
     mobileChain: solana?.mobileChain ?? (cluster as SolanaMobileChain),
     preferDirectSend: solana?.preferDirectSend ?? true,

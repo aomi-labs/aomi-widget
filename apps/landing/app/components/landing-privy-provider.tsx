@@ -29,6 +29,38 @@ const networks = [
   linea,
   lineaSepolia,
 ] as const satisfies readonly [Chain, ...Chain[]];
+const solanaNetworks = [
+  {
+    id: "solana-devnet",
+    label: "Solana Devnet",
+    cluster: "solana:devnet",
+    rpcHttpUrl:
+      process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ??
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+      "https://api.devnet.solana.com",
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
+      process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
+    isDefault: true,
+  },
+  {
+    id: "solana-mainnet",
+    label: "Solana Mainnet",
+    cluster: "solana:mainnet",
+    rpcHttpUrl:
+      process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_URL ??
+      "https://api.mainnet-beta.solana.com",
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_WS_URL,
+  },
+  {
+    id: "solana-testnet",
+    label: "Solana Testnet",
+    cluster: "solana:testnet",
+    rpcHttpUrl:
+      process.env.NEXT_PUBLIC_SOLANA_TESTNET_RPC_URL ??
+      "https://api.testnet.solana.com",
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_TESTNET_RPC_WS_URL,
+  },
+] as const;
 
 export function LandingPrivyProvider({ children }: { children: ReactNode }) {
   return (
@@ -40,10 +72,7 @@ export function LandingPrivyProvider({ children }: { children: ReactNode }) {
       loginMethods={["email", "google", "wallet"]}
       walletConnectProjectId={walletConnectProjectId}
       solana={{
-        cluster: "solana:devnet",
-        rpcHttpUrl:
-          process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
-          "https://api.devnet.solana.com",
+        networks: solanaNetworks,
         preferDirectSend: true,
       }}
     >
