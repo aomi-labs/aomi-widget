@@ -24,10 +24,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import type {
-  WalletEip712Payload,
-  WalletTxPayload,
-} from "@aomi-labs/react";
+import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import {
   createAAProviderState,
@@ -331,6 +328,7 @@ export function AomiParaAdapterProvider({
   children: ReactNode;
   solanaConfig?: ResolvedSolanaConfig;
 }) {
+  const [pendingSolanaConnect, setPendingSolanaConnect] = useState(false);
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
   const paraModal = useSafeParaModal();
@@ -392,6 +390,44 @@ export function AomiParaAdapterProvider({
     }
     void switchChainAsync({ chainId: selectedEvmChainId });
   }, [chainId, selectedEvmChainId, switchChainAsync, wagmiConnected]);
+
+  useEffect(() => {
+    if (pendingSolanaConnect && solanaWallet.publicKey) {
+      setPendingSolanaConnect(false);
+      return;
+    }
+
+    if (
+      !pendingSolanaConnect ||
+      solanaWallet.connecting ||
+      !solanaWallet.walletName ||
+      !solanaWallet.connect
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    void solanaWallet
+      .connect()
+      .catch((error) => {
+        console.warn("[aomi-auth-adapter] Solana wallet connect failed", error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPendingSolanaConnect(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    pendingSolanaConnect,
+    solanaWallet.connect,
+    solanaWallet.connecting,
+    solanaWallet.publicKey,
+    solanaWallet.walletName,
+  ]);
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
@@ -482,11 +518,9 @@ export function AomiParaAdapterProvider({
     const isParaWallet = connectorName.includes("para");
     const shouldUseExternalSigner = Boolean(walletClient && !isParaWallet);
     const activeFamily: WalletFamily =
-      address && !svmAddress
-        ? "evm"
-        : svmAddress && !address
-          ? "solana"
-          : selectedFamily;
+      selectedFamily === "solana" && supportedSolanaNetworks.length > 0
+        ? "solana"
+        : "evm";
 
     return {
       identity,
@@ -507,7 +541,10 @@ export function AomiParaAdapterProvider({
             ? {
                 family: "evm",
                 chainId:
-                  chainId ?? selectedEvmChainId ?? wagmiConfig.chains[0]?.id ?? 1,
+                  chainId ??
+                  selectedEvmChainId ??
+                  wagmiConfig.chains[0]?.id ??
+                  1,
               }
             : undefined
           : selectedSolanaNetwork
@@ -528,6 +565,11 @@ export function AomiParaAdapterProvider({
           try {
             const result = await connectPreferredSolanaWallet(solanaWallet);
             if (result === "connected") {
+              setPendingSolanaConnect(false);
+              return;
+            }
+            if (result === "selecting") {
+              setPendingSolanaConnect(true);
               return;
             }
           } catch (error) {
@@ -547,6 +589,11 @@ export function AomiParaAdapterProvider({
           try {
             const result = await connectPreferredSolanaWallet(solanaWallet);
             if (result === "connected") {
+              setPendingSolanaConnect(false);
+              return;
+            }
+            if (result === "selecting") {
+              setPendingSolanaConnect(true);
               return;
             }
           } catch (error) {
@@ -570,13 +617,18 @@ export function AomiParaAdapterProvider({
         if (target.family === "evm") {
           setSelectedFamily("evm");
           setSelectedEvmChainId(target.chainId);
-          if (switchChainAsync && wagmiConnected && chainId !== target.chainId) {
+          if (
+            switchChainAsync &&
+            wagmiConnected &&
+            chainId !== target.chainId
+          ) {
             await switchChainAsync({ chainId: target.chainId });
           }
           return;
         }
 
         setSelectedFamily("solana");
+        setPendingSolanaConnect(false);
         if (selectedSolanaNetwork?.id === target.networkId) {
           return;
         }
@@ -745,13 +797,13 @@ function AomiParaProviderInner({
   const solanaProviderConfig = useMemo(
     () =>
       ({
-      wallets: resolvedSolanaConfig.wallets,
-      endpoint: resolvedSolanaConfig.rpcHttpUrl,
-      chain: resolvedSolanaConfig.mobileChain,
-      appIdentity: {
-        name: appName,
-        uri: appUrl,
-      },
+        wallets: resolvedSolanaConfig.wallets,
+        endpoint: resolvedSolanaConfig.rpcHttpUrl,
+        chain: resolvedSolanaConfig.mobileChain,
+        appIdentity: {
+          name: appName,
+          uri: appUrl,
+        },
       }) satisfies {
         wallets: typeof resolvedSolanaConfig.wallets;
         endpoint: string;

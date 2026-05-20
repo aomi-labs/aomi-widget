@@ -270,10 +270,12 @@ function AomiPrivyAdapterProvider({
   solanaConfig: ResolvedSolanaConfig;
 }) {
   const privy = useSafePrivy();
-  const { client: smartWalletClient, getClientForChain } = useSafeSmartWallets();
+  const { client: smartWalletClient, getClientForChain } =
+    useSafeSmartWallets();
   const { wallets: solanaWallets } = useSafeSolanaWallets();
   const wagmiConfig = useSafeWagmiConfig();
-  const { switchChainAsync, isPending: isSwitchingChain } = useSafeSwitchChain();
+  const { switchChainAsync, isPending: isSwitchingChain } =
+    useSafeSwitchChain();
   // Track the active EVM chain via wagmi (Privy's wagmi connector keeps this
   // in sync). `SmartAccountClient.chain` isn't part of Privy's public types,
   // so we read chainId from wagmi rather than the smart-wallet client.
@@ -298,12 +300,7 @@ function AomiPrivyAdapterProvider({
       return;
     }
     void switchChainAsync({ chainId: selectedEvmChainId });
-  }, [
-    privy.authenticated,
-    selectedEvmChainId,
-    switchChainAsync,
-    wagmiChainId,
-  ]);
+  }, [privy.authenticated, selectedEvmChainId, switchChainAsync, wagmiChainId]);
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const isReady = privy.ready;
@@ -320,11 +317,9 @@ function AomiPrivyAdapterProvider({
     const solanaWallet = solanaWallets?.[0];
     const svmAddress = solanaWallet?.address;
     const activeFamily: WalletFamily =
-      smartAddress && !svmAddress
-        ? "evm"
-        : svmAddress && !smartAddress
-          ? "solana"
-          : selectedFamily;
+      selectedFamily === "solana" && supportedSolanaNetworks.length > 0
+        ? "solana"
+        : "evm";
 
     // Connection state allows EVM-only (smart wallet) OR Solana-only OR both.
     // Smart-wallet enforcement is per-call in `sendTransaction` (we throw if
@@ -525,9 +520,7 @@ function AomiPrivyAdapterProvider({
         }
         const args = toViemSignTypedDataArgs(payload);
         if (!args) throw new Error("Missing typed_data payload");
-        const signature = await smartWalletClient.signTypedData(
-          args as never,
-        );
+        const signature = await smartWalletClient.signTypedData(args as never);
         return { signature };
       },
       signSolanaTransaction: solanaWallet?.signTransaction
@@ -541,7 +534,9 @@ function AomiPrivyAdapterProvider({
             const signed = await solanaWallet.signTransaction!(tx as never);
             return {
               signedTx: encodeBase64(
-                (signed as VersionedTransaction | SolanaTransaction).serialize(),
+                (
+                  signed as VersionedTransaction | SolanaTransaction
+                ).serialize(),
               ),
             };
           }
@@ -653,24 +648,21 @@ function AomiPrivyProviderInner({
     [networks],
   );
 
-  const resolvedSolanaConfig = useMemo<ResolvedSolanaConfig>(
-    () => {
-      const supportedNetworks = normalizeSolanaNetworkOptions(solana);
-      const activeNetwork = resolveSelectedSolanaNetwork(
-        supportedNetworks,
-        selectedSolanaNetworkId,
-      );
-      return {
-        networks: supportedNetworks,
-        activeNetwork,
-        cluster: activeNetwork.cluster,
-        rpcHttpUrl: activeNetwork.rpcHttpUrl,
-        rpcWsUrl: activeNetwork.rpcWsUrl,
-        preferDirectSend: solana?.preferDirectSend ?? true,
-      };
-    },
-    [selectedSolanaNetworkId, solana],
-  );
+  const resolvedSolanaConfig = useMemo<ResolvedSolanaConfig>(() => {
+    const supportedNetworks = normalizeSolanaNetworkOptions(solana);
+    const activeNetwork = resolveSelectedSolanaNetwork(
+      supportedNetworks,
+      selectedSolanaNetworkId,
+    );
+    return {
+      networks: supportedNetworks,
+      activeNetwork,
+      cluster: activeNetwork.cluster,
+      rpcHttpUrl: activeNetwork.rpcHttpUrl,
+      rpcWsUrl: activeNetwork.rpcWsUrl,
+      preferDirectSend: solana?.preferDirectSend ?? true,
+    };
+  }, [selectedSolanaNetworkId, solana]);
 
   // No appId → disconnected adapter (mirrors AomiParaProvider's no-API-key path).
   if (!appId) {
@@ -686,30 +678,32 @@ function AomiPrivyProviderInner({
   return (
     <PrivyProvider
       appId={appId}
-      config={{
-        appearance: {
-          walletList: ["detected_wallets", "metamask", "wallet_connect"],
-          logo: appLogoUrl,
-        },
-        embeddedWallets: {
-          // Ethereum stays "users-without-wallets" because the smart wallet
-          // (when enabled) prefers the user's connected EOA as owner —
-          // double-provisioning would create a second embedded EOA that
-          // never gets used.
-          ethereum: { createOnLogin: "users-without-wallets" },
-          // Solana is created for everyone: Phantom-as-EVM and most external
-          // wallet connections don't expose Solana keys to Privy, so we need
-          // a Privy-managed Solana wallet for the SVM signing path to work.
-          solana: { createOnLogin: "all-users" },
-        },
-        defaultChain: defaultEvmChain,
-        supportedChains: networks as unknown as Chain[],
-        loginMethods,
-        ...(walletConnectProjectId
-          ? { walletConnectCloudProjectId: walletConnectProjectId }
-          : {}),
-        appName,
-      } as PrivyClientConfig}
+      config={
+        {
+          appearance: {
+            walletList: ["detected_wallets", "metamask", "wallet_connect"],
+            logo: appLogoUrl,
+          },
+          embeddedWallets: {
+            // Ethereum stays "users-without-wallets" because the smart wallet
+            // (when enabled) prefers the user's connected EOA as owner —
+            // double-provisioning would create a second embedded EOA that
+            // never gets used.
+            ethereum: { createOnLogin: "users-without-wallets" },
+            // Solana is created for everyone: Phantom-as-EVM and most external
+            // wallet connections don't expose Solana keys to Privy, so we need
+            // a Privy-managed Solana wallet for the SVM signing path to work.
+            solana: { createOnLogin: "all-users" },
+          },
+          defaultChain: defaultEvmChain,
+          supportedChains: networks as unknown as Chain[],
+          loginMethods,
+          ...(walletConnectProjectId
+            ? { walletConnectCloudProjectId: walletConnectProjectId }
+            : {}),
+          appName,
+        } as PrivyClientConfig
+      }
     >
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
@@ -739,11 +733,7 @@ export function AomiPrivyProvider({
       evmChains={networks}
       solanaNetworks={supportedSolanaNetworks}
     >
-      <AomiPrivyProviderInner
-        {...rest}
-        networks={networks}
-        solana={solana}
-      />
+      <AomiPrivyProviderInner {...rest} networks={networks} solana={solana} />
     </AomiWalletNetworkPreferencesProvider>
   );
 }
