@@ -21,6 +21,23 @@ describe("CLI user state AA fields", () => {
     });
   });
 
+  it("builds Solana user state when the active app is svm", () => {
+    expect(
+      buildCliUserState("6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG", undefined, {
+        app: "svm",
+      }),
+    ).toMatchObject({
+      connection: {
+        is_connected: true,
+        primary_family: "solana",
+      },
+      solana: {
+        address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+      },
+      ext: { client_type: "ts_cli" },
+    });
+  });
+
   it("round-trips 4337 smart-account context", () => {
     const snapshot = walletSnapshotFromUserState({
       address: "0xabc",

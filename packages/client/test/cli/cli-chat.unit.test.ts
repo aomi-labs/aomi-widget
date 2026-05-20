@@ -83,11 +83,14 @@ describe("CLI chat wallet sync", () => {
     );
 
     expect(resolveUserState).toHaveBeenCalledWith({
-      address: "0xnew",
-      chain_id: 8453,
-      is_connected: true,
-      aa_mode: null,
-      smart_account: null,
+      connection: {
+        is_connected: true,
+        primary_family: "evm",
+      },
+      evm: {
+        address: "0xnew",
+        chain_id: 8453,
+      },
       ext: { client_type: "ts_cli" },
     });
     expect(syncUserState).toHaveBeenCalledTimes(1);

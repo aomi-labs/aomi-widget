@@ -74,6 +74,7 @@ export async function syncWalletStateForChat(
   }
 
   session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
+    app: config.app,
     aaMode: next.aaMode ?? null,
     smartAccount: next.smartAccount ?? null,
   }));

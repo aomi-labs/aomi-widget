@@ -355,6 +355,7 @@ export class CliSession {
       },
     );
     session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
+      app: this.state.app,
       aaMode: this.state.aaMode ?? null,
       smartAccount: this.state.smartAccount ?? null,
     }));
