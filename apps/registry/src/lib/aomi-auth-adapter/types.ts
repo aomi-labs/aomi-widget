@@ -9,6 +9,31 @@ import type {
 } from "@aomi-labs/react";
 
 export type AomiAuthStatus = "booting" | "disconnected" | "connected";
+export type WalletFamily = "evm" | "solana";
+export type SolanaCluster =
+  | "solana:mainnet"
+  | "solana:devnet"
+  | "solana:testnet";
+
+export type SolanaNetworkOption = {
+  id: string;
+  label: string;
+  cluster: SolanaCluster;
+  rpcHttpUrl: string;
+  rpcWsUrl?: string;
+  isDefault?: boolean;
+};
+
+export type SolanaNetworkConfigInput = {
+  networks?: readonly SolanaNetworkOption[];
+  cluster?: SolanaCluster;
+  rpcHttpUrl?: string;
+  rpcWsUrl?: string;
+};
+
+export type AomiNetworkTarget =
+  | { family: "evm"; chainId: number }
+  | { family: "solana"; networkId: string };
 
 export type AomiAuthIdentity = {
   status: AomiAuthStatus;
@@ -32,7 +57,7 @@ export type AomiAuthIdentity = {
    */
   aaMode?: "4337" | "7702";
   smartAccount?: string;
-  solanaCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
+  solanaCluster?: SolanaCluster;
   solanaWalletName?: string;
   solanaTransport?: "extension" | "embedded" | "mwa";
   solanaCapabilities?: {
@@ -68,12 +93,20 @@ export type AomiAuthAdapter = {
   canDisconnect: boolean;
 
   supportedChains?: readonly Chain[];
+  supportedNetworks?: {
+    evm: readonly Chain[];
+    solana: readonly SolanaNetworkOption[];
+  };
+  activeFamily?: WalletFamily;
+  activeNetwork?: AomiNetworkTarget;
+  solanaNetworkSwitchRequiresReconnect?: boolean;
 
-  connect: () => Promise<void>;
-  openAccountUI?: () => Promise<void>;
+  connect: (options?: { family?: WalletFamily }) => Promise<void>;
+  openAccountUI?: (options?: { family?: WalletFamily }) => Promise<void>;
   disconnect?: () => Promise<void>;
 
   switchChain?: (chainId: number) => Promise<void>;
+  selectNetwork?: (target: AomiNetworkTarget) => Promise<void>;
 
   sendTransaction?: (payload: WalletTxPayload) => Promise<AomiTxResult>;
   signTypedData?: (
