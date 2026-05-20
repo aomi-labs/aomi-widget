@@ -69,24 +69,38 @@ function txTimestamp(
 export function buildCliUserState(
   publicKey?: string,
   chainId?: number,
-  aa?: {
+  options?: {
+    app?: string;
     aaMode?: UserStateAAMode | null;
     smartAccount?: string | null;
   },
 ): UserState {
+  const app = options?.app?.trim().toLowerCase();
+  const isSolanaApp = app === "sol" || app === "solana" || app === "svm";
   const userState: UserState = {
     connection: {
       is_connected: publicKey !== undefined ? true : undefined,
-      primary_family: publicKey !== undefined ? "evm" : undefined,
+      primary_family: publicKey !== undefined
+        ? isSolanaApp
+          ? "solana"
+          : "evm"
+        : undefined,
     },
-    evm: {
-      address: publicKey,
-      chain_id: chainId,
-      aa: {
-        mode: aa?.aaMode ?? null,
-        smart_account: aa?.smartAccount ?? null,
-      },
-    },
+    evm: isSolanaApp
+      ? undefined
+      : {
+          address: publicKey,
+          chain_id: chainId,
+          aa: {
+            mode: options?.aaMode ?? null,
+            smart_account: options?.smartAccount ?? null,
+          },
+        },
+    solana: isSolanaApp
+      ? {
+          address: publicKey,
+        }
+      : undefined,
   };
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);

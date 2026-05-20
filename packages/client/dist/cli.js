@@ -2666,21 +2666,26 @@ function txTimestamp(existingById, id, fallbackNow) {
   var _a3, _b;
   return (_b = (_a3 = existingById.get(id)) == null ? void 0 : _a3.timestamp) != null ? _b : fallbackNow;
 }
-function buildCliUserState(publicKey, chainId, aa) {
-  var _a3, _b;
+function buildCliUserState(publicKey, chainId, options) {
+  var _a3, _b, _c;
+  const app = (_a3 = options == null ? void 0 : options.app) == null ? void 0 : _a3.trim().toLowerCase();
+  const isSolanaApp = app === "sol" || app === "solana" || app === "svm";
   const userState = {
     connection: {
       is_connected: publicKey !== void 0 ? true : void 0,
-      primary_family: publicKey !== void 0 ? "evm" : void 0
+      primary_family: publicKey !== void 0 ? isSolanaApp ? "solana" : "evm" : void 0
     },
-    evm: {
+    evm: isSolanaApp ? void 0 : {
       address: publicKey,
       chain_id: chainId,
       aa: {
-        mode: (_a3 = aa == null ? void 0 : aa.aaMode) != null ? _a3 : null,
-        smart_account: (_b = aa == null ? void 0 : aa.smartAccount) != null ? _b : null
+        mode: (_b = options == null ? void 0 : options.aaMode) != null ? _b : null,
+        smart_account: (_c = options == null ? void 0 : options.smartAccount) != null ? _c : null
       }
-    }
+    },
+    solana: isSolanaApp ? {
+      address: publicKey
+    } : void 0
   };
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
@@ -3455,6 +3460,7 @@ Available: ${available}`);
           }
         );
         session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
+          app: this.state.app,
           aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
           smartAccount: (_b = this.state.smartAccount) != null ? _b : null
         }));
@@ -3674,6 +3680,7 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
     return;
   }
   session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
+    app: config.app,
     aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
     smartAccount: (_b = next.smartAccount) != null ? _b : null
   }));
