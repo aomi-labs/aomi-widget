@@ -15,6 +15,7 @@ declare global {
         ready: () => void;
         close: () => void;
         expand: () => void;
+        openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
         sendData: (data: string) => void;
         MainButton: {
           text: string;

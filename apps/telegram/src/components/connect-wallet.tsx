@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useModal } from '@getpara/react-sdk';
 import { useAccount, useChainId, useDisconnect, useEnsName } from 'wagmi';
 import { Providers, initAppKit } from './providers';
-import { restore, persist, clear, clearLsWhitelisted, clearIdb } from '@/lib/session-bridge';
+import {
+  restore,
+  persist,
+  clear,
+  clearLsWhitelisted,
+  clearSessionWhitelisted,
+  clearIdb,
+} from '@/lib/session-bridge';
 import { getTelegramUserId, readyTelegramWebApp } from '@/lib/telegram-webapp';
 import {
   CONNECT_CONTEXT_KEY,
@@ -136,7 +143,7 @@ function ConnectContent({
       // Open the WalletConnect modal immediately — it IS the UI
       setShouldOpen(true);
     }
-  }, [openModal, tgUserId, restoredSession, hasResultUri, isConnected]);
+  }, [openModal, tgUserId, restoredSession, hasResultUri, isConnected, disconnectAsync]);
 
   useEffect(() => {
     if (shouldOpen && !isConnected) {
@@ -186,13 +193,14 @@ function ConnectContent({
           window.Telegram.WebApp.sendData(
             JSON.stringify({ address, chainId, ensName: ensName ?? null }),
           );
+          window.Telegram.WebApp.close();
         } else {
           console.log('[dev] connected:', address, chainId, ensName);
         }
       });
     }, WALLET_PERSIST_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [isConnected, address]);
+  }, [isConnected, address, chainId, connector?.name, ensName, tgUserId]);
 
   // The wallet modal covers the screen — just show a dark background
   return <main className="min-h-screen bg-black" />;
@@ -241,8 +249,13 @@ export default function ConnectWallet() {
 
         if (!alreadyApplied) {
           console.log('[connect] clearing session (force_new first apply)');
-          if (userId) await clear(userId);
-          else { clearLsWhitelisted(); await clearIdb(); }
+          if (userId) {
+            await clear(userId);
+          } else {
+            clearLsWhitelisted();
+            clearSessionWhitelisted();
+            await clearIdb();
+          }
           markForceNewApplied(markerKey);
           return false;
         }
