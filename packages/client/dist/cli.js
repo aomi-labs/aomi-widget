@@ -1162,7 +1162,7 @@ var init_client = __esm({
         if (apiKey) {
           headers.set(API_KEY_HEADER, apiKey);
         }
-        const response = await this.fetchImpl(url, { headers });
+        const response = await this.rawFetchImpl(url, { headers });
         if (!response.ok) {
           throw new Error(`Failed to get apps: HTTP ${response.status}`);
         }
@@ -1179,7 +1179,7 @@ var init_client = __esm({
         if (apiKey) {
           headers.set(API_KEY_HEADER, apiKey);
         }
-        const response = await this.fetchImpl(url, {
+        const response = await this.rawFetchImpl(url, {
           headers
         });
         if (!response.ok) {
@@ -1953,31 +1953,35 @@ var init_session = __esm({
             description: req.payload.description
           }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
         } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
-          await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "signed",
-            signed_tx: result.signedTx,
+            signed_tx: result.signedTx
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         } else if (req.kind === "solana_sign_message" && result.kind === "solana_sign_message") {
-          await this.sendSystemEvent("wallet::solana_sign_message_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "signed",
-            signature: result.signature,
+            signature: result.signature
+          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         } else if (req.kind === "solana_send" && result.kind === "solana_send") {
-          await this.sendSystemEvent("wallet::solana_send_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "submitted",
             signature: result.signature,
-            signed_tx: result.signedTx,
+            signed_tx: result.signedTx
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         } else if (req.kind === "solana_sign_and_send" && result.kind === "solana_sign_and_send") {
-          await this.sendSystemEvent("wallet::solana_sign_and_send_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "submitted",
             signature: result.signature,
-            signed_tx: result.signedTx,
+            signed_tx: result.signedTx
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -2017,29 +2021,33 @@ var init_session = __esm({
             description: req.payload.description
           }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
         } else if (req.kind === "solana_sign") {
-          await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "rejected",
-            error: reason != null ? reason : "Request rejected",
+            error: reason != null ? reason : "Request rejected"
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         } else if (req.kind === "solana_sign_message") {
-          await this.sendSystemEvent("wallet::solana_sign_message_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "rejected",
-            error: reason != null ? reason : "Request rejected",
+            error: reason != null ? reason : "Request rejected"
+          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         } else if (req.kind === "solana_send") {
-          await this.sendSystemEvent("wallet::solana_send_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "rejected",
-            error: reason != null ? reason : "Request rejected",
+            error: reason != null ? reason : "Request rejected"
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         } else {
-          await this.sendSystemEvent("wallet::solana_sign_and_send_complete", __spreadValues({
+          await this.sendSystemEvent("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
             status: "rejected",
-            error: reason != null ? reason : "Request rejected",
+            error: reason != null ? reason : "Request rejected"
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
             description: req.payload.description
-          }, req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+          }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
         }
         if (this._isProcessing) {
           this.startPolling();
@@ -2270,7 +2278,7 @@ var init_session = __esm({
         }
       }
       dispatchSystemEvents(events) {
-        var _a3, _b, _c, _d, _e, _f;
+        var _a3, _b, _c, _d, _e, _f, _g, _h;
         for (const event of events) {
           const unwrapped = unwrapSystemEvent(event);
           if (!unwrapped) continue;
@@ -2279,6 +2287,7 @@ var init_session = __esm({
               (_a3 = unwrapped.payload) != null ? _a3 : {}
             );
             if (solanaRequest) {
+              (_b = this.logger) == null ? void 0 : _b.debug("[session] wallet_tx_request solana raw payload", unwrapped.payload);
               if (solanaRequest.kind === "solana_send") {
                 const req = this.enqueueWalletRequest(
                   "solana_send",
@@ -2313,25 +2322,26 @@ var init_session = __esm({
               this.emit("wallet_tx_request", req);
             }
           } else if (unwrapped.type === "wallet_eip712_request") {
-            const payload = normalizeEip712Payload((_b = unwrapped.payload) != null ? _b : {});
+            const payload = normalizeEip712Payload((_c = unwrapped.payload) != null ? _c : {});
             const req = this.enqueueWalletRequest("eip712_sign", payload);
             this.emit("wallet_eip712_request", req);
           } else if (unwrapped.type === "wallet::solana_sign_request") {
-            const payload = normalizeSolanaSignPayload((_c = unwrapped.payload) != null ? _c : {});
+            (_d = this.logger) == null ? void 0 : _d.debug("[session] solana_sign_request raw payload", unwrapped.payload);
+            const payload = normalizeSolanaSignPayload((_e = unwrapped.payload) != null ? _e : {});
             const req = this.enqueueWalletRequest("solana_sign", payload);
             this.emit("wallet_solana_sign_request", req);
           } else if (unwrapped.type === "wallet::solana_sign_message_request") {
             const payload = normalizeSolanaSignMessagePayload(
-              (_d = unwrapped.payload) != null ? _d : {}
+              (_f = unwrapped.payload) != null ? _f : {}
             );
             const req = this.enqueueWalletRequest("solana_sign_message", payload);
             this.emit("wallet_solana_sign_message_request", req);
           } else if (unwrapped.type === "wallet::solana_send_request") {
-            const payload = normalizeSolanaSignPayload((_e = unwrapped.payload) != null ? _e : {});
+            const payload = normalizeSolanaSignPayload((_g = unwrapped.payload) != null ? _g : {});
             const req = this.enqueueWalletRequest("solana_send", payload);
             this.emit("wallet_solana_send_request", req);
           } else if (unwrapped.type === "wallet::solana_sign_and_send_request") {
-            const payload = normalizeSolanaSignPayload((_f = unwrapped.payload) != null ? _f : {});
+            const payload = normalizeSolanaSignPayload((_h = unwrapped.payload) != null ? _h : {});
             const req = this.enqueueWalletRequest("solana_sign_and_send", payload);
             this.emit("wallet_solana_sign_and_send_request", req);
           } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
@@ -2606,6 +2616,12 @@ var init_session = __esm({
             payload,
             timestamp: (_x = (_w = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _w.timestamp) != null ? _x : Date.now()
           });
+        }
+        const nextIdSet = new Set(nextRequests.map((r) => r.id));
+        for (const existing of this.walletRequests) {
+          if (existing.kind !== "transaction" && existing.kind !== "eip712_sign" && !nextIdSet.has(existing.id)) {
+            nextRequests.push(existing);
+          }
         }
         if (nextRequests.length === this.walletRequests.length && nextRequests.every((request, index) => {
           const current = this.walletRequests[index];
