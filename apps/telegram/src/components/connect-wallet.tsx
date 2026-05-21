@@ -100,6 +100,7 @@ function ConnectContent({
   const chainId = useChainId();
   const { data: ensName } = useEnsName({ address: address as `0x${string}` | undefined });
   const prevConnected = useRef(false);
+  const closeTimer = useRef<number | null>(null);
   const [shouldOpen, setShouldOpen] = useState(false);
 
   useEffect(() => {
@@ -166,9 +167,13 @@ function ConnectContent({
     // Persist + sendData on every fresh connect (rising edge)
     if (!isConnected || !address) {
       prevConnected.current = false;
+      if (closeTimer.current) {
+        window.clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
       return;
     }
-    if (prevConnected.current) return;
+    if (prevConnected.current || closeTimer.current) return;
     prevConnected.current = true;
 
     const source = connector?.name?.toLowerCase().replace(/\s+/g, '') || 'nonTG';
@@ -184,22 +189,21 @@ function ConnectContent({
       body: JSON.stringify({ user_id: userId, address, chainId, source: 'mini_app' }),
     }).then(r => console.log('[connect] POST response: %s', r.status)).catch(e => console.warn('[connect] POST failed:', e));
 
-    // Delay so wallet state finishes writing all IDB entries before we snapshot
-    const timer = setTimeout(() => {
-      const save = tgUserId ? persist(tgUserId) : Promise.resolve();
-      save.finally(() => {
-        if (window.Telegram?.WebApp?.sendData) {
-          console.log('[connect] calling sendData');
-          window.Telegram.WebApp.sendData(
-            JSON.stringify({ address, chainId, ensName: ensName ?? null }),
-          );
-          window.Telegram.WebApp.close();
-        } else {
-          console.log('[dev] connected:', address, chainId, ensName);
-        }
-      });
+    // Delay so wallet state finishes writing all IDB entries before we snapshot.
+    // Do not block Telegram close on this best-effort persistence step.
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      if (tgUserId) void persist(tgUserId);
+      if (window.Telegram?.WebApp?.sendData) {
+        console.log('[connect] calling sendData');
+        window.Telegram.WebApp.sendData(
+          JSON.stringify({ address, chainId, ensName: ensName ?? null }),
+        );
+        window.Telegram.WebApp.close();
+      } else {
+        console.log('[dev] connected:', address, chainId, ensName);
+      }
     }, WALLET_PERSIST_DELAY_MS);
-    return () => clearTimeout(timer);
   }, [isConnected, address, chainId, connector?.name, ensName, tgUserId]);
 
   // The wallet modal covers the screen — just show a dark background
