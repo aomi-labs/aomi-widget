@@ -1,4 +1,4 @@
-import { LS_KEY_PREFIXES, WC_IDB_NAME, WC_IDB_STORE } from './constants';
+import { WALLET_STORAGE_KEY_PREFIXES, WC_IDB_NAME, WC_IDB_STORE } from './constants';
 
 // ---------------------------------------------------------------------------
 // IDB helpers
@@ -102,7 +102,7 @@ function readLsWhitelisted(): Record<string, string> {
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (!key) continue;
-    if (LS_KEY_PREFIXES.some((p) => key.startsWith(p))) {
+    if (WALLET_STORAGE_KEY_PREFIXES.some((p) => key.startsWith(p))) {
       result[key] = localStorage.getItem(key)!;
     }
   }
@@ -119,12 +119,25 @@ export function clearLsWhitelisted() {
   const toRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && LS_KEY_PREFIXES.some((p) => key.startsWith(p))) {
+    if (key && WALLET_STORAGE_KEY_PREFIXES.some((p) => key.startsWith(p))) {
       toRemove.push(key);
     }
   }
   for (const key of toRemove) {
     localStorage.removeItem(key);
+  }
+}
+
+export function clearSessionWhitelisted() {
+  const toRemove: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && WALLET_STORAGE_KEY_PREFIXES.some((p) => key.startsWith(p))) {
+      toRemove.push(key);
+    }
+  }
+  for (const key of toRemove) {
+    sessionStorage.removeItem(key);
   }
 }
 
@@ -188,5 +201,6 @@ export async function clear(userId: string): Promise<void> {
   }
   // Also wipe browser state on explicit disconnect
   clearLsWhitelisted();
+  clearSessionWhitelisted();
   await clearIdb();
 }
