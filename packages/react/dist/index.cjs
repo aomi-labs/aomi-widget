@@ -349,9 +349,6 @@ var API_KEY_STORAGE_KEY = "aomi_api_key";
 var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
 var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
 var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
-function isNetworkFetchError(error) {
-  return error instanceof TypeError && /fetch/i.test(error.message);
-}
 function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
@@ -662,9 +659,7 @@ function ControlContextProvider({
       }));
       return models;
     } catch (error) {
-      if (!isNetworkFetchError(error)) {
-        console.error("Failed to fetch models:", error);
-      }
+      console.error("Failed to fetch models:", error);
       return [];
     }
   }, [getCurrentControlSessionId]);
@@ -685,9 +680,7 @@ function ControlContextProvider({
       }));
       return apps;
     } catch (error) {
-      if (!isNetworkFetchError(error)) {
-        console.error("Failed to fetch apps:", error);
-      }
+      console.error("Failed to fetch apps:", error);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
         authorizedApps: ["default"],
         defaultApp: "default"
@@ -2053,9 +2046,6 @@ function normalizeWalletId(value) {
   }
   return value.startsWith("0x") ? value.toLowerCase() : value;
 }
-function isNetworkFetchError2(error) {
-  return error instanceof TypeError && /fetch/i.test(error.message);
-}
 function getConnectedWalletId(userState) {
   var _a;
   return (_a = import_client5.UserState.address(userState)) != null ? _a : import_client5.UserState.solanaAddress(userState);
@@ -2306,9 +2296,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
           }
         }
       } catch (error) {
-        if (!isNetworkFetchError2(error)) {
-          console.error("Failed to fetch thread list:", error);
-        }
+        console.error("Failed to fetch thread list:", error);
       } finally {
         if (!cancelled) {
           setIsThreadListLoading(false);

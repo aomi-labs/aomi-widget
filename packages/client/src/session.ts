@@ -550,6 +550,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       await this.sendSystemEvent("wallet::solana_sign_complete", {
         status: "signed",
         signed_tx: result.signedTx,
+        ...(req.payload.unsignedTx !== undefined
+          ? { unsigned_tx: req.payload.unsignedTx }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -562,6 +565,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       await this.sendSystemEvent("wallet::solana_sign_message_complete", {
         status: "signed",
         signature: result.signature,
+        ...(req.payload.message !== undefined
+          ? { message: req.payload.message }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -572,6 +578,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         status: "submitted",
         signature: result.signature,
         signed_tx: result.signedTx,
+        ...(req.payload.unsignedTx !== undefined
+          ? { unsigned_tx: req.payload.unsignedTx }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -585,6 +594,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         status: "submitted",
         signature: result.signature,
         signed_tx: result.signedTx,
+        ...(req.payload.unsignedTx !== undefined
+          ? { unsigned_tx: req.payload.unsignedTx }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -639,6 +651,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       await this.sendSystemEvent("wallet::solana_sign_complete", {
         status: "rejected",
         error: reason ?? "Request rejected",
+        ...(req.payload.unsignedTx !== undefined
+          ? { unsigned_tx: req.payload.unsignedTx }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -648,6 +663,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       await this.sendSystemEvent("wallet::solana_sign_message_complete", {
         status: "rejected",
         error: reason ?? "Request rejected",
+        ...(req.payload.message !== undefined
+          ? { message: req.payload.message }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -657,6 +675,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       await this.sendSystemEvent("wallet::solana_send_complete", {
         status: "rejected",
         error: reason ?? "Request rejected",
+        ...(req.payload.unsignedTx !== undefined
+          ? { unsigned_tx: req.payload.unsignedTx }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -666,6 +687,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       await this.sendSystemEvent("wallet::solana_sign_and_send_complete", {
         status: "rejected",
         error: reason ?? "Request rejected",
+        ...(req.payload.unsignedTx !== undefined
+          ? { unsigned_tx: req.payload.unsignedTx }
+          : {}),
         description: req.payload.description,
         ...(req.payload.pendingSolanaId !== undefined
           ? { pending_solana_id: req.payload.pendingSolanaId }
@@ -968,6 +992,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           unwrapped.payload ?? {},
         );
         if (solanaRequest) {
+          this.logger?.debug("[session] wallet_tx_request solana raw payload", unwrapped.payload);
           if (solanaRequest.kind === "solana_send") {
             const req = this.enqueueWalletRequest(
               "solana_send",
@@ -1009,6 +1034,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         const req = this.enqueueWalletRequest("eip712_sign", payload);
         this.emit("wallet_eip712_request", req);
       } else if (unwrapped.type === "wallet::solana_sign_request") {
+        this.logger?.debug("[session] solana_sign_request raw payload", unwrapped.payload);
         const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
         const req = this.enqueueWalletRequest("solana_sign", payload);
         this.emit("wallet_solana_sign_request", req);
@@ -1407,6 +1433,18 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
           Date.now(),
       });
+    }
+
+    // Preserve SSE-sourced Solana requests that are already in the queue but
+    // aren't reflected in the current user_state pending fields.  The backend
+    // often fires the SSE event before the next polled state snapshot includes
+    // the request; without this, syncWalletRequests evicts the request while
+    // processRequest is still awaiting the wallet signature.
+    const nextIdSet = new Set(nextRequests.map((r) => r.id));
+    for (const existing of this.walletRequests) {
+      if (existing.kind !== "transaction" && existing.kind !== "eip712_sign" && !nextIdSet.has(existing.id)) {
+        nextRequests.push(existing);
+      }
     }
 
     if (

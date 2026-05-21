@@ -85,15 +85,15 @@ export function AomiAuthRuntimeUserSync() {
 
   useEffect(() => {
     if (identity.isConnected && identity.authProvider) {
-      addExtValue("wallet_provider", identity.authProvider);
+      addExtValue("walletProvider", identity.authProvider);
     } else {
-      removeExtValue("wallet_provider");
+      removeExtValue("walletProvider");
     }
 
     if (identity.isConnected && providerLabel) {
-      addExtValue("wallet_provider_label", providerLabel);
+      addExtValue("walletProviderLabel", providerLabel);
     } else {
-      removeExtValue("wallet_provider_label");
+      removeExtValue("walletProviderLabel");
     }
   }, [
     addExtValue,
