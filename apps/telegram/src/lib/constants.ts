@@ -4,8 +4,14 @@
 
 // ── WalletConnect Storage ──
 
-/** LocalStorage key prefixes for wallet session data (includes legacy AppKit keys). */
-export const LS_KEY_PREFIXES = ['@appkit/', 'wagmi.', 'WALLETCONNECT_DEEPLINK'] as const;
+/** Browser storage key prefixes for wallet session data. */
+export const WALLET_STORAGE_KEY_PREFIXES = [
+  '@appkit/',
+  '@CAPSULE/',
+  '@PARA/',
+  'wagmi.',
+  'WALLETCONNECT_DEEPLINK',
+] as const;
 
 /** IndexedDB database name for WalletConnect v2. */
 export const WC_IDB_NAME = 'WALLET_CONNECT_V2_INDEXED_DB';
