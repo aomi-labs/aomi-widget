@@ -104,11 +104,7 @@ describe("ClientSession ext helpers", () => {
       connection: { is_connected: true },
       evm: {
         address: "0xdef",
-        aa: undefined,
-        sponsorship: undefined,
       },
-      pending: undefined,
-      solana: undefined,
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -810,6 +806,7 @@ describe("ClientSession ext helpers", () => {
         payload: {
           status: "signed",
           signed_tx: "SIGNED:AQAA",
+          unsigned_tx: "AQAA",
           description: "claim rewards",
           pending_solana_id: 3,
         },
@@ -898,6 +895,7 @@ describe("ClientSession ext helpers", () => {
         payload: {
           status: "rejected",
           error: "User cancelled in Phantom",
+          unsigned_tx: "AQAA",
           description: "claim rewards",
           pending_solana_id: 4,
         },
@@ -993,6 +991,7 @@ describe("ClientSession ext helpers", () => {
           status: "submitted",
           signature: "5sV4SolanaSignature",
           signed_tx: "SIGNED:AQABAg",
+          unsigned_tx: "AQABAg",
           description: "swap for BONK",
           pending_solana_id: 12,
         },
@@ -1138,6 +1137,7 @@ describe("ClientSession ext helpers", () => {
         payload: {
           status: "signed",
           signature: "SIGN:MEMO",
+          message: "TWVtbw==",
           description: "sign login proof",
           pending_solana_id: 17,
         },
@@ -1230,6 +1230,7 @@ describe("ClientSession ext helpers", () => {
         payload: {
           status: "rejected",
           error: "user cancel",
+          message: "TWVtbw==",
           description: "sign login proof",
           pending_solana_id: 17,
         },
@@ -1330,6 +1331,7 @@ describe("ClientSession ext helpers", () => {
           status: "submitted",
           signature: "SIG",
           signed_tx: "SIGNED:Qg==",
+          unsigned_tx: "Qg==",
           description: "swap+send",
           pending_solana_id: 22,
         },
@@ -1423,6 +1425,7 @@ describe("ClientSession ext helpers", () => {
         payload: {
           status: "rejected",
           error: "user cancel",
+          unsigned_tx: "Qg==",
           description: "swap+send",
           pending_solana_id: 22,
         },

@@ -69,8 +69,8 @@ describe("AomiAuthRuntimeUserSync", () => {
           chain_id: 8453,
         },
         ext: {
-          wallet_provider: "baseAccount",
-          wallet_provider_label: "Base Account",
+          walletProvider: "baseAccount",
+          walletProviderLabel: "Base Account",
         },
       });
     });
@@ -87,8 +87,8 @@ describe("AomiAuthRuntimeUserSync", () => {
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
       expect(state.ext).toMatchObject({
-        wallet_provider: "baseAccount",
-        wallet_provider_label: "Base Account",
+        walletProvider: "baseAccount",
+        walletProviderLabel: "Base Account",
       });
     });
 
