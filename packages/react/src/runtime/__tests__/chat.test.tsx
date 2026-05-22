@@ -329,11 +329,8 @@ describe("Chat API", () => {
         string,
         { userState?: Record<string, unknown> } | undefined,
       ];
-      expect(call[2]?.userState).toEqual({
-        address: undefined,
-        chain_id: undefined,
-        is_connected: false,
-        ens_name: undefined,
+      expect(call[2]?.userState).toMatchObject({
+        connection: { is_connected: false },
         ext: {
           SIMMER_API_KEY: "sk_react_test",
         },
@@ -415,9 +412,7 @@ describe("Chat API", () => {
 
       expect(call[2]?.publicKey).toBeUndefined();
       expect(call[2]?.userState).toMatchObject({
-        address: undefined,
-        chain_id: undefined,
-        is_connected: false,
+        connection: { is_connected: false },
       });
     });
 
