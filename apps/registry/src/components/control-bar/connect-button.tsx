@@ -4,14 +4,16 @@ import { useEffect, type FC } from "react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
+import { DualWalletBar } from "./dual-wallet-bar";
 
 export type ConnectButtonProps = {
   className?: string;
   connectLabel?: string;
   onConnectionChange?: (connected: boolean) => void;
+  families?: Array<"evm" | "solana">;
 };
 
-export const ConnectButton: FC<ConnectButtonProps> = ({
+const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
   className,
   connectLabel = "Connect Account",
   onConnectionChange,
@@ -80,5 +82,29 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
         <span className="opacity-50">{secondaryLabel}</span>
       )}
     </button>
+  );
+};
+
+export const ConnectButton: FC<ConnectButtonProps> = ({
+  families,
+  className,
+  connectLabel,
+  onConnectionChange,
+}) => {
+  if (families && families.length > 0) {
+    return (
+      <DualWalletBar
+        families={families}
+        className={className}
+        onConnectionChange={onConnectionChange}
+      />
+    );
+  }
+  return (
+    <SingleConnectButton
+      className={className}
+      connectLabel={connectLabel}
+      onConnectionChange={onConnectionChange}
+    />
   );
 };

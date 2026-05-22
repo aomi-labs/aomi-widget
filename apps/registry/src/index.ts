@@ -2,6 +2,10 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 
+// Dual-wallet UI
+export { WalletFamilySlot, type WalletFamilySlotProps } from "./components/control-bar/wallet-family-slot";
+export { DualWalletBar, type DualWalletBarProps } from "./components/control-bar/dual-wallet-bar";
+
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
 

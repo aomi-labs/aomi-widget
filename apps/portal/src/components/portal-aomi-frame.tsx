@@ -110,6 +110,7 @@ export function PortalAomiFrame() {
         height="100%"
         backendUrl={backendUrl}
         walletPosition="footer"
+        walletFamilies={["evm", "solana"]}
         className="rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >
