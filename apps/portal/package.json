@@ -7,6 +7,7 @@
     "dev": "next dev",
     "dev:turbo": "next dev --turbopack",
     "dev:localhost": "NEXT_PUBLIC_USE_LOCALHOST=true next dev",
+    "dev:ngrok": "./scripts/dev-ngrok.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -17,9 +18,13 @@
     "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
+    "@aomi-labs/auth": "workspace:*",
     "@aomi-labs/client": "workspace:*",
+    "@aomi-labs/mcp-core": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@aomi-labs/widget-lib": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76",
     "@assistant-ui/react": "^0.11.58",
     "@assistant-ui/react-markdown": "^0.11.10",
     "@getpara/evm-wallet-connectors": "^2.24.0",
