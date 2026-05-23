@@ -17,3 +17,10 @@ export type { ChatDeps, ChatInput } from "./tools/chat";
 
 export { PendingTxArgs, runPendingTx } from "./tools/pending-tx";
 export type { PendingTxDeps, PendingTxInput } from "./tools/pending-tx";
+
+export { DisconnectAppArgs, runDisconnectApp } from "./tools/disconnect-app";
+export type {
+  DisconnectAppDeps,
+  DisconnectAppInput,
+  DisconnectAppResult,
+} from "./tools/disconnect-app";

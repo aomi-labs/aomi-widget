@@ -1,5 +1,5 @@
 // =============================================================================
-// aomi_chat — MCP tool that round-trips a message to the Aomi agent.
+// chat — MCP tool that round-trips a message to the Aomi agent.
 // =============================================================================
 //
 // Blocking shape: the tool waits for the BE's `processing_end` (or
