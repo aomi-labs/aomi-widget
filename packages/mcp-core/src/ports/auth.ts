@@ -28,4 +28,6 @@ export interface AuthPort {
     stateToken: string;
     timeoutMs?: number;
   }): Promise<AwaitResult>;
+
+  revokeApproval(args: { approvalId: string }): Promise<void>;
 }

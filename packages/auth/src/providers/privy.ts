@@ -63,8 +63,8 @@ export interface PrivyProviderConfig {
   appId: string;
 
   /** Optional override of where the portal hosts the login page. Defaults
-   *  to `${baseUrl}/auth/privy/login`. Override in tests or if the portal
-   *  moves the page. */
+   *  to `${baseUrl}/auth/privy`. Override in tests or if the portal moves
+   *  the page. */
   loginPagePath?: string;
 }
 
@@ -80,7 +80,7 @@ interface PrivyCallbackBody {
 }
 
 export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
-  const loginPath = config.loginPagePath ?? "/auth/privy/login";
+  const loginPath = config.loginPagePath ?? "/auth/privy";
 
   return {
     name: "privy",
