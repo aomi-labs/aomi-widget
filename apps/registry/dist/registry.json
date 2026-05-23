@@ -45,7 +45,7 @@
     {
       "name": "aomi-auth-adapter",
       "type": "registry:component",
-      "description": "Generic Aomi auth adapter context and runtime user-state sync.",
+      "description": "Generic Aomi auth adapter context. Identity → UserState sync is mounted automatically by AomiAuthAdapterProvider.",
       "files": [
         {
           "type": "registry:component",
@@ -66,10 +66,6 @@
         {
           "type": "registry:component",
           "path": "lib/aomi-auth-adapter/identity.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime-user-sync.tsx"
         },
         {
           "type": "registry:component",

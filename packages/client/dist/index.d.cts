@@ -1,3 +1,4 @@
+import * as viem from 'viem';
 import { Hex, Chain, TransactionReceipt } from 'viem';
 
 /**
@@ -1028,6 +1029,106 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private syncWalletRequests;
 }
 
+declare const monad: {
+    blockExplorers: {
+        readonly default: {
+            readonly name: "Monad Explorer";
+            readonly url: "https://monadexplorer.com";
+        };
+    };
+    blockTime?: number | undefined | undefined;
+    contracts?: {
+        [x: string]: viem.ChainContract | {
+            [sourceId: number]: viem.ChainContract | undefined;
+        } | undefined;
+        ensRegistry?: viem.ChainContract | undefined;
+        ensUniversalResolver?: viem.ChainContract | undefined;
+        multicall3?: viem.ChainContract | undefined;
+        erc6492Verifier?: viem.ChainContract | undefined;
+    } | undefined;
+    ensTlds?: readonly string[] | undefined;
+    id: 143;
+    name: "Monad";
+    nativeCurrency: {
+        readonly decimals: 18;
+        readonly name: "Monad";
+        readonly symbol: "MON";
+    };
+    experimental_preconfirmationTime?: number | undefined | undefined;
+    rpcUrls: {
+        readonly default: {
+            readonly http: readonly ["https://rpc.monad.xyz"];
+        };
+    };
+    sourceId?: number | undefined | undefined;
+    testnet?: boolean | undefined | undefined;
+    custom?: Record<string, unknown> | undefined;
+    extendSchema?: Record<string, unknown> | undefined;
+    fees?: viem.ChainFees<undefined> | undefined;
+    formatters?: undefined;
+    prepareTransactionRequest?: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | [fn: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | undefined, options: {
+        runAt: readonly ("beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters")[];
+    }] | undefined;
+    serializers?: viem.ChainSerializers<undefined, viem.TransactionSerializable> | undefined;
+    verifyHash?: ((client: viem.Client, parameters: viem.VerifyHashActionParameters) => Promise<viem.VerifyHashActionReturnType>) | undefined;
+};
+declare const monadTestnet: {
+    blockExplorers: {
+        readonly default: {
+            readonly name: "Monad Testnet Explorer";
+            readonly url: "https://testnet.monadexplorer.com";
+        };
+    };
+    blockTime?: number | undefined | undefined;
+    contracts?: {
+        [x: string]: viem.ChainContract | {
+            [sourceId: number]: viem.ChainContract | undefined;
+        } | undefined;
+        ensRegistry?: viem.ChainContract | undefined;
+        ensUniversalResolver?: viem.ChainContract | undefined;
+        multicall3?: viem.ChainContract | undefined;
+        erc6492Verifier?: viem.ChainContract | undefined;
+    } | undefined;
+    ensTlds?: readonly string[] | undefined;
+    id: 10143;
+    name: "Monad Testnet";
+    nativeCurrency: {
+        readonly decimals: 18;
+        readonly name: "Monad";
+        readonly symbol: "MON";
+    };
+    experimental_preconfirmationTime?: number | undefined | undefined;
+    rpcUrls: {
+        readonly default: {
+            readonly http: readonly ["https://testnet-rpc.monad.xyz"];
+        };
+    };
+    sourceId?: number | undefined | undefined;
+    testnet: true;
+    custom?: Record<string, unknown> | undefined;
+    extendSchema?: Record<string, unknown> | undefined;
+    fees?: viem.ChainFees<undefined> | undefined;
+    formatters?: undefined;
+    prepareTransactionRequest?: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | [fn: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | undefined, options: {
+        runAt: readonly ("beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters")[];
+    }] | undefined;
+    serializers?: viem.ChainSerializers<undefined, viem.TransactionSerializable> | undefined;
+    verifyHash?: ((client: viem.Client, parameters: viem.VerifyHashActionParameters) => Promise<viem.VerifyHashActionReturnType>) | undefined;
+};
+declare const SUPPORTED_CHAIN_IDS: readonly [1, 137, 42161, 8453, 10, 11155111, 143, 10143, 31337];
+declare const CHAIN_NAMES: Record<number, string>;
+/** Alchemy network slugs for proxy URL construction. */
+declare const ALCHEMY_CHAIN_SLUGS: Record<number, string>;
+declare const CHAINS_BY_ID: Record<number, Chain>;
+
 declare function executeWalletCalls(params: ExecuteWalletCallsParams): Promise<ExecutionResult>;
 
 /** Max fee auto-injection threshold (0.05 native token). */
@@ -1163,4 +1264,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
