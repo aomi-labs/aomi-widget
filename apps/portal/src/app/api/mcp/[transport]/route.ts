@@ -10,7 +10,7 @@
 // session story arrives with Postgres / plugin OAuth.
 
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { buildMcpServerForRequest } from "@portal/lib/aomi-auth/mcp";
+import { buildMcpServerForRequest } from "@portal/lib/aomi-auth/mcp-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

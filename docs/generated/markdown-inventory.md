@@ -9,12 +9,13 @@ review_after_days: 7
 
 # Markdown Inventory
 
-- Indexed markdown files: 23
-- Excluded markdown files: 37
+- Indexed markdown files: 25
+- Excluded markdown files: 43
 
 ## Reasons
-- `indexed`: 23
-- `not-included`: 37
+- `indexed`: 25
+- `missing-rule`: 1
+- `not-included`: 42
 
 ## Indexed Files
 - `AGENTS.md` via `root-guidance`
@@ -22,15 +23,15 @@ review_after_days: 7
 - `docs/generated/markdown-inventory.md` via `generated`
 - `docs/generated/repo-inventory.md` via `generated`
 - `docs/index.md` via `docs-index`
-- `docs/topics/auth-adapter.md` via `topics`
-- `docs/topics/base-auth.md` via `topics`
-- `docs/topics/cli.md` via `topics`
-- `docs/topics/demo-apps.md` via `topics`
-- `docs/topics/index.md` via `topics`
-- `docs/topics/repo-overview.md` via `topics`
-- `docs/topics/runtime-react.md` via `topics`
-- `docs/topics/ts-client.md` via `topics`
-- `docs/topics/widget-frame.md` via `topics`
+- `docs/topics/apps/facts/app-surfaces.md` via `topics`
+- `docs/topics/apps/facts/widget-frame.md` via `topics`
+- `docs/topics/auth/facts/auth-adapter.md` via `topics`
+- `docs/topics/auth/facts/auth.md` via `topics`
+- `docs/topics/auth/facts/base-account.md` via `topics`
+- `docs/topics/client-runtime/facts/cli.md` via `topics`
+- `docs/topics/client-runtime/facts/react-runtime.md` via `topics`
+- `docs/topics/client-runtime/facts/transport-client.md` via `topics`
+- `docs/topics/development/facts/workspace.md` via `topics`
 - `specs/AA-ARCH.md` via `specs`
 - `specs/DOMAIN.md` via `specs`
 - `specs/METADATA.md` via `specs`
@@ -39,6 +40,8 @@ review_after_days: 7
 - `specs/SHADCN-RELEASE.md` via `specs`
 - `specs/STATE.md` via `specs`
 - `specs/WALLET-ADAPTERS-ARCH.md` via `specs`
+- `specs/mcp-be-handoff.md` via `specs`
+- `specs/mcp-design.md` via `specs`
 - `specs/portal-widget-lib-unification.md` via `specs`
 
 ## Excluded Files
@@ -68,6 +71,8 @@ review_after_days: 7
 - `apps/landing/content/agents/skills/aomi-transact/references/troubleshooting.md` (not-included)
 - `apps/portal/README.md` (not-included)
 - `apps/registry/SHADCN-FETCH-GUIDE.md` (not-included)
+- `docs/test-mcp-claude.md` (not-included)
+- `docs/topics/index.md` (missing-rule)
 - `memory/2026-03-31.md` (not-included)
 - `memory/2026-04-01.md` (not-included)
 - `memory/2026-04-10.md` (not-included)
@@ -78,4 +83,8 @@ review_after_days: 7
 - `packages/client/skills/aomi-build/references/aomi-sdk-patterns.md` (not-included)
 - `packages/client/skills/aomi-build/references/spec-to-tools.md` (not-included)
 - `packages/client/skills/aomi-transact/SKILL.md` (not-included)
+- `packages/client/skills/repowiki/SKILL.md` (not-included)
 - `packages/react/README.md` (not-included)
+- `tmp-v2-report.md` (not-included)
+- `tmp-v2-table.md` (not-included)
+- `tmp.md` (not-included)

@@ -13,16 +13,17 @@ import {
   awaitAuth,
   beginAuth,
   lookupApproval,
+  revokeApproval,
   type Store,
 } from "@aomi-labs/auth";
 import {
   createMcpServer,
   type AuthPort,
-  type BackendPort,
 } from "@aomi-labs/mcp-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { buildBackendPort } from "./mcp-backend-bridge";
 import { readEnv } from "./env";
-import { getAomiAuth } from "./store";
+import { getAomiAuth } from "./local-secret-store";
 
 function buildAuthPort(store: Store, baseUrl: string): AuthPort {
   const providersHolder = () => getAomiAuth().providers;
@@ -40,18 +41,8 @@ function buildAuthPort(store: Store, baseUrl: string): AuthPort {
     async awaitAuth(args) {
       return awaitAuth({ store }, args);
     },
-  };
-}
-
-function buildBackendPort(): BackendPort {
-  return {
-    async chat() {
-      throw new Error("aomi_chat is not implemented in this build (PR #2)");
-    },
-    async listPending() {
-      throw new Error(
-        "aomi_list_pending is not implemented in this build (PR #3)",
-      );
+    async revokeApproval(args) {
+      return revokeApproval({ store }, args);
     },
   };
 }
@@ -63,7 +54,7 @@ export function buildMcpServerForRequest(req: Request): McpServer {
   const env = readEnv();
 
   const auth = buildAuthPort(store, env.baseUrl);
-  const backend = buildBackendPort();
+  const backend = buildBackendPort({ beUrl: env.beUrl });
 
   return createMcpServer({
     auth,

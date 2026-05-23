@@ -12,6 +12,8 @@ import {
   MemorySecretStore,
   MemoryStore,
   dummyProvider,
+  makePrivyProvider,
+  type ProviderModule,
   type ProviderRegistry,
   type SecretStore,
   type Store,
@@ -46,7 +48,11 @@ function init(): NonNullable<Globals["__aomiAuth"]> {
     });
   }
 
-  const providers = new MapProviderRegistry([dummyProvider]);
+  const registered: ProviderModule[] = [dummyProvider];
+  if (env.privyAppId) {
+    registered.push(makePrivyProvider({ appId: env.privyAppId }));
+  }
+  const providers = new MapProviderRegistry(registered);
 
   return { store, secretStore, providers };
 }

@@ -10,9 +10,9 @@ function build() {
 }
 
 export async function GET(req: Request): Promise<Response> {
-  return build()(req, { providerName: "dummy" });
+  return build()(req, { providerName: "privy" });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  return build()(req, { providerName: "dummy" });
+  return build()(req, { providerName: "privy" });
 }

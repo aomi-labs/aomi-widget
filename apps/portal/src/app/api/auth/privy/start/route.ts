@@ -13,5 +13,5 @@ export async function GET(req: Request): Promise<Response> {
     providers,
     baseUrl: env.baseUrl,
   });
-  return handler(req, { providerName: "dummy" });
+  return handler(req, { providerName: "privy" });
 }

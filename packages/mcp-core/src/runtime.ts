@@ -4,15 +4,13 @@
 //
 // Transport-agnostic. The portal connects it to a Streamable HTTP
 // transport; a future `aomi mcp` CLI subcommand will connect it to stdio.
-//
-// v1: only `aomi_connect_app` is registered. `aomi_chat` and
-// `aomi_list_pending` follow in PR #2 and PR #3.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import type { AuthPort } from "./ports/auth";
 import type { BackendPort } from "./ports/backend";
+import { ChatArgs, runChat } from "./tools/chat";
 import { ConnectAppArgs, runConnectApp } from "./tools/connect-app";
+import { PendingTxArgs, runPendingTx } from "./tools/pending-tx";
 import type { McpCallCtx } from "./types";
 
 export interface CreateMcpServerDeps {
@@ -44,17 +42,49 @@ export function createMcpServer(deps: CreateMcpServerDeps): McpServer {
       const parsed = ConnectAppArgs.parse(input);
       const result = await runConnectApp({ auth: deps.auth }, ctx, parsed);
       return {
-        content: [
-          { type: "text", text: JSON.stringify(result, null, 2) },
-        ],
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         structuredContent: result as Record<string, unknown>,
       };
     },
   );
 
-  // Placeholder schemas — implementations land in PR #2 / #3.
-  registerStubbed(server, "aomi_chat", "Stub — wired in PR #2.");
-  registerStubbed(server, "aomi_list_pending", "Stub — wired in PR #3.");
+  server.registerTool(
+    "aomi_chat",
+    {
+      title: "Chat with the Aomi agent",
+      description:
+        "Send a message to the Aomi on-chain agent. Returns the agent's reply plus any wallet requests that got queued during the turn. If `newly_queued` is non-empty, call `aomi_pending_tx` for details, then prompt the user to sign (sign tool lands in a later release).",
+      inputSchema: ChatArgs.shape,
+    },
+    async (input) => {
+      const ctx = await buildCtx(deps);
+      const parsed = ChatArgs.parse(input);
+      const result = await runChat({ backend: deps.backend }, ctx, parsed);
+      return {
+        content: [{ type: "text", text: result.reply || "(no reply)" }],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
+  server.registerTool(
+    "aomi_pending_tx",
+    {
+      title: "List pending wallet requests",
+      description:
+        "Return wallet requests the Aomi agent has staged for the user but the user has not signed yet. Read-only.",
+      inputSchema: PendingTxArgs.shape,
+    },
+    async (input) => {
+      const ctx = await buildCtx(deps);
+      const parsed = PendingTxArgs.parse(input);
+      const result = await runPendingTx({ backend: deps.backend }, ctx, parsed);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    },
+  );
 
   return server;
 }
@@ -65,19 +95,4 @@ async function buildCtx(deps: CreateMcpServerDeps): Promise<McpCallCtx> {
     throw new Error("mcp-core: resolveUserId returned empty");
   }
   return { userId };
-}
-
-function registerStubbed(server: McpServer, name: string, note: string): void {
-  server.registerTool(
-    name,
-    {
-      title: name,
-      description: `${note} Not implemented in this build.`,
-      inputSchema: z.object({}).shape,
-    },
-    async () => ({
-      content: [{ type: "text", text: `Tool '${name}' is not implemented in this build.` }],
-      isError: true,
-    }),
-  );
 }
