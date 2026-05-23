@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useModal } from '@getpara/react-sdk';
 import { useAccount, useChainId, useDisconnect, useEnsName } from 'wagmi';
 import { Providers, initAppKit } from './providers';
-import { restore, persist, clear, clearLsWhitelisted, clearIdb } from '@/lib/session-bridge';
+import {
+  restore,
+  persist,
+  clear,
+  clearLsWhitelisted,
+  clearSessionWhitelisted,
+  clearIdb,
+} from '@/lib/session-bridge';
 import { getTelegramUserId, readyTelegramWebApp } from '@/lib/telegram-webapp';
 import {
   CONNECT_CONTEXT_KEY,
@@ -93,6 +100,7 @@ function ConnectContent({
   const chainId = useChainId();
   const { data: ensName } = useEnsName({ address: address as `0x${string}` | undefined });
   const prevConnected = useRef(false);
+  const closeTimer = useRef<number | null>(null);
   const [shouldOpen, setShouldOpen] = useState(false);
 
   useEffect(() => {
@@ -136,7 +144,7 @@ function ConnectContent({
       // Open the WalletConnect modal immediately — it IS the UI
       setShouldOpen(true);
     }
-  }, [openModal, tgUserId, restoredSession, hasResultUri, isConnected]);
+  }, [openModal, tgUserId, restoredSession, hasResultUri, isConnected, disconnectAsync]);
 
   useEffect(() => {
     if (shouldOpen && !isConnected) {
@@ -159,9 +167,13 @@ function ConnectContent({
     // Persist + sendData on every fresh connect (rising edge)
     if (!isConnected || !address) {
       prevConnected.current = false;
+      if (closeTimer.current) {
+        window.clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
       return;
     }
-    if (prevConnected.current) return;
+    if (prevConnected.current || closeTimer.current) return;
     prevConnected.current = true;
 
     const source = connector?.name?.toLowerCase().replace(/\s+/g, '') || 'nonTG';
@@ -177,22 +189,22 @@ function ConnectContent({
       body: JSON.stringify({ user_id: userId, address, chainId, source: 'mini_app' }),
     }).then(r => console.log('[connect] POST response: %s', r.status)).catch(e => console.warn('[connect] POST failed:', e));
 
-    // Delay so wallet state finishes writing all IDB entries before we snapshot
-    const timer = setTimeout(() => {
-      const save = tgUserId ? persist(tgUserId) : Promise.resolve();
-      save.finally(() => {
-        if (window.Telegram?.WebApp?.sendData) {
-          console.log('[connect] calling sendData');
-          window.Telegram.WebApp.sendData(
-            JSON.stringify({ address, chainId, ensName: ensName ?? null }),
-          );
-        } else {
-          console.log('[dev] connected:', address, chainId, ensName);
-        }
-      });
+    // Delay so wallet state finishes writing all IDB entries before we snapshot.
+    // Do not block Telegram close on this best-effort persistence step.
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      if (tgUserId) void persist(tgUserId);
+      if (window.Telegram?.WebApp?.sendData) {
+        console.log('[connect] calling sendData');
+        window.Telegram.WebApp.sendData(
+          JSON.stringify({ address, chainId, ensName: ensName ?? null }),
+        );
+        window.Telegram.WebApp.close();
+      } else {
+        console.log('[dev] connected:', address, chainId, ensName);
+      }
     }, WALLET_PERSIST_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isConnected, address]);
+  }, [isConnected, address, chainId, connector?.name, ensName, tgUserId]);
 
   // The wallet modal covers the screen — just show a dark background
   return <main className="min-h-screen bg-black" />;
@@ -241,8 +253,13 @@ export default function ConnectWallet() {
 
         if (!alreadyApplied) {
           console.log('[connect] clearing session (force_new first apply)');
-          if (userId) await clear(userId);
-          else { clearLsWhitelisted(); await clearIdb(); }
+          if (userId) {
+            await clear(userId);
+          } else {
+            clearLsWhitelisted();
+            clearSessionWhitelisted();
+            await clearIdb();
+          }
           markForceNewApplied(markerKey);
           return false;
         }
