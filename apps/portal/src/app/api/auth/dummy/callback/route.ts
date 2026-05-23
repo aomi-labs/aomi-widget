@@ -1,0 +1,18 @@
+import { makeCallbackHandler } from "@aomi-labs/auth/routes";
+import { getAomiAuth } from "@portal/lib/aomi-auth/store";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function build() {
+  const { store, providers, secretStore } = getAomiAuth();
+  return makeCallbackHandler({ store, providers, secretStore });
+}
+
+export async function GET(req: Request): Promise<Response> {
+  return build()(req, { providerName: "dummy" });
+}
+
+export async function POST(req: Request): Promise<Response> {
+  return build()(req, { providerName: "dummy" });
+}
