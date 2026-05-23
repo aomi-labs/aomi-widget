@@ -11,6 +11,10 @@ export interface AomiAuthEnv {
   authToken: string;
   baseUrl: string;
   devUserId: string;
+  /** Aomi's Privy app ID. Public — surfaces in the /auth/privy/login page
+   *  query so the React SDK can boot. If unset, the Privy provider isn't
+   *  registered and /api/auth/privy/* returns 404. */
+  privyAppId?: string;
 }
 
 export function readEnv(): AomiAuthEnv {
@@ -37,5 +41,10 @@ export function readEnv(): AomiAuthEnv {
   const devUserId =
     process.env.AOMI_DEV_USER_ID ?? "00000000-0000-0000-0000-000000000001";
 
-  return { beUrl, authToken, baseUrl, devUserId };
+  // Public — fine to read directly. The login page also reads it via
+  // NEXT_PUBLIC_PRIVY_APP_ID since it boots client-side.
+  const privyAppId =
+    process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
+  return { beUrl, authToken, baseUrl, devUserId, privyAppId };
 }

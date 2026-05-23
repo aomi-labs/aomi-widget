@@ -11,7 +11,8 @@ include = [
     "AGENTS.md",
     "README.md",
     "docs/index.md",
-    "docs/topics/**/*.md",
+    "docs/topics/index.md",
+    "docs/topics/**/facts/**/*.md",
     "docs/generated/**/*.md",
     "specs/*.md",
 ]
@@ -38,7 +39,7 @@ name = "root-guidance"
 glob = "AGENTS.md"
 kind = "guide"
 default_status = "authoritative"
-default_area = "repo-overview"
+default_area = "development"
 default_owner = "platform"
 require_metadata = false
 
@@ -47,7 +48,7 @@ name = "root-readme"
 glob = "README.md"
 kind = "reference"
 default_status = "reference"
-default_area = "repo-overview"
+default_area = "development"
 default_owner = "platform"
 require_metadata = false
 
@@ -62,7 +63,7 @@ require_metadata = true
 
 [[source_rule]]
 name = "topics"
-glob = "docs/topics/**/*.md"
+glob = "docs/topics/**/facts/**/*.md"
 kind = "topic"
 default_status = "authoritative"
 default_owner = "platform"
@@ -81,37 +82,45 @@ name = "specs"
 glob = "specs/*.md"
 kind = "reference"
 default_status = "reference"
-default_area = "repo-overview"
+default_area = "development"
 default_owner = "platform"
 require_metadata = false
 
 [[area]]
-name = "repo-overview"
+name = "development"
 code = [
     "package.json",
     "pnpm-workspace.yaml",
+    "scripts/**",
     "apps/landing/package.json",
     "apps/registry/package.json",
     "packages/client/package.json",
     "packages/react/package.json",
 ]
-docs = ["docs/topics/repo-overview.md"]
+docs = ["docs/topics/development/facts/workspace.md"]
 owners = ["platform", "frontend"]
 
 [[area]]
-name = "widget-frame"
+name = "apps"
 code = [
+    "apps/base/**",
+    "apps/landing/**",
+    "apps/portal/**",
+    "apps/telegram/**",
     "apps/registry/src/components/aomi-frame.tsx",
     "apps/registry/src/components/assistant-ui/**",
     "apps/registry/src/components/control-bar/**",
     "apps/registry/src/index.ts",
     "src/components/assistant-ui/runtime.tsx",
 ]
-docs = ["docs/topics/widget-frame.md"]
+docs = [
+    "docs/topics/apps/facts/app-surfaces.md",
+    "docs/topics/apps/facts/widget-frame.md",
+]
 owners = ["frontend"]
 
 [[area]]
-name = "runtime-react"
+name = "client-runtime"
 code = [
     "packages/react/src/contexts/**",
     "packages/react/src/handlers/**",
@@ -119,13 +128,9 @@ code = [
     "packages/react/src/runtime/**",
     "packages/react/src/state/**",
     "packages/react/src/utils/**",
-]
-docs = ["docs/topics/runtime-react.md"]
-owners = ["frontend"]
-
-[[area]]
-name = "ts-client"
-code = [
+    "packages/client/bin/**",
+    "packages/client/src/cli.ts",
+    "packages/client/src/cli/**",
     "packages/client/src/client.ts",
     "packages/client/src/event.ts",
     "packages/client/src/index.ts",
@@ -133,35 +138,25 @@ code = [
     "packages/client/src/sse.ts",
     "packages/client/src/types.ts",
 ]
-docs = ["docs/topics/ts-client.md"]
-owners = ["sdk"]
-
-[[area]]
-name = "cli"
-code = [
-    "packages/client/bin/**",
-    "packages/client/src/cli.ts",
-    "packages/client/src/cli/**",
+docs = [
+    "docs/topics/client-runtime/facts/react-runtime.md",
+    "docs/topics/client-runtime/facts/transport-client.md",
+    "docs/topics/client-runtime/facts/cli.md",
 ]
-docs = ["docs/topics/cli.md"]
-owners = ["sdk"]
+owners = ["frontend", "sdk"]
 
 [[area]]
-name = "auth-adapter"
+name = "auth"
 code = [
+    "packages/auth/**",
+    "apps/portal/src/app/api/auth/**",
+    "apps/portal/src/lib/aomi-auth/**",
     "apps/registry/src/lib/aomi-auth-adapter/**",
     "packages/react/src/runtime/user-state-provider.tsx",
 ]
-docs = ["docs/topics/auth-adapter.md"]
-owners = ["frontend"]
-
-[[area]]
-name = "demo-apps"
-code = [
-    "apps/base/**",
-    "apps/landing/**",
-    "apps/portal/**",
-    "apps/telegram/**",
+docs = [
+    "docs/topics/auth/facts/auth.md",
+    "docs/topics/auth/facts/auth-adapter.md",
+    "docs/topics/auth/facts/base-account.md",
 ]
-docs = ["docs/topics/demo-apps.md"]
 owners = ["frontend"]

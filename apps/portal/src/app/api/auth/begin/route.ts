@@ -1,6 +1,6 @@
 import { makeBeginHandler } from "@aomi-labs/auth/routes";
 import { readEnv } from "@portal/lib/aomi-auth/env";
-import { getAomiAuth } from "@portal/lib/aomi-auth/store";
+import { getAomiAuth } from "@portal/lib/aomi-auth/local-secret-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

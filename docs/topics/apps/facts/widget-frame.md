@@ -2,7 +2,7 @@
 title: Widget Frame
 owner: frontend
 status: authoritative
-area: widget-frame
+area: apps
 review_after_days: 30
 sources_of_truth:
   - apps/registry/src/components/aomi-frame.tsx
@@ -37,6 +37,6 @@ sources_of_truth:
 
 ## Related Topics
 
-- [runtime-react.md](runtime-react.md)
-- [auth-adapter.md](auth-adapter.md)
-- [demo-apps.md](demo-apps.md)
+- [client-runtime/facts/react-runtime.md](../../client-runtime/facts/react-runtime.md)
+- [auth/facts/auth-adapter.md](../../auth/facts/auth-adapter.md)
+- [apps/facts/app-surfaces.md](../../apps/facts/app-surfaces.md)
