@@ -2114,6 +2114,100 @@ var ClientSession = class extends TypedEventEmitter {
   }
 };
 
+// src/chains.ts
+import { defineChain } from "viem";
+import {
+  mainnet,
+  polygon,
+  arbitrum,
+  optimism,
+  base,
+  sepolia,
+  foundry
+} from "viem/chains";
+var monad = defineChain({
+  id: 143,
+  name: "Monad",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Monad",
+    symbol: "MON"
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.monad.xyz"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Monad Explorer",
+      url: "https://monadexplorer.com"
+    }
+  }
+});
+var monadTestnet = defineChain({
+  id: 10143,
+  name: "Monad Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Monad",
+    symbol: "MON"
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://testnet-rpc.monad.xyz"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Monad Testnet Explorer",
+      url: "https://testnet.monadexplorer.com"
+    }
+  },
+  testnet: true
+});
+var SUPPORTED_CHAIN_IDS = [
+  1,
+  137,
+  42161,
+  8453,
+  10,
+  11155111,
+  143,
+  10143,
+  31337
+];
+var CHAIN_NAMES = {
+  1: "Ethereum",
+  137: "Polygon",
+  42161: "Arbitrum One",
+  8453: "Base",
+  10: "Optimism",
+  11155111: "Sepolia",
+  143: "Monad",
+  10143: "Monad Testnet",
+  31337: "Anvil (local)"
+};
+var ALCHEMY_CHAIN_SLUGS = {
+  1: "eth-mainnet",
+  137: "polygon-mainnet",
+  42161: "arb-mainnet",
+  8453: "base-mainnet",
+  10: "opt-mainnet",
+  11155111: "eth-sepolia"
+};
+var CHAINS_BY_ID = {
+  1: mainnet,
+  137: polygon,
+  42161: arbitrum,
+  10: optimism,
+  8453: base,
+  11155111: sepolia,
+  143: monad,
+  10143: monadTestnet,
+  31337: foundry
+};
+
 // src/aa/types.ts
 function getAAChainConfig(config, calls, chainsById) {
   if (!config.enabled || calls.length === 0) {
@@ -2210,20 +2304,6 @@ var DISABLED_PROVIDER_STATE = {
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-
-// src/chains.ts
-import { mainnet, polygon, arbitrum, optimism, base, sepolia, foundry } from "viem/chains";
-var CHAINS_BY_ID = {
-  1: mainnet,
-  137: polygon,
-  42161: arbitrum,
-  10: optimism,
-  8453: base,
-  11155111: sepolia,
-  31337: foundry
-};
-
-// src/aa/execute.ts
 var ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
 var AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
 function normalizeRpcCallData(data) {
@@ -3572,12 +3652,16 @@ async function createAAProviderState(options) {
   });
 }
 export {
+  ALCHEMY_CHAIN_SLUGS,
   AomiClient,
+  CHAINS_BY_ID,
+  CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE,
   MAX_AUTO_FEE_WEI,
+  SUPPORTED_CHAIN_IDS,
   ClientSession as Session,
   TypedEventEmitter,
   UserState,
@@ -3598,6 +3682,8 @@ export {
   isInlineCall,
   isSystemError,
   isSystemNotice,
+  monad,
+  monadTestnet,
   normalizeEip712Payload,
   normalizeSimulatedFee,
   normalizeSolanaSignPayload,
