@@ -9,6 +9,12 @@ export type { AuthPort } from "./ports/auth";
 export type { BackendPort, BackendChatReply, PendingTxInfo } from "./ports/backend";
 export type { McpCallCtx } from "./types";
 
+export { buildBackendPort } from "./backends/aomi-client";
+export type { BackendPortDeps } from "./backends/aomi-client";
+
+export { buildAuthPort } from "./adapters/auth-adapter";
+export type { AuthPortDeps } from "./adapters/auth-adapter";
+
 export { ConnectProviderArgs, runConnectProvider, summarizeConnectResult } from "./tools/connect-provider";
 export type {
   ConnectProviderDeps,
