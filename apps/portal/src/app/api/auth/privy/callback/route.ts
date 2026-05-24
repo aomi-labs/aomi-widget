@@ -5,8 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function build() {
-  const { store, providers, secretStore } = getAomiAuth();
-  return makeCallbackHandler({ store, providers, secretStore });
+  const { store, providers, approvalsStore } = getAomiAuth();
+  return makeCallbackHandler({ store, providers, approvalsStore });
 }
 
 export async function GET(req: Request): Promise<Response> {

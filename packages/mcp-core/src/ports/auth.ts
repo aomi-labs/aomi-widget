@@ -3,8 +3,13 @@
 // =============================================================================
 //
 // Kept as a port (not a direct import) so tools can be unit-tested with a
-// fake. The portal wires the concrete impl in `apps/portal/src/lib/aomi-auth/mcp.ts`
-// by adapting the auth package's programmatic API.
+// fake. The portal wires the concrete impl in
+// `apps/portal/src/lib/aomi-auth/mcp-server.ts` by adapting the auth
+// package's programmatic API.
+//
+// All approval lookups are keyed by `(userId, application | null,
+// walletProvider)` — the same shape `DbAuthIdentity` uses on BE.
+// `application=null` targets a global Aomi identity.
 
 import type {
   AccessApproval,
@@ -16,12 +21,14 @@ import type {
 export interface AuthPort {
   lookupApproval(args: {
     userId: UserId;
-    application: string;
+    application: string | null;
+    walletProvider: string;
   }): Promise<AccessApproval | null>;
 
   beginAuth(args: {
     userId: UserId;
-    provider: string;
+    walletProvider: string;
+    application: string | null;
   }): Promise<BeginResult>;
 
   awaitAuth(args: {

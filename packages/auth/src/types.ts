@@ -17,25 +17,36 @@ export type SecretHandle = string;
 /** Which path kicked the auth flow off — pure audit, not behavior. */
 export type Initiator = "mcp" | "be";
 
-/** A row in `access_approval` (v1: in-memory; BE has the persistent table).
- *  No secret material. */
+/** A row in `access_approval` (BE Postgres; portal mirrors in-memory).
+ *  Identity-scoped via auth_identity, which carries `(application,
+ *  wallet_provider)`. We carry both fields here so portal lookups can be
+ *  done without a join. No secret material. */
 export interface AccessApproval {
   id: string;
   userId: UserId;
-  application: string;
+  /** Aomi-app the identity is scoped to. `null` = global identity
+   *  (`DbAuthIdentity.application` IS NULL). */
+  application: string | null;
+  /** Wallet-provider name behind the identity: `'privy' | 'para' |
+   *  'dummy' | ...`. Matches `DbAuthIdentity.wallet_provider`. */
+  walletProvider: string;
   displayLabel?: string;
-  /** JSON-serialized `Record<string, SecretHandle>` returned by the secret
-   *  store. The proxy decodes by `JSON.parse` when it lands post-v1. */
+  /** Opaque pointer the BE uses to find the secrets. v1 form:
+   *  `identity:<id>` — SecretVault resolves slots by identity id. */
   secretHandle: SecretHandle;
   grantedAt: number;
   revokedAt?: number;
 }
 
-/** A row in `pending_auths` (v1: in-memory). The MCP/BE awaits on it. */
+/** A row in `pending_auths` (portal-memory only; BE has no table).
+ *  The MCP/BE awaits on it. */
 export interface PendingAuth {
   stateToken: string;
   userId: UserId;
-  provider: string;
+  /** Aomi-app the upcoming approval will be scoped to. `null` = global. */
+  application: string | null;
+  /** Wallet provider this auth flow targets. */
+  walletProvider: string;
   initiator: Initiator;
   startedAt: number;
   completedAt?: number;

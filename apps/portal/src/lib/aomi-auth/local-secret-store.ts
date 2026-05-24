@@ -1,21 +1,25 @@
 // =============================================================================
-// Singleton Store + SecretStore + ProviderRegistry for the portal runtime.
+// Singleton Store + ApprovalsStore + ProviderRegistry for the portal runtime.
 // =============================================================================
 //
-// v1 lives in-process. Multiple Next route invocations within one dev-server
-// process share this singleton — fine for `next dev` and the single-instance
-// prototype. Production needs Postgres + KV; the interfaces stay the same.
+// Local in-memory `Store` mirrors what BE persists in Postgres
+// (access_approval + pending_auths) so portal lookups stay fast and
+// authoritative for the auth-flow window. The actual writes go through
+// `BeApprovalsStore` → BE's `/api/_internal/approvals`, which atomically
+// upserts DbAuthIdentity, ingests secrets to SecretVault keyed by
+// auth_identity_id, and inserts DbAccessApproval.
+//
+// Production needs portal to read approvals from BE directly (drop the
+// local mirror); same interface, just a different `Store` impl.
 
 import {
-  BeVaultSecretStore,
+  BeApprovalsStore,
   MapProviderRegistry,
-  MemorySecretStore,
   MemoryStore,
   dummyProvider,
   makePrivyProvider,
   type ProviderModule,
   type ProviderRegistry,
-  type SecretStore,
   type Store,
 } from "@aomi-labs/auth";
 import { readEnv } from "./env";
@@ -26,7 +30,7 @@ import { readEnv } from "./env";
 type Globals = typeof globalThis & {
   __aomiAuth?: {
     store: Store;
-    secretStore: SecretStore;
+    approvalsStore: BeApprovalsStore;
     providers: ProviderRegistry;
   };
 };
@@ -36,17 +40,10 @@ function init(): NonNullable<Globals["__aomiAuth"]> {
 
   const store: Store = new MemoryStore();
 
-  // Default to be-vault when AOMI_BE_URL is reachable; tests can override
-  // by mutating globalThis.__aomiAuth before issuing requests.
-  let secretStore: SecretStore;
-  if (process.env.AOMI_SECRET_STORE === "memory") {
-    secretStore = new MemorySecretStore();
-  } else {
-    secretStore = new BeVaultSecretStore({
-      beUrl: env.beUrl,
-      authToken: env.authToken,
-    });
-  }
+  const approvalsStore = new BeApprovalsStore({
+    beUrl: env.beUrl,
+    authToken: env.authToken,
+  });
 
   const registered: ProviderModule[] = [dummyProvider];
   if (env.privyAppId) {
@@ -54,7 +51,7 @@ function init(): NonNullable<Globals["__aomiAuth"]> {
   }
   const providers = new MapProviderRegistry(registered);
 
-  return { store, secretStore, providers };
+  return { store, approvalsStore, providers };
 }
 
 export function getAomiAuth(): NonNullable<Globals["__aomiAuth"]> {

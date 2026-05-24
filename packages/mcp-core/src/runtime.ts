@@ -4,6 +4,18 @@
 //
 // Transport-agnostic. The portal connects it to a Streamable HTTP
 // transport; a future `aomi mcp` CLI subcommand will connect it to stdio.
+//
+// Auth-related tools come in two flavors so the LLM can express intent
+// directly:
+//
+//   * `connect_provider(provider)` / `disconnect_provider(provider)` —
+//     unscoped (global) Aomi identity.
+//   * `connect_app(application, provider)` /
+//     `disconnect_app(application, provider)` — scoped to a specific
+//     Aomi app (Byreal, dYdX, etc.).
+//
+// Both flavors share the same `(application, wallet_provider)` lookup
+// key on BE; the difference is just whether `application` is NULL.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AuthPort } from "./ports/auth";
@@ -12,9 +24,17 @@ import { ChatArgs, runChat } from "./tools/chat";
 import {
   ConnectAppArgs,
   runConnectApp,
-  summarizeConnectAppResult,
 } from "./tools/connect-app";
+import {
+  ConnectProviderArgs,
+  runConnectProvider,
+  summarizeConnectResult,
+} from "./tools/connect-provider";
 import { DisconnectAppArgs, runDisconnectApp } from "./tools/disconnect-app";
+import {
+  DisconnectProviderArgs,
+  runDisconnectProvider,
+} from "./tools/disconnect-provider";
 import { PendingTxArgs, runPendingTx } from "./tools/pending-tx";
 import type { McpCallCtx } from "./types";
 
@@ -34,27 +54,113 @@ export function createMcpServer(deps: CreateMcpServerDeps): McpServer {
     version: deps.serverInfo?.version ?? "0.0.1",
   });
 
+  // ---------------------------------------------------------------------
+  // connect_provider — unscoped
+  // ---------------------------------------------------------------------
   server.registerTool(
-    "connect_app",
+    "connect_provider",
     {
-      title: "Connect an Aomi-integrated app",
+      title: "Connect a wallet provider (global Aomi identity)",
       description:
-        "Ensure the user has authorized Aomi to use a named app (e.g. 'dummy', 'binance', 'privy'). If a grant already exists, returns silently. Otherwise starts an OAuth flow and long-polls for completion; if the user hasn't completed it before timeout, returns the auth URL for you to surface to them.",
-      inputSchema: ConnectAppArgs.shape,
+        "Ensure the user has authorized Aomi to use a wallet provider (e.g. 'privy', 'para', 'dummy') at the global Aomi-account level. If a global approval already exists, returns silently. Otherwise starts an OAuth flow; if not completed before timeout, returns the auth URL for you to surface to the user. For app-scoped identities (e.g. 'Privy for Byreal'), use `connect_app` instead.",
+      inputSchema: ConnectProviderArgs.shape,
     },
     async (input) => {
       const ctx = await buildCtx(deps);
-      const parsed = ConnectAppArgs.parse(input);
-      const result = await runConnectApp({ auth: deps.auth }, ctx, parsed);
+      const parsed = ConnectProviderArgs.parse(input);
+      const result = await runConnectProvider({ auth: deps.auth }, ctx, parsed);
       return {
         content: [
-          { type: "text", text: summarizeConnectAppResult(result, parsed.name) },
+          { type: "text", text: summarizeConnectResult(result, parsed.provider) },
         ],
         structuredContent: result as Record<string, unknown>,
       };
     },
   );
 
+  // ---------------------------------------------------------------------
+  // connect_app — app-scoped
+  // ---------------------------------------------------------------------
+  server.registerTool(
+    "connect_app",
+    {
+      title: "Connect a wallet provider scoped to an Aomi app",
+      description:
+        "Ensure the user has authorized Aomi to use `provider` (e.g. 'privy', 'para') for `application` (e.g. 'byreal', 'dydx'). Use when the user's identity inside a specific Aomi app is distinct from their other Aomi-app identities. For an unscoped (global) connection, use `connect_provider` instead.",
+      inputSchema: ConnectAppArgs.shape,
+    },
+    async (input) => {
+      const ctx = await buildCtx(deps);
+      const parsed = ConnectAppArgs.parse(input);
+      const result = await runConnectApp({ auth: deps.auth }, ctx, parsed);
+      const label = `${parsed.application} × ${parsed.provider}`;
+      return {
+        content: [{ type: "text", text: summarizeConnectResult(result, label) }],
+        structuredContent: result as Record<string, unknown>,
+      };
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // disconnect_provider — unscoped revoke
+  // ---------------------------------------------------------------------
+  server.registerTool(
+    "disconnect_provider",
+    {
+      title: "Disconnect a wallet provider (global Aomi identity)",
+      description:
+        "Revoke the user's unscoped (global) approval for a wallet provider. Soft delete — a future `connect_provider` starts a fresh OAuth flow. Returns `not_connected` if there's no active global approval to revoke. For app-scoped revocation use `disconnect_app`.",
+      inputSchema: DisconnectProviderArgs.shape,
+    },
+    async (input) => {
+      const ctx = await buildCtx(deps);
+      const parsed = DisconnectProviderArgs.parse(input);
+      const result = await runDisconnectProvider(
+        { auth: deps.auth },
+        ctx,
+        parsed,
+      );
+      const text =
+        result.status === "disconnected"
+          ? `Disconnected ${parsed.provider}.`
+          : `${parsed.provider} was not connected.`;
+      return {
+        content: [{ type: "text", text }],
+        structuredContent: result as Record<string, unknown>,
+      };
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // disconnect_app — app-scoped revoke
+  // ---------------------------------------------------------------------
+  server.registerTool(
+    "disconnect_app",
+    {
+      title: "Disconnect a wallet provider scoped to an Aomi app",
+      description:
+        "Revoke the user's approval for `provider` scoped to `application`. Soft delete; future `connect_app` starts a fresh OAuth flow. Returns `not_connected` if no active approval exists for that pair.",
+      inputSchema: DisconnectAppArgs.shape,
+    },
+    async (input) => {
+      const ctx = await buildCtx(deps);
+      const parsed = DisconnectAppArgs.parse(input);
+      const result = await runDisconnectApp({ auth: deps.auth }, ctx, parsed);
+      const label = `${parsed.application} × ${parsed.provider}`;
+      const text =
+        result.status === "disconnected"
+          ? `Disconnected ${label}.`
+          : `${label} was not connected.`;
+      return {
+        content: [{ type: "text", text }],
+        structuredContent: result as Record<string, unknown>,
+      };
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // chat
+  // ---------------------------------------------------------------------
   server.registerTool(
     "chat",
     {
@@ -81,29 +187,9 @@ export function createMcpServer(deps: CreateMcpServerDeps): McpServer {
     },
   );
 
-  server.registerTool(
-    "disconnect_app",
-    {
-      title: "Disconnect an Aomi-integrated app",
-      description:
-        "Revoke the user's approval for a named app (e.g. 'dummy', 'privy', 'binance'). Soft delete — future `connect_app(name)` will start a fresh OAuth flow. Returns `not_connected` if there's no active approval to revoke.",
-      inputSchema: DisconnectAppArgs.shape,
-    },
-    async (input) => {
-      const ctx = await buildCtx(deps);
-      const parsed = DisconnectAppArgs.parse(input);
-      const result = await runDisconnectApp({ auth: deps.auth }, ctx, parsed);
-      const text =
-        result.status === "disconnected"
-          ? `Disconnected ${parsed.name}.`
-          : `${parsed.name} was not connected.`;
-      return {
-        content: [{ type: "text", text }],
-        structuredContent: result as Record<string, unknown>,
-      };
-    },
-  );
-
+  // ---------------------------------------------------------------------
+  // pending_tx
+  // ---------------------------------------------------------------------
   server.registerTool(
     "pending_tx",
     {
