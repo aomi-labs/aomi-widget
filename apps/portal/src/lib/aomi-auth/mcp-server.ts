@@ -2,61 +2,25 @@
 // MCP runtime adapter for the portal.
 // =============================================================================
 //
-// Wires @aomi-labs/mcp-core's Auth port to the auth package's programmatic
-// API, and provides the resolveUserId hook that reads X-Aomi-User from the
-// current request.
-//
-// The Backend port is stubbed in PR #1 — chat/list_pending throw "not
-// implemented". PR #2 swaps in the real ClientSession adapter.
+// Reads portal-specific config (env, singleton store/providers) and injects
+// into package-level factories from @aomi-labs/mcp-core.
 
 import {
-  awaitAuth,
-  beginAuth,
-  lookupApproval,
-  revokeApproval,
-  type Store,
-} from "@aomi-labs/auth";
-import {
+  buildAuthPort,
+  buildBackendPort,
   createMcpServer,
-  type AuthPort,
 } from "@aomi-labs/mcp-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { buildBackendPort } from "./mcp-backend-bridge";
-import { readEnv } from "./env";
 import { getAomiAuth } from "./auth-config";
-
-function buildAuthPort(store: Store, baseUrl: string): AuthPort {
-  const providersHolder = () => getAomiAuth().providers;
-  return {
-    async lookupApproval(args) {
-      return lookupApproval({ store }, args);
-    },
-    async beginAuth(args) {
-      return beginAuth(
-        { store, providers: providersHolder(), baseUrl },
-        { userId: args.userId, initiator: "mcp" },
-        {
-          walletProvider: args.walletProvider,
-          application: args.application,
-        },
-      );
-    },
-    async awaitAuth(args) {
-      return awaitAuth({ store }, args);
-    },
-    async revokeApproval(args) {
-      return revokeApproval({ store }, args);
-    },
-  };
-}
+import { readEnv } from "./env";
 
 /** Build an MCP server bound to a specific incoming Request. resolveUserId
  *  reads the request's X-Aomi-User header. */
 export function buildMcpServerForRequest(req: Request): McpServer {
-  const { store } = getAomiAuth();
+  const { store, providers } = getAomiAuth();
   const env = readEnv();
 
-  const auth = buildAuthPort(store, env.baseUrl);
+  const auth = buildAuthPort({ store, providers, baseUrl: env.baseUrl });
   const backend = buildBackendPort({ beUrl: env.beUrl, authToken: env.authToken });
 
   return createMcpServer({

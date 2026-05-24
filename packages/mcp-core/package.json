@@ -12,7 +12,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@aomi-labs/auth": "workspace:*"
+    "@aomi-labs/auth": "workspace:*",
+    "@aomi-labs/client": "workspace:*"
   },
   "peerDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

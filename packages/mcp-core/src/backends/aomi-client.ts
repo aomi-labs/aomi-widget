@@ -28,7 +28,7 @@ import type {
   BackendChatReply,
   BackendPort,
   PendingTxInfo,
-} from "@aomi-labs/mcp-core";
+} from "../ports/backend";
 
 const POLL_INTERVAL_MS = 500;
 const POLL_MAX_MS = 60_000; // matches Vercel Pro max function duration
@@ -94,8 +94,8 @@ function clientForUser(deps: BackendPortDeps, userId: string): AomiClient {
   const upstreamFetch = deps.fetchImpl ?? fetch;
   return new AomiClient({
     baseUrl: deps.beUrl,
-    fetch: (input, init = {}) => {
-      const headers = new Headers(init.headers);
+    fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
       headers.set("X-Aomi-User", userId);
       headers.set("X-Aomi-Auth", deps.authToken);
       return upstreamFetch(input, { ...init, headers });
