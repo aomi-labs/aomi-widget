@@ -11,7 +11,8 @@
 //   2. `callback` — what runs when the third party returns the user. The
 //      provider materializes the credential (OAuth code → token exchange,
 //      API-key form submission, …) and hands a name→value map back. The
-//      runtime stashes it via the SecretStore + writes the metadata row.
+//      callback handler forwards it to `BeApprovalsStore.completeApproval()`
+//      which atomically ingests secrets + creates the approval row on the BE.
 //
 //   3. `displayLabel` — what to render in app_grants for the user.
 //

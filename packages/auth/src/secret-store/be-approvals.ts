@@ -2,10 +2,7 @@
 // BeApprovalsStore — calls BE's atomic POST /api/_internal/approvals.
 // =============================================================================
 //
-// Replaces `BeVaultSecretStore`. Where the old client stashed secrets in a
-// vault keyed by `(user_id, app)` and let the portal manage its own
-// approval bookkeeping, this client hands the BE everything it needs to
-// atomically:
+// Hands the BE everything it needs to atomically:
 //
 //   1. ensure `DbUser`
 //   2. ensure `DbAuthIdentity`
