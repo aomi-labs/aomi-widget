@@ -4,9 +4,9 @@
 //
 // v1 conventions (BE-aligned):
 //
-//   * `session_id == client_id == user_id` — BE's "non-sessional" mode
-//     (ApiAuth::is_non_sessional). One persistent BE-side session per
-//     Aomi user, no per-MCP-request rotation.
+//   * `session_id == client_id == user_id`, plus service-authenticated
+//     `X-Aomi-User` / `X-Aomi-Auth` headers. One persistent BE-side session
+//     per Aomi user, no per-MCP-request rotation.
 //
 //   * Blocking chat: send POST /api/chat, then poll GET /api/state every
 //     `POLL_INTERVAL_MS` until `is_processing` flips false. Return the
@@ -35,6 +35,7 @@ const POLL_MAX_MS = 60_000; // matches Vercel Pro max function duration
 
 export interface BackendPortDeps {
   beUrl: string;
+  authToken: string;
   /** Override fetch (tests). Defaults to global fetch. */
   fetchImpl?: typeof fetch;
   /** Sleep helper (tests). */
@@ -42,14 +43,11 @@ export interface BackendPortDeps {
 }
 
 export function buildBackendPort(deps: BackendPortDeps): BackendPort {
-  const client = new AomiClient({
-    baseUrl: deps.beUrl,
-    fetch: deps.fetchImpl,
-  });
   const sleep = deps.sleep ?? defaultSleep;
 
   return {
     async chat({ userId, message }) {
+      const client = clientForUser(deps, userId);
       // 1. Snapshot pre-call pending state so we can diff.
       const preState = await client.fetchState(userId, undefined, userId);
       const preIds = new Set(extractPendingTx(preState.user_state).map((t) => t.id));
@@ -85,10 +83,24 @@ export function buildBackendPort(deps: BackendPortDeps): BackendPort {
     },
 
     async listPendingTx({ userId }) {
+      const client = clientForUser(deps, userId);
       const state = await client.fetchState(userId, undefined, userId);
       return extractPendingTx(state.user_state);
     },
   };
+}
+
+function clientForUser(deps: BackendPortDeps, userId: string): AomiClient {
+  const upstreamFetch = deps.fetchImpl ?? fetch;
+  return new AomiClient({
+    baseUrl: deps.beUrl,
+    fetch: (input, init = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set("X-Aomi-User", userId);
+      headers.set("X-Aomi-Auth", deps.authToken);
+      return upstreamFetch(input, { ...init, headers });
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------

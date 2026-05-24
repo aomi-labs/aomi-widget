@@ -128,6 +128,20 @@ export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
         },
         displayLabel: `Privy — ${labelAddr}`,
         body: donePage(labelAddr),
+        // Identity contract for BE upsert. v1 client page only collects
+        // the Privy DID + wallet address; the auth-method/value pair is
+        // synthesized from the DID until the login page also forwards
+        // the linked-account info (email/phone/etc).
+        walletProvider: "privy",
+        walletProviderSubject: body.user_id,
+        authMethod: "privy_did",
+        authValue: body.user_id,
+        isPrimary: false,
+        grantKind: "oauth",
+        identityMetadata: {
+          wallet_address: body.wallet_address,
+          wallet_id: body.wallet_id,
+        },
       };
     },
   };

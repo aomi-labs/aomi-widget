@@ -75,10 +75,22 @@ export const dummyProvider: ProviderModule = {
     // collide in a memory secret store during testing.
     const token = `dummy_token_${req.pending.userId}_${Date.now()}`;
     const label = `Dummy — ${req.pending.userId.slice(0, 8)}`;
+    // Synthetic identity material so the BE atomic-approval endpoint can
+    // upsert a DbAuthIdentity row for this dummy login. We treat it as a
+    // global Aomi identity (application=null) with email-method auth on
+    // a synthesized address.
+    const syntheticEmail = `${req.pending.userId}@dummy.aomi.local`;
     return {
       secrets: { DUMMY_TOKEN: token },
       displayLabel: label,
       body: donePage(label),
+      walletProvider: "dummy",
+      walletProviderSubject: `dummy:${req.pending.userId}`,
+      authMethod: "email",
+      authValue: syntheticEmail,
+      isPrimary: false,
+      grantKind: "oauth",
+      identityMetadata: { synthetic: true },
     };
   },
 };

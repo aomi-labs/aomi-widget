@@ -35,7 +35,10 @@ function buildAuthPort(store: Store, baseUrl: string): AuthPort {
       return beginAuth(
         { store, providers: providersHolder(), baseUrl },
         { userId: args.userId, initiator: "mcp" },
-        { provider: args.provider },
+        {
+          walletProvider: args.walletProvider,
+          application: args.application,
+        },
       );
     },
     async awaitAuth(args) {
@@ -54,7 +57,7 @@ export function buildMcpServerForRequest(req: Request): McpServer {
   const env = readEnv();
 
   const auth = buildAuthPort(store, env.baseUrl);
-  const backend = buildBackendPort({ beUrl: env.beUrl });
+  const backend = buildBackendPort({ beUrl: env.beUrl, authToken: env.authToken });
 
   return createMcpServer({
     auth,

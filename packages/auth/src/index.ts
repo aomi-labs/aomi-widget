@@ -23,6 +23,12 @@ export type { SecretStore } from "./secret-store";
 export { BeVaultSecretStore } from "./secret-store/be-vault";
 export type { BeVaultConfig } from "./secret-store/be-vault";
 export { MemorySecretStore } from "./secret-store/memory";
+export { BeApprovalsStore } from "./secret-store/be-approvals";
+export type {
+  BeApprovalsStoreConfig,
+  CompleteApprovalArgs,
+  CompleteApprovalResult,
+} from "./secret-store/be-approvals";
 
 export type {
   ProviderModule,

@@ -37,8 +37,8 @@ export function makeStartHandler(deps: StartHandlerDeps) {
     if (!pending) {
       return text(404, "pending auth not found or expired");
     }
-    if (pending.provider !== ctx.providerName) {
-      return text(400, `state token is for provider '${pending.provider}'`);
+    if (pending.walletProvider !== ctx.providerName) {
+      return text(400, `state token is for provider '${pending.walletProvider}'`);
     }
     if (pending.completedAt) {
       return text(409, "this auth flow already completed");

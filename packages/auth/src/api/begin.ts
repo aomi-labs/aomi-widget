@@ -25,27 +25,34 @@ export interface BeginAuthDeps {
 export async function beginAuth(
   deps: BeginAuthDeps,
   ctx: AuthCtx,
-  args: { provider: string },
+  args: {
+    walletProvider: string;
+    /** Aomi-app the resulting identity will be scoped to. `null` (or
+     *  omitted) = global Aomi identity. */
+    application?: string | null;
+  },
 ): Promise<BeginResult> {
-  const provider = deps.providers.get(args.provider);
+  const provider = deps.providers.get(args.walletProvider);
   if (!provider) {
-    throw new Error(`auth: unknown provider '${args.provider}'`);
+    throw new Error(`auth: unknown wallet provider '${args.walletProvider}'`);
   }
 
   const stateToken = generateStateToken(deps.randomBytes);
   const now = Date.now();
+  const application = args.application ?? null;
 
   await deps.store.insertPendingAuth({
     stateToken,
     userId: ctx.userId,
-    provider: args.provider,
+    application,
+    walletProvider: args.walletProvider,
     initiator: ctx.initiator,
     startedAt: now,
   });
 
   const baseUrl = deps.baseUrl.replace(/\/$/, "");
   const authUrl = `${baseUrl}/api/auth/${encodeURIComponent(
-    args.provider,
+    args.walletProvider,
   )}/start?state=${encodeURIComponent(stateToken)}`;
 
   return {

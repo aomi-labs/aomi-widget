@@ -6,7 +6,13 @@
 // going through MCP. Guarded by X-Aomi-Auth (v1 shared static token; future:
 // mTLS + signed service token).
 //
-// Body: { user_id, provider }
+// Body:
+//   {
+//     "user_id":         "alice",
+//     "wallet_provider": "privy",                   // 'privy' | 'para' | 'dummy' | ...
+//     "application":     "byreal" | null            // optional; null = global Aomi identity
+//   }
+//
 // Reply: { state_token, auth_url, expires_at }
 //
 // Path 1 (Claude → MCP) does NOT hit this route — it calls beginAuth()
@@ -33,15 +39,19 @@ export function makeBeginHandler(deps: BeginHandlerDeps) {
       return text(401, "unauthorized");
     }
 
-    let body: { user_id?: string; provider?: string };
+    let body: {
+      user_id?: string;
+      wallet_provider?: string;
+      application?: string | null;
+    };
     try {
-      body = (await req.json()) as { user_id?: string; provider?: string };
+      body = (await req.json()) as typeof body;
     } catch {
       return text(400, "invalid JSON body");
     }
 
-    if (!body.user_id || !body.provider) {
-      return text(400, "user_id and provider required");
+    if (!body.user_id || !body.wallet_provider) {
+      return text(400, "user_id and wallet_provider required");
     }
 
     try {
@@ -52,7 +62,10 @@ export function makeBeginHandler(deps: BeginHandlerDeps) {
           baseUrl: deps.baseUrl,
         },
         { userId: body.user_id, initiator: "be" },
-        { provider: body.provider },
+        {
+          walletProvider: body.wallet_provider,
+          application: body.application ?? null,
+        },
       );
       return Response.json({
         state_token: result.stateToken,

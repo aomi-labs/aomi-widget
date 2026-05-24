@@ -494,6 +494,10 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     const usingExternalWallet = Boolean(externalAddress || wagmiAddress);
     const authMethod: AomiAuthMethod | undefined =
       oauthMethod ?? (usingExternalWallet ? "wagmi" : undefined);
+    const authValue =
+      !usingExternalWallet && authMethod
+        ? resolveParaAuthValue(paraAccount.embedded, authMethod)
+        : undefined;
 
     const svmAddress = solanaWallet.publicKey;
     const { sponsored, sponsorProvider, sponsorAccount } =
@@ -521,6 +525,7 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
             svmAddress,
             walletProvider,
             authMethod,
+            authValue,
           }
         : svmAddress
           ? {
@@ -532,6 +537,7 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
               svmAddress,
               walletProvider,
               authMethod,
+              authValue,
             }
           : {
               ...AOMI_AUTH_DISCONNECTED_IDENTITY,
@@ -781,6 +787,22 @@ export function AomiParaProvider({
       </QueryClientProvider>
     </ExtUserProvider>
   );
+}
+
+function resolveParaAuthValue(
+  embedded: ParaAccountShape["embedded"],
+  authMethod: AomiAuthMethod,
+): string | undefined {
+  if (authMethod === "telegram") {
+    return embedded.telegramUserId;
+  }
+  if (authMethod === "farcaster") {
+    return embedded.farcasterUsername;
+  }
+  if (authMethod === "wagmi") {
+    return undefined;
+  }
+  return embedded.email;
 }
 
 /**

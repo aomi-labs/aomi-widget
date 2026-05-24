@@ -3,8 +3,8 @@
 // =============================================================================
 //
 // Two Maps, no migrations, no pool. Singleton instance is wired by the portal
-// in `apps/portal/src/lib/aomi-auth/store.ts`. The SQL impl (against BE's
-// `access_approval` + `pending_auths` tables) gets the same shape later.
+// in `apps/portal/src/lib/aomi-auth/local-secret-store.ts`. The SQL impl
+// (against BE's `access_approval` table) gets the same shape later.
 
 import type { AccessApproval, PendingAuth, UserId } from "../types";
 import type { Store } from "./index";
@@ -12,7 +12,8 @@ import type { Store } from "./index";
 export class MemoryStore implements Store {
   private pending = new Map<string, PendingAuth>();
   private approvals = new Map<string, AccessApproval>();
-  private approvalsByUserApp = new Map<string, string>(); // key: `${userId}::${app}` → approvalId
+  /** key: `${userId}::${application ?? ""}::${walletProvider}` → approvalId */
+  private approvalsByTriple = new Map<string, string>();
 
   async insertPendingAuth(pending: PendingAuth): Promise<void> {
     this.pending.set(pending.stateToken, { ...pending });
@@ -44,17 +45,20 @@ export class MemoryStore implements Store {
 
   async insertApproval(approval: AccessApproval): Promise<void> {
     this.approvals.set(approval.id, { ...approval });
-    this.approvalsByUserApp.set(
-      approvalKey(approval.userId, approval.application),
+    this.approvalsByTriple.set(
+      approvalKey(approval.userId, approval.application, approval.walletProvider),
       approval.id,
     );
   }
 
   async getActiveApproval(
     userId: UserId,
-    application: string,
+    application: string | null,
+    walletProvider: string,
   ): Promise<AccessApproval | null> {
-    const id = this.approvalsByUserApp.get(approvalKey(userId, application));
+    const id = this.approvalsByTriple.get(
+      approvalKey(userId, application, walletProvider),
+    );
     if (!id) return null;
     const approval = this.approvals.get(id);
     if (!approval || approval.revokedAt) return null;
@@ -74,6 +78,10 @@ export class MemoryStore implements Store {
   }
 }
 
-function approvalKey(userId: UserId, application: string): string {
-  return `${userId}::${application}`;
+function approvalKey(
+  userId: UserId,
+  application: string | null,
+  walletProvider: string,
+): string {
+  return `${userId}::${application ?? ""}::${walletProvider}`;
 }

@@ -4,6 +4,10 @@
 //
 // v1 impl is `./memory.ts`. SQL impl (mirroring BE's `access_approval` table)
 // swaps in later behind the same surface.
+//
+// Approval lookups are keyed by `(userId, application | null, walletProvider)`
+// — same shape as `DbAuthIdentity` plus user. `application=null` means
+// the identity is global (not scoped to a specific Aomi app like 'byreal').
 
 import type { AccessApproval, PendingAuth, UserId } from "../types";
 
@@ -31,10 +35,12 @@ export interface Store {
 
   insertApproval(approval: AccessApproval): Promise<void>;
 
-  /** Mirrors BE's `DbAccessApproval::active_for_user_app`. */
+  /** Returns the active approval for `(userId, application, walletProvider)`
+   *  or null. `application` is `null` for global identities. */
   getActiveApproval(
     userId: UserId,
-    application: string,
+    application: string | null,
+    walletProvider: string,
   ): Promise<AccessApproval | null>;
 
   getApprovalById(approvalId: string): Promise<AccessApproval | null>;
