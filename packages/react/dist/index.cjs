@@ -47,7 +47,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/index.ts
+// packages/react/src/index.ts
 var index_exports = {};
 __export(index_exports, {
   AomiClient: () => import_client8.AomiClient,
@@ -93,14 +93,14 @@ module.exports = __toCommonJS(index_exports);
 var import_client8 = require("@aomi-labs/client");
 var import_client9 = require("@aomi-labs/client");
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_react12 = require("react");
 var import_client7 = require("@aomi-labs/client");
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_react = require("react");
 
-// src/utils/uuid.ts
+// packages/react/src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -112,7 +112,7 @@ function generateUUID() {
   });
 }
 
-// src/state/thread-store.ts
+// packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -297,7 +297,7 @@ var ThreadStore = class {
   }
 };
 
-// src/utils/model-selection.ts
+// packages/react/src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude.*opus.*4[.-]?6/i,
   /^claude.*4[.-]?6.*opus/i,
@@ -316,7 +316,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// src/utils/client-session.ts
+// packages/react/src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -342,7 +342,7 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var API_KEY_STORAGE_KEY = "aomi_secret_key";
 var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
@@ -995,7 +995,7 @@ function ControlContextProvider({
   );
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 var import_react2 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var EventContextState = (0, import_react2.createContext)(null);
@@ -1065,7 +1065,7 @@ function EventContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(EventContextState.Provider, { value: contextValue, children });
 }
 
-// src/contexts/notification-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 var import_react3 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 var NotificationContext = (0, import_react3.createContext)(null);
@@ -1110,7 +1110,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotificationContext.Provider, { value, children });
 }
 
-// src/contexts/thread-context.tsx
+// packages/react/src/contexts/thread-context.tsx
 var import_react4 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var ThreadContextState = (0, import_react4.createContext)(null);
@@ -1154,7 +1154,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// src/contexts/ext-user-context.tsx
+// packages/react/src/contexts/ext-user-context.tsx
 var import_react5 = require("react");
 var import_client = require("@aomi-labs/client");
 var import_client2 = require("@aomi-labs/client");
@@ -1231,7 +1231,10 @@ function ExtUserProviderImpl({ children }) {
           delegation_7702: void 0,
           svm_address: void 0,
           wallet_provider: void 0,
+          wallet_provider_subject: void 0,
           auth_method: void 0,
+          auth_value: void 0,
+          auth_verified_at: void 0,
           sponsored: void 0,
           sponsor_provider: void 0,
           sponsor_account: void 0,
@@ -1305,16 +1308,16 @@ function ExtUserProviderImpl({ children }) {
   );
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_react10 = require("react");
 var import_react11 = require("@assistant-ui/react");
 var import_client6 = require("@aomi-labs/client");
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var import_react6 = require("react");
 var import_client4 = require("@aomi-labs/client");
 
-// src/runtime/session-manager.ts
+// packages/react/src/runtime/session-manager.ts
 var import_client3 = require("@aomi-labs/client");
 var SessionManager = class {
   constructor(clientFactory) {
@@ -1371,7 +1374,7 @@ var SessionManager = class {
   }
 };
 
-// src/runtime/utils.ts
+// packages/react/src/runtime/utils.ts
 var import_clsx = require("clsx");
 var import_tailwind_merge = require("tailwind-merge");
 function cn(...inputs) {
@@ -1473,7 +1476,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1845,7 +1848,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// src/runtime/threadlist-adapter.ts
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -2004,7 +2007,7 @@ function buildThreadListAdapter({
   };
 }
 
-// src/interface.tsx
+// packages/react/src/interface.tsx
 var import_react7 = require("react");
 var AomiRuntimeContext = (0, import_react7.createContext)(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -2018,7 +2021,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
 var import_react8 = require("react");
 function useWalletHandler({
   getSession
@@ -2108,7 +2111,7 @@ function useWalletHandler({
   };
 }
 
-// src/runtime/user-state-provider.tsx
+// packages/react/src/runtime/user-state-provider.tsx
 var import_react9 = require("react");
 var import_client5 = require("@aomi-labs/client");
 var import_jsx_runtime6 = require("react/jsx-runtime");
@@ -2137,19 +2140,22 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = (0, import_react9.useCallback)(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
       return {
         address: import_client5.UserState.address(nextUser),
         chain_id: import_client5.UserState.chainId(nextUser),
         is_connected: (_a = import_client5.UserState.isConnected(nextUser)) != null ? _a : false,
         ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0,
         wallet_provider: (_b = import_client5.UserState.walletProvider(nextUser)) != null ? _b : void 0,
-        auth_method: (_c = import_client5.UserState.authMethod(nextUser)) != null ? _c : void 0,
-        sponsored: (_d = import_client5.UserState.sponsored(nextUser)) != null ? _d : void 0,
-        sponsor_provider: (_e = import_client5.UserState.sponsorProvider(nextUser)) != null ? _e : void 0,
-        sponsor_account: (_f = import_client5.UserState.sponsorAccount(nextUser)) != null ? _f : void 0,
-        smart_account_4337: (_g = import_client5.UserState.SmartAccount4337(nextUser)) != null ? _g : void 0,
-        delegation_7702: (_h = import_client5.UserState.Delegation7702(nextUser)) != null ? _h : void 0
+        wallet_provider_subject: (_c = import_client5.UserState.walletProviderSubject(nextUser)) != null ? _c : void 0,
+        auth_method: (_d = import_client5.UserState.authMethod(nextUser)) != null ? _d : void 0,
+        auth_value: (_e = import_client5.UserState.authValue(nextUser)) != null ? _e : void 0,
+        auth_verified_at: (_f = import_client5.UserState.authVerifiedAt(nextUser)) != null ? _f : void 0,
+        sponsored: (_g = import_client5.UserState.sponsored(nextUser)) != null ? _g : void 0,
+        sponsor_provider: (_h = import_client5.UserState.sponsorProvider(nextUser)) != null ? _h : void 0,
+        sponsor_account: (_i = import_client5.UserState.sponsorAccount(nextUser)) != null ? _i : void 0,
+        smart_account_4337: (_j = import_client5.UserState.SmartAccount4337(nextUser)) != null ? _j : void 0,
+        delegation_7702: (_k = import_client5.UserState.Delegation7702(nextUser)) != null ? _k : void 0
       };
     },
     [getUserState]
@@ -2163,7 +2169,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = (_a = prevWalletState.address) == null ? void 0 : _a.toLowerCase();
       const nextAddress = (_b = nextWalletState.address) == null ? void 0 : _b.toLowerCase();
-      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name && prevWalletState.wallet_provider === nextWalletState.wallet_provider && prevWalletState.auth_method === nextWalletState.auth_method && prevWalletState.sponsored === nextWalletState.sponsored && prevWalletState.sponsor_provider === nextWalletState.sponsor_provider && prevWalletState.sponsor_account === nextWalletState.sponsor_account && prevWalletState.smart_account_4337 === nextWalletState.smart_account_4337 && prevWalletState.delegation_7702 === nextWalletState.delegation_7702) {
+      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name && prevWalletState.wallet_provider === nextWalletState.wallet_provider && prevWalletState.wallet_provider_subject === nextWalletState.wallet_provider_subject && prevWalletState.auth_method === nextWalletState.auth_method && prevWalletState.auth_value === nextWalletState.auth_value && prevWalletState.auth_verified_at === nextWalletState.auth_verified_at && prevWalletState.sponsored === nextWalletState.sponsored && prevWalletState.sponsor_provider === nextWalletState.sponsor_provider && prevWalletState.sponsor_account === nextWalletState.sponsor_account && prevWalletState.smart_account_4337 === nextWalletState.smart_account_4337 && prevWalletState.delegation_7702 === nextWalletState.delegation_7702) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
@@ -2484,7 +2490,7 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children });
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 var getHttpStatus2 = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -2934,7 +2940,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function AomiRuntimeProvider({
   children,
@@ -2974,7 +2980,7 @@ function AomiRuntimeInner({
   );
 }
 
-// src/handlers/notification-handler.ts
+// packages/react/src/handlers/notification-handler.ts
 var import_react13 = require("react");
 var notificationIdCounter2 = 0;
 function generateNotificationId() {

@@ -3,7 +3,7 @@
 // =============================================================================
 //
 // Two Maps, no migrations, no pool. Singleton instance is wired by the portal
-// in `apps/portal/src/lib/aomi-auth/local-secret-store.ts`. The SQL impl
+// in `apps/portal/src/lib/aomi-auth/auth-config.ts`. The SQL impl
 // (against BE's `access_approval` table) gets the same shape later.
 
 import type { AccessApproval, PendingAuth, UserId } from "../types";

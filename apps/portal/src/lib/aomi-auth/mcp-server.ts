@@ -23,7 +23,7 @@ import {
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { buildBackendPort } from "./mcp-backend-bridge";
 import { readEnv } from "./env";
-import { getAomiAuth } from "./local-secret-store";
+import { getAomiAuth } from "./auth-config";
 
 function buildAuthPort(store: Store, baseUrl: string): AuthPort {
   const providersHolder = () => getAomiAuth().providers;

@@ -1,5 +1,5 @@
 import { makeAwaitHandler } from "@aomi-labs/auth/routes";
-import { getAomiAuth } from "@portal/lib/aomi-auth/local-secret-store";
+import { getAomiAuth } from "@portal/lib/aomi-auth/auth-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

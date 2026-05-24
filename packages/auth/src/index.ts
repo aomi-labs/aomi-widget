@@ -19,10 +19,6 @@ export type { RevokeApprovalDeps } from "./api/revoke";
 export type { Store } from "./store";
 export { MemoryStore } from "./store/memory";
 
-export type { SecretStore } from "./secret-store";
-export { BeVaultSecretStore } from "./secret-store/be-vault";
-export type { BeVaultConfig } from "./secret-store/be-vault";
-export { MemorySecretStore } from "./secret-store/memory";
 export { BeApprovalsStore } from "./secret-store/be-approvals";
 export type {
   BeApprovalsStoreConfig,

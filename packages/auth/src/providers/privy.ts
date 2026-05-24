@@ -19,7 +19,7 @@
 //     redirects to a portal-hosted Next.js page that mounts
 //     `<PrivyProvider>` and drives the login flow client-side. That page
 //     POSTs the collected credentials back to this provider's `callback()`,
-//     which stashes them via the SecretStore.
+//     which forwards them to `BeApprovalsStore.completeApproval()`.
 //
 // What gets stashed at callback time (v0):
 //
