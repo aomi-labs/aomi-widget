@@ -2720,21 +2720,15 @@ function buildCliUserState(publicKey, chainId, options) {
   return UserState.withExt(userState, "clientType", CLIENT_TYPE_TS_CLI);
 }
 function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  if (process.env.AOMI_DEBUG_PENDING) {
-    console.error("[debug] pendingTxsFromBackendUserState input pending:", JSON.stringify((_a3 = userState == null ? void 0 : userState.pending) != null ? _a3 : null));
-  }
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const normalizedUserState = UserState.normalize(userState);
-  if (process.env.AOMI_DEBUG_PENDING) {
-    console.error("[debug] normalized pending:", JSON.stringify((_b = normalizedUserState == null ? void 0 : normalizedUserState.pending) != null ? _b : null));
-  }
   if (!normalizedUserState) {
     return [];
   }
   const existingById = new Map(existingPendingTxs.map((tx) => [tx.id, tx]));
   const fallbackNow = Date.now();
   const nextPendingTxs = [];
-  const pendingTxs = (_f = (_e = asRecord3((_c = normalizedUserState.pending) == null ? void 0 : _c.evmTxs)) != null ? _e : asRecord3((_d = normalizedUserState.pending) == null ? void 0 : _d.evm_txs)) != null ? _f : {};
+  const pendingTxs = (_d = (_c = asRecord3((_a3 = normalizedUserState.pending) == null ? void 0 : _a3.evmTxs)) != null ? _c : asRecord3((_b = normalizedUserState.pending) == null ? void 0 : _b.evm_txs)) != null ? _d : {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId2(rawId);
     const tx = asRecord3(rawValue);
@@ -2754,7 +2748,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
       to,
       value: parseOptionalString(tx.value),
       data,
-      chainId: parseChainId3((_g = tx.chainId) != null ? _g : tx.chain_id),
+      chainId: parseChainId3((_e = tx.chainId) != null ? _e : tx.chain_id),
       description: parseOptionalString(tx.label),
       timestamp: txTimestamp(existingById, id, fallbackNow),
       payload: {
@@ -2763,13 +2757,13 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
         to,
         value: parseOptionalString(tx.value),
         data,
-        chain_id: parseChainId3((_h = tx.chainId) != null ? _h : tx.chain_id),
-        chainId: parseChainId3((_i = tx.chainId) != null ? _i : tx.chain_id),
+        chain_id: parseChainId3((_f = tx.chainId) != null ? _f : tx.chain_id),
+        chainId: parseChainId3((_g = tx.chainId) != null ? _g : tx.chain_id),
         description: parseOptionalString(tx.label)
       }
     });
   }
-  const pendingEip712s = (_m = (_l = asRecord3((_j = normalizedUserState.pending) == null ? void 0 : _j.evmSigs)) != null ? _l : asRecord3((_k = normalizedUserState.pending) == null ? void 0 : _k.evm_sigs)) != null ? _m : {};
+  const pendingEip712s = (_k = (_j = asRecord3((_h = normalizedUserState.pending) == null ? void 0 : _h.evmSigs)) != null ? _j : asRecord3((_i = normalizedUserState.pending) == null ? void 0 : _i.evm_sigs)) != null ? _k : {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord3(rawValue);
@@ -2778,8 +2772,8 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
     }
     const id = pendingDisplayId(pendingId);
     const description = parseOptionalString(request.description);
-    const typedData = (_n = request.typedData) != null ? _n : request.typed_data;
-    const chainId = parseChainId3((_o = request.chainId) != null ? _o : request.chain_id);
+    const typedData = (_l = request.typedData) != null ? _l : request.typed_data;
+    const chainId = parseChainId3((_m = request.chainId) != null ? _m : request.chain_id);
     nextPendingTxs.push({
       id,
       kind: "eip712_sign",
