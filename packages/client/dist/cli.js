@@ -911,12 +911,18 @@ var init_client = __esm({
       }
       /**
        * Send a system-level message (e.g. wallet state changes, context switches).
+       * Pass `app` to preserve the session's active app context (prevents the
+       * backend from resetting to the default app when no app is specified).
        */
-      async sendSystemMessage(sessionId, message) {
+      async sendSystemMessage(sessionId, message, options) {
+        const payload = { message };
+        if (options == null ? void 0 : options.app) {
+          payload.app = options.app;
+        }
         return postState(
           this.baseUrl,
           "/api/system",
-          { message },
+          payload,
           sessionId,
           this.fetchImpl
         );
@@ -1236,7 +1242,7 @@ var init_client = __esm({
           }),
           body: JSON.stringify({
             provider,
-            api_key: apiKey,
+            byok_key: apiKey,
             label
           })
         });
@@ -2683,27 +2689,34 @@ function txTimestamp(existingById, id, fallbackNow) {
   return (_b = (_a3 = existingById.get(id)) == null ? void 0 : _a3.timestamp) != null ? _b : fallbackNow;
 }
 function buildCliUserState(publicKey, chainId, options) {
-  var _a3, _b, _c;
+  var _a3, _b, _c, _d, _e;
   const app = (_a3 = options == null ? void 0 : options.app) == null ? void 0 : _a3.trim().toLowerCase();
-  const isSolanaApp = app === "sol" || app === "solana" || app === "svm";
+  const publicKeyIsSolana = publicKey !== void 0 && !publicKey.trim().startsWith("0x");
+  const isSolanaApp = app === "sol" || app === "solana" || app === "svm" || app === "byreal" || publicKeyIsSolana || (options == null ? void 0 : options.svmAddress) !== void 0;
+  const svmAddress = (_b = options == null ? void 0 : options.svmAddress) != null ? _b : publicKeyIsSolana ? publicKey : void 0;
+  const anyConnected = (isSolanaApp ? svmAddress : publicKey) !== void 0;
   const userState = {
     connection: {
-      is_connected: publicKey !== void 0 ? true : void 0,
-      primary_family: publicKey !== void 0 ? isSolanaApp ? "solana" : "evm" : void 0
+      is_connected: anyConnected ? true : void 0,
+      primary_family: anyConnected ? isSolanaApp ? "solana" : "evm" : void 0
     },
     evm: isSolanaApp ? void 0 : {
       address: publicKey,
       chain_id: chainId,
       aa: {
-        mode: (_b = options == null ? void 0 : options.aaMode) != null ? _b : null,
-        smart_account: (_c = options == null ? void 0 : options.smartAccount) != null ? _c : null
+        mode: (_c = options == null ? void 0 : options.aaMode) != null ? _c : null,
+        smart_account: (_d = options == null ? void 0 : options.smartAccount) != null ? _d : null
       }
     },
     solana: isSolanaApp ? {
-      address: publicKey
+      address: svmAddress != null ? svmAddress : publicKey,
+      // Default to mainnet when an SVM address is present; the backend
+      // falls back to "devnet" when cluster is absent which causes mainnet
+      // DEXes (byreal etc.) to look for devnet liquidity and fail.
+      cluster: (_e = options == null ? void 0 : options.svmCluster) != null ? _e : svmAddress !== void 0 ? "solana:mainnet" : void 0
     } : void 0
   };
-  return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
+  return UserState.withExt(userState, "clientType", CLIENT_TYPE_TS_CLI);
 }
 function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   var _a3, _b, _c, _d;
@@ -2781,7 +2794,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   return nextPendingTxs;
 }
 function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
   const normalizedUserState = UserState.normalize(userState);
   if (!normalizedUserState) {
     return [];
@@ -2812,6 +2825,40 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       signer,
       description,
       timestamp: (_d = (_c = existingById.get(id)) == null ? void 0 : _c.timestamp) != null ? _d : fallbackNow,
+      payload: {
+        pending_solana_id: pendingId,
+        pendingSolanaId: pendingId,
+        unsigned_tx: unsignedTx,
+        unsignedTx,
+        cluster,
+        description,
+        signer
+      }
+    });
+  }
+  const pendingSolanaSigs = (_f = asRecord3((_e = normalizedUserState.pending) == null ? void 0 : _e.solana_sigs)) != null ? _f : {};
+  for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
+    const pendingId = parsePendingId2(rawId);
+    const request = asRecord3(rawValue);
+    if (!pendingId || !request) {
+      continue;
+    }
+    const unsignedTx = (_g = parseOptionalString(request.message_base64)) != null ? _g : parseOptionalString(request.messageBase64);
+    if (!unsignedTx) {
+      continue;
+    }
+    const id = pendingDisplayId(pendingId);
+    const description = parseOptionalString(request.description);
+    const signer = parseOptionalString(request.signer);
+    const cluster = "solana:mainnet";
+    next.push({
+      id,
+      solanaId: pendingId,
+      unsignedTx,
+      cluster,
+      signer,
+      description,
+      timestamp: (_i = (_h = existingById.get(id)) == null ? void 0 : _h.timestamp) != null ? _i : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
@@ -2882,6 +2929,7 @@ function toCliSessionState(stored) {
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
+    modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
@@ -3168,6 +3216,96 @@ var init_state = __esm({
   }
 });
 
+// src/cli/solana-signer.ts
+import {
+  Keypair,
+  Transaction,
+  VersionedTransaction
+} from "@solana/web3.js";
+import bs58 from "bs58";
+function parseSolanaKeypairSecret(input2) {
+  const trimmed = input2.trim();
+  if (!trimmed) {
+    throw new Error("Solana keypair secret is empty.");
+  }
+  let bytes;
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+      throw new Error(
+        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
+      );
+    }
+    bytes = Uint8Array.from(parsed);
+  } else {
+    try {
+      bytes = bs58.decode(trimmed);
+    } catch (err) {
+      throw new Error(
+        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  if (bytes.length !== 64) {
+    throw new Error(
+      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
+    );
+  }
+  return Keypair.fromSecretKey(bytes);
+}
+function decodeBase64(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+function encodeBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+function signSolanaTransaction(unsignedTxBase64, keypair) {
+  const bytes = decodeBase64(unsignedTxBase64);
+  try {
+    const versioned = VersionedTransaction.deserialize(bytes);
+    versioned.sign([keypair]);
+    return {
+      signer: keypair.publicKey.toBase58(),
+      signedTxBase64: encodeBase64(versioned.serialize())
+    };
+  } catch (versionedErr) {
+    try {
+      const legacy = Transaction.from(bytes);
+      legacy.partialSign(keypair);
+      return {
+        signer: keypair.publicKey.toBase58(),
+        signedTxBase64: encodeBase64(legacy.serialize())
+      };
+    } catch (legacyErr) {
+      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
+      throw new Error(
+        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
+      );
+    }
+  }
+}
+var init_solana_signer = __esm({
+  "src/cli/solana-signer.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/cli-session.ts
 var CliSession;
 var init_cli_session = __esm({
@@ -3177,6 +3315,7 @@ var init_cli_session = __esm({
     init_state();
     init_user_state();
     init_errors();
+    init_solana_signer();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -3205,6 +3344,13 @@ var init_cli_session = __esm({
       /** Create a fresh session and persist it. */
       static create(config, seed) {
         var _a3, _b, _c, _d, _e, _f, _g, _h;
+        let svmPublicKey;
+        if (config.solanaPrivateKey) {
+          try {
+            svmPublicKey = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+          } catch (e) {
+          }
+        }
         const state = {
           sessionId: crypto.randomUUID(),
           clientId: crypto.randomUUID(),
@@ -3214,6 +3360,7 @@ var init_cli_session = __esm({
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
           publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
           privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
+          svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
           chainId: (_h = config.chain) != null ? _h : seed == null ? void 0 : seed.chainId,
           secretHandles: seed == null ? void 0 : seed.secretHandles
         };
@@ -3236,6 +3383,9 @@ var init_cli_session = __esm({
       get model() {
         return this.state.model;
       }
+      get modelSynced() {
+        return this.state.modelSynced === true;
+      }
       get apiKey() {
         return this.state.apiKey;
       }
@@ -3244,6 +3394,9 @@ var init_cli_session = __esm({
       }
       get privateKey() {
         return this.state.privateKey;
+      }
+      get svmPublicKey() {
+        return this.state.svmPublicKey;
       }
       get chainId() {
         return this.state.chainId;
@@ -3298,6 +3451,16 @@ var init_cli_session = __esm({
           this.state.publicKey = config.publicKey;
           changed = true;
         }
+        if (config.solanaPrivateKey !== void 0) {
+          try {
+            const svmPub = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+            if (svmPub !== this.state.svmPublicKey) {
+              this.state.svmPublicKey = svmPub;
+              changed = true;
+            }
+          } catch (e) {
+          }
+        }
         if (config.chain !== void 0 && config.chain !== this.state.chainId) {
           this.state.chainId = config.chain;
           changed = true;
@@ -3310,6 +3473,7 @@ var init_cli_session = __esm({
       }
       setModel(model) {
         this.state.model = model;
+        this.state.modelSynced = true;
         this.save();
       }
       setPublicKey(key) {
@@ -3478,7 +3642,8 @@ Available: ${available}`);
         session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
           app: this.state.app,
           aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
-          smartAccount: (_b = this.state.smartAccount) != null ? _b : null
+          smartAccount: (_b = this.state.smartAccount) != null ? _b : null,
+          svmAddress: this.state.svmPublicKey
         }));
         return session;
       }
@@ -3651,7 +3816,11 @@ async function ingestSecretsForSession(config, cli, client) {
 }
 async function applyRequestedModelIfPresent(config, cli, session) {
   const requestedModel = config.model;
-  if (!requestedModel || requestedModel === cli.model) {
+  if (!requestedModel) {
+    return;
+  }
+  const alreadySynced = cli.modelSynced && requestedModel === cli.model;
+  if (alreadySynced) {
     return;
   }
   await session.client.setModel(cli.sessionId, requestedModel, {
@@ -3683,37 +3852,44 @@ function extractMentionedTxIds(content) {
   const matches = (_a3 = content.match(/\btx-\d+\b/gi)) != null ? _a3 : [];
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
+function deriveSvmAddress(solanaPrivateKey) {
+  if (!solanaPrivateKey) return void 0;
+  try {
+    return parseSolanaKeypairSecret(solanaPrivateKey).publicKey.toBase58();
+  } catch (e) {
+    return void 0;
+  }
+}
 function shouldBroadcastWalletStateChange(config, previous, next) {
   var _a3, _b;
+  if (next.svmAddress) {
+    return (previous == null ? void 0 : previous.svmAddress) !== next.svmAddress;
+  }
   if (!config.privateKey || !next.publicKey || next.chainId === void 0) {
     return false;
   }
   return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3, _b, _c, _d;
-  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+  var _a3, _b;
+  if (!shouldBroadcastWalletStateChange(config, previous, next)) {
     return;
   }
-  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
+  const userState = buildCliUserState(next.publicKey, next.chainId, {
     app: config.app,
     aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
-    smartAccount: (_b = next.smartAccount) != null ? _b : null
-  }));
+    smartAccount: (_b = next.smartAccount) != null ? _b : null,
+    svmAddress: next.svmAddress
+  });
+  session.resolveUserState(userState);
   await session.syncUserState();
-  const payload = {
-    address: next.publicKey,
-    chainId: next.chainId,
-    isConnected: true,
-    aa_mode: (_c = next.aaMode) != null ? _c : null,
-    smart_account: (_d = next.smartAccount) != null ? _d : null
-  };
   await session.client.sendSystemMessage(
     cli.sessionId,
     JSON.stringify({
       type: "wallet:state_changed",
-      payload
-    })
+      payload: userState
+    }),
+    { app: config.app }
   );
 }
 async function chatCommand(config, message, verbose) {
@@ -3722,11 +3898,14 @@ async function chatCommand(config, message, verbose) {
     fatal("Usage: aomi chat <message>");
   }
   const previousCli = config.freshSession ? null : CliSession.load();
+  const svmAddress = deriveSvmAddress(config.solanaPrivateKey);
   const previousWallet = previousCli ? {
     publicKey: previousCli.publicKey,
     chainId: previousCli.chainId,
     aaMode: (_a3 = previousCli.toState().aaMode) != null ? _a3 : null,
-    smartAccount: (_b = previousCli.toState().smartAccount) != null ? _b : null
+    smartAccount: (_b = previousCli.toState().smartAccount) != null ? _b : null,
+    svmAddress: void 0
+    // force re-sync of SVM state on every chat
   } : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
@@ -3740,7 +3919,8 @@ async function chatCommand(config, message, verbose) {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
         aaMode: (_c = cli.toState().aaMode) != null ? _c : null,
-        smartAccount: (_d = cli.toState().smartAccount) != null ? _d : null
+        smartAccount: (_d = cli.toState().smartAccount) != null ? _d : null,
+        svmAddress
       },
       cli,
       session
@@ -3889,6 +4069,7 @@ var init_chat = __esm({
     init_context();
     init_errors();
     init_user_state();
+    init_solana_signer();
   }
 });
 
@@ -5193,96 +5374,6 @@ var init_aa = __esm({
   }
 });
 
-// src/cli/solana-signer.ts
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction
-} from "@solana/web3.js";
-import bs58 from "bs58";
-function parseSolanaKeypairSecret(input2) {
-  const trimmed = input2.trim();
-  if (!trimmed) {
-    throw new Error("Solana keypair secret is empty.");
-  }
-  let bytes;
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    const parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
-      throw new Error(
-        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
-      );
-    }
-    bytes = Uint8Array.from(parsed);
-  } else {
-    try {
-      bytes = bs58.decode(trimmed);
-    } catch (err) {
-      throw new Error(
-        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  }
-  if (bytes.length !== 64) {
-    throw new Error(
-      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
-    );
-  }
-  return Keypair.fromSecretKey(bytes);
-}
-function decodeBase64(value) {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
-  }
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-function encodeBase64(bytes) {
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(bytes).toString("base64");
-  }
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-function signSolanaTransaction(unsignedTxBase64, keypair) {
-  const bytes = decodeBase64(unsignedTxBase64);
-  try {
-    const versioned = VersionedTransaction.deserialize(bytes);
-    versioned.sign([keypair]);
-    return {
-      signer: keypair.publicKey.toBase58(),
-      signedTxBase64: encodeBase64(versioned.serialize())
-    };
-  } catch (versionedErr) {
-    try {
-      const legacy = Transaction.from(bytes);
-      legacy.partialSign(keypair);
-      return {
-        signer: keypair.publicKey.toBase58(),
-        signedTxBase64: encodeBase64(legacy.serialize())
-      };
-    } catch (legacyErr) {
-      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
-      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
-      throw new Error(
-        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
-      );
-    }
-  }
-}
-var init_solana_signer = __esm({
-  "src/cli/solana-signer.ts"() {
-    "use strict";
-  }
-});
-
 // src/cli/execution.ts
 function callsContainTokenOperations(calls) {
   return calls.some(
@@ -5668,7 +5759,8 @@ async function signSolanaPending(params) {
         description: pendingTx.description,
         pending_solana_id: pendingTx.solanaId
       }
-    })
+    }),
+    { app: cli.app }
   );
   const syncedState = await session.syncUserState();
   cli.syncPendingFromUserState(syncedState.user_state);
@@ -6024,7 +6116,8 @@ Available: ${available}`);
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
         cli.sessionId,
-        JSON.stringify(backendNotification)
+        JSON.stringify(backendNotification),
+        { app: cli.app }
       );
     }
     const syncedState = await session.syncUserState();
@@ -7088,12 +7181,13 @@ async function runInteractiveCli(config, options) {
   }
 }
 async function runRootCli(args) {
-  const config = buildCliConfig(args);
+  let config = buildCliConfig(args);
   const prompt = str2(args.prompt);
   const showTool = args["show-tool"] === true;
   const providerKey = str2(args["provider-key"]);
   if (providerKey) {
     await saveProviderKeyCommand(config, providerKey, { printLocation: false });
+    config = __spreadProps(__spreadValues({}, config), { freshSession: false });
   }
   if (prompt) {
     await chatCommand(config, prompt, showTool);

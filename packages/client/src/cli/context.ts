@@ -37,7 +37,16 @@ export async function applyRequestedModelIfPresent(
   session: ClientSession,
 ): Promise<void> {
   const requestedModel = config.model;
-  if (!requestedModel || requestedModel === cli.model) {
+  if (!requestedModel) {
+    return;
+  }
+
+  // Push the model to the backend unless it's already been synced this session.
+  // cli.modelSynced tracks whether we've actually called setModel on the current
+  // backend session. For a brand-new session the backend starts with the app's
+  // default model, so we must push even if cli.model already matches locally.
+  const alreadySynced = cli.modelSynced && requestedModel === cli.model;
+  if (alreadySynced) {
     return;
   }
 
