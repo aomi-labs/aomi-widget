@@ -13,6 +13,7 @@ import {
   setAomiClientConfig,
 } from "./test-harness";
 import type { AomiChatResponse } from "@aomi-labs/client";
+import { toInboundMessage } from "../utils";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -24,6 +25,24 @@ afterEach(() => {
 
 describe("Chat API", () => {
   describe("sendMessage", () => {
+    it("keeps streaming placeholders empty and drops completed empty assistant messages", () => {
+      const streaming = toInboundMessage({
+        sender: "agent",
+        content: "",
+        is_streaming: true,
+      });
+
+      expect(streaming).toMatchObject({ role: "assistant", content: [] });
+
+      expect(
+        toInboundMessage({
+          sender: "agent",
+          content: "",
+          is_streaming: false,
+        }),
+      ).toBeNull();
+    });
+
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({
