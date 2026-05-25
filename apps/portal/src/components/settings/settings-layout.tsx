@@ -4,11 +4,13 @@ import { useState } from "react";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
-import { ApiKeySettings } from "./api-key-settings";
-import { ProviderKeysSettings } from "./provider-keys-settings";
+import { AppKeys } from "./app-keys";
+import { Secrets } from "./secrets";
+import { Byok } from "./byok";
 
 export function SettingsLayout() {
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general");
+  const [activeCategory, setActiveCategory] =
+    useState<SettingsCategory>("general");
 
   const renderContent = () => {
     switch (activeCategory) {
@@ -16,20 +18,27 @@ export function SettingsLayout() {
         return <GeneralSettings />;
       case "apps":
         return <AppsSettings />;
-      case "api-keys":
-        return <ApiKeySettings />;
-      case "provider-keys":
-        return <ProviderKeysSettings />;
+      case "app-keys":
+        return <AppKeys />;
+      case "secrets":
+        return <Secrets />;
+      case "byok":
+        return <Byok />;
       default:
         return <GeneralSettings />;
     }
   };
 
   return (
-    <div className="h-screen w-full flex bg-background">
-      <SettingsSidebar activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-3xl mx-auto">{renderContent()}</div>
+    <div className="bg-background flex h-screen w-full min-w-0">
+      <SettingsSidebar
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+      />
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-8 py-10 lg:px-12">
+        <div className="mx-auto w-full min-w-0 max-w-4xl">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );

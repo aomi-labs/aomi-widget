@@ -9,9 +9,9 @@ const SESSION_HEADER = {
   required: true,
 };
 
-const API_KEY_HEADER = {
-  key: "X-API-Key",
-  placeholder: "your-api-key (optional)",
+const APP_KEY_HEADER = {
+  key: "AOMI-APP-KEY",
+  placeholder: "your-app-key (optional)",
 };
 
 const ENDPOINTS: EndpointDef[] = [
@@ -40,7 +40,7 @@ const ENDPOINTS: EndpointDef[] = [
       { key: "app", placeholder: "default", required: true },
       { key: "public_key", placeholder: "0x…" },
     ],
-    headers: [SESSION_HEADER, API_KEY_HEADER],
+    headers: [SESSION_HEADER, APP_KEY_HEADER],
   },
   {
     label: "System Message",
@@ -87,7 +87,7 @@ const ENDPOINTS: EndpointDef[] = [
     params: [
       { key: "public_key", placeholder: "0x…" },
     ],
-    headers: [SESSION_HEADER, API_KEY_HEADER],
+    headers: [SESSION_HEADER, APP_KEY_HEADER],
   },
   {
     label: "Get Models",
@@ -106,7 +106,7 @@ const ENDPOINTS: EndpointDef[] = [
       { key: "rig", placeholder: "gpt-4o", required: true },
       { key: "app", placeholder: "default" },
     ],
-    headers: [SESSION_HEADER, API_KEY_HEADER],
+    headers: [SESSION_HEADER, APP_KEY_HEADER],
   },
 ];
 

@@ -11,7 +11,7 @@ import {
 import { UserState, type AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
-import { useUser } from "../contexts/user-context";
+import { useUser } from "../contexts/ext-user-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useNotification } from "../contexts/notification-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
@@ -599,6 +599,7 @@ export function AomiRuntimeCore({
       <RuntimeUserStateProvider
         sessionManager={sessionManager}
         getUserState={userContext.getUserState}
+        setUser={userContext.setUser}
         onUserStateChange={userContext.onUserStateChange}
       >
         <AssistantRuntimeProvider runtime={runtime}>

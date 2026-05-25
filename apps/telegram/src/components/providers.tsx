@@ -70,7 +70,7 @@ export function Providers({ children }: { children: ReactNode }) {
           appName: 'Aomi',
         }}
         paraModalConfig={{
-          oAuthMethods: [],
+          oAuthMethods: ['GOOGLE'],
           disableEmailLogin: false,
           disablePhoneLogin: false,
           theme: {

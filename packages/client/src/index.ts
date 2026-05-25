@@ -9,6 +9,7 @@ export { AomiClient } from "./client";
 // =============================================================================
 
 export type {
+  AomiAppDescriptor,
   AomiClientType,
   AomiClientOptions,
   AomiMessage,
@@ -18,6 +19,8 @@ export type {
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiListSecretsResponse,
+  AomiSecretSlot,
   AomiSimulateFee,
   AomiSimulateResponse,
   AomiSSEEvent,
@@ -27,6 +30,10 @@ export type {
   AomiSystemResponse,
   AomiThread,
   UserStateAAMode,
+  UserStateAuthMethod,
+  UserStateWalletKind,
+  UserStateWalletProvider,
+  UserStateSponsorProvider,
   Logger,
 } from "./types";
 
@@ -36,11 +43,8 @@ export type {
 
 export {
   UserState,
-  addUserStateExt,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
-  getUserStateAAMode,
-  getUserStateSmartAccount,
   isAsyncCallback,
   isInlineCall,
   isSystemError,

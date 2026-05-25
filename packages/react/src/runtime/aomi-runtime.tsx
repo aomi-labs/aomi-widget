@@ -11,7 +11,7 @@ import {
   ThreadContextProvider,
   useThreadContext,
 } from "../contexts/thread-context";
-import { UserContextProvider, useUser } from "../contexts/user-context";
+import { ExtUserProvider, useUser } from "../contexts/ext-user-context";
 import { AomiRuntimeCore } from "./core";
 
 // =============================================================================
@@ -41,11 +41,11 @@ export function AomiRuntimeProvider({
   return (
     <ThreadContextProvider>
       <NotificationContextProvider>
-        <UserContextProvider>
+        <ExtUserProvider>
           <AomiRuntimeInner aomiClient={aomiClient}>
             {children}
           </AomiRuntimeInner>
-        </UserContextProvider>
+        </ExtUserProvider>
       </NotificationContextProvider>
     </ThreadContextProvider>
   );
