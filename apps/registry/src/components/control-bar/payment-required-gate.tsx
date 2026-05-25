@@ -95,8 +95,9 @@ export function PaymentRequiredGate() {
             Set up BYOK
           </h2>
           <p className="text-muted-foreground text-base leading-7">
-            You're out of Aomi credits. Add an LLM provider key to keep chatting
-            with BYOK. x402 and MPP payments are coming to the platform.
+            You&apos;re out of Aomi credits. Add an LLM provider key to keep
+            chatting with BYOK. x402 and MPP payments are coming to the
+            platform.
           </p>
         </div>
 
