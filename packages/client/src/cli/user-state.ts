@@ -86,10 +86,16 @@ export function buildCliUserState(
   // the user to also supply --solana-private-key.
   const publicKeyIsSolana =
     publicKey !== undefined && !publicKey.trim().startsWith("0x");
+  const publicKeyIsEvm =
+    publicKey !== undefined && publicKey.trim().startsWith("0x");
+  // byreal supports BOTH Solana (spot/LP) and EVM (perps via Hyperliquid).
+  // When the publicKey is clearly EVM (0x-prefixed), classify as EVM even
+  // for byreal-app so commit_message routes through the EVM signer.
   const isSolanaApp =
-    app === "sol" || app === "solana" || app === "svm" || app === "byreal" ||
-    publicKeyIsSolana ||
-    options?.svmAddress !== undefined;
+    !publicKeyIsEvm &&
+    (app === "sol" || app === "solana" || app === "svm" || app === "byreal" ||
+      publicKeyIsSolana ||
+      options?.svmAddress !== undefined);
   // When --public-key looks like a Solana address, promote it to svmAddress.
   const svmAddress = options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
   const anyConnected = (isSolanaApp ? svmAddress : publicKey) !== undefined;
@@ -130,7 +136,13 @@ export function pendingTxsFromBackendUserState(
   userState: UserState | null | undefined,
   existingPendingTxs: readonly PendingTx[] = [],
 ): PendingTx[] {
+  if (process.env.AOMI_DEBUG_PENDING) {
+    console.error("[debug] pendingTxsFromBackendUserState input pending:", JSON.stringify((userState as { pending?: unknown })?.pending ?? null));
+  }
   const normalizedUserState = UserState.normalize(userState);
+  if (process.env.AOMI_DEBUG_PENDING) {
+    console.error("[debug] normalized pending:", JSON.stringify(normalizedUserState?.pending ?? null));
+  }
   if (!normalizedUserState) {
     return [];
   }
@@ -139,7 +151,13 @@ export function pendingTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const nextPendingTxs: PendingTx[] = [];
 
-  const pendingTxs = asRecord(normalizedUserState.pending?.evm_txs) ?? {};
+  // Backend serializes pending bucket as camelCase on the wire (`evmTxs`,
+  // `evmSigs`, `solanaTxs`, `solanaSigs`) but some older code paths still
+  // emit snake_case. Accept both.
+  const pendingTxs =
+    asRecord(normalizedUserState.pending?.evmTxs) ??
+    asRecord(normalizedUserState.pending?.evm_txs) ??
+    {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId(rawId);
     const tx = asRecord(rawValue);
@@ -161,7 +179,7 @@ export function pendingTxsFromBackendUserState(
       to,
       value: parseOptionalString(tx.value),
       data,
-      chainId: parseChainId(tx.chain_id),
+      chainId: parseChainId(tx.chainId ?? tx.chain_id),
       description: parseOptionalString(tx.label),
       timestamp: txTimestamp(existingById, id, fallbackNow),
       payload: {
@@ -170,14 +188,17 @@ export function pendingTxsFromBackendUserState(
         to,
         value: parseOptionalString(tx.value),
         data,
-        chain_id: parseChainId(tx.chain_id),
-        chainId: parseChainId(tx.chain_id),
+        chain_id: parseChainId(tx.chainId ?? tx.chain_id),
+        chainId: parseChainId(tx.chainId ?? tx.chain_id),
         description: parseOptionalString(tx.label),
       },
     });
   }
 
-  const pendingEip712s = asRecord(normalizedUserState.pending?.evm_sigs) ?? {};
+  const pendingEip712s =
+    asRecord(normalizedUserState.pending?.evmSigs) ??
+    asRecord(normalizedUserState.pending?.evm_sigs) ??
+    {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -187,17 +208,20 @@ export function pendingTxsFromBackendUserState(
 
     const id = pendingDisplayId(pendingId);
     const description = parseOptionalString(request.description);
+    // Backend emits camelCase (`typedData`, `chainId`) via snake_to_camel; accept both.
+    const typedData = request.typedData ?? request.typed_data;
+    const chainId = parseChainId(request.chainId ?? request.chain_id);
     nextPendingTxs.push({
       id,
       kind: "eip712_sign",
       eip712Id: pendingId,
-      chainId: parseChainId(request.chain_id),
+      chainId,
       description,
       timestamp: txTimestamp(existingById, id, fallbackNow),
       payload: {
         pending_eip712_id: pendingId,
         eip712Id: pendingId,
-        typed_data: request.typed_data,
+        typed_data: typedData,
         description,
       },
     });
@@ -232,7 +256,10 @@ export function pendingSolTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const next: PendingSolTx[] = [];
 
-  const pendingSolanaTxs = asRecord(normalizedUserState.pending?.solana_txs) ?? {};
+  const pendingSolanaTxs =
+    asRecord(normalizedUserState.pending?.solanaTxs) ??
+    asRecord(normalizedUserState.pending?.solana_txs) ??
+    {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -240,7 +267,10 @@ export function pendingSolTxsFromBackendUserState(
       continue;
     }
 
-    const unsignedTx = parseOptionalString(request.unsigned_tx);
+    // Backend serializes with snake_to_camel; accept both forms.
+    const unsignedTx =
+      parseOptionalString(request.unsignedTx) ??
+      parseOptionalString(request.unsigned_tx);
     if (!unsignedTx) {
       continue;
     }
@@ -273,7 +303,10 @@ export function pendingSolTxsFromBackendUserState(
   // Also surface pending Solana *message-signature* requests (solana_sigs).
   // These are produced by `svm_commit_message` / `sign_tx_solana` and stored
   // under `pending.solana_sigs` with `message_base64` instead of `unsigned_tx`.
-  const pendingSolanaSigs = asRecord(normalizedUserState.pending?.solana_sigs) ?? {};
+  const pendingSolanaSigs =
+    asRecord(normalizedUserState.pending?.solanaSigs) ??
+    asRecord(normalizedUserState.pending?.solana_sigs) ??
+    {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);

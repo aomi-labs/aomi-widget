@@ -2692,7 +2692,8 @@ function buildCliUserState(publicKey, chainId, options) {
   var _a3, _b, _c, _d, _e;
   const app = (_a3 = options == null ? void 0 : options.app) == null ? void 0 : _a3.trim().toLowerCase();
   const publicKeyIsSolana = publicKey !== void 0 && !publicKey.trim().startsWith("0x");
-  const isSolanaApp = app === "sol" || app === "solana" || app === "svm" || app === "byreal" || publicKeyIsSolana || (options == null ? void 0 : options.svmAddress) !== void 0;
+  const publicKeyIsEvm = publicKey !== void 0 && publicKey.trim().startsWith("0x");
+  const isSolanaApp = !publicKeyIsEvm && (app === "sol" || app === "solana" || app === "svm" || app === "byreal" || publicKeyIsSolana || (options == null ? void 0 : options.svmAddress) !== void 0);
   const svmAddress = (_b = options == null ? void 0 : options.svmAddress) != null ? _b : publicKeyIsSolana ? publicKey : void 0;
   const anyConnected = (isSolanaApp ? svmAddress : publicKey) !== void 0;
   const userState = {
@@ -2719,15 +2720,21 @@ function buildCliUserState(publicKey, chainId, options) {
   return UserState.withExt(userState, "clientType", CLIENT_TYPE_TS_CLI);
 }
 function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  if (process.env.AOMI_DEBUG_PENDING) {
+    console.error("[debug] pendingTxsFromBackendUserState input pending:", JSON.stringify((_a3 = userState == null ? void 0 : userState.pending) != null ? _a3 : null));
+  }
   const normalizedUserState = UserState.normalize(userState);
+  if (process.env.AOMI_DEBUG_PENDING) {
+    console.error("[debug] normalized pending:", JSON.stringify((_b = normalizedUserState == null ? void 0 : normalizedUserState.pending) != null ? _b : null));
+  }
   if (!normalizedUserState) {
     return [];
   }
   const existingById = new Map(existingPendingTxs.map((tx) => [tx.id, tx]));
   const fallbackNow = Date.now();
   const nextPendingTxs = [];
-  const pendingTxs = (_b = asRecord3((_a3 = normalizedUserState.pending) == null ? void 0 : _a3.evm_txs)) != null ? _b : {};
+  const pendingTxs = (_f = (_e = asRecord3((_c = normalizedUserState.pending) == null ? void 0 : _c.evmTxs)) != null ? _e : asRecord3((_d = normalizedUserState.pending) == null ? void 0 : _d.evm_txs)) != null ? _f : {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId2(rawId);
     const tx = asRecord3(rawValue);
@@ -2747,7 +2754,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
       to,
       value: parseOptionalString(tx.value),
       data,
-      chainId: parseChainId3(tx.chain_id),
+      chainId: parseChainId3((_g = tx.chainId) != null ? _g : tx.chain_id),
       description: parseOptionalString(tx.label),
       timestamp: txTimestamp(existingById, id, fallbackNow),
       payload: {
@@ -2756,13 +2763,13 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
         to,
         value: parseOptionalString(tx.value),
         data,
-        chain_id: parseChainId3(tx.chain_id),
-        chainId: parseChainId3(tx.chain_id),
+        chain_id: parseChainId3((_h = tx.chainId) != null ? _h : tx.chain_id),
+        chainId: parseChainId3((_i = tx.chainId) != null ? _i : tx.chain_id),
         description: parseOptionalString(tx.label)
       }
     });
   }
-  const pendingEip712s = (_d = asRecord3((_c = normalizedUserState.pending) == null ? void 0 : _c.evm_sigs)) != null ? _d : {};
+  const pendingEip712s = (_m = (_l = asRecord3((_j = normalizedUserState.pending) == null ? void 0 : _j.evmSigs)) != null ? _l : asRecord3((_k = normalizedUserState.pending) == null ? void 0 : _k.evm_sigs)) != null ? _m : {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord3(rawValue);
@@ -2771,17 +2778,19 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
     }
     const id = pendingDisplayId(pendingId);
     const description = parseOptionalString(request.description);
+    const typedData = (_n = request.typedData) != null ? _n : request.typed_data;
+    const chainId = parseChainId3((_o = request.chainId) != null ? _o : request.chain_id);
     nextPendingTxs.push({
       id,
       kind: "eip712_sign",
       eip712Id: pendingId,
-      chainId: parseChainId3(request.chain_id),
+      chainId,
       description,
       timestamp: txTimestamp(existingById, id, fallbackNow),
       payload: {
         pending_eip712_id: pendingId,
         eip712Id: pendingId,
-        typed_data: request.typed_data,
+        typed_data: typedData,
         description
       }
     });
@@ -2794,7 +2803,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   return nextPendingTxs;
 }
 function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   const normalizedUserState = UserState.normalize(userState);
   if (!normalizedUserState) {
     return [];
@@ -2802,14 +2811,14 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
   const existingById = new Map(existingPendingSolTxs.map((tx) => [tx.id, tx]));
   const fallbackNow = Date.now();
   const next = [];
-  const pendingSolanaTxs = (_b = asRecord3((_a3 = normalizedUserState.pending) == null ? void 0 : _a3.solana_txs)) != null ? _b : {};
+  const pendingSolanaTxs = (_d = (_c = asRecord3((_a3 = normalizedUserState.pending) == null ? void 0 : _a3.solanaTxs)) != null ? _c : asRecord3((_b = normalizedUserState.pending) == null ? void 0 : _b.solana_txs)) != null ? _d : {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord3(rawValue);
     if (!pendingId || !request) {
       continue;
     }
-    const unsignedTx = parseOptionalString(request.unsigned_tx);
+    const unsignedTx = (_e = parseOptionalString(request.unsignedTx)) != null ? _e : parseOptionalString(request.unsigned_tx);
     if (!unsignedTx) {
       continue;
     }
@@ -2824,7 +2833,7 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       cluster,
       signer,
       description,
-      timestamp: (_d = (_c = existingById.get(id)) == null ? void 0 : _c.timestamp) != null ? _d : fallbackNow,
+      timestamp: (_g = (_f = existingById.get(id)) == null ? void 0 : _f.timestamp) != null ? _g : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
@@ -2836,14 +2845,14 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       }
     });
   }
-  const pendingSolanaSigs = (_f = asRecord3((_e = normalizedUserState.pending) == null ? void 0 : _e.solana_sigs)) != null ? _f : {};
+  const pendingSolanaSigs = (_k = (_j = asRecord3((_h = normalizedUserState.pending) == null ? void 0 : _h.solanaSigs)) != null ? _j : asRecord3((_i = normalizedUserState.pending) == null ? void 0 : _i.solana_sigs)) != null ? _k : {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord3(rawValue);
     if (!pendingId || !request) {
       continue;
     }
-    const unsignedTx = (_g = parseOptionalString(request.message_base64)) != null ? _g : parseOptionalString(request.messageBase64);
+    const unsignedTx = (_l = parseOptionalString(request.message_base64)) != null ? _l : parseOptionalString(request.messageBase64);
     if (!unsignedTx) {
       continue;
     }
@@ -2858,7 +2867,7 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       cluster,
       signer,
       description,
-      timestamp: (_i = (_h = existingById.get(id)) == null ? void 0 : _h.timestamp) != null ? _i : fallbackNow,
+      timestamp: (_n = (_m = existingById.get(id)) == null ? void 0 : _m.timestamp) != null ? _n : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
@@ -3865,7 +3874,7 @@ function shouldBroadcastWalletStateChange(config, previous, next) {
   if (next.svmAddress) {
     return (previous == null ? void 0 : previous.svmAddress) !== next.svmAddress;
   }
-  if (!config.privateKey || !next.publicKey || next.chainId === void 0) {
+  if (!next.publicKey || next.chainId === void 0) {
     return false;
   }
   return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
@@ -5793,7 +5802,7 @@ async function executeCliTransaction(params) {
   });
 }
 async function signCommand(config, txIds) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
@@ -6078,9 +6087,31 @@ Available: ${available}`);
         chain,
         transport: http2(resolvedRpcUrl)
       });
-      const signArgs = toViemSignTypedDataArgs(
+      let signArgs = toViemSignTypedDataArgs(
         pendingTx.payload
       );
+      if (!signArgs && pendingTx.kind === "eip712_sign" && pendingTx.eip712Id !== void 0) {
+        try {
+          const session2 = cli.createClientSession();
+          const apiState = await session2.client.fetchState(
+            cli.sessionId,
+            void 0,
+            cli.clientId
+          );
+          session2.close();
+          const evmSigs = (_p = (_o = (_l = (_k = apiState.user_state) == null ? void 0 : _k.pending) == null ? void 0 : _l.evmSigs) != null ? _o : (_n = (_m = apiState.user_state) == null ? void 0 : _m.pending) == null ? void 0 : _n.evm_sigs) != null ? _p : {};
+          const sig = evmSigs[String(pendingTx.eip712Id)];
+          const typed = (_q = sig == null ? void 0 : sig.typedData) != null ? _q : sig == null ? void 0 : sig.typed_data;
+          if (typed) {
+            signArgs = toViemSignTypedDataArgs(__spreadProps(__spreadValues({}, pendingTx.payload), {
+              typed_data: typed,
+              description: (_r = sig.description) != null ? _r : pendingTx.description
+            }));
+          }
+        } catch (err) {
+          console.warn(`[aomi tx sign] failed to fetch typed_data from backend: ${err}`);
+        }
+      }
       if (!signArgs) {
         fatal("EIP-712 request is missing typed_data payload.");
       }
