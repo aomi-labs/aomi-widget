@@ -143,13 +143,23 @@ export function currentWalletCommand(): void {
     printDataFileLocation();
     return;
   }
-  if (!cli.publicKey) {
+
+  const state = cli.toState();
+  const hasAny = cli.publicKey || state.svmPublicKey;
+  if (!hasAny) {
     console.log("No wallet configured");
     printDataFileLocation();
     return;
   }
-  const signerStatus = cli.privateKey ? "saved signer" : "address only";
-  console.log(`${cli.publicKey} (${signerStatus})`);
+
+  if (cli.publicKey) {
+    const signerStatus = cli.privateKey ? "saved signer" : "address only";
+    console.log(`EVM:    ${cli.publicKey} (${signerStatus})`);
+  }
+  if (state.svmPublicKey) {
+    const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
+    console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
+  }
   printDataFileLocation();
 }
 

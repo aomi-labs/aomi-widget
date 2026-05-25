@@ -127,7 +127,9 @@ export class AomiClient {
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) =>
         withSessionHeader(sessionId, { Accept: "text/event-stream" }),
-      fetchImpl: this.fetchImpl,
+      // Keep SSE on the browser-native fetch path. Payment/auth wrappers used
+      // by some web runtimes can delay or buffer streaming responses.
+      fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
   }
@@ -152,7 +154,7 @@ export class AomiClient {
       client_id: clientId,
     });
 
-    const response = await this.fetchImpl(url, {
+    const response = await this.rawFetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
 

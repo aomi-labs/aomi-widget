@@ -91,34 +91,47 @@ export function buildCliUserState(
   // byreal supports BOTH Solana (spot/LP) and EVM (perps via Hyperliquid).
   // When the publicKey is clearly EVM (0x-prefixed), classify as EVM even
   // for byreal-app so commit_message routes through the EVM signer.
+  // When --public-key looks like a Solana address, promote it to svmAddress.
+  const svmAddress = options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
+
+  // Dual-family: a session can have BOTH an EVM address and a Solana address
+  // simultaneously (e.g. byreal perps = EVM, spot/LP = Solana). Emit both
+  // sections whenever both are present; fall back to single-family logic when
+  // only one is known.
+  const hasBoth = publicKeyIsEvm && svmAddress !== undefined;
   const isSolanaApp =
+    !hasBoth &&
     !publicKeyIsEvm &&
     (app === "sol" || app === "solana" || app === "svm" || app === "byreal" ||
       publicKeyIsSolana ||
-      options?.svmAddress !== undefined);
-  // When --public-key looks like a Solana address, promote it to svmAddress.
-  const svmAddress = options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
-  const anyConnected = (isSolanaApp ? svmAddress : publicKey) !== undefined;
+      svmAddress !== undefined);
+
+  const primaryFamily: "evm" | "solana" = hasBoth
+    ? "evm" // dual: prefer EVM as primary so EVM tools (commit_message) route correctly
+    : isSolanaApp
+      ? "solana"
+      : "evm";
+
+  const anyConnected = hasBoth
+    ? true
+    : (isSolanaApp ? svmAddress : publicKey) !== undefined;
+
   const userState: UserState = {
     connection: {
       is_connected: anyConnected ? true : undefined,
-      primary_family: anyConnected
-        ? isSolanaApp
-          ? "solana"
-          : "evm"
-        : undefined,
+      primary_family: anyConnected ? primaryFamily : undefined,
     },
-    evm: isSolanaApp
-      ? undefined
-      : {
+    evm: hasBoth || !isSolanaApp
+      ? {
           address: publicKey,
           chain_id: chainId,
           aa: {
             mode: options?.aaMode ?? null,
             smart_account: options?.smartAccount ?? null,
           },
-        },
-    solana: isSolanaApp
+        }
+      : undefined,
+    solana: hasBoth || isSolanaApp
       ? {
           address: svmAddress ?? publicKey,
           // Default to mainnet when an SVM address is present; the backend
