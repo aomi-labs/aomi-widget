@@ -121,6 +121,10 @@
         },
         {
           "type": "registry:component",
+          "path": "components/control-bar/payment-required-gate.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/icons/index.ts"
         },
         {

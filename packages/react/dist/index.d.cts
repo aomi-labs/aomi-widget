@@ -124,6 +124,7 @@ type NotificationType = "notice" | "success" | "error" | "wallet";
 type Notification$1 = {
     id: string;
     type: NotificationType;
+    kind?: "payment_required";
     title: string;
     message?: string;
     duration?: number;
