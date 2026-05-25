@@ -14,7 +14,8 @@ const PROVIDERS = [
 type ProviderId = (typeof PROVIDERS)[number]["id"];
 
 export function PaymentRequiredGate() {
-  const { notifications, dismissNotification } = useNotification();
+  const { notifications, dismissNotification, showNotification } =
+    useNotification();
   const { setByok } = useControl();
   const paymentNotification = notifications.find(
     (notification) => notification.kind === "payment_required",
@@ -53,12 +54,28 @@ export function PaymentRequiredGate() {
       setApiKey("");
       setLabel("");
       handleDismiss();
+      // Failed user message stays in the thread with `aomiSendStatus: failed`.
+      // We don't auto-retry (could be unexpected if the user moved on), but
+      // we do tell them the gate is cleared so the modal isn't silently gone.
+      showNotification({
+        type: "success",
+        title: "Provider key saved — resend your message to continue.",
+        duration: 6000,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save BYOK key");
     } finally {
       setSaving(false);
     }
-  }, [apiKey, canSave, handleDismiss, label, selectedProvider, setByok]);
+  }, [
+    apiKey,
+    canSave,
+    handleDismiss,
+    label,
+    selectedProvider,
+    setByok,
+    showNotification,
+  ]);
 
   if (!paymentNotification) return null;
 

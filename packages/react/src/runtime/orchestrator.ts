@@ -130,9 +130,22 @@ const appendPaymentRequiredMessage = (
   threadId: string,
 ) => {
   const messages = threadContext.getThreadMessages(threadId);
-  const lastMessage = messages[messages.length - 1];
-  const hasPaymentNotice =
-    lastMessage?.metadata?.custom?.aomiNoticeKind === "payment_required";
+
+  // Walk back to the most recent assistant message. A "last message" check
+  // fails for back-to-back 402s because the second failed send inserts an
+  // optimistic user message between the existing notice and the new notice
+  // call, so the last message is always a user message and the dedupe
+  // misses. Skipping over user messages also gives the correct "fresh notice
+  // after a successful reply" behavior: if a successful assistant message
+  // landed since the last notice, we want a new notice.
+  let hasPaymentNotice = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    hasPaymentNotice =
+      message.metadata?.custom?.aomiNoticeKind === "payment_required";
+    break;
+  }
 
   if (hasPaymentNotice) return;
 
