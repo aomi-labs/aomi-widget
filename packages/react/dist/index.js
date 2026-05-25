@@ -1391,7 +1391,7 @@ function toInboundMessage(msg) {
   if (msg.sender === "system") return null;
   const content = [];
   const role = msg.sender === "user" ? "user" : "assistant";
-  if (msg.content) {
+  if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text", text: msg.content });
   }
   const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
@@ -1410,9 +1410,12 @@ function toInboundMessage(msg) {
       })()
     });
   }
+  if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
+    return null;
+  }
   const threadMessage = __spreadValues({
     role,
-    content: content.length > 0 ? content : [{ type: "text", text: "" }]
+    content
   }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
   return threadMessage;
 }
