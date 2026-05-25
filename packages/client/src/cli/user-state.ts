@@ -136,13 +136,7 @@ export function pendingTxsFromBackendUserState(
   userState: UserState | null | undefined,
   existingPendingTxs: readonly PendingTx[] = [],
 ): PendingTx[] {
-  if (process.env.AOMI_DEBUG_PENDING) {
-    console.error("[debug] pendingTxsFromBackendUserState input pending:", JSON.stringify((userState as { pending?: unknown })?.pending ?? null));
-  }
   const normalizedUserState = UserState.normalize(userState);
-  if (process.env.AOMI_DEBUG_PENDING) {
-    console.error("[debug] normalized pending:", JSON.stringify(normalizedUserState?.pending ?? null));
-  }
   if (!normalizedUserState) {
     return [];
   }
