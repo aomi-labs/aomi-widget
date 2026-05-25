@@ -66,8 +66,11 @@ export function shouldBroadcastWalletStateChange(
     return previous?.svmAddress !== next.svmAddress;
   }
 
-  // EVM: only sync when privateKey, publicKey and chainId are all known.
-  if (!config.privateKey || !next.publicKey || next.chainId === undefined) {
+  // EVM: sync when publicKey and chainId are known. Don't require privateKey —
+  // wallet state needs to be broadcast even for read-only sessions so the
+  // backend's tools (commit_message etc.) can see the connected wallet.
+  // The privateKey is only needed at sign time (via `aomi tx sign`).
+  if (!next.publicKey || next.chainId === undefined) {
     return false;
   }
 
