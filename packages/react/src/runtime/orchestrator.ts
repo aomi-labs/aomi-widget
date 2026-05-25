@@ -46,13 +46,16 @@ const getHttpStatus = (error: unknown): number | undefined => {
 
 const isPaymentRequiredError = (error: unknown) => getHttpStatus(error) === 402;
 
+const PAYMENT_REQUIRED_MESSAGE =
+  "You're out of funds, please set up a payment method.";
+
 const buildPaymentRequiredMessage = (): ThreadMessageLike => ({
   id: `aomi-payment-required-${Date.now()}`,
   role: "assistant",
   content: [
     {
       type: "text",
-      text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
+      text: PAYMENT_REQUIRED_MESSAGE,
     },
   ],
   createdAt: new Date(),

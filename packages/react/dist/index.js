@@ -1483,13 +1483,14 @@ var getHttpStatus = (error) => {
   return match ? Number(match[1]) : void 0;
 };
 var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
+var PAYMENT_REQUIRED_MESSAGE = "You're out of funds, please set up a payment method.";
 var buildPaymentRequiredMessage = () => ({
   id: `aomi-payment-required-${Date.now()}`,
   role: "assistant",
   content: [
     {
       type: "text",
-      text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access."
+      text: PAYMENT_REQUIRED_MESSAGE
     }
   ],
   createdAt: /* @__PURE__ */ new Date(),
@@ -2561,7 +2562,16 @@ function AomiRuntimeCore({
     onSendError: async (threadId, error) => {
       const wasMaterializedForSend = threadsMaterializedForSendRef.current.has(threadId);
       threadsMaterializedForSendRef.current.delete(threadId);
-      if (getHttpStatus2(error) !== 402 || !wasMaterializedForSend) {
+      const httpStatus = getHttpStatus2(error);
+      if (httpStatus === 402) {
+        notificationContext.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds",
+          message: "You're out of funds, please set up a payment method."
+        });
+      }
+      if (httpStatus !== 402 || !wasMaterializedForSend) {
         return;
       }
       try {

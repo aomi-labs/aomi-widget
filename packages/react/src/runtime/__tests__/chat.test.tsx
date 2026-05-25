@@ -136,7 +136,7 @@ describe("Chat API", () => {
       });
     });
 
-    it("adds an inline x402 credits notice when the backend returns 402", async () => {
+    it("adds an inline payment notice and popup when the backend returns 402", async () => {
       const createThread = vi.fn();
       const deleteThread = vi.fn(async () => undefined);
       const setModel = vi.fn(async () => ({ rig: "auto-model" }));
@@ -151,7 +151,7 @@ describe("Chat API", () => {
         postChatMessage,
       });
 
-      const { api, control } = renderRuntime();
+      const { api, control, getApi } = renderRuntime();
 
       await act(async () => {
         await control.getAvailableModels();
@@ -190,9 +190,16 @@ describe("Chat API", () => {
       expect(messages[1].content).toEqual([
         {
           type: "text",
-          text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
+          text: "You're out of funds, please set up a payment method.",
         },
       ]);
+      expect(getApi().notifications).toHaveLength(1);
+      expect(getApi().notifications[0]).toMatchObject({
+        type: "error",
+        kind: "payment_required",
+        title: "You're out of funds",
+        message: "You're out of funds, please set up a payment method.",
+      });
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
       expect(setModel).toHaveBeenCalledWith(
         api.currentThreadId,

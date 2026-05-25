@@ -17,6 +17,7 @@ export type NotificationType = "notice" | "success" | "error" | "wallet";
 export type Notification = {
   id: string;
   type: NotificationType;
+  kind?: "payment_required";
   title: string;
   message?: string;
   duration?: number;
