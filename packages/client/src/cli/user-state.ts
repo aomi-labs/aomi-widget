@@ -73,14 +73,30 @@ export function buildCliUserState(
     app?: string;
     aaMode?: UserStateAAMode | null;
     smartAccount?: string | null;
+    /** Solana public key (base58). When present, sets solana.address and primary_family=solana. */
+    svmAddress?: string;
+    /** Solana cluster. Defaults to "solana:mainnet" when svmAddress is present. */
+    svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   },
 ): UserState {
   const app = options?.app?.trim().toLowerCase();
-  const isSolanaApp = app === "sol" || app === "solana" || app === "svm";
+  // A publicKey that doesn't start with "0x" (EVM hex) is assumed to be a
+  // Solana base58 address. This lets `--public-key <solana-addr>` work
+  // correctly for Solana-first apps (e.g. byreal spot/lp) without requiring
+  // the user to also supply --solana-private-key.
+  const publicKeyIsSolana =
+    publicKey !== undefined && !publicKey.trim().startsWith("0x");
+  const isSolanaApp =
+    app === "sol" || app === "solana" || app === "svm" || app === "byreal" ||
+    publicKeyIsSolana ||
+    options?.svmAddress !== undefined;
+  // When --public-key looks like a Solana address, promote it to svmAddress.
+  const svmAddress = options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
+  const anyConnected = (isSolanaApp ? svmAddress : publicKey) !== undefined;
   const userState: UserState = {
     connection: {
-      is_connected: publicKey !== undefined ? true : undefined,
-      primary_family: publicKey !== undefined
+      is_connected: anyConnected ? true : undefined,
+      primary_family: anyConnected
         ? isSolanaApp
           ? "solana"
           : "evm"
@@ -98,12 +114,16 @@ export function buildCliUserState(
         },
     solana: isSolanaApp
       ? {
-          address: publicKey,
+          address: svmAddress ?? publicKey,
+          // Default to mainnet when an SVM address is present; the backend
+          // falls back to "devnet" when cluster is absent which causes mainnet
+          // DEXes (byreal etc.) to look for devnet liquidity and fail.
+          cluster: options?.svmCluster ?? (svmAddress !== undefined ? "solana:mainnet" : undefined),
         }
       : undefined,
   };
 
-  return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
+  return UserState.withExt(userState, "clientType", CLIENT_TYPE_TS_CLI);
 }
 
 export function pendingTxsFromBackendUserState(
@@ -229,6 +249,52 @@ export function pendingSolTxsFromBackendUserState(
     const description = parseOptionalString(request.description);
     const cluster = parseOptionalString(request.cluster);
     const signer = parseOptionalString(request.signer);
+
+    next.push({
+      id,
+      solanaId: pendingId,
+      unsignedTx,
+      cluster,
+      signer,
+      description,
+      timestamp: existingById.get(id)?.timestamp ?? fallbackNow,
+      payload: {
+        pending_solana_id: pendingId,
+        pendingSolanaId: pendingId,
+        unsigned_tx: unsignedTx,
+        unsignedTx,
+        cluster,
+        description,
+        signer,
+      },
+    });
+  }
+
+  // Also surface pending Solana *message-signature* requests (solana_sigs).
+  // These are produced by `svm_commit_message` / `sign_tx_solana` and stored
+  // under `pending.solana_sigs` with `message_base64` instead of `unsigned_tx`.
+  const pendingSolanaSigs = asRecord(normalizedUserState.pending?.solana_sigs) ?? {};
+  for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
+    const pendingId = parsePendingId(rawId);
+    const request = asRecord(rawValue);
+    if (!pendingId || !request) {
+      continue;
+    }
+
+    // message_base64 / messageBase64 is the serialized transaction bytes (base64-encoded).
+    // The backend serializes pending sigs in camelCase (messageBase64) on the wire.
+    const unsignedTx =
+      parseOptionalString(request.message_base64) ??
+      parseOptionalString(request.messageBase64);
+    if (!unsignedTx) {
+      continue;
+    }
+
+    const id = pendingDisplayId(pendingId);
+    const description = parseOptionalString(request.description);
+    const signer = parseOptionalString(request.signer);
+    // solana_sigs entries don't carry a cluster field — default to mainnet.
+    const cluster = "solana:mainnet";
 
     next.push({
       id,

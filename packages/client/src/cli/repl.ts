@@ -162,13 +162,18 @@ export async function runInteractiveCli(
 }
 
 export async function runRootCli(args: Record<string, unknown>): Promise<void> {
-  const config = buildCliConfig(args);
+  let config = buildCliConfig(args);
   const prompt = str(args.prompt);
   const showTool = args["show-tool"] === true;
   const providerKey = str(args["provider-key"]);
 
   if (providerKey) {
     await saveProviderKeyCommand(config, providerKey, { printLocation: false });
+    // saveProviderKeyCommand may have created a fresh session (when
+    // config.freshSession=true). Disable freshSession so the subsequent
+    // chatCommand reuses that same session rather than spawning a second
+    // new one (which would have a different clientId and therefore no BYOK key).
+    config = { ...config, freshSession: false };
   }
 
   if (prompt) {

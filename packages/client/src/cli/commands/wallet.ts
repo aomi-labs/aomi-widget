@@ -275,6 +275,7 @@ async function signSolanaPending(params: {
         pending_solana_id: pendingTx.solanaId,
       },
     }),
+    { app: cli.app },
   );
 
   // Re-sync to drop the now-discarded pending entry on the host side.
@@ -725,6 +726,7 @@ export async function signCommand(config: CliConfig, txIds: string[]): Promise<v
       await session.client.sendSystemMessage(
         cli.sessionId,
         JSON.stringify(backendNotification),
+        { app: cli.app },
       );
     }
 

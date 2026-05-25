@@ -204,15 +204,22 @@ export class AomiClient {
 
   /**
    * Send a system-level message (e.g. wallet state changes, context switches).
+   * Pass `app` to preserve the session's active app context (prevents the
+   * backend from resetting to the default app when no app is specified).
    */
   async sendSystemMessage(
     sessionId: string,
     message: string,
+    options?: { app?: string },
   ): Promise<AomiSystemResponse> {
+    const payload: Record<string, unknown> = { message };
+    if (options?.app) {
+      payload.app = options.app;
+    }
     return postState<AomiSystemResponse>(
       this.baseUrl,
       "/api/system",
-      { message },
+      payload,
       sessionId,
       this.fetchImpl,
     );
@@ -627,7 +634,7 @@ export class AomiClient {
       }),
       body: JSON.stringify({
         provider,
-        api_key: apiKey,
+        byok_key: apiKey,
         label,
       }),
     });

@@ -298,8 +298,12 @@ declare class AomiClient {
     }): Promise<AomiChatResponse>;
     /**
      * Send a system-level message (e.g. wallet state changes, context switches).
+     * Pass `app` to preserve the session's active app context (prevents the
+     * backend from resetting to the default app when no app is specified).
      */
-    sendSystemMessage(sessionId: string, message: string): Promise<AomiSystemResponse>;
+    sendSystemMessage(sessionId: string, message: string, options?: {
+        app?: string;
+    }): Promise<AomiSystemResponse>;
     /**
      * Interrupt the AI's current response.
      */
