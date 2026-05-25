@@ -9,8 +9,12 @@ import {
 import "@getpara/react-sdk/styles.css";
 import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
-import { AomiWalletProvider } from "../../../registry/src";
-import { isFullTestnet } from "../../../registry/src";
+import {
+  AomiWalletProvider,
+  isFullTestnet,
+  monad,
+  monadTestnet,
+} from "../../../registry/src";
 import {
   arbitrum,
   base,
@@ -63,6 +67,8 @@ const defaultNetworks = [
   sepolia,
   linea,
   lineaSepolia,
+  monad,
+  monadTestnet,
 ] as const;
 
 const networks = (

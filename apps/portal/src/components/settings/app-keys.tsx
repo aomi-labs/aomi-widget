@@ -3,6 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
+import {
+  settingsActionRowClass,
+  settingsBodyTextClass,
+  settingsCardStackClass,
+  settingsCardTitleClass,
+  settingsDescriptionClass,
+  settingsInputClass,
+  settingsLabelClass,
+  settingsPageClass,
+  settingsPillClass,
+  settingsPrimaryButtonClass,
+  settingsStatusClass,
+  settingsSubTitleClass,
+  settingsTableCardClass,
+  settingsTitleClass,
+} from "./settings-styles";
 
 type OwnedAppKey = {
   key_hash: string;
@@ -176,9 +192,7 @@ export function AppKeys() {
     async (key: OwnedAppKey) => {
       if (deletingHash) return;
 
-      const shouldDelete = window.confirm(
-        `Remove app key ${key.key_prefix}?`,
-      );
+      const shouldDelete = window.confirm(`Remove app key ${key.key_prefix}?`);
       if (!shouldDelete) return;
 
       setDeletingHash(key.key_hash);
@@ -205,41 +219,33 @@ export function AppKeys() {
   );
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">App Keys</h3>
-        <p className="text-muted-foreground text-sm">
-          Programmatic access keys for Aomi. Send as <code>X-API-Key</code> to
-          call <code>/api/chat</code> from your own services. Newly generated
+    <div className={settingsPageClass}>
+      <div className="space-y-4">
+        <h1 className={settingsTitleClass}>App Keys</h1>
+        <p className={settingsDescriptionClass}>
+          Programmatic access keys for Aomi. Send as <code>AOMI-APP-KEY</code>{" "}
+          to call <code>/api/chat</code> from your own services. Newly generated
           keys are shown only once.
         </p>
-        {!identity.address && (
-          <p className="text-muted-foreground mt-2 text-sm">
-            Connect a wallet account to manage owned app keys.
-          </p>
-        )}
       </div>
 
       {status && (
         <div
-          className={`rounded-2xl p-3 text-sm ${
+          className={`${settingsStatusClass} ${
             status.type === "success"
-              ? "border border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
-              : "bg-destructive/10 border-destructive/20 text-destructive border"
+              ? "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
+              : "border-destructive/20 bg-destructive/10 text-destructive"
           }`}
         >
           {status.text}
         </div>
       )}
 
-      <div className="border-input bg-background space-y-4 rounded-3xl border p-5">
-        <h4 className="text-foreground text-base font-semibold">Add App Key</h4>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label
-              htmlFor="app-key-label"
-              className="text-foreground block text-sm font-medium"
-            >
+      <div className={`${settingsCardStackClass} space-y-5`}>
+        <h2 className={settingsCardTitleClass}>Add App Key</h2>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <div className="min-w-0 space-y-4">
+            <label htmlFor="app-key-label" className={settingsLabelClass}>
               Label (optional)
             </label>
             <Input
@@ -248,13 +254,13 @@ export function AppKeys() {
               value={labelInput}
               onChange={(event) => setLabelInput(event.target.value)}
               placeholder="Trading bot"
-              className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
+              className={settingsInputClass}
             />
           </div>
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-4">
             <label
               htmlFor="manual-app-key-input"
-              className="text-foreground block text-sm font-medium"
+              className={settingsLabelClass}
             >
               App Key Value (optional)
             </label>
@@ -264,26 +270,26 @@ export function AppKeys() {
               value={manualKeyInput}
               onChange={(event) => setManualKeyInput(event.target.value)}
               placeholder="Leave empty to auto-generate"
-              className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
+              className={settingsInputClass}
             />
-            <p className="text-muted-foreground text-sm">
+            <p className={settingsBodyTextClass}>
               Leave blank to create a secure generated key.
             </p>
           </div>
         </div>
 
-        <div>
-          <p className="text-foreground mb-2 text-sm font-medium">Apps</p>
+        <div className="min-w-0 space-y-4">
+          <p className={settingsCardTitleClass}>Apps</p>
           {loadingApps && (
-            <p className="text-muted-foreground text-sm">Loading apps...</p>
+            <p className={settingsBodyTextClass}>Loading apps...</p>
           )}
           {!loadingApps && availableApps.length === 0 && (
-            <p className="text-muted-foreground text-sm">
+            <p className={settingsBodyTextClass}>
               No apps available for this session.
             </p>
           )}
           {!loadingApps && availableApps.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-0 flex-wrap gap-3">
               {availableApps.map((app) => {
                 const selected = selectedApps.includes(app);
                 return (
@@ -291,10 +297,10 @@ export function AppKeys() {
                     key={app}
                     type="button"
                     onClick={() => toggleApp(app)}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`${settingsPillClass} ${
                       selected
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background text-foreground border-input hover:bg-accent"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background text-foreground hover:bg-accent"
                     }`}
                   >
                     {app}
@@ -305,23 +311,23 @@ export function AppKeys() {
           )}
         </div>
 
-        <div className="flex justify-end">
+        <div className={settingsActionRowClass}>
           <Button
             type="button"
             onClick={() => {
               void handleCreate();
             }}
             disabled={!canCreate}
-            className="rounded-full px-6"
+            className={settingsPrimaryButtonClass}
           >
             {creating ? "Creating..." : "Create app key"}
           </Button>
         </div>
 
         {createdAppKey && (
-          <div className="space-y-2 rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
-            <p className="text-foreground text-sm font-medium">New app key</p>
-            <p className="text-foreground break-all font-mono text-sm">
+          <div className="space-y-4 rounded-3xl border border-green-500/20 bg-green-500/5 p-6">
+            <p className={settingsLabelClass}>New app key</p>
+            <p className="text-foreground break-all font-mono text-sm leading-7">
               {createdAppKey}
             </p>
             <div className="flex gap-2">
@@ -348,69 +354,80 @@ export function AppKeys() {
         )}
       </div>
 
-      <div className="border-input bg-background overflow-x-auto rounded-3xl border p-2">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-muted-foreground text-left">
-              <th className="px-3 py-2">Key</th>
-              <th className="px-3 py-2">Label</th>
-              <th className="px-3 py-2">Apps</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Last used</th>
-              <th className="px-3 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loadingKeys && (
-              <tr>
-                <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  Loading app keys...
-                </td>
+      <div className="space-y-4">
+        <h2 className={settingsSubTitleClass}>Owned Keys</h2>
+        <div className={settingsTableCardClass}>
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground text-center">
+                <th className="px-3 py-2">Key</th>
+                <th className="px-3 py-2">Label</th>
+                <th className="px-3 py-2">Apps</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Last used</th>
+                <th className="px-3 py-2">Actions</th>
               </tr>
-            )}
-            {!loadingKeys && appKeys.length === 0 && (
-              <tr>
-                <td className="text-muted-foreground px-3 py-4" colSpan={6}>
-                  No app keys found.
-                </td>
-              </tr>
-            )}
-            {!loadingKeys &&
-              appKeys.map((key) => (
-                <tr key={key.key_hash} className="border-border border-t">
-                  <td className="text-foreground px-3 py-2 font-mono">
-                    {key.key_prefix}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {key.label || "-"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {key.apps.join(", ")}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {key.is_active ? "Active" : "Inactive"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {formatTs(key.last_used_at)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        void handleRemove(key);
-                      }}
-                      disabled={deletingHash === key.key_hash}
-                      className="rounded-full"
-                    >
-                      {deletingHash === key.key_hash ? "Removing..." : "Remove"}
-                    </Button>
+            </thead>
+            <tbody>
+              {loadingKeys && (
+                <tr>
+                  <td
+                    className="text-muted-foreground px-3 py-4 text-center"
+                    colSpan={6}
+                  >
+                    Loading app keys...
                   </td>
                 </tr>
-              ))}
-          </tbody>
-        </table>
+              )}
+              {!loadingKeys && appKeys.length === 0 && (
+                <tr>
+                  <td
+                    className="text-muted-foreground px-3 py-4 text-center"
+                    colSpan={6}
+                  >
+                    No app keys found.
+                  </td>
+                </tr>
+              )}
+              {!loadingKeys &&
+                appKeys.map((key) => (
+                  <tr key={key.key_hash} className="border-border border-t">
+                    <td className="text-foreground px-3 py-2 font-mono">
+                      {key.key_prefix}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {key.label || "-"}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {key.apps.join(", ")}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {key.is_active ? "Active" : "Inactive"}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {formatTs(key.last_used_at)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          void handleRemove(key);
+                        }}
+                        disabled={deletingHash === key.key_hash}
+                        className="rounded-full"
+                      >
+                        {deletingHash === key.key_hash
+                          ? "Removing..."
+                          : "Remove"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

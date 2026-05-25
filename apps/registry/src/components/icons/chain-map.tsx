@@ -3,6 +3,8 @@ import {
   ArbitrumIcon,
   BaseIcon,
   EthereumIcon,
+  LineaIcon,
+  MonadIcon,
   OptimismIcon,
   PolygonIcon,
   SepoliaIcon,
@@ -15,6 +17,10 @@ const CHAIN_ICONS: Record<number, FC<SVGProps<SVGSVGElement>>> = {
   8453: BaseIcon,
   10: OptimismIcon,
   11155111: SepoliaIcon,
+  59144: LineaIcon,
+  59141: LineaIcon,
+  143: MonadIcon,
+  10143: MonadIcon,
 };
 
 /**

@@ -47,12 +47,16 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  ALCHEMY_CHAIN_SLUGS: () => ALCHEMY_CHAIN_SLUGS,
   AomiClient: () => AomiClient,
+  CHAINS_BY_ID: () => CHAINS_BY_ID,
+  CHAIN_NAMES: () => CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI: () => CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI: () => CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG: () => DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE: () => DISABLED_PROVIDER_STATE,
   MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
+  SUPPORTED_CHAIN_IDS: () => SUPPORTED_CHAIN_IDS,
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
   UserState: () => UserState,
@@ -73,6 +77,8 @@ __export(index_exports, {
   isInlineCall: () => isInlineCall,
   isSystemError: () => isSystemError,
   isSystemNotice: () => isSystemNotice,
+  monad: () => monad,
+  monadTestnet: () => monadTestnet,
   normalizeEip712Payload: () => normalizeEip712Payload,
   normalizeSimulatedFee: () => normalizeSimulatedFee,
   normalizeSolanaSignPayload: () => normalizeSolanaSignPayload,
@@ -2228,6 +2234,92 @@ var ClientSession = class extends TypedEventEmitter {
   }
 };
 
+// src/chains.ts
+var import_viem2 = require("viem");
+var import_chains = require("viem/chains");
+var monad = (0, import_viem2.defineChain)({
+  id: 143,
+  name: "Monad",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Monad",
+    symbol: "MON"
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.monad.xyz"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Monad Explorer",
+      url: "https://monadexplorer.com"
+    }
+  }
+});
+var monadTestnet = (0, import_viem2.defineChain)({
+  id: 10143,
+  name: "Monad Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Monad",
+    symbol: "MON"
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://testnet-rpc.monad.xyz"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Monad Testnet Explorer",
+      url: "https://testnet.monadexplorer.com"
+    }
+  },
+  testnet: true
+});
+var SUPPORTED_CHAIN_IDS = [
+  1,
+  137,
+  42161,
+  8453,
+  10,
+  11155111,
+  143,
+  10143,
+  31337
+];
+var CHAIN_NAMES = {
+  1: "Ethereum",
+  137: "Polygon",
+  42161: "Arbitrum One",
+  8453: "Base",
+  10: "Optimism",
+  11155111: "Sepolia",
+  143: "Monad",
+  10143: "Monad Testnet",
+  31337: "Anvil (local)"
+};
+var ALCHEMY_CHAIN_SLUGS = {
+  1: "eth-mainnet",
+  137: "polygon-mainnet",
+  42161: "arb-mainnet",
+  8453: "base-mainnet",
+  10: "opt-mainnet",
+  11155111: "eth-sepolia"
+};
+var CHAINS_BY_ID = {
+  1: import_chains.mainnet,
+  137: import_chains.polygon,
+  42161: import_chains.arbitrum,
+  10: import_chains.optimism,
+  8453: import_chains.base,
+  11155111: import_chains.sepolia,
+  143: monad,
+  10143: monadTestnet,
+  31337: import_chains.foundry
+};
+
 // src/aa/types.ts
 function getAAChainConfig(config, calls, chainsById) {
   if (!config.enabled || calls.length === 0) {
@@ -2322,22 +2414,8 @@ var DISABLED_PROVIDER_STATE = {
 };
 
 // src/aa/execute.ts
-var import_viem2 = require("viem");
+var import_viem3 = require("viem");
 var import_accounts = require("viem/accounts");
-
-// src/chains.ts
-var import_chains = require("viem/chains");
-var CHAINS_BY_ID = {
-  1: import_chains.mainnet,
-  137: import_chains.polygon,
-  42161: import_chains.arbitrum,
-  10: import_chains.optimism,
-  8453: import_chains.base,
-  11155111: import_chains.sepolia,
-  31337: import_chains.foundry
-};
-
-// src/aa/execute.ts
 var ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
 var AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
 function normalizeRpcCallData(data) {
@@ -2470,7 +2548,7 @@ async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl) {
     const chain = CHAINS_BY_ID[chainId];
     if (!chain) return void 0;
     const rpcUrl = getPreferredRpcUrl(chain);
-    const client = (0, import_viem2.createPublicClient)({ chain, transport: (0, import_viem2.http)(rpcUrl) });
+    const client = (0, import_viem3.createPublicClient)({ chain, transport: (0, import_viem3.http)(rpcUrl) });
     const tx = await client.getTransaction({ hash: txHash });
     const authList = tx.authorizationList;
     const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
@@ -2519,10 +2597,10 @@ async function executeViaEoa({
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
       const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
-      const walletClient = (0, import_viem2.createWalletClient)({
+      const walletClient = (0, import_viem3.createWalletClient)({
         account,
         chain,
-        transport: (0, import_viem2.http)(rpcUrl)
+        transport: (0, import_viem3.http)(rpcUrl)
       });
       const hash = await walletClient.sendTransaction({
         account,
@@ -2530,9 +2608,9 @@ async function executeViaEoa({
         value: call.value,
         data: call.data
       });
-      const publicClient = (0, import_viem2.createPublicClient)({
+      const publicClient = (0, import_viem3.createPublicClient)({
         chain,
-        transport: (0, import_viem2.http)(rpcUrl)
+        transport: (0, import_viem3.http)(rpcUrl)
       });
       await publicClient.waitForTransactionReceipt({ hash });
       hashes.push(hash);
@@ -2742,7 +2820,7 @@ function resolveChainCapabilities(capabilities, chainId) {
 }
 
 // src/aa/fee.ts
-var import_viem3 = require("viem");
+var import_viem4 = require("viem");
 var MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
 var ZERO_WEI = BigInt("0");
 function toPayloadCalls(payload, defaultChainId) {
@@ -2775,7 +2853,7 @@ function normalizeSimulatedFee(fee) {
     throw new Error("fee_exceeds_safety_limit");
   }
   return {
-    recipient: (0, import_viem3.getAddress)(fee.recipient),
+    recipient: (0, import_viem4.getAddress)(fee.recipient),
     amountWei
   };
 }
@@ -3687,12 +3765,16 @@ async function createAAProviderState(options) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  ALCHEMY_CHAIN_SLUGS,
   AomiClient,
+  CHAINS_BY_ID,
+  CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
   DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE,
   MAX_AUTO_FEE_WEI,
+  SUPPORTED_CHAIN_IDS,
   Session,
   TypedEventEmitter,
   UserState,
@@ -3713,6 +3795,8 @@ async function createAAProviderState(options) {
   isInlineCall,
   isSystemError,
   isSystemNotice,
+  monad,
+  monadTestnet,
   normalizeEip712Payload,
   normalizeSimulatedFee,
   normalizeSolanaSignPayload,
