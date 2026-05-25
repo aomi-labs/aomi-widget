@@ -79,6 +79,10 @@ export class CliSession {
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
+      // Carry forward the persisted Solana private key so `wallet set --solana`
+      // survives `--new-session` — signing key is a user preference, not a
+      // per-session artifact.
+      svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
     };
@@ -218,6 +222,19 @@ export class CliSession {
     this.state.privateKey = privateKey;
     this.state.publicKey = publicKey;
     this.save();
+  }
+
+  setSvmWallet(privateKey: string, publicKey: string): void {
+    this.state.svmPrivateKey = privateKey;
+    this.state.svmPublicKey = publicKey;
+    this.save();
+  }
+
+  /** The Solana private key to use for signing. Prefers the transiently-
+   * supplied `solanaPrivateKey` from `CliConfig` (i.e. `--solana-private-key`)
+   * and falls back to the key persisted by `wallet set --solana`. */
+  resolvedSvmPrivateKey(fromConfig?: string): string | undefined {
+    return fromConfig ?? this.state.svmPrivateKey;
   }
 
   setChainId(id: number): void {

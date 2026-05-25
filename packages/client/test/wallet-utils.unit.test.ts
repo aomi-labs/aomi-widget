@@ -234,4 +234,26 @@ describe("wallet payload normalization", () => {
       },
     });
   });
+
+  it("normalizes backend svm message_sign payloads into a Solana message-sign request", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        request_kind: "message_sign",
+        kind: "svm_message",
+        message_base64: "TWVtbw==",
+        cluster: "solana:devnet",
+        description: "sign login proof",
+        pending_solana_id: 17,
+      }),
+    ).toEqual({
+      kind: "solana_sign_message",
+      payload: {
+        message: "TWVtbw==",
+        description: "sign login proof",
+        cluster: "solana:devnet",
+        pendingSolanaId: 17,
+      },
+    });
+  });
 });

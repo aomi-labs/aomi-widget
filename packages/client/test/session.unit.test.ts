@@ -768,6 +768,57 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("emits wallet_solana_sign_message_request from a wallet::solana_sign_request message_sign InlineCall", async () => {
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-solana-message-sign-1",
+    });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            chain_kind: "svm",
+            request_kind: "message_sign",
+            kind: "svm_message",
+            message_base64: "TWVtbw==",
+            description: "sign login proof",
+            cluster: "solana:devnet",
+            pending_solana_id: 17,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_sign_message_request", resolve);
+    });
+
+    await session.sendAsync("sign solana message");
+    const request = (await requestPromise) as {
+      id: string;
+      kind: string;
+      payload: {
+        message?: string;
+        description?: string;
+        cluster?: string;
+        pendingSolanaId?: number;
+      };
+    };
+
+    expect(request.id).toBe("solana_sign_message-17");
+    expect(request.kind).toBe("solana_sign_message");
+    expect(request.payload.message).toBe("TWVtbw==");
+    expect(request.payload.description).toBe("sign login proof");
+    expect(request.payload.cluster).toBe("solana:devnet");
+    expect(request.payload.pendingSolanaId).toBe(17);
+
+    session.close();
+  });
+
   it("posts wallet::solana_sign_complete with signed_tx on resolve", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-solana-2" });

@@ -248,6 +248,9 @@ function inferSolanaRequestKind(
   switch (rawKind) {
     case "solana_sign_message":
     case "sign_message":
+    case "message_sign":
+    case "svm_message":
+    case "svm_sign_message":
       return "solana_sign_message";
     case "solana_send":
     case "send_transaction":
@@ -1035,6 +1038,36 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.emit("wallet_eip712_request", req);
       } else if (unwrapped.type === "wallet::solana_sign_request") {
         this.logger?.debug("[session] solana_sign_request raw payload", unwrapped.payload);
+        const solanaRequest = normalizeSolanaWalletRequest(unwrapped.payload ?? {});
+        if (solanaRequest) {
+          if (solanaRequest.kind === "solana_sign_message") {
+            const req = this.enqueueWalletRequest(
+              "solana_sign_message",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_sign_message_request", req);
+          } else if (solanaRequest.kind === "solana_send") {
+            const req = this.enqueueWalletRequest(
+              "solana_send",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_send_request", req);
+          } else if (solanaRequest.kind === "solana_sign_and_send") {
+            const req = this.enqueueWalletRequest(
+              "solana_sign_and_send",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_sign_and_send_request", req);
+          } else {
+            const req = this.enqueueWalletRequest(
+              "solana_sign",
+              solanaRequest.payload,
+            );
+            this.emit("wallet_solana_sign_request", req);
+          }
+          continue;
+        }
+
         const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
         const req = this.enqueueWalletRequest("solana_sign", payload);
         this.emit("wallet_solana_sign_request", req);

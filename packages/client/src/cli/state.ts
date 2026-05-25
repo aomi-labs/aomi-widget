@@ -104,6 +104,10 @@ export type CliSessionState = {
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
   svmPublicKey?: string;
+  /** Solana private key (base58), persisted by `wallet set --solana`. Used as
+   * the signing key fallback when `--solana-private-key` is not passed on a
+   * command. Never printed in output. */
+  svmPrivateKey?: string;
   chainId?: number;
   aaMode?: UserStateAAMode | null;
   smartAccount?: string | null;
@@ -187,6 +191,8 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
+    svmPublicKey: stored.svmPublicKey,
+    svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     pendingSolTxs: stored.pendingSolTxs,
@@ -215,6 +221,8 @@ function readStoredSession(path: string): StoredSessionState | null {
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
+      svmPublicKey: parsed.svmPublicKey,
+      svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       pendingSolTxs: parsed.pendingSolTxs,

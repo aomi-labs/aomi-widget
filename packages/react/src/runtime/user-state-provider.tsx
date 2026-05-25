@@ -298,18 +298,28 @@ function useRemoteThreadListSync(
       previousAddress !== normalizedUserAddress;
 
     if (!userAddress) {
+      // Only tear down sessions when the user *actually disconnected* a
+      // previously-connected wallet.  When the user was never connected (e.g.
+      // anonymous chat), Para/wagmi fires multiple identity state changes
+      // during initialization that all land here with no address — those must
+      // not wipe the active session or reset the thread, otherwise the
+      // assistant response disappears mid-flight.
+      const wasPreviouslyConnected = lastConnectedAddressRef.current !== undefined;
       lastConnectedAddressRef.current = undefined;
-      const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
-      const hadSessions = sessionManager.size > 0;
       setIsThreadListLoading(false);
       prefetchCancelRef.current?.();
       prefetchCancelRef.current = null;
-      remoteThreadIdsRef.current.clear();
-      warmedThreadIdsRef.current.clear();
-      warmPromisesRef.current.clear();
-      closeAllSessions();
-      if (hadRemoteThreads || hadSessions) {
-        threadContextRef.current.resetToDefault();
+
+      if (wasPreviouslyConnected) {
+        const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
+        const hadSessions = sessionManager.size > 0;
+        remoteThreadIdsRef.current.clear();
+        warmedThreadIdsRef.current.clear();
+        warmPromisesRef.current.clear();
+        closeAllSessions();
+        if (hadRemoteThreads || hadSessions) {
+          threadContextRef.current.resetToDefault();
+        }
       }
       return;
     }

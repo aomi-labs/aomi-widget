@@ -28,6 +28,11 @@ var __export = (target, all) => {
 };
 
 // src/cli/errors.ts
+var errors_exports = {};
+__export(errors_exports, {
+  CliExit: () => CliExit,
+  fatal: () => fatal
+});
 function fatal(message) {
   const RED = "\x1B[31m";
   const DIM2 = "\x1B[2m";
@@ -138,6 +143,24 @@ var init_validation = __esm({
 
 // src/cli/commands/defs/shared.ts
 import { privateKeyToAccount } from "viem/accounts";
+function parseSvmCluster(raw) {
+  if (!raw) return void 0;
+  const lower = raw.trim().toLowerCase();
+  switch (lower) {
+    case "mainnet-beta":
+    case "mainnet":
+    case "solana:mainnet":
+      return "solana:mainnet";
+    case "devnet":
+    case "solana:devnet":
+      return "solana:devnet";
+    case "testnet":
+    case "solana:testnet":
+      return "solana:testnet";
+    default:
+      fatal(`Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`);
+  }
+}
 function str(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
@@ -162,7 +185,7 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
@@ -182,17 +205,21 @@ function buildCliConfig(args) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
   const solanaPrivateKey = (_e = str(args["solana-private-key"])) != null ? _e : process.env.SOLANA_PRIVATE_KEY;
+  const svmCluster = parseSvmCluster(
+    (_f = str(args.cluster)) != null ? _f : process.env.AOMI_SOLANA_CLUSTER
+  );
   return {
-    baseUrl: (_f = str(args["backend-url"])) != null ? _f : process.env.AOMI_BACKEND_URL,
-    apiKey: (_g = str(args["api-key"])) != null ? _g : process.env.AOMI_API_KEY,
-    app: (_h = str(args.app)) != null ? _h : process.env.AOMI_APP,
-    model: (_i = str(args.model)) != null ? _i : process.env.AOMI_MODEL,
+    baseUrl: (_g = str(args["backend-url"])) != null ? _g : process.env.AOMI_BACKEND_URL,
+    apiKey: (_h = str(args["api-key"])) != null ? _h : process.env.AOMI_API_KEY,
+    app: (_i = str(args.app)) != null ? _i : process.env.AOMI_APP,
+    model: (_j = str(args.model)) != null ? _j : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
     solanaPrivateKey,
-    chainRpcUrl: (_j = str(args["rpc-url"])) != null ? _j : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_k = str(args.chain)) != null ? _k : process.env.AOMI_CHAIN_ID),
+    svmCluster,
+    chainRpcUrl: (_k = str(args["rpc-url"])) != null ? _k : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_l = str(args.chain)) != null ? _l : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
@@ -248,6 +275,10 @@ var init_shared = __esm({
       "solana-private-key": {
         type: "string",
         description: "Solana keypair secret (base58 secret key, or JSON byte array) for signing solana_sign requests"
+      },
+      cluster: {
+        type: "string",
+        description: 'Solana cluster override: "mainnet-beta" (default), "devnet", or "testnet". Also accepts CAIP-2 form "solana:mainnet" / "solana:devnet" / "solana:testnet".'
       },
       "rpc-url": {
         type: "string",
@@ -858,7 +889,9 @@ var init_client = __esm({
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
           getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
-          fetchImpl: this.fetchImpl,
+          // Keep SSE on the browser-native fetch path. Payment/auth wrappers used
+          // by some web runtimes can delay or buffer streaming responses.
+          fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
       }
@@ -874,7 +907,7 @@ var init_client = __esm({
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
         });
-        const response = await this.fetchImpl(url, {
+        const response = await this.rawFetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
@@ -1452,6 +1485,9 @@ function inferSolanaRequestKind(payload) {
   switch (rawKind) {
     case "solana_sign_message":
     case "sign_message":
+    case "message_sign":
+    case "svm_message":
+    case "svm_sign_message":
       return "solana_sign_message";
     case "solana_send":
     case "send_transaction":
@@ -1795,6 +1831,9 @@ function inferSolanaRequestKind2(payload) {
   switch (rawKind) {
     case "solana_sign_message":
     case "sign_message":
+    case "message_sign":
+    case "svm_message":
+    case "svm_sign_message":
       return "solana_sign_message";
     case "solana_send":
     case "send_transaction":
@@ -2284,7 +2323,7 @@ var init_session = __esm({
         }
       }
       dispatchSystemEvents(events) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
         for (const event of events) {
           const unwrapped = unwrapSystemEvent(event);
           if (!unwrapped) continue;
@@ -2333,21 +2372,50 @@ var init_session = __esm({
             this.emit("wallet_eip712_request", req);
           } else if (unwrapped.type === "wallet::solana_sign_request") {
             (_d = this.logger) == null ? void 0 : _d.debug("[session] solana_sign_request raw payload", unwrapped.payload);
-            const payload = normalizeSolanaSignPayload((_e = unwrapped.payload) != null ? _e : {});
+            const solanaRequest = normalizeSolanaWalletRequest((_e = unwrapped.payload) != null ? _e : {});
+            if (solanaRequest) {
+              if (solanaRequest.kind === "solana_sign_message") {
+                const req2 = this.enqueueWalletRequest(
+                  "solana_sign_message",
+                  solanaRequest.payload
+                );
+                this.emit("wallet_solana_sign_message_request", req2);
+              } else if (solanaRequest.kind === "solana_send") {
+                const req2 = this.enqueueWalletRequest(
+                  "solana_send",
+                  solanaRequest.payload
+                );
+                this.emit("wallet_solana_send_request", req2);
+              } else if (solanaRequest.kind === "solana_sign_and_send") {
+                const req2 = this.enqueueWalletRequest(
+                  "solana_sign_and_send",
+                  solanaRequest.payload
+                );
+                this.emit("wallet_solana_sign_and_send_request", req2);
+              } else {
+                const req2 = this.enqueueWalletRequest(
+                  "solana_sign",
+                  solanaRequest.payload
+                );
+                this.emit("wallet_solana_sign_request", req2);
+              }
+              continue;
+            }
+            const payload = normalizeSolanaSignPayload((_f = unwrapped.payload) != null ? _f : {});
             const req = this.enqueueWalletRequest("solana_sign", payload);
             this.emit("wallet_solana_sign_request", req);
           } else if (unwrapped.type === "wallet::solana_sign_message_request") {
             const payload = normalizeSolanaSignMessagePayload(
-              (_f = unwrapped.payload) != null ? _f : {}
+              (_g = unwrapped.payload) != null ? _g : {}
             );
             const req = this.enqueueWalletRequest("solana_sign_message", payload);
             this.emit("wallet_solana_sign_message_request", req);
           } else if (unwrapped.type === "wallet::solana_send_request") {
-            const payload = normalizeSolanaSignPayload((_g = unwrapped.payload) != null ? _g : {});
+            const payload = normalizeSolanaSignPayload((_h = unwrapped.payload) != null ? _h : {});
             const req = this.enqueueWalletRequest("solana_send", payload);
             this.emit("wallet_solana_send_request", req);
           } else if (unwrapped.type === "wallet::solana_sign_and_send_request") {
-            const payload = normalizeSolanaSignPayload((_h = unwrapped.payload) != null ? _h : {});
+            const payload = normalizeSolanaSignPayload((_i = unwrapped.payload) != null ? _i : {});
             const req = this.enqueueWalletRequest("solana_sign_and_send", payload);
             this.emit("wallet_solana_sign_and_send_request", req);
           } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
@@ -2693,23 +2761,25 @@ function buildCliUserState(publicKey, chainId, options) {
   const app = (_a3 = options == null ? void 0 : options.app) == null ? void 0 : _a3.trim().toLowerCase();
   const publicKeyIsSolana = publicKey !== void 0 && !publicKey.trim().startsWith("0x");
   const publicKeyIsEvm = publicKey !== void 0 && publicKey.trim().startsWith("0x");
-  const isSolanaApp = !publicKeyIsEvm && (app === "sol" || app === "solana" || app === "svm" || app === "byreal" || publicKeyIsSolana || (options == null ? void 0 : options.svmAddress) !== void 0);
   const svmAddress = (_b = options == null ? void 0 : options.svmAddress) != null ? _b : publicKeyIsSolana ? publicKey : void 0;
-  const anyConnected = (isSolanaApp ? svmAddress : publicKey) !== void 0;
+  const hasBoth = publicKeyIsEvm && svmAddress !== void 0;
+  const isSolanaApp = !hasBoth && !publicKeyIsEvm && (app === "sol" || app === "solana" || app === "svm" || app === "byreal" || publicKeyIsSolana || svmAddress !== void 0);
+  const primaryFamily = hasBoth ? "evm" : isSolanaApp ? "solana" : "evm";
+  const anyConnected = hasBoth ? true : (isSolanaApp ? svmAddress : publicKey) !== void 0;
   const userState = {
     connection: {
       is_connected: anyConnected ? true : void 0,
-      primary_family: anyConnected ? isSolanaApp ? "solana" : "evm" : void 0
+      primary_family: anyConnected ? primaryFamily : void 0
     },
-    evm: isSolanaApp ? void 0 : {
+    evm: hasBoth || !isSolanaApp ? {
       address: publicKey,
       chain_id: chainId,
       aa: {
         mode: (_c = options == null ? void 0 : options.aaMode) != null ? _c : null,
         smart_account: (_d = options == null ? void 0 : options.smartAccount) != null ? _d : null
       }
-    },
-    solana: isSolanaApp ? {
+    } : void 0,
+    solana: hasBoth || isSolanaApp ? {
       address: svmAddress != null ? svmAddress : publicKey,
       // Default to mainnet when an SVM address is present; the backend
       // falls back to "devnet" when cluster is absent which causes mainnet
@@ -2936,6 +3006,8 @@ function toCliSessionState(stored) {
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
+    svmPublicKey: stored.svmPublicKey,
+    svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
     pendingTxs: stored.pendingTxs,
     pendingSolTxs: stored.pendingSolTxs,
@@ -2962,6 +3034,8 @@ function readStoredSession(path) {
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
+      svmPublicKey: parsed.svmPublicKey,
+      svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
       pendingTxs: parsed.pendingTxs,
       pendingSolTxs: parsed.pendingSolTxs,
@@ -3346,7 +3420,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -3364,7 +3438,11 @@ var init_cli_session = __esm({
           publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
           privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
-          chainId: (_h = config.chain) != null ? _h : seed == null ? void 0 : seed.chainId,
+          // Carry forward the persisted Solana private key so `wallet set --solana`
+          // survives `--new-session` — signing key is a user preference, not a
+          // per-session artifact.
+          svmPrivateKey: (_h = config.solanaPrivateKey) != null ? _h : seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_i = config.chain) != null ? _i : seed == null ? void 0 : seed.chainId,
           secretHandles: seed == null ? void 0 : seed.secretHandles
         };
         const cli = new _CliSession(state);
@@ -3495,6 +3573,17 @@ var init_cli_session = __esm({
         this.state.privateKey = privateKey;
         this.state.publicKey = publicKey;
         this.save();
+      }
+      setSvmWallet(privateKey, publicKey) {
+        this.state.svmPrivateKey = privateKey;
+        this.state.svmPublicKey = publicKey;
+        this.save();
+      }
+      /** The Solana private key to use for signing. Prefers the transiently-
+       * supplied `solanaPrivateKey` from `CliConfig` (i.e. `--solana-private-key`)
+       * and falls back to the key persisted by `wallet set --solana`. */
+      resolvedSvmPrivateKey(fromConfig) {
+        return fromConfig != null ? fromConfig : this.state.svmPrivateKey;
       }
       setChainId(id) {
         this.state.chainId = id;
@@ -3882,7 +3971,8 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
     app: config.app,
     aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
     smartAccount: (_b = next.smartAccount) != null ? _b : null,
-    svmAddress: next.svmAddress
+    svmAddress: next.svmAddress,
+    svmCluster: config.svmCluster
   });
   session.resolveUserState(userState);
   await session.syncUserState();
@@ -3896,12 +3986,11 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
   );
 }
 async function chatCommand(config, message, verbose) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e;
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
   const previousCli = config.freshSession ? null : CliSession.load();
-  const svmAddress = deriveSvmAddress(config.solanaPrivateKey);
   const previousWallet = previousCli ? {
     publicKey: previousCli.publicKey,
     chainId: previousCli.chainId,
@@ -3912,6 +4001,8 @@ async function chatCommand(config, message, verbose) {
   } : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
+  const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
+  const svmAddress = (_c = deriveSvmAddress(resolvedSolanaKey)) != null ? _c : cli.svmPublicKey;
   try {
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
@@ -3921,8 +4012,8 @@ async function chatCommand(config, message, verbose) {
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
-        aaMode: (_c = cli.toState().aaMode) != null ? _c : null,
-        smartAccount: (_d = cli.toState().smartAccount) != null ? _d : null,
+        aaMode: (_d = cli.toState().aaMode) != null ? _d : null,
+        smartAccount: (_e = cli.toState().smartAccount) != null ? _e : null,
         svmAddress
       },
       cli,
@@ -5716,12 +5807,13 @@ async function simulatePendingTransactions(params) {
 async function signSolanaPending(params) {
   var _a3;
   const { cli, session, config, pendingTx } = params;
-  const secret = (_a3 = config.solanaPrivateKey) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
+  const secret = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
   if (!secret) {
     fatal(
       [
         "Solana keypair required for `aomi tx sign` on a solana_sign request.",
         "Pass one of:",
+        "  aomi wallet set --solana <base58-key>             # persist once",
         "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
         "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
         "",
@@ -6684,13 +6776,21 @@ function currentWalletCommand() {
     printDataFileLocation();
     return;
   }
-  if (!cli.publicKey) {
+  const state = cli.toState();
+  const hasAny = cli.publicKey || state.svmPublicKey;
+  if (!hasAny) {
     console.log("No wallet configured");
     printDataFileLocation();
     return;
   }
-  const signerStatus = cli.privateKey ? "saved signer" : "address only";
-  console.log(`${cli.publicKey} (${signerStatus})`);
+  if (cli.publicKey) {
+    const signerStatus = cli.privateKey ? "saved signer" : "address only";
+    console.log(`EVM:    ${cli.publicKey} (${signerStatus})`);
+  }
+  if (state.svmPublicKey) {
+    const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
+    console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
+  }
   printDataFileLocation();
 }
 function currentModelCommand() {
@@ -6871,6 +6971,7 @@ var preferences_exports = {};
 __export(preferences_exports, {
   setBackendCommand: () => setBackendCommand,
   setChainCommand: () => setChainCommand,
+  setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
 import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
@@ -6886,12 +6987,28 @@ function loadOrCreateForSettings() {
 function setWalletCommand(privateKeyInput) {
   const privateKey = normalizePrivateKey(privateKeyInput);
   if (!privateKey) {
-    fatal("Usage: aomi wallet set <private-key>");
+    fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
   const account = privateKeyToAccount7(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
-  console.log(`Wallet set to ${account.address}`);
+  console.log(`EVM wallet set to ${account.address}`);
+  printDataFileLocation();
+}
+function setSvmWalletCommand(keyInput) {
+  let keypair;
+  try {
+    keypair = parseSolanaKeypairSecret(keyInput.trim());
+  } catch (err) {
+    fatal(
+      `Invalid Solana private key: ${err instanceof Error ? err.message : err}
+Usage: aomi wallet set --solana <base58-secret-key>`
+    );
+  }
+  const publicKey = keypair.publicKey.toBase58();
+  const cli = loadOrCreateForSettings();
+  cli.setSvmWallet(keyInput.trim(), publicKey);
+  console.log(`Solana wallet set to ${publicKey}`);
   printDataFileLocation();
 }
 function setChainCommand(chainIdInput) {
@@ -6921,6 +7038,7 @@ var init_preferences = __esm({
     init_output();
     init_validation();
     init_errors();
+    init_solana_signer();
   }
 });
 
@@ -7534,17 +7652,44 @@ var chainDef = defineCommand6({
 // src/cli/commands/defs/wallet.ts
 import { defineCommand as defineCommand7 } from "citty";
 var walletSetDef = defineCommand7({
-  meta: { name: "set", description: "Persist a signing key and derived wallet address" },
+  meta: {
+    name: "set",
+    description: "Persist a signing key and derived wallet address. Defaults to EVM (hex key). Pass --solana for a Solana keypair (base58)."
+  },
   args: {
     privateKey: {
       type: "positional",
-      description: "Hex private key",
-      required: true
+      description: "Hex EVM private key (default) or Solana base58 key when --solana is set",
+      required: false
+    },
+    evm: {
+      type: "string",
+      description: "EVM hex private key to persist (alternative to positional)",
+      alias: ["e"]
+    },
+    solana: {
+      type: "string",
+      description: "Solana base58 secret key to persist",
+      alias: ["s"]
     }
   },
   async run({ args }) {
+    var _a3;
+    const solanaKey = args.solana;
+    if (solanaKey) {
+      const { setSvmWalletCommand: setSvmWalletCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
+      setSvmWalletCommand2(solanaKey);
+      return;
+    }
+    const evmKey = (_a3 = args.evm) != null ? _a3 : args.privateKey;
+    if (!evmKey) {
+      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
+      fatal2(
+        "Usage:\n  aomi wallet set <evm-hex-key>          # EVM (default)\n  aomi wallet set --evm <evm-hex-key>    # EVM (explicit)\n  aomi wallet set --solana <base58-key>  # Solana"
+      );
+    }
     const { setWalletCommand: setWalletCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
-    setWalletCommand2(args.privateKey);
+    setWalletCommand2(evmKey);
   }
 });
 var walletCurrentDef = defineCommand7({

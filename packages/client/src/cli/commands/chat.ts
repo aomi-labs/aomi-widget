@@ -107,6 +107,7 @@ export async function syncWalletStateForChat(
     aaMode: next.aaMode ?? null,
     smartAccount: next.smartAccount ?? null,
     svmAddress: next.svmAddress,
+    svmCluster: config.svmCluster,
   });
 
   session.resolveUserState(userState);
@@ -128,11 +129,6 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
   }
 
   const previousCli = config.freshSession ? null : CliSession.load();
-  const svmAddress = deriveSvmAddress(config.solanaPrivateKey);
-  // Always treat previousSvmAddress as undefined so we re-sync every chat when a
-  // Solana keypair is present. Unlike EVM (which stores privateKey in the session
-  // and can detect change), the Solana keypair is CLI-flag-only and we have no
-  // record of whether the backend has been told about it yet for this session.
   const previousWallet = previousCli
     ? {
         publicKey: previousCli.publicKey,
@@ -144,6 +140,12 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
     : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
+
+  // Resolve Solana address after session is created/loaded so we pick up the
+  // key persisted by `wallet set --solana` even for `--new-session` flows
+  // (the key is seeded from the previous session into the new one in create()).
+  const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
+  const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;
 
   try {
     await ingestSecretsForSession(config, cli, session.client);

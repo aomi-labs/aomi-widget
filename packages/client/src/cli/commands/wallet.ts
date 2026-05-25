@@ -223,12 +223,14 @@ async function signSolanaPending(params: {
   pendingTx: PendingSolTx;
 }): Promise<void> {
   const { cli, session, config, pendingTx } = params;
-  const secret = config.solanaPrivateKey ?? process.env.SOLANA_PRIVATE_KEY;
+  const secret =
+    cli.resolvedSvmPrivateKey(config.solanaPrivateKey) ?? process.env.SOLANA_PRIVATE_KEY;
   if (!secret) {
     fatal(
       [
         "Solana keypair required for `aomi tx sign` on a solana_sign request.",
         "Pass one of:",
+        "  aomi wallet set --solana <base58-key>             # persist once",
         "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
         "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
         "",
