@@ -84,6 +84,57 @@ export function RuntimeTxHandler() {
       processingRef.current = false;
     });
 
+    /**
+     * Best-effort: switch the active Solana cluster to match the request's
+     * CAIP-2 cluster string before signing. Mirrors how the EVM signTypedData
+     * branch calls `adapter.switchChain` when `domain.chainId` differs.
+     *
+     * - No-op when the request didn't specify a cluster.
+     * - No-op when the adapter doesn't expose `selectNetwork` (single-network
+     *   builds).
+     * - No-op when the active Solana network already matches the request.
+     * - If a switch is needed but the adapter says
+     *   `solanaNetworkSwitchRequiresReconnect`, we don't tear the wallet down
+     *   from under the user — fall through and let the wallet either accept
+     *   the tx as-is (matching cluster) or reject it (mismatched cluster
+     *   surfaces as a normal wallet error).
+     */
+    async function maybeSwitchSolanaCluster(
+      requestedCluster: string | undefined,
+    ): Promise<void> {
+      if (!requestedCluster) return;
+      if (!adapter.selectNetwork || !adapter.supportedNetworks?.solana) return;
+      const target = adapter.supportedNetworks.solana.find(
+        (n) => n.cluster === requestedCluster,
+      );
+      if (!target) return;
+      const active = adapter.activeNetwork;
+      if (
+        active &&
+        active.family === "solana" &&
+        active.networkId === target.id
+      ) {
+        return;
+      }
+      if (adapter.solanaNetworkSwitchRequiresReconnect) {
+        // The wallet currently has a session against a different cluster.
+        // Don't silently disconnect the user — they'll see the wallet's
+        // own cluster-mismatch UI on the sign prompt instead.
+        return;
+      }
+      try {
+        await adapter.selectNetwork({
+          family: "solana",
+          networkId: target.id,
+        });
+      } catch (error) {
+        console.warn(
+          "[RuntimeTxHandler] Solana cluster auto-switch failed",
+          error,
+        );
+      }
+    }
+
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "transaction") {
@@ -136,9 +187,12 @@ export function RuntimeTxHandler() {
         }
 
         if (req.kind === "solana_sign") {
-          // No simulation, no fee injection, no chain switching — host
-          // doesn't have a Solana fork simulator and apps own RPC routing.
-          // Just sign the base64 unsigned tx and return base64 signed bytes.
+          // No simulation or fee injection — host doesn't have a Solana
+          // fork simulator and apps own RPC routing. We DO auto-switch the
+          // active Solana cluster to match the request's cluster (mirroring
+          // what the EVM eip712_sign branch does for `domain.chainId`):
+          // otherwise a request targeted at mainnet while the wallet is on
+          // devnet silently produces a tx for the wrong network.
           if (!adapter.signSolanaTransaction) {
             await rejectWalletRequest(
               req.id,
@@ -150,6 +204,7 @@ export function RuntimeTxHandler() {
             await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
             return;
           }
+          await maybeSwitchSolanaCluster(req.payload.cluster);
 
           const result = await adapter.signSolanaTransaction(req.payload);
           await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
@@ -185,6 +240,7 @@ export function RuntimeTxHandler() {
             await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
             return;
           }
+          await maybeSwitchSolanaCluster(req.payload.cluster);
 
           if (
             req.kind === "solana_sign_and_send" &&

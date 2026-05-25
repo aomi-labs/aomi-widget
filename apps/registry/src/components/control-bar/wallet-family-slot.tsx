@@ -44,16 +44,24 @@ export const WalletFamilySlot: FC<WalletFamilySlotProps> = ({ family, className 
   const primaryLabel = connected ? addressLabel : connectLabel;
 
   const handleClick = () => {
+    // Connect path comes first: a slot for a family that isn't connected
+    // yet should always offer "Connect <family>", even if the OTHER
+    // family is already connected (otherwise `canOpenAccountUI` would
+    // intercept and re-open the existing connection's account UI).
+    if (!connected && adapter.canConnect) {
+      void adapter.connect({ family });
+      return;
+    }
+    // Connected slots offer the Para account modal if available
+    // (which itself surfaces Disconnect / Switch options). Falling back
+    // to a direct adapter.disconnect() keeps the slot useful for adapter
+    // implementations that don't expose an account modal.
     if (connected && adapter.canOpenAccountUI && adapter.openAccountUI) {
       void adapter.openAccountUI({ family });
       return;
     }
     if (connected && adapter.canDisconnect && adapter.disconnect) {
-      void adapter.disconnect();
-      return;
-    }
-    if (!connected && adapter.canConnect) {
-      void adapter.connect({ family });
+      void adapter.disconnect({ family });
     }
   };
 
