@@ -51,6 +51,8 @@ import {
 } from "@aomi-labs/react";
 import {
   createAAProviderState,
+  monad,
+  monadTestnet,
   type AAMode,
   type AAProvider,
 } from "@aomi-labs/client";
@@ -164,6 +166,8 @@ const defaultNetworks = [
   sepolia,
   linea,
   lineaSepolia,
+  monad,
+  monadTestnet,
 ] as const;
 
 const defaultExternalWallets: TExternalWallet[] = [
