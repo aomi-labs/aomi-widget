@@ -13,6 +13,7 @@ import {
   setAomiClientConfig,
 } from "./test-harness";
 import type { AomiChatResponse } from "@aomi-labs/client";
+import { toInboundMessage } from "../utils";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -24,6 +25,24 @@ afterEach(() => {
 
 describe("Chat API", () => {
   describe("sendMessage", () => {
+    it("keeps streaming placeholders empty and drops completed empty assistant messages", () => {
+      const streaming = toInboundMessage({
+        sender: "agent",
+        content: "",
+        is_streaming: true,
+      });
+
+      expect(streaming).toMatchObject({ role: "assistant", content: [] });
+
+      expect(
+        toInboundMessage({
+          sender: "agent",
+          content: "",
+          is_streaming: false,
+        }),
+      ).toBeNull();
+    });
+
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({
@@ -117,7 +136,7 @@ describe("Chat API", () => {
       });
     });
 
-    it("adds an inline x402 credits notice when the backend returns 402", async () => {
+    it("adds an inline payment notice and popup when the backend returns 402", async () => {
       const createThread = vi.fn();
       const deleteThread = vi.fn(async () => undefined);
       const setModel = vi.fn(async () => ({ rig: "auto-model" }));
@@ -132,7 +151,7 @@ describe("Chat API", () => {
         postChatMessage,
       });
 
-      const { api, control } = renderRuntime();
+      const { api, control, getApi } = renderRuntime();
 
       await act(async () => {
         await control.getAvailableModels();
@@ -171,9 +190,15 @@ describe("Chat API", () => {
       expect(messages[1].content).toEqual([
         {
           type: "text",
-          text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
+          text: "You're out of funds, please set up a payment method.",
         },
       ]);
+      expect(getApi().notifications).toHaveLength(1);
+      expect(getApi().notifications[0]).toMatchObject({
+        type: "error",
+        title: "You're out of funds",
+        message: "You're out of funds, please set up a payment method.",
+      });
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
       expect(setModel).toHaveBeenCalledWith(
         api.currentThreadId,

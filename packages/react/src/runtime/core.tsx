@@ -118,8 +118,17 @@ export function AomiRuntimeCore({
       const wasMaterializedForSend =
         threadsMaterializedForSendRef.current.has(threadId);
       threadsMaterializedForSendRef.current.delete(threadId);
+      const httpStatus = getHttpStatus(error);
 
-      if (getHttpStatus(error) !== 402 || !wasMaterializedForSend) {
+      if (httpStatus === 402) {
+        notificationContext.showNotification({
+          type: "error",
+          title: "You're out of funds",
+          message: "You're out of funds, please set up a payment method.",
+        });
+      }
+
+      if (httpStatus !== 402 || !wasMaterializedForSend) {
         return;
       }
 
