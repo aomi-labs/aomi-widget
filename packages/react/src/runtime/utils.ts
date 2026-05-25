@@ -142,10 +142,14 @@ export const getNetworkName = (
       return "optimism";
     case 11155111:
       return "sepolia";
+    case 143:
+      return "monad";
+    case 10143:
+      return "monad-testnet";
     case 1337:
     case 31337:
       return "testnet";
-    case 59140:
+    case 59141:
       return "linea-sepolia";
     case 59144:
       return "linea";
@@ -170,6 +174,10 @@ export const SUPPORTED_CHAINS: ChainInfo[] = [
   { id: 8453, name: "Base", ticker: "BASE" },
   { id: 10, name: "Optimism", ticker: "OP" },
   { id: 11155111, name: "Sepolia", ticker: "SEP" },
+  { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
+  { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
+  { id: 143, name: "Monad", ticker: "MON" },
+  { id: 10143, name: "Monad Testnet", ticker: "MON" },
 ];
 
 /** Look up ChainInfo by chain ID. Returns undefined for unknown chains. */
