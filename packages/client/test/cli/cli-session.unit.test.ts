@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -159,6 +159,46 @@ describe("CLI session lifecycle", () => {
     expect(second?.id).toBe("tx-8");
     expect(cli.pendingTxs).toHaveLength(2);
     expect(cli.pendingTxs.map((tx) => tx.txId)).toEqual([7, 8]);
+  });
+
+  it("normalizes legacy signedTx AAAddress fields on load", async () => {
+    const { SESSIONS_DIR, readState } = await import("../../src/cli/state");
+
+    mkdirSync(SESSIONS_DIR, { recursive: true });
+    writeFileSync(
+      join(SESSIONS_DIR, "session-1.json"),
+      JSON.stringify(
+        {
+          sessionId: "session-1",
+          baseUrl: "https://api.aomi.dev",
+          signedTxs: [{
+            id: "tx-1",
+            kind: "transaction",
+            txHash: "0xhash",
+            AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            timestamp: 1,
+          }],
+          localId: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(join(stateDir, "active-session.txt"), "1");
+
+    const state = readState();
+
+    expect(state?.signedTxs).toEqual([
+      expect.objectContaining({
+        id: "tx-1",
+        kind: "transaction",
+        txHash: "0xhash",
+        smartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    ]);
+    expect(state?.signedTxs?.[0]).not.toHaveProperty("AAAddress");
   });
 
   it("dedupes replayed backend-staged requests by backend id", async () => {

@@ -32,6 +32,15 @@ function strictFeeBatchPayload(): WalletTxPayload {
   };
 }
 
+function singleCallPayload(): WalletTxPayload {
+  return {
+    to: "0x1111111111111111111111111111111111111111",
+    value: "1",
+    data: "0x",
+    chainId: 1,
+  };
+}
+
 describe("executeAdapterTransaction fallback behavior", () => {
   it("falls back to native wallet execution when Para AA provider state is unavailable", async () => {
     const sendTransactionAsync = vi
@@ -68,6 +77,42 @@ describe("executeAdapterTransaction fallback behavior", () => {
       aaFallbackReason: "aa_provider_not_configured_fallback_eoa",
       executionKind: "eoa",
       batched: true,
+      sponsored: false,
+    });
+  });
+
+  it("routes single-call Para transactions through AA resolution when AA is forced", async () => {
+    const sendTransactionAsync = vi.fn().mockResolvedValue("0x111");
+    const resolveAAProviderState = vi.fn().mockResolvedValue({
+      providerState: DISABLED_PROVIDER_STATE,
+      resolvedMode: "7702",
+      fallbackReason: "aa_provider_not_configured_fallback_eoa",
+    });
+
+    const result = await executeAdapterTransaction({
+      payload: { ...singleCallPayload(), aaPreference: "none" },
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+      },
+      forceAA: true,
+      preferAAForSingleCall: true,
+      shouldUseExternalSigner: false,
+      resolveAAProviderState,
+    });
+
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(2);
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      txHash: "0x111",
+      aaRequestedMode: "7702",
+      aaResolvedMode: "none",
+      aaFallbackReason: "aa_provider_not_configured_fallback_eoa",
+      executionKind: "eoa",
+      batched: false,
       sponsored: false,
     });
   });

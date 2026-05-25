@@ -18,7 +18,7 @@ import {
 import { useEventContext } from "../contexts/event-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
-import { useUser } from "../contexts/user-context";
+import { useUser } from "../contexts/ext-user-context";
 import { initThreadControl } from "../state/thread-store";
 import { getControlSessionId } from "../utils/client-session";
 import { isPlaceholderTitle } from "./utils";
@@ -53,6 +53,7 @@ type RuntimeUserStateProviderProps = {
   children: ReactNode;
   sessionManager: SessionManager;
   getUserState: () => UserState;
+  setUser: (data: Partial<UserState>) => void;
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
 
@@ -108,6 +109,16 @@ function useWalletStateSync(
       is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
       ens_name:
         typeof nextUser.ens_name === "string" ? nextUser.ens_name : undefined,
+      wallet_provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
+      auth_method: UserStateHelpers.authMethod(nextUser) ?? undefined,
+      sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
+      sponsor_provider:
+        UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
+      sponsor_account: UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
+      smart_account_4337:
+        UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
+      delegation_7702:
+        UserStateHelpers.Delegation7702(nextUser) ?? undefined,
     }),
     [getUserState],
   );
@@ -126,7 +137,16 @@ function useWalletStateSync(
         prevWalletState.address === nextWalletState.address &&
         prevWalletState.chain_id === nextWalletState.chain_id &&
         prevWalletState.is_connected === nextWalletState.is_connected &&
-        prevWalletState.ens_name === nextWalletState.ens_name
+        prevWalletState.ens_name === nextWalletState.ens_name &&
+        prevWalletState.wallet_provider === nextWalletState.wallet_provider &&
+        prevWalletState.auth_method === nextWalletState.auth_method &&
+        prevWalletState.sponsored === nextWalletState.sponsored &&
+        prevWalletState.sponsor_provider === nextWalletState.sponsor_provider &&
+        prevWalletState.sponsor_account === nextWalletState.sponsor_account &&
+        prevWalletState.smart_account_4337 ===
+          nextWalletState.smart_account_4337 &&
+        prevWalletState.delegation_7702 ===
+          nextWalletState.delegation_7702
       ) {
         return;
       }
@@ -218,6 +238,9 @@ function useRemoteThreadListSync(
     warmedThreadIdsRef,
     warmThread,
   } = remoteThreads;
+  const connectedAddress = UserStateHelpers.isConnected(user)
+    ? UserStateHelpers.address(user)
+    : undefined;
 
   const scheduleThreadPrefetch = useCallback(
     (threadIds: string[]) => {
@@ -265,9 +288,7 @@ function useRemoteThreadListSync(
   );
 
   useEffect(() => {
-    const userAddress = UserStateHelpers.isConnected(user)
-      ? UserStateHelpers.address(user)
-      : undefined;
+    const userAddress = connectedAddress;
     const normalizedUserAddress = userAddress?.toLowerCase();
     const previousAddress = lastConnectedAddressRef.current;
     const walletChanged =
@@ -425,7 +446,7 @@ function useRemoteThreadListSync(
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
-    user,
+    connectedAddress,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread,
@@ -476,10 +497,24 @@ export function RuntimeUserStateProvider({
   children,
   sessionManager,
   getUserState,
+  setUser,
   onUserStateChange,
 }: RuntimeUserStateProviderProps) {
   const lastSerializedStateRef = useRef<string>("");
 
+  // Bidirectional sync between React's `useUser()` state and each Session's
+  // internal `userState`:
+  //
+  //   React → Session: when React state changes, call session.resolveUserState
+  //                    with `skipEmit: true` so the session doesn't re-emit
+  //                    what we just pushed (would loop back into setUser).
+  //
+  //   Session → React: when a session writes per-tx fields (aa_mode,
+  //                    smart_account_4337, etc.) via its own resolveUserState,
+  //                    it emits `user_state_updated`. We forward those changes
+  //                    to React via setUser so consumers reading `useUser()`
+  //                    (e.g. auth-adapter providers) reflect the resolved AA
+  //                    context after a tx.
   useEffect(() => {
     const applyToSessions = (next: UserState) => {
       const serialized = stableStateString(next);
@@ -488,16 +523,30 @@ export function RuntimeUserStateProvider({
       }
       lastSerializedStateRef.current = serialized;
       sessionManager.forEach((session) => {
-        session.resolveUserState(next);
+        session.resolveUserState(next, { skipEmit: true });
       });
     };
+
+    const sessionListeners: Array<() => void> = [];
+    sessionManager.forEach((session) => {
+      const handler = (next: UserState) => {
+        setUser(next);
+      };
+      session.on("user_state_updated", handler);
+      sessionListeners.push(() =>
+        session.off("user_state_updated", handler),
+      );
+    });
 
     applyToSessions(getUserState());
     const unsubscribe = onUserStateChange((next) => {
       applyToSessions(next);
     });
-    return unsubscribe;
-  }, [getUserState, onUserStateChange, sessionManager]);
+    return () => {
+      unsubscribe();
+      sessionListeners.forEach((off) => off());
+    };
+  }, [getUserState, onUserStateChange, sessionManager, setUser]);
 
   return <>{children}</>;
 }

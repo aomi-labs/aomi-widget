@@ -3,10 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { getChainInfo } from "@aomi-labs/react";
 import {
-  formatAuthProvider,
+  Button,
+  formatAuthMethod,
   useAomiAuthAdapter,
 } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
+import {
+  settingsBodyTextClass,
+  settingsCardClass,
+  settingsCardStackClass,
+  settingsCardTitleClass,
+  settingsPageClass,
+  settingsPrimaryButtonClass,
+  settingsSubTitleClass,
+  settingsTitleClass,
+} from "./settings-styles";
 
 type AccountProfile = {
   user_id: string;
@@ -57,12 +68,8 @@ export function GeneralSettings() {
 
   const identityType = useMemo(() => {
     if (identity.status !== "connected") return "Disconnected";
-    return (
-      identity.secondaryLabel ??
-      formatAuthProvider(identity.authProvider) ??
-      "Wallet"
-    );
-  }, [identity.authProvider, identity.secondaryLabel, identity.status]);
+    return formatAuthMethod(identity.authMethod) ?? "Wallet";
+  }, [identity.authMethod, identity.status]);
 
   useEffect(() => {
     const run = async () => {
@@ -88,34 +95,32 @@ export function GeneralSettings() {
   }, [identity.address]);
 
   return (
-    <div className="space-y-8">
+    <div className={settingsPageClass}>
       <div>
-        <h3 className="text-foreground mb-6 text-lg font-semibold">Account</h3>
-        <div className="border-input bg-background rounded-3xl border p-5">
+        <h1 className={`${settingsTitleClass} mb-4`}>Account</h1>
+        <div className={settingsCardClass}>
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-foreground text-sm font-medium">Identity</p>
-              <p className="text-muted-foreground text-sm">
-                Type: {identityType}
-              </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsCardTitleClass}>Identity</p>
+              <p className={settingsBodyTextClass}>Type: {identityType}</p>
+              <p className={settingsBodyTextClass}>
                 Primary:{" "}
                 {identity.status === "disconnected"
                   ? "Not connected"
-                  : identity.primaryLabel}
+                  : (identity.address ?? "Connected")}
               </p>
               {identity.address && (
-                <p className="text-muted-foreground text-sm">
+                <p className={settingsBodyTextClass}>
                   Wallet: {identity.address}
                 </p>
               )}
               {networkTicker && (
-                <p className="text-muted-foreground text-sm">
+                <p className={settingsBodyTextClass}>
                   Network: {networkTicker}
                 </p>
               )}
             </div>
-            <button
+            <Button
               type="button"
               onClick={() => {
                 if (identity.isConnected && adapter.openAccountUI) {
@@ -125,23 +130,21 @@ export function GeneralSettings() {
                 void adapter.connect();
               }}
               disabled={!adapter.canOpenAccountUI && !adapter.canConnect}
-              className="text-primary-foreground bg-primary hover:bg-primary/90 focus:ring-ring focus:ring-offset-background rounded-full px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+              className={settingsPrimaryButtonClass}
             >
               {identity.isConnected ? "Manage account" : "Connect account"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">
+        <h2 className={`${settingsSubTitleClass} mb-4`}>
           Subscription and Usage
-        </h3>
-        <div className="border-input bg-background space-y-3 rounded-3xl border p-5">
+        </h2>
+        <div className={`${settingsCardStackClass} space-y-3`}>
           {loading && (
-            <p className="text-muted-foreground text-sm">
-              Loading account overview...
-            </p>
+            <p className={settingsBodyTextClass}>Loading account overview...</p>
           )}
           {!loading && error && (
             <p className="text-destructive text-sm">
@@ -149,39 +152,39 @@ export function GeneralSettings() {
             </p>
           )}
           {!loading && !error && !account && (
-            <p className="text-muted-foreground text-sm">
+            <p className={settingsBodyTextClass}>
               Connect your wallet to load account details.
             </p>
           )}
           {!loading && !error && account && (
             <>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 User ID: {account.account.user_id}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Tier: {account.account.tier}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Verified email: {account.account.verified_email ?? "-"}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Status: {account.account.status}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Month: {account.usage.period_utc_month}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Credits: {formatNumber(account.usage.credit_used)} /{" "}
                 {formatNumber(account.usage.credit_paid)}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Tokens: in {formatNumber(account.usage.input_tokens)} | out{" "}
                 {formatNumber(account.usage.output_tokens)}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Created at: {formatTs(account.account.created_at)}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Last seen: {formatTs(account.account.last_seen_at)}
               </p>
             </>

@@ -69,13 +69,22 @@ export interface AAResolvedConfig {
 /** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
 export type AACallPayload = Omit<AAWalletCall, "chainId">;
 
+/**
+ * Smart account used for AA execution. `address` is the EOA signer — the same
+ * value the user sees as their connected wallet address (`AomiAuthIdentity.address`).
+ *
+ * Exactly one of the mode-discriminated address fields is meaningful:
+ * - `mode === "4337"` ⟹ `SmartAccount4337` is the AA contract address;
+ *   `Delegation7702` is undefined.
+ * - `mode === "7702"` ⟹ `Delegation7702` is the delegation target contract;
+ *   `SmartAccount4337` is undefined.
+ */
 export interface SmartAccount {
-  provider: string;
-  mode: string;
-  ownerAddress?: Hex;
-  executionAddress?: Hex;
-  AAAddress?: Hex;
-  delegationAddress?: Hex;
+  provider: "alchemy" | "pimlico";
+  mode: "4337" | "7702";
+  address: Hex;
+  SmartAccount4337?: Hex;
+  Delegation7702?: Hex;
   sendTransaction: (
     call: AACallPayload,
   ) => Promise<{ transactionHash: string }>;
@@ -100,9 +109,22 @@ export interface ExecutionResult {
   txHashes: string[];
   executionKind: string;
   batched: boolean;
-  sponsored: boolean;
-  AAAddress?: Hex;
-  delegationAddress?: Hex;
+  /**
+   * Whether gas was paid by a paymaster.
+   *
+   * - `true`: paymaster paid, verified by the protocol (4337 userOp success
+   *   requires paymaster validation; `sponsorship.mode === "required"`
+   *   fails the tx if the paymaster rejects).
+   * - `false`: no paymaster was attached (EOA path, or sendCalls fallback
+   *   to sequential after sponsored-batch error).
+   * - `undefined`: paymaster config was passed but the wallet may have
+   *   silently fallen back to user-paid (Base Account with
+   *   `sponsorship.mode === "optional"`). We cannot tell post-hoc without
+   *   decoding the userOp logs.
+   */
+  sponsored: boolean | undefined;
+  SmartAccount4337?: Hex;
+  Delegation7702?: Hex;
 }
 
 export interface AtomicBatchArgs {

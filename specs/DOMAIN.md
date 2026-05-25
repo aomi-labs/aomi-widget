@@ -17,7 +17,7 @@
 ThreadContextProvider (external - must wrap AomiRuntimeProvider)
 └── AomiRuntimeProvider (shell)
     └── NotificationContextProvider
-        └── UserContextProvider
+        └── ExtUserProvider
             └── EventContextProvider
                 └── RuntimeActionsProvider
                     └── AomiRuntimeCore

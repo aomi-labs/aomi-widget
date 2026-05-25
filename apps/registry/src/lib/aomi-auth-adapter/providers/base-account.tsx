@@ -14,7 +14,8 @@ import type {
 } from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../context";
-import { AOMI_AUTH_DISCONNECTED_IDENTITY, formatAddress } from "../identity";
+import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "../identity";
+import { useFullTestnet } from "../full-testnet-wallet-routing";
 import {
   useSafeCapabilities,
   useSafeConnect,
@@ -28,6 +29,7 @@ import {
   useSafeWagmiConfig,
 } from "../safe-wagmi-hooks";
 import type { AomiAuthAdapter, AomiAuthIdentity } from "../types";
+import { ExtUserProvider, UserState, useUser } from "@aomi-labs/react";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -159,7 +161,18 @@ function BaseAccountAdapterInner({
     [wagmiConfig.chains],
   );
 
+  // Per-tx AA fields are session-owned: `session.ts` writes them to UserState
+  // on tx-complete and we read them back via `useUser()`. This makes UserState
+  // the single source of truth — identity rehydrates correctly after remount
+  // (the previous local `useState<ResolvedAA>` was lost on unmount).
+  const { user } = useUser();
+  const userAAMode = UserState.aaMode(user);
+  const userSmartAccount4337 = UserState.SmartAccount4337(user);
+  const userDelegation7702 = UserState.Delegation7702(user);
+
   const adapter = useMemo<AomiAuthAdapter>(() => {
+    const sponsorshipEnabled =
+      sponsorship?.mode === "optional" || sponsorship?.mode === "required";
     const baseConnector =
       connectors.find((connector) => connector.id === "baseAccount") ??
       connectors.find((connector) => connector.type === "baseAccount") ??
@@ -170,17 +183,21 @@ function BaseAccountAdapterInner({
             status: "connected",
             isConnected: true,
             address,
+            walletKind: "smart-account",
+            aaMode: userAAMode ?? "4337",
+            SmartAccount4337: userSmartAccount4337 ?? address,
+            Delegation7702: userDelegation7702 ?? undefined,
+            sponsored: sponsorshipEnabled,
+            sponsorProvider: sponsorshipEnabled ? "coinbase" : "self",
+            sponsorAccount: undefined,
             chainId: chainId ?? undefined,
-            authProvider: "baseAccount",
-            primaryLabel: formatAddress(address) ?? "Base Account",
-            secondaryLabel: "Base Account",
-            aaMode: "4337",
-            smartAccount: address,
+            walletProvider: "baseAccount",
+            authMethod: undefined,
           }
         : {
             ...AOMI_AUTH_DISCONNECTED_IDENTITY,
             chainId: chainId ?? undefined,
-            authProvider: "baseAccount",
+            walletProvider: "baseAccount",
           };
 
     const connect = async () => {
@@ -209,8 +226,8 @@ function BaseAccountAdapterInner({
           }
         : undefined,
       sendTransaction: sendTransactionAsync
-        ? async (payload: WalletTxPayload) =>
-            executeAdapterTransaction({
+        ? async (payload: WalletTxPayload) => {
+            const result = await executeAdapterTransaction({
               payload,
               state: {
                 currentChainId: chainId,
@@ -246,7 +263,11 @@ function BaseAccountAdapterInner({
                 chainsById,
                 getPreferredRpcUrl,
               },
-            })
+            });
+            // session.ts writes aa_mode / smart_account_4337 / delegation_7702
+            // to UserState on tx-complete; identity rereads them via useUser.
+            return result;
+          }
         : undefined,
       signTypedData: signTypedDataAsync
         ? async (payload: WalletEip712Payload) => {
@@ -276,6 +297,9 @@ function BaseAccountAdapterInner({
     signTypedDataAsync,
     sponsorship,
     switchChainAsync,
+    userAAMode,
+    userSmartAccount4337,
+    userDelegation7702,
     wagmiConfig.chains,
   ]);
 
@@ -294,30 +318,37 @@ export function AomiBaseAccountProvider({
   includeBaseSepolia = false,
   sponsorship,
 }: AomiBaseAccountProviderProps) {
-  const resolvedChains = useMemo(
+  const preferredChains = useMemo(
     () =>
       chains ??
       (includeBaseSepolia ? ([base, baseSepolia] as const) : ([base] as const)),
     [chains, includeBaseSepolia],
   );
+  const routing = useFullTestnet(preferredChains);
   const [queryClient] = useState(() => new QueryClient());
   const config = useMemo(
     () =>
       createBaseAccountConfig({
         appName,
         appLogoUrl,
-        chains: resolvedChains,
+        chains: routing.routedChains,
       }),
-    [appLogoUrl, appName, resolvedChains],
+    [appLogoUrl, appName, routing.routedChains],
   );
 
+  // `BaseAccountAdapterInner` reads per-tx AA fields from `useUser()`, so
+  // mount `ExtUserProvider` here. The provider owns its own UserState
+  // store — descendants of `AomiBaseAccountProvider` get one store,
+  // siblings get their own.
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <BaseAccountAdapterInner sponsorship={sponsorship}>
-          {children}
-        </BaseAccountAdapterInner>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <ExtUserProvider>
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <BaseAccountAdapterInner sponsorship={sponsorship}>
+            {children}
+          </BaseAccountAdapterInner>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </ExtUserProvider>
   );
 }

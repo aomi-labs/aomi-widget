@@ -19,7 +19,7 @@ afterEach(() => {
 
 describe("Control context", () => {
   it("refetches authorized apps when the wallet address changes", async () => {
-    const getApps = vi.fn(async () => ["default"]);
+    const getApps = vi.fn(async () => [{ name: "default" }]);
     setAomiClientConfig({
       getApps,
       getModels: async () => [],
@@ -56,7 +56,7 @@ describe("Control context", () => {
   });
 
   it("does not refetch authorized apps on thread changes", async () => {
-    const getApps = vi.fn(async () => ["default", "special"]);
+    const getApps = vi.fn(async () => [{ name: "default" }, { name: "special" }]);
     setAomiClientConfig({
       getApps,
       getModels: async () => [],
@@ -85,7 +85,9 @@ describe("Control context", () => {
     );
     const getApps = vi.fn(
       async (_sessionId: string, options?: { publicKey?: string }) =>
-        options?.publicKey ? ["default"] : ["default", "special"],
+        options?.publicKey
+          ? [{ name: "default" }]
+          : [{ name: "default" }, { name: "special" }],
     );
 
     setAomiClientConfig({
@@ -136,7 +138,7 @@ describe("Control context", () => {
   });
 
   it("drops public key app scoping after disconnect", async () => {
-    const getApps = vi.fn(async () => ["default"]);
+    const getApps = vi.fn(async () => [{ name: "default" }]);
     setAomiClientConfig({
       getApps,
       getModels: async () => [],
@@ -188,7 +190,7 @@ describe("Control context", () => {
     );
 
     setAomiClientConfig({
-      getApps: async () => ["default", "special"],
+      getApps: async () => [{ name: "default" }, { name: "special" }],
       getModels: async () => [],
       sendMessage,
     });
