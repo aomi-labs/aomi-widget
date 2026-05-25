@@ -103,7 +103,19 @@ export type AomiAuthAdapter = {
 
   connect: (options?: { family?: WalletFamily }) => Promise<void>;
   openAccountUI?: (options?: { family?: WalletFamily }) => Promise<void>;
-  disconnect?: () => Promise<void>;
+  /**
+   * Disconnect from the wallet. By default disconnects the active family;
+   * pass `{ family }` to disconnect a specific family while leaving the
+   * other connected (e.g. drop just Solana while keeping the EVM Para
+   * session, or vice versa). `{ family: "all" }` clears both.
+   *
+   * Adapters that can't selectively disconnect should still implement
+   * this and disconnect everything regardless of `family`; the
+   * `WalletFamilySlot` UI only relies on a best-effort behavior here.
+   */
+  disconnect?: (options?: {
+    family?: WalletFamily | "all";
+  }) => Promise<void>;
 
   switchChain?: (chainId: number) => Promise<void>;
   selectNetwork?: (target: AomiNetworkTarget) => Promise<void>;

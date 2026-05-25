@@ -46,6 +46,7 @@ import {
 } from "../identity";
 import {
   useSafeCapabilities,
+  useSafeDisconnect,
   useSafeSendCallsSync,
   useSafeSendTransaction,
   useSafeSignTypedData,
@@ -340,6 +341,7 @@ export function AomiParaAdapterProvider({
   } = useSafeWagmiAccount();
   const { walletClient } = useSafeWalletClient();
   const { switchChainAsync, isPending } = useSafeSwitchChain();
+  const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
   const { sendTransactionAsync } = useSafeSendTransaction();
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
   const { capabilities } = useSafeCapabilities();
@@ -522,13 +524,22 @@ export function AomiParaAdapterProvider({
         ? "solana"
         : "evm";
 
+    const hasAnyDisconnectablePath = Boolean(
+      wagmiDisconnectAsync ||
+        solanaWallet.disconnect ||
+        // Para's own session — `useParaClient().logout()` would also count
+        // here, but Para's logout has cross-tab implications so we
+        // currently leave it to `openAccountUI` (the Para account modal
+        // has a Disconnect button) and only handle wagmi + Solana below.
+        false,
+    );
     return {
       identity,
       isReady: !isBooting,
       isSwitchingChain: isPending,
       canConnect: Boolean(paraModal) && !identity.isConnected,
       canOpenAccountUI: Boolean(paraModal) && identity.isConnected,
-      canDisconnect: false,
+      canDisconnect: identity.isConnected && hasAnyDisconnectablePath,
       supportedChains: wagmiConfig.chains,
       supportedNetworks: {
         evm: wagmiConfig.chains,
@@ -557,11 +568,17 @@ export function AomiParaAdapterProvider({
       connect: async (options) => {
         const requestedFamily = options?.family ?? selectedFamily;
         setSelectedFamily(requestedFamily);
-        if (
-          requestedFamily === "solana" &&
-          paraAccount.isConnected &&
-          !solanaWallet.publicKey
-        ) {
+        if (requestedFamily === "solana" && !solanaWallet.publicKey) {
+          // Solana doesn't need an EVM Para session first — the wallet
+          // adapter can attach independently. Previously we gated this
+          // on `paraAccount.isConnected`, which forced users to log into
+          // Para EVM before being able to connect Phantom/Solflare even
+          // if they only wanted to use a Solana-only app like byreal
+          // spot. Try the wallet-adapter path first; only fall back to
+          // the Para AUTH modal if no Solana wallet is available locally
+          // (in which case Para's modal is the user's path to wire
+          // signing up via embedded wallets / OAuth → Para's Solana
+          // wallet).
           try {
             const result = await connectPreferredSolanaWallet(solanaWallet);
             if (result === "connected") {
@@ -577,10 +594,58 @@ export function AomiParaAdapterProvider({
               "[aomi-auth-adapter] Initial Solana wallet attach failed",
               error,
             );
-            return;
+            // Fall through to Para modal so the user can still reach a
+            // sign-in path (e.g. embedded Solana via Para social login).
           }
         }
         paraModal?.openModal({ step: "AUTH_MAIN" });
+      },
+      disconnect: async (options) => {
+        const requestedFamily = options?.family ?? activeFamily;
+        const wantsAll = requestedFamily === "all";
+
+        // Solana family disconnect: detach the wallet-adapter session so
+        // `useSafeSolanaWallet().publicKey` clears. The Para account
+        // record itself stays — drop "all" if the user explicitly asked
+        // to wipe everything.
+        if (
+          (wantsAll || requestedFamily === "solana") &&
+          solanaWallet.publicKey &&
+          solanaWallet.disconnect
+        ) {
+          try {
+            await solanaWallet.disconnect();
+          } catch (error) {
+            console.warn(
+              "[aomi-auth-adapter] Solana wallet disconnect failed",
+              error,
+            );
+          }
+        }
+
+        if (
+          (wantsAll || requestedFamily === "evm") &&
+          wagmiConnected &&
+          wagmiDisconnectAsync
+        ) {
+          try {
+            await wagmiDisconnectAsync();
+          } catch (error) {
+            console.warn(
+              "[aomi-auth-adapter] Wagmi disconnect failed",
+              error,
+            );
+          }
+        }
+
+        // The Para embedded account survives wagmi/Solana disconnects
+        // by design — that lets a user drop one external wallet without
+        // losing their email/OAuth-backed Para session. To clear that
+        // too the user opens the Para account modal (`canOpenAccountUI`)
+        // and uses its Logout button. We don't call `paraSession.logout()`
+        // here because Para's session is cross-tab and dropping it
+        // silently from one tab leaves other tabs in an inconsistent
+        // state.
       },
       openAccountUI: async (options) => {
         const requestedFamily = options?.family ?? activeFamily;
@@ -691,17 +756,13 @@ export function AomiParaAdapterProvider({
     selectedEvmChainId,
     selectedFamily,
     selectedSolanaNetwork,
-    solanaWallet.connect,
-    solanaWallet.disconnect,
-    solanaWallet.publicKey,
-    solanaWallet.select,
-    solanaWallet.wallets,
-    solanaWallet.walletName,
+    solanaWallet,
     supportedSolanaNetworks,
     switchChainAsync,
     wagmiAddress,
     wagmiConfig.chains,
     wagmiConnected,
+    wagmiDisconnectAsync,
     walletClient,
     setSelectedEvmChainId,
     setSelectedFamily,
