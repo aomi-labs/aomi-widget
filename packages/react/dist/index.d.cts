@@ -124,6 +124,15 @@ type NotificationType = "notice" | "success" | "error" | "wallet";
 type Notification$1 = {
     id: string;
     type: NotificationType;
+    /**
+     * Optional discriminator for notifications that have a bespoke UI consumer.
+     *
+     * - `payment_required` is consumed by `PaymentRequiredGate` (apps/registry)
+     *   as a blocking modal. The toaster skips this kind. As a result, `type`,
+     *   `message`, and `duration` are NOT rendered for this kind — only `kind`
+     *   matters for routing. Don't bother passing those fields when firing it.
+     */
+    kind?: "payment_required";
     title: string;
     message?: string;
     duration?: number;
