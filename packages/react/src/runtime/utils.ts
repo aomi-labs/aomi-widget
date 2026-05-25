@@ -50,7 +50,7 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
   const role: ThreadMessageLike["role"] =
     msg.sender === "user" ? "user" : "assistant";
 
-  if (msg.content) {
+  if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text" as const, text: msg.content });
   }
 
@@ -71,11 +71,13 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
     });
   }
 
+  if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
+    return null;
+  }
+
   const threadMessage = {
     role,
-    content: (content.length > 0
-      ? content
-      : [{ type: "text" as const, text: "" }]) as ThreadMessageLike["content"],
+    content: content as ThreadMessageLike["content"],
     ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
   } satisfies ThreadMessageLike;
 
