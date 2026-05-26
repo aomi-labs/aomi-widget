@@ -2,6 +2,20 @@
 
 const SETTINGS_SESSION_KEY = "aomi_settings_session_id";
 const API_KEY_STORAGE_KEY = "aomi_api_key";
+const DEFAULT_BACKEND_URL = "http://127.0.0.1:8080";
+
+function normalizeBackendUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "localhost") {
+      parsed.hostname = "127.0.0.1";
+      return parsed.toString().replace(/\/$/, "");
+    }
+  } catch {
+    // Fall through and return the raw string below.
+  }
+  return url;
+}
 
 function generateSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -26,7 +40,9 @@ export function getSettingsSessionId(): string {
 }
 
 export function getBackendUrl(): string {
-  return process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
+  return normalizeBackendUrl(
+    process.env.NEXT_PUBLIC_BACKEND_URL ?? DEFAULT_BACKEND_URL,
+  );
 }
 
 export function getSettingsApiKey(): string | null {

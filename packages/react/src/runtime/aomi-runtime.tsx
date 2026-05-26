@@ -24,18 +24,45 @@ export type AomiRuntimeProviderProps = {
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
+function normalizeBackendUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "localhost") {
+      parsed.hostname = "127.0.0.1";
+      return parsed.toString().replace(/\/$/, "");
+    }
+  } catch {
+    // Keep caller-provided strings unchanged if URL parsing fails.
+  }
+  return url;
+}
+
 // =============================================================================
 // Provider Shell
 // =============================================================================
 
 export function AomiRuntimeProvider({
   children,
-  backendUrl = "http://localhost:8080",
+  backendUrl = "http://127.0.0.1:8080",
   clientOptions,
 }: Readonly<AomiRuntimeProviderProps>) {
+  const resolvedClientOptions = useMemo(
+    () => ({
+      logger: {
+        debug: (...args: unknown[]) => console.debug(...args),
+      },
+      ...clientOptions,
+    }),
+    [clientOptions],
+  );
+
   const aomiClient = useMemo(
-    () => new AomiClient({ baseUrl: backendUrl, ...clientOptions }),
-    [backendUrl, clientOptions],
+    () =>
+      new AomiClient({
+        baseUrl: normalizeBackendUrl(backendUrl),
+        ...resolvedClientOptions,
+      }),
+    [backendUrl, resolvedClientOptions],
   );
 
   return (
