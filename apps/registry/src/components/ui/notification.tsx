@@ -23,6 +23,7 @@ export function NotificationToaster() {
     }
 
     for (const notification of notifications) {
+      if (notification.kind === "payment_required") continue;
       if (shownRef.current.has(notification.id)) continue;
       shownRef.current.add(notification.id);
       showToast(notification, dismissNotification);

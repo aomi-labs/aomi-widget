@@ -70,28 +70,89 @@ var init_errors = __esm({
 });
 
 // src/chains.ts
-import { mainnet, polygon, arbitrum, optimism, base, sepolia, foundry } from "viem/chains";
-var SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
+import { defineChain } from "viem";
+import {
+  mainnet,
+  polygon,
+  arbitrum,
+  optimism,
+  base,
+  sepolia,
+  linea,
+  lineaSepolia,
+  foundry
+} from "viem/chains";
+var monad, monadTestnet, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
-    SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111, 31337];
-    CHAIN_NAMES = {
-      1: "Ethereum",
-      137: "Polygon",
-      42161: "Arbitrum One",
-      8453: "Base",
-      10: "Optimism",
-      11155111: "Sepolia",
-      31337: "Anvil (local)"
-    };
+    monad = defineChain({
+      id: 143,
+      name: "Monad",
+      nativeCurrency: {
+        decimals: 18,
+        name: "Monad",
+        symbol: "MON"
+      },
+      rpcUrls: {
+        default: {
+          http: ["https://rpc.monad.xyz"]
+        }
+      },
+      blockExplorers: {
+        default: {
+          name: "Monad Explorer",
+          url: "https://monadexplorer.com"
+        }
+      }
+    });
+    monadTestnet = defineChain({
+      id: 10143,
+      name: "Monad Testnet",
+      nativeCurrency: {
+        decimals: 18,
+        name: "Monad",
+        symbol: "MON"
+      },
+      rpcUrls: {
+        default: {
+          http: ["https://testnet-rpc.monad.xyz"]
+        }
+      },
+      blockExplorers: {
+        default: {
+          name: "Monad Testnet Explorer",
+          url: "https://testnet.monadexplorer.com"
+        }
+      },
+      testnet: true
+    });
+    SUPPORTED_CHAINS = [
+      { id: 1, name: "Ethereum", ticker: "ETH" },
+      { id: 137, name: "Polygon", ticker: "MATIC" },
+      { id: 42161, name: "Arbitrum", ticker: "ARB" },
+      { id: 8453, name: "Base", ticker: "BASE" },
+      { id: 10, name: "Optimism", ticker: "OP" },
+      { id: 11155111, name: "Sepolia", ticker: "SEP" },
+      { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
+      { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
+      { id: 143, name: "Monad", ticker: "MON" },
+      { id: 10143, name: "Monad Testnet", ticker: "MON" },
+      { id: 31337, name: "Anvil (local)", ticker: "ETH" }
+    ];
+    SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
+    CHAIN_NAMES = Object.fromEntries(
+      SUPPORTED_CHAINS.map((chain) => [chain.id, chain.name])
+    );
     ALCHEMY_CHAIN_SLUGS = {
       1: "eth-mainnet",
       137: "polygon-mainnet",
       42161: "arb-mainnet",
       8453: "base-mainnet",
       10: "opt-mainnet",
-      11155111: "eth-sepolia"
+      11155111: "eth-sepolia",
+      59144: "linea-mainnet",
+      59141: "linea-sepolia"
     };
     CHAINS_BY_ID = {
       1: mainnet,
@@ -100,6 +161,10 @@ var init_chains = __esm({
       10: optimism,
       8453: base,
       11155111: sepolia,
+      59144: linea,
+      59141: lineaSepolia,
+      143: monad,
+      10143: monadTestnet,
       31337: foundry
     };
   }
@@ -7403,7 +7468,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.37",
+  version: "0.1.38",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

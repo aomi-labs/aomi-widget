@@ -18,8 +18,12 @@ import {
   lineaSepolia,
 } from "wagmi/chains";
 import { defineChain, type Chain } from "viem";
-import { AomiWalletProvider } from "@aomi-labs/widget-lib";
-import { isFullTestnet } from "@aomi-labs/widget-lib";
+import {
+  AomiWalletProvider,
+  isFullTestnet,
+  monad,
+  monadTestnet,
+} from "@aomi-labs/widget-lib";
 
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
@@ -67,6 +71,8 @@ const defaultNetworks = [
   sepolia,
   linea,
   lineaSepolia,
+  monad,
+  monadTestnet,
 ] as const;
 
 export const networks = (
