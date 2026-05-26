@@ -62,7 +62,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-[200px] rounded-xl p-1"
+        className="max-h-[min(70vh,520px)] w-[200px] overflow-y-auto rounded-xl p-1"
         onOpenAutoFocus={(e) => {
           if (window.matchMedia("(max-width: 767px)").matches) {
             e.preventDefault();
@@ -73,7 +73,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           {selectableChains.map((chain) => {
             const ChainIcon = getChainIcon(chain.id);
             const fallbackTicker =
-              "nativeCurrency" in chain ? chain.nativeCurrency.symbol : chain.name;
+              "nativeCurrency" in chain
+                ? chain.nativeCurrency.symbol
+                : chain.name;
             const chainInfo = getChainInfo(chain.id);
             const chainTicker = chainInfo?.ticker ?? fallbackTicker;
             return (
@@ -90,7 +92,8 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                   "hover:bg-accent hover:text-accent-foreground",
                   "focus:bg-accent focus:text-accent-foreground",
                   chainId === chain.id && "bg-accent",
-                  (isPending || !switchChain) && "cursor-not-allowed opacity-50",
+                  (isPending || !switchChain) &&
+                    "cursor-not-allowed opacity-50",
                 )}
               >
                 <span
@@ -110,7 +113,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                 </span>
                 <span className="flex-1 truncate text-left">{chain.name}</span>
                 {chainId === chain.id && (
-                  <CheckIcon className="h-4 w-4 shrink-0 text-primary" />
+                  <CheckIcon className="text-primary h-4 w-4 shrink-0" />
                 )}
               </button>
             );

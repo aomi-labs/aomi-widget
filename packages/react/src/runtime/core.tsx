@@ -118,8 +118,20 @@ export function AomiRuntimeCore({
       const wasMaterializedForSend =
         threadsMaterializedForSendRef.current.has(threadId);
       threadsMaterializedForSendRef.current.delete(threadId);
+      const httpStatus = getHttpStatus(error);
 
-      if (getHttpStatus(error) !== 402 || !wasMaterializedForSend) {
+      if (httpStatus === 402) {
+        // The `payment_required` modal (apps/registry payment-required-gate)
+        // owns its own copy; only `kind` is consumed for routing. `message`
+        // would be dead config — leave it off so there's one source of truth.
+        notificationContext.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds",
+        });
+      }
+
+      if (httpStatus !== 402 || !wasMaterializedForSend) {
         return;
       }
 
