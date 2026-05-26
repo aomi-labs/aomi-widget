@@ -338,7 +338,9 @@ export function Bots() {
             </select>
             <p className={settingsBodyTextClass}>
               Single keeps the bot simple; multiple lets users switch threads
-              with session commands.
+              with session commands. For a true single-chat Telegram
+              experience, also disable threaded/topic mode for the bot in
+              BotFather.
             </p>
           </div>
         </div>
