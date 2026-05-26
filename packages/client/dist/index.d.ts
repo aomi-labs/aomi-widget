@@ -1029,6 +1029,11 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private syncWalletRequests;
 }
 
+type ChainInfo = {
+    id: number;
+    name: string;
+    ticker: string;
+};
 declare const monad: {
     blockExplorers: {
         readonly default: {
@@ -1123,7 +1128,52 @@ declare const monadTestnet: {
     serializers?: viem.ChainSerializers<undefined, viem.TransactionSerializable> | undefined;
     verifyHash?: ((client: viem.Client, parameters: viem.VerifyHashActionParameters) => Promise<viem.VerifyHashActionReturnType>) | undefined;
 };
-declare const SUPPORTED_CHAIN_IDS: readonly [1, 137, 42161, 8453, 10, 11155111, 143, 10143, 31337];
+declare const SUPPORTED_CHAINS: readonly [{
+    readonly id: 1;
+    readonly name: "Ethereum";
+    readonly ticker: "ETH";
+}, {
+    readonly id: 137;
+    readonly name: "Polygon";
+    readonly ticker: "MATIC";
+}, {
+    readonly id: 42161;
+    readonly name: "Arbitrum";
+    readonly ticker: "ARB";
+}, {
+    readonly id: 8453;
+    readonly name: "Base";
+    readonly ticker: "BASE";
+}, {
+    readonly id: 10;
+    readonly name: "Optimism";
+    readonly ticker: "OP";
+}, {
+    readonly id: 11155111;
+    readonly name: "Sepolia";
+    readonly ticker: "SEP";
+}, {
+    readonly id: 59144;
+    readonly name: "Linea Mainnet";
+    readonly ticker: "LINEA";
+}, {
+    readonly id: 59141;
+    readonly name: "Linea Sepolia Testnet";
+    readonly ticker: "LINEA";
+}, {
+    readonly id: 143;
+    readonly name: "Monad";
+    readonly ticker: "MON";
+}, {
+    readonly id: 10143;
+    readonly name: "Monad Testnet";
+    readonly ticker: "MON";
+}, {
+    readonly id: 31337;
+    readonly name: "Anvil (local)";
+    readonly ticker: "ETH";
+}];
+declare const SUPPORTED_CHAIN_IDS: (10 | 1 | 137 | 42161 | 8453 | 143 | 10143 | 11155111 | 59144 | 59141 | 31337)[];
 declare const CHAIN_NAMES: Record<number, string>;
 /** Alchemy network slugs for proxy URL construction. */
 declare const ALCHEMY_CHAIN_SLUGS: Record<number, string>;
@@ -1264,4 +1314,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignPayload, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
