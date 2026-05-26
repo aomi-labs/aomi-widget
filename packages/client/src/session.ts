@@ -429,13 +429,34 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async send(message: string): Promise<SendResult> {
     this.assertOpen();
-
-    const response = await this.client.sendMessage(this.sessionId, message, {
+    this.logger?.debug("[session] send start", {
+      sessionId: this.sessionId,
       app: this.app,
-      publicKey: this.publicKey,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
+      message,
+    });
+
+    let response: AomiChatResponse;
+    try {
+      response = await this.client.sendMessage(this.sessionId, message, {
+        app: this.app,
+        publicKey: this.publicKey,
+        apiKey: this.apiKey,
+        userState: this.userState,
+        clientId: this.clientId,
+      });
+    } catch (error) {
+      this.logger?.debug("[session] send failed", {
+        sessionId: this.sessionId,
+        error,
+      });
+      throw error;
+    }
+
+    this.logger?.debug("[session] send response", {
+      sessionId: this.sessionId,
+      isProcessing: response.is_processing,
+      systemEventCount: response.system_events?.length ?? 0,
+      messageCount: response.messages?.length ?? 0,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -460,13 +481,34 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async sendAsync(message: string): Promise<AomiChatResponse> {
     this.assertOpen();
-
-    const response = await this.client.sendMessage(this.sessionId, message, {
+    this.logger?.debug("[session] sendAsync start", {
+      sessionId: this.sessionId,
       app: this.app,
-      publicKey: this.publicKey,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
+      message,
+    });
+
+    let response: AomiChatResponse;
+    try {
+      response = await this.client.sendMessage(this.sessionId, message, {
+        app: this.app,
+        publicKey: this.publicKey,
+        apiKey: this.apiKey,
+        userState: this.userState,
+        clientId: this.clientId,
+      });
+    } catch (error) {
+      this.logger?.debug("[session] sendAsync failed", {
+        sessionId: this.sessionId,
+        error,
+      });
+      throw error;
+    }
+
+    this.logger?.debug("[session] sendAsync response", {
+      sessionId: this.sessionId,
+      isProcessing: response.is_processing,
+      systemEventCount: response.system_events?.length ?? 0,
+      messageCount: response.messages?.length ?? 0,
     });
 
     this.assertUserStateAligned(response.user_state);

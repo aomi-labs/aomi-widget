@@ -110,7 +110,7 @@ const Root: FC<RootProps> = ({
   const resolvedBackendUrl =
     backendUrl ??
     process.env.NEXT_PUBLIC_BACKEND_URL ??
-    "http://localhost:8080";
+    "http://127.0.0.1:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (

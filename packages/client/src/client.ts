@@ -29,6 +29,67 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 const SESSION_ID_HEADER = "X-Session-Id";
 const API_KEY_HEADER = "X-API-Key";
 
+function previewText(value: string, max = 80): string {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  return `${singleLine.slice(0, max - 1)}…`;
+}
+
+// Fields the server originated and stores authoritatively. The client only
+// echoes pending state back to identify which entries it knows about; the
+// payload bodies (raw tx bytes, signing messages, etc.) should not travel
+// back across the wire.
+const BULKY_PENDING_FIELDS = new Set<string>([
+  "messageBase64",
+  "message_base64",
+  "messageSha256",
+  "message_sha256",
+  "typed_data",
+  "typedData",
+  "tx_data",
+  "txData",
+  "transaction",
+  "transactionBase64",
+  "transaction_base64",
+]);
+
+function pruneBucket(
+  bucket: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!bucket) return bucket;
+  const out: Record<string, unknown> = {};
+  for (const [id, entry] of Object.entries(bucket)) {
+    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+      const rec = entry as Record<string, unknown>;
+      const pruned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(rec)) {
+        if (!BULKY_PENDING_FIELDS.has(k)) pruned[k] = v;
+      }
+      out[id] = pruned;
+    } else {
+      out[id] = entry;
+    }
+  }
+  return out;
+}
+
+function stripBulkyPendingFields(
+  userState: UserStateShape | undefined,
+): UserStateShape | undefined {
+  if (!userState?.pending) return userState;
+  const pending = userState.pending;
+  return {
+    ...userState,
+    pending: {
+      ...pending,
+      evm_txs: pruneBucket(pending.evm_txs),
+      evm_sigs: pruneBucket(pending.evm_sigs),
+      solana_txs: pruneBucket(pending.solana_txs),
+      solana_sigs: pruneBucket(pending.solana_sigs),
+    },
+  };
+}
+
 function joinApiPath(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -53,16 +114,6 @@ function buildApiUrl(
   return queryString ? `${url}?${queryString}` : url;
 }
 
-function toQueryString(payload: Record<string, unknown>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === undefined || value === null) continue;
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
-}
-
 function withSessionHeader(
   sessionId: string,
   init?: HeadersInit,
@@ -79,18 +130,53 @@ async function postState<T>(
   sessionId: string,
   fetchImpl: typeof fetch,
   apiKey?: string,
+  logger?: Logger,
 ): Promise<T> {
-  const query = toQueryString(payload);
-  const url = `${baseUrl}${path}${query}`;
+  const url = `${baseUrl}${path}`;
+  const body = JSON.stringify(payload);
 
   const headers = new Headers(withSessionHeader(sessionId));
+  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(API_KEY_HEADER, apiKey);
   }
 
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers,
+  logger?.debug("[aomi][client] POST start", {
+    path,
+    sessionId,
+    hasApiKey: Boolean(apiKey),
+    bodyLength: body.length,
+  });
+
+  let pendingWarning: ReturnType<typeof setTimeout> | undefined;
+  if (typeof setTimeout === "function") {
+    pendingWarning = setTimeout(() => {
+      logger?.debug("[aomi][client] POST still pending", {
+        path,
+        sessionId,
+        bodyLength: body.length,
+      });
+    }, 5000);
+  }
+
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      method: "POST",
+      headers,
+      body,
+    });
+  } finally {
+    if (pendingWarning) {
+      clearTimeout(pendingWarning);
+    }
+  }
+
+  logger?.debug("[aomi][client] POST response", {
+    path,
+    sessionId,
+    status: response.status,
+    ok: response.ok,
   });
 
   if (!response.ok) {
@@ -146,7 +232,9 @@ export class AomiClient {
     userState?: UserStateShape,
     clientId?: string,
   ): Promise<AomiStateResponse> {
-    const normalizedUserState = UserState.normalize(userState);
+    const normalizedUserState = stripBulkyPendingFields(
+      UserState.normalize(userState),
+    );
     const url = buildApiUrl(this.baseUrl, "/api/state", {
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
@@ -154,8 +242,20 @@ export class AomiClient {
       client_id: clientId,
     });
 
+    this.logger?.debug("[aomi][client] GET /api/state start", {
+      sessionId,
+      clientId,
+      hasUserState: Boolean(normalizedUserState),
+    });
+
     const response = await this.rawFetchImpl(url, {
       headers: withSessionHeader(sessionId),
+    });
+
+    this.logger?.debug("[aomi][client] GET /api/state response", {
+      sessionId,
+      status: response.status,
+      ok: response.ok,
     });
 
     if (!response.ok) {
@@ -194,6 +294,15 @@ export class AomiClient {
       payload.client_id = options.clientId;
     }
 
+    this.logger?.debug("[aomi][client] POST /api/chat prepared", {
+      sessionId,
+      app,
+      publicKey: options?.publicKey,
+      clientId: options?.clientId,
+      hasUserState: Boolean(normalizedUserState),
+      messagePreview: previewText(message),
+    });
+
     return postState<AomiChatResponse>(
       this.baseUrl,
       "/api/chat",
@@ -201,6 +310,7 @@ export class AomiClient {
       sessionId,
       this.fetchImpl,
       apiKey,
+      this.logger,
     );
   }
 
@@ -218,12 +328,19 @@ export class AomiClient {
     if (options?.app) {
       payload.app = options.app;
     }
+    this.logger?.debug("[aomi][client] POST /api/system prepared", {
+      sessionId,
+      app: options?.app,
+      messagePreview: previewText(message),
+    });
     return postState<AomiSystemResponse>(
       this.baseUrl,
       "/api/system",
       payload,
       sessionId,
       this.fetchImpl,
+      undefined,
+      this.logger,
     );
   }
 
@@ -231,12 +348,17 @@ export class AomiClient {
    * Interrupt the AI's current response.
    */
   async interrupt(sessionId: string): Promise<AomiInterruptResponse> {
+    this.logger?.debug("[aomi][client] POST /api/interrupt prepared", {
+      sessionId,
+    });
     return postState<AomiInterruptResponse>(
       this.baseUrl,
       "/api/interrupt",
       {},
       sessionId,
       this.fetchImpl,
+      undefined,
+      this.logger,
     );
   }
 
