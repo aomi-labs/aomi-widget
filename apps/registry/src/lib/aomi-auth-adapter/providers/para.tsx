@@ -436,7 +436,15 @@ async function resolveParaAAProviderState({
   }
 }
 
-export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
+export type AomiParaAdapterProviderProps = {
+  children: ReactNode;
+  supportedChains?: readonly Chain[];
+};
+
+export function AomiParaAdapterProvider({
+  children,
+  supportedChains: configuredChains,
+}: AomiParaAdapterProviderProps) {
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
   const paraModal = useSafeParaModal();
@@ -455,12 +463,14 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
   const wagmiConfig = useSafeWagmiConfig();
   const solanaWallet = useSafeSolanaWallet();
 
+  const supportedChains = useMemo(
+    () => configuredChains ?? wagmiConfig.chains,
+    [configuredChains, wagmiConfig.chains],
+  );
+
   const chainsById = useMemo<Record<number, Chain>>(
-    () =>
-      Object.fromEntries(
-        (wagmiConfig.chains ?? []).map((chain) => [chain.id, chain]),
-      ),
-    [wagmiConfig.chains],
+    () => Object.fromEntries(supportedChains.map((chain) => [chain.id, chain])),
+    [supportedChains],
   );
 
   const embeddedWallet0 = paraAccount.embedded.wallets?.[0] as
@@ -555,7 +565,7 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
       canConnect: Boolean(paraModal) && !identity.isConnected,
       canOpenAccountUI: Boolean(paraModal) && identity.isConnected,
       canDisconnect: false,
-      supportedChains: wagmiConfig.chains,
+      supportedChains,
       connect: async () => {
         paraModal?.openModal({ step: "AUTH_MAIN" });
       },
@@ -652,12 +662,12 @@ export function AomiParaAdapterProvider({ children }: { children: ReactNode }) {
     signTypedDataAsync,
     solanaWallet.publicKey,
     solanaWallet.signTransaction,
+    supportedChains,
     switchChainAsync,
     userAAMode,
     userDelegation7702,
     userSmartAccount4337,
     wagmiAddress,
-    wagmiConfig.chains,
     wagmiConnected,
     walletClient,
   ]);
@@ -774,13 +784,17 @@ export function AomiParaProvider({
                 chains={routing.routedChains}
                 routedChainIds={routing.routedChainIds}
               >
-                <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+                <AomiParaAdapterProvider supportedChains={routing.routedChains}>
+                  {children}
+                </AomiParaAdapterProvider>
               </FullTestnetWalletRouter>
             </ParaSolanaWrapper>
           </ParaProvider>
         ) : (
           // No Para API key → no Para session, no Solana session either.
-          <AomiParaAdapterProvider>{children}</AomiParaAdapterProvider>
+          <AomiParaAdapterProvider supportedChains={routing.routedChains}>
+            {children}
+          </AomiParaAdapterProvider>
         )}
       </QueryClientProvider>
     </ExtUserProvider>

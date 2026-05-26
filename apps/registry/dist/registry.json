@@ -349,6 +349,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/full-testnet-wallet-routing.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
         },
         {
@@ -360,6 +364,10 @@
         "@aomi-labs/client",
         "@aomi-labs/react",
         "@getpara/react-sdk",
+        "@getpara/solana-wallet-connectors",
+        "@solana-mobile/mobile-wallet-adapter-protocol",
+        "@solana/wallet-adapter-react",
+        "@solana/web3.js",
         "@tanstack/react-query",
         "viem",
         "wagmi"
