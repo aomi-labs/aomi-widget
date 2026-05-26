@@ -43,6 +43,7 @@ export {
   AomiParaAdapterProvider,
   AomiParaProvider,
 } from "./lib/aomi-auth-adapter/providers/para";
+export type { AomiParaAdapterProviderProps } from "./lib/aomi-auth-adapter/providers/para";
 export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/aomi-auth-adapter";
 export {
   AOMI_AUTH_BOOTING_IDENTITY,

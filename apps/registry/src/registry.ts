@@ -196,6 +196,7 @@ export const registry: RegistryComponent[] = [
     name: "aomi-para-provider",
     file: [
       "lib/aomi-auth-adapter/providers/para.tsx",
+      "lib/aomi-auth-adapter/full-testnet-wallet-routing.tsx",
       "lib/aomi-auth-adapter/safe-wagmi-hooks.ts",
       "lib/aomi-auth-adapter/wallet-execution.ts",
     ],
@@ -203,6 +204,10 @@ export const registry: RegistryComponent[] = [
       "@aomi-labs/client",
       "@aomi-labs/react",
       "@getpara/react-sdk",
+      "@getpara/solana-wallet-connectors",
+      "@solana-mobile/mobile-wallet-adapter-protocol",
+      "@solana/wallet-adapter-react",
+      "@solana/web3.js",
       "@tanstack/react-query",
       "viem",
       "wagmi",
