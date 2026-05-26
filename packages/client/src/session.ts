@@ -1279,7 +1279,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     payload: unknown,
   ): Promise<void> {
     const message = JSON.stringify({ type, payload });
-    await this.client.sendSystemMessage(this.sessionId, message);
+    // Forward the session's active app so the backend dispatches the
+    // callback into the right plugin (e.g. byreal's submit_swap
+    // continuation). Without this the backend resets to "default" and
+    // app-specific continuations (like byreal's broadcast step) never
+    // fire — the tx gets signed but never reaches RPC.
+    await this.client.sendSystemMessage(this.sessionId, message, {
+      app: this.app,
+    });
   }
 
   private resolvePending(): void {
