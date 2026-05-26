@@ -56,6 +56,7 @@ __export(index_exports, {
   DEFAULT_AA_CONFIG: () => DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE: () => DISABLED_PROVIDER_STATE,
   MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
+  SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS: () => SUPPORTED_CHAIN_IDS,
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
@@ -2232,35 +2233,32 @@ var monadTestnet = (0, import_viem2.defineChain)({
   },
   testnet: true
 });
-var SUPPORTED_CHAIN_IDS = [
-  1,
-  137,
-  42161,
-  8453,
-  10,
-  11155111,
-  143,
-  10143,
-  31337
+var SUPPORTED_CHAINS = [
+  { id: 1, name: "Ethereum", ticker: "ETH" },
+  { id: 137, name: "Polygon", ticker: "MATIC" },
+  { id: 42161, name: "Arbitrum", ticker: "ARB" },
+  { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 10, name: "Optimism", ticker: "OP" },
+  { id: 11155111, name: "Sepolia", ticker: "SEP" },
+  { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
+  { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
+  { id: 143, name: "Monad", ticker: "MON" },
+  { id: 10143, name: "Monad Testnet", ticker: "MON" },
+  { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
-var CHAIN_NAMES = {
-  1: "Ethereum",
-  137: "Polygon",
-  42161: "Arbitrum One",
-  8453: "Base",
-  10: "Optimism",
-  11155111: "Sepolia",
-  143: "Monad",
-  10143: "Monad Testnet",
-  31337: "Anvil (local)"
-};
+var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
+var CHAIN_NAMES = Object.fromEntries(
+  SUPPORTED_CHAINS.map((chain) => [chain.id, chain.name])
+);
 var ALCHEMY_CHAIN_SLUGS = {
   1: "eth-mainnet",
   137: "polygon-mainnet",
   42161: "arb-mainnet",
   8453: "base-mainnet",
   10: "opt-mainnet",
-  11155111: "eth-sepolia"
+  11155111: "eth-sepolia",
+  59144: "linea-mainnet",
+  59141: "linea-sepolia"
 };
 var CHAINS_BY_ID = {
   1: import_chains.mainnet,
@@ -2269,6 +2267,8 @@ var CHAINS_BY_ID = {
   10: import_chains.optimism,
   8453: import_chains.base,
   11155111: import_chains.sepolia,
+  59144: import_chains.linea,
+  59141: import_chains.lineaSepolia,
   143: monad,
   10143: monadTestnet,
   31337: import_chains.foundry
@@ -3728,6 +3728,7 @@ async function createAAProviderState(options) {
   DEFAULT_AA_CONFIG,
   DISABLED_PROVIDER_STATE,
   MAX_AUTO_FEE_WEI,
+  SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
   Session,
   TypedEventEmitter,

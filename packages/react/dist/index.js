@@ -1373,6 +1373,9 @@ var SessionManager = class {
 };
 
 // packages/react/src/runtime/utils.ts
+import {
+  SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS
+} from "@aomi-labs/client";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1471,18 +1474,7 @@ var getNetworkName = (chainId) => {
   }
 };
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-var SUPPORTED_CHAINS = [
-  { id: 1, name: "Ethereum", ticker: "ETH" },
-  { id: 137, name: "Polygon", ticker: "MATIC" },
-  { id: 42161, name: "Arbitrum", ticker: "ARB" },
-  { id: 8453, name: "Base", ticker: "BASE" },
-  { id: 10, name: "Optimism", ticker: "OP" },
-  { id: 11155111, name: "Sepolia", ticker: "SEP" },
-  { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
-  { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
-  { id: 143, name: "Monad", ticker: "MON" },
-  { id: 10143, name: "Monad Testnet", ticker: "MON" }
-];
+var SUPPORTED_CHAINS = [...CLIENT_SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
 // packages/react/src/runtime/orchestrator.ts
