@@ -85,20 +85,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Check @aomi-labs/widget-lib npm access
-        id: widget_lib_npm_access
-        run: |
-          if npm access list collaborators @aomi-labs/widget-lib --json >/dev/null 2>&1; then
-            echo "can_publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::NPM_TOKEN cannot access @aomi-labs/widget-lib; skipping widget-lib publish."
-            echo "can_publish=false" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Publish @aomi-labs/widget-lib
-        if: steps.widget_lib_npm_access.outputs.can_publish == 'true'
         run: pnpm --filter @aomi-labs/widget-lib publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
