@@ -142,7 +142,7 @@ export function buildCliUserState(
       : undefined,
   };
 
-  return UserState.withExt(userState, "clientType", CLIENT_TYPE_TS_CLI);
+  return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
 
 export function pendingTxsFromBackendUserState(
@@ -310,12 +310,17 @@ export function pendingSolTxsFromBackendUserState(
     });
   }
 
-  // Also surface pending Solana *message-signature* requests (solana_sigs).
-  // These are produced by `svm_commit_message` / `sign_tx_solana` and stored
-  // under `pending.solana_sigs` with `message_base64` instead of `unsigned_tx`.
+  // Also surface pending Solana *message-signature* requests (solana_sigs /
+  // svm_sigs). These are produced by `svm_commit_message` / `sign_tx_solana`
+  // and stored under either bucket (`solana_sigs` legacy, `svm_sigs`
+  // canonical post-ADR 0001 Rev 2) with `message_base64` instead of
+  // `unsigned_tx`. The backend serializes keys snake_to_camel on the wire,
+  // so also accept `solanaSigs` / `svmSigs`.
   const pendingSolanaSigs =
     asRecord(normalizedUserState.pending?.solanaSigs) ??
     asRecord(normalizedUserState.pending?.solana_sigs) ??
+    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svmSigs) ??
+    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svm_sigs) ??
     {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId(rawId);

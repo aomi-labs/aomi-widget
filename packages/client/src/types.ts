@@ -54,6 +54,8 @@ export interface UserState extends Record<string, unknown> {
     solanaTxs?: Record<string, unknown>;
     solana_sigs?: Record<string, unknown>;
     solanaSigs?: Record<string, unknown>;
+    svm_sigs?: Record<string, unknown>;
+    svmSigs?: Record<string, unknown>;
     eip712_requests?: Record<string, unknown>;
     eip712Requests?: Record<string, unknown>;
     solana_requests?: Record<string, unknown>;
@@ -99,6 +101,8 @@ const USER_STATE_ROOT_ALIAS_KEYS = new Set([
   "pendingSvmIxs",
   "pending_solana_sigs",
   "pendingSolanaSigs",
+  "pending_svm_sigs",
+  "pendingSvmSigs",
   "next_id",
   "nextId",
   "connection",
@@ -389,8 +393,17 @@ function normalizePendingState(
     solana_sigs:
       asRecord(pending?.solana_sigs) ??
       asRecord(pending?.solanaSigs) ??
+      asRecord(pending?.svm_sigs) ??
+      asRecord((pending as UnknownRecord | undefined)?.svmSigs) ??
       asRecord(root.pending_solana_sigs) ??
-      asRecord(root.pendingSolanaSigs),
+      asRecord(root.pendingSolanaSigs) ??
+      asRecord(root.pending_svm_sigs) ??
+      asRecord(root.pendingSvmSigs),
+    svm_sigs:
+      asRecord(pending?.svm_sigs) ??
+      asRecord((pending as UnknownRecord | undefined)?.svmSigs) ??
+      asRecord(root.pending_svm_sigs) ??
+      asRecord(root.pendingSvmSigs),
   });
 }
 
