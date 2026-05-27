@@ -275,6 +275,7 @@ export function Hero() {
                   height="100%"
                   width="100%"
                   walletPosition="footer"
+                  walletFamilies={["evm", "solana"]}
                   backendUrl={DEMO_BACKEND_URL}
                 >
                   <AomiFrame.Header />

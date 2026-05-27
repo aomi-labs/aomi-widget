@@ -660,7 +660,21 @@ export class AomiClient {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as string[];
+    // Backend may return either a list of strings or a list of
+    // `{ name, secrets? }` descriptor objects. Normalize to a plain
+    // string[] so downstream UI doesn't have to branch on shape.
+    const data = (await response.json()) as unknown;
+    if (!Array.isArray(data)) return [];
+    return data
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "name" in item) {
+          const name = (item as { name?: unknown }).name;
+          return typeof name === "string" ? name : "";
+        }
+        return "";
+      })
+      .filter((id): id is string => id.length > 0);
   }
 
   /**

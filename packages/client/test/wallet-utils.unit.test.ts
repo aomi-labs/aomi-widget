@@ -7,6 +7,10 @@ import {
   normalizeTxPayload,
 } from "../src/index";
 
+function createSerializedSolanaTransactionBase64(): string {
+  return "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQACBze9yJWsbqTbnUiruXeZbHqIy/BaQd1UCCVe1GfudGivVNbgjaz4czD0q91ZPUZxlTq9s13835CVa+PSjizkq2teI0IZn3VSjcqRRQskF9qFq2Zlfqj34I+nqiTQs0EuSpL6J7MXfuoBbVCR6gPpz3qT8eX0mPdmeEXgt601lv7ksoYaZa0ZuOykPPWQK9mdR+XAjqOctjCYRJlGapf0M3oDBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAAY00hfx5PhTIw4frM/vninJ79+8fqRa5+HbpLoNaiTIV0cb8EE8yckcu5VkPvGUqBH8hy7DIb7MVsx7B4DI+OICBQAFAq9WAgAGFAANCQgKBxIUAwIODwsRDBATARUEKR7xY9ze2hIzAC0xAQAAAABSOBkAAAAAAAAAAAAAAAAAAAAAAAAAAAABAvwDnAmOrTN/ziyz/kclDi1tJPgEebksJycmNOV7yVu/AAcABQYBAhkDF3JHWXSsa3h2cA0oler3oXpCTBtn+vmrgbTwn1QUBrwEBAIBAwQIBgkF";
+}
+
 describe("wallet payload normalization", () => {
   it("retains backend tx identifiers on wallet transaction requests", () => {
     expect(
@@ -253,6 +257,30 @@ describe("wallet payload normalization", () => {
         description: "sign login proof",
         cluster: "solana:devnet",
         pendingSolanaId: 17,
+      },
+    });
+  });
+
+  it("normalizes serialized tx bytes in svm message_sign payloads into a Solana tx-sign request", () => {
+    const unsignedTx = createSerializedSolanaTransactionBase64();
+
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        request_kind: "message_sign",
+        kind: "svm_message",
+        message_base64: unsignedTx,
+        cluster: "solana:mainnet",
+        description: "sign serialized swap tx",
+        pending_solana_id: 23,
+      }),
+    ).toEqual({
+      kind: "solana_sign",
+      payload: {
+        unsignedTx,
+        description: "sign serialized swap tx",
+        cluster: "solana:mainnet",
+        pendingSolanaId: 23,
       },
     });
   });

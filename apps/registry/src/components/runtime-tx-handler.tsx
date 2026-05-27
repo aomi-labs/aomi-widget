@@ -224,7 +224,24 @@ export function RuntimeTxHandler() {
             return;
           }
 
+          console.debug("[RuntimeTxHandler] invoking solana_sign_message", {
+            requestId: req.id,
+            pendingSolanaId: req.payload.pendingSolanaId,
+            cluster: req.payload.cluster,
+            description: req.payload.description,
+            adapterReady: adapter.isReady,
+            activeFamily: adapter.activeFamily,
+            activeNetwork: adapter.activeNetwork,
+            svmAddress: adapter.identity.svmAddress,
+            solanaWalletName: adapter.identity.solanaWalletName,
+            hasSignSolanaMessage: Boolean(adapter.signSolanaMessage),
+          });
           const result = await adapter.signSolanaMessage(req.payload);
+          console.debug("[RuntimeTxHandler] resolved solana_sign_message", {
+            requestId: req.id,
+            pendingSolanaId: req.payload.pendingSolanaId,
+            signatureLength: result.signature?.length,
+          });
           await resolveWalletRequest(req.id, {
             kind: "solana_sign_message",
             ...result,

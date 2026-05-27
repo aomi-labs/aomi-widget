@@ -6,7 +6,7 @@ import type {
   SolanaNetworkOption,
 } from "./types";
 
-export const DEFAULT_SOLANA_CLUSTER: SolanaCluster = "solana:devnet";
+export const DEFAULT_SOLANA_CLUSTER: SolanaCluster = "solana:mainnet";
 
 export const DEFAULT_SOLANA_RPC_HTTP_URLS: Record<SolanaCluster, string> = {
   "solana:mainnet": "https://api.mainnet-beta.solana.com",
@@ -82,15 +82,6 @@ export function buildDefaultSolanaNetworkOptions(options?: {
 }): readonly SolanaNetworkOption[] {
   return [
     {
-      id: "solana-devnet",
-      label: "Solana Devnet",
-      cluster: "solana:devnet",
-      rpcHttpUrl:
-        options?.devnetRpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS["solana:devnet"],
-      rpcWsUrl: options?.devnetRpcWsUrl,
-      isDefault: true,
-    },
-    {
       id: "solana-mainnet",
       label: "Solana Mainnet",
       cluster: "solana:mainnet",
@@ -98,6 +89,15 @@ export function buildDefaultSolanaNetworkOptions(options?: {
         options?.mainnetRpcHttpUrl ??
         DEFAULT_SOLANA_RPC_HTTP_URLS["solana:mainnet"],
       rpcWsUrl: options?.mainnetRpcWsUrl,
+      isDefault: true,
+    },
+    {
+      id: "solana-devnet",
+      label: "Solana Devnet",
+      cluster: "solana:devnet",
+      rpcHttpUrl:
+        options?.devnetRpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS["solana:devnet"],
+      rpcWsUrl: options?.devnetRpcWsUrl,
     },
     {
       id: "solana-testnet",

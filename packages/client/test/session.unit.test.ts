@@ -4,6 +4,10 @@ import { AomiClient, Session } from "../src/index";
 import type { AomiChatResponse, AomiStateResponse } from "../src/index";
 import { CLIENT_TYPE_WEB_UI, UserState } from "../src/index";
 
+function createSerializedSolanaTransactionBase64(): string {
+  return "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQACBze9yJWsbqTbnUiruXeZbHqIy/BaQd1UCCVe1GfudGivVNbgjaz4czD0q91ZPUZxlTq9s13835CVa+PSjizkq2teI0IZn3VSjcqRRQskF9qFq2Zlfqj34I+nqiTQs0EuSpL6J7MXfuoBbVCR6gPpz3qT8eX0mPdmeEXgt601lv7ksoYaZa0ZuOykPPWQK9mdR+XAjqOctjCYRJlGapf0M3oDBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAAY00hfx5PhTIw4frM/vninJ79+8fqRa5+HbpLoNaiTIV0cb8EE8yckcu5VkPvGUqBH8hy7DIb7MVsx7B4DI+OICBQAFAq9WAgAGFAANCQgKBxIUAwIODwsRDBATARUEKR7xY9ze2hIzAC0xAQAAAABSOBkAAAAAAAAAAAAAAAAAAAAAAAAAAAABAvwDnAmOrTN/ziyz/kclDi1tJPgEebksJycmNOV7yVu/AAcABQYBAhkDF3JHWXSsa3h2cA0oler3oXpCTBtn+vmrgbTwn1QUBrwEBAIBAwQIBgkF";
+}
+
 function createMockClient() {
   const client = new AomiClient({ baseUrl: "http://unit.test" });
   vi.spyOn(client, "subscribeSSE").mockImplementation(() => () => {});
@@ -337,6 +341,64 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
     });
     expect(warnSpy).not.toHaveBeenCalled();
+
+    session.close();
+  });
+
+  it("surfaces pending svm_sigs from fetchState as solana message-sign wallet requests", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-svm-sigs",
+      userState: {
+        connection: { is_connected: true, primary_family: "solana" },
+        solana: {
+          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
+          cluster: "solana:mainnet",
+          wallet_name: "Phantom",
+          transport: "extension",
+        },
+      },
+    });
+    const unsignedTx = createSerializedSolanaTransactionBase64();
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: true,
+      messages: [],
+      user_state: {
+        connection: { is_connected: true, primary_family: "solana" },
+        solana: {
+          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
+          cluster: "solana:mainnet",
+          wallet_name: "Phantom",
+          transport: "extension",
+        },
+        pending: {
+          svm_sigs: {
+            1: {
+              signer: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
+              description: "byreal AMM swap: 0.02 SOL -> ~1.67 USDC",
+              kind: "svm_message",
+              messageBase64: unsignedTx,
+              pendingSvmSigId: 1,
+            },
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    await session.syncUserState();
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "solana_sign-1",
+        kind: "solana_sign",
+        payload: expect.objectContaining({
+          pendingSolanaId: 1,
+          description: "byreal AMM swap: 0.02 SOL -> ~1.67 USDC",
+          unsignedTx,
+        }),
+      }),
+    ]);
 
     session.close();
   });
@@ -817,6 +879,58 @@ describe("ClientSession ext helpers", () => {
     expect(request.payload.description).toBe("sign login proof");
     expect(request.payload.cluster).toBe("solana:devnet");
     expect(request.payload.pendingSolanaId).toBe(17);
+
+    session.close();
+  });
+
+  it("emits wallet_solana_sign_request from a wallet::solana_sign_request legacy sign_tx_solana InlineCall", async () => {
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-solana-legacy-sign-tx-1",
+    });
+    const unsignedTx = createSerializedSolanaTransactionBase64();
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            chain_kind: "svm",
+            request_kind: "message_sign",
+            kind: "svm_message",
+            message_base64: unsignedTx,
+            description: "sign serialized swap tx",
+            cluster: "solana:mainnet",
+            pending_solana_id: 18,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_sign_request", resolve);
+    });
+
+    await session.sendAsync("sign legacy solana tx");
+    const request = (await requestPromise) as {
+      id: string;
+      kind: string;
+      payload: {
+        unsignedTx?: string;
+        description?: string;
+        cluster?: string;
+        pendingSolanaId?: number;
+      };
+    };
+
+    expect(request.id).toBe("solana_sign-18");
+    expect(request.kind).toBe("solana_sign");
+    expect(request.payload.unsignedTx).toBe(unsignedTx);
+    expect(request.payload.description).toBe("sign serialized swap tx");
+    expect(request.payload.cluster).toBe("solana:mainnet");
+    expect(request.payload.pendingSolanaId).toBe(18);
 
     session.close();
   });

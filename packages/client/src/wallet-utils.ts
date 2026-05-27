@@ -10,6 +10,10 @@
 // Types
 // =============================================================================
 
+import {
+  Transaction as SolanaTransaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import { type Hex, getAddress } from "viem";
 import type { AAWalletCall } from "./aa/types";
 
@@ -117,6 +121,35 @@ function getToolArgs(payload: unknown): UnknownRecord {
   const root = asRecord(payload);
   const nestedArgs = asRecord(root?.args);
   return nestedArgs ?? root ?? {};
+}
+
+function decodeBase64(value: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const bin = atob(value);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function isSerializedSolanaTransactionBase64(value: string): boolean {
+  try {
+    const bytes = decodeBase64(value);
+    if (bytes.length === 0) {
+      return false;
+    }
+
+    try {
+      VersionedTransaction.deserialize(bytes);
+      return true;
+    } catch {
+      SolanaTransaction.from(bytes);
+      return true;
+    }
+  } catch {
+    return false;
+  }
 }
 
 function parseChainKind(value: unknown): "evm" | "svm" | undefined {
@@ -464,7 +497,21 @@ export function normalizeSolanaWalletRequest(
   const kind = inferSolanaRequestKind(solanaRequest);
   if (kind === "solana_sign_message") {
     const normalized = normalizeSolanaSignMessagePayload(payload);
-    return normalized.message ? { kind, payload: normalized } : null;
+    if (!normalized.message) {
+      return null;
+    }
+    if (isSerializedSolanaTransactionBase64(normalized.message)) {
+      return {
+        kind: "solana_sign",
+        payload: {
+          unsignedTx: normalized.message,
+          description: normalized.description,
+          cluster: normalized.cluster,
+          pendingSolanaId: normalized.pendingSolanaId,
+        },
+      };
+    }
+    return { kind, payload: normalized };
   }
 
   const normalized = normalizeSolanaSignPayload(payload);

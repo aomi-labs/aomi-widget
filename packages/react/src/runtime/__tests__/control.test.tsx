@@ -18,7 +18,11 @@ afterEach(() => {
 });
 
 describe("Control context", () => {
-  it("refetches authorized apps when the wallet address changes", async () => {
+  it("does not refetch authorized apps when the wallet address changes", async () => {
+    // Refetching on every wallet/network switch caused the app picker to
+    // visually reset (e.g. when toggling between EVM and Solana wallets,
+    // the new app list might omit the user's previous selection). Apps are
+    // scoped to the api key / auth context, not to the connected wallet.
     const getApps = vi.fn(async () => ["default"]);
     setAomiClientConfig({
       getApps,
@@ -45,14 +49,7 @@ describe("Control context", () => {
       await flushPromises();
     });
 
-    await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(2);
-    });
-
-    expect(getApps.mock.calls[1]?.[1]).toMatchObject({
-      publicKey: "0xabc",
-      apiKey: undefined,
-    });
+    expect(getApps).toHaveBeenCalledTimes(1);
   });
 
   it("does not refetch authorized apps on thread changes", async () => {
@@ -76,17 +73,17 @@ describe("Control context", () => {
     expect(getApps).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the default app when a previous selection is no longer authorized", async () => {
+  it("preserves the selected app across wallet connection changes", async () => {
+    // Wallet connect/disconnect no longer triggers an app refetch, so the
+    // user's previously chosen app stays selected when they switch networks
+    // or families.
     const sendMessage = vi.fn(
       async (): Promise<AomiChatResponse> => ({
         is_processing: false,
         messages: [],
       }),
     );
-    const getApps = vi.fn(
-      async (_sessionId: string, options?: { publicKey?: string }) =>
-        options?.publicKey ? ["default"] : ["default", "special"],
-    );
+    const getApps = vi.fn(async () => ["default", "special"]);
 
     setAomiClientConfig({
       getApps,
@@ -115,11 +112,8 @@ describe("Control context", () => {
       await flushPromises();
     });
 
-    await waitFor(() => {
-      expect(getControl().state.authorizedApps).toEqual(["default"]);
-    });
-
-    expect(getControl().getCurrentThreadApp()).toBe("default");
+    expect(getApps).toHaveBeenCalledTimes(1);
+    expect(getControl().getCurrentThreadApp()).toBe("special");
 
     await act(async () => {
       await getApi().sendMessage("hello");
@@ -130,52 +124,8 @@ describe("Control context", () => {
     });
 
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
-      app: "default",
+      app: "special",
       publicKey: "0xabc",
-    });
-  });
-
-  it("drops public key app scoping after disconnect", async () => {
-    const getApps = vi.fn(async () => ["default"]);
-    setAomiClientConfig({
-      getApps,
-      getModels: async () => [],
-    });
-
-    const { api } = renderRuntime();
-
-    await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(1);
-    });
-
-    await act(async () => {
-      api.setUser({
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
-      });
-      await flushPromises();
-    });
-
-    await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(2);
-    });
-
-    expect(getApps.mock.calls[1]?.[1]).toMatchObject({
-      publicKey: "0xabc",
-    });
-
-    await act(async () => {
-      api.setUser({ isConnected: false });
-      await flushPromises();
-    });
-
-    await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(3);
-    });
-
-    expect(getApps.mock.calls[2]?.[1]).toMatchObject({
-      publicKey: undefined,
     });
   });
 

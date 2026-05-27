@@ -449,7 +449,10 @@ function AomiPrivyAdapterProvider({
       identity,
       isReady: !isBooting,
       isSwitchingChain: isSwitchingChain,
-      canConnect: isReady && !identity.isConnected,
+      // Connect/disconnect aren't gated by the overall identity here —
+      // even when the user has a Privy session, they may still want to
+      // (re-)open the login modal to link a second wallet family.
+      canConnect: isReady,
       canOpenAccountUI: isReady && identity.isConnected,
       canDisconnect: isReady && identity.isConnected,
       supportedChains: wagmiConfig.chains,
