@@ -61,10 +61,6 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/router.tsx"
-        },
-        {
-          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/types.ts"
         },
         {

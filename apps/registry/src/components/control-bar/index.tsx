@@ -71,13 +71,3 @@ export {
 } from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
 export { SecretInput, type SecretInputProps } from "./secret-input";
-export { WalletPicker } from "./wallet-picker";
-export {
-  WalletPickerProvider,
-  useWalletPicker,
-  DEFAULT_WALLET_PROVIDERS,
-  normalizeWalletProviderId,
-  type WalletPickerProvider as WalletPickerProviderEntry,
-  type WalletPickerContextValue,
-  type WalletPickerProviderProps,
-} from "./wallet-picker-context";

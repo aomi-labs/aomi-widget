@@ -10,15 +10,10 @@ import "@getpara/react-sdk/styles.css";
 import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
-  AomiBaseAccountProvider,
-  AomiParaProvider,
-  CaptureWalletAdapter,
-  ExtUserProvider,
+  AomiWalletProvider,
   isFullTestnet,
   monad,
   monadTestnet,
-  RouterAuthAdapterBridge,
-  WalletAdapterRouter,
 } from "../../../registry/src";
 import {
   arbitrum,
@@ -147,47 +142,30 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
 }
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
+  const content = paraApiKey ? (
+    <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+  ) : (
+    children
+  );
+
   return (
-    // ExtUserProvider here is the single, outermost UserState store —
-    // both wallet sub-trees + the widget will collapse onto it (the
-    // provider is idempotent), so the active adapter's identity sync
-    // flows into the widget's `useUser()` reads.
-    <ExtUserProvider>
-      <WalletAdapterRouter>
-        {/* Para sub-tree — its own wagmi config, Para SDK context, etc. */}
-        <AomiParaProvider
-          apiKey={paraApiKey}
-          environment={paraEnvironment}
-          appName="Aomi Labs"
-          appDescription="Interactive Aomi widget demo"
-          appUrl={
-            typeof window !== "undefined"
-              ? window.location.origin
-              : "https://aomi.dev"
-          }
-          walletConnectProjectId={walletConnectProjectId}
-          networks={networks}
-          externalWallets={adapterWallets}
-          oAuthMethods={oAuthMethods}
-        >
-          {paraApiKey ? (
-            <DevAnvilRpcHook>
-              <CaptureWalletAdapter id="para" />
-            </DevAnvilRpcHook>
-          ) : (
-            <CaptureWalletAdapter id="para" />
-          )}
-        </AomiParaProvider>
-
-        {/* Base Account sub-tree — its own wagmi config + connector. */}
-        <AomiBaseAccountProvider appName="Aomi Labs">
-          <CaptureWalletAdapter id="base-account" />
-        </AomiBaseAccountProvider>
-
-        {/* Re-publishes the active adapter via the standard
-            AomiAuthAdapterContext so the widget keeps working unchanged. */}
-        <RouterAuthAdapterBridge>{children}</RouterAuthAdapterBridge>
-      </WalletAdapterRouter>
-    </ExtUserProvider>
+    <AomiWalletProvider
+      provider="para"
+      apiKey={paraApiKey}
+      environment={paraEnvironment}
+      appName="Aomi Labs"
+      appDescription="Interactive Aomi widget demo"
+      appUrl={
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "https://aomi.dev"
+      }
+      walletConnectProjectId={walletConnectProjectId}
+      networks={networks}
+      externalWallets={adapterWallets}
+      oAuthMethods={oAuthMethods}
+    >
+      {content}
+    </AomiWalletProvider>
   );
 }

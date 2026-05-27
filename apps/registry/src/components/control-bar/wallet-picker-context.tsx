@@ -13,26 +13,12 @@ import {
 import { BaseIcon, ParaIcon } from "@/components/icons";
 import type { AomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 
-/**
- * A wallet option the user can pick from in the in-widget picker.
- * Consumers of the widget describe their supported providers here.
- */
 export type WalletPickerProvider = {
-  /** Stable id. Built-ins: "para" | "base-account". */
   id: string;
-  /** Display label shown on the row. */
   label: string;
-  /** Short, plain-text description rendered under the label when disconnected. */
   description?: string;
-  /** Icon component (rendered colorless via `currentColor`). */
   icon?: FC<SVGProps<SVGSVGElement>>;
-  /**
-   * Custom action invoked when the user picks this provider. When omitted
-   * the picker falls back to `adapter.connect()`. Returning a Promise keeps
-   * the row in a loading state until it resolves.
-   */
   onSelect?: (adapter: AomiAuthAdapter) => void | Promise<void>;
-  /** Render the row as disabled. */
   disabled?: boolean;
 };
 
@@ -48,7 +34,7 @@ const WalletPickerContext = createContext<WalletPickerContextValue | null>(
   null,
 );
 
-export const DEFAULT_WALLET_PROVIDERS: WalletPickerProvider[] = [
+const DEFAULT_WALLET_PROVIDERS: WalletPickerProvider[] = [
   {
     id: "para",
     label: "Para",
@@ -60,27 +46,14 @@ export const DEFAULT_WALLET_PROVIDERS: WalletPickerProvider[] = [
     label: "Base Account",
     description: "Smart wallet",
     icon: BaseIcon,
+    disabled: true,
   },
 ];
 
-export type WalletPickerProviderProps = {
-  children: ReactNode;
-  providers?: WalletPickerProvider[];
-};
-
-export function WalletPickerProvider({
-  children,
-  providers,
-}: WalletPickerProviderProps) {
+export function WalletPickerProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const openPicker = useCallback(() => setOpen(true), []);
   const closePicker = useCallback(() => setOpen(false), []);
-
-  const resolvedProviders = useMemo(
-    () =>
-      providers && providers.length > 0 ? providers : DEFAULT_WALLET_PROVIDERS,
-    [providers],
-  );
 
   const value = useMemo<WalletPickerContextValue>(
     () => ({
@@ -88,9 +61,9 @@ export function WalletPickerProvider({
       isAvailable: true,
       openPicker,
       closePicker,
-      providers: resolvedProviders,
+      providers: DEFAULT_WALLET_PROVIDERS,
     }),
-    [open, openPicker, closePicker, resolvedProviders],
+    [open, openPicker, closePicker],
   );
 
   return (
@@ -114,10 +87,6 @@ export function useWalletPicker(): WalletPickerContextValue {
   return ctx;
 }
 
-/**
- * Normalises the auth-adapter's `walletProvider` field (camelCase / variant
- * spellings) to a picker-provider id.
- */
 export function normalizeWalletProviderId(
   raw: string | undefined,
 ): string | undefined {

@@ -80,14 +80,13 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     );
   }
 
-  const activeProviderId = normalizeWalletProviderId(identity.walletProvider);
-  const activeProvider = activeProviderId
-    ? providers.find((p) => p.id === activeProviderId)
-    : undefined;
-  const ActiveIcon = activeProvider?.icon ?? WalletIcon;
-
   const visibleAddress = identity.address ?? identity.svmAddress;
   const formattedAddress = formatAddress(visibleAddress);
+  const activeProviderId = normalizeWalletProviderId(identity.walletProvider);
+  const activeProvider = activeProviderId
+    ? providers.find((provider) => provider.id === activeProviderId)
+    : undefined;
+  const ActiveIcon = activeProvider?.icon ?? WalletIcon;
   const chainTicker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
     : undefined;
@@ -98,7 +97,13 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     <button
       type="button"
       onClick={handleClick}
-      aria-label="Manage account"
+      aria-label={
+        adapter.canOpenAccountUI
+          ? "Manage account"
+          : adapter.canDisconnect
+            ? "Disconnect account"
+            : "Connected account"
+      }
       disabled={disabled}
       className={cn(
         "inline-flex w-full items-center justify-start gap-2 whitespace-nowrap",

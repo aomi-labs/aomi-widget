@@ -17,11 +17,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { cn, formatAddress, getChainInfo } from "@aomi-labs/react";
-import {
-  useAomiAuthAdapter,
-  useWalletAdapterRouter,
-  type AomiAuthAdapter,
-} from "../../lib/aomi-auth-adapter";
+import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 import { formatAuthMethod } from "../../lib/aomi-auth-adapter";
 import {
   normalizeWalletProviderId,
@@ -33,32 +29,9 @@ type PendingAction = `${"connect" | "manage" | "disconnect"}:${string}` | null;
 
 export function WalletPicker() {
   const { open, closePicker, providers } = useWalletPicker();
-  const fallbackAdapter = useAomiAuthAdapter();
-  const router = useWalletAdapterRouter();
+  const adapter = useAomiAuthAdapter();
+  const identity = adapter.identity;
   const [pending, setPending] = useState<PendingAction>(null);
-
-  // Resolve the adapter that drives a given picker row.
-  // With a router, each row gets its own provider's adapter.
-  // Without a router, every row falls back to the single adapter (legacy).
-  const getRowAdapter = useCallback(
-    (providerId: string): AomiAuthAdapter => {
-      if (router) {
-        return router.getAdapter(providerId) ?? fallbackAdapter;
-      }
-      return fallbackAdapter;
-    },
-    [router, fallbackAdapter],
-  );
-
-  // Adapter representing the "currently shown" identity in the trigger /
-  // connected summary. With a router, this is the active adapter; without
-  // a router, the legacy single adapter.
-  const activeAdapter: AomiAuthAdapter = router
-    ? router.activeId
-      ? (router.getAdapter(router.activeId) ?? fallbackAdapter)
-      : fallbackAdapter
-    : fallbackAdapter;
-  const identity = activeAdapter.identity;
 
   useEffect(() => {
     if (!open) {
@@ -72,23 +45,20 @@ export function WalletPicker() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, closePicker]);
 
-  // Which row id should render the "Active" treatment?
-  // With a router, prefer the selected connected adapter, then fall back to
-  // whichever provider's adapter reports connected.
-  // Without a router, it's the legacy provider-id-from-identity match.
-  const activeProviderId = router
-    ? router.activeId && getRowAdapter(router.activeId).identity.isConnected
-      ? router.activeId
-      : findConnectedProviderId(providers, getRowAdapter)
-    : identity.isConnected
-      ? normalizeWalletProviderId(identity.walletProvider)
-      : undefined;
+  const activeProviderId = identity.isConnected
+    ? normalizeWalletProviderId(identity.walletProvider)
+    : undefined;
 
   const orderedProviders = useMemo<WalletPickerProviderEntry[]>(() => {
     if (!activeProviderId) return providers;
-    const active = providers.find((p) => p.id === activeProviderId);
+    const active = providers.find(
+      (provider) => provider.id === activeProviderId,
+    );
     if (!active) return providers;
-    return [active, ...providers.filter((p) => p.id !== activeProviderId)];
+    return [
+      active,
+      ...providers.filter((provider) => provider.id !== activeProviderId),
+    ];
   }, [providers, activeProviderId]);
 
   const runAction = useCallback(
@@ -113,12 +83,9 @@ export function WalletPicker() {
 
   if (!open) return null;
 
-  const anyConnected = orderedProviders.some(
-    (p) => getRowAdapter(p.id).identity.isConnected,
-  );
-  const title = anyConnected ? "Wallets" : "Connect a wallet";
-  const subtitle = anyConnected
-    ? "Switch between, manage, or disconnect a wallet."
+  const title = identity.isConnected ? "Wallets" : "Connect a wallet";
+  const subtitle = identity.isConnected
+    ? "Manage or disconnect your active wallet."
     : "Choose how you'd like to sign in.";
 
   return (
@@ -142,7 +109,6 @@ export function WalletPicker() {
           "animate-in zoom-in-95 fade-in-0 duration-200",
         )}
       >
-        {/* Header */}
         <div className="border-border/60 relative border-b px-4 pb-3 pt-3">
           <h2
             id="aomi-wallet-picker-title"
@@ -167,112 +133,86 @@ export function WalletPicker() {
           </button>
         </div>
 
-        {/* Provider list */}
-        {orderedProviders.length === 0 ? (
-          <div className="px-4 py-6 text-center">
-            <p className="text-muted-foreground text-xs">
-              No wallet providers configured.
-            </p>
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-2 p-2">
-            {orderedProviders.map((provider) => {
-              const rowAdapter = getRowAdapter(provider.id);
-              const rowIdentity = rowAdapter.identity;
-              const isActive = provider.id === activeProviderId;
-              const isBooting =
-                rowIdentity.status === "booting" || !rowAdapter.isReady;
-              const isClickable = !isActive && !provider.disabled;
-              const connectKey: PendingAction = `connect:${provider.id}`;
-              const manageKey: PendingAction = `manage:${provider.id}`;
-              const disconnectKey: PendingAction = `disconnect:${provider.id}`;
-              const anyPending = pending !== null;
+        <ul className="flex flex-col gap-2 p-2">
+          {orderedProviders.map((provider) => {
+            const isActive = provider.id === activeProviderId;
+            const isBooting = identity.status === "booting" || !adapter.isReady;
+            const isClickable =
+              !isActive && !provider.disabled && adapter.canConnect;
+            const connectKey: PendingAction = `connect:${provider.id}`;
+            const manageKey: PendingAction = `manage:${provider.id}`;
+            const disconnectKey: PendingAction = `disconnect:${provider.id}`;
+            const anyPending = pending !== null;
 
-              const addressLabel = isActive
-                ? formatAddress(rowIdentity.address ?? rowIdentity.svmAddress)
+            const addressLabel = isActive
+              ? formatAddress(identity.address ?? identity.svmAddress)
+              : undefined;
+            const chainLabel = isActive
+              ? identity.chainId
+                ? getChainInfo(identity.chainId)?.ticker
+                : undefined
+              : undefined;
+            const authMethodLabel = isActive
+              ? formatAuthMethod(identity.authMethod)
+              : undefined;
+
+            const onManage =
+              isActive && adapter.canOpenAccountUI && adapter.openAccountUI
+                ? () =>
+                    void runAction(
+                      manageKey,
+                      async () => {
+                        await adapter.openAccountUI?.();
+                      },
+                      { closeAfter: true },
+                    )
                 : undefined;
-              const chainLabel = isActive
-                ? rowIdentity.chainId
-                  ? getChainInfo(rowIdentity.chainId)?.ticker
-                  : undefined
-                : undefined;
-              const authMethodLabel = isActive
-                ? formatAuthMethod(rowIdentity.authMethod)
+            const onDisconnect =
+              isActive && adapter.canDisconnect && adapter.disconnect
+                ? () =>
+                    void runAction(disconnectKey, async () => {
+                      await adapter.disconnect?.();
+                    })
                 : undefined;
 
-              const onManage =
-                isActive && rowAdapter.canOpenAccountUI && rowAdapter.openAccountUI
-                  ? () =>
-                      void runAction(
-                        manageKey,
-                        async () => {
-                          await rowAdapter.openAccountUI?.();
-                        },
-                        { closeAfter: true },
-                      )
-                  : undefined;
-              const onDisconnect =
-                isActive && rowAdapter.canDisconnect && rowAdapter.disconnect
-                  ? () =>
-                      void runAction(disconnectKey, async () => {
-                        await rowAdapter.disconnect?.();
-                      })
-                  : undefined;
-
-              return (
-                <li key={provider.id}>
-                  <ProviderRow
-                    provider={provider}
-                    isActive={isActive}
-                    isBooting={isBooting}
-                    isClickable={isClickable}
-                    isPendingConnect={pending === connectKey}
-                    isAnyPending={anyPending}
-                    addressLabel={addressLabel}
-                    chainLabel={chainLabel}
-                    authMethodLabel={authMethodLabel}
-                    onSelect={() =>
-                      void runAction(
-                        connectKey,
-                        async () => {
-                          if (router) router.setActiveId(provider.id);
-                          if (provider.onSelect) {
-                            await provider.onSelect(rowAdapter);
-                          } else if (rowAdapter.canConnect) {
-                            await rowAdapter.connect();
-                          }
-                        },
-                        { closeAfter: true },
-                      )
-                    }
-                    onManage={onManage}
-                    isManagePending={pending === manageKey}
-                    onDisconnect={onDisconnect}
-                    isDisconnectPending={pending === disconnectKey}
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        )}
+            return (
+              <li key={provider.id}>
+                <ProviderRow
+                  provider={provider}
+                  isActive={isActive}
+                  isBooting={isBooting}
+                  isClickable={isClickable}
+                  isPendingConnect={pending === connectKey}
+                  isAnyPending={anyPending}
+                  addressLabel={addressLabel}
+                  chainLabel={chainLabel}
+                  authMethodLabel={authMethodLabel}
+                  onSelect={() =>
+                    void runAction(
+                      connectKey,
+                      async () => {
+                        if (provider.onSelect) {
+                          await provider.onSelect(adapter);
+                        } else if (adapter.canConnect) {
+                          await adapter.connect();
+                        }
+                      },
+                      { closeAfter: true },
+                    )
+                  }
+                  onManage={onManage}
+                  isManagePending={pending === manageKey}
+                  onDisconnect={onDisconnect}
+                  isDisconnectPending={pending === disconnectKey}
+                />
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </div>
   );
 }
-
-function findConnectedProviderId(
-  providers: WalletPickerProviderEntry[],
-  getRowAdapter: (id: string) => AomiAuthAdapter,
-): string | undefined {
-  for (const p of providers) {
-    if (getRowAdapter(p.id).identity.isConnected) return p.id;
-  }
-  return undefined;
-}
-
-// ---------------------------------------------------------------------------
-// Provider row
-// ---------------------------------------------------------------------------
 
 type ProviderRowProps = {
   provider: WalletPickerProviderEntry;
@@ -285,10 +225,8 @@ type ProviderRowProps = {
   chainLabel?: string;
   authMethodLabel?: string;
   onSelect: () => void;
-  /** Renders an inline Manage icon button when defined and the row is active. */
   onManage?: () => void;
   isManagePending?: boolean;
-  /** Renders an inline Disconnect icon button when defined and the row is active. */
   onDisconnect?: () => void;
   isDisconnectPending?: boolean;
 };
@@ -312,11 +250,11 @@ function ProviderRow({
   const Icon = provider.icon ?? WalletIcon;
 
   const subtitle = isBooting
-    ? "Connecting…"
+    ? "Connecting..."
     : isActive
       ? [addressLabel, chainLabel, authMethodLabel]
           .filter(Boolean)
-          .join(" · ") || provider.description
+          .join(" / ") || provider.description
       : (provider.description ?? "");
 
   const cardClass = cn(
@@ -329,7 +267,6 @@ function ProviderRow({
 
   const innerContent = (
     <>
-      {/* Icon tile */}
       <span className="relative flex size-10 shrink-0 items-center justify-center">
         <span
           className={cn(
@@ -348,7 +285,6 @@ function ProviderRow({
         )}
       </span>
 
-      {/* Label + subtitle */}
       <span className="min-w-0 flex-1 leading-tight">
         <span className="block truncate text-sm font-medium">
           {provider.label}
@@ -421,7 +357,6 @@ function ProviderRow({
   );
 }
 
-// Inline icon-only button used inside the active row (Manage / Disconnect).
 function RowIconButton({
   icon: Icon,
   onClick,
@@ -456,4 +391,3 @@ function RowIconButton({
     </button>
   );
 }
-
