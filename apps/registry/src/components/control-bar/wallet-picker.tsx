@@ -9,7 +9,6 @@ import {
   type SVGProps,
 } from "react";
 import {
-  CheckIcon,
   ChevronRightIcon,
   Loader2Icon,
   LogOutIcon,
@@ -201,6 +200,25 @@ export function WalletPicker() {
                 ? formatAuthMethod(rowIdentity.authMethod)
                 : undefined;
 
+              const onManage =
+                isActive && rowAdapter.canOpenAccountUI && rowAdapter.openAccountUI
+                  ? () =>
+                      void runAction(
+                        manageKey,
+                        async () => {
+                          await rowAdapter.openAccountUI?.();
+                        },
+                        { closeAfter: true },
+                      )
+                  : undefined;
+              const onDisconnect =
+                isActive && rowAdapter.canDisconnect && rowAdapter.disconnect
+                  ? () =>
+                      void runAction(disconnectKey, async () => {
+                        await rowAdapter.disconnect?.();
+                      })
+                  : undefined;
+
               return (
                 <li key={provider.id}>
                   <ProviderRow
@@ -227,45 +245,11 @@ export function WalletPicker() {
                         { closeAfter: true },
                       )
                     }
+                    onManage={onManage}
+                    isManagePending={pending === manageKey}
+                    onDisconnect={onDisconnect}
+                    isDisconnectPending={pending === disconnectKey}
                   />
-
-                  {isActive && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pb-1 pl-[52px] pr-2">
-                      {rowAdapter.canOpenAccountUI &&
-                        rowAdapter.openAccountUI && (
-                          <ActionChip
-                            icon={Settings2Icon}
-                            label="Manage"
-                            variant="default"
-                            loading={pending === manageKey}
-                            disabled={anyPending}
-                            onClick={() =>
-                              void runAction(
-                                manageKey,
-                                async () => {
-                                  await rowAdapter.openAccountUI?.();
-                                },
-                                { closeAfter: true },
-                              )
-                            }
-                          />
-                        )}
-                      {rowAdapter.canDisconnect && rowAdapter.disconnect && (
-                        <ActionChip
-                          icon={LogOutIcon}
-                          label="Disconnect"
-                          variant="muted"
-                          loading={pending === disconnectKey}
-                          disabled={anyPending}
-                          onClick={() =>
-                            void runAction(disconnectKey, async () => {
-                              await rowAdapter.disconnect?.();
-                            })
-                          }
-                        />
-                      )}
-                    </div>
-                  )}
                 </li>
               );
             })}
@@ -301,6 +285,12 @@ type ProviderRowProps = {
   chainLabel?: string;
   authMethodLabel?: string;
   onSelect: () => void;
+  /** Renders an inline Manage icon button when defined and the row is active. */
+  onManage?: () => void;
+  isManagePending?: boolean;
+  /** Renders an inline Disconnect icon button when defined and the row is active. */
+  onDisconnect?: () => void;
+  isDisconnectPending?: boolean;
 };
 
 function ProviderRow({
@@ -314,9 +304,12 @@ function ProviderRow({
   chainLabel,
   authMethodLabel,
   onSelect,
+  onManage,
+  isManagePending,
+  onDisconnect,
+  isDisconnectPending,
 }: ProviderRowProps) {
   const Icon = provider.icon ?? WalletIcon;
-  const buttonDisabled = !isClickable || isAnyPending || provider.disabled;
 
   const subtitle = isBooting
     ? "Connecting…"
@@ -326,124 +319,141 @@ function ProviderRow({
           .join(" · ") || provider.description
       : (provider.description ?? "");
 
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border transition-colors",
-        isActive
-          ? "border-primary/40 bg-primary/[0.04]"
-          : "border-border/60 bg-background hover:border-border hover:bg-accent/40",
-        provider.disabled && "opacity-50",
-      )}
-    >
-      <button
-        type="button"
-        onClick={onSelect}
-        disabled={buttonDisabled}
-        aria-label={
-          isActive
-            ? `${provider.label} (active)`
-            : `Connect with ${provider.label}`
-        }
-        className={cn(
-          "flex w-full items-center gap-3 rounded-2xl px-2.5 py-2 text-left",
-          "focus-visible:ring-ring focus-visible:ring-offset-popover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-          isClickable ? "cursor-pointer" : "cursor-default",
-        )}
-      >
-        {/* Icon tile */}
-        <span className="relative flex size-10 shrink-0 items-center justify-center">
+  const cardClass = cn(
+    "rounded-2xl border transition-colors",
+    isActive
+      ? "border-primary/40 bg-primary/[0.04]"
+      : "border-border/60 bg-background hover:border-border hover:bg-accent/40",
+    provider.disabled && "opacity-50",
+  );
+
+  const innerContent = (
+    <>
+      {/* Icon tile */}
+      <span className="relative flex size-10 shrink-0 items-center justify-center">
+        <span
+          className={cn(
+            "absolute inset-0 rounded-xl border",
+            isActive
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-border/60 bg-muted/40 text-foreground",
+          )}
+        />
+        <Icon className="relative size-5" />
+        {isActive && (
           <span
-            className={cn(
-              "absolute inset-0 rounded-xl border",
-              isActive
-                ? "border-primary/30 bg-primary/10 text-primary"
-                : "border-border/60 bg-muted/40 text-foreground",
-            )}
+            aria-hidden
+            className="border-popover absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 bg-emerald-500"
           />
-          <Icon className="relative size-5" />
-          {isActive && (
-            <span
-              aria-hidden
-              className="border-popover absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 bg-emerald-500"
+        )}
+      </span>
+
+      {/* Label + subtitle */}
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate text-sm font-medium">
+          {provider.label}
+        </span>
+        {subtitle && (
+          <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
+            {subtitle}
+          </span>
+        )}
+      </span>
+    </>
+  );
+
+  if (isActive) {
+    return (
+      <div
+        className={cn(
+          cardClass,
+          "flex items-center gap-3 px-2.5 py-2 text-left",
+        )}
+        aria-label={`${provider.label} (active)`}
+      >
+        {innerContent}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onManage && (
+            <RowIconButton
+              onClick={onManage}
+              disabled={isAnyPending}
+              ariaLabel="Manage account"
+              loading={!!isManagePending}
+              icon={Settings2Icon}
             />
           )}
-        </span>
-
-        {/* Label + subtitle */}
-        <span className="min-w-0 flex-1 leading-tight">
-          <span className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-medium">
-              {provider.label}
-            </span>
-            {isActive && (
-              <span className="bg-primary/15 text-primary inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
-                <CheckIcon className="size-2.5" />
-                Active
-              </span>
-            )}
-          </span>
-          {subtitle && (
-            <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
-              {subtitle}
-            </span>
+          {onDisconnect && (
+            <RowIconButton
+              onClick={onDisconnect}
+              disabled={isAnyPending}
+              ariaLabel="Disconnect"
+              loading={!!isDisconnectPending}
+              icon={LogOutIcon}
+            />
           )}
-        </span>
+        </div>
+      </div>
+    );
+  }
 
-        {/* Right indicator */}
-        <span className="text-muted-foreground shrink-0">
-          {isPendingConnect ? (
-            <Loader2Icon className="size-4 animate-spin" />
-          ) : isClickable ? (
-            <ChevronRightIcon className="size-4" />
-          ) : null}
-        </span>
-      </button>
-    </div>
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={!isClickable || isAnyPending || provider.disabled}
+      aria-label={`Connect with ${provider.label}`}
+      className={cn(
+        cardClass,
+        "flex w-full items-center gap-3 px-2.5 py-2 text-left",
+        "focus-visible:ring-ring focus-visible:ring-offset-popover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+        isClickable ? "cursor-pointer" : "cursor-default",
+      )}
+    >
+      {innerContent}
+      <span className="text-muted-foreground shrink-0">
+        {isPendingConnect ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : isClickable ? (
+          <ChevronRightIcon className="size-4" />
+        ) : null}
+      </span>
+    </button>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Action chip
-// ---------------------------------------------------------------------------
-
-type ActionChipProps = {
-  icon: FC<SVGProps<SVGSVGElement>>;
-  label: string;
-  variant: "default" | "muted";
-  loading?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-};
-
-function ActionChip({
+// Inline icon-only button used inside the active row (Manage / Disconnect).
+function RowIconButton({
   icon: Icon,
-  label,
-  variant,
-  loading,
-  disabled,
   onClick,
-}: ActionChipProps) {
+  disabled,
+  loading,
+  ariaLabel,
+}: {
+  icon: FC<SVGProps<SVGSVGElement>>;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  ariaLabel: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
+      aria-label={ariaLabel}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
-        "focus-visible:ring-ring focus-visible:ring-offset-popover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
-        variant === "default"
-          ? "border-border/60 bg-background text-foreground hover:bg-accent/60"
-          : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground border-transparent",
+        "rounded-full p-1.5 transition-colors",
+        "text-muted-foreground hover:bg-muted hover:text-foreground",
+        "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2",
         "disabled:pointer-events-none disabled:opacity-50",
       )}
     >
       {loading ? (
-        <Loader2Icon className="size-3 animate-spin" />
+        <Loader2Icon className="size-3.5 animate-spin" />
       ) : (
-        <Icon className="size-3" />
+        <Icon className="size-3.5" />
       )}
-      {label}
     </button>
   );
 }
+
