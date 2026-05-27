@@ -2,9 +2,18 @@
 
 ## Last Updated
 
-2026-04-27 - Release version bumps for publish
+2026-05-27 - Guard app metadata normalization in registry
 
 ## Recent Changes
+
+### Registry app metadata crash guard (2026-05-27)
+
+- **Fixed control bar crash on malformed app ids** in `apps/registry/src/components/control-bar/app-metadata.ts` by:
+  - making `normalizeAppId` accept unknown values and safely return an empty string for non-strings
+  - adding a fallback `Unknown App` metadata entry for empty/invalid ids
+  - skipping invalid entries in `groupAppsByCategory` before calling `getAppInfo`
+  - normalizing returned `AppInfo.id` values for consistent icon/selection behavior
+- **Added regression test** `apps/registry/src/components/control-bar/app-metadata.test.ts` to verify non-string ids no longer crash grouping and empty ids resolve to fallback metadata
 
 ### Release version bumps for publish (2026-04-27)
 
