@@ -61,6 +61,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/router.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/types.ts"
         },
         {
@@ -110,6 +114,14 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/connect-button.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/wallet-picker.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/wallet-picker-context.tsx"
         },
         {
           "type": "registry:component",

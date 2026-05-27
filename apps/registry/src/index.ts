@@ -51,3 +51,24 @@ export {
   isFullTestnet,
   useFullTestnet,
 } from "./lib/aomi-auth-adapter";
+export {
+  CaptureWalletAdapter,
+  RouterAuthAdapterBridge,
+  useWalletAdapterRouter,
+  WalletAdapterRouter,
+} from "./lib/aomi-auth-adapter";
+export type {
+  WalletAdapterRouterProps,
+  WalletAdapterRouterValue,
+} from "./lib/aomi-auth-adapter";
+export {
+  DEFAULT_WALLET_PROVIDERS,
+  useWalletPicker,
+  WalletPicker,
+  WalletPickerProvider,
+} from "./components/control-bar";
+export type {
+  WalletPickerContextValue,
+  WalletPickerProviderEntry,
+  WalletPickerProviderProps,
+} from "./components/control-bar";

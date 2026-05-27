@@ -3,4 +3,5 @@
 export * from "./context";
 export * from "./full-testnet-wallet-routing";
 export * from "./identity";
+export * from "./router";
 export * from "./types";

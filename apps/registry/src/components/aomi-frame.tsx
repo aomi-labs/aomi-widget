@@ -28,6 +28,9 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+import { WalletPickerProvider } from "@/components/control-bar/wallet-picker-context";
+import type { WalletPickerProvider as WalletPickerProviderEntry } from "@/components/control-bar/wallet-picker-context";
+import { WalletPicker } from "@/components/control-bar/wallet-picker";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -61,6 +64,11 @@ type RootProps = {
   backendUrl?: string;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  /**
+   * Providers to show in the in-widget wallet picker.
+   * If omitted, defaults to Para + Base Account.
+   */
+  walletProviders?: WalletPickerProviderEntry[];
 };
 
 type HeaderProps = {
@@ -102,6 +110,7 @@ const Root: FC<RootProps> = ({
   showSidebar = true,
   backendUrl,
   clientOptions,
+  walletProviders,
 }) => {
   const resolvedBackendUrl =
     backendUrl ??
@@ -114,22 +123,27 @@ const Root: FC<RootProps> = ({
       backendUrl={resolvedBackendUrl}
       clientOptions={clientOptions}
     >
-      <SidebarProvider className="min-h-0! h-full">
-        <div
-          className={cn(
-            "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
-            className,
-          )}
-          style={frameStyle}
-        >
-          {showSidebar && <ThreadListSidebar walletPosition={walletPosition} />}
-          <SidebarInset className="relative flex min-h-0 flex-col">
-            {children}
-          </SidebarInset>
-          <NotificationToaster />
-          <RuntimeTxHandler />
-        </div>
-      </SidebarProvider>
+      <WalletPickerProvider providers={walletProviders}>
+        <SidebarProvider className="min-h-0! h-full">
+          <div
+            className={cn(
+              "rounded-4xl relative flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
+              className,
+            )}
+            style={frameStyle}
+          >
+            {showSidebar && (
+              <ThreadListSidebar walletPosition={walletPosition} />
+            )}
+            <SidebarInset className="relative flex min-h-0 flex-col">
+              {children}
+            </SidebarInset>
+            <NotificationToaster />
+            <RuntimeTxHandler />
+            <WalletPicker />
+          </div>
+        </SidebarProvider>
+      </WalletPickerProvider>
     </AomiRuntimeProvider>
   );
 };
