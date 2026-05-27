@@ -48,13 +48,16 @@ describe("CLI chat wallet sync", () => {
       ),
     ).toBe(true);
 
+    // Wallet state must broadcast even for read-only sessions (no
+    // privateKey) so backend tools like commit_message can see the
+    // connected wallet. The privateKey is only required at sign time.
     expect(
       shouldBroadcastWalletStateChange(
         createConfig(),
         null,
         { publicKey: "0x111", chainId: 1 },
       ),
-    ).toBe(false);
+    ).toBe(true);
 
     expect(
       shouldBroadcastWalletStateChange(
@@ -96,16 +99,25 @@ describe("CLI chat wallet sync", () => {
     expect(syncUserState).toHaveBeenCalledTimes(1);
     expect(sendSystemMessage).toHaveBeenCalledTimes(1);
     expect(sendSystemMessage.mock.calls[0]?.[0]).toBe("session-1");
+    // Payload mirrors the canonical nested UserState the backend
+    // deserializes (not the legacy flat {address, chainId, isConnected}
+    // shape, which would silently overwrite user_state with an empty
+    // one).
     expect(JSON.parse(sendSystemMessage.mock.calls[0]?.[1] as string)).toEqual({
       type: "wallet:state_changed",
       payload: {
-        address: "0xnew",
-        chainId: 8453,
-        isConnected: true,
-        aa_mode: null,
-        smart_account: null,
+        connection: {
+          is_connected: true,
+          primary_family: "evm",
+        },
+        evm: {
+          address: "0xnew",
+          chain_id: 8453,
+        },
+        ext: { client_type: "ts_cli" },
       },
     });
+    expect(sendSystemMessage.mock.calls[0]?.[2]).toEqual({ app: "default" });
   });
 
   it("does not sync or emit wallet:state_changed when chainId is missing", async () => {

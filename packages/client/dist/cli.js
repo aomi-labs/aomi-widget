@@ -399,14 +399,16 @@ function normalizeSolanaState(userState) {
   });
 }
 function normalizePendingState(userState) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F;
   const root2 = userState;
   const pending = asRecord(userState.pending);
   return compactRecord({
     evm_txs: (_c = (_b = (_a3 = asRecord(pending == null ? void 0 : pending.evm_txs)) != null ? _a3 : asRecord(pending == null ? void 0 : pending.evmTxs)) != null ? _b : asRecord(root2.pending_txs)) != null ? _c : asRecord(root2.pendingTxs),
     evm_sigs: (_j = (_i = (_h = (_g = (_f = (_e = (_d = asRecord(pending == null ? void 0 : pending.evm_sigs)) != null ? _d : asRecord(pending == null ? void 0 : pending.evmSigs)) != null ? _e : asRecord(pending == null ? void 0 : pending.eip712_requests)) != null ? _f : asRecord(pending == null ? void 0 : pending.eip712Requests)) != null ? _g : asRecord(root2.pending_evm_sigs)) != null ? _h : asRecord(root2.pendingEvmSigs)) != null ? _i : asRecord(root2.pending_eip712s)) != null ? _j : asRecord(root2.pendingEip712s),
-    solana_txs: (_o = (_n = (_m = (_l = (_k = asRecord(pending == null ? void 0 : pending.solana_txs)) != null ? _k : asRecord(pending == null ? void 0 : pending.solanaTxs)) != null ? _l : asRecord(pending == null ? void 0 : pending.solana_requests)) != null ? _m : asRecord(pending == null ? void 0 : pending.solanaRequests)) != null ? _n : asRecord(root2.pending_solana_txs)) != null ? _o : asRecord(root2.pendingSolanaTxs),
-    solana_sigs: (_r = (_q = (_p = asRecord(pending == null ? void 0 : pending.solana_sigs)) != null ? _p : asRecord(pending == null ? void 0 : pending.solanaSigs)) != null ? _q : asRecord(root2.pending_solana_sigs)) != null ? _r : asRecord(root2.pendingSolanaSigs)
+    svm_ixs: (_m = (_l = (_k = asRecord(pending == null ? void 0 : pending.svm_ixs)) != null ? _k : asRecord(pending == null ? void 0 : pending.svmIxs)) != null ? _l : asRecord(root2.pending_svm_ixs)) != null ? _m : asRecord(root2.pendingSvmIxs),
+    solana_txs: (_v = (_u = (_t = (_s = (_r = (_q = (_p = (_o = (_n = asRecord(pending == null ? void 0 : pending.solana_txs)) != null ? _n : asRecord(pending == null ? void 0 : pending.solanaTxs)) != null ? _o : asRecord(pending == null ? void 0 : pending.svm_ixs)) != null ? _p : asRecord(pending == null ? void 0 : pending.svmIxs)) != null ? _q : asRecord(pending == null ? void 0 : pending.solana_requests)) != null ? _r : asRecord(pending == null ? void 0 : pending.solanaRequests)) != null ? _s : asRecord(root2.pending_solana_txs)) != null ? _t : asRecord(root2.pendingSolanaTxs)) != null ? _u : asRecord(root2.pending_svm_ixs)) != null ? _v : asRecord(root2.pendingSvmIxs),
+    solana_sigs: (_C = (_B = (_A = (_z = (_y = (_x = (_w = asRecord(pending == null ? void 0 : pending.solana_sigs)) != null ? _w : asRecord(pending == null ? void 0 : pending.solanaSigs)) != null ? _x : asRecord(pending == null ? void 0 : pending.svm_sigs)) != null ? _y : asRecord(pending == null ? void 0 : pending.svmSigs)) != null ? _z : asRecord(root2.pending_solana_sigs)) != null ? _A : asRecord(root2.pendingSolanaSigs)) != null ? _B : asRecord(root2.pending_svm_sigs)) != null ? _C : asRecord(root2.pendingSvmSigs),
+    svm_sigs: (_F = (_E = (_D = asRecord(pending == null ? void 0 : pending.svm_sigs)) != null ? _D : asRecord(pending == null ? void 0 : pending.svmSigs)) != null ? _E : asRecord(root2.pending_svm_sigs)) != null ? _F : asRecord(root2.pendingSvmSigs)
   });
 }
 function clearDisconnectedWalletState(userState) {
@@ -491,8 +493,12 @@ var init_types = __esm({
       "pendingEip712s",
       "pending_solana_txs",
       "pendingSolanaTxs",
+      "pending_svm_ixs",
+      "pendingSvmIxs",
       "pending_solana_sigs",
       "pendingSolanaSigs",
+      "pending_svm_sigs",
+      "pendingSvmSigs",
       "next_id",
       "nextId",
       "connection",
@@ -824,6 +830,41 @@ var init_sse = __esm({
 });
 
 // src/client.ts
+function previewText(value, max = 80) {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  return `${singleLine.slice(0, max - 1)}\u2026`;
+}
+function pruneBucket(bucket) {
+  if (!bucket) return bucket;
+  const out = {};
+  for (const [id, entry] of Object.entries(bucket)) {
+    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+      const rec = entry;
+      const pruned = {};
+      for (const [k, v] of Object.entries(rec)) {
+        if (!BULKY_PENDING_FIELDS.has(k)) pruned[k] = v;
+      }
+      out[id] = pruned;
+    } else {
+      out[id] = entry;
+    }
+  }
+  return out;
+}
+function stripBulkyPendingFields(userState) {
+  if (!(userState == null ? void 0 : userState.pending)) return userState;
+  const pending = userState.pending;
+  return __spreadProps(__spreadValues({}, userState), {
+    pending: __spreadProps(__spreadValues({}, pending), {
+      evm_txs: pruneBucket(pending.evm_txs),
+      evm_sigs: pruneBucket(pending.evm_sigs),
+      svm_ixs: pruneBucket(pending.svm_ixs),
+      solana_txs: pruneBucket(pending.solana_txs),
+      solana_sigs: pruneBucket(pending.solana_sigs)
+    })
+  });
+}
 function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -840,37 +881,59 @@ function buildApiUrl(baseUrl, path, query) {
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
 }
-function toQueryString(payload) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === void 0 || value === null) continue;
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
-}
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
-async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey) {
-  const query = toQueryString(payload);
-  const url = `${baseUrl}${path}${query}`;
+async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
+  const url = `${baseUrl}${path}`;
+  const body = JSON.stringify(payload);
   const headers = new Headers(withSessionHeader(sessionId));
+  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(API_KEY_HEADER, apiKey);
   }
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers
+  logger == null ? void 0 : logger.debug("[aomi][client] POST start", {
+    path,
+    sessionId,
+    hasApiKey: Boolean(apiKey),
+    bodyLength: body.length
+  });
+  let pendingWarning;
+  if (typeof setTimeout === "function") {
+    pendingWarning = setTimeout(() => {
+      logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
+        path,
+        sessionId,
+        bodyLength: body.length
+      });
+    }, 5e3);
+  }
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      method: "POST",
+      headers,
+      body
+    });
+  } finally {
+    if (pendingWarning) {
+      clearTimeout(pendingWarning);
+    }
+  }
+  logger == null ? void 0 : logger.debug("[aomi][client] POST response", {
+    path,
+    sessionId,
+    status: response.status,
+    ok: response.ok
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, API_KEY_HEADER, AomiClient;
+var SESSION_ID_HEADER, API_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
@@ -878,6 +941,19 @@ var init_client = __esm({
     init_sse();
     SESSION_ID_HEADER = "X-Session-Id";
     API_KEY_HEADER = "X-API-Key";
+    BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
+      "messageBase64",
+      "message_base64",
+      "messageSha256",
+      "message_sha256",
+      "typed_data",
+      "typedData",
+      "tx_data",
+      "txData",
+      "transaction",
+      "transactionBase64",
+      "transaction_base64"
+    ]);
     AomiClient = class {
       constructor(options) {
         var _a3;
@@ -902,13 +978,26 @@ var init_client = __esm({
        * Fetch current session state (messages, processing status, title).
        */
       async fetchState(sessionId, userState, clientId) {
-        const normalizedUserState = UserState.normalize(userState);
+        var _a3, _b;
+        const normalizedUserState = stripBulkyPendingFields(
+          UserState.normalize(userState)
+        );
         const url = buildApiUrl(this.baseUrl, "/api/state", {
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
         });
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] GET /api/state start", {
+          sessionId,
+          clientId,
+          hasUserState: Boolean(normalizedUserState)
+        });
         const response = await this.rawFetchImpl(url, {
           headers: withSessionHeader(sessionId)
+        });
+        (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/state response", {
+          sessionId,
+          status: response.status,
+          ok: response.ok
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -919,7 +1008,7 @@ var init_client = __esm({
        * Send a chat message and return updated session state.
        */
       async sendMessage(sessionId, message, options) {
-        var _a3, _b;
+        var _a3, _b, _c;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
         const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
@@ -933,13 +1022,22 @@ var init_client = __esm({
         if (options == null ? void 0 : options.clientId) {
           payload.client_id = options.clientId;
         }
+        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
+          sessionId,
+          app,
+          publicKey: options == null ? void 0 : options.publicKey,
+          clientId: options == null ? void 0 : options.clientId,
+          hasUserState: Boolean(normalizedUserState),
+          messagePreview: previewText(message)
+        });
         return postState(
           this.baseUrl,
           "/api/chat",
           payload,
           sessionId,
           this.fetchImpl,
-          apiKey
+          apiKey,
+          this.logger
         );
       }
       /**
@@ -948,28 +1046,42 @@ var init_client = __esm({
        * backend from resetting to the default app when no app is specified).
        */
       async sendSystemMessage(sessionId, message, options) {
+        var _a3;
         const payload = { message };
         if (options == null ? void 0 : options.app) {
           payload.app = options.app;
         }
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/system prepared", {
+          sessionId,
+          app: options == null ? void 0 : options.app,
+          messagePreview: previewText(message)
+        });
         return postState(
           this.baseUrl,
           "/api/system",
           payload,
           sessionId,
-          this.fetchImpl
+          this.fetchImpl,
+          void 0,
+          this.logger
         );
       }
       /**
        * Interrupt the AI's current response.
        */
       async interrupt(sessionId) {
+        var _a3;
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/interrupt prepared", {
+          sessionId
+        });
         return postState(
           this.baseUrl,
           "/api/interrupt",
           {},
           sessionId,
-          this.fetchImpl
+          this.fetchImpl,
+          void 0,
+          this.logger
         );
       }
       // ===========================================================================
@@ -1900,13 +2012,34 @@ var init_session = __esm({
        * request is resolved or rejected via `resolve()` / `reject()`.
        */
       async send(message) {
+        var _a3, _b, _c, _d, _e, _f, _g;
         this.assertOpen();
-        const response = await this.client.sendMessage(this.sessionId, message, {
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] send start", {
+          sessionId: this.sessionId,
           app: this.app,
-          publicKey: this.publicKey,
-          apiKey: this.apiKey,
-          userState: this.userState,
-          clientId: this.clientId
+          message
+        });
+        let response;
+        try {
+          response = await this.client.sendMessage(this.sessionId, message, {
+            app: this.app,
+            publicKey: this.publicKey,
+            apiKey: this.apiKey,
+            userState: this.userState,
+            clientId: this.clientId
+          });
+        } catch (error) {
+          (_b = this.logger) == null ? void 0 : _b.debug("[session] send failed", {
+            sessionId: this.sessionId,
+            error
+          });
+          throw error;
+        }
+        (_g = this.logger) == null ? void 0 : _g.debug("[session] send response", {
+          sessionId: this.sessionId,
+          isProcessing: response.is_processing,
+          systemEventCount: (_d = (_c = response.system_events) == null ? void 0 : _c.length) != null ? _d : 0,
+          messageCount: (_f = (_e = response.messages) == null ? void 0 : _e.length) != null ? _f : 0
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -1925,13 +2058,34 @@ var init_session = __esm({
        * Polling starts in the background; listen to events for updates.
        */
       async sendAsync(message) {
+        var _a3, _b, _c, _d, _e, _f, _g;
         this.assertOpen();
-        const response = await this.client.sendMessage(this.sessionId, message, {
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] sendAsync start", {
+          sessionId: this.sessionId,
           app: this.app,
-          publicKey: this.publicKey,
-          apiKey: this.apiKey,
-          userState: this.userState,
-          clientId: this.clientId
+          message
+        });
+        let response;
+        try {
+          response = await this.client.sendMessage(this.sessionId, message, {
+            app: this.app,
+            publicKey: this.publicKey,
+            apiKey: this.apiKey,
+            userState: this.userState,
+            clientId: this.clientId
+          });
+        } catch (error) {
+          (_b = this.logger) == null ? void 0 : _b.debug("[session] sendAsync failed", {
+            sessionId: this.sessionId,
+            error
+          });
+          throw error;
+        }
+        (_g = this.logger) == null ? void 0 : _g.debug("[session] sendAsync response", {
+          sessionId: this.sessionId,
+          isProcessing: response.is_processing,
+          systemEventCount: (_d = (_c = response.system_events) == null ? void 0 : _c.length) != null ? _d : 0,
+          messageCount: (_f = (_e = response.messages) == null ? void 0 : _e.length) != null ? _f : 0
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -2518,7 +2672,9 @@ var init_session = __esm({
       // ===========================================================================
       async sendSystemEvent(type, payload) {
         const message = JSON.stringify({ type, payload });
-        await this.client.sendSystemMessage(this.sessionId, message);
+        await this.client.sendSystemMessage(this.sessionId, message, {
+          app: this.app
+        });
       }
       resolvePending() {
         if (this.pendingResolve) {
@@ -2573,12 +2729,12 @@ var init_session = __esm({
         return `wreq-${this.walletRequestNextId++}`;
       }
       syncWalletRequests() {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
         const nextRequests = [];
         const pendingTxs = isRecord((_b = (_a3 = this.userState) == null ? void 0 : _a3.pending) == null ? void 0 : _b.evm_txs) ? (_d = (_c = this.userState) == null ? void 0 : _c.pending) == null ? void 0 : _d.evm_txs : void 0;
         const pendingEip712s = isRecord((_f = (_e = this.userState) == null ? void 0 : _e.pending) == null ? void 0 : _f.evm_sigs) ? (_h = (_g = this.userState) == null ? void 0 : _g.pending) == null ? void 0 : _h.evm_sigs : void 0;
-        const pendingSolanaTxs = isRecord((_j = (_i = this.userState) == null ? void 0 : _i.pending) == null ? void 0 : _j.solana_txs) ? (_l = (_k = this.userState) == null ? void 0 : _k.pending) == null ? void 0 : _l.solana_txs : void 0;
-        const pendingSolanaSigs = isRecord((_n = (_m = this.userState) == null ? void 0 : _m.pending) == null ? void 0 : _n.solana_sigs) ? (_p = (_o = this.userState) == null ? void 0 : _o.pending) == null ? void 0 : _p.solana_sigs : void 0;
+        const pendingSolanaTxs = isRecord((_j = (_i = this.userState) == null ? void 0 : _i.pending) == null ? void 0 : _j.solana_txs) ? (_l = (_k = this.userState) == null ? void 0 : _k.pending) == null ? void 0 : _l.solana_txs : isRecord((_n = (_m = this.userState) == null ? void 0 : _m.pending) == null ? void 0 : _n.svm_ixs) ? ((_o = this.userState) == null ? void 0 : _o.pending).svm_ixs : void 0;
+        const pendingSolanaSigs = isRecord((_q = (_p = this.userState) == null ? void 0 : _p.pending) == null ? void 0 : _q.solana_sigs) ? (_s = (_r = this.userState) == null ? void 0 : _r.pending) == null ? void 0 : _s.solana_sigs : void 0;
         const pendingTxEntries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
         const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
         const coveredPendingTxIds = /* @__PURE__ */ new Set();
@@ -2637,7 +2793,7 @@ var init_session = __esm({
               id: requestId,
               kind: "transaction",
               payload,
-              timestamp: (_r = (_q = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _q.timestamp) != null ? _r : Date.now()
+              timestamp: (_u = (_t = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _t.timestamp) != null ? _u : Date.now()
             });
           }
         }
@@ -2652,7 +2808,7 @@ var init_session = __esm({
             id: requestId,
             kind: "eip712_sign",
             payload,
-            timestamp: (_t = (_s = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _s.timestamp) != null ? _t : Date.now()
+            timestamp: (_w = (_v = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _v.timestamp) != null ? _w : Date.now()
           });
         }
         for (const [id, raw] of Object.entries(pendingSolanaTxs != null ? pendingSolanaTxs : {}).sort(
@@ -2670,7 +2826,7 @@ var init_session = __esm({
             id: requestId,
             kind: solanaKind,
             payload,
-            timestamp: (_v = (_u = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _u.timestamp) != null ? _v : Date.now()
+            timestamp: (_y = (_x = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _x.timestamp) != null ? _y : Date.now()
           });
         }
         for (const [id, raw] of Object.entries(pendingSolanaSigs != null ? pendingSolanaSigs : {}).sort(
@@ -2688,7 +2844,7 @@ var init_session = __esm({
             id: requestId,
             kind: solanaKind,
             payload,
-            timestamp: (_x = (_w = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _w.timestamp) != null ? _x : Date.now()
+            timestamp: (_A = (_z = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _z.timestamp) != null ? _A : Date.now()
           });
         }
         const nextIdSet = new Set(nextRequests.map((r) => r.id));
@@ -2787,7 +2943,7 @@ function buildCliUserState(publicKey, chainId, options) {
       cluster: (_e = options == null ? void 0 : options.svmCluster) != null ? _e : svmAddress !== void 0 ? "solana:mainnet" : void 0
     } : void 0
   };
-  return UserState.withExt(userState, "clientType", CLIENT_TYPE_TS_CLI);
+  return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
 function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
@@ -2867,7 +3023,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   return nextPendingTxs;
 }
 function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
   const normalizedUserState = UserState.normalize(userState);
   if (!normalizedUserState) {
     return [];
@@ -2875,14 +3031,14 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
   const existingById = new Map(existingPendingSolTxs.map((tx) => [tx.id, tx]));
   const fallbackNow = Date.now();
   const next = [];
-  const pendingSolanaTxs = (_d = (_c = asRecord3((_a3 = normalizedUserState.pending) == null ? void 0 : _a3.solanaTxs)) != null ? _c : asRecord3((_b = normalizedUserState.pending) == null ? void 0 : _b.solana_txs)) != null ? _d : {};
+  const pendingSolanaTxs = (_h = (_g = (_e = (_c = asRecord3((_a3 = normalizedUserState.pending) == null ? void 0 : _a3.solanaTxs)) != null ? _c : asRecord3((_b = normalizedUserState.pending) == null ? void 0 : _b.solana_txs)) != null ? _e : asRecord3((_d = normalizedUserState.pending) == null ? void 0 : _d.svmIxs)) != null ? _g : asRecord3((_f = normalizedUserState.pending) == null ? void 0 : _f.svm_ixs)) != null ? _h : {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord3(rawValue);
     if (!pendingId || !request) {
       continue;
     }
-    const unsignedTx = (_e = parseOptionalString(request.unsignedTx)) != null ? _e : parseOptionalString(request.unsigned_tx);
+    const unsignedTx = (_i = parseOptionalString(request.unsignedTx)) != null ? _i : parseOptionalString(request.unsigned_tx);
     if (!unsignedTx) {
       continue;
     }
@@ -2897,7 +3053,7 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       cluster,
       signer,
       description,
-      timestamp: (_g = (_f = existingById.get(id)) == null ? void 0 : _f.timestamp) != null ? _g : fallbackNow,
+      timestamp: (_k = (_j = existingById.get(id)) == null ? void 0 : _j.timestamp) != null ? _k : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
@@ -2909,14 +3065,14 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       }
     });
   }
-  const pendingSolanaSigs = (_k = (_j = asRecord3((_h = normalizedUserState.pending) == null ? void 0 : _h.solanaSigs)) != null ? _j : asRecord3((_i = normalizedUserState.pending) == null ? void 0 : _i.solana_sigs)) != null ? _k : {};
+  const pendingSolanaSigs = (_s = (_r = (_p = (_n = asRecord3((_l = normalizedUserState.pending) == null ? void 0 : _l.solanaSigs)) != null ? _n : asRecord3((_m = normalizedUserState.pending) == null ? void 0 : _m.solana_sigs)) != null ? _p : asRecord3((_o = normalizedUserState.pending) == null ? void 0 : _o.svmSigs)) != null ? _r : asRecord3((_q = normalizedUserState.pending) == null ? void 0 : _q.svm_sigs)) != null ? _s : {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord3(rawValue);
     if (!pendingId || !request) {
       continue;
     }
-    const unsignedTx = (_l = parseOptionalString(request.message_base64)) != null ? _l : parseOptionalString(request.messageBase64);
+    const unsignedTx = (_t = parseOptionalString(request.message_base64)) != null ? _t : parseOptionalString(request.messageBase64);
     if (!unsignedTx) {
       continue;
     }
@@ -2931,7 +3087,7 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       cluster,
       signer,
       description,
-      timestamp: (_n = (_m = existingById.get(id)) == null ? void 0 : _m.timestamp) != null ? _n : fallbackNow,
+      timestamp: (_v = (_u = existingById.get(id)) == null ? void 0 : _u.timestamp) != null ? _v : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
@@ -4113,7 +4269,7 @@ async function chatCommand(config, message, verbose) {
     ].filter((tx) => !previousPendingIds.has(tx.id));
     for (const pending of newPendingTxs) {
       console.log(`\u26A1 Wallet request queued: ${pending.id}`);
-      if (pending.kind === "transaction") {
+      if ("kind" in pending && pending.kind === "transaction") {
         const payload = pending.payload;
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);

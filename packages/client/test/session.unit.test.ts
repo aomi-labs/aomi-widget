@@ -668,6 +668,7 @@ describe("ClientSession ext helpers", () => {
           delegation_address: undefined,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -717,6 +718,7 @@ describe("ClientSession ext helpers", () => {
           pending_eip712_id: 11,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -862,6 +864,7 @@ describe("ClientSession ext helpers", () => {
           pending_solana_id: 3,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -951,6 +954,7 @@ describe("ClientSession ext helpers", () => {
           pending_solana_id: 4,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -1047,6 +1051,7 @@ describe("ClientSession ext helpers", () => {
           pending_solana_id: 12,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -1193,6 +1198,7 @@ describe("ClientSession ext helpers", () => {
           pending_solana_id: 17,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -1286,6 +1292,7 @@ describe("ClientSession ext helpers", () => {
           pending_solana_id: 17,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -1387,6 +1394,7 @@ describe("ClientSession ext helpers", () => {
           pending_solana_id: 22,
         },
       }),
+      { app: "default" },
     );
 
     session.close();
@@ -1481,6 +1489,7 @@ describe("ClientSession ext helpers", () => {
           pending_solana_id: 22,
         },
       }),
+      { app: "default" },
     );
 
     session.close();

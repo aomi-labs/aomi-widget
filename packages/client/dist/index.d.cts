@@ -49,11 +49,21 @@ interface UserState extends Record<string, unknown> {
     };
     pending?: {
         evm_txs?: Record<string, unknown>;
+        evmTxs?: Record<string, unknown>;
         evm_sigs?: Record<string, unknown>;
+        evmSigs?: Record<string, unknown>;
+        svm_ixs?: Record<string, unknown>;
+        svmIxs?: Record<string, unknown>;
         solana_txs?: Record<string, unknown>;
+        solanaTxs?: Record<string, unknown>;
         solana_sigs?: Record<string, unknown>;
+        solanaSigs?: Record<string, unknown>;
+        svm_sigs?: Record<string, unknown>;
+        svmSigs?: Record<string, unknown>;
         eip712_requests?: Record<string, unknown>;
+        eip712Requests?: Record<string, unknown>;
         solana_requests?: Record<string, unknown>;
+        solanaRequests?: Record<string, unknown>;
     };
     ext?: Record<string, unknown> | null;
 }

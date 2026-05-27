@@ -17,7 +17,7 @@ describe("CLI user state AA fields", () => {
         address: "0xabc",
         chain_id: 8453,
       },
-      ext: { clientType: "ts_cli" },
+      ext: { client_type: "ts_cli" },
     });
   });
 
@@ -34,7 +34,7 @@ describe("CLI user state AA fields", () => {
       solana: {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
       },
-      ext: { clientType: "ts_cli" },
+      ext: { client_type: "ts_cli" },
     });
   });
 
