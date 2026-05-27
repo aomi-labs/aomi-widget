@@ -1370,7 +1370,17 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         : undefined;
     const pendingSolanaSigs = isRecord(this.userState?.pending?.solana_sigs)
       ? this.userState?.pending?.solana_sigs
-      : undefined;
+      : isRecord((this.userState?.pending as Record<string, unknown> | undefined)?.svm_sigs)
+        ? (this.userState?.pending as Record<string, unknown>).svm_sigs
+        : undefined;
+    if (pendingSolanaSigs && Object.keys(pendingSolanaSigs).length > 0) {
+      this.logger?.debug?.("[session] syncWalletRequests pendingSolanaSigs", {
+        sessionId: this.sessionId,
+        pendingIds: Object.keys(pendingSolanaSigs),
+        pendingCount: Object.keys(pendingSolanaSigs).length,
+        pendingKeys: Object.keys(this.userState?.pending ?? {}),
+      });
+    }
 
     const pendingTxEntries = Object.entries(pendingTxs ?? {})
       .filter(([id]) => Number.isInteger(Number(id)))
@@ -1471,22 +1481,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       (left, right) => Number(left[0]) - Number(right[0]),
     )) {
       const entry = isRecord(raw) ? raw : {};
-      const solanaKind = inferSolanaRequestKind(entry);
-      const payload =
-        solanaKind === "solana_sign_message"
-          ? normalizeSolanaSignMessagePayload({
-              ...entry,
-              pending_solana_id: Number(id),
-            })
-          : normalizeSolanaSignPayload({
-              ...entry,
-              pending_solana_id: Number(id),
-            });
-      const requestId = this.getWalletRequestId(solanaKind, payload);
+      const normalized = normalizeSolanaWalletRequest({
+        ...entry,
+        chain_kind: "svm",
+        pending_solana_id: Number(id),
+      });
+      if (!normalized) {
+        continue;
+      }
+      const requestId = this.getWalletRequestId(
+        normalized.kind,
+        normalized.payload,
+      );
       nextRequests.push({
         id: requestId,
-        kind: solanaKind,
-        payload,
+        kind: normalized.kind,
+        payload: normalized.payload,
         timestamp:
           this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
           Date.now(),
@@ -1497,25 +1507,39 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       (left, right) => Number(left[0]) - Number(right[0]),
     )) {
       const entry = isRecord(raw) ? raw : {};
-      const solanaKind = inferSolanaRequestKind(entry);
-      const payload =
-        solanaKind === "solana_sign_message"
-          ? normalizeSolanaSignMessagePayload({
-              ...entry,
-              pending_solana_id: Number(id),
-            })
-          : normalizeSolanaSignPayload({
-              ...entry,
-              pending_solana_id: Number(id),
-            });
-      const requestId = this.getWalletRequestId(solanaKind, payload);
+      const normalized = normalizeSolanaWalletRequest({
+        ...entry,
+        chain_kind: "svm",
+        pending_solana_id: Number(id),
+      });
+      if (!normalized) {
+        continue;
+      }
+      const requestId = this.getWalletRequestId(
+        normalized.kind,
+        normalized.payload,
+      );
       nextRequests.push({
         id: requestId,
-        kind: solanaKind,
-        payload,
+        kind: normalized.kind,
+        payload: normalized.payload,
         timestamp:
           this.walletRequests.find((request) => request.id === requestId)?.timestamp ??
           Date.now(),
+      });
+      this.logger?.debug?.("[session] syncWalletRequests queued solana sig", {
+        sessionId: this.sessionId,
+        requestId,
+        solanaKind: normalized.kind,
+        pendingId: Number(id),
+        hasMessage:
+          normalized.kind === "solana_sign_message"
+            ? Boolean(
+                (
+                  normalized.payload as WalletSolanaSignMessagePayload | null
+                )?.message,
+              )
+            : false,
       });
     }
 

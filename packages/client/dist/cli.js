@@ -1317,7 +1317,16 @@ var init_client = __esm({
         if (!response.ok) {
           throw new Error(`Failed to get apps: HTTP ${response.status}`);
         }
-        return await response.json();
+        const data = await response.json();
+        if (!Array.isArray(data)) return [];
+        return data.map((item) => {
+          if (typeof item === "string") return item;
+          if (item && typeof item === "object" && "name" in item) {
+            const name = item.name;
+            return typeof name === "string" ? name : "";
+          }
+          return "";
+        }).filter((id) => id.length > 0);
       }
       /**
        * Get available models.
@@ -1577,6 +1586,10 @@ var init_policy = __esm({
 });
 
 // src/wallet-utils.ts
+import {
+  Transaction as SolanaTransaction,
+  VersionedTransaction
+} from "@solana/web3.js";
 import { getAddress } from "viem";
 function asRecord2(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -1588,6 +1601,32 @@ function getToolArgs(payload) {
   const root2 = asRecord2(payload);
   const nestedArgs = asRecord2(root2 == null ? void 0 : root2.args);
   return (_a3 = nestedArgs != null ? nestedArgs : root2) != null ? _a3 : {};
+}
+function decodeBase64(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const bin = atob(value);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function isSerializedSolanaTransactionBase64(value) {
+  try {
+    const bytes = decodeBase64(value);
+    if (bytes.length === 0) {
+      return false;
+    }
+    try {
+      VersionedTransaction.deserialize(bytes);
+      return true;
+    } catch (e) {
+      SolanaTransaction.from(bytes);
+      return true;
+    }
+  } catch (e) {
+    return false;
+  }
 }
 function parseChainKind(value) {
   return value === "evm" || value === "svm" ? value : void 0;
@@ -1811,7 +1850,21 @@ function normalizeSolanaWalletRequest(payload) {
   const kind = inferSolanaRequestKind(solanaRequest);
   if (kind === "solana_sign_message") {
     const normalized2 = normalizeSolanaSignMessagePayload(payload);
-    return normalized2.message ? { kind, payload: normalized2 } : null;
+    if (!normalized2.message) {
+      return null;
+    }
+    if (isSerializedSolanaTransactionBase64(normalized2.message)) {
+      return {
+        kind: "solana_sign",
+        payload: {
+          unsignedTx: normalized2.message,
+          description: normalized2.description,
+          cluster: normalized2.cluster,
+          pendingSolanaId: normalized2.pendingSolanaId
+        }
+      };
+    }
+    return { kind, payload: normalized2 };
   }
   const normalized = normalizeSolanaSignPayload(payload);
   return normalized.unsignedTx ? { kind, payload: normalized } : null;
@@ -1937,25 +1990,6 @@ function txIdsFromPayload(payload) {
     return [payload.txId];
   }
   return [];
-}
-function inferSolanaRequestKind2(payload) {
-  const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
-  switch (rawKind) {
-    case "solana_sign_message":
-    case "sign_message":
-    case "message_sign":
-    case "svm_message":
-    case "svm_sign_message":
-      return "solana_sign_message";
-    case "solana_send":
-    case "send_transaction":
-      return "solana_send";
-    case "solana_sign_and_send":
-    case "sign_and_send_transaction":
-      return "solana_sign_and_send";
-    default:
-      return "solana_sign";
-  }
 }
 var ClientSession;
 var init_session = __esm({
@@ -2729,12 +2763,20 @@ var init_session = __esm({
         return `wreq-${this.walletRequestNextId++}`;
       }
       syncWalletRequests() {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K;
         const nextRequests = [];
         const pendingTxs = isRecord((_b = (_a3 = this.userState) == null ? void 0 : _a3.pending) == null ? void 0 : _b.evm_txs) ? (_d = (_c = this.userState) == null ? void 0 : _c.pending) == null ? void 0 : _d.evm_txs : void 0;
         const pendingEip712s = isRecord((_f = (_e = this.userState) == null ? void 0 : _e.pending) == null ? void 0 : _f.evm_sigs) ? (_h = (_g = this.userState) == null ? void 0 : _g.pending) == null ? void 0 : _h.evm_sigs : void 0;
         const pendingSolanaTxs = isRecord((_j = (_i = this.userState) == null ? void 0 : _i.pending) == null ? void 0 : _j.solana_txs) ? (_l = (_k = this.userState) == null ? void 0 : _k.pending) == null ? void 0 : _l.solana_txs : isRecord((_n = (_m = this.userState) == null ? void 0 : _m.pending) == null ? void 0 : _n.svm_ixs) ? ((_o = this.userState) == null ? void 0 : _o.pending).svm_ixs : void 0;
-        const pendingSolanaSigs = isRecord((_q = (_p = this.userState) == null ? void 0 : _p.pending) == null ? void 0 : _q.solana_sigs) ? (_s = (_r = this.userState) == null ? void 0 : _r.pending) == null ? void 0 : _s.solana_sigs : void 0;
+        const pendingSolanaSigs = isRecord((_q = (_p = this.userState) == null ? void 0 : _p.pending) == null ? void 0 : _q.solana_sigs) ? (_s = (_r = this.userState) == null ? void 0 : _r.pending) == null ? void 0 : _s.solana_sigs : isRecord((_u = (_t = this.userState) == null ? void 0 : _t.pending) == null ? void 0 : _u.svm_sigs) ? ((_v = this.userState) == null ? void 0 : _v.pending).svm_sigs : void 0;
+        if (pendingSolanaSigs && Object.keys(pendingSolanaSigs).length > 0) {
+          (_z = (_w = this.logger) == null ? void 0 : _w.debug) == null ? void 0 : _z.call(_w, "[session] syncWalletRequests pendingSolanaSigs", {
+            sessionId: this.sessionId,
+            pendingIds: Object.keys(pendingSolanaSigs),
+            pendingCount: Object.keys(pendingSolanaSigs).length,
+            pendingKeys: Object.keys((_y = (_x = this.userState) == null ? void 0 : _x.pending) != null ? _y : {})
+          });
+        }
         const pendingTxEntries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
         const pendingTxIdSet = new Set(pendingTxEntries.map(([id]) => Number(id)));
         const coveredPendingTxIds = /* @__PURE__ */ new Set();
@@ -2793,7 +2835,7 @@ var init_session = __esm({
               id: requestId,
               kind: "transaction",
               payload,
-              timestamp: (_u = (_t = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _t.timestamp) != null ? _u : Date.now()
+              timestamp: (_B = (_A = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _A.timestamp) != null ? _B : Date.now()
             });
           }
         }
@@ -2808,43 +2850,60 @@ var init_session = __esm({
             id: requestId,
             kind: "eip712_sign",
             payload,
-            timestamp: (_w = (_v = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _v.timestamp) != null ? _w : Date.now()
+            timestamp: (_D = (_C = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _C.timestamp) != null ? _D : Date.now()
           });
         }
         for (const [id, raw] of Object.entries(pendingSolanaTxs != null ? pendingSolanaTxs : {}).sort(
           (left, right) => Number(left[0]) - Number(right[0])
         )) {
           const entry = isRecord(raw) ? raw : {};
-          const solanaKind = inferSolanaRequestKind2(entry);
-          const payload = solanaKind === "solana_sign_message" ? normalizeSolanaSignMessagePayload(__spreadProps(__spreadValues({}, entry), {
-            pending_solana_id: Number(id)
-          })) : normalizeSolanaSignPayload(__spreadProps(__spreadValues({}, entry), {
+          const normalized = normalizeSolanaWalletRequest(__spreadProps(__spreadValues({}, entry), {
+            chain_kind: "svm",
             pending_solana_id: Number(id)
           }));
-          const requestId = this.getWalletRequestId(solanaKind, payload);
+          if (!normalized) {
+            continue;
+          }
+          const requestId = this.getWalletRequestId(
+            normalized.kind,
+            normalized.payload
+          );
           nextRequests.push({
             id: requestId,
-            kind: solanaKind,
-            payload,
-            timestamp: (_y = (_x = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _x.timestamp) != null ? _y : Date.now()
+            kind: normalized.kind,
+            payload: normalized.payload,
+            timestamp: (_F = (_E = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _E.timestamp) != null ? _F : Date.now()
           });
         }
         for (const [id, raw] of Object.entries(pendingSolanaSigs != null ? pendingSolanaSigs : {}).sort(
           (left, right) => Number(left[0]) - Number(right[0])
         )) {
           const entry = isRecord(raw) ? raw : {};
-          const solanaKind = inferSolanaRequestKind2(entry);
-          const payload = solanaKind === "solana_sign_message" ? normalizeSolanaSignMessagePayload(__spreadProps(__spreadValues({}, entry), {
-            pending_solana_id: Number(id)
-          })) : normalizeSolanaSignPayload(__spreadProps(__spreadValues({}, entry), {
+          const normalized = normalizeSolanaWalletRequest(__spreadProps(__spreadValues({}, entry), {
+            chain_kind: "svm",
             pending_solana_id: Number(id)
           }));
-          const requestId = this.getWalletRequestId(solanaKind, payload);
+          if (!normalized) {
+            continue;
+          }
+          const requestId = this.getWalletRequestId(
+            normalized.kind,
+            normalized.payload
+          );
           nextRequests.push({
             id: requestId,
-            kind: solanaKind,
-            payload,
-            timestamp: (_A = (_z = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _z.timestamp) != null ? _A : Date.now()
+            kind: normalized.kind,
+            payload: normalized.payload,
+            timestamp: (_H = (_G = this.walletRequests.find((request) => request.id === requestId)) == null ? void 0 : _G.timestamp) != null ? _H : Date.now()
+          });
+          (_K = (_I = this.logger) == null ? void 0 : _I.debug) == null ? void 0 : _K.call(_I, "[session] syncWalletRequests queued solana sig", {
+            sessionId: this.sessionId,
+            requestId,
+            solanaKind: normalized.kind,
+            pendingId: Number(id),
+            hasMessage: normalized.kind === "solana_sign_message" ? Boolean(
+              (_J = normalized.payload) == null ? void 0 : _J.message
+            ) : false
           });
         }
         const nextIdSet = new Set(nextRequests.map((r) => r.id));
@@ -3453,7 +3512,7 @@ var init_state = __esm({
 import {
   Keypair,
   Transaction,
-  VersionedTransaction
+  VersionedTransaction as VersionedTransaction2
 } from "@solana/web3.js";
 import bs58 from "bs58";
 function parseSolanaKeypairSecret(input2) {
@@ -3486,7 +3545,7 @@ function parseSolanaKeypairSecret(input2) {
   }
   return Keypair.fromSecretKey(bytes);
 }
-function decodeBase64(value) {
+function decodeBase642(value) {
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(value, "base64"));
   }
@@ -3508,9 +3567,9 @@ function encodeBase64(bytes) {
   return btoa(binary);
 }
 function signSolanaTransaction(unsignedTxBase64, keypair) {
-  const bytes = decodeBase64(unsignedTxBase64);
+  const bytes = decodeBase642(unsignedTxBase64);
   try {
-    const versioned = VersionedTransaction.deserialize(bytes);
+    const versioned = VersionedTransaction2.deserialize(bytes);
     versioned.sign([keypair]);
     return {
       signer: keypair.publicKey.toBase58(),

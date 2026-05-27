@@ -69,6 +69,20 @@ export type AomiAuthIdentity = {
   };
 };
 
+/**
+ * One installable Solana wallet surface (e.g. Phantom, Solflare). Surfaced
+ * by adapters so the UI can render an inline picker instead of guessing
+ * the user's preferred wallet. `installed` is true when the wallet is
+ * actually detected in the browser; `ready` is true when it can be
+ * activated (either Installed or auto-loadable like in-browser providers).
+ */
+export type SolanaWalletDescriptor = {
+  name: string;
+  ready: boolean;
+  installed: boolean;
+  iconUrl?: string;
+};
+
 export type AomiTxResult = {
   txHash: string;
   amount?: string;
@@ -100,6 +114,20 @@ export type AomiAuthAdapter = {
   activeFamily?: WalletFamily;
   activeNetwork?: AomiNetworkTarget;
   solanaNetworkSwitchRequiresReconnect?: boolean;
+
+  /**
+   * Installed/loadable Solana wallets the adapter can attach to. Empty
+   * (or undefined) when the adapter doesn't support Solana or has no
+   * detected wallets. UIs use this to render an inline picker so users
+   * pick their wallet explicitly rather than relying on auto-detection.
+   */
+  solanaWallets?: readonly SolanaWalletDescriptor[];
+  /**
+   * Attach a specific Solana wallet by name (matches
+   * `solanaWallets[].name`). The promise resolves once the wallet adapter
+   * reports connected (or rejects if the wallet popup is cancelled).
+   */
+  connectSolanaWallet?: (name: string) => Promise<void>;
 
   connect: (options?: { family?: WalletFamily }) => Promise<void>;
   openAccountUI?: (options?: { family?: WalletFamily }) => Promise<void>;

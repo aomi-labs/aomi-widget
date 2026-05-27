@@ -533,13 +533,60 @@ export function AomiParaAdapterProvider({
         // has a Disconnect button) and only handle wagmi + Solana below.
         false,
     );
+
+    // Map the wallet-adapter's `wallets` array to our descriptor shape so
+    // the UI can render an explicit picker (Phantom, Solflare, …) instead
+    // of auto-picking. Wallets with `Installed` show up first; the rest
+    // are still listed so the user can click to trigger the install flow.
+    const solanaWalletDescriptors = solanaWallet.wallets.map((entry) => ({
+      name: entry.adapter.name,
+      installed: entry.readyState === "Installed",
+      ready:
+        entry.readyState === "Installed" || entry.readyState === "Loadable",
+    }));
+
     return {
       identity,
       isReady: !isBooting,
       isSwitchingChain: isPending,
-      canConnect: Boolean(paraModal) && !identity.isConnected,
+      // canConnect/canDisconnect are intentionally NOT gated on overall
+      // `identity.isConnected`. With dual-family wallets (EVM + Solana
+      // under one Para identity) the user can be connected on one family
+      // while still wanting to connect the other, and vice versa for
+      // disconnect. The per-family WalletFamilySlot UI checks
+      // `identity.address` / `identity.svmAddress` independently.
+      canConnect: Boolean(paraModal) || Boolean(solanaWalletDescriptors.length),
       canOpenAccountUI: Boolean(paraModal) && identity.isConnected,
-      canDisconnect: identity.isConnected && hasAnyDisconnectablePath,
+      canDisconnect: hasAnyDisconnectablePath,
+      solanaWallets: solanaWalletDescriptors,
+      connectSolanaWallet:
+        solanaWallet.select && solanaWallet.connect
+          ? async (walletName: string) => {
+              const target = solanaWallet.wallets.find(
+                (entry) => entry.adapter.name === walletName,
+              );
+              if (!target) {
+                throw new Error(`Unknown Solana wallet: ${walletName}`);
+              }
+              setSelectedFamily("solana");
+              // If the wallet is already the selected one and there's a
+              // live connection, just no-op. Otherwise (re-)select then
+              // ask the effect to wait for the adapter to swap before
+              // it kicks off the connect.
+              if (
+                solanaWallet.walletName === walletName &&
+                solanaWallet.publicKey
+              ) {
+                return;
+              }
+              if (solanaWallet.walletName === walletName) {
+                await solanaWallet.connect?.();
+                return;
+              }
+              solanaWallet.select!(walletName as never);
+              setPendingSolanaConnect(true);
+            }
+          : undefined,
       supportedChains: wagmiConfig.chains,
       supportedNetworks: {
         evm: wagmiConfig.chains,

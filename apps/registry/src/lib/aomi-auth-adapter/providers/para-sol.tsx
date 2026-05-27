@@ -320,7 +320,21 @@ export function buildParaSolanaMethods(
           if (!payload.message) {
             throw new Error("Missing message payload");
           }
+          console.debug("[para-sol] signSolanaMessage start", {
+            walletName: wallet.walletName,
+            connected: wallet.connected,
+            publicKey: wallet.publicKey,
+            messageLength: payload.message.length,
+            description: payload.description,
+            cluster: payload.cluster,
+            hasSignMessage: Boolean(signMessage),
+          });
           const signature = await signMessage(decodeBase64(payload.message));
+          console.debug("[para-sol] signSolanaMessage resolved", {
+            walletName: wallet.walletName,
+            publicKey: wallet.publicKey,
+            signatureLength: signature.length,
+          });
           return { signature: encodeBase64(signature) };
         }
       : undefined,
