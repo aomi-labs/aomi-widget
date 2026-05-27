@@ -17,7 +17,7 @@ describe("CLI user state AA fields", () => {
         address: "0xabc",
         chain_id: 8453,
       },
-      ext: { client_type: "ts_cli" },
+      ext: { clientType: "ts_cli" },
     });
   });
 
@@ -34,7 +34,7 @@ describe("CLI user state AA fields", () => {
       solana: {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
       },
-      ext: { client_type: "ts_cli" },
+      ext: { clientType: "ts_cli" },
     });
   });
 
@@ -139,7 +139,7 @@ describe("pendingTxsFromBackendUserState", () => {
 });
 
 describe("pendingSolTxsFromBackendUserState", () => {
-  it("rebuilds Solana requests from canonical pending.solana_txs", () => {
+  it("rebuilds Solana requests from legacy pending.solana_txs", () => {
     const result = pendingSolTxsFromBackendUserState({
       pending: {
         solana_txs: {
@@ -162,6 +162,32 @@ describe("pendingSolTxsFromBackendUserState", () => {
       description: "bridge back to main wallet",
       cluster: "solana:devnet",
       signer: "So1aBcExampleSigner",
+    });
+  });
+
+  it("rebuilds Solana requests from canonical pending.svm_ixs", () => {
+    const result = pendingSolTxsFromBackendUserState({
+      pending: {
+        svm_ixs: {
+          22: {
+            request_kind: "send_transaction",
+            description: "new svm pipeline request",
+            cluster: "solana:mainnet",
+            unsigned_tx: "U1ZN",
+            signer: "So1aBcCanonicalSigner",
+          },
+        },
+      },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: "tx-22",
+      solanaId: 22,
+      unsignedTx: "U1ZN",
+      description: "new svm pipeline request",
+      cluster: "solana:mainnet",
+      signer: "So1aBcCanonicalSigner",
     });
   });
 });

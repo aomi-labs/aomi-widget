@@ -84,6 +84,7 @@ function stripBulkyPendingFields(
       ...pending,
       evm_txs: pruneBucket(pending.evm_txs),
       evm_sigs: pruneBucket(pending.evm_sigs),
+      svm_ixs: pruneBucket(pending.svm_ixs),
       solana_txs: pruneBucket(pending.solana_txs),
       solana_sigs: pruneBucket(pending.solana_sigs),
     },
