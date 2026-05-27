@@ -1365,7 +1365,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       : undefined;
     const pendingSolanaTxs = isRecord(this.userState?.pending?.solana_txs)
       ? this.userState?.pending?.solana_txs
-      : undefined;
+      : isRecord((this.userState?.pending as Record<string, unknown> | undefined)?.svm_ixs)
+        ? (this.userState?.pending as Record<string, unknown>).svm_ixs
+        : undefined;
     const pendingSolanaSigs = isRecord(this.userState?.pending?.solana_sigs)
       ? this.userState?.pending?.solana_sigs
       : undefined;

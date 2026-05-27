@@ -278,7 +278,7 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
 
     for (const pending of newPendingTxs) {
       console.log(`⚡ Wallet request queued: ${pending.id}`);
-      if (pending.kind === "transaction") {
+      if ("kind" in pending && pending.kind === "transaction") {
         const payload = pending.payload as WalletTxPayload;
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);

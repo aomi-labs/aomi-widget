@@ -245,10 +245,11 @@ export function pendingTxsFromBackendUserState(
 
 /**
  * Rebuild the local Solana pending list from the backend's authoritative
- * `pending.solana_txs` map. Mirrors [`pendingTxsFromBackendUserState`] but
- * for the Solana domain only — kept in its own function so the caller's
- * EVM/EIP-712 state and Solana state stay in separate arrays rather than
- * a discriminated union.
+ * pending-tx bucket. Accepts both the legacy `pending.solana_txs` shape and
+ * the newer canonical `pending.svm_ixs` bucket. Mirrors
+ * [`pendingTxsFromBackendUserState`] but for the Solana domain only — kept in
+ * its own function so the caller's EVM/EIP-712 state and Solana state stay in
+ * separate arrays rather than a discriminated union.
  */
 export function pendingSolTxsFromBackendUserState(
   userState: UserState | null | undefined,
@@ -266,6 +267,8 @@ export function pendingSolTxsFromBackendUserState(
   const pendingSolanaTxs =
     asRecord(normalizedUserState.pending?.solanaTxs) ??
     asRecord(normalizedUserState.pending?.solana_txs) ??
+    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svmIxs) ??
+    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svm_ixs) ??
     {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);

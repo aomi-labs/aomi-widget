@@ -45,11 +45,19 @@ export interface UserState extends Record<string, unknown> {
   };
   pending?: {
     evm_txs?: Record<string, unknown>;
+    evmTxs?: Record<string, unknown>;
     evm_sigs?: Record<string, unknown>;
+    evmSigs?: Record<string, unknown>;
+    svm_ixs?: Record<string, unknown>;
+    svmIxs?: Record<string, unknown>;
     solana_txs?: Record<string, unknown>;
+    solanaTxs?: Record<string, unknown>;
     solana_sigs?: Record<string, unknown>;
+    solanaSigs?: Record<string, unknown>;
     eip712_requests?: Record<string, unknown>;
+    eip712Requests?: Record<string, unknown>;
     solana_requests?: Record<string, unknown>;
+    solanaRequests?: Record<string, unknown>;
   };
   ext?: Record<string, unknown> | null;
 }
@@ -87,6 +95,8 @@ const USER_STATE_ROOT_ALIAS_KEYS = new Set([
   "pendingEip712s",
   "pending_solana_txs",
   "pendingSolanaTxs",
+  "pending_svm_ixs",
+  "pendingSvmIxs",
   "pending_solana_sigs",
   "pendingSolanaSigs",
   "next_id",
@@ -360,13 +370,22 @@ function normalizePendingState(
       asRecord(root.pendingEvmSigs) ??
       asRecord(root.pending_eip712s) ??
       asRecord(root.pendingEip712s),
+    svm_ixs:
+      asRecord(pending?.svm_ixs) ??
+      asRecord((pending as UnknownRecord | undefined)?.svmIxs) ??
+      asRecord(root.pending_svm_ixs) ??
+      asRecord(root.pendingSvmIxs),
     solana_txs:
       asRecord(pending?.solana_txs) ??
       asRecord(pending?.solanaTxs) ??
+      asRecord(pending?.svm_ixs) ??
+      asRecord((pending as UnknownRecord | undefined)?.svmIxs) ??
       asRecord(pending?.solana_requests) ??
       asRecord(pending?.solanaRequests) ??
       asRecord(root.pending_solana_txs) ??
-      asRecord(root.pendingSolanaTxs),
+      asRecord(root.pendingSolanaTxs) ??
+      asRecord(root.pending_svm_ixs) ??
+      asRecord(root.pendingSvmIxs),
     solana_sigs:
       asRecord(pending?.solana_sigs) ??
       asRecord(pending?.solanaSigs) ??
