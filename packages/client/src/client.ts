@@ -44,6 +44,8 @@ const BULKY_PENDING_FIELDS = new Set<string>([
   "message_base64",
   "messageSha256",
   "message_sha256",
+  "unsignedTx",
+  "unsigned_tx",
   "typed_data",
   "typedData",
   "tx_data",
@@ -87,6 +89,7 @@ function stripBulkyPendingFields(
       svm_ixs: pruneBucket(pending.svm_ixs),
       solana_txs: pruneBucket(pending.solana_txs),
       solana_sigs: pruneBucket(pending.solana_sigs),
+      svm_sigs: pruneBucket((pending as Record<string, unknown>).svm_sigs as Record<string, unknown> | undefined),
     },
   };
 }
