@@ -269,7 +269,7 @@ function ProviderRow({
     isActive
       ? "border-primary/40 bg-primary/[0.04]"
       : "border-border/60 bg-background hover:border-border hover:bg-accent/40",
-    provider.disabled && "opacity-50",
+    provider.disabled && !isActive && "opacity-50",
   );
 
   const innerContent = (

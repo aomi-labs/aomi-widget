@@ -106,13 +106,7 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     <button
       type="button"
       onClick={handleClick}
-      aria-label={
-        adapter.canOpenAccountUI
-          ? "Manage account"
-          : adapter.canDisconnect
-            ? "Disconnect account"
-            : "Connected account"
-      }
+      aria-label="Manage account"
       disabled={disabled}
       className={cn(
         "inline-flex w-full items-center justify-start gap-2 whitespace-nowrap",
