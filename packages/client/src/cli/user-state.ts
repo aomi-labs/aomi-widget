@@ -310,12 +310,11 @@ export function pendingSolTxsFromBackendUserState(
     });
   }
 
-  // Also surface pending Solana *message-signature* requests (solana_sigs /
-  // svm_sigs). These are produced by `svm_commit_message` / `sign_tx_solana`
-  // and stored under either bucket (`solana_sigs` legacy, `svm_sigs`
-  // canonical post-ADR 0001 Rev 2) with `message_base64` instead of
-  // `unsigned_tx`. The backend serializes keys snake_to_camel on the wire,
-  // so also accept `solanaSigs` / `svmSigs`.
+  // Also surface pending Solana sign-only tx requests that were staged in the
+  // signature bucket (`solana_sigs` / `svm_sigs`) by `svm_sign_tx`. Message
+  // signatures remain message-sign requests and should not be reconstructed as
+  // tx-sign prompts here. The backend serializes keys snake_to_camel on the
+  // wire, so also accept `solanaSigs` / `svmSigs`.
   const pendingSolanaSigs =
     asRecord(normalizedUserState.pending?.solanaSigs) ??
     asRecord(normalizedUserState.pending?.solana_sigs) ??
@@ -329,11 +328,9 @@ export function pendingSolTxsFromBackendUserState(
       continue;
     }
 
-    // message_base64 / messageBase64 is the serialized transaction bytes (base64-encoded).
-    // The backend serializes pending sigs in camelCase (messageBase64) on the wire.
     const unsignedTx =
-      parseOptionalString(request.message_base64) ??
-      parseOptionalString(request.messageBase64);
+      parseOptionalString(request.unsigned_tx) ??
+      parseOptionalString(request.unsignedTx);
     if (!unsignedTx) {
       continue;
     }
@@ -341,8 +338,7 @@ export function pendingSolTxsFromBackendUserState(
     const id = pendingDisplayId(pendingId);
     const description = parseOptionalString(request.description);
     const signer = parseOptionalString(request.signer);
-    // solana_sigs entries don't carry a cluster field — default to mainnet.
-    const cluster = "solana:mainnet";
+    const cluster = parseOptionalString(request.cluster);
 
     next.push({
       id,

@@ -247,10 +247,7 @@ function inferSolanaRequestKind(
 
   switch (rawKind) {
     case "solana_sign_message":
-    case "sign_message":
     case "message_sign":
-    case "svm_message":
-    case "svm_sign_message":
       return "solana_sign_message";
     case "solana_send":
     case "send_transaction":

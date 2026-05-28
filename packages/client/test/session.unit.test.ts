@@ -377,9 +377,11 @@ describe("ClientSession ext helpers", () => {
             1: {
               signer: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
               description: "byreal AMM swap: 0.02 SOL -> ~1.67 USDC",
-              kind: "svm_message",
-              messageBase64: unsignedTx,
+              kind: "solana_sign",
+              requestKind: "sign_transaction",
+              unsignedTx,
               pendingSvmSigId: 1,
+              cluster: "solana:mainnet",
             },
           },
         },
@@ -847,7 +849,7 @@ describe("ClientSession ext helpers", () => {
           payload: {
             chain_kind: "svm",
             request_kind: "message_sign",
-            kind: "svm_message",
+            kind: "solana_sign_message",
             message_base64: "TWVtbw==",
             description: "sign login proof",
             cluster: "solana:devnet",
@@ -883,10 +885,10 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("emits wallet_solana_sign_request from a wallet::solana_sign_request legacy sign_tx_solana InlineCall", async () => {
+  it("emits wallet_solana_sign_request from a wallet::solana_sign_request sign_transaction InlineCall", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
-      sessionId: "session-solana-legacy-sign-tx-1",
+      sessionId: "session-solana-sign-tx-1",
     });
     const unsignedTx = createSerializedSolanaTransactionBase64();
 
@@ -898,9 +900,9 @@ describe("ClientSession ext helpers", () => {
           type: "wallet::solana_sign_request",
           payload: {
             chain_kind: "svm",
-            request_kind: "message_sign",
-            kind: "svm_message",
-            message_base64: unsignedTx,
+            request_kind: "sign_transaction",
+            kind: "solana_sign",
+            unsigned_tx: unsignedTx,
             description: "sign serialized swap tx",
             cluster: "solana:mainnet",
             pending_solana_id: 18,
@@ -913,7 +915,7 @@ describe("ClientSession ext helpers", () => {
       session.once("wallet_solana_sign_request", resolve);
     });
 
-    await session.sendAsync("sign legacy solana tx");
+    await session.sendAsync("sign solana tx");
     const request = (await requestPromise) as {
       id: string;
       kind: string;
