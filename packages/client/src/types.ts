@@ -518,7 +518,16 @@ export namespace UserState {
     const evm = normalizeEvmState(userState);
     const solana = normalizeSolanaState(userState);
     const pending = normalizePendingState(userState);
-    const ext = userState.ext === null ? null : asRecord(userState.ext);
+    const rawExt = userState.ext === null ? null : asRecord(userState.ext);
+    const ext =
+      rawExt == null
+        ? rawExt
+        : Object.fromEntries(
+            Object.entries(rawExt).map(([k, v]) => [
+              k === "clientType" ? "client_type" : k,
+              v,
+            ]),
+          );
 
     if (connection) normalized.connection = connection;
     if (evm) normalized.evm = evm;
