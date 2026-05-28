@@ -16,7 +16,7 @@
 // What this does NOT prove (covered by unit tests + once BE is ready):
 //   - SDK queue → RuntimeTxHandler dispatch
 //   - Session.resolve posting `wallet::solana_sign_complete` to the host
-//   - The full chat → sign_tx_solana → submit roundtrip
+//   - The full chat → svm_sign_tx → submit roundtrip
 //
 // Visit `/dev/solana-smoke` to run. Watch the on-page log + DevTools console.
 
