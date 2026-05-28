@@ -5,6 +5,7 @@ import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
 import { AppKeys } from "./app-keys";
+import { Bots } from "./bots";
 import { Secrets } from "./secrets";
 import { Byok } from "./byok";
 
@@ -20,6 +21,8 @@ export function SettingsLayout() {
         return <AppsSettings />;
       case "app-keys":
         return <AppKeys />;
+      case "bots":
+        return <Bots />;
       case "secrets":
         return <Secrets />;
       case "byok":
