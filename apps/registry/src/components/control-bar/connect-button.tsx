@@ -28,13 +28,23 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     openPicker,
     providers,
   } = useWalletPicker();
+  const currentProviderId = normalizeWalletProviderId(identity.walletProvider);
+  const hasConnectablePickerProvider = providers.some(
+    (provider) =>
+      provider.id === currentProviderId &&
+      !provider.disabled &&
+      (provider.onSelect || adapter.canConnect),
+  );
+  const canOpenPicker =
+    hasWalletPicker &&
+    (identity.isConnected || hasConnectablePickerProvider);
 
   useEffect(() => {
     onConnectionChange?.(identity.isConnected);
   }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    if (hasWalletPicker) {
+    if (canOpenPicker) {
       openPicker();
       return;
     }
@@ -55,7 +65,7 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
     }
   };
   const disabled =
-    !hasWalletPicker &&
+    !canOpenPicker &&
     !adapter.canOpenAccountUI &&
     !adapter.canDisconnect &&
     !adapter.canConnect;
@@ -82,9 +92,8 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
 
   const visibleAddress = identity.address ?? identity.svmAddress;
   const formattedAddress = formatAddress(visibleAddress);
-  const activeProviderId = normalizeWalletProviderId(identity.walletProvider);
-  const activeProvider = activeProviderId
-    ? providers.find((provider) => provider.id === activeProviderId)
+  const activeProvider = currentProviderId
+    ? providers.find((provider) => provider.id === currentProviderId)
     : undefined;
   const ActiveIcon = activeProvider?.icon ?? WalletIcon;
   const chainTicker = identity.chainId

@@ -45,8 +45,11 @@ export function WalletPicker() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, closePicker]);
 
+  const configuredProviderId = normalizeWalletProviderId(
+    identity.walletProvider,
+  );
   const activeProviderId = identity.isConnected
-    ? normalizeWalletProviderId(identity.walletProvider)
+    ? configuredProviderId
     : undefined;
 
   const orderedProviders = useMemo<WalletPickerProviderEntry[]>(() => {
@@ -136,9 +139,13 @@ export function WalletPicker() {
         <ul className="flex flex-col gap-2 p-2">
           {orderedProviders.map((provider) => {
             const isActive = provider.id === activeProviderId;
+            const isConfigured = provider.id === configuredProviderId;
             const isBooting = identity.status === "booting" || !adapter.isReady;
             const isClickable =
-              !isActive && !provider.disabled && adapter.canConnect;
+              isConfigured &&
+              !isActive &&
+              !provider.disabled &&
+              adapter.canConnect;
             const connectKey: PendingAction = `connect:${provider.id}`;
             const manageKey: PendingAction = `manage:${provider.id}`;
             const disconnectKey: PendingAction = `disconnect:${provider.id}`;
@@ -193,7 +200,7 @@ export function WalletPicker() {
                       async () => {
                         if (provider.onSelect) {
                           await provider.onSelect(adapter);
-                        } else if (adapter.canConnect) {
+                        } else if (isConfigured && adapter.canConnect) {
                           await adapter.connect();
                         }
                       },
