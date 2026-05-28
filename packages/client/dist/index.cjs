@@ -645,6 +645,8 @@ var BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
   "message_base64",
   "messageSha256",
   "message_sha256",
+  "unsignedTx",
+  "unsigned_tx",
   "typed_data",
   "typedData",
   "tx_data",
@@ -679,7 +681,8 @@ function stripBulkyPendingFields(userState) {
       evm_sigs: pruneBucket(pending.evm_sigs),
       svm_ixs: pruneBucket(pending.svm_ixs),
       solana_txs: pruneBucket(pending.solana_txs),
-      solana_sigs: pruneBucket(pending.solana_sigs)
+      solana_sigs: pruneBucket(pending.solana_sigs),
+      svm_sigs: pruneBucket(pending.svm_sigs)
     })
   });
 }
@@ -1369,7 +1372,6 @@ function resolveAASponsorship(mode, configuredSponsorship) {
 }
 
 // src/wallet-utils.ts
-var import_web3 = require("@solana/web3.js");
 var import_viem = require("viem");
 function asRecord2(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -1382,32 +1384,6 @@ function getToolArgs(payload) {
   const nestedArgs = asRecord2(root == null ? void 0 : root.args);
   return (_a = nestedArgs != null ? nestedArgs : root) != null ? _a : {};
 }
-function decodeBase64(value) {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
-  }
-  const bin = atob(value);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-function isSerializedSolanaTransactionBase64(value) {
-  try {
-    const bytes = decodeBase64(value);
-    if (bytes.length === 0) {
-      return false;
-    }
-    try {
-      import_web3.VersionedTransaction.deserialize(bytes);
-      return true;
-    } catch (e) {
-      import_web3.Transaction.from(bytes);
-      return true;
-    }
-  } catch (e) {
-    return false;
-  }
-}
 function parseChainKind(value) {
   return value === "evm" || value === "svm" ? value : void 0;
 }
@@ -1415,10 +1391,7 @@ function inferSolanaRequestKind(payload) {
   const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
   switch (rawKind) {
     case "solana_sign_message":
-    case "sign_message":
     case "message_sign":
-    case "svm_message":
-    case "svm_sign_message":
       return "solana_sign_message";
     case "solana_send":
     case "send_transaction":
@@ -1630,21 +1603,7 @@ function normalizeSolanaWalletRequest(payload) {
   const kind = inferSolanaRequestKind(solanaRequest);
   if (kind === "solana_sign_message") {
     const normalized2 = normalizeSolanaSignMessagePayload(payload);
-    if (!normalized2.message) {
-      return null;
-    }
-    if (isSerializedSolanaTransactionBase64(normalized2.message)) {
-      return {
-        kind: "solana_sign",
-        payload: {
-          unsignedTx: normalized2.message,
-          description: normalized2.description,
-          cluster: normalized2.cluster,
-          pendingSolanaId: normalized2.pendingSolanaId
-        }
-      };
-    }
-    return { kind, payload: normalized2 };
+    return normalized2.message ? { kind, payload: normalized2 } : null;
   }
   const normalized = normalizeSolanaSignPayload(payload);
   return normalized.unsignedTx ? { kind, payload: normalized } : null;

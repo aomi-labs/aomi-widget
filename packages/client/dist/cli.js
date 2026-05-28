@@ -861,7 +861,8 @@ function stripBulkyPendingFields(userState) {
       evm_sigs: pruneBucket(pending.evm_sigs),
       svm_ixs: pruneBucket(pending.svm_ixs),
       solana_txs: pruneBucket(pending.solana_txs),
-      solana_sigs: pruneBucket(pending.solana_sigs)
+      solana_sigs: pruneBucket(pending.solana_sigs),
+      svm_sigs: pruneBucket(pending.svm_sigs)
     })
   });
 }
@@ -946,6 +947,8 @@ var init_client = __esm({
       "message_base64",
       "messageSha256",
       "message_sha256",
+      "unsignedTx",
+      "unsigned_tx",
       "typed_data",
       "typedData",
       "tx_data",
@@ -1586,10 +1589,6 @@ var init_policy = __esm({
 });
 
 // src/wallet-utils.ts
-import {
-  Transaction as SolanaTransaction,
-  VersionedTransaction
-} from "@solana/web3.js";
 import { getAddress } from "viem";
 function asRecord2(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -1602,32 +1601,6 @@ function getToolArgs(payload) {
   const nestedArgs = asRecord2(root2 == null ? void 0 : root2.args);
   return (_a3 = nestedArgs != null ? nestedArgs : root2) != null ? _a3 : {};
 }
-function decodeBase64(value) {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
-  }
-  const bin = atob(value);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-function isSerializedSolanaTransactionBase64(value) {
-  try {
-    const bytes = decodeBase64(value);
-    if (bytes.length === 0) {
-      return false;
-    }
-    try {
-      VersionedTransaction.deserialize(bytes);
-      return true;
-    } catch (e) {
-      SolanaTransaction.from(bytes);
-      return true;
-    }
-  } catch (e) {
-    return false;
-  }
-}
 function parseChainKind(value) {
   return value === "evm" || value === "svm" ? value : void 0;
 }
@@ -1635,10 +1608,7 @@ function inferSolanaRequestKind(payload) {
   const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
   switch (rawKind) {
     case "solana_sign_message":
-    case "sign_message":
     case "message_sign":
-    case "svm_message":
-    case "svm_sign_message":
       return "solana_sign_message";
     case "solana_send":
     case "send_transaction":
@@ -1850,21 +1820,7 @@ function normalizeSolanaWalletRequest(payload) {
   const kind = inferSolanaRequestKind(solanaRequest);
   if (kind === "solana_sign_message") {
     const normalized2 = normalizeSolanaSignMessagePayload(payload);
-    if (!normalized2.message) {
-      return null;
-    }
-    if (isSerializedSolanaTransactionBase64(normalized2.message)) {
-      return {
-        kind: "solana_sign",
-        payload: {
-          unsignedTx: normalized2.message,
-          description: normalized2.description,
-          cluster: normalized2.cluster,
-          pendingSolanaId: normalized2.pendingSolanaId
-        }
-      };
-    }
-    return { kind, payload: normalized2 };
+    return normalized2.message ? { kind, payload: normalized2 } : null;
   }
   const normalized = normalizeSolanaSignPayload(payload);
   return normalized.unsignedTx ? { kind, payload: normalized } : null;
@@ -3131,14 +3087,14 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
     if (!pendingId || !request) {
       continue;
     }
-    const unsignedTx = (_t = parseOptionalString(request.message_base64)) != null ? _t : parseOptionalString(request.messageBase64);
+    const unsignedTx = (_t = parseOptionalString(request.unsigned_tx)) != null ? _t : parseOptionalString(request.unsignedTx);
     if (!unsignedTx) {
       continue;
     }
     const id = pendingDisplayId(pendingId);
     const description = parseOptionalString(request.description);
     const signer = parseOptionalString(request.signer);
-    const cluster = "solana:mainnet";
+    const cluster = parseOptionalString(request.cluster);
     next.push({
       id,
       solanaId: pendingId,
@@ -3512,7 +3468,7 @@ var init_state = __esm({
 import {
   Keypair,
   Transaction,
-  VersionedTransaction as VersionedTransaction2
+  VersionedTransaction
 } from "@solana/web3.js";
 import bs58 from "bs58";
 function parseSolanaKeypairSecret(input2) {
@@ -3545,7 +3501,7 @@ function parseSolanaKeypairSecret(input2) {
   }
   return Keypair.fromSecretKey(bytes);
 }
-function decodeBase642(value) {
+function decodeBase64(value) {
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(value, "base64"));
   }
@@ -3567,9 +3523,9 @@ function encodeBase64(bytes) {
   return btoa(binary);
 }
 function signSolanaTransaction(unsignedTxBase64, keypair) {
-  const bytes = decodeBase642(unsignedTxBase64);
+  const bytes = decodeBase64(unsignedTxBase64);
   try {
-    const versioned = VersionedTransaction2.deserialize(bytes);
+    const versioned = VersionedTransaction.deserialize(bytes);
     versioned.sign([keypair]);
     return {
       signer: keypair.publicKey.toBase58(),
