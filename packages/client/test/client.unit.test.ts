@@ -80,4 +80,55 @@ describe("AomiClient transport selection", () => {
       vi.stubGlobal("fetch", originalFetch);
     }
   });
+
+  it("strips bulky svm sign payloads from both solana_sigs and svm_sigs during fetchState", async () => {
+    const nativeResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => nativeResponse);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.fetchState("session-1", {
+        connection: { is_connected: true },
+        solana: { address: "Bv9abc", cluster: "solana:mainnet" },
+        pending: {
+          solana_sigs: {
+            1: {
+              signer: "Bv9abc",
+              description: "swap",
+              unsignedTx: "AQID",
+              pendingSvmSigId: 1,
+              kind: "solana_sign",
+            },
+          },
+          svm_sigs: {
+            1: {
+              signer: "Bv9abc",
+              description: "swap",
+              unsignedTx: "AQID",
+              pendingSvmSigId: 1,
+              kind: "solana_sign",
+            },
+          },
+        },
+      });
+
+      const url = String(nativeFetch.mock.calls[0]?.[0]);
+      const parsed = new URL(url);
+      const userState = JSON.parse(parsed.searchParams.get("user_state") ?? "{}");
+      expect(userState.pending.solana_sigs["1"].unsignedTx).toBeUndefined();
+      expect(userState.pending.svm_sigs["1"].unsignedTx).toBeUndefined();
+      expect(userState.pending.solana_sigs["1"].pendingSvmSigId).toBe(1);
+      expect(userState.pending.svm_sigs["1"].pendingSvmSigId).toBe(1);
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
 });
