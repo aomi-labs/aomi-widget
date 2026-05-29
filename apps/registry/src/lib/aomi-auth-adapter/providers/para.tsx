@@ -977,6 +977,7 @@ export function AomiParaProvider(props: AomiParaProviderProps) {
     <AomiWalletNetworkPreferencesProvider
       evmChains={props.networks ?? defaultNetworks}
       solanaNetworks={supportedSolanaNetworks}
+      storageKey="para"
     >
       <AomiParaProviderInner {...props} />
     </AomiWalletNetworkPreferencesProvider>
