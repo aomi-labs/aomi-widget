@@ -220,6 +220,8 @@ function BaseAccountAdapterInner({
       identity,
       isReady: true,
       isSwitchingChain: isSwitchingChain || isConnecting || isDisconnecting,
+      accounts: [],
+      selectAccount: async () => undefined,
       canConnect:
         Boolean(connectAsync && baseConnector) && !identity.isConnected,
       canOpenAccountUI: false,
