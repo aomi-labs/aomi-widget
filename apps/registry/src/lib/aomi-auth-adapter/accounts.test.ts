@@ -25,6 +25,16 @@ describe("buildAccounts", () => {
     expect(accounts).toEqual([
       expect.objectContaining({ family: "solana", address: "9xQpub", walletName: "Phantom", active: true }),
     ]);
+    expect(accounts[0].id).toBe("Phantom");
+  });
+
+  it("falls back to publicKey for the Solana account id when walletName is absent", () => {
+    const accounts = buildAccounts({
+      evmConnections: [],
+      activeEvmAddress: undefined,
+      solana: { publicKey: "9xQpub" },
+    });
+    expect(accounts[0]).toMatchObject({ family: "solana", id: "9xQpub", active: true });
   });
 
   it("returns both families for a dual connection", () => {
