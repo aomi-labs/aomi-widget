@@ -6,11 +6,13 @@ import {
   useCapabilities,
   useConfig,
   useConnect,
+  useConnections,
   useConnectors,
   useDisconnect,
   useSendCallsSync,
   useSendTransaction,
   useSignTypedData,
+  useSwitchAccount,
   useSwitchChain,
   useWalletClient,
 } from "wagmi";
@@ -201,5 +203,43 @@ export function useSafeConnectors(): ReturnType<typeof useConnectors> {
     return useConnectors();
   } catch {
     return [];
+  }
+}
+
+export type WagmiConnectionShape = {
+  connectorId: string;
+  connectorName: string;
+  address: `0x${string}`;
+  chainId?: number;
+};
+
+export function useSafeConnections(): WagmiConnectionShape[] {
+  try {
+    const connections = useConnections();
+    return connections.flatMap((connection) =>
+      connection.accounts.map((address) => ({
+        connectorId: connection.connector.uid,
+        connectorName: connection.connector.name,
+        address,
+        chainId: connection.chainId,
+      })),
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function useSafeSwitchAccount(): {
+  switchAccountAsync?: (args: {
+    connector: Parameters<
+      ReturnType<typeof useSwitchAccount>["switchAccountAsync"]
+    >[0]["connector"];
+  }) => Promise<unknown>;
+} {
+  try {
+    const { switchAccountAsync } = useSwitchAccount();
+    return { switchAccountAsync };
+  } catch {
+    return { switchAccountAsync: undefined };
   }
 }
