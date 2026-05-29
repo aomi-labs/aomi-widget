@@ -417,7 +417,9 @@ export function normalizeSolanaSignPayload(
 
   const pendingSolanaId =
     parsePendingId(args.pendingSolanaId) ??
-    parsePendingId(args.pending_solana_id);
+    parsePendingId(args.pending_solana_id) ??
+    parsePendingId(args.pendingSvmSigId) ??
+    parsePendingId(args.pending_svm_sig_id);
 
   return { unsignedTx, description, cluster, pendingSolanaId };
 }
@@ -438,7 +440,9 @@ export function normalizeSolanaSignMessagePayload(
 
   const pendingSolanaId =
     parsePendingId(args.pendingSolanaId) ??
-    parsePendingId(args.pending_solana_id);
+    parsePendingId(args.pending_solana_id) ??
+    parsePendingId(args.pendingSvmSigId) ??
+    parsePendingId(args.pending_svm_sig_id);
 
   return { message, description, cluster, pendingSolanaId };
 }

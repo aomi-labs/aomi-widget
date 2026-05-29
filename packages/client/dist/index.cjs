@@ -306,7 +306,13 @@ var UserState;
     const evm = normalizeEvmState(userState);
     const solana = normalizeSolanaState(userState);
     const pending = normalizePendingState(userState);
-    const ext = userState.ext === null ? null : asRecord(userState.ext);
+    const rawExt = userState.ext === null ? null : asRecord(userState.ext);
+    const ext = rawExt == null ? rawExt : Object.fromEntries(
+      Object.entries(rawExt).map(([k, v]) => [
+        k === "clientType" ? "client_type" : k,
+        v
+      ])
+    );
     if (connection) normalized.connection = connection;
     if (evm) normalized.evm = evm;
     if (solana) normalized.solana = solana;
@@ -1570,25 +1576,25 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
   });
 }
 function normalizeSolanaSignPayload(payload) {
-  var _a, _b;
+  var _a, _b, _c, _d;
   const args = getToolArgs(payload);
   const unsignedTxRaw = (_a = args.unsigned_tx) != null ? _a : args.unsignedTx;
   const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
   const clusterRaw = args.cluster;
   const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
-  const pendingSolanaId = (_b = parsePendingId(args.pendingSolanaId)) != null ? _b : parsePendingId(args.pending_solana_id);
+  const pendingSolanaId = (_d = (_c = (_b = parsePendingId(args.pendingSolanaId)) != null ? _b : parsePendingId(args.pending_solana_id)) != null ? _c : parsePendingId(args.pendingSvmSigId)) != null ? _d : parsePendingId(args.pending_svm_sig_id);
   return { unsignedTx, description, cluster, pendingSolanaId };
 }
 function normalizeSolanaSignMessagePayload(payload) {
-  var _a, _b, _c;
+  var _a, _b, _c, _d, _e;
   const args = getToolArgs(payload);
   const messageRaw = (_b = (_a = args.message_base64) != null ? _a : args.messageBase64) != null ? _b : args.message;
   const message = typeof messageRaw === "string" ? messageRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
   const clusterRaw = args.cluster;
   const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
-  const pendingSolanaId = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id);
+  const pendingSolanaId = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id);
   return { message, description, cluster, pendingSolanaId };
 }
 function normalizeSolanaWalletRequest(payload) {
@@ -1736,6 +1742,19 @@ var ClientSession = class extends TypedEventEmitter {
     this._backendWasProcessing = false;
     this.walletRequests = [];
     this.walletRequestNextId = 1;
+    /**
+     * Permanent per-session tombstone set of request ids the user has already
+     * resolved/rejected locally. After a sign/submit, the backend may keep
+     * echoing the originating request for a few polls — either as a `pending.*`
+     * bucket entry or as a re-delivered `system_events` InlineCall — until it
+     * processes the completion. Every re-add path (`syncWalletRequests`, the
+     * preservation block, and `enqueueWalletRequest`) consults this set and skips
+     * tombstoned ids. Without it the request keeps `walletRequests` non-empty and
+     * the poll loop never terminates (`!is_processing && walletRequests.length
+     * === 0` can never hold). Never GC'd: backend pending ids are monotonic per
+     * session, so a resolved id can never legitimately reappear.
+     */
+    this.resolvedWalletRequestIds = /* @__PURE__ */ new Set();
     this._messages = [];
     this.closed = false;
     // For send() blocking behavior
@@ -1874,6 +1893,7 @@ var ClientSession = class extends TypedEventEmitter {
         `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`
       );
     }
+    this.resolvedWalletRequestIds.add(requestId);
     this.removeWalletRequest(requestId);
     if (req.kind === "transaction" && result.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
@@ -1952,6 +1972,7 @@ var ClientSession = class extends TypedEventEmitter {
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
+    this.resolvedWalletRequestIds.add(requestId);
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
       const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
@@ -2397,6 +2418,9 @@ var ClientSession = class extends TypedEventEmitter {
         timestamp
       };
     }
+    if (this.resolvedWalletRequestIds.has(id) && !existing) {
+      return req;
+    }
     this.walletRequests = existing ? this.walletRequests.map((request) => request.id === id ? req : request) : [...this.walletRequests, req];
     if (req.kind === "transaction") {
       const nextTxIds = txIdsFromPayload(req.payload);
@@ -2591,6 +2615,9 @@ var ClientSession = class extends TypedEventEmitter {
         normalized.kind,
         normalized.payload
       );
+      if (this.resolvedWalletRequestIds.has(requestId)) {
+        continue;
+      }
       nextRequests.push({
         id: requestId,
         kind: normalized.kind,
@@ -2613,6 +2640,9 @@ var ClientSession = class extends TypedEventEmitter {
         normalized.kind,
         normalized.payload
       );
+      if (this.resolvedWalletRequestIds.has(requestId)) {
+        continue;
+      }
       nextRequests.push({
         id: requestId,
         kind: normalized.kind,
@@ -2631,7 +2661,7 @@ var ClientSession = class extends TypedEventEmitter {
     }
     const nextIdSet = new Set(nextRequests.map((r) => r.id));
     for (const existing of this.walletRequests) {
-      if (existing.kind !== "transaction" && existing.kind !== "eip712_sign" && !nextIdSet.has(existing.id)) {
+      if (existing.kind !== "transaction" && existing.kind !== "eip712_sign" && !nextIdSet.has(existing.id) && !this.resolvedWalletRequestIds.has(existing.id)) {
         nextRequests.push(existing);
       }
     }

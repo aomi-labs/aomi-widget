@@ -937,6 +937,76 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("preserves pendingSvmSigId from a wallet::solana_sign_request InlineCall and posts it on resolve", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-solana-sign-tx-svm-id-1",
+    });
+    const unsignedTx = createSerializedSolanaTransactionBase64();
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            chain_kind: "svm",
+            request_kind: "sign_transaction",
+            kind: "solana_sign",
+            unsigned_tx: unsignedTx,
+            description: "sign serialized swap tx",
+            cluster: "solana:mainnet",
+            pendingSvmSigId: 19,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_solana_sign_request", resolve);
+    });
+
+    await session.sendAsync("sign solana tx with svm sig id");
+    const request = (await requestPromise) as {
+      id: string;
+      kind: string;
+      payload: {
+        unsignedTx?: string;
+        description?: string;
+        cluster?: string;
+        pendingSolanaId?: number;
+      };
+    };
+
+    expect(request.id).toBe("solana_sign-19");
+    expect(request.kind).toBe("solana_sign");
+    expect(request.payload.unsignedTx).toBe(unsignedTx);
+    expect(request.payload.pendingSolanaId).toBe(19);
+
+    await session.resolve(request.id, {
+      kind: "solana_sign",
+      signedTx: "SIGNED:SVM:19",
+    });
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-solana-sign-tx-svm-id-1",
+      JSON.stringify({
+        type: "wallet::solana_sign_complete",
+        payload: {
+          status: "signed",
+          signed_tx: "SIGNED:SVM:19",
+          unsigned_tx: unsignedTx,
+          description: "sign serialized swap tx",
+          pending_solana_id: 19,
+        },
+      }),
+      { app: "default" },
+    );
+
+    session.close();
+  });
+
   it("posts wallet::solana_sign_complete with signed_tx on resolve", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-solana-2" });
@@ -982,6 +1052,210 @@ describe("ClientSession ext helpers", () => {
       }),
       { app: "default" },
     );
+
+    session.close();
+  });
+
+  it("does not resurrect a resolved solana_sign request when state polling still echoes pending.svm_sigs", async () => {
+    // Reproduces the byreal "polling never stops" loop: after the user signs,
+    // the wallet::solana_sign_complete event POST is in flight while the next
+    // pollTick fires. The polled state still carries the pending bucket entry,
+    // and without the resolved-id guard, syncWalletRequests re-adds the request
+    // and the preservation block keeps it forever — so `walletRequests.length`
+    // stays > 0 even after `is_processing` flips false.
+    const { client, sendMessage, fetchState, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-solana-resolve-race" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: true,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "AQAA",
+            description: "byreal swap",
+            pending_solana_id: 1,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise<{ id: string }>((resolve) => {
+      session.once("wallet_solana_sign_request", resolve as never);
+    });
+
+    await session.sendAsync("swap 1 usdc to sol");
+    const request = await requestPromise;
+
+    await session.resolve(request.id, {
+      kind: "solana_sign",
+      signedTx: "SIGNED:AQAA",
+    });
+
+    expect(sendSystemMessage).toHaveBeenCalledTimes(1);
+
+    // A poll tick lands before the backend has processed the completion event:
+    // pending.svm_sigs[1] is still present and is_processing is still true.
+    fetchState.mockResolvedValueOnce({
+      is_processing: true,
+      messages: [],
+      user_state: {
+        pending: {
+          svm_sigs: {
+            1: {
+              request_kind: "sign_transaction",
+              description: "byreal swap",
+              unsigned_tx: "AQAA",
+            },
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([]);
+
+    // Subsequent poll once the backend has caught up: pending is gone.
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: { pending: {} },
+    } satisfies AomiStateResponse);
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([]);
+
+    session.close();
+  });
+
+  it("keeps a resolved solana_sign request cleared across repeated polls that never carry a pending bucket (byreal continuation)", async () => {
+    // Mirrors the byreal capture exactly: the sign request is delivered purely
+    // via a system event (no pending bucket), and during the ~15s backend
+    // continuation (submit_swap) every poll comes back with `is_processing:
+    // true` and NO `pending` field. A prior GC bug deleted the resolved-id
+    // tombstone on the first bucket-less poll, so the preservation block then
+    // re-added the zombie on the next poll and `is_processing: false` could
+    // never coincide with an empty queue — polling looped forever.
+    const { client, sendMessage, fetchState } = createMockClient();
+    const session = new Session(client, { sessionId: "session-byreal-loop" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: true,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "AQAA",
+            description: "byreal AMM swap",
+            pending_svm_sig_id: 1,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise<{ id: string }>((resolve) => {
+      session.once("wallet_solana_sign_request", resolve as never);
+    });
+    await session.sendAsync("swap 0.02 sol to usdc");
+    const request = await requestPromise;
+    expect(request.id).toBe("solana_sign-1");
+
+    await session.resolve(request.id, {
+      kind: "solana_sign",
+      signedTx: "SIGNED:AQAA",
+    });
+    expect(session.getPendingRequests()).toEqual([]);
+
+    // Backend continuation running: several polls, is_processing true, no bucket.
+    for (let i = 0; i < 3; i++) {
+      fetchState.mockResolvedValueOnce({
+        is_processing: true,
+        messages: [],
+        system_events: [],
+        user_state: {
+          connection: { is_connected: true, primary_family: "solana" },
+        },
+      } satisfies AomiStateResponse);
+      await session.fetchCurrentState();
+      expect(session.getPendingRequests()).toEqual([]);
+    }
+
+    // Turn complete: is_processing false, still no bucket. Queue must be empty
+    // so the pollTick stop gate (!is_processing && walletRequests.length === 0)
+    // can fire.
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [],
+      user_state: {
+        connection: { is_connected: true, primary_family: "solana" },
+      },
+    } satisfies AomiStateResponse);
+    await session.fetchCurrentState();
+    expect(session.getPendingRequests()).toEqual([]);
+
+    session.close();
+  });
+
+  it("does not resurrect a resolved solana_sign request when the backend re-delivers the originating InlineCall", async () => {
+    // Defense in depth: even if the backend re-emits the wallet sign request in
+    // a later poll's system_events (before it processes the completion), the
+    // enqueue choke point must drop it — the user already signed it.
+    const { client, sendMessage, fetchState } = createMockClient();
+    const session = new Session(client, { sessionId: "session-redeliver" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: true,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "AQAA",
+            description: "byreal AMM swap",
+            pending_svm_sig_id: 1,
+          },
+        },
+      }],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise<{ id: string }>((resolve) => {
+      session.once("wallet_solana_sign_request", resolve as never);
+    });
+    await session.sendAsync("swap 0.02 sol to usdc");
+    const request = await requestPromise;
+
+    await session.resolve(request.id, {
+      kind: "solana_sign",
+      signedTx: "SIGNED:AQAA",
+    });
+    expect(session.getPendingRequests()).toEqual([]);
+
+    // Poll re-delivers the same InlineCall — must be ignored.
+    let resurrected = false;
+    session.on("wallet_requests_changed", (reqs) => {
+      if (reqs.length > 0) resurrected = true;
+    });
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [{
+        InlineCall: {
+          type: "wallet::solana_sign_request",
+          payload: {
+            unsigned_tx: "AQAA",
+            description: "byreal AMM swap",
+            pending_svm_sig_id: 1,
+          },
+        },
+      }],
+    } satisfies AomiStateResponse);
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([]);
+    expect(resurrected).toBe(false);
 
     session.close();
   });
