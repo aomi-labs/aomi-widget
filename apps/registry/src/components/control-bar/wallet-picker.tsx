@@ -62,7 +62,7 @@ export function WalletPicker() {
   return (
     <div
       role="dialog" aria-modal="true" aria-labelledby="aomi-wallet-picker-title"
-      className="animate-in fade-in-0 absolute inset-0 z-50 flex items-center justify-center px-4 py-4 duration-150"
+      className="animate-in fade-in-0 fixed inset-0 z-50 flex items-center justify-center px-4 py-4 duration-150"
     >
       <button type="button" aria-label="Close" onClick={closePicker} className="absolute inset-0 cursor-default bg-black/15 dark:bg-black/30" />
       <div className={cn(
