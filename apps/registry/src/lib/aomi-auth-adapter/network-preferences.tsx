@@ -54,10 +54,7 @@ export function AomiWalletNetworkPreferencesProvider({
   solanaNetworks: readonly SolanaNetworkOption[];
   storageKey?: string;
 }) {
-  const persisted = useMemo(
-    () => loadWalletPreferences(storageKey),
-    [storageKey],
-  );
+  const [persisted] = useState(() => loadWalletPreferences(storageKey));
 
   const [selectedFamily, setSelectedFamily] = useState<WalletFamily>(
     () =>

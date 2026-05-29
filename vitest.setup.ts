@@ -1,6 +1,8 @@
 import { webcrypto } from "node:crypto";
 import "@testing-library/jest-dom/vitest";
 
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 if (!globalThis.crypto) {
   Object.defineProperty(globalThis, "crypto", {
     value: webcrypto,
