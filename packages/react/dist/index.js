@@ -31,7 +31,7 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// src/index.ts
+// packages/react/src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
@@ -48,11 +48,11 @@ import {
   aaModeFromExecutionKind
 } from "@aomi-labs/client";
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
 import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 import {
   createContext,
   useCallback,
@@ -62,7 +62,7 @@ import {
   useEffect
 } from "react";
 
-// src/utils/uuid.ts
+// packages/react/src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -74,7 +74,7 @@ function generateUUID() {
   });
 }
 
-// src/state/thread-store.ts
+// packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -259,7 +259,7 @@ var ThreadStore = class {
   }
 };
 
-// src/utils/model-selection.ts
+// packages/react/src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude.*opus.*4[.-]?6/i,
   /^claude.*4[.-]?6.*opus/i,
@@ -278,7 +278,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// src/utils/client-session.ts
+// packages/react/src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -304,7 +304,7 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_api_key";
 var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
@@ -921,7 +921,7 @@ function ControlContextProvider({
   );
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 import {
   createContext as createContext2,
   useCallback as useCallback2,
@@ -996,7 +996,7 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// src/contexts/notification-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
   useCallback as useCallback3,
@@ -1046,7 +1046,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// src/contexts/thread-context.tsx
+// packages/react/src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -1096,7 +1096,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// src/contexts/user-context.tsx
+// packages/react/src/contexts/user-context.tsx
 import {
   createContext as createContext5,
   useCallback as useCallback4,
@@ -1197,7 +1197,7 @@ function UserContextProvider({ children }) {
   );
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 import { useCallback as useCallback8, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8, useState as useState7 } from "react";
 import {
   AssistantRuntimeProvider,
@@ -1205,11 +1205,11 @@ import {
 } from "@assistant-ui/react";
 import { UserState as UserState3 } from "@aomi-labs/client";
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
-// src/runtime/session-manager.ts
+// packages/react/src/runtime/session-manager.ts
 import {
   Session as ClientSession
 } from "@aomi-labs/client";
@@ -1268,7 +1268,7 @@ var SessionManager = class {
   }
 };
 
-// src/runtime/utils.ts
+// packages/react/src/runtime/utils.ts
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1370,7 +1370,7 @@ var SUPPORTED_CHAINS = [
 ];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1772,7 +1772,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// src/runtime/threadlist-adapter.ts
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1931,7 +1931,7 @@ function buildThreadListAdapter({
   };
 }
 
-// src/interface.tsx
+// packages/react/src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1945,7 +1945,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useRef as useRef6, useState as useState5 } from "react";
 function useWalletHandler({
   getSession
@@ -2035,7 +2035,7 @@ function useWalletHandler({
   };
 }
 
-// src/runtime/user-state-provider.tsx
+// packages/react/src/runtime/user-state-provider.tsx
 import {
   useCallback as useCallback7,
   useEffect as useEffect3,
@@ -2415,7 +2415,7 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ jsx6(Fragment, { children });
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
 function getConnectedWalletId2(userState) {
   var _a;
@@ -2877,7 +2877,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
 function normalizeBackendUrl(url) {
   try {
@@ -2938,7 +2938,7 @@ function AomiRuntimeInner({
   );
 }
 
-// src/handlers/notification-handler.ts
+// packages/react/src/handlers/notification-handler.ts
 import { useCallback as useCallback9, useEffect as useEffect5, useState as useState8 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
