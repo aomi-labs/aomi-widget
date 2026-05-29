@@ -593,6 +593,10 @@ export function AomiParaAdapterProvider({
             );
             if (connector) {
               await switchAccountAsync({ connector });
+            } else {
+              console.warn(
+                `[aomi-auth-adapter] selectAccount: connector not found for ${id}`,
+              );
             }
           }
           return;
@@ -687,8 +691,8 @@ export function AomiParaAdapterProvider({
             // sign-in path (e.g. embedded Solana via Para social login).
           }
         }
-        if (requestedFamily === "evm" && address) {
-          // Already have a live EVM account — don't reopen the Para modal.
+        if (requestedFamily === "evm" && wagmiAddress) {
+          // Already have a live EVM connection — don't reopen the Para modal.
           return;
         }
         paraModal?.openModal({ step: "AUTH_MAIN" });
@@ -707,6 +711,9 @@ export function AomiParaAdapterProvider({
             }
             return;
           }
+          // accountId was provided but is not a disconnectable EVM account —
+          // bail rather than falling through to a family-wide disconnect.
+          return;
         }
 
         const requestedFamily = options?.family ?? activeFamily;
