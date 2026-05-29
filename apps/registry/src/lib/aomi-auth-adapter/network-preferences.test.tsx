@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { act } from "react";
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
