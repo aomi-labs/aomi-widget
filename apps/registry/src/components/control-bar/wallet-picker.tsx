@@ -229,7 +229,11 @@ function FamilySection({ family, accounts, activeFamily, chainId, pending, onSwi
               {account.active && <CheckIcon className="text-primary size-4 shrink-0" />}
               {!account.active && selectable && (pending === `select:${account.id}` ? <Loader2Icon className="size-4 shrink-0 animate-spin" /> : <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />)}
               {onDisconnect && (
-                <RowIconButton icon={LogOutIcon} ariaLabel="Disconnect" disabled={pending !== null} loading={pending === `disconnect:${account.id}` || pending === "disconnect:solana"} onClick={() => onDisconnect(account.id)} />
+                <RowIconButton icon={LogOutIcon} ariaLabel="Disconnect" disabled={pending !== null} loading={
+                  family === "evm"
+                    ? pending === `disconnect:${account.id}`
+                    : pending === "disconnect:solana"
+                } onClick={() => onDisconnect(account.id)} />
               )}
             </div>
           );
