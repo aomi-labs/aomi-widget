@@ -83,6 +83,24 @@ export type SolanaWalletDescriptor = {
   iconUrl?: string;
 };
 
+/**
+ * One wallet account known to the adapter, tagged by family. The registry
+ * may hold several per family (e.g. MetaMask + Para-embedded EVM), but only
+ * one per family is `active` (the live account reported to the backend).
+ */
+export type AomiAccount = {
+  /** Stable id: wagmi connector uid (EVM) or solana wallet name (Solana). */
+  id: string;
+  family: WalletFamily;
+  address: string;
+  /** Short display label, e.g. formatted address. */
+  label?: string;
+  /** Human wallet name, e.g. "MetaMask", "Phantom", "Para". */
+  walletName?: string;
+  /** True when this is the live account for its family. */
+  active: boolean;
+};
+
 export type AomiTxResult = {
   txHash: string;
   amount?: string;
@@ -115,6 +133,11 @@ export type AomiAuthAdapter = {
   activeNetwork?: AomiNetworkTarget;
   solanaNetworkSwitchRequiresReconnect?: boolean;
 
+  /** All wallet accounts known to the adapter, tagged by family. */
+  accounts: readonly AomiAccount[];
+  /** Make `accounts[id]` the active account for its family. */
+  selectAccount: (id: string) => Promise<void>;
+
   /**
    * Installed/loadable Solana wallets the adapter can attach to. Empty
    * (or undefined) when the adapter doesn't support Solana or has no
@@ -143,6 +166,8 @@ export type AomiAuthAdapter = {
    */
   disconnect?: (options?: {
     family?: WalletFamily | "all";
+    /** Disconnect a single account by `AomiAccount.id` (EVM only). */
+    accountId?: string;
   }) => Promise<void>;
 
   switchChain?: (chainId: number) => Promise<void>;
