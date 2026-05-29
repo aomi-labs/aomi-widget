@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useEffect } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
 import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
 import { AomiWalletNetworkPreferencesProvider } from "@/lib/aomi-auth-adapter/network-preferences";
@@ -75,5 +75,46 @@ describe("WalletPicker", () => {
     renderPicker(adapter);
     fireEvent.click(screen.getByText("MetaMask"));
     expect(adapter.selectAccount).toHaveBeenCalledWith("mm");
+  });
+
+  it("disables the inactive family and offers a switch affordance", () => {
+    const adapter = makeAdapter({
+      accounts: [
+        { id: "mm", family: "evm", address: "0xAAAAAAAA", walletName: "MetaMask", active: true },
+        { id: "phantom", family: "solana", address: "9xQpubKey", walletName: "Phantom", active: false },
+      ],
+    });
+    renderPicker(adapter);
+    // EVM is the active family by default → Solana section is inactive.
+    expect(screen.getByText(/Switch to Solana/i)).toBeTruthy();
+    // Clicking the inactive Solana account must NOT select it.
+    fireEvent.click(screen.getByText("Phantom"));
+    expect(adapter.selectAccount).not.toHaveBeenCalled();
+  });
+
+  it("disconnects an EVM account by accountId", () => {
+    const adapter = makeAdapter({
+      accounts: [
+        { id: "mm", family: "evm", address: "0xAAAAAAAA", walletName: "MetaMask", active: true },
+      ],
+    });
+    renderPicker(adapter);
+    fireEvent.click(screen.getByLabelText("Disconnect"));
+    expect(adapter.disconnect).toHaveBeenCalledWith({ accountId: "mm" });
+  });
+
+  it("activates the Solana family after using the switch affordance", () => {
+    const adapter = makeAdapter({
+      accounts: [
+        { id: "mm", family: "evm", address: "0xAAAAAAAA", walletName: "MetaMask", active: true },
+        { id: "phantom", family: "solana", address: "9xQpubKey", walletName: "Phantom", active: false },
+      ],
+    });
+    renderPicker(adapter);
+    act(() => {
+      fireEvent.click(screen.getByText(/Switch to Solana/i));
+    });
+    fireEvent.click(screen.getByText("Phantom"));
+    expect(adapter.selectAccount).toHaveBeenCalledWith("phantom");
   });
 });
