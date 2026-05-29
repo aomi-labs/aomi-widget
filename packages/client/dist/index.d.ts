@@ -928,6 +928,19 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private _backendWasProcessing;
     private walletRequests;
     private walletRequestNextId;
+    /**
+     * Permanent per-session tombstone set of request ids the user has already
+     * resolved/rejected locally. After a sign/submit, the backend may keep
+     * echoing the originating request for a few polls — either as a `pending.*`
+     * bucket entry or as a re-delivered `system_events` InlineCall — until it
+     * processes the completion. Every re-add path (`syncWalletRequests`, the
+     * preservation block, and `enqueueWalletRequest`) consults this set and skips
+     * tombstoned ids. Without it the request keeps `walletRequests` non-empty and
+     * the poll loop never terminates (`!is_processing && walletRequests.length
+     * === 0` can never hold). Never GC'd: backend pending ids are monotonic per
+     * session, so a resolved id can never legitimately reappear.
+     */
+    private resolvedWalletRequestIds;
     private _messages;
     private _title?;
     private closed;

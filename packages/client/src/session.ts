@@ -372,6 +372,19 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private _backendWasProcessing = false;
   private walletRequests: WalletRequest[] = [];
   private walletRequestNextId = 1;
+  /**
+   * Permanent per-session tombstone set of request ids the user has already
+   * resolved/rejected locally. After a sign/submit, the backend may keep
+   * echoing the originating request for a few polls — either as a `pending.*`
+   * bucket entry or as a re-delivered `system_events` InlineCall — until it
+   * processes the completion. Every re-add path (`syncWalletRequests`, the
+   * preservation block, and `enqueueWalletRequest`) consults this set and skips
+   * tombstoned ids. Without it the request keeps `walletRequests` non-empty and
+   * the poll loop never terminates (`!is_processing && walletRequests.length
+   * === 0` can never hold). Never GC'd: backend pending ids are monotonic per
+   * session, so a resolved id can never legitimately reappear.
+   */
+  private resolvedWalletRequestIds = new Set<string>();
   private _messages: AomiMessage[] = [];
   private _title?: string;
   private closed = false;
@@ -541,6 +554,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`,
       );
     }
+    this.resolvedWalletRequestIds.add(requestId);
     this.removeWalletRequest(requestId);
 
     if (req.kind === "transaction" && result.kind === "transaction") {
@@ -661,6 +675,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
+    this.resolvedWalletRequestIds.add(requestId);
 
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
@@ -1234,6 +1249,17 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       };
     }
 
+    // If the user already resolved/rejected this id, the backend may still be
+    // re-delivering the originating system event (InlineCall) on subsequent
+    // polls until it processes the completion. Don't resurrect it onto the
+    // queue — return the assembled record so callers stay happy, but leave
+    // `walletRequests` untouched and skip the change emit. Without this, a
+    // re-delivered sign request keeps `walletRequests` non-empty and polling
+    // never terminates even after `is_processing` flips false.
+    if (this.resolvedWalletRequestIds.has(id) && !existing) {
+      return req;
+    }
+
     this.walletRequests = existing
       ? this.walletRequests.map((request) => (request.id === id ? req : request))
       : [...this.walletRequests, req];
@@ -1490,6 +1516,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         normalized.kind,
         normalized.payload,
       );
+      if (this.resolvedWalletRequestIds.has(requestId)) {
+        // User already signed/rejected; backend just hasn't processed the
+        // completion event yet. Don't resurrect the request.
+        continue;
+      }
       nextRequests.push({
         id: requestId,
         kind: normalized.kind,
@@ -1516,6 +1547,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         normalized.kind,
         normalized.payload,
       );
+      if (this.resolvedWalletRequestIds.has(requestId)) {
+        continue;
+      }
       nextRequests.push({
         id: requestId,
         kind: normalized.kind,
@@ -1545,12 +1579,30 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     // often fires the SSE event before the next polled state snapshot includes
     // the request; without this, syncWalletRequests evicts the request while
     // processRequest is still awaiting the wallet signature.
+    //
+    // Skip ids the user already resolved — those are pre-completion zombies the
+    // poll is still echoing, and preserving them would leave `walletRequests`
+    // non-empty forever and never let polling stop.
     const nextIdSet = new Set(nextRequests.map((r) => r.id));
     for (const existing of this.walletRequests) {
-      if (existing.kind !== "transaction" && existing.kind !== "eip712_sign" && !nextIdSet.has(existing.id)) {
+      if (
+        existing.kind !== "transaction" &&
+        existing.kind !== "eip712_sign" &&
+        !nextIdSet.has(existing.id) &&
+        !this.resolvedWalletRequestIds.has(existing.id)
+      ) {
         nextRequests.push(existing);
       }
     }
+
+    // NOTE: `resolvedWalletRequestIds` is intentionally a permanent per-session
+    // tombstone set — we do NOT garbage-collect it. Backend pending ids are
+    // monotonic per session (the `next_*_ids` counters never reuse a discarded
+    // id), so a resolved id can never legitimately come back. GC'ing it on the
+    // first poll where the pending bucket is absent (which, for apps like byreal
+    // that drive sign requests purely via system events, is *every* poll)
+    // reopened the loop: the preservation block above would stop recognising the
+    // zombie and re-add it indefinitely, so polling never terminated.
 
     if (
       nextRequests.length === this.walletRequests.length &&
