@@ -15,6 +15,7 @@ import type {
   WalletFamily,
 } from "./types";
 import { resolveSelectedSolanaNetwork } from "./solana-networks";
+import { loadWalletPreferences, saveWalletPreferences } from "./persistence";
 
 type NetworkPreferencesContextValue = {
   selectedFamily: WalletFamily;
@@ -46,20 +47,39 @@ export function AomiWalletNetworkPreferencesProvider({
   children,
   evmChains,
   solanaNetworks,
+  storageKey = "default",
 }: {
   children: ReactNode;
   evmChains: readonly Chain[];
   solanaNetworks: readonly SolanaNetworkOption[];
+  storageKey?: string;
 }) {
-  const [selectedFamily, setSelectedFamily] = useState<WalletFamily>(() =>
-    resolveInitialFamily(evmChains, solanaNetworks),
+  const persisted = useMemo(
+    () => loadWalletPreferences(storageKey),
+    [storageKey],
   );
-  const [selectedEvmChainId, setSelectedEvmChainId] = useState<number | undefined>(
-    evmChains[0]?.id,
+
+  const [selectedFamily, setSelectedFamily] = useState<WalletFamily>(
+    () =>
+      persisted.selectedFamily ??
+      resolveInitialFamily(evmChains, solanaNetworks),
+  );
+  const [selectedEvmChainId, setSelectedEvmChainId] = useState<
+    number | undefined
+  >(() =>
+    persisted.selectedEvmChainId !== undefined &&
+    evmChains.some((chain) => chain.id === persisted.selectedEvmChainId)
+      ? persisted.selectedEvmChainId
+      : evmChains[0]?.id,
   );
   const [selectedSolanaNetworkId, setSelectedSolanaNetworkId] = useState<
     string | undefined
-  >(() => resolveSelectedSolanaNetwork(solanaNetworks)?.id);
+  >(() =>
+    persisted.selectedSolanaNetworkId &&
+    solanaNetworks.some((n) => n.id === persisted.selectedSolanaNetworkId)
+      ? persisted.selectedSolanaNetworkId
+      : resolveSelectedSolanaNetwork(solanaNetworks)?.id,
+  );
 
   useEffect(() => {
     if (!evmChains.length) {
@@ -84,6 +104,14 @@ export function AomiWalletNetworkPreferencesProvider({
         : resolveSelectedSolanaNetwork(solanaNetworks)?.id,
     );
   }, [evmChains.length, solanaNetworks]);
+
+  useEffect(() => {
+    saveWalletPreferences(storageKey, {
+      selectedFamily,
+      selectedEvmChainId,
+      selectedSolanaNetworkId,
+    });
+  }, [storageKey, selectedFamily, selectedEvmChainId, selectedSolanaNetworkId]);
 
   const selectedSolanaNetwork = useMemo(
     () =>
