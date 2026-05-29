@@ -40,7 +40,6 @@ const solanaNetworks = [
       "https://api.devnet.solana.com",
     rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
-    isDefault: true,
   },
   {
     id: "solana-mainnet",
@@ -50,6 +49,7 @@ const solanaNetworks = [
       process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_URL ??
       "https://api.mainnet-beta.solana.com",
     rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_WS_URL,
+    isDefault: true,
   },
   {
     id: "solana-testnet",
