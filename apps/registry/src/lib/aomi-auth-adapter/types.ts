@@ -161,8 +161,8 @@ export type AomiAuthAdapter = {
    * session, or vice versa). `{ family: "all" }` clears both.
    *
    * Adapters that can't selectively disconnect should still implement
-   * this and disconnect everything regardless of `family`; the
-   * `WalletFamilySlot` UI only relies on a best-effort behavior here.
+   * this and disconnect everything regardless of `family`; the picker's
+   * per-family sections only rely on a best-effort behavior here.
    */
   disconnect?: (options?: {
     family?: WalletFamily | "all";

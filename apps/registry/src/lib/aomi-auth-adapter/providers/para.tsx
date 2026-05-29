@@ -571,7 +571,7 @@ export function AomiParaAdapterProvider({
       // `identity.isConnected`. With dual-family wallets (EVM + Solana
       // under one Para identity) the user can be connected on one family
       // while still wanting to connect the other, and vice versa for
-      // disconnect. The per-family WalletFamilySlot UI checks
+      // disconnect. The picker's per-family sections check
       // `identity.address` / `identity.svmAddress` independently.
       canConnect: Boolean(paraModal) || Boolean(solanaWalletDescriptors.length),
       canOpenAccountUI: Boolean(paraModal) && identity.isConnected,
