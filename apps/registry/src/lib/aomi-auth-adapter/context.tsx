@@ -11,6 +11,8 @@ const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
   canConnect: false,
   canOpenAccountUI: false,
   canDisconnect: false,
+  accounts: [],
+  selectAccount: async () => undefined,
   supportedNetworks: {
     evm: [],
     solana: [],

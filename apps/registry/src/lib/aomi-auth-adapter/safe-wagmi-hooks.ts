@@ -16,6 +16,7 @@ import {
   useSwitchChain,
   useWalletClient,
 } from "wagmi";
+import type { Connector } from "wagmi";
 import type { executeWalletCalls } from "@aomi-labs/react";
 import { normalizeAtomicCapabilities } from "./wallet-execution";
 
@@ -28,6 +29,7 @@ export type WagmiAccountShape = {
 
 export type WagmiConfigShape = {
   chains: readonly Chain[];
+  connectors: readonly Connector[];
 };
 
 const DISCONNECTED_WAGMI_ACCOUNT: WagmiAccountShape = {
@@ -38,6 +40,7 @@ const DISCONNECTED_WAGMI_ACCOUNT: WagmiAccountShape = {
 
 const DISCONNECTED_WAGMI_CONFIG: WagmiConfigShape = {
   chains: [],
+  connectors: [],
 };
 
 export function useSafeWagmiAccount(): WagmiAccountShape {
@@ -64,6 +67,7 @@ export function useSafeWagmiConfig(): WagmiConfigShape {
     const config = useConfig();
     return {
       chains: config.chains ?? [],
+      connectors: config.connectors ?? [],
     };
   } catch {
     return DISCONNECTED_WAGMI_CONFIG;

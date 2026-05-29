@@ -46,15 +46,18 @@ import {
 } from "../identity";
 import {
   useSafeCapabilities,
+  useSafeConnections,
   useSafeDisconnect,
   useSafeSendCallsSync,
   useSafeSendTransaction,
   useSafeSignTypedData,
+  useSafeSwitchAccount,
   useSafeSwitchChain,
   useSafeWagmiAccount,
   useSafeWagmiConfig,
   useSafeWalletClient,
 } from "../safe-wagmi-hooks";
+import { buildAccounts } from "../accounts";
 import type { AomiAuthAdapter, AomiAuthIdentity } from "../types";
 import type { WalletFamily } from "../types";
 import {
@@ -342,6 +345,8 @@ export function AomiParaAdapterProvider({
   const { walletClient } = useSafeWalletClient();
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
+  const evmConnections = useSafeConnections();
+  const { switchAccountAsync } = useSafeSwitchAccount();
   const { sendTransactionAsync } = useSafeSendTransaction();
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
   const { capabilities } = useSafeCapabilities();
@@ -454,6 +459,19 @@ export function AomiParaAdapterProvider({
     const solanaTransport = detectSolanaTransport(solanaWallet.walletName);
     const solanaCapabilities = getSolanaCapabilitySnapshot(solanaWallet);
 
+    const accounts = buildAccounts({
+      evmConnections: evmConnections.map((conn) => ({
+        id: conn.connectorId,
+        walletName: conn.connectorName,
+        address: conn.address,
+        chainId: conn.chainId,
+      })),
+      activeEvmAddress: address,
+      solana: svmAddress
+        ? { publicKey: svmAddress, walletName: solanaWallet.walletName }
+        : undefined,
+    });
+
     const identity: AomiAuthIdentity = isBooting
       ? {
           ...AOMI_AUTH_BOOTING_IDENTITY,
@@ -558,6 +576,30 @@ export function AomiParaAdapterProvider({
       canConnect: Boolean(paraModal) || Boolean(solanaWalletDescriptors.length),
       canOpenAccountUI: Boolean(paraModal) && identity.isConnected,
       canDisconnect: hasAnyDisconnectablePath,
+      accounts,
+      selectAccount: async (id: string) => {
+        const target = accounts.find((account) => account.id === id);
+        if (!target) {
+          throw new Error(`Unknown account: ${id}`);
+        }
+        if (target.family === "evm") {
+          setSelectedFamily("evm");
+          const connection = evmConnections.find(
+            (conn) => conn.connectorId === id,
+          );
+          if (connection && switchAccountAsync) {
+            const connector = wagmiConfig.connectors.find(
+              (c) => c.uid === connection.connectorId,
+            );
+            if (connector) {
+              await switchAccountAsync({ connector });
+            }
+          }
+          return;
+        }
+        // Solana is single-active; selecting it just focuses the family.
+        setSelectedFamily("solana");
+      },
       solanaWallets: solanaWalletDescriptors,
       connectSolanaWallet:
         solanaWallet.select && solanaWallet.connect
@@ -645,9 +687,28 @@ export function AomiParaAdapterProvider({
             // sign-in path (e.g. embedded Solana via Para social login).
           }
         }
+        if (requestedFamily === "evm" && address) {
+          // Already have a live EVM account — don't reopen the Para modal.
+          return;
+        }
         paraModal?.openModal({ step: "AUTH_MAIN" });
       },
       disconnect: async (options) => {
+        if (options?.accountId) {
+          const target = accounts.find((a) => a.id === options.accountId);
+          if (target?.family === "evm" && wagmiDisconnectAsync) {
+            const connector = wagmiConfig.connectors.find(
+              (c) => c.uid === target.id,
+            );
+            try {
+              await wagmiDisconnectAsync(connector ? { connector } : undefined);
+            } catch (error) {
+              console.warn("[aomi-auth-adapter] EVM account disconnect failed", error);
+            }
+            return;
+          }
+        }
+
         const requestedFamily = options?.family ?? activeFamily;
         const wantsAll = requestedFamily === "all";
 
@@ -789,6 +850,7 @@ export function AomiParaAdapterProvider({
     chainId,
     chainsById,
     connector,
+    evmConnections,
     isPending,
     paraAccount.embedded,
     paraAccount.external,
@@ -805,9 +867,11 @@ export function AomiParaAdapterProvider({
     selectedSolanaNetwork,
     solanaWallet,
     supportedSolanaNetworks,
+    switchAccountAsync,
     switchChainAsync,
     wagmiAddress,
     wagmiConfig.chains,
+    wagmiConfig.connectors,
     wagmiConnected,
     wagmiDisconnectAsync,
     walletClient,
