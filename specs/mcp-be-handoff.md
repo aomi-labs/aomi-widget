@@ -1,5 +1,12 @@
 # BE handoff — MCP v1 prototype
 
+> **Status (2026-05-31): DELIVERED on the BE.** Everything in this handoff
+> is implemented in `product-mono`: `POST /api/_internal/secrets` and the
+> `X-Aomi-Auth` guard (`bin/backend/src/endpoint/admin_scope/internal_secrets.rs`,
+> `bin/backend/src/auth/verify_headers.rs`). The atomic approvals path that
+> superseded the two-step flow is in `internal_approvals.rs`. This doc is
+> retained as the original design handoff — read it for intent, not status.
+
 What the Rust BE needs to add so the TypeScript MCP / `@aomi-labs/auth`
 prototype in `apps/portal` works end-to-end. v1 only. Postgres, KMS, mTLS,
 and the credential proxy are not in scope here.

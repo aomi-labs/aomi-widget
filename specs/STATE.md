@@ -2,9 +2,24 @@
 
 ## Last Updated
 
-2026-05-25 - Move reusable portal adapters into packages/mcp-core
+2026-05-31 - Merge main into mcp-v1 + MCP doc cleanup
 
 ## Recent Changes
+
+### Merge main into mcp-v1 + stale-doc cleanup (2026-05-31)
+
+- **Merged `origin/main`** into `mcp-v1` (PR #159). Only conflicts were
+  generated `dist/` artifacts (`packages/client/dist/*.map`,
+  `packages/react/dist/*`); resolved by rebuilding via `pnpm run build:lib`.
+  Lint clean.
+- **Refreshed stale MCP handoff docs** — BE (`product-mono`) has shipped the
+  full integration the docs described as pending. Added status banners to
+  `specs/mcp-be-handoff.md` and `specs/mcp-be-integration.md` pointing at the
+  live BE handlers (`internal_approvals.rs`, `vault.rs` `ingest_identity`,
+  `authorized_signer/privy.rs`). Verified TS↔Rust contract matches
+  field-for-field (`POST /api/_internal/approvals`, `X-Aomi-User`/`X-Aomi-Auth`).
+- **Stripped Claude-transcript artifact** from `docs/krexa-wallet.md` header.
+
 
 ### Move reusable portal adapters into packages/mcp-core (2026-05-25)
 
