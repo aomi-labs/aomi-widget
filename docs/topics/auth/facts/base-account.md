@@ -1,14 +1,14 @@
 ---
-title: Base Auth
-owner: platform
+title: Base Account Auth
+owner: frontend
 status: working
-area: base-auth
+area: auth
 review_after_days: 30
 sources_of_truth:
   - apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx
 ---
 
-# Base Auth
+# Base Account Auth
 
 ## Overview
 
@@ -16,7 +16,7 @@ Explain the subsystem's purpose, boundaries, and the main responsibilities visib
 
 ## Source Map
 
-- [apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx](../../apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx)
+- [apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx](../../../../apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx)
 
 ## Key Flows
 

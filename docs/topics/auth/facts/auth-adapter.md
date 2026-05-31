@@ -2,11 +2,11 @@
 title: Auth Adapter
 owner: frontend
 status: authoritative
-area: auth-adapter
+area: auth
 review_after_days: 30
 sources_of_truth:
   - apps/registry/src/lib/aomi-auth-adapter/context.tsx
-  - apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync.tsx
+  - packages/react/src/runtime/user-state-provider.tsx
   - apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx
   - apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx
   - apps/registry/src/lib/aomi-auth-adapter/types.ts
@@ -35,5 +35,6 @@ The auth adapter layer bridges host-specific wallet or account providers into th
 
 ## Related Topics
 
-- [widget-frame.md](widget-frame.md)
-- [runtime-react.md](runtime-react.md)
+- [apps/facts/widget-frame.md](../../apps/facts/widget-frame.md)
+- [client-runtime/facts/react-runtime.md](../../client-runtime/facts/react-runtime.md)
+- [auth/facts/auth.md](auth.md)
