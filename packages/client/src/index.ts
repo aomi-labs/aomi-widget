@@ -105,10 +105,12 @@ export {
   ALCHEMY_CHAIN_SLUGS,
   CHAIN_NAMES,
   CHAINS_BY_ID,
+  SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
   monad,
   monadTestnet,
 } from "./chains";
+export type { ChainInfo } from "./chains";
 
 // =============================================================================
 // Account Abstraction
