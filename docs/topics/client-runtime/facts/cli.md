@@ -2,7 +2,7 @@
 title: CLI
 owner: sdk
 status: authoritative
-area: cli
+area: client-runtime
 review_after_days: 30
 sources_of_truth:
   - packages/client/package.json
@@ -35,5 +35,5 @@ The `aomi` terminal client is published from `@aomi-labs/client` and shares its 
 
 ## Related Topics
 
-- [ts-client.md](ts-client.md)
-- [repo-overview.md](repo-overview.md)
+- [client-runtime/facts/transport-client.md](../../client-runtime/facts/transport-client.md)
+- [development/facts/workspace.md](../../development/facts/workspace.md)

@@ -7,7 +7,7 @@ import { Hex, Chain, TransactionReceipt } from 'viem';
  */
 type UserStateAAMode = "none" | "4337" | "7702";
 type UserStateWalletKind = "eoa" | "smart-account";
-type UserStateWalletProvider = "para" | "baseAccount";
+type UserStateWalletProvider = "para" | "privy" | "baseAccount";
 type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
 type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
 /**
@@ -34,7 +34,10 @@ interface UserState extends Record<string, unknown> {
     ens_name?: string | null;
     svm_address?: string | null;
     wallet_provider?: UserStateWalletProvider | null;
+    wallet_provider_subject?: string | null;
     auth_method?: UserStateAuthMethod | null;
+    auth_value?: string | null;
+    auth_verified_at?: number | string | null;
     sponsored?: boolean | null;
     sponsor_provider?: UserStateSponsorProvider | null;
     sponsor_account?: string | null;
@@ -73,7 +76,10 @@ declare namespace UserState {
     function isConnected(userState?: UserState | null): boolean | undefined;
     function ensName(userState?: UserState | null): string | undefined;
     function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
+    function walletProviderSubject(userState?: UserState | null): string | null | undefined;
     function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
+    function authValue(userState?: UserState | null): string | null | undefined;
+    function authVerifiedAt(userState?: UserState | null): number | null | undefined;
     function sponsored(userState?: UserState | null): boolean | null | undefined;
     function sponsorProvider(userState?: UserState | null): UserStateSponsorProvider | null | undefined;
     function sponsorAccount(userState?: UserState | null): string | null | undefined;

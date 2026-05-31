@@ -360,7 +360,26 @@ function parseUserStateWalletProvider(value) {
   if (value === null) {
     return null;
   }
-  return value === "para" || value === "baseAccount" ? value : void 0;
+  return value === "para" || value === "privy" || value === "baseAccount" ? value : void 0;
+}
+function parseUserStateOptionalString(value) {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && value.trim().length > 0 ? value : void 0;
+}
+function parseUserStateTimestamp(value) {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value !== "string") {
+    return void 0;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
 }
 function parseUserStateAuthMethod(value) {
   if (value === null) {
@@ -432,7 +451,10 @@ var init_types = __esm({
       pendingSolanaTxs: "pending_solana_txs",
       nextId: "next_id",
       walletProvider: "wallet_provider",
+      walletProviderSubject: "wallet_provider_subject",
       authMethod: "auth_method",
+      authValue: "auth_value",
+      authVerifiedAt: "auth_verified_at",
       sponsorProvider: "sponsor_provider",
       sponsorAccount: "sponsor_account"
     };
@@ -515,6 +537,15 @@ var init_types = __esm({
         if (!hasOwnKey(incoming, "auth_method") && canPreserveAAContext && authMethod(previous) !== void 0) {
           reconciled.auth_method = authMethod(previous);
         }
+        if (!hasOwnKey(incoming, "wallet_provider_subject") && canPreserveAAContext && walletProviderSubject(previous) !== void 0) {
+          reconciled.wallet_provider_subject = walletProviderSubject(previous);
+        }
+        if (!hasOwnKey(incoming, "auth_value") && canPreserveAAContext && authValue(previous) !== void 0) {
+          reconciled.auth_value = authValue(previous);
+        }
+        if (!hasOwnKey(incoming, "auth_verified_at") && canPreserveAAContext && authVerifiedAt(previous) !== void 0) {
+          reconciled.auth_verified_at = authVerifiedAt(previous);
+        }
         if (!hasOwnKey(incoming, "sponsored") && canPreserveAAContext && sponsored(previous) !== void 0) {
           reconciled.sponsored = sponsored(previous);
         }
@@ -584,11 +615,26 @@ var init_types = __esm({
         return parseUserStateWalletProvider(normalized == null ? void 0 : normalized.wallet_provider);
       }
       UserState2.walletProvider = walletProvider;
+      function walletProviderSubject(userState) {
+        const normalized = normalize(userState);
+        return parseUserStateOptionalString(normalized == null ? void 0 : normalized.wallet_provider_subject);
+      }
+      UserState2.walletProviderSubject = walletProviderSubject;
       function authMethod(userState) {
         const normalized = normalize(userState);
         return parseUserStateAuthMethod(normalized == null ? void 0 : normalized.auth_method);
       }
       UserState2.authMethod = authMethod;
+      function authValue(userState) {
+        const normalized = normalize(userState);
+        return parseUserStateOptionalString(normalized == null ? void 0 : normalized.auth_value);
+      }
+      UserState2.authValue = authValue;
+      function authVerifiedAt(userState) {
+        const normalized = normalize(userState);
+        return parseUserStateTimestamp(normalized == null ? void 0 : normalized.auth_verified_at);
+      }
+      UserState2.authVerifiedAt = authVerifiedAt;
       function sponsored(userState) {
         const normalized = normalize(userState);
         return parseUserStateSponsored(normalized == null ? void 0 : normalized.sponsored);

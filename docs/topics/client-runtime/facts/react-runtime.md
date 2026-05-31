@@ -1,8 +1,8 @@
 ---
-title: Runtime React
+title: React Runtime
 owner: frontend
 status: authoritative
-area: runtime-react
+area: client-runtime
 review_after_days: 30
 sources_of_truth:
   - packages/react/src/runtime/aomi-runtime.tsx
@@ -12,7 +12,7 @@ sources_of_truth:
   - packages/react/src/contexts/thread-context.tsx
 ---
 
-# Runtime React
+# React Runtime
 
 `@aomi-labs/react` is the headless runtime that coordinates thread state, backend IO, wallet requests, and control state for the widget and custom UIs.
 
@@ -36,6 +36,6 @@ sources_of_truth:
 
 ## Related Topics
 
-- [widget-frame.md](widget-frame.md)
-- [ts-client.md](ts-client.md)
-- [auth-adapter.md](auth-adapter.md)
+- [apps/facts/widget-frame.md](../../apps/facts/widget-frame.md)
+- [client-runtime/facts/transport-client.md](../../client-runtime/facts/transport-client.md)
+- [auth/facts/auth-adapter.md](../../auth/facts/auth-adapter.md)
