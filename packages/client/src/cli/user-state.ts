@@ -2,7 +2,9 @@ import {
   CLIENT_TYPE_TS_CLI,
   UserState,
   type UserStateAAMode,
-} from "../types";
+  type UserStateEvm,
+  type UserStateEvmAa,
+} from "../user-state";
 import { getAddress } from "viem";
 import type { PendingSolTx, PendingTx } from "./state";
 import { normalizePendingTxData } from "../wallet-utils";
@@ -75,26 +77,34 @@ export function buildCliUserState(
   },
 ): UserState {
   const userState: UserState = {};
+  const evm: UserStateEvm = {};
 
   if (publicKey !== undefined) {
-    userState.address = publicKey;
+    evm.address = publicKey;
   }
 
   if (chainId !== undefined) {
-    userState.chain_id = chainId;
+    evm.chain_id = chainId;
+  }
+
+  // walletKind is derived from evm.aa (smart_account === address), so we only
+  // record the AA mode + executor here rather than an explicit kind field.
+  if (aa?.aaMode === "4337" || aa?.aaMode === "7702") {
+    const aaState: UserStateEvmAa = { mode: aa.aaMode };
+    if (aa.smartAccount != null) {
+      aaState.smart_account = aa.smartAccount;
+    }
+    evm.aa = aaState;
+  } else if (aa?.aaMode === null) {
+    evm.aa = { mode: "none" };
+  }
+
+  if (Object.keys(evm).length > 0) {
+    userState.evm = evm;
   }
 
   if (publicKey !== undefined && chainId !== undefined) {
-    userState.is_connected = true;
-  }
-
-  if (aa?.aaMode === "4337" || aa?.aaMode === "7702") {
-    userState.aa_mode = aa.aaMode;
-    userState.wallet_kind =
-      publicKey && aa.smartAccount === publicKey ? "smart-account" : "eoa";
-  } else if (aa?.aaMode === null) {
-    userState.aa_mode = "none";
-    userState.wallet_kind = "eoa";
+    userState.connection = { is_connected: true };
   }
 
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
@@ -113,7 +123,8 @@ export function pendingTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const nextPendingTxs: PendingTx[] = [];
 
-  const pendingTxs = asRecord(normalizedUserState.pending_txs) ?? {};
+  const pending = asRecord(normalizedUserState.pending) ?? {};
+  const pendingTxs = asRecord(pending.evm_txs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId(rawId);
     const tx = asRecord(rawValue);
@@ -151,7 +162,7 @@ export function pendingTxsFromBackendUserState(
     });
   }
 
-  const pendingEip712s = asRecord(normalizedUserState.pending_eip712s) ?? {};
+  const pendingEip712s = asRecord(pending.evm_sigs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -188,10 +199,17 @@ export function pendingTxsFromBackendUserState(
 
 /**
  * Rebuild the local Solana pending list from the backend's authoritative
- * `pending_solana_txs` map. Mirrors [`pendingTxsFromBackendUserState`] but
+ * `pending.svm_ixs` bucket. Mirrors [`pendingTxsFromBackendUserState`] but
  * for the Solana domain only — kept in its own function so the caller's
  * EVM/EIP-712 state and Solana state stay in separate arrays rather than
  * a discriminated union.
+ *
+ * SEMANTIC GAP: the backend moved Solana from a full-tx signing model
+ * (`unsigned_tx`) to an instruction-staging model (`svm_ixs` + `svm_sigs`).
+ * Staged-instruction records carry no `unsigned_tx`, so the guard below filters
+ * them out — they render nothing rather than being mis-mapped. Wiring the
+ * instruction-staging / `svm_sigs` flow into the CLI signer needs product-level
+ * rework; this only keeps legacy unsigned-tx records working.
  */
 export function pendingSolTxsFromBackendUserState(
   userState: UserState | null | undefined,
@@ -206,7 +224,8 @@ export function pendingSolTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const next: PendingSolTx[] = [];
 
-  const pendingSolanaTxs = asRecord(normalizedUserState.pending_solana_txs) ?? {};
+  const pending = asRecord(normalizedUserState.pending) ?? {};
+  const pendingSolanaTxs = asRecord(pending.svm_ixs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
