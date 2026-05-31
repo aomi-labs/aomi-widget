@@ -1,7 +1,11 @@
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { AomiMessage } from "@aomi-labs/client";
-import type { UserState } from "@aomi-labs/client";
+import {
+  SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS,
+  type AomiMessage,
+  type ChainInfo,
+  type UserState,
+} from "@aomi-labs/client";
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -165,22 +169,10 @@ export const formatAddress = (addr?: string): string =>
 
 // ==================== Chain Metadata ====================
 
-/** Static metadata for a supported chain */
-export type ChainInfo = { id: number; name: string; ticker: string };
+export type { ChainInfo } from "@aomi-labs/client";
 
-/** All chains supported by the application. Single source of truth. */
-export const SUPPORTED_CHAINS: ChainInfo[] = [
-  { id: 1, name: "Ethereum", ticker: "ETH" },
-  { id: 137, name: "Polygon", ticker: "MATIC" },
-  { id: 42161, name: "Arbitrum", ticker: "ARB" },
-  { id: 8453, name: "Base", ticker: "BASE" },
-  { id: 10, name: "Optimism", ticker: "OP" },
-  { id: 11155111, name: "Sepolia", ticker: "SEP" },
-  { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
-  { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
-  { id: 143, name: "Monad", ticker: "MON" },
-  { id: 10143, name: "Monad Testnet", ticker: "MON" },
-];
+/** All chains supported by the application. Sourced from @aomi-labs/client. */
+export const SUPPORTED_CHAINS: ChainInfo[] = [...CLIENT_SUPPORTED_CHAINS];
 
 /** Look up ChainInfo by chain ID. Returns undefined for unknown chains. */
 export const getChainInfo = (

@@ -1037,6 +1037,7 @@ import {
   createContext as createContext3,
   useCallback as useCallback3,
   useContext as useContext3,
+  useRef as useRef3,
   useState as useState2
 } from "react";
 import { jsx as jsx3 } from "react/jsx-runtime";
@@ -1058,19 +1059,30 @@ function NotificationContextProvider({
   children
 }) {
   const [notifications, setNotifications] = useState2([]);
+  const paymentRequiredIdRef = useRef3(null);
   const showNotification = useCallback3((params) => {
+    if (params.kind === "payment_required" && paymentRequiredIdRef.current) {
+      return paymentRequiredIdRef.current;
+    }
     const id = generateId();
     const notification = __spreadProps(__spreadValues({}, params), {
       id,
       timestamp: Date.now()
     });
+    if (params.kind === "payment_required") {
+      paymentRequiredIdRef.current = id;
+    }
     setNotifications((prev) => [notification, ...prev]);
     return id;
   }, []);
   const dismissNotification = useCallback3((id) => {
+    if (paymentRequiredIdRef.current === id) {
+      paymentRequiredIdRef.current = null;
+    }
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
   const clearAll = useCallback3(() => {
+    paymentRequiredIdRef.current = null;
     setNotifications([]);
   }, []);
   const value = {
@@ -1087,7 +1099,7 @@ import {
   createContext as createContext4,
   useContext as useContext4,
   useMemo,
-  useRef as useRef3,
+  useRef as useRef4,
   useSyncExternalStore
 } from "react";
 import { jsx as jsx4 } from "react/jsx-runtime";
@@ -1105,7 +1117,7 @@ function ThreadContextProvider({
   children,
   initialThreadId
 }) {
-  const storeRef = useRef3(null);
+  const storeRef = useRef4(null);
   if (!storeRef.current) {
     storeRef.current = new ThreadStore({ initialThreadId });
   }
@@ -1137,7 +1149,7 @@ import {
   createContext as createContext5,
   useCallback as useCallback4,
   useContext as useContext5,
-  useRef as useRef4,
+  useRef as useRef5,
   useState as useState3
 } from "react";
 import { UserState } from "@aomi-labs/client";
@@ -1173,9 +1185,9 @@ function ExtUserProviderImpl({ children }) {
     ens_name: void 0,
     ext: void 0
   });
-  const userRef = useRef4(user);
+  const userRef = useRef5(user);
   userRef.current = user;
-  const StateChangeCallbacks = useRef4(
+  const StateChangeCallbacks = useRef5(
     /* @__PURE__ */ new Set()
   );
   const notifyStateChange = useCallback4((next) => {
@@ -1293,7 +1305,7 @@ function ExtUserProviderImpl({ children }) {
 }
 
 // packages/react/src/runtime/core.tsx
-import { useCallback as useCallback8, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8, useState as useState7 } from "react";
+import { useCallback as useCallback8, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef9, useState as useState7 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
@@ -1301,7 +1313,7 @@ import {
 import { UserState as UserState3 } from "@aomi-labs/client";
 
 // packages/react/src/runtime/orchestrator.ts
-import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
+import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef6, useState as useState4 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
 // packages/react/src/runtime/session-manager.ts
@@ -1364,6 +1376,9 @@ var SessionManager = class {
 };
 
 // packages/react/src/runtime/utils.ts
+import {
+  SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS
+} from "@aomi-labs/client";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1462,18 +1477,7 @@ var getNetworkName = (chainId) => {
   }
 };
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-var SUPPORTED_CHAINS = [
-  { id: 1, name: "Ethereum", ticker: "ETH" },
-  { id: 137, name: "Polygon", ticker: "MATIC" },
-  { id: 42161, name: "Arbitrum", ticker: "ARB" },
-  { id: 8453, name: "Base", ticker: "BASE" },
-  { id: 10, name: "Optimism", ticker: "OP" },
-  { id: 11155111, name: "Sepolia", ticker: "SEP" },
-  { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
-  { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
-  { id: 143, name: "Monad", ticker: "MON" },
-  { id: 10143, name: "Monad Testnet", ticker: "MON" }
-];
+var SUPPORTED_CHAINS = [...CLIENT_SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
 // packages/react/src/runtime/orchestrator.ts
@@ -1486,13 +1490,14 @@ var getHttpStatus = (error) => {
   return match ? Number(match[1]) : void 0;
 };
 var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
+var PAYMENT_REQUIRED_MESSAGE = "You're out of funds, please set up a payment method.";
 var buildPaymentRequiredMessage = () => ({
   id: `aomi-payment-required-${Date.now()}`,
   role: "assistant",
   content: [
     {
       type: "text",
-      text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access."
+      text: PAYMENT_REQUIRED_MESSAGE
     }
   ],
   createdAt: /* @__PURE__ */ new Date(),
@@ -1543,8 +1548,13 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
 var appendPaymentRequiredMessage = (threadContext, threadId) => {
   var _a, _b;
   const messages = threadContext.getThreadMessages(threadId);
-  const lastMessage = messages[messages.length - 1];
-  const hasPaymentNotice = ((_b = (_a = lastMessage == null ? void 0 : lastMessage.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+  let hasPaymentNotice = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    hasPaymentNotice = ((_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+    break;
+  }
   if (hasPaymentNotice) return;
   threadContext.setThreadMessages(threadId, [
     ...messages,
@@ -1553,21 +1563,21 @@ var appendPaymentRequiredMessage = (threadContext, threadId) => {
 };
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
-  const threadContextRef = useRef5(threadContext);
+  const threadContextRef = useRef6(threadContext);
   threadContextRef.current = threadContext;
-  const aomiClientRef = useRef5(aomiClient);
+  const aomiClientRef = useRef6(aomiClient);
   aomiClientRef.current = aomiClient;
-  const optionsRef = useRef5(options);
+  const optionsRef = useRef6(options);
   optionsRef.current = options;
   const [isRunning, setIsRunning] = useState4(false);
-  const sessionManagerRef = useRef5(null);
+  const sessionManagerRef = useRef6(null);
   if (!sessionManagerRef.current) {
     sessionManagerRef.current = new SessionManager(() => aomiClientRef.current);
   }
-  const pendingFetches = useRef5(/* @__PURE__ */ new Set());
-  const initialStatePromises = useRef5(/* @__PURE__ */ new Map());
-  const hydratedThreadIds = useRef5(/* @__PURE__ */ new Set());
-  const listenerCleanups = useRef5(/* @__PURE__ */ new Map());
+  const pendingFetches = useRef6(/* @__PURE__ */ new Set());
+  const initialStatePromises = useRef6(/* @__PURE__ */ new Map());
+  const hydratedThreadIds = useRef6(/* @__PURE__ */ new Set());
+  const listenerCleanups = useRef6(/* @__PURE__ */ new Map());
   const cleanupSessionListeners = useCallback5((threadId) => {
     var _a;
     (_a = listenerCleanups.current.get(threadId)) == null ? void 0 : _a();
@@ -2022,14 +2032,14 @@ function useAomiRuntime() {
 }
 
 // packages/react/src/handlers/wallet-handler.ts
-import { useCallback as useCallback6, useRef as useRef6, useState as useState5 } from "react";
+import { useCallback as useCallback6, useRef as useRef7, useState as useState5 } from "react";
 function useWalletHandler({
   getSession
 }) {
   const [pendingRequests, setPendingRequests] = useState5([]);
-  const requestsRef = useRef6(pendingRequests);
-  const inFlightRequestSetRef = useRef6(/* @__PURE__ */ new Set());
-  const suppressedRequestSetRef = useRef6(/* @__PURE__ */ new Set());
+  const requestsRef = useRef7(pendingRequests);
+  const inFlightRequestSetRef = useRef7(/* @__PURE__ */ new Set());
+  const suppressedRequestSetRef = useRef7(/* @__PURE__ */ new Set());
   const syncVisibleRequests = useCallback6(() => {
     setPendingRequests(
       requestsRef.current.filter(
@@ -2115,7 +2125,7 @@ function useWalletHandler({
 import {
   useCallback as useCallback7,
   useEffect as useEffect3,
-  useRef as useRef7,
+  useRef as useRef8,
   useState as useState6
 } from "react";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
@@ -2165,7 +2175,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
     },
     [getUserState]
   );
-  const lastWalletStateRef = useRef7(walletSnapshot(getUserState()));
+  const lastWalletStateRef = useRef8(walletSnapshot(getUserState()));
   useEffect3(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
     const unsubscribe = onUserStateChange(async (newUser) => {
@@ -2222,8 +2232,8 @@ function useUserStateRequestResponder(context, sessions) {
 }
 function useRemoteThreadListSync(context, sessions, remoteThreads) {
   const [isThreadListLoading, setIsThreadListLoading] = useState6(true);
-  const prefetchCancelRef = useRef7(null);
-  const lastConnectedAddressRef = useRef7(void 0);
+  const prefetchCancelRef = useRef8(null);
+  const lastConnectedAddressRef = useRef8(void 0);
   const {
     getControlState,
     threadContextRef,
@@ -2433,7 +2443,7 @@ function useRuntimeUserStateEffects({
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
   const { getControlState } = useControl();
-  const threadContextRef = useRef7(threadContext);
+  const threadContextRef = useRef8(threadContext);
   threadContextRef.current = threadContext;
   const context = {
     getControlState,
@@ -2461,7 +2471,7 @@ function RuntimeUserStateProvider({
   setUser,
   onUserStateChange
 }) {
-  const lastSerializedStateRef = useRef7("");
+  const lastSerializedStateRef = useRef8("");
   useEffect3(() => {
     const applyToSessions = (next) => {
       const serialized = stableStateString(next);
@@ -2518,7 +2528,7 @@ function AomiRuntimeCore({
     getPreferredThreadControl,
     syncCurrentThreadControl
   } = useControl();
-  const sessionManagerRef = useRef8(null);
+  const sessionManagerRef = useRef9(null);
   const walletHandler = useWalletHandler({
     getSession: () => {
       var _a;
@@ -2567,7 +2577,15 @@ function AomiRuntimeCore({
     onSendError: async (threadId, error) => {
       const wasMaterializedForSend = threadsMaterializedForSendRef.current.has(threadId);
       threadsMaterializedForSendRef.current.delete(threadId);
-      if (getHttpStatus2(error) !== 402 || !wasMaterializedForSend) {
+      const httpStatus = getHttpStatus2(error);
+      if (httpStatus === 402) {
+        notificationContext.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds"
+        });
+      }
+      if (httpStatus !== 402 || !wasMaterializedForSend) {
         return;
       }
       try {
@@ -2582,13 +2600,13 @@ function AomiRuntimeCore({
     onEvent: (event) => eventContext.dispatch(event)
   });
   sessionManagerRef.current = sessionManager;
-  const threadContextRef = useRef8(threadContext);
+  const threadContextRef = useRef9(threadContext);
   threadContextRef.current = threadContext;
-  const remoteThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
-  const warmedThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
-  const warmPromisesRef = useRef8(/* @__PURE__ */ new Map());
-  const threadsMaterializedForSendRef = useRef8(/* @__PURE__ */ new Set());
-  const ensuredAccountPublicKeysRef = useRef8(/* @__PURE__ */ new Set());
+  const remoteThreadIdsRef = useRef9(/* @__PURE__ */ new Set());
+  const warmedThreadIdsRef = useRef9(/* @__PURE__ */ new Set());
+  const warmPromisesRef = useRef9(/* @__PURE__ */ new Map());
+  const threadsMaterializedForSendRef = useRef9(/* @__PURE__ */ new Set());
+  const ensuredAccountPublicKeysRef = useRef9(/* @__PURE__ */ new Set());
   const [isThreadLoading, setIsThreadLoading] = useState7(false);
   const ensureAccountForPublicKey = useCallback8(
     async (sessionId, publicKey) => {

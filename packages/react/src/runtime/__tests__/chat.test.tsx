@@ -136,7 +136,7 @@ describe("Chat API", () => {
       });
     });
 
-    it("adds an inline x402 credits notice when the backend returns 402", async () => {
+    it("adds an inline payment notice and popup when the backend returns 402", async () => {
       const createThread = vi.fn();
       const deleteThread = vi.fn(async () => undefined);
       const setModel = vi.fn(async () => ({ rig: "auto-model" }));
@@ -151,7 +151,7 @@ describe("Chat API", () => {
         postChatMessage,
       });
 
-      const { api, control } = renderRuntime();
+      const { api, control, getApi } = renderRuntime();
 
       await act(async () => {
         await control.getAvailableModels();
@@ -190,9 +190,15 @@ describe("Chat API", () => {
       expect(messages[1].content).toEqual([
         {
           type: "text",
-          text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
+          text: "You're out of funds, please set up a payment method.",
         },
       ]);
+      expect(getApi().notifications).toHaveLength(1);
+      expect(getApi().notifications[0]).toMatchObject({
+        type: "error",
+        kind: "payment_required",
+        title: "You're out of funds",
+      });
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
       expect(setModel).toHaveBeenCalledWith(
         api.currentThreadId,
@@ -203,6 +209,61 @@ describe("Chat API", () => {
         postChatMessage.mock.invocationCallOrder[0],
       );
       expect(deleteThread).toHaveBeenCalledWith(api.currentThreadId);
+    });
+
+    it("dedupes the inline payment notice across back-to-back 402s", async () => {
+      const createThread = vi.fn();
+      const deleteThread = vi.fn(async () => undefined);
+      const setModel = vi.fn(async () => ({ rig: "auto-model" }));
+      const postChatMessage = vi.fn(async () => {
+        throw new Error("HTTP 402: Payment Required");
+      });
+      setAomiClientConfig({
+        createThread,
+        deleteThread,
+        getModels: vi.fn(async () => ["auto-model"]),
+        setModel,
+        postChatMessage,
+      });
+
+      const { api, control, getApi } = renderRuntime();
+
+      await act(async () => {
+        await control.getAvailableModels();
+      });
+
+      await waitFor(() => {
+        expect(
+          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
+        ).toBe(true);
+      });
+
+      await act(async () => {
+        await expect(api.sendMessage("first attempt")).rejects.toThrow(
+          "HTTP 402",
+        );
+      });
+      await act(async () => {
+        await expect(api.sendMessage("second attempt")).rejects.toThrow(
+          "HTTP 402",
+        );
+      });
+
+      const messages = api.getMessages();
+      // Expected layout: user1(failed), notice, user2(failed). The second send
+      // should NOT append a second notice — `last message is the notice` would
+      // miss because user2 is between them; walking back skips users.
+      const notices = messages.filter(
+        (m) =>
+          m.role === "assistant" &&
+          m.metadata?.custom?.aomiNoticeKind === "payment_required",
+      );
+      expect(notices).toHaveLength(1);
+
+      // Popup notification should also be deduped by the context.
+      expect(
+        getApi().notifications.filter((n) => n.kind === "payment_required"),
+      ).toHaveLength(1);
     });
 
     it("syncs dirty control state before the first message on a new thread", async () => {
