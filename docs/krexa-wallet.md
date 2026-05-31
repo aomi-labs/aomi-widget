@@ -1,8 +1,5 @@
-⏺ Now I have the full picture. Here's the integration guide for Krexa:                                     
-                                                                                                           
-  ---                                                                                                      
-  Krexa Integration: Bring Your Own Privy Wallet                                                           
-                                                                                                           
+# Krexa Integration: Bring Your Own Privy Wallet
+
   Krexa's users connect their wallet at the Krexa app level (Privy). The AomiFrame inside needs to reuse   
   that same wallet session rather than showing its own connect flow.                                       
                                                                                                            

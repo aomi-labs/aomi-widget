@@ -1,12 +1,23 @@
 # MCP BE Integration — coherent plan
 
+> **Status (2026-05-31): BE side fully implemented.** The phases below are
+> all shipped in `product-mono`: `POST /api/_internal/approvals`
+> (`bin/backend/src/endpoint/admin_scope/internal_approvals.rs`),
+> `SecretVault::ingest_identity` + `identity_records` (`crates/tools/src/vault.rs`),
+> and the Privy wallet provider + agent tools
+> (`crates/tools/src/authorized_signer/privy.rs`,
+> `crates/tools/src/authorized_signing/{authorized_sign,get_wallet_provider_info}.rs`).
+> The portal/`@aomi-labs/auth` side calls these via `BeApprovalsStore`. Read
+> this doc for the design rationale; the §0 table and §3 checkboxes below
+> reflect the original planning snapshot, not current state.
+
 Takes ownership of the BE-side work to make the MCP→Aomi loop genuinely
 useful (Claude → Aomi → on-chain tx via Privy). Lays out the integration
 between portal (TS) and BE (Rust) end-to-end, grounded in the real
 entities (`DbUser`, `DbAuthIdentity`, `DbAccessApproval`, `DbPendingAuth`,
 `SecretVault`).
 
-## 0. Where we are
+## 0. Where we are (original planning snapshot — now superseded)
 
 | Layer | State |
 | --- | --- |
@@ -14,9 +25,9 @@ entities (`DbUser`, `DbAuthIdentity`, `DbAccessApproval`, `DbPendingAuth`,
 | Portal OAuth (`dummy`, `privy`) → callback → BE secret ingest | works |
 | BE `/api/_internal/secrets` (X-Aomi-Auth guarded, SecretVault per `(user_id, app)`) | works |
 | BE `AccessClient` (Path 2 outbound, `CanonicalUserId` extractor) | shipped |
-| BE Diesel entities (`auth_identities`, `access_approvals`, `pending_auths`) | defined, **no handlers** |
+| BE Diesel entities (`auth_identities`, `access_approvals`, `pending_auths`) | now wired via `internal_approvals.rs` |
 | Portal `access_approval` / `pending_auths` | in-memory, lost on HMR |
-| Agent tool reading PRIVY_*, signing via Privy | **not built** |
+| Agent tool reading PRIVY_*, signing via Privy | shipped (`authorized_signer/privy.rs`) |
 
 ## 1. The data model the agent must respect
 
