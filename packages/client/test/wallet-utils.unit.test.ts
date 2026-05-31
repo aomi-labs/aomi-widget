@@ -124,6 +124,45 @@ describe("wallet payload normalization", () => {
     });
   });
 
+  it("hydrates id-only tx payloads from nested user_state.pending.evm_txs", () => {
+    const hydrated = hydrateTxPayloadFromUserState(
+      {
+        txId: 10,
+        txIds: [10],
+        aaPreference: "auto",
+      },
+      {
+        pending: {
+          evmTxs: {
+            10: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "7",
+              data: "0x",
+              chainId: "8453",
+            },
+          },
+        },
+      },
+      { strict: true },
+    );
+
+    expect(hydrated).toMatchObject({
+      txId: 10,
+      txIds: [10],
+      to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+      value: "7",
+      data: "0x",
+      chainId: 8453,
+      calls: [
+        expect.objectContaining({
+          txId: 10,
+          value: "7",
+          chainId: 8453,
+        }),
+      ],
+    });
+  });
+
   it("strips stray calldata from hydrated native transfers", () => {
     const hydrated = hydrateTxPayloadFromUserState(
       {
